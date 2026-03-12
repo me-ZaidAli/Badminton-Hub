@@ -176,6 +176,9 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+  } else if (hasClubAdminAccess) {
+    const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
   }
 
   const isAdminRole = user?.role === "OWNER" || user?.role === "ADMIN";

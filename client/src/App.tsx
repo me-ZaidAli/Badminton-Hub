@@ -195,7 +195,7 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = isSuperUser || user?.role === "ADMIN";
   
-  if (!isPlatformAdmin || (!isSuperUser && !hasClubAdminAccess)) {
+  if (!isPlatformAdmin && !hasClubAdminAccess) {
     setLocation("/dashboard");
     return null;
   }
@@ -230,7 +230,12 @@ function NonOrganiserAdminRoute({ component: Component }: { component: React.Com
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = isSuperUser || user?.role === "ADMIN";
   
-  if (!isPlatformAdmin || (!isSuperUser && (!hasClubAdminAccess || isOrganiserOnly))) {
+  if (!isPlatformAdmin && !hasClubAdminAccess) {
+    setLocation("/dashboard");
+    return null;
+  }
+  
+  if (!isSuperUser && !isPlatformAdmin && isOrganiserOnly) {
     setLocation("/dashboard");
     return null;
   }

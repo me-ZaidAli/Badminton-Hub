@@ -143,6 +143,36 @@ async function hasAdminAccess(userId: number, userRole: string, clubId?: number)
   return result;
 }
 
+async function isAnyClubAdmin(userId: number, userRole: string): Promise<boolean> {
+  if (userRole === "OWNER" || userRole === "ADMIN") return true;
+  const profiles = await db.select({ clubRole: playerProfiles.clubRole })
+    .from(playerProfiles)
+    .where(and(
+      eq(playerProfiles.userId, userId),
+      eq(playerProfiles.membershipStatus, "APPROVED"),
+      inArray(playerProfiles.clubRole, ["OWNER", "ADMIN"])
+    ))
+    .limit(1);
+  return profiles.length > 0;
+}
+
+async function getUserAdminClubIds(userId: number, userRole: string): Promise<number[]> {
+  if (userRole === "OWNER") {
+    const allClubs = await db.select({ id: clubs.id }).from(clubs);
+    return allClubs.map(c => c.id);
+  }
+  const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, userId));
+  const adminProfiles = await db.select({ clubId: playerProfiles.clubId })
+    .from(playerProfiles)
+    .where(and(
+      eq(playerProfiles.userId, userId),
+      eq(playerProfiles.membershipStatus, "APPROVED"),
+      inArray(playerProfiles.clubRole, ["OWNER", "ADMIN"])
+    ));
+  const idSet = new Set([...ownedClubs.map(c => c.id), ...adminProfiles.map(p => p.clubId)]);
+  return [...idSet];
+}
+
 async function canManageSessions(userId: number, userRole: string, clubId: number): Promise<boolean> {
   const result = await canPerform({ id: userId, role: userRole }, "MANAGE_SESSIONS", clubId);
   log_rbac("MANAGE_SESSIONS", userId, result, { clubId });
@@ -1051,7 +1081,7 @@ export async function registerRoutes(
 
   app.put("/api/user/sidebar-pin", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const { pin } = req.body;
       if (pin !== null && pin !== undefined) {
@@ -1210,8 +1240,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/users/:userId/profile-picture", uploadProfilePhoto.single("photo"), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       if (!req.file) return res.status(400).json({ message: "No image file provided" });
       const userId = Number(req.params.userId);
@@ -1226,8 +1255,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/player-profiles/:profileId/inline", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
 
     try {
       const profileId = Number(req.params.profileId);
@@ -1283,8 +1311,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/player-profiles/:profileId/grade", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
 
     try {
       const profileId = Number(req.params.profileId);
@@ -1308,8 +1335,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/player-profiles/:profileId/admin-locked", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
 
     try {
       const profileId = Number(req.params.profileId);
@@ -1329,8 +1355,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/clubs/:clubId/auto-grading", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
 
     try {
       const clubId = Number(req.params.clubId);
@@ -1350,8 +1375,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/clubs/:clubId/evaluate-grades", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
 
     try {
       const clubId = Number(req.params.clubId);
@@ -6108,7 +6132,7 @@ export async function registerRoutes(
   app.post("/api/admin/match-engine-lab/simulate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
 
     try {
       const {
@@ -6410,8 +6434,7 @@ export async function registerRoutes(
 
   app.post(api.announcements.create.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
     const input = api.announcements.create.input.parse(req.body);
@@ -6430,8 +6453,7 @@ export async function registerRoutes(
 
   app.post("/api/announcements/upload-image", uploadAnnouncementPhoto.single("image"), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
     const imageUrl = `/uploads/announcements/${req.file.filename}`;
     res.json({ imageUrl });
@@ -6439,8 +6461,7 @@ export async function registerRoutes(
 
   app.patch("/api/announcements/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     const id = parseInt(req.params.id);
     const updateSchema = z.object({
       title: z.string().optional(),
@@ -6458,8 +6479,7 @@ export async function registerRoutes(
 
   app.delete("/api/announcements/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     const id = parseInt(req.params.id);
     await storage.deleteAnnouncement(id);
     res.sendStatus(204);
@@ -6531,20 +6551,24 @@ export async function registerRoutes(
   // === Admin Endpoints ===
   app.get("/api/admin/signups", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    // Check role (ADMIN, OWNER)
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
     const allSignups = await storage.getAllSignups();
-    res.json(allSignups);
+    if (isSuperAdmin(req.user!)) {
+      return res.json(allSignups);
+    }
+    const adminClubIds = await getUserAdminClubIds(req.user!.id, req.user!.role);
+    const adminClubSet = new Set(adminClubIds);
+    const filtered = allSignups.filter((s: any) => s.session?.clubId && adminClubSet.has(s.session.clubId));
+    res.json(filtered);
   });
 
   // === Player Management ===
   app.post("/api/admin/players", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    const isAdmin = await isAnyClubAdmin(req.user!.id, req.user!.role);
+    if (!isAdmin) {
       return res.sendStatus(403);
     }
 
@@ -6572,8 +6596,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/players/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
 
@@ -7819,9 +7842,8 @@ export async function registerRoutes(
   // === User Account Approval ===
   app.get("/api/admin/pending-users", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
-      return res.sendStatus(403);
+    if (!isSuperAdmin(req.user!)) {
+      return res.json([]);
     }
 
     try {
@@ -7835,8 +7857,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/users/:id/approve", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!isSuperAdmin(req.user!)) {
       return res.sendStatus(403);
     }
 
@@ -7852,8 +7873,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/users/:id/reject", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!isSuperAdmin(req.user!)) {
       return res.sendStatus(403);
     }
 
@@ -7869,8 +7889,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/users/bulk-action", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
 
@@ -7899,8 +7918,7 @@ export async function registerRoutes(
   // === Admin: Club Management ===
   app.post("/api/admin/clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
 
@@ -8311,8 +8329,7 @@ export async function registerRoutes(
   // === Google Calendar Integration ===
   app.get("/api/admin/calendar/calendars", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
 
@@ -8327,8 +8344,7 @@ export async function registerRoutes(
 
   app.get("/api/admin/calendar/events", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
 
@@ -8344,8 +8360,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/calendar/import", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = (req.user as any).role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
 
@@ -8465,8 +8480,7 @@ export async function registerRoutes(
   // Get player session history with payment info
   app.get("/api/admin/players/:playerId/sessions", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) {
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) {
       return res.sendStatus(403);
     }
 
@@ -12100,10 +12114,17 @@ export async function registerRoutes(
 
   // Admin get all contact messages
   app.get("/api/admin/messages", requirePremium(clubIdFromSession), async (req, res) => {
-    if (!req.isAuthenticated() || (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN")) return res.sendStatus(403);
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const msgs = await storage.getContactMessages();
-      res.json(msgs);
+      if (isSuperAdmin(req.user!)) {
+        return res.json(msgs);
+      }
+      const adminClubIds = await getUserAdminClubIds(req.user!.id, req.user!.role);
+      const adminClubSet = new Set(adminClubIds);
+      const filtered = msgs.filter((m: any) => m.clubId && adminClubSet.has(m.clubId));
+      res.json(filtered);
     } catch (err) {
       console.error("Error fetching messages:", err);
       res.status(500).json({ message: "Failed to fetch messages" });
@@ -17733,7 +17754,7 @@ export async function registerRoutes(
   app.get("/api/admin/analytics/acquisition", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
 
     try {
       const dateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : undefined;
@@ -17994,7 +18015,7 @@ export async function registerRoutes(
   app.get("/api/admin/analytics/acquisition/csv", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
 
     try {
       const allUsersData = await db.select({
@@ -18026,7 +18047,7 @@ export async function registerRoutes(
   app.get("/api/admin/analytics/monthly-report", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
 
     try {
       const now = new Date();
@@ -22189,8 +22210,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/junior-skills/categories", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const { name, iconName } = req.body;
       if (!name?.trim()) return res.status(400).json({ message: "Name is required" });
@@ -22205,8 +22225,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/junior-skills/categories/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const id = Number(req.params.id);
       const { name, iconName } = req.body;
@@ -22223,8 +22242,7 @@ export async function registerRoutes(
 
   app.delete("/api/admin/junior-skills/categories/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const id = Number(req.params.id);
       const skillsInCat = await db.select({ id: juniorSkills.id }).from(juniorSkills).where(eq(juniorSkills.categoryId, id));
@@ -22241,8 +22259,7 @@ export async function registerRoutes(
 
   app.post("/api/admin/junior-skills", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const { categoryId, name } = req.body;
       if (!categoryId || !name?.trim()) return res.status(400).json({ message: "categoryId and name required" });
@@ -22259,8 +22276,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/junior-skills/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const id = Number(req.params.id);
       const { name } = req.body;
@@ -22275,8 +22291,7 @@ export async function registerRoutes(
 
   app.delete("/api/admin/junior-skills/:id", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    const role = req.user!.role;
-    if (!["OWNER", "ADMIN"].includes(role)) return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     try {
       const id = Number(req.params.id);
       await db.delete(juniorSkillProgress).where(eq(juniorSkillProgress.skillId, id));
@@ -23577,7 +23592,7 @@ export async function registerRoutes(
   app.put("/api/admin/donation-bank-details", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const { bankName, bankAccountName, bankSortCode, bankAccountNumber, bankReference } = req.body;
       const profile = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, user.id)).limit(1);
@@ -23667,7 +23682,7 @@ export async function registerRoutes(
   app.patch("/api/donations/:id/status", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const donationId = Number(req.params.id);
       const { status, adminNotes } = req.body;
@@ -23708,7 +23723,7 @@ export async function registerRoutes(
   app.get("/api/admin/donation-summary", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const allDonations = await db.select({
         userId: donations.userId,
@@ -28264,10 +28279,16 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.get("/api/admin/trial-players", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const all = await storage.getAllTrialPlayers();
-      res.json(all);
+      if (isSuperAdmin(user)) {
+        return res.json(all);
+      }
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
+      const adminClubSet = new Set(adminClubIds);
+      const filtered = all.filter((t: any) => t.preferredClubId && adminClubSet.has(t.preferredClubId));
+      res.json(filtered);
     } catch (err: any) {
       console.error("Error getting trial players:", err);
       res.status(500).json({ message: err.message });
@@ -28277,7 +28298,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.get("/api/admin/trial-players/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
@@ -28327,7 +28348,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.patch("/api/admin/trial-players/:id/assign-session", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const { sessionId, observerUserId } = req.body;
       if (!sessionId) return res.status(400).json({ message: "Session is required" });
@@ -28361,7 +28382,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.patch("/api/admin/trial-players/:id/mark-attended", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
@@ -28389,7 +28410,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.post("/api/admin/trial-players/:id/evaluate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
@@ -28449,7 +28470,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.patch("/api/admin/trial-players/:id/decide", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
@@ -28621,7 +28642,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.get("/api/admin/trial-players/referral-funnel", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const allTrials = await storage.getAllTrialPlayers();
       const withReferral = allTrials.filter(t => t.referralId);
@@ -28664,7 +28685,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.get("/api/admin/trial-players/:id/session-recommendations", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
     try {
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
