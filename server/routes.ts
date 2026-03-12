@@ -2257,9 +2257,7 @@ export async function registerRoutes(
       : linkedSessions;
 
     for (const session of sessionsToDelete) {
-      await db.delete(sessionSignups).where(eq(sessionSignups.sessionId, session.id));
-      await db.delete(matches).where(eq(matches.sessionId, session.id));
-      await db.delete(sessions).where(eq(sessions.id, session.id));
+      await storage.deleteSession(session.id);
     }
 
     const remainingSessions = linkedSessions.length - sessionsToDelete.length;

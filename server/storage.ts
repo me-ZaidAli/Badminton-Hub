@@ -3,7 +3,7 @@ import {
   users, playerProfiles, sessions, sessionSignups, matches, announcements, announcementArchives, announcementReactions, announcementComments, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
-  creditLedger, inventoryMovements,
+  creditLedger, inventoryMovements, chats, incidentReports,
   trialPlayers, trialEvaluations,
   type User, type InsertUser, type PlayerProfile, type InsertPlayerProfile,
   type Session, type InsertSession, type SessionSignup,
@@ -574,6 +574,9 @@ export class DatabaseStorage implements IStorage {
     }
     await db.update(creditLedger).set({ linkedSessionId: null }).where(eq(creditLedger.linkedSessionId, id));
     await db.update(inventoryMovements).set({ sessionId: null }).where(eq(inventoryMovements.sessionId, id));
+    await db.delete(chats).where(eq(chats.sessionId, id));
+    await db.update(incidentReports).set({ sessionId: null }).where(eq(incidentReports.sessionId, id));
+    await db.update(trialPlayers).set({ assignedSessionId: null }).where(eq(trialPlayers.assignedSessionId, id));
     await db.delete(sessionSignups).where(eq(sessionSignups.sessionId, id));
     await db.delete(matches).where(eq(matches.sessionId, id));
     await db.delete(sessions).where(eq(sessions.id, id));
@@ -587,6 +590,9 @@ export class DatabaseStorage implements IStorage {
     }
     await db.update(creditLedger).set({ linkedSessionId: null }).where(inArray(creditLedger.linkedSessionId, ids));
     await db.update(inventoryMovements).set({ sessionId: null }).where(inArray(inventoryMovements.sessionId, ids));
+    await db.delete(chats).where(inArray(chats.sessionId, ids));
+    await db.update(incidentReports).set({ sessionId: null }).where(inArray(incidentReports.sessionId, ids));
+    await db.update(trialPlayers).set({ assignedSessionId: null }).where(inArray(trialPlayers.assignedSessionId, ids));
     await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, ids));
     await db.delete(matches).where(inArray(matches.sessionId, ids));
     await db.delete(sessions).where(inArray(sessions.id, ids));
