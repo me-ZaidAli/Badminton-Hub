@@ -2010,7 +2010,7 @@ export default function Clubs() {
             </Button>
           </div>
 
-          {user && user.role === "OWNER" && (
+          {user && (
             <Link href="/create-club">
               <Button data-testid="button-create-club">
                 <Plus className="w-4 h-4 mr-2" />
