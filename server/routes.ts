@@ -4601,11 +4601,11 @@ export async function registerRoutes(
               autoPriorityIds.push(pm.playerId);
             }
           }
-          const autoMatchCountVals = Array.from(playerMatchCounts.values());
-          const autoGlobalMin = autoMatchCountVals.length > 0 ? Math.min(...autoMatchCountVals) : 0;
+          const autoSelectableCounts = players.map(p => playerMatchCounts.get(p.id) || 0);
+          const autoGlobalMax = autoSelectableCounts.length > 0 ? Math.max(...autoSelectableCounts) : 0;
           for (const p of players) {
             const count = playerMatchCounts.get(p.id) || 0;
-            if (count <= autoGlobalMin && !autoPriorityIds.includes(p.id)) {
+            if (count < autoGlobalMax && !autoPriorityIds.includes(p.id)) {
               autoPriorityIds.push(p.id);
             }
           }
@@ -5210,6 +5210,16 @@ export async function registerRoutes(
         genderOverride: null as string | null,
       }));
 
+      const selectableCountsAuto = players.map(p => playerMatchCounts.get(p.id) || 0);
+      const globalMaxAuto = selectableCountsAuto.length > 0 ? Math.max(...selectableCountsAuto) : 0;
+      const priorityPlayerIdsAuto: number[] = [];
+      for (const p of players) {
+        const count = playerMatchCounts.get(p.id) || 0;
+        if (count < globalMaxAuto) {
+          priorityPlayerIdsAuto.push(p.id);
+        }
+      }
+
       const generated = generateSmartMatches({
         mode: (session.matchMode as "SOCIAL" | "COMPETITIVE") || "SOCIAL",
         players: smartPlayers,
@@ -5220,6 +5230,7 @@ export async function registerRoutes(
         recentOpponents,
         playerMatchCounts,
         fixedPairs: extractFixedPairs(eligibleSignups),
+        priorityPlayerIds: priorityPlayerIdsAuto.length > 0 ? priorityPlayerIdsAuto : undefined,
       });
 
       const safeAutoMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -5402,11 +5413,12 @@ export async function registerRoutes(
         }
       }
 
-      const matchCounts = Array.from(playerMatchCounts.values());
-      const globalMin = matchCounts.length > 0 ? Math.min(...matchCounts) : 0;
+      const selectableMatchCounts = players.map(p => playerMatchCounts.get(p.id) || 0);
+      const globalMin = selectableMatchCounts.length > 0 ? Math.min(...selectableMatchCounts) : 0;
+      const globalMax = selectableMatchCounts.length > 0 ? Math.max(...selectableMatchCounts) : 0;
       for (const p of players) {
         const count = playerMatchCounts.get(p.id) || 0;
-        if (count <= globalMin && !priorityPlayerIds.includes(p.id)) {
+        if (count < globalMax && !priorityPlayerIds.includes(p.id)) {
           priorityPlayerIds.push(p.id);
         }
       }
@@ -5556,11 +5568,11 @@ export async function registerRoutes(
           }
         }
 
-        const matchCounts = Array.from(playerMatchCounts.values());
-        const globalMin = matchCounts.length > 0 ? Math.min(...matchCounts) : 0;
+        const simSelectableCounts = allPlayers.map(p => playerMatchCounts.get(p.id) || 0);
+        const simGlobalMax = simSelectableCounts.length > 0 ? Math.max(...simSelectableCounts) : 0;
         for (const p of allPlayers) {
           const count = playerMatchCounts.get(p.id) || 0;
-          if (count <= globalMin && !priorityPlayerIds.includes(p.id)) {
+          if (count < simGlobalMax && !priorityPlayerIds.includes(p.id)) {
             priorityPlayerIds.push(p.id);
           }
         }

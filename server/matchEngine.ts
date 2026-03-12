@@ -276,8 +276,8 @@ function scorePairing(
   for (const p of allPlayers) {
     const played = playerMatchCounts.get(p) || 0;
     const deficit = played - globalMin;
-    const deficitPenalty = -deficit * 25;
-    const playedPenalty = -played * 5;
+    const deficitPenalty = -deficit * 100;
+    const playedPenalty = -played * 20;
     score += deficitPenalty + playedPenalty;
     if (deficit > 0) {
       factors.push(`player ${p} deficit(${deficit}): ${deficitPenalty}`);
@@ -287,8 +287,8 @@ function scorePairing(
   const matchMin = Math.min(...allPlayers.map(p => playerMatchCounts.get(p) || 0));
   const matchMax = Math.max(...allPlayers.map(p => playerMatchCounts.get(p) || 0));
   const spread = matchMax - matchMin;
-  if (spread > 1) {
-    const spreadPenalty = -spread * 35;
+  if (spread > 0) {
+    const spreadPenalty = -spread * 80;
     score += spreadPenalty;
     factors.push(`spread(${spread}): ${spreadPenalty}`);
   }
@@ -296,8 +296,8 @@ function scorePairing(
   if (priorityPlayerIds && priorityPlayerIds.length > 0) {
     for (const p of allPlayers) {
       if (priorityPlayerIds.includes(p)) {
-        score += 80;
-        factors.push(`priority player ${p}: +80`);
+        score += 200;
+        factors.push(`priority player ${p}: +200`);
       }
     }
   }
@@ -782,16 +782,16 @@ function generateSocialSingles(opts: GenerateOptions): GenerateResult {
       const deficitA = countA - globalMin;
       const deficitB = countB - globalMin;
 
-      let total = -(oppCount * 10) - ((deficitA + deficitB) * 25) - ((countA + countB) * 5);
+      let total = -(oppCount * 10) - ((deficitA + deficitB) * 100) - ((countA + countB) * 20);
       const factors: string[] = [];
 
       if (oppCount > 0) factors.push(`opponent repeat(${candidate.teamAPlayer1Id} vs ${candidate.teamBPlayer1Id})x${oppCount}: ${-oppCount * 10}`);
-      if (deficitA > 0) factors.push(`player ${candidate.teamAPlayer1Id} deficit(${deficitA}): ${-deficitA * 25}`);
-      if (deficitB > 0) factors.push(`player ${candidate.teamBPlayer1Id} deficit(${deficitB}): ${-deficitB * 25}`);
+      if (deficitA > 0) factors.push(`player ${candidate.teamAPlayer1Id} deficit(${deficitA}): ${-deficitA * 100}`);
+      if (deficitB > 0) factors.push(`player ${candidate.teamBPlayer1Id} deficit(${deficitB}): ${-deficitB * 100}`);
 
       if (priorityPlayerIds && priorityPlayerIds.length > 0) {
-        if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 80; factors.push(`priority player ${candidate.teamAPlayer1Id}: +80`); }
-        if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { total += 80; factors.push(`priority player ${candidate.teamBPlayer1Id}: +80`); }
+        if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 200; factors.push(`priority player ${candidate.teamAPlayer1Id}: +200`); }
+        if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { total += 200; factors.push(`priority player ${candidate.teamBPlayer1Id}: +200`); }
       }
 
       if (total > bestScore || (total === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
@@ -1096,12 +1096,12 @@ function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
       const deficitB = countB - globalMin;
       const gradeBalancePenalty = -gradeDiff * 5;
 
-      let total = -(oppCount * 10) - ((deficitA + deficitB) * 25) - ((countA + countB) * 5) + gradeBalancePenalty;
+      let total = -(oppCount * 10) - ((deficitA + deficitB) * 100) - ((countA + countB) * 20) + gradeBalancePenalty;
       const factors: string[] = [];
 
       if (oppCount > 0) factors.push(`opponent repeat x${oppCount}: ${-oppCount * 10}`);
       if (gradeDiff > 0) factors.push(`grade diff(${gradeDiff}): ${gradeBalancePenalty}`);
-      if (deficitA > 0 || deficitB > 0) factors.push(`deficit(${deficitA}+${deficitB}): ${-(deficitA + deficitB) * 25}`);
+      if (deficitA > 0 || deficitB > 0) factors.push(`deficit(${deficitA}+${deficitB}): ${-(deficitA + deficitB) * 100}`);
 
       const catA = getCategoryFromGrade(pA.grade);
       const catB = getCategoryFromGrade(pB.grade);
@@ -1116,8 +1116,8 @@ function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
       }
 
       if (priorityPlayerIds && priorityPlayerIds.length > 0) {
-        if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 80; factors.push(`priority: +80`); }
-        if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { total += 80; factors.push(`priority: +80`); }
+        if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 200; factors.push(`priority: +200`); }
+        if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { total += 200; factors.push(`priority: +200`); }
       }
 
       if (total > bestScore || (total === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
