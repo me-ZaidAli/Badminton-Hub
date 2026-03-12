@@ -263,7 +263,7 @@ function InvitePlayersModal({
   }, [open, selectedPlayerIds]);
 
   const approvedPlayers = useMemo(() => {
-    return (clubPlayers || []).filter(p => p.membershipStatus === "APPROVED");
+    return (clubPlayers || []).filter(p => p.membershipStatus === "APPROVED" && p.user?.role === "PLAYER");
   }, [clubPlayers]);
 
   const filteredPlayers = useMemo(() => {

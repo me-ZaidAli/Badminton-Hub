@@ -371,7 +371,7 @@ export default function SessionDetail() {
       .map(s => s.playerId)
   );
   const availablePlayers = (clubMembers || [])
-    .filter((m: any) => !confirmedOrWaitingPlayerIds.has(m.id) && m.membershipStatus === "APPROVED")
+    .filter((m: any) => !confirmedOrWaitingPlayerIds.has(m.id) && m.membershipStatus === "APPROVED" && m.user?.role === "PLAYER")
     .map((m: any) => ({
       id: m.id,
       fullName: m.user?.fullName || m.fullName || "",

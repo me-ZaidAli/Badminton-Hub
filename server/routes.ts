@@ -3935,6 +3935,25 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
+      // Verify the player profile belongs to this club and user is a PLAYER role
+      const playerProfileData = await db.select({ 
+        id: playerProfiles.id, 
+        clubId: playerProfiles.clubId, 
+        userId: playerProfiles.userId,
+        membershipStatus: playerProfiles.membershipStatus 
+      }).from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
+      
+      if (playerProfileData.length === 0) {
+        return res.status(400).json({ message: "Player profile not found" });
+      }
+      if (playerProfileData[0].clubId !== session.clubId) {
+        return res.status(400).json({ message: "Player does not belong to this club" });
+      }
+      const playerUser = await storage.getUser(playerProfileData[0].userId);
+      if (playerUser && (playerUser.role === "OWNER" || playerUser.role === "ADMIN")) {
+        return res.status(400).json({ message: "Admins and owners cannot be added to sessions" });
+      }
+
       // Check if already signed up
       const signups = await storage.getSessionSignups(sessionId);
       const existingSignup = signups.find(s => s.playerId === playerId);
