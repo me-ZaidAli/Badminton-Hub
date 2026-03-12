@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 
 const GroupChats = lazy(() => import("./GroupChats"));
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -359,6 +360,7 @@ export default function InboxPage() {
   });
 
   return (
+    <PremiumFeatureGate featureName="In-App Messaging" description="Send direct messages and group chats with your club members. Upgrade to Premium to unlock messaging.">
     <div className="h-[calc(100vh-120px)] flex flex-col" data-testid="chat-container">
       <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
         <TabsList className="mx-3 mt-2 w-fit" data-testid="inbox-tabs">
@@ -848,5 +850,6 @@ export default function InboxPage() {
         </TabsContent>
       </Tabs>
     </div>
+    </PremiumFeatureGate>
   );
 }

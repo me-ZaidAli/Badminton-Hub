@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useUser } from "@/hooks/use-auth";
 import { useClubs } from "@/hooks/use-clubs";
+import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -32,6 +33,7 @@ export default function SocialMedia() {
   }
 
   return (
+    <PremiumFeatureGate featureName="Social Media" description="Display and manage your club's social media links. Upgrade to Premium to unlock this feature.">
     <div className="space-y-6">
       <PageHeader
         title="Social Media"
@@ -79,5 +81,6 @@ export default function SocialMedia() {
         </Card>
       )}
     </div>
+    </PremiumFeatureGate>
   );
 }

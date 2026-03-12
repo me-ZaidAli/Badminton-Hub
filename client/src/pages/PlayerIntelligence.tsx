@@ -3,6 +3,7 @@ import { usePlayers } from "@/hooks/use-players";
 import { useClubs } from "@/hooks/use-clubs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
+import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 import { getAvatarUrl } from "@/components/AvatarPicker";
 import { RivalryArenaView } from "@/components/RivalryArena";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -1662,10 +1663,11 @@ export default function PlayerIntelligence() {
   );
 
   if (!hasAccess) {
-    return <DemoPlayerIntelligence />;
+    return <PremiumFeatureGate featureName="Player Intelligence" description="Access advanced player analytics, skill tracking, AI-powered comparisons, and more. Upgrade to Premium to unlock this feature."><DemoPlayerIntelligence /></PremiumFeatureGate>;
   }
 
   return (
+    <PremiumFeatureGate featureName="Player Intelligence" description="Access advanced player analytics, skill tracking, AI-powered comparisons, and more. Upgrade to Premium to unlock this feature.">
     <div className="flex gap-0 min-h-[calc(100vh-140px)]">
       <div className="hidden lg:block w-72 shrink-0 border-r border-border pr-4">
         <div className="sticky top-4">
@@ -1748,5 +1750,6 @@ export default function PlayerIntelligence() {
         )}
       </div>
     </div>
+    </PremiumFeatureGate>
   );
 }

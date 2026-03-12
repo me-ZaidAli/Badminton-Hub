@@ -3,6 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
+import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -114,6 +115,7 @@ export default function Announcements() {
   });
 
   return (
+    <PremiumFeatureGate featureName="Announcements" description="Create and manage club announcements with reactions and comments. Upgrade to Premium to unlock this feature.">
     <div className="space-y-4 sm:space-y-6">
       <PageHeader
         title="Announcements"
@@ -209,6 +211,7 @@ export default function Announcements() {
         </AlertDialogContent>
       </AlertDialog>
     </div>
+    </PremiumFeatureGate>
   );
 }
 

@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 import { z } from "zod";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -343,6 +344,7 @@ export default function IncidentReports() {
   const [expandedMembers, setExpandedMembers] = useState<Set<number>>(new Set());
 
   return (
+    <PremiumFeatureGate featureName="Incident Reports" description="Report and track incidents within your club. Upgrade to Premium to unlock this feature.">
     <div className="space-y-6">
       <div className="flex items-center justify-between gap-4 flex-wrap">
         <div className="flex items-center gap-3">
@@ -376,6 +378,7 @@ export default function IncidentReports() {
       {renderReportDialog()}
       {renderDetailDialog()}
     </div>
+    </PremiumFeatureGate>
   );
 
   function renderListView() {

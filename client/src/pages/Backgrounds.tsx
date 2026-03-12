@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 import {
   BACKGROUND_OPTIONS,
   BACKGROUND_CATEGORIES,
@@ -167,6 +168,7 @@ export default function Backgrounds() {
   const currentBgOption = BACKGROUND_OPTIONS.find((b) => b.id === backgroundId);
 
   return (
+    <PremiumFeatureGate featureName="Backgrounds" description="Personalise your club experience with custom backgrounds. Upgrade to Premium to unlock this feature.">
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/dashboard">
@@ -303,5 +305,6 @@ export default function Backgrounds() {
         </CardContent>
       </Card>
     </div>
+    </PremiumFeatureGate>
   );
 }

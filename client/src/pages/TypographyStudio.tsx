@@ -1,4 +1,5 @@
 import { useState, useMemo } from "react";
+import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 import {
   FONT_OPTIONS,
   FONT_CATEGORIES,
@@ -64,6 +65,7 @@ export default function TypographyStudio() {
   }, []);
 
   return (
+    <PremiumFeatureGate featureName="Typography Studio" description="Customise fonts and text styles across your club platform. Upgrade to Premium to unlock this feature.">
     <div className="space-y-6">
       <div className="flex items-center gap-3">
         <Link href="/dashboard">
@@ -243,5 +245,6 @@ export default function TypographyStudio() {
         )}
       </div>
     </div>
+    </PremiumFeatureGate>
   );
 }

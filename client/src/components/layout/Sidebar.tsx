@@ -148,7 +148,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/juniors", label: "Juniors", icon: Baby, group: "activity", hidden: !isAdminOrOwner && !(user as any)?.hasChildren },
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
-    { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity" },
+    { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity", premiumOnly: true },
     // { href: "/find-coach", label: "Find a Coach", icon: GraduationCap, group: "activity", premiumOnly: true },
     // { href: "/my-lessons", label: "My Lessons", icon: GraduationCap, group: "activity", premiumOnly: true },
 
@@ -156,16 +156,16 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club", badgeKey: "pendingReferrals", premiumOnly: true },
     { href: "/rewards", label: "My Rewards", icon: Award, group: "club", badgeKey: "pendingRewards", premiumOnly: true },
 
-    { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements" },
+    { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements", premiumOnly: true },
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },
-    { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages" },
+    { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages", premiumOnly: true },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets", ...(isAdminOrOwner && { secondaryBadgeKey: "pendingTickets" as keyof BadgeCounts }) },
-    { href: "/incidents", label: "Incidents", icon: Shield, group: "comms", badgeKey: "pendingIncidents" },
+    { href: "/incidents", label: "Incidents", icon: Shield, group: "comms", badgeKey: "pendingIncidents", premiumOnly: true },
 
     { href: "/themes", label: "Themes", icon: Palette, group: "design", premiumOnly: true },
-    { href: "/backgrounds", label: "Backgrounds", icon: ImageIcon, group: "design" },
-    { href: "/typography", label: "Typography", icon: Type, group: "design" },
-    { href: "/social-media", label: "Social Media", icon: Share2, group: "design" },
+    { href: "/backgrounds", label: "Backgrounds", icon: ImageIcon, group: "design", premiumOnly: true },
+    { href: "/typography", label: "Typography", icon: Type, group: "design", premiumOnly: true },
+    { href: "/social-media", label: "Social Media", icon: Share2, group: "design", premiumOnly: true },
     { href: "/guide", label: "User Guide", icon: BookOpen, group: "info" },
     { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText, group: "info" },
   ];
@@ -182,8 +182,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
   const showPremium = isPremium || isSuperAdmin || isAdminRole;
   const filteredItems = items.filter(item => {
     if (item.hidden) return false;
-    if (!item.premiumOnly) return true;
-    return showPremium;
+    return true;
   });
 
   const groupOrder = ["main", "activity", "club", "comms", "design", "info", "admin", "godmode"];
@@ -854,20 +853,27 @@ export function Sidebar() {
                     const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
                     const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
                     const badgeCount = primaryCount + secondaryCount;
+                    const isLocked = item.premiumOnly && !isPremium;
                     return (
                       <Link key={item.href} href={item.href}>
                         <div
                           className={cn(
                             "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
-                            isActive
+                            isLocked
+                              ? "text-muted-foreground/50"
+                              : isActive
                               ? "bg-primary/10 text-primary"
                               : "text-muted-foreground hover:bg-muted hover:text-foreground"
                           )}
                           data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
                         >
-                          <item.icon className={cn("h-4 w-4 shrink-0", isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
+                          <item.icon className={cn("h-4 w-4 shrink-0", isLocked ? "text-muted-foreground/40" : isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
                           <span className="truncate">{item.label}</span>
-                          <BadgeCount count={badgeCount} />
+                          {isLocked ? (
+                            <Lock className="h-3 w-3 ml-auto text-amber-500/70 shrink-0" />
+                          ) : (
+                            <BadgeCount count={badgeCount} />
+                          )}
                         </div>
                       </Link>
                     );

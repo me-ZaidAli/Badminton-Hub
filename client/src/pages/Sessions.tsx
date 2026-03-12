@@ -1,6 +1,7 @@
 import { useSessions, useCreateSession, useUpdateSession } from "@/hooks/use-sessions";
 import { useUser } from "@/hooks/use-auth";
 import { useClubs, useMySessionClubs, useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
+import { useIsAnyClubPremium } from "@/hooks/use-club-plan";
 import { PageHeader } from "@/components/ui/page-header";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -575,6 +576,7 @@ export default function Sessions() {
   const isSuperUser = user?.role === "OWNER";
   const isPlatformAdmin = user?.role === "ADMIN" || user?.role === "OWNER";
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
+  const isPremiumClub = useIsAnyClubPremium();
   const canManageSessions = isPlatformAdmin || (sessionClubs && sessionClubs.length > 0) || false;
   const managedClubIds = useMemo(() => new Set(sessionClubs?.map(c => c.id) || []), [sessionClubs]);
   const editableClubIds = useMemo(() => new Set(isPlatformAdmin ? (clubs?.map(c => c.id) || []) : (adminClubs?.map(c => c.id) || [])), [isPlatformAdmin, clubs, adminClubs]);
@@ -857,7 +859,7 @@ export default function Sessions() {
     return {
       editableClubIds,
       isOrganiserOnly,
-      onCrowdControl: (id: number) => setCrowdSessionId(id),
+      onCrowdControl: (id: number) => { if (isPremiumClub || isPlatformAdmin) setCrowdSessionId(id); },
       onFinances: (s: any) => setFinanceSession(s),
       onEdit: (s: any) => setEditSessionFromView(s),
       onDuplicate: (s: any) => setCopySession(s),
@@ -905,6 +907,7 @@ export default function Sessions() {
             <MatchAlgorithmInfoButton />
             {canManageSessions && (
               <>
+                {(isPremiumClub || isPlatformAdmin) && (
                 <Button 
                   variant="outline" 
                   onClick={() => setLocation("/admin/calendar")}
@@ -912,6 +915,7 @@ export default function Sessions() {
                 >
                   <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
                 </Button>
+                )}
                 <EventTypeChooser sessionClubs={sessionClubs || []} />
               </>
             )}
@@ -1501,6 +1505,7 @@ export default function Sessions() {
                 {editableClubIds.has(session.clubId) && (
                   <div className="mt-3 pt-3 border-t border-border/30">
                     <div className="flex items-center gap-1">
+                      {(isPremiumClub || isPlatformAdmin) && (
                       <Tooltip>
                         <TooltipTrigger asChild>
                           <Button
@@ -1519,6 +1524,7 @@ export default function Sessions() {
                         </TooltipTrigger>
                         <TooltipContent>Crowd Control</TooltipContent>
                       </Tooltip>
+                      )}
                       {!isOrganiserOnly && (
                         <Tooltip>
                           <TooltipTrigger asChild>
