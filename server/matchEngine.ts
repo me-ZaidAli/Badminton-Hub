@@ -166,6 +166,37 @@ function validatePreConditions(players: Player[], playersPerMatch: number): stri
   return errors;
 }
 
+function fairnessPreFilter(
+  available: Player[],
+  playerMatchCounts: Map<number, number>,
+  playersPerMatch: number,
+  states: PlayerStateMap
+): Player[] {
+  const selectable = available.filter(p => states.get(p.id) === "AVAILABLE");
+  if (selectable.length <= playersPerMatch) return selectable;
+
+  const sorted = [...selectable].sort((a, b) => {
+    const ca = playerMatchCounts.get(a.id) || 0;
+    const cb = playerMatchCounts.get(b.id) || 0;
+    return ca - cb;
+  });
+
+  const minCount = playerMatchCounts.get(sorted[0].id) || 0;
+  const maxCount = playerMatchCounts.get(sorted[sorted.length - 1].id) || 0;
+  if (minCount >= maxCount) return selectable;
+
+  const lowGamePlayers = sorted.filter(p => {
+    const count = playerMatchCounts.get(p.id) || 0;
+    return count < maxCount;
+  });
+
+  if (lowGamePlayers.length >= playersPerMatch) {
+    return lowGamePlayers;
+  }
+
+  return selectable;
+}
+
 function validatePostConditions(matches: MatchResult[], states: PlayerStateMap): string[] {
   const errors: string[] = [];
 
@@ -598,7 +629,9 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
     let bestScore = -Infinity;
     let bestFactors: string[] = [];
 
-    const candidates = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states);
+    const fairnessPool = fairnessPreFilter(eligible, localCounts, 4, states);
+    const candidatePool = fairnessPool.length >= 4 ? fairnessPool : eligible;
+    const candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states);
 
     let candidatesEvaluated = 0;
     for (const candidate of candidates) {
@@ -645,9 +678,34 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
       }
     }
 
+    if (!bestMatch && candidatePool !== eligible) {
+      const fallbackCandidates = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states);
+      for (const candidate of fallbackCandidates) {
+        const fbIds = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
+        if (fbIds.some(id => states.get(id) !== "AVAILABLE")) continue;
+        if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
+        if (hasFemaleQuota) {
+          const allFemale = isFemaleOnlyMatch(candidate, eligible);
+          const mixed = isMixedMatch(candidate, eligible);
+          if (wantFemaleOnly && !allFemale) continue;
+          if (!wantFemaleOnly && !mixed && !allFemale) continue;
+        }
+        candidatesEvaluated++;
+        const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
+        const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
+        let { score: s, factors } = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs);
+        if (s > bestScore || (s === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+          bestScore = s;
+          bestMatch = candidate;
+          bestFactors = factors;
+        }
+      }
+    }
+
     if (!bestMatch && hasFemaleQuota && wantFemaleOnly) {
       femaleMatchesGenerated = femaleOnlySlots;
-      for (const candidate of candidates) {
+      const genderFallbackCandidates = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states);
+      for (const candidate of genderFallbackCandidates) {
         const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
         if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
         if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
@@ -764,7 +822,9 @@ function generateSocialSingles(opts: GenerateOptions): GenerateResult {
     let bestScore = -Infinity;
     let bestFactors: string[] = [];
 
-    const candidates = generateDeterministicCandidateSingles(eligible, states);
+    const fairnessPool = fairnessPreFilter(eligible, localCounts, 2, states);
+    const candidatePool = fairnessPool.length >= 2 ? fairnessPool : eligible;
+    const candidates = generateDeterministicCandidateSingles(candidatePool, states);
     let candidatesEvaluated = 0;
 
     const globalMin = localCounts.size > 0
@@ -798,6 +858,31 @@ function generateSocialSingles(opts: GenerateOptions): GenerateResult {
         bestScore = total;
         bestMatch = candidate;
         bestFactors = factors;
+      }
+    }
+
+    if (!bestMatch && candidatePool !== eligible) {
+      const fallbackCandidates = generateDeterministicCandidateSingles(eligible, states);
+      for (const candidate of fallbackCandidates) {
+        if (states.get(candidate.teamAPlayer1Id) !== "AVAILABLE" || states.get(candidate.teamBPlayer1Id) !== "AVAILABLE") continue;
+        candidatesEvaluated++;
+        const key = pairKey(candidate.teamAPlayer1Id, candidate.teamBPlayer1Id);
+        const oppCount = localOpponents.get(key) || 0;
+        const countA = localCounts.get(candidate.teamAPlayer1Id) || 0;
+        const countB = localCounts.get(candidate.teamBPlayer1Id) || 0;
+        const deficitA = countA - globalMin;
+        const deficitB = countB - globalMin;
+        let total = -(oppCount * 10) - ((deficitA + deficitB) * 100) - ((countA + countB) * 20);
+        const factors: string[] = [];
+        if (priorityPlayerIds && priorityPlayerIds.length > 0) {
+          if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 200; factors.push(`priority player ${candidate.teamAPlayer1Id}: +200`); }
+          if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { total += 200; factors.push(`priority player ${candidate.teamBPlayer1Id}: +200`); }
+        }
+        if (total > bestScore || (total === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+          bestScore = total;
+          bestMatch = candidate;
+          bestFactors = factors;
+        }
       }
     }
 
@@ -862,7 +947,9 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
     let bestScore = -Infinity;
     let bestFactors: string[] = [];
 
-    const candidates = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states);
+    const fairnessPool = fairnessPreFilter(eligible, localCounts, 4, states);
+    const candidatePool = fairnessPool.length >= 4 ? fairnessPool : eligible;
+    const candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states);
     let candidatesEvaluated = 0;
 
     const scoreCandidate = (candidate: MatchResult): { score: number; factors: string[] } | null => {
@@ -958,9 +1045,24 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
       }
     }
 
+    if (!bestMatch && candidatePool !== eligible) {
+      const compFallback = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states);
+      for (const candidate of compFallback) {
+        const result = scoreCandidate(candidate);
+        if (!result) continue;
+        candidatesEvaluated++;
+        if (result.score > bestScore || (result.score === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+          bestScore = result.score;
+          bestMatch = candidate;
+          bestFactors = result.factors;
+        }
+      }
+    }
+
     if (!bestMatch && hasFemaleQuota && wantFemaleOnly) {
       femaleMatchesGenerated = femaleOnlySlots;
-      for (const candidate of candidates) {
+      const compGenderFallback = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states);
+      for (const candidate of compGenderFallback) {
         const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
         if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
         if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
@@ -1071,23 +1173,21 @@ function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
     const availableCount = Array.from(states.values()).filter(s => s === "AVAILABLE").length;
     if (availableCount < 2) break;
 
-    const candidates = generateDeterministicCandidateSingles(eligible, states);
+    const fairnessPool = fairnessPreFilter(eligible, localCounts, 2, states);
+    const candidatePool = fairnessPool.length >= 2 ? fairnessPool : eligible;
+    const candidates = generateDeterministicCandidateSingles(candidatePool, states);
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
     let bestFactors: string[] = [];
     let candidatesEvaluated = 0;
 
-    for (const candidate of candidates) {
-      if (states.get(candidate.teamAPlayer1Id) !== "AVAILABLE" || states.get(candidate.teamBPlayer1Id) !== "AVAILABLE") continue;
-
+    const scoreCompSinglesCandidate = (candidate: MatchResult): { total: number; factors: string[] } | null => {
+      if (states.get(candidate.teamAPlayer1Id) !== "AVAILABLE" || states.get(candidate.teamBPlayer1Id) !== "AVAILABLE") return null;
       const pA = eligible.find(p => p.id === candidate.teamAPlayer1Id);
       const pB = eligible.find(p => p.id === candidate.teamBPlayer1Id);
-      if (!pA || !pB) continue;
-
+      if (!pA || !pB) return null;
       const gradeDiff = Math.abs(getGradeRank(pA.grade) - getGradeRank(pB.grade));
-      if (gradeDiff > 4) continue;
-
-      candidatesEvaluated++;
+      if (gradeDiff > 4) return null;
       const key = pairKey(candidate.teamAPlayer1Id, candidate.teamBPlayer1Id);
       const oppCount = localOpponents.get(key) || 0;
       const countA = localCounts.get(candidate.teamAPlayer1Id) || 0;
@@ -1095,35 +1195,44 @@ function generateCompetitiveSingles(opts: GenerateOptions): GenerateResult {
       const deficitA = countA - globalMin;
       const deficitB = countB - globalMin;
       const gradeBalancePenalty = -gradeDiff * 5;
-
       let total = -(oppCount * 10) - ((deficitA + deficitB) * 100) - ((countA + countB) * 20) + gradeBalancePenalty;
       const factors: string[] = [];
-
       if (oppCount > 0) factors.push(`opponent repeat x${oppCount}: ${-oppCount * 10}`);
       if (gradeDiff > 0) factors.push(`grade diff(${gradeDiff}): ${gradeBalancePenalty}`);
       if (deficitA > 0 || deficitB > 0) factors.push(`deficit(${deficitA}+${deficitB}): ${-(deficitA + deficitB) * 100}`);
-
       const catA = getCategoryFromGrade(pA.grade);
       const catB = getCategoryFromGrade(pB.grade);
-      if (catA === catB) {
-        total += 15;
-        factors.push(`same category(${catA}): +15`);
-      }
-
-      if (getGradeRank(pA.grade) >= 6 && getGradeRank(pB.grade) >= 6) {
-        total += 10;
-        factors.push(`both high ranked: +10`);
-      }
-
+      if (catA === catB) { total += 15; factors.push(`same category(${catA}): +15`); }
+      if (getGradeRank(pA.grade) >= 6 && getGradeRank(pB.grade) >= 6) { total += 10; factors.push(`both high ranked: +10`); }
       if (priorityPlayerIds && priorityPlayerIds.length > 0) {
         if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { total += 200; factors.push(`priority: +200`); }
         if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { total += 200; factors.push(`priority: +200`); }
       }
+      return { total, factors };
+    };
 
-      if (total > bestScore || (total === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
-        bestScore = total;
+    for (const candidate of candidates) {
+      const result = scoreCompSinglesCandidate(candidate);
+      if (!result) continue;
+      candidatesEvaluated++;
+      if (result.total > bestScore || (result.total === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+        bestScore = result.total;
         bestMatch = candidate;
-        bestFactors = factors;
+        bestFactors = result.factors;
+      }
+    }
+
+    if (!bestMatch && candidatePool !== eligible) {
+      const compSinglesFallback = generateDeterministicCandidateSingles(eligible, states);
+      for (const candidate of compSinglesFallback) {
+        const result = scoreCompSinglesCandidate(candidate);
+        if (!result) continue;
+        candidatesEvaluated++;
+        if (result.total > bestScore || (result.total === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+          bestScore = result.total;
+          bestMatch = candidate;
+          bestFactors = result.factors;
+        }
       }
     }
 
