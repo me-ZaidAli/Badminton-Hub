@@ -28927,17 +28927,24 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
 
       let prompt = "";
+      const analyticsData = { kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn };
+      const dataJson = JSON.stringify(analyticsData, null, 2);
+      console.log("[AI Insights] Data being sent to AI:", dataJson.substring(0, 500));
+
       if (question) {
-        prompt = `You are an analytics AI assistant for a UK-based badminton club management platform. ALL monetary values are in British Pounds Sterling (£ GBP). Fields ending in _GBP are already in pounds. The "totalUniquePlayerSignups" is the total number of session signups (not unique players — one player attending 3 sessions counts as 3). A user is asking a data question.\n\nHere is the current analytics data:\n${JSON.stringify({ kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn }, null, 2)}\n\nUser question: ${question}\n\nProvide a clear, data-driven answer. Always use £ for currency. Use specific numbers and percentages. Keep it concise but insightful.`;
+        prompt = `IMPORTANT: You MUST ONLY reference numbers that appear in the JSON data below. Do NOT make up any numbers.\n\nAnalytics data (all monetary values in £ GBP):\n${dataJson}\n\nUser question: ${question}\n\nAnswer using ONLY the exact figures from the data above. Use £ for all currency values.`;
       } else {
-        prompt = `You are a business intelligence analyst for a UK-based badminton club management platform. ALL monetary values are in British Pounds Sterling (£ GBP). Fields ending in _GBP are already in pounds. The "totalUniquePlayerSignups" represents total session signups, not unique individual players — one player attending 3 sessions counts as 3 signups.\n\nData:\n${JSON.stringify({ kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn }, null, 2)}\n\nProvide a comprehensive report with these sections (use markdown headers):\n## Key Insights\n## Revenue Analysis\n## Attendance Patterns\n## Underperforming Sessions\n## Recommendations\n## Scheduling Improvements\n## Player Engagement Strategies\n\nAlways use £ for currency. Be specific with numbers and actionable recommendations. If data is limited, note that and provide what insights you can.`;
+        prompt = `IMPORTANT: You MUST ONLY reference numbers that appear in the JSON data below. Do NOT make up or estimate any numbers. Every figure in your report must come directly from this data.\n\nAnalytics data (all monetary values in £ GBP, "totalUniquePlayerSignups" = total session signups not unique players):\n${dataJson}\n\nWrite a report with these sections:\n## Key Insights\n## Revenue Analysis\n## Attendance Patterns\n## Underperforming Sessions\n## Recommendations\n## Scheduling Improvements\n## Player Engagement Strategies\n\nUse £ for currency. Only quote numbers from the data. If data is limited, say so.`;
       }
 
       const completion = await openai.chat.completions.create({
         model: "gpt-4o-mini",
-        messages: [{ role: "user", content: prompt }],
-        max_tokens: 1500,
-        temperature: 0.7,
+        messages: [
+          { role: "system", content: "You are a data analyst. You MUST ONLY use the exact numbers provided in the data. NEVER invent, estimate, or hallucinate any figures. If a number is not in the data, say so. Every statistic you quote must come directly from the provided JSON. All monetary values are in British Pounds Sterling (£ GBP)." },
+          { role: "user", content: prompt }
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
       });
 
       res.json({ report: completion.choices[0]?.message?.content || "No insights available." });
