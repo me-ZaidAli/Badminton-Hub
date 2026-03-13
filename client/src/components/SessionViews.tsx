@@ -228,6 +228,42 @@ function ExpandedSessionDetails({ session, mySignup, onSignUp, onNavigate }: { s
       <div ref={contentRef} className="pt-3">
         <div className="h-px bg-border/30 mb-3" />
 
+        <div className="space-y-2 mb-3">
+          <div className="flex items-center gap-2" data-testid={`expanded-energy-${session.id}`}>
+            <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${computeEnergyScore(session) > 70 ? "text-orange-500" : computeEnergyScore(session) > 40 ? "text-amber-500" : "text-blue-500"}`} />
+            <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden max-w-[120px]">
+              <div
+                className={`h-full rounded-full tl-energy-bar ${
+                  computeEnergyScore(session) > 70 ? "bg-orange-500" : computeEnergyScore(session) > 40 ? "bg-amber-500" : "bg-blue-500"
+                }`}
+                style={{ "--energy-width": `${computeEnergyScore(session)}%` } as React.CSSProperties}
+              />
+            </div>
+            <span className={`text-[10px] font-semibold tabular-nums ${computeEnergyScore(session) > 70 ? "text-orange-500" : computeEnergyScore(session) > 40 ? "text-amber-500" : "text-blue-500"}`}>
+              Energy {computeEnergyScore(session)}%
+            </span>
+          </div>
+
+          <div className="flex items-center gap-3 text-[10px]">
+            <div className="flex items-center gap-1">
+              <Users className="h-3 w-3 text-blue-500" />
+              <span className="font-semibold text-foreground/70 dark:text-white/70">{session.signupCount || 0} Player{(session.signupCount || 0) !== 1 ? "s" : ""}</span>
+            </div>
+            {(session as any).matchCount > 0 && (
+              <div className="flex items-center gap-1">
+                <Swords className="h-3 w-3 text-emerald-500" />
+                <span className="font-semibold text-foreground/70 dark:text-white/70">{(session as any).matchCount} Match{(session as any).matchCount !== 1 ? "es" : ""}</span>
+              </div>
+            )}
+            {(session as any).matchCount > 0 && (session.signupCount || 0) > 1 && (
+              <div className="flex items-center gap-1">
+                <Zap className="h-3 w-3 text-orange-500" />
+                <span className="font-semibold text-foreground/70 dark:text-white/70">Avg {Math.min(10, ((session as any).matchCount / (session.signupCount || 1) * 5)).toFixed(1)} Difficulty</span>
+              </div>
+            )}
+          </div>
+        </div>
+
         {isLoading ? (
           <div className="flex items-center justify-center py-4">
             <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
@@ -401,7 +437,7 @@ function TimelineSessionCard({
   const isFull = spotsLeft <= 0;
   const fillPercent = Math.min(100, Math.round(((session.signupCount || 0) / session.maxPlayers) * 100));
   const endTime = computeEndTime(session.startTime, session.durationMinutes);
-  const energy = computeEnergyScore(session);
+
   const intensity = getIntensityLevel(session);
   const isElite = intensity.label === "ELITE";
 
@@ -507,36 +543,6 @@ function TimelineSessionCard({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 mb-2.5">
-          <Users className="h-3.5 w-3.5 text-foreground/50 dark:text-white/50 flex-shrink-0" />
-          <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden max-w-[160px]">
-            <div
-              className={`h-full rounded-full tl-bar-fill ${
-                isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500"
-              }`}
-              style={{ width: `${fillPercent}%` }}
-            />
-          </div>
-          <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-foreground/70 dark:text-white/70"}`}>
-            {playerCount}/{session.maxPlayers}
-          </span>
-        </div>
-
-        <div className="flex items-center gap-2 mb-2.5" data-testid={`energy-score-${session.id}`}>
-          <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${energy > 70 ? "text-orange-500" : energy > 40 ? "text-amber-500" : "text-blue-500"}`} />
-          <div className="flex-1 h-2 rounded-full bg-muted/40 overflow-hidden max-w-[120px]">
-            <div
-              className={`h-full rounded-full tl-energy-bar ${
-                energy > 70 ? "bg-orange-500" : energy > 40 ? "bg-amber-500" : "bg-blue-500"
-              }`}
-              style={{ "--energy-width": `${energy}%` } as React.CSSProperties}
-            />
-          </div>
-          <span className={`text-[10px] font-semibold tabular-nums ${energy > 70 ? "text-orange-500" : energy > 40 ? "text-amber-500" : "text-blue-500"}`}>
-            {energy}%
-          </span>
-        </div>
-
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
             <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1 ${intensity.color}`}>
@@ -559,42 +565,27 @@ function TimelineSessionCard({
             )}
           </div>
 
-          {playerCount > 0 && !isExpanded && (
-            <div className="flex items-center -space-x-1.5">
-              {Array.from({ length: Math.min(playerCount, 4) }).map((_, i) => (
-                <div key={i} className="w-5 h-5 rounded-full bg-muted/70 dark:bg-muted border-2 border-card flex items-center justify-center">
-                  <Users className="h-2.5 w-2.5 text-foreground/40 dark:text-white/40" />
-                </div>
-              ))}
-              {playerCount > 4 && (
-                <div className="w-5 h-5 rounded-full bg-muted/70 dark:bg-muted border-2 border-card flex items-center justify-center">
-                  <span className="text-[8px] font-bold text-foreground/60 dark:text-white/60">+{playerCount - 4}</span>
-                </div>
-              )}
+          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-0.5" data-testid={`battery-bar-${session.id}`}>
+              {(() => {
+                const totalBlocks = 10;
+                const filledBlocks = Math.round((fillPercent / 100) * totalBlocks);
+                const barColor = isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500";
+                return Array.from({ length: totalBlocks }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-[5px] h-[10px] rounded-[1px] ${
+                      i < filledBlocks ? barColor : "bg-muted/50 dark:bg-muted/40"
+                    }`}
+                  />
+                ));
+              })()}
             </div>
-          )}
-        </div>
-
-        {(playerCount > 0 || (session as any).matchCount > 0) && (
-          <div className="mt-2.5 flex items-center gap-3 text-[10px] text-foreground/60 dark:text-white/60 border-t border-border/40 pt-2" data-testid={`stats-strip-${session.id}`}>
-            <div className="flex items-center gap-1">
-              <Users className="h-3 w-3 text-blue-500" />
-              <span className="font-semibold text-foreground/70 dark:text-white/70">{playerCount} Player{playerCount !== 1 ? "s" : ""}</span>
-            </div>
-            {(session as any).matchCount > 0 && (
-              <div className="flex items-center gap-1">
-                <Swords className="h-3 w-3 text-emerald-500" />
-                <span className="font-semibold text-foreground/70 dark:text-white/70">{(session as any).matchCount} Match{(session as any).matchCount !== 1 ? "es" : ""}</span>
-              </div>
-            )}
-            {(session as any).matchCount > 0 && playerCount > 1 && (
-              <div className="flex items-center gap-1">
-                <Zap className="h-3 w-3 text-orange-500" />
-                <span className="font-semibold text-foreground/70 dark:text-white/70">Avg {Math.min(10, ((session as any).matchCount / playerCount * 5)).toFixed(1)} Difficulty</span>
-              </div>
-            )}
+            <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-foreground/70 dark:text-white/70"}`}>
+              {playerCount}/{session.maxPlayers}
+            </span>
           </div>
-        )}
+        </div>
 
         {clubName && (
           <div className="mt-2 text-[10px] font-medium text-foreground/50 dark:text-white/50">{clubName}</div>
