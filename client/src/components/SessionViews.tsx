@@ -927,16 +927,16 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                     <span className={`text-[22px] sm:text-[28px] font-black leading-none tabular-nums ${
                       isToday ? "text-primary" :
                       isTomorrow ? "text-blue-500" :
-                      isPast ? "text-muted-foreground/50" :
-                      "text-foreground"
+                      isPast ? "text-muted-foreground/60 dark:text-muted-foreground/50" :
+                      "text-foreground dark:text-white"
                     }`}>{day}</span>
                     <span className={`text-[10px] font-bold tracking-widest mt-0.5 ${
                       isToday ? "text-primary" :
                       isTomorrow ? "text-blue-500" :
-                      isPast ? "text-muted-foreground/40" :
-                      "text-muted-foreground"
+                      isPast ? "text-muted-foreground/50 dark:text-muted-foreground/40" :
+                      "text-muted-foreground dark:text-muted-foreground"
                     }`}>{month}</span>
-                    <span className="text-[9px] text-muted-foreground/30">{year}</span>
+                    <span className="text-[9px] text-muted-foreground/40 dark:text-muted-foreground/50">{year}</span>
                   </div>
 
                   {sortedSessions.map((s, si) => {
@@ -946,10 +946,10 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                     return (
                       <div key={s.id} className={`flex flex-col items-center w-full ${si === 0 ? "mt-6" : "mt-[26px]"}`}>
                         <span className={`text-sm sm:text-[15px] font-bold tabular-nums leading-tight ${
-                          isPast ? "text-muted-foreground/40" : "text-foreground"
+                          isPast ? "text-muted-foreground/50 dark:text-muted-foreground/40" : "text-foreground dark:text-white"
                         }`}>{s.startTime}</span>
                         <span className={`text-[10px] sm:text-[11px] tabular-nums leading-tight mt-0.5 px-1.5 py-0.5 rounded-md ${
-                          isPast ? "text-muted-foreground/30" : "text-muted-foreground/70 bg-muted/40"
+                          isPast ? "text-muted-foreground/40 dark:text-muted-foreground/35" : "text-muted-foreground dark:text-muted-foreground/90 bg-muted/40 dark:bg-muted/50"
                         }`}>{durLabel}</span>
                       </div>
                     );
