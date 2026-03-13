@@ -933,7 +933,7 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`UPDATE junior_progress_history SET updated_by = NULL WHERE updated_by = ${userId}`);
     await db.execute(sql`DELETE FROM junior_rankings WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM junior_videos WHERE user_id = ${userId}`);
-    await db.execute(sql`UPDATE junior_videos SET added_by = NULL WHERE added_by = ${userId}`);
+    await db.execute(sql`DELETE FROM junior_videos WHERE added_by = ${userId}`);
     await db.execute(sql`DELETE FROM junior_achievements WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM junior_skill_progress WHERE child_id = ${userId}`);
     await db.execute(sql`UPDATE junior_skill_progress SET updated_by = NULL WHERE updated_by = ${userId}`);
@@ -980,6 +980,13 @@ export class DatabaseStorage implements IStorage {
       }
 
       await db.execute(sql`DELETE FROM profile_merge_logs WHERE primary_profile_id IN (${sql.join(profileIds.map(id => sql`${id}`), sql`, `)}) OR secondary_profile_id IN (${sql.join(profileIds.map(id => sql`${id}`), sql`, `)})`);
+
+      for (const pid of profileIds) {
+        await db.execute(sql`DELETE FROM player_achievements_record WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM player_coach_notes WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM player_skill_evaluations WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM player_skill_review_requests WHERE player_id = ${pid}`);
+      }
 
       await db.delete(playerProfiles).where(inArray(playerProfiles.id, profileIds));
     }
@@ -1077,13 +1084,12 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM announcement_comments WHERE user_id = ${userId}`);
 
     await db.execute(sql`DELETE FROM player_avatar_selections WHERE user_id = ${userId}`);
-    await db.execute(sql`DELETE FROM player_achievements_record WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM player_coach_notes WHERE created_by_user_id = ${userId}`);
     await db.execute(sql`DELETE FROM player_skill_evaluations WHERE evaluated_by_user_id = ${userId}`);
     await db.execute(sql`UPDATE player_skill_review_requests SET accepted_by_user_id = NULL WHERE accepted_by_user_id = ${userId}`);
-    await db.execute(sql`DELETE FROM player_skill_review_requests WHERE player_id = ${userId}`);
 
     await db.execute(sql`DELETE FROM incident_affected_members WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM incident_affected_members WHERE incident_id IN (SELECT id FROM incident_reports WHERE reported_by_user_id = ${userId})`);
     await db.execute(sql`UPDATE incident_reports SET assigned_to_user_id = NULL WHERE assigned_to_user_id = ${userId}`);
     await db.execute(sql`DELETE FROM incident_reports WHERE reported_by_user_id = ${userId}`);
 
