@@ -5,8 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
-import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval, getDay } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Crown } from "lucide-react";
+import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -149,18 +149,42 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
   );
 }
 
+function computeEndTime(startTime: string, durationMinutes: number): string {
+  const [h, m] = startTime.split(":").map(Number);
+  const totalMin = h * 60 + m + durationMinutes;
+  return `${String(Math.floor(totalMin / 60) % 24).padStart(2, "0")}:${String(totalMin % 60).padStart(2, "0")}`;
+}
+
+function computeEnergyScore(session: SessionItem): number {
+  const playerRatio = Math.min(1, (session.signupCount || 0) / Math.max(1, session.maxPlayers));
+  const durationFactor = Math.min(1, session.durationMinutes / 180);
+  const modeFactor = session.matchMode === "COMPETITIVE" ? 1 : session.matchMode === "TRAINING" ? 0.7 : 0.5;
+  const courtDensity = session.maxPlayers > 0 && session.courtsAvailable > 0
+    ? Math.min(1, (session.signupCount || 0) / (session.courtsAvailable * 4))
+    : 0.5;
+  return Math.round((playerRatio * 35 + durationFactor * 20 + modeFactor * 25 + courtDensity * 20));
+}
+
+function getIntensityLevel(session: SessionItem): { label: string; color: string } {
+  if (session.matchMode === "COMPETITIVE") {
+    const playerRatio = (session.signupCount || 0) / Math.max(1, session.maxPlayers);
+    if (playerRatio > 0.8) return { label: "ELITE", color: "bg-amber-400/15 text-amber-600 dark:text-amber-400 ring-amber-400/30" };
+    return { label: "HIGH", color: "bg-orange-400/15 text-orange-600 dark:text-orange-400 ring-orange-400/30" };
+  }
+  if (session.matchMode === "TRAINING") return { label: "MEDIUM", color: "bg-emerald-400/15 text-emerald-600 dark:text-emerald-400 ring-emerald-400/30" };
+  return { label: "LOW", color: "bg-blue-400/15 text-blue-600 dark:text-blue-400 ring-blue-400/30" };
+}
+
 function TimelineSessionCard({
   session,
   clubs,
   mySignup,
   onClick,
-  animDelay,
 }: {
   session: SessionItem;
   clubs: any[];
   mySignup?: any;
   onClick: () => void;
-  animDelay?: number;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date(new Date().toDateString());
@@ -172,17 +196,25 @@ function TimelineSessionCard({
   const spotsLeft = session.maxPlayers - (session.signupCount || 0);
   const isFull = spotsLeft <= 0;
   const fillPercent = Math.min(100, Math.round(((session.signupCount || 0) / session.maxPlayers) * 100));
+  const endTime = computeEndTime(session.startTime, session.durationMinutes);
+  const energy = computeEnergyScore(session);
+  const intensity = getIntensityLevel(session);
+  const isElite = intensity.label === "ELITE";
 
   const accentColor = session.matchMode === "TRAINING"
     ? "bg-violet-500" : session.matchMode === "COMPETITIVE"
     ? "bg-amber-500" : "bg-blue-500";
 
+  const playerCount = session.signupCount || 0;
+
   return (
     <div
-      className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-[3px] hover:shadow-lg group ${
-        isPast ? "opacity-60" : ""
-      }`}
-      style={{ animationDelay: `${(animDelay || 0) * 80}ms` }}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-[3px] hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
+        isPast ? "opacity-55" : ""
+      } ${isElite && !isPast ? "ring-1 ring-amber-400/30" : ""}`}
       onClick={onClick}
       data-testid={`timeline-session-${session.id}`}
     >
@@ -191,105 +223,132 @@ function TimelineSessionCard({
       <div className={`p-4 pl-5 border rounded-xl backdrop-blur-sm ${
         isSignedUp ? "border-emerald-400/40 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
         isLive ? "border-green-500/40 bg-green-500/5 dark:bg-green-500/[0.07]" :
+        isFull && !isPast ? "border-red-400/30 bg-card/80 dark:bg-card/60" :
         "border-border/40 bg-card/80 dark:bg-card/60 hover:border-primary/30"
       }`}>
-        <div className="flex items-start justify-between gap-3">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-2 flex-wrap">
-              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold font-mono tracking-wide ${
-                isLive ? "bg-green-500/15 text-green-600 dark:text-green-400 ring-1 ring-green-500/30" :
-                isPast ? "bg-muted text-muted-foreground" :
-                "bg-primary/10 text-primary ring-1 ring-primary/20"
-              }`}>
-                <Clock className="h-3 w-3 mr-1" />
-                {session.startTime}
+        <div className="flex items-center justify-between gap-2 mb-2.5">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
+            <h4 className="font-bold text-sm sm:text-base truncate">{session.title || "Session"}</h4>
+            {isLive && (
+              <span className="tl-live-badge inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white">
+                <span className="tl-live-dot w-1.5 h-1.5 rounded-full bg-white" />
+                LIVE
               </span>
-              {isLive && (
-                <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold bg-green-500 text-white">
-                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
-                  LIVE
-                </span>
-              )}
-              {isSignedUp && (
-                <Badge className={`text-[10px] h-5 ${isWaiting ? "bg-amber-500" : "bg-emerald-500"} text-white`}>
-                  {isWaiting ? "Waitlist" : "Joined"}
-                </Badge>
-              )}
+            )}
+            {isSignedUp && (
+              <Badge className={`text-[10px] h-5 ${isWaiting ? "bg-amber-500" : "bg-emerald-500"} text-white`}>
+                {isWaiting ? "Waitlist" : "Joined"}
+              </Badge>
+            )}
+            {isFull && !isPast && (
+              <Badge className="text-[10px] h-5 bg-red-500 text-white">FULL</Badge>
+            )}
+          </div>
+          <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+        </div>
+
+        <div className="h-px bg-border/40 mb-2.5" />
+
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-muted-foreground mb-2.5">
+          {venueName && (
+            <div className="flex items-center gap-1.5">
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70" />
+              <span className="truncate">{venueName}{venue?.city ? `, ${venue.city}` : ""}</span>
             </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Clock className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70" />
+            <span className="font-medium">{session.startTime} → {endTime}</span>
+          </div>
+          {session.courtsAvailable > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Layers className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70" />
+              <span>{session.courtsAvailable} Court{session.courtsAvailable !== 1 ? "s" : ""}</span>
+            </div>
+          )}
+          {session.sessionFee != null && (
+            <div className="flex items-center gap-1.5">
+              <PoundSterling className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70" />
+              <span>£{(session.sessionFee / 100).toFixed(2)}</span>
+            </div>
+          )}
+          <div className="flex items-center gap-1.5">
+            <Timer className="h-3.5 w-3.5 flex-shrink-0 text-muted-foreground/70" />
+            <span>{session.durationMinutes >= 60 ? `${Math.floor(session.durationMinutes / 60)}h${session.durationMinutes % 60 > 0 ? ` ${session.durationMinutes % 60}m` : ""}` : `${session.durationMinutes}m`}</span>
+          </div>
+        </div>
 
-            <h4 className="font-bold text-sm sm:text-base truncate mb-2">{session.title || "Session"}</h4>
+        <div className="flex items-center gap-2 mb-2.5">
+          <Users className="h-3.5 w-3.5 text-muted-foreground/70 flex-shrink-0" />
+          <div className="flex-1 h-2 rounded-full bg-muted/40 overflow-hidden max-w-[160px]">
+            <div
+              className={`h-full rounded-full tl-bar-fill ${
+                isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500"
+              }`}
+              style={{ width: `${fillPercent}%` }}
+            />
+          </div>
+          <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-muted-foreground"}`}>
+            {playerCount}/{session.maxPlayers}
+          </span>
+        </div>
 
-            <div className="space-y-2">
-              <div className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
-                <span className="flex items-center gap-1.5">
-                  <Timer className="h-3.5 w-3.5" />
-                  {session.durationMinutes}min
-                </span>
-                {session.courtsAvailable > 0 && (
-                  <span className="flex items-center gap-1.5">
-                    <Layers className="h-3.5 w-3.5" />
-                    {session.courtsAvailable} court{session.courtsAvailable !== 1 ? "s" : ""}
-                  </span>
-                )}
-                {session.sessionFee != null && (
-                  <span className="flex items-center gap-1.5">
-                    <PoundSterling className="h-3.5 w-3.5" />
-                    £{(session.sessionFee / 100).toFixed(2)}
-                  </span>
-                )}
-                {venueName && (
-                  <span className="flex items-center gap-1.5">
-                    <MapPin className="h-3.5 w-3.5" />
-                    <span className="truncate max-w-[150px]">{venueName}</span>
-                  </span>
-                )}
-              </div>
+        {!isPast && (
+          <div className="flex items-center gap-2 mb-2.5">
+            <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${energy > 70 ? "text-orange-500" : energy > 40 ? "text-amber-500" : "text-blue-500"}`} />
+            <div className="flex-1 h-1.5 rounded-full bg-muted/40 overflow-hidden max-w-[100px]">
+              <div
+                className={`h-full rounded-full tl-bar-fill ${
+                  energy > 70 ? "bg-orange-500" : energy > 40 ? "bg-amber-500" : "bg-blue-500"
+                }`}
+                style={{ width: `${energy}%` }}
+              />
+            </div>
+            <span className="text-[10px] text-muted-foreground tabular-nums">{energy}%</span>
+          </div>
+        )}
 
-              {!isPast && (
-                <div className="flex items-center gap-2">
-                  <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
-                  <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden max-w-[140px]">
-                    <div
-                      className={`h-full rounded-full transition-all duration-500 ${
-                        isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500"
-                      }`}
-                      style={{ width: `${fillPercent}%` }}
-                    />
-                  </div>
-                  <span className={`text-xs font-medium ${isFull ? "text-red-500" : "text-muted-foreground"}`}>
-                    {session.signupCount || 0}/{session.maxPlayers}
-                  </span>
-                  {isFull && <span className="text-[10px] text-red-500 font-semibold">FULL</span>}
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 flex-wrap">
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ring-1 ${intensity.color}`}>
+              {intensity.label}
+            </span>
+            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+              session.matchMode === "COMPETITIVE"
+                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                : session.matchMode === "TRAINING"
+                ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+            }`}>
+              {session.matchMode}
+            </span>
+            {session.genderRestriction === "FEMALE_ONLY" && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">Females</span>
+            )}
+            {session.sessionType === "JUNIORS_ONLY" && (
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
+            )}
+          </div>
+
+          {playerCount > 0 && (
+            <div className="flex items-center -space-x-1.5">
+              {Array.from({ length: Math.min(playerCount, 4) }).map((_, i) => (
+                <div key={i} className="w-5 h-5 rounded-full bg-muted border-2 border-card flex items-center justify-center">
+                  <Users className="h-2.5 w-2.5 text-muted-foreground/60" />
+                </div>
+              ))}
+              {playerCount > 4 && (
+                <div className="w-5 h-5 rounded-full bg-muted border-2 border-card flex items-center justify-center">
+                  <span className="text-[8px] font-bold text-muted-foreground">+{playerCount - 4}</span>
                 </div>
               )}
             </div>
-
-            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                session.matchMode === "COMPETITIVE"
-                  ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                  : session.matchMode === "TRAINING"
-                  ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
-                  : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-              }`}>
-                {session.matchMode}
-              </span>
-              {session.genderRestriction === "FEMALE_ONLY" && (
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">Females</span>
-              )}
-              {session.sessionType === "JUNIORS_ONLY" && (
-                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
-              )}
-              {clubName && (
-                <span className="text-[10px] text-muted-foreground ml-1">{clubName}</span>
-              )}
-            </div>
-          </div>
-
-          <div className="flex-shrink-0">
-            <ArrowRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
-          </div>
+          )}
         </div>
+
+        {clubName && (
+          <div className="mt-2 text-[10px] text-muted-foreground/60">{clubName}</div>
+        )}
       </div>
     </div>
   );
@@ -801,101 +860,159 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
     <div className="relative">
       <style>{`
         @keyframes tl-fadeSlideIn {
-          from { opacity: 0; transform: translateY(12px); }
+          from { opacity: 0; transform: translateY(16px); }
           to { opacity: 1; transform: translateY(0); }
         }
         @keyframes tl-nodeGlow {
-          0%, 100% { box-shadow: 0 0 4px 1px hsl(var(--primary) / 0.3); }
-          50% { box-shadow: 0 0 10px 3px hsl(var(--primary) / 0.5); }
+          0%, 100% { box-shadow: 0 0 6px 2px hsl(var(--primary) / 0.25); }
+          50% { box-shadow: 0 0 14px 4px hsl(var(--primary) / 0.45); }
         }
-        .tl-card-anim {
-          animation: tl-fadeSlideIn 0.4s ease-out both;
+        @keyframes tl-railDraw {
+          from { transform: scaleY(0); }
+          to { transform: scaleY(1); }
         }
-        .tl-node-upcoming {
-          animation: tl-nodeGlow 2.5s ease-in-out infinite;
+        @keyframes tl-barFill {
+          from { transform: scaleX(0); }
+          to { transform: scaleX(1); }
         }
+        @keyframes tl-livePulse {
+          0%, 100% { opacity: 1; transform: scale(1); }
+          50% { opacity: 0.5; transform: scale(1.8); }
+        }
+        .tl-card-anim { animation: tl-fadeSlideIn 0.45s ease-out both; }
+        .tl-node-glow { animation: tl-nodeGlow 2.5s ease-in-out infinite; }
+        .tl-rail-anim { animation: tl-railDraw 0.6s ease-out both; transform-origin: top; }
+        .tl-bar-fill { animation: tl-barFill 0.8s ease-out 0.3s both; transform-origin: left; }
+        @media (prefers-reduced-motion: reduce) {
+          .tl-card-anim { animation: none; }
+          .tl-node-glow { animation: none; }
+          .tl-rail-anim { animation: none; }
+          .tl-bar-fill { animation: none; transform: scaleX(1); }
+          .tl-live-dot::before { animation: none; }
+        }
+        .tl-live-dot { position: relative; }
+        .tl-live-dot::before {
+          content: '';
+          position: absolute;
+          inset: -2px;
+          border-radius: 50%;
+          background: rgba(255,255,255,0.6);
+          animation: tl-livePulse 1.5s ease-in-out infinite;
+        }
+        .tl-connector { transition: opacity 0.2s; }
+        .group:hover .tl-connector,
+        .tl-connector:hover { opacity: 1 !important; }
       `}</style>
 
-      <div className="space-y-8">
+      <div className="space-y-0">
         {grouped.map((group, gi) => {
           const isToday = group.label === "Today";
           const isTomorrow = group.label === "Tomorrow";
           const isPast = group.dateObj < new Date(new Date().toDateString());
-          const isUpcoming = !isPast;
           const day = format(group.dateObj, "d");
           const month = format(group.dateObj, "MMM").toUpperCase();
           const year = format(group.dateObj, "yyyy");
+          const sortedSessions = [...group.sessions].sort((a, b) => a.startTime.localeCompare(b.startTime));
 
           return (
             <div key={group.key} className="relative" data-testid={`timeline-group-${group.key}`}>
-              <div className="flex gap-3 sm:gap-5">
-                <div className="flex flex-col items-center flex-shrink-0 w-14 sm:w-16">
-                  <div className={`flex flex-col items-center rounded-xl px-2 py-2 w-full ${
+              <div className="flex items-stretch">
+                <div className="flex flex-col items-center flex-shrink-0 w-[48px] sm:w-[68px]">
+                  <div className={`flex flex-col items-center rounded-xl px-1.5 py-2.5 w-full ${
                     isToday ? "bg-primary/10 ring-1 ring-primary/30" :
                     isTomorrow ? "bg-blue-500/10 ring-1 ring-blue-500/30" :
-                    isPast ? "bg-muted/50" :
-                    "bg-card border border-border/50"
+                    isPast ? "bg-muted/40" :
+                    "bg-card border border-border/40"
                   }`}>
-                    <span className={`text-2xl sm:text-3xl font-black leading-none ${
-                      isToday ? "text-primary" :
-                      isTomorrow ? "text-blue-500" :
-                      isPast ? "text-muted-foreground/60" :
-                      "text-foreground"
-                    }`}>{day}</span>
-                    <span className={`text-[10px] sm:text-xs font-bold tracking-wider mt-0.5 ${
+                    <span className={`text-[22px] sm:text-[28px] font-black leading-none tabular-nums ${
                       isToday ? "text-primary" :
                       isTomorrow ? "text-blue-500" :
                       isPast ? "text-muted-foreground/50" :
+                      "text-foreground"
+                    }`}>{day}</span>
+                    <span className={`text-[10px] font-bold tracking-widest mt-0.5 ${
+                      isToday ? "text-primary" :
+                      isTomorrow ? "text-blue-500" :
+                      isPast ? "text-muted-foreground/40" :
                       "text-muted-foreground"
                     }`}>{month}</span>
-                    <span className="text-[9px] text-muted-foreground/40 mt-0.5">{year}</span>
+                    <span className="text-[9px] text-muted-foreground/30">{year}</span>
                   </div>
 
                   {gi < grouped.length - 1 && (
-                    <div className={`w-0.5 flex-1 mt-2 rounded-full ${
-                      isPast ? "bg-border/30" : "bg-primary/20"
+                    <div className={`w-[2px] flex-1 mt-1 rounded-full tl-rail-anim ${
+                      isPast ? "bg-border/25" : "bg-gradient-to-b from-primary/30 to-primary/10"
+                    }`} style={{ animationDelay: `${gi * 100}ms` }} />
+                  )}
+                </div>
+
+                <div className="flex flex-col flex-shrink-0 w-6 sm:w-10 items-center pt-4">
+                  <div className="relative flex-shrink-0">
+                    <div className={`w-3.5 h-3.5 rounded-full border-2 ${
+                      isToday ? "bg-primary border-primary tl-node-glow" :
+                      isTomorrow ? "bg-blue-500 border-blue-500 tl-node-glow" :
+                      isPast ? "bg-muted-foreground/25 border-muted-foreground/20" :
+                      "bg-primary/60 border-primary/50 tl-node-glow"
+                    }`} />
+                    <div className={`absolute inset-[-3px] rounded-full border ${
+                      isPast ? "border-muted-foreground/10" : "border-primary/20"
+                    }`} />
+                  </div>
+
+                  {sortedSessions.length > 1 && (
+                    <div className={`w-[2px] flex-1 mt-1 rounded-full ${
+                      isPast ? "bg-border/20" : "bg-primary/15"
                     }`} />
                   )}
                 </div>
 
-                <div className="flex-1 min-w-0 pb-2">
-                  <div className="flex items-center gap-2 mb-3">
-                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
-                      isToday ? "bg-primary tl-node-upcoming" :
-                      isTomorrow ? "bg-blue-500 tl-node-upcoming" :
-                      isPast ? "bg-muted-foreground/30" :
-                      "bg-primary/70 tl-node-upcoming"
-                    }`} />
+                <div className="flex-1 min-w-0 pb-6 sm:pb-8">
+                  <div className="flex items-center gap-2 mb-3 pt-2.5">
+                    <div className={`hidden sm:block w-6 h-px tl-connector ${isPast ? "bg-border/30" : "bg-primary/25"}`} style={{ opacity: 0.6 }} />
                     <h3 className={`font-bold text-sm ${
                       isToday ? "text-primary" :
                       isTomorrow ? "text-blue-500" :
                       isPast ? "text-muted-foreground" :
-                      ""
+                      "text-foreground"
                     }`}>
                       {group.label}
                     </h3>
-                    <Badge variant="outline" className="text-[10px] h-5">
+                    <Badge variant="outline" className="text-[10px] h-5 font-medium">
                       {group.sessions.length} session{group.sessions.length !== 1 ? "s" : ""}
                     </Badge>
                   </div>
 
                   <div className="space-y-3">
-                    {group.sessions
-                      .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                      .map(s => {
-                        const idx = cardIdx++;
-                        return (
-                          <div key={s.id} className="tl-card-anim" style={{ animationDelay: `${idx * 60}ms` }}>
+                    {sortedSessions.map((s) => {
+                      const idx = cardIdx++;
+                      const durationLabel = s.durationMinutes >= 60
+                        ? `${Math.floor(s.durationMinutes / 60)}h${s.durationMinutes % 60 > 0 ? `${s.durationMinutes % 60}m` : ""}`
+                        : `${s.durationMinutes}m`;
+
+                      return (
+                        <div key={s.id} className="flex items-start gap-0 group/card">
+                          <div className="hidden sm:flex flex-col items-center flex-shrink-0 w-[52px] mr-2 pt-3">
+                            <span className={`text-sm font-bold tabular-nums ${isPast ? "text-muted-foreground/40" : "text-foreground"}`}>
+                              {s.startTime}
+                            </span>
+                            <span className="text-[10px] text-muted-foreground/50">{durationLabel}</span>
+                          </div>
+
+                          <div className="hidden sm:flex items-center flex-shrink-0 pt-5 mr-1">
+                            <div className={`w-5 h-px tl-connector ${isPast ? "bg-border/25" : "bg-primary/20"}`} style={{ opacity: 0.5 }} />
+                          </div>
+
+                          <div className="flex-1 min-w-0 tl-card-anim" style={{ animationDelay: `${idx * 70}ms` }}>
                             <TimelineSessionCard
                               session={s}
                               clubs={clubs}
                               mySignup={mySignupsBySession?.get(s.id)}
                               onClick={() => handleCardClick(s)}
-                              animDelay={idx}
                             />
                           </div>
-                        );
-                      })}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

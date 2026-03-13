@@ -1,0 +1,435 @@
+Upgrade the **Timeline View for session cards** in the badminton web application to create a modern, premium sports scheduling and analytics interface. The current design wastes horizontal space and does not clearly highlight the session time or structure. Redesign the timeline to resemble **modern SaaS dashboards such as Linear, Stripe, Notion, Strava, or Apple Fitness**, while remaining mobile-friendly and performant.
+
+The timeline should combine **session scheduling, analytics, and visual insights** in one elegant interface.
+
+---
+
+# TIMELINE STRUCTURE
+
+The timeline layout must contain four aligned columns:
+
+1. Date and Time Column
+2. Timeline Rail with Glowing Node
+3. Connector Line
+4. Session Card
+
+All timeline nodes must align vertically with the center of each session card.
+
+---
+
+# DATE AND TIME COLUMN
+
+The left column acts as the timeline anchor.
+
+Display vertically:
+
+Large day number
+Month abbreviation
+Year
+
+Example:
+
+14
+MAR
+2026
+
+Below the date display the **session start time in large bold text**.
+
+Example:
+
+08:00
+
+Below the time display the **session duration**.
+
+Example:
+
+2h
+or
+120 min
+
+Design rules:
+
+• start time must be visually dominant
+• duration must be smaller text
+• optionally display time in a soft badge background
+• ensure vertical alignment with session card
+
+---
+
+# TIMELINE RAIL
+
+Enhance the vertical rail:
+
+• slightly thicker line
+• soft gradient styling
+• subtle fade animation on page load
+• perfect alignment with nodes
+
+---
+
+# TIMELINE NODE
+
+Replace the basic circle with a **premium glowing node**.
+
+Node structure:
+
+Center solid circle
+Thin outer ring
+Soft outer glow
+
+Use CSS pseudo-elements:
+
+.timeline-node
+.timeline-node::before
+.timeline-node::after
+
+Glow should remain subtle but visible.
+
+---
+
+# CONNECTOR LINE
+
+Add a horizontal connector line from the node to the card.
+
+Example layout:
+
+◉──────── Session Card
+
+Connector line should be thin with reduced opacity.
+
+On hover it should highlight.
+
+---
+
+# SESSION CARD DESIGN
+
+Redesign session cards to remove empty space and create a compact layout.
+
+Card structure:
+
+Title Row
+Divider
+Session Info Grid
+Attendance Section
+Stats Strip
+Tags
+
+Design style:
+
+• rounded corners
+• soft shadow
+• glass style background
+• subtle gradient border
+• modern typography
+
+---
+
+# TITLE ROW
+
+Display session title prominently.
+
+Example:
+
+Patric | ELITE | Sandwell (4 players)
+
+Add navigation arrow icon on the right.
+
+---
+
+# LIVE SESSION INDICATOR
+
+If a session is happening now display:
+
+● LIVE
+
+Create a **pulsing red indicator** similar to live streaming platforms.
+
+Structure:
+
+.live-dot
+.live-dot::before
+
+Animation should pulse slowly.
+
+---
+
+# SESSION INFORMATION GRID
+
+Display details in a two-column grid.
+
+Example:
+
+📍 Sandwell Aquatics Centre      ⏱ 08:00 → 10:00
+🏸 1 Court                        💷 £20
+⏳ Duration: 120 minutes
+
+Include icons for clarity.
+
+---
+
+# START AND END TIME
+
+The full time range must always appear on the card.
+
+Example:
+
+08:00 → 10:00
+
+---
+
+# ATTENDANCE BAR
+
+Display attendance progress.
+
+Example:
+
+Players
+██████████
+
+4 / 4 FULL
+
+When full the bar turns red.
+
+---
+
+# SESSION ENERGY SCORE
+
+Add a **Session Energy Score** indicator.
+
+Example:
+
+⚡ Energy 78%
+
+or
+
+⚡ ███████░░░
+
+Score calculated using:
+
+players count
+session level
+session duration
+session type
+
+Score range: **0–100**
+
+Colors:
+
+Low = blue
+Medium = yellow
+High = red/orange
+
+Energy bar should animate from 0 to value on load.
+
+---
+
+# SESSION INTENSITY BADGE
+
+Display a badge representing competitiveness.
+
+Levels:
+
+LOW
+MEDIUM
+HIGH
+ELITE
+
+Color scheme:
+
+Low = blue
+Medium = green
+High = orange
+Elite = gold
+
+---
+
+# QUICK SESSION STATS PREVIEW
+
+Display stats strip at bottom of card.
+
+Example:
+
+👥 4 Players
+🏸 6 Matches Played
+🔥 Avg Difficulty 7.5
+
+Use available session and match data.
+
+---
+
+# PLAYER PARTICIPANT PREVIEW
+
+Display participant avatars at bottom.
+
+Since no player photos exist use **athletic silhouette avatars**.
+
+Use:
+
+Male silhouette
+Female silhouette
+
+Example:
+
+👤 👤 👤 👤
+
+If more players exist display:
+
++2
+
+---
+
+# EXPANDABLE SESSION CARD
+
+Allow card expansion when clicked.
+
+Expanded card can display:
+
+player list
+matches played
+difficulty distribution
+session notes
+
+Animation should smoothly expand height.
+
+---
+
+# SMART SESSION HIGHLIGHTS
+
+Automatically highlight important sessions.
+
+Examples:
+
+Session full → FULL badge
+High energy → glow highlight
+Elite session → gold border
+Live session → pulsing indicator
+
+---
+
+# SESSION GROUPING BY DATE
+
+If multiple sessions occur on the same day:
+
+• display date only once
+• group sessions beneath it
+• connect nodes with continuous timeline rail
+
+---
+
+# SESSION HEATMAP CALENDAR
+
+Add a **Session Heatmap Calendar** above the timeline.
+
+Monthly grid similar to GitHub contributions.
+
+Color intensity indicates number of sessions.
+
+Example scale:
+
+No sessions = light grey
+1 session = light blue
+2–3 sessions = medium blue
+4+ sessions = dark blue
+
+Hover tooltip example:
+
+March 14
+3 Sessions Scheduled
+
+Clicking a day scrolls timeline to that date.
+
+---
+
+# TIMELINE ZOOM MODES
+
+Add view controls above timeline:
+
+Day View
+Week View
+Month View
+
+Behavior:
+
+Day View → full detailed timeline
+Week View → grouped sessions by day
+Month View → simplified overview
+
+---
+
+# MOTION DESIGN SYSTEM
+
+Add subtle animations.
+
+Examples:
+
+timeline rail fades in
+cards slide upward on load
+nodes glow softly
+live indicator pulses
+hover lifts card slightly
+
+Animations must remain lightweight.
+
+---
+
+# VISUAL HIERARCHY
+
+Ensure the interface prioritizes:
+
+1 Date and Time
+2 Session Title
+3 Session Time Range
+4 Session Details
+5 Attendance
+6 Tags
+
+Most important information must be visible instantly.
+
+---
+
+# MOBILE FIRST DESIGN
+
+The interface must adapt perfectly to mobile.
+
+Mobile order:
+
+Date
+Time
+Session Card
+
+Ensure:
+
+large touch targets
+readable text
+stacked layout
+
+---
+
+# PERFORMANCE REQUIREMENTS
+
+Ensure smooth performance:
+
+animations use CSS transforms
+minimal JavaScript loops
+60fps rendering
+optimized for many sessions
+
+---
+
+# OUTPUT
+
+Generate:
+
+Updated Timeline HTML structure
+Session card layout
+CSS styling
+Animations
+Responsive behaviour
+
+Do not modify backend session logic.
+
+---
+
+# FINAL GOAL
+
+Transform the timeline into a **modern sports scheduling an**
