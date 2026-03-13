@@ -77,15 +77,36 @@ export default function AnalyticsDashboard() {
 
   const aiMutation = useMutation({
     mutationFn: async (question?: string) => {
+      const penceToGBP = (p: number) => +(p / 100).toFixed(2);
+      const kpisForAI = data?.kpis ? {
+        totalSessions: data.kpis.totalSessions,
+        totalUniquePlayerSignups: data.kpis.totalPlayers,
+        totalRevenue_GBP: penceToGBP(data.kpis.totalRevenue),
+        paidRevenue_GBP: penceToGBP(data.kpis.paidRevenue),
+        avgPlayersPerSession: data.kpis.avgPlayersPerSession,
+        revenuePerSession_GBP: penceToGBP(data.kpis.revenuePerSession),
+        revenuePerPlayer_GBP: penceToGBP(data.kpis.revenuePerPlayer),
+        fillRatePercent: data.kpis.fillRate,
+        noShowRatePercent: data.kpis.noShowRate,
+        totalNoShows: data.kpis.noShows,
+        mostPopularClub: data.kpis.mostPopularClub,
+        mostProfitableSession: data.kpis.mostProfitableSession ? { title: data.kpis.mostProfitableSession.title, revenue_GBP: penceToGBP(data.kpis.mostProfitableSession.revenue) } : null,
+      } : null;
+      const topForAI = data?.sessionRankings?.slice(0, 5).map((s: any) => ({ title: s.title, avgPlayers: s.avgPlayers, totalRevenue_GBP: penceToGBP(s.totalRevenue), avgFillRatePercent: s.avgFillRate, sessionsHeld: s.count }));
+      const bottomForAI = data?.sessionRankings?.slice(-5).map((s: any) => ({ title: s.title, avgPlayers: s.avgPlayers, totalRevenue_GBP: penceToGBP(s.totalRevenue), avgFillRatePercent: s.avgFillRate, sessionsHeld: s.count }));
+      const clubsForAI = data?.clubStats?.map((c: any) => ({ name: c.name, sessions: c.sessions, playerSignups: c.players, revenue_GBP: penceToGBP(c.revenue), fillRatePercent: c.fillRate }));
+      const weekdayForAI = data?.weekdayStats?.map((w: any) => ({ day: w.dayName, sessions: w.sessions, avgPlayers: w.avgPlayers, totalRevenue_GBP: penceToGBP(w.totalRevenue) }));
+      const timeForAI = data?.timeOfDayStats?.map((t: any) => ({ slot: t.label, sessions: t.sessions, avgPlayers: t.avgPlayers, totalRevenue_GBP: penceToGBP(t.totalRevenue) }));
+      const seasonForAI = data?.seasonalityData?.map((s: any) => ({ month: s.month, sessions: s.sessions, players: s.players, revenue_GBP: penceToGBP(s.revenue) }));
       const body: any = {
-        kpis: data?.kpis,
-        topSessions: data?.sessionRankings?.slice(0, 5),
-        bottomSessions: data?.sessionRankings?.slice(-5),
-        weekdayStats: data?.weekdayStats,
-        timeOfDayStats: data?.timeOfDayStats,
-        clubStats: data?.clubStats,
+        kpis: kpisForAI,
+        topSessions: topForAI,
+        bottomSessions: bottomForAI,
+        weekdayStats: weekdayForAI,
+        timeOfDayStats: timeForAI,
+        clubStats: clubsForAI,
         alerts: data?.alerts,
-        seasonality: data?.seasonalityData,
+        seasonality: seasonForAI,
         churn: data?.churn,
       };
       if (question) body.question = question;
@@ -249,7 +270,7 @@ export default function AnalyticsDashboard() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="kpi-cards">
             <KpiCard icon={Calendar} label="Sessions" value={kpis?.totalSessions || 0} color="blue" />
-            <KpiCard icon={Users} label="Players" value={kpis?.totalPlayers || 0} color="green" />
+            <KpiCard icon={Users} label="Total Signups" value={kpis?.totalPlayers || 0} color="green" />
             <KpiCard icon={DollarSign} label="Revenue" value={formatPence(kpis?.totalRevenue || 0)} color="emerald" />
             <KpiCard icon={Users} label="Avg Players/Session" value={kpis?.avgPlayersPerSession || 0} color="violet" />
             <KpiCard icon={DollarSign} label="Rev/Session" value={formatPence(kpis?.revenuePerSession || 0)} color="amber" />
