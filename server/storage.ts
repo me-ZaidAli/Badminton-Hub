@@ -1046,6 +1046,13 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`UPDATE recurring_events SET created_by = NULL WHERE created_by = ${userId}`);
     await db.execute(sql`UPDATE tournaments SET created_by = NULL WHERE created_by = ${userId}`);
     await db.execute(sql`DELETE FROM coach_seeker_memberships WHERE user_id = ${userId}`);
+    const userCoaches = await db.execute(sql`SELECT id FROM coaches WHERE user_id = ${userId}`);
+    if (userCoaches.rows && userCoaches.rows.length > 0) {
+      for (const c of userCoaches.rows) {
+        await db.execute(sql`DELETE FROM lesson_requests WHERE coach_id = ${(c as any).id}`);
+      }
+    }
+    await db.execute(sql`DELETE FROM lesson_requests WHERE player_id = ${userId}`);
     await db.execute(sql`DELETE FROM coaches WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM policy_acceptances WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM contact_messages WHERE sender_user_id = ${userId}`);
@@ -1054,6 +1061,30 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM session_attendance_rewards WHERE created_by_id = ${userId}`);
     await db.execute(sql`DELETE FROM points_milestone_rewards WHERE created_by_id = ${userId}`);
     await db.execute(sql`DELETE FROM badge_achievement_rewards WHERE created_by_id = ${userId}`);
+
+    const userTrials = await db.execute(sql`SELECT id FROM trial_players WHERE user_id = ${userId}`);
+    if (userTrials.rows && userTrials.rows.length > 0) {
+      for (const t of userTrials.rows) {
+        await db.execute(sql`DELETE FROM trial_evaluations WHERE trial_player_id = ${(t as any).id}`);
+      }
+    }
+    await db.execute(sql`DELETE FROM trial_players WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE trial_players SET observer_user_id = NULL WHERE observer_user_id = ${userId}`);
+    await db.execute(sql`UPDATE trial_evaluations SET evaluator_user_id = NULL WHERE evaluator_user_id = ${userId}`);
+
+    await db.execute(sql`DELETE FROM announcement_reactions WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM announcement_comments WHERE user_id = ${userId}`);
+
+    await db.execute(sql`DELETE FROM player_avatar_selections WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM player_achievements_record WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM player_coach_notes WHERE created_by_user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM player_skill_evaluations WHERE evaluated_by_user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM player_skill_review_requests WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE player_skill_review_requests SET accepted_by_user_id = NULL WHERE accepted_by_user_id = ${userId}`);
+
+    await db.execute(sql`DELETE FROM incident_affected_members WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM incident_reports WHERE reported_by_user_id = ${userId}`);
+    await db.execute(sql`UPDATE incident_reports SET assigned_to_user_id = NULL WHERE assigned_to_user_id = ${userId}`);
 
     await db.delete(users).where(eq(users.id, userId));
   }
