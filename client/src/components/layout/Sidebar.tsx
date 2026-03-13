@@ -49,6 +49,7 @@ import {
   Share2,
   Activity,
   GraduationCap,
+  BarChart3,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -141,6 +142,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
+    { href: "/dashboard/analytics", label: "Analytics Dashboard", icon: BarChart3, group: "main", premiumOnly: true, hidden: !isAdminOrOwner && !hasClubAdminAccess },
     { href: "/my-insights", label: "My Insights", icon: Lightbulb, group: "main" },
 
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },

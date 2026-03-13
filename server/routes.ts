@@ -28584,5 +28584,373 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     }
   });
 
+  app.get("/api/dashboard/analytics", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isAdmin = await isAnyClubAdmin(user.id, user.role);
+    if (!isAdmin) return res.sendStatus(403);
+
+    const accessibleClubIds = await getUserAdminClubIds(user.id, user.role);
+    if (accessibleClubIds.length === 0) return res.json({ kpis: { totalSessions: 0, totalPlayers: 0, totalRevenue: 0, paidRevenue: 0, avgPlayersPerSession: 0, revenuePerSession: 0, revenuePerPlayer: 0, fillRate: 0, noShowRate: 0, noShows: 0, mostPopularClub: null, mostProfitableSession: null, totalMatches: 0, completedMatches: 0 }, attendanceTrend: [], sessionRankings: [], sessionStats: [], weekdayStats: [], timeOfDayStats: [], clubStats: [], capacityUtilization: [], playerRetention: { newPlayers: 0, returningPlayers: 0, frequentPlayers: 0 }, playerFrequency: { one: 0, twoToFive: 0, fiveToTen: 0, tenPlus: 0 }, noShowByWeekday: [], alerts: [], seasonalityData: [], churn: { churnedPlayers: 0, decliningPlayers: 0, loyalPlayers: 0 }, demandSuggestions: [], clubs: [], sessionList: [] });
+
+    const premiumClubs = await db.select({ id: clubs.id }).from(clubs).where(and(inArray(clubs.id, accessibleClubIds), eq(clubs.planType, "PREMIUM")));
+    if (premiumClubs.length === 0 && user.role !== "OWNER" && user.role !== "ADMIN") return res.status(403).json({ message: "Premium plan required" });
+
+    try {
+
+      const { from, to, clubId, sessionId, timeOfDay, weekday } = req.query;
+
+      const allClubsData = await db.select().from(clubs).where(inArray(clubs.id, accessibleClubIds));
+
+      let sessionQuery = db.select().from(sessions).where(inArray(sessions.clubId, accessibleClubIds));
+      const allSessions = await sessionQuery;
+
+      let filteredSessions = allSessions;
+      if (from) filteredSessions = filteredSessions.filter(s => new Date(s.date) >= new Date(from as string));
+      if (to) filteredSessions = filteredSessions.filter(s => new Date(s.date) <= new Date(to as string));
+      if (clubId && clubId !== "all") filteredSessions = filteredSessions.filter(s => s.clubId === parseInt(clubId as string));
+      if (sessionId && sessionId !== "all") filteredSessions = filteredSessions.filter(s => s.id === parseInt(sessionId as string));
+      if (timeOfDay && timeOfDay !== "all") {
+        filteredSessions = filteredSessions.filter(s => {
+          const hour = parseInt(s.startTime?.split(":")[0] || "0");
+          if (timeOfDay === "morning") return hour >= 6 && hour < 12;
+          if (timeOfDay === "afternoon") return hour >= 12 && hour < 17;
+          if (timeOfDay === "evening") return hour >= 17 && hour < 21;
+          if (timeOfDay === "night") return hour >= 21 || hour < 6;
+          return true;
+        });
+      }
+      if (weekday && weekday !== "all") {
+        const dayNum = parseInt(weekday as string);
+        filteredSessions = filteredSessions.filter(s => new Date(s.date).getDay() === dayNum);
+      }
+
+      const filteredSessionIds = filteredSessions.map(s => s.id);
+
+      let allSignups: any[] = [];
+      if (filteredSessionIds.length > 0) {
+        allSignups = await db.select({
+          id: sessionSignups.id,
+          sessionId: sessionSignups.sessionId,
+          playerId: sessionSignups.playerId,
+          fee: sessionSignups.fee,
+          paymentStatus: sessionSignups.paymentStatus,
+          signupStatus: sessionSignups.signupStatus,
+          attendanceStatus: sessionSignups.attendanceStatus,
+          signupTime: sessionSignups.signupTime,
+        }).from(sessionSignups).where(inArray(sessionSignups.sessionId, filteredSessionIds));
+      }
+
+      const allPlayers = await db.select({
+        id: playerProfiles.id,
+        userId: playerProfiles.userId,
+        clubId: playerProfiles.clubId,
+        gender: playerProfiles.gender,
+        grade: playerProfiles.grade,
+        joinedAt: playerProfiles.joinedAt,
+        playerStatus: playerProfiles.playerStatus,
+      }).from(playerProfiles).where(inArray(playerProfiles.clubId, accessibleClubIds));
+
+      const playerUserIds = [...new Set(allPlayers.map(p => p.userId))];
+      let playerUsers: any[] = [];
+      if (playerUserIds.length > 0) {
+        playerUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, playerUserIds));
+      }
+      const userMap = new Map(playerUsers.map(u => [u.id, u.fullName]));
+
+      let allMatchesData: any[] = [];
+      if (filteredSessionIds.length > 0) {
+        allMatchesData = await db.select({
+          id: matches.id,
+          sessionId: matches.sessionId,
+          status: matches.status,
+          isCompleted: matches.isCompleted,
+        }).from(matches).where(inArray(matches.sessionId, filteredSessionIds));
+      }
+
+      const confirmedSignups = allSignups.filter(s => s.signupStatus === "CONFIRMED" || s.signupStatus === "INVITED");
+      const totalRevenue = confirmedSignups.reduce((sum, s) => sum + (s.fee || 0), 0);
+      const paidRevenue = confirmedSignups.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0);
+      const totalPlayers = confirmedSignups.length;
+      const totalSessionsCount = filteredSessions.length;
+      const avgPlayersPerSession = totalSessionsCount > 0 ? Math.round((totalPlayers / totalSessionsCount) * 10) / 10 : 0;
+      const revenuePerSession = totalSessionsCount > 0 ? Math.round(totalRevenue / totalSessionsCount) : 0;
+      const revenuePerPlayer = totalPlayers > 0 ? Math.round(totalRevenue / totalPlayers) : 0;
+      const totalCapacity = filteredSessions.reduce((sum, s) => sum + (s.maxPlayers || 0), 0);
+      const fillRate = totalCapacity > 0 ? Math.round((totalPlayers / totalCapacity) * 1000) / 10 : 0;
+      const noShows = confirmedSignups.filter(s => s.attendanceStatus === "NOT_ATTENDED").length;
+      const noShowRate = confirmedSignups.length > 0 ? Math.round((noShows / confirmedSignups.length) * 1000) / 10 : 0;
+
+      const clubStats = allClubsData.map(c => {
+        const cSessions = filteredSessions.filter(s => s.clubId === c.id);
+        const cIds = cSessions.map(s => s.id);
+        const cSignups = confirmedSignups.filter(s => cIds.includes(s.sessionId));
+        const cRev = cSignups.reduce((sum, s) => sum + (s.fee || 0), 0);
+        const cCap = cSessions.reduce((sum, s) => sum + (s.maxPlayers || 0), 0);
+        return {
+          id: c.id, name: c.name,
+          sessions: cSessions.length, players: cSignups.length,
+          revenue: cRev, fillRate: cCap > 0 ? Math.round((cSignups.length / cCap) * 1000) / 10 : 0,
+        };
+      });
+
+      const mostPopularClub = clubStats.sort((a, b) => b.players - a.players)[0];
+
+      const sessionStats = filteredSessions.map(s => {
+        const sSignups = confirmedSignups.filter(sg => sg.sessionId === s.id);
+        const sRev = sSignups.reduce((sum, sg) => sum + (sg.fee || 0), 0);
+        const sMatches = allMatchesData.filter(m => m.sessionId === s.id);
+        const clubName = allClubsData.find(c => c.id === s.clubId)?.name || "Unknown";
+        return {
+          id: s.id, title: s.title, date: s.date, startTime: s.startTime,
+          clubId: s.clubId, clubName,
+          players: sSignups.length, maxPlayers: s.maxPlayers,
+          fillRate: s.maxPlayers > 0 ? Math.round((sSignups.length / s.maxPlayers) * 1000) / 10 : 0,
+          revenue: sRev, revenuePerPlayer: sSignups.length > 0 ? Math.round(sRev / sSignups.length) : 0,
+          matches: sMatches.length, completedMatches: sMatches.filter(m => m.isCompleted).length,
+          noShows: sSignups.filter(sg => sg.attendanceStatus === "NOT_ATTENDED").length,
+          sessionFee: s.sessionFee, durationMinutes: s.durationMinutes,
+        };
+      });
+
+      const sessionTitleMap = new Map<string, { players: number[]; revenue: number[]; fillRates: number[]; count: number }>();
+      for (const s of sessionStats) {
+        const key = s.title || "Untitled";
+        if (!sessionTitleMap.has(key)) sessionTitleMap.set(key, { players: [], revenue: [], fillRates: [], count: 0 });
+        const entry = sessionTitleMap.get(key)!;
+        entry.players.push(s.players);
+        entry.revenue.push(s.revenue);
+        entry.fillRates.push(s.fillRate);
+        entry.count++;
+      }
+      const sessionRankings = [...sessionTitleMap.entries()].map(([title, data]) => ({
+        title, count: data.count,
+        avgPlayers: Math.round((data.players.reduce((a, b) => a + b, 0) / data.count) * 10) / 10,
+        totalRevenue: data.revenue.reduce((a, b) => a + b, 0),
+        avgFillRate: Math.round((data.fillRates.reduce((a, b) => a + b, 0) / data.count) * 10) / 10,
+      }));
+
+      const mostProfitableSession = sessionRankings.sort((a, b) => b.totalRevenue - a.totalRevenue)[0];
+
+      const attendanceByDate = new Map<string, { players: number; sessions: number; revenue: number }>();
+      for (const s of sessionStats) {
+        const dateKey = new Date(s.date).toISOString().split("T")[0];
+        if (!attendanceByDate.has(dateKey)) attendanceByDate.set(dateKey, { players: 0, sessions: 0, revenue: 0 });
+        const entry = attendanceByDate.get(dateKey)!;
+        entry.players += s.players;
+        entry.sessions += 1;
+        entry.revenue += s.revenue;
+      }
+      const attendanceTrend = [...attendanceByDate.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([date, data]) => ({
+        date, ...data,
+      }));
+
+      const weekdayStats = [0, 1, 2, 3, 4, 5, 6].map(day => {
+        const daySessions = sessionStats.filter(s => new Date(s.date).getDay() === day);
+        return {
+          day, dayName: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day],
+          sessions: daySessions.length,
+          avgPlayers: daySessions.length > 0 ? Math.round((daySessions.reduce((sum, s) => sum + s.players, 0) / daySessions.length) * 10) / 10 : 0,
+          totalRevenue: daySessions.reduce((sum, s) => sum + s.revenue, 0),
+        };
+      });
+
+      const timeSlots = [
+        { key: "morning", label: "Morning (6-12)", min: 6, max: 12 },
+        { key: "afternoon", label: "Afternoon (12-17)", min: 12, max: 17 },
+        { key: "evening", label: "Evening (17-21)", min: 17, max: 21 },
+        { key: "night", label: "Night (21-6)", min: 21, max: 30 },
+      ];
+      const timeOfDayStats = timeSlots.map(slot => {
+        const slotSessions = sessionStats.filter(s => {
+          const hour = parseInt(s.startTime?.split(":")[0] || "0");
+          if (slot.key === "night") return hour >= 21 || hour < 6;
+          return hour >= slot.min && hour < slot.max;
+        });
+        return {
+          ...slot, sessions: slotSessions.length,
+          avgPlayers: slotSessions.length > 0 ? Math.round((slotSessions.reduce((sum, s) => sum + s.players, 0) / slotSessions.length) * 10) / 10 : 0,
+          totalPlayers: slotSessions.reduce((sum, s) => sum + s.players, 0),
+          totalRevenue: slotSessions.reduce((sum, s) => sum + s.revenue, 0),
+        };
+      });
+
+      const fillRanges = [
+        { label: "0-20%", min: 0, max: 20 },
+        { label: "20-40%", min: 20, max: 40 },
+        { label: "40-60%", min: 40, max: 60 },
+        { label: "60-80%", min: 60, max: 80 },
+        { label: "80-100%", min: 80, max: 101 },
+      ];
+      const capacityUtilization = fillRanges.map(range => ({
+        ...range,
+        count: sessionStats.filter(s => s.fillRate >= range.min && s.fillRate < range.max).length,
+      }));
+
+      const playerAttendance = new Map<number, { count: number; firstSeen: string; lastSeen: string }>();
+      for (const su of confirmedSignups) {
+        const sess = filteredSessions.find(s => s.id === su.sessionId);
+        if (!sess) continue;
+        const dateStr = new Date(sess.date).toISOString();
+        if (!playerAttendance.has(su.playerId)) playerAttendance.set(su.playerId, { count: 0, firstSeen: dateStr, lastSeen: dateStr });
+        const entry = playerAttendance.get(su.playerId)!;
+        entry.count++;
+        if (dateStr < entry.firstSeen) entry.firstSeen = dateStr;
+        if (dateStr > entry.lastSeen) entry.lastSeen = dateStr;
+      }
+
+      const freqDist = { one: 0, twoToFive: 0, fiveToTen: 0, tenPlus: 0 };
+      for (const [, data] of playerAttendance) {
+        if (data.count === 1) freqDist.one++;
+        else if (data.count <= 5) freqDist.twoToFive++;
+        else if (data.count <= 10) freqDist.fiveToTen++;
+        else freqDist.tenPlus++;
+      }
+
+      const now = new Date();
+      const thirtyDaysAgo = new Date(now.getTime() - 30 * 86400000);
+      const sixtyDaysAgo = new Date(now.getTime() - 60 * 86400000);
+      let newPlayers = 0, returningPlayers = 0, frequentPlayers = 0;
+      for (const [, data] of playerAttendance) {
+        if (new Date(data.firstSeen) >= thirtyDaysAgo) newPlayers++;
+        else if (data.count > 5) frequentPlayers++;
+        else returningPlayers++;
+      }
+
+      const noShowByWeekday = [0, 1, 2, 3, 4, 5, 6].map(day => {
+        const daySessions = sessionStats.filter(s => new Date(s.date).getDay() === day);
+        return {
+          day, dayName: ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][day],
+          noShows: daySessions.reduce((sum, s) => sum + s.noShows, 0),
+        };
+      });
+
+      const alerts: { type: string; severity: string; message: string }[] = [];
+      const recentSessions = sessionStats.filter(s => new Date(s.date) >= thirtyDaysAgo);
+      const prevSessions = sessionStats.filter(s => new Date(s.date) >= sixtyDaysAgo && new Date(s.date) < thirtyDaysAgo);
+
+      if (recentSessions.length > 0 && prevSessions.length > 0) {
+        const recentAvg = recentSessions.reduce((sum, s) => sum + s.players, 0) / recentSessions.length;
+        const prevAvg = prevSessions.reduce((sum, s) => sum + s.players, 0) / prevSessions.length;
+        if (prevAvg > 0 && ((prevAvg - recentAvg) / prevAvg) > 0.2) {
+          alerts.push({ type: "attendance_drop", severity: "warning", message: `Attendance dropped ${Math.round(((prevAvg - recentAvg) / prevAvg) * 100)}% vs previous period` });
+        }
+        const recentRev = recentSessions.reduce((sum, s) => sum + s.revenue, 0);
+        const prevRev = prevSessions.reduce((sum, s) => sum + s.revenue, 0);
+        if (prevRev > 0 && ((prevRev - recentRev) / prevRev) > 0.2) {
+          alerts.push({ type: "revenue_drop", severity: "warning", message: `Revenue decreased ${Math.round(((prevRev - recentRev) / prevRev) * 100)}% vs previous period` });
+        }
+      }
+
+      const lowCapSessions = sessionRankings.filter(s => s.avgFillRate < 40);
+      for (const s of lowCapSessions) {
+        alerts.push({ type: "low_capacity", severity: "info", message: `"${s.title}" averages ${s.avgFillRate}% capacity` });
+      }
+      const overCapSessions = sessionRankings.filter(s => s.avgFillRate > 95);
+      for (const s of overCapSessions) {
+        alerts.push({ type: "over_capacity", severity: "info", message: `"${s.title}" is consistently at ${s.avgFillRate}% capacity` });
+      }
+
+      const monthlyTrend = new Map<string, { players: number; sessions: number; revenue: number }>();
+      for (const s of sessionStats) {
+        const monthKey = new Date(s.date).toISOString().slice(0, 7);
+        if (!monthlyTrend.has(monthKey)) monthlyTrend.set(monthKey, { players: 0, sessions: 0, revenue: 0 });
+        const entry = monthlyTrend.get(monthKey)!;
+        entry.players += s.players;
+        entry.sessions += 1;
+        entry.revenue += s.revenue;
+      }
+      const seasonalityData = [...monthlyTrend.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([month, data]) => ({
+        month, ...data,
+      }));
+
+      const churnThreshold = new Date(now.getTime() - 60 * 86400000);
+      let churnedPlayers = 0, decliningPlayers = 0, loyalPlayers = 0;
+      for (const [, data] of playerAttendance) {
+        if (new Date(data.lastSeen) < churnThreshold && data.count > 1) churnedPlayers++;
+        else if (data.count >= 10) loyalPlayers++;
+        else if (data.count >= 2) decliningPlayers++;
+      }
+
+      const demandSuggestions: string[] = [];
+      for (const s of sessionRankings) {
+        if (s.avgFillRate > 90) demandSuggestions.push(`Increase capacity for "${s.title}" — running at ${s.avgFillRate}% average fill rate`);
+        if (s.avgFillRate < 30 && s.count > 2) demandSuggestions.push(`Consider rescheduling "${s.title}" — only ${s.avgFillRate}% average fill rate`);
+      }
+      const bestTimeSlot = timeOfDayStats.sort((a, b) => b.avgPlayers - a.avgPlayers)[0];
+      if (bestTimeSlot && bestTimeSlot.avgPlayers > 0) {
+        demandSuggestions.push(`${bestTimeSlot.label} time slots attract the most players (avg ${bestTimeSlot.avgPlayers})`);
+      }
+      const bestWeekday = weekdayStats.sort((a, b) => b.avgPlayers - a.avgPlayers)[0];
+      if (bestWeekday && bestWeekday.avgPlayers > 0) {
+        demandSuggestions.push(`${bestWeekday.dayName} sessions have the highest average attendance (${bestWeekday.avgPlayers} players)`);
+      }
+
+      res.json({
+        kpis: {
+          totalSessions: totalSessionsCount, totalPlayers, totalRevenue, paidRevenue,
+          avgPlayersPerSession, revenuePerSession, revenuePerPlayer,
+          fillRate, noShowRate, noShows,
+          mostPopularClub: mostPopularClub ? { name: mostPopularClub.name, players: mostPopularClub.players } : null,
+          mostProfitableSession: mostProfitableSession ? { title: mostProfitableSession.title, revenue: mostProfitableSession.totalRevenue } : null,
+          totalMatches: allMatchesData.length,
+          completedMatches: allMatchesData.filter(m => m.isCompleted).length,
+        },
+        attendanceTrend,
+        sessionRankings,
+        sessionStats,
+        weekdayStats,
+        timeOfDayStats,
+        clubStats,
+        capacityUtilization,
+        playerRetention: { newPlayers, returningPlayers, frequentPlayers },
+        playerFrequency: freqDist,
+        noShowByWeekday,
+        alerts,
+        seasonalityData,
+        churn: { churnedPlayers, decliningPlayers, loyalPlayers },
+        demandSuggestions,
+        clubs: allClubsData.map(c => ({ id: c.id, name: c.name })),
+        sessionList: [...new Map(allSessions.map(s => [s.title, { id: s.id, title: s.title }])).values()],
+      });
+    } catch (err: any) {
+      console.error("Error fetching dashboard analytics:", err);
+      res.status(500).json({ message: "Failed to fetch analytics data" });
+    }
+  });
+
+  app.post("/api/dashboard/analytics/ai-insights", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isAdmin = await isAnyClubAdmin(user.id, user.role);
+    if (!isAdmin) return res.sendStatus(403);
+
+    try {
+      const { kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn, question } = req.body;
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+
+      let prompt = "";
+      if (question) {
+        prompt = `You are an analytics AI assistant for a badminton club management platform. A user is asking a data question.\n\nHere is the current analytics data:\n${JSON.stringify({ kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn }, null, 2)}\n\nUser question: ${question}\n\nProvide a clear, data-driven answer. Use specific numbers and percentages. Keep it concise but insightful.`;
+      } else {
+        prompt = `You are a business intelligence analyst for a badminton club management platform. Analyze this data and provide insights.\n\nData:\n${JSON.stringify({ kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn }, null, 2)}\n\nProvide a comprehensive report with these sections (use markdown headers):\n## Key Insights\n## Revenue Analysis\n## Attendance Patterns\n## Underperforming Sessions\n## Recommendations\n## Scheduling Improvements\n## Player Engagement Strategies\n\nBe specific with numbers and actionable recommendations. If data is limited, note that and provide what insights you can.`;
+      }
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 1500,
+        temperature: 0.7,
+      });
+
+      res.json({ report: completion.choices[0]?.message?.content || "No insights available." });
+    } catch (err: any) {
+      console.error("Error generating AI insights:", err);
+      res.status(500).json({ message: "Failed to generate AI insights" });
+    }
+  });
+
   return httpServer;
 }

@@ -121,6 +121,7 @@ const RecognitionCards = lazy(() => import("@/pages/admin/RecognitionCards"));
 const IncidentReports = lazy(() => import("@/pages/IncidentReports"));
 const TrialManagement = lazy(() => import("@/pages/admin/TrialManagement"));
 const TrialDashboard = lazy(() => import("@/pages/TrialDashboard"));
+const AnalyticsDashboard = lazy(() => import("@/pages/AnalyticsDashboard"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const { hidden } = useSidebarHidden();
@@ -614,6 +615,9 @@ function Router() {
       </Route>
       <Route path="/admin/clubs-management">
         <OwnerRoute component={SuperAdminClubs} />
+      </Route>
+      <Route path="/dashboard/analytics">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><AnalyticsDashboard /></Suspense>} />
       </Route>
       <Route path="/admin/analytics">
         <OwnerRoute component={Analytics} />
