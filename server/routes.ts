@@ -28516,20 +28516,24 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
       const today = new Date();
       today.setHours(0, 0, 0, 0);
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
+      const clubFilter = adminClubIds.length > 0 ? inArray(sessions.clubId, adminClubIds) : eq(sessions.clubId, trial.clubId);
       const upcomingSessions = await db.select({
         session: sessions,
         venue: venues,
+        club: clubs,
       }).from(sessions)
         .leftJoin(venues, eq(sessions.venueId, venues.id))
+        .innerJoin(clubs, eq(sessions.clubId, clubs.id))
         .where(and(
-          eq(sessions.clubId, trial.clubId),
+          clubFilter,
           gte(sessions.date, today),
         ))
         .orderBy(asc(sessions.date));
 
       const dayNames = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
-      const scored = upcomingSessions.map(({ session: s, venue: v }) => {
+      const scored = upcomingSessions.map(({ session: s, venue: v, club: c }) => {
         let score = 0;
         if (trial.preferredDays && trial.preferredDays.length > 0 && s.date) {
           const sessionDay = dayNames[new Date(s.date).getDay()];
@@ -28543,13 +28547,15 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           if (level === "ADVANCED" && mode === "COMPETITIVE") score += 2;
           if (level === "COMPETITIVE" && mode === "COMPETITIVE") score += 2;
         }
+        if (s.clubId === trial.clubId) score += 1;
         return {
           sessionId: s.id,
           title: s.title,
           date: s.date,
           startTime: s.startTime,
           matchMode: s.matchMode,
-          venueName: v.name,
+          venueName: v?.name || null,
+          clubName: c.name,
           maxPlayers: s.maxPlayers,
           score,
         };

@@ -591,7 +591,9 @@ function AssignSessionModal({ trial, onClose }: { trial: TrialPlayerData; onClos
                       <div className="text-xs text-muted-foreground">
                         {rec.date ? format(new Date(rec.date), "EEE, dd MMM yyyy") : "No date"} {rec.startTime && `at ${rec.startTime}`}
                       </div>
-                      <div className="text-xs text-muted-foreground">{rec.venueName}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {rec.venueName}{rec.clubName ? ` · ${rec.clubName}` : ""}
+                      </div>
                     </div>
                     <div className="flex items-center gap-1">
                       {rec.score > 0 && (
@@ -605,7 +607,7 @@ function AssignSessionModal({ trial, onClose }: { trial: TrialPlayerData; onClos
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No upcoming sessions found for this club. Create a session first.</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No upcoming sessions found. Create a session first.</p>
             )}
           </div>
         )}
