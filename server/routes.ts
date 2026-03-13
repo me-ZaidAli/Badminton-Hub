@@ -28509,13 +28509,12 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         session: sessions,
         venue: venues,
       }).from(sessions)
-        .innerJoin(venues, eq(sessions.venueId, venues.id))
+        .leftJoin(venues, eq(sessions.venueId, venues.id))
         .where(and(
           eq(sessions.clubId, trial.clubId),
           gte(sessions.date, today),
         ))
-        .orderBy(asc(sessions.date))
-        .limit(20);
+        .orderBy(asc(sessions.date));
 
       const dayNames = ["SUNDAY", "MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY"];
 
@@ -28545,8 +28544,11 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         };
       });
 
-      scored.sort((a, b) => b.score - a.score);
-      res.json(scored.slice(0, 10));
+      scored.sort((a, b) => {
+        if (b.score !== a.score) return b.score - a.score;
+        return new Date(a.date).getTime() - new Date(b.date).getTime();
+      });
+      res.json(scored);
     } catch (err: any) {
       console.error("Error getting session recommendations:", err);
       res.status(500).json({ message: err.message });

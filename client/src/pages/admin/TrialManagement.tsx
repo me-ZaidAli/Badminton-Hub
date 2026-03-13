@@ -576,7 +576,7 @@ function AssignSessionModal({ trial, onClose }: { trial: TrialPlayerData; onClos
             <Loader2 className="animate-spin text-primary" />
           </div>
         ) : (
-          <div className="space-y-3 max-h-80 overflow-y-auto">
+          <div className="space-y-3 max-h-96 overflow-y-auto">
             {recommendations && recommendations.length > 0 ? (
               recommendations.map(rec => (
                 <div
@@ -605,7 +605,7 @@ function AssignSessionModal({ trial, onClose }: { trial: TrialPlayerData; onClos
                 </div>
               ))
             ) : (
-              <p className="text-sm text-muted-foreground text-center py-4">No upcoming sessions found for this club</p>
+              <p className="text-sm text-muted-foreground text-center py-4">No upcoming sessions found for this club. Create a session first.</p>
             )}
           </div>
         )}
