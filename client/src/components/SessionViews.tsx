@@ -1,12 +1,13 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useRef, useEffect, useCallback } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
+import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -175,16 +176,189 @@ function getIntensityLevel(session: SessionItem): { label: string; color: string
   return { label: "LOW", color: "bg-blue-400/15 text-blue-600 dark:text-blue-400 ring-blue-400/30" };
 }
 
+function ExpandedSessionDetails({ session }: { session: SessionItem }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  const { data: signups, isLoading: signupsLoading, isError: signupsError } = useQuery<any[]>({
+    queryKey: ["/api/sessions", session.id, "signups"],
+    queryFn: async () => {
+      const r = await fetch(`/api/sessions/${session.id}/signups`);
+      if (!r.ok) throw new Error("Failed to load signups");
+      return r.json();
+    },
+    staleTime: 30000,
+  });
+
+  const { data: leaderboard, isLoading: leaderboardLoading, isError: leaderboardError } = useQuery<any[]>({
+    queryKey: ["/api/sessions", session.id, "leaderboard"],
+    queryFn: async () => {
+      const r = await fetch(`/api/sessions/${session.id}/leaderboard`);
+      if (!r.ok) throw new Error("Failed to load leaderboard");
+      return r.json();
+    },
+    staleTime: 30000,
+  });
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setHeight(contentRef.current.scrollHeight);
+    }
+  }, [signups, leaderboard]);
+
+  const confirmedPlayers = signups?.filter((s: any) => s.signupStatus === "CONFIRMED" || !s.signupStatus) || [];
+  const waitingPlayers = signups?.filter((s: any) => s.signupStatus === "WAITING") || [];
+  const matchesPlayed = leaderboard?.length ? leaderboard.reduce((max: number, p: any) => Math.max(max, p.played || 0), 0) : 0;
+  const avgDifficulty = leaderboard?.length
+    ? (leaderboard.reduce((sum: number, p: any) => sum + (p.winRate || 0), 0) / leaderboard.length * 10).toFixed(1)
+    : null;
+
+  const isLoading = signupsLoading || leaderboardLoading;
+  const hasError = signupsError || leaderboardError;
+
+  return (
+    <div
+      className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
+      style={{ maxHeight: height > 0 ? `${height + 16}px` : "500px" }}
+      role="region"
+      aria-label={`Details for ${session.title || "session"}`}
+      id={`session-details-${session.id}`}
+    >
+      <div ref={contentRef} className="pt-3">
+        <div className="h-px bg-border/30 mb-3" />
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <span className="ml-2 text-xs text-muted-foreground">Loading details...</span>
+          </div>
+        ) : hasError ? (
+          <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
+            <span>Unable to load session details</span>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {confirmedPlayers.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Users className="h-3 w-3 text-muted-foreground/70" />
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Players ({confirmedPlayers.length})</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {confirmedPlayers.slice(0, 12).map((p: any, i: number) => (
+                    <div key={p.id || i} className="flex items-center gap-1.5 bg-muted/40 dark:bg-muted/30 rounded-md px-2 py-1" data-testid={`expanded-player-${p.id || i}`}>
+                      <div className="w-4 h-4 rounded-full bg-muted-foreground/20 flex items-center justify-center">
+                        <Users className="h-2.5 w-2.5 text-muted-foreground/50" />
+                      </div>
+                      <span className="text-[11px] text-foreground dark:text-white/80 truncate max-w-[100px]">{p.playerName || p.fullName || "Player"}</span>
+                    </div>
+                  ))}
+                  {confirmedPlayers.length > 12 && (
+                    <div className="flex items-center bg-muted/40 dark:bg-muted/30 rounded-md px-2 py-1">
+                      <span className="text-[11px] text-muted-foreground">+{confirmedPlayers.length - 12} more</span>
+                    </div>
+                  )}
+                </div>
+                {waitingPlayers.length > 0 && (
+                  <div className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-400">
+                    {waitingPlayers.length} on waiting list
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(matchesPlayed > 0 || leaderboard?.length) && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Swords className="h-3 w-3 text-muted-foreground/70" />
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Match Stats</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="bg-muted/30 dark:bg-muted/20 rounded-lg p-2 text-center">
+                    <span className="text-lg font-bold text-foreground dark:text-white">{matchesPlayed}</span>
+                    <p className="text-[9px] text-muted-foreground">Matches</p>
+                  </div>
+                  <div className="bg-muted/30 dark:bg-muted/20 rounded-lg p-2 text-center">
+                    <span className="text-lg font-bold text-foreground dark:text-white">{leaderboard?.length || 0}</span>
+                    <p className="text-[9px] text-muted-foreground">Players Ranked</p>
+                  </div>
+                  {avgDifficulty && (
+                    <div className="bg-muted/30 dark:bg-muted/20 rounded-lg p-2 text-center">
+                      <span className="text-lg font-bold text-foreground dark:text-white">{avgDifficulty}</span>
+                      <p className="text-[9px] text-muted-foreground">Avg Difficulty</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {leaderboard && leaderboard.length > 0 && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <Trophy className="h-3 w-3 text-muted-foreground/70" />
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Top Players</span>
+                </div>
+                <div className="space-y-1">
+                  {leaderboard.slice(0, 3).map((p: any, i: number) => (
+                    <div key={p.profileId || i} className="flex items-center justify-between bg-muted/25 dark:bg-muted/15 rounded-md px-2.5 py-1.5" data-testid={`expanded-rank-${i}`}>
+                      <div className="flex items-center gap-2">
+                        <span className={`text-[11px] font-bold w-4 text-center ${i === 0 ? "text-amber-500" : i === 1 ? "text-gray-400" : "text-amber-700"}`}>
+                          {i + 1}
+                        </span>
+                        <span className="text-[11px] text-foreground dark:text-white/80">{p.fullName || "Player"}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span>{p.wins || 0}W</span>
+                        <span>{p.losses || 0}L</span>
+                        <span className="font-medium text-foreground dark:text-white/70">{p.played || 0}P</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {(session as any).sessionDetails && (
+              <div>
+                <div className="flex items-center gap-1.5 mb-1.5">
+                  <FileText className="h-3 w-3 text-muted-foreground/70" />
+                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Session Notes</span>
+                </div>
+                <p className="text-[11px] text-muted-foreground bg-muted/25 dark:bg-muted/15 rounded-md px-2.5 py-2">
+                  {(session as any).sessionDetails}
+                </p>
+              </div>
+            )}
+
+            <div className="pt-1">
+              <Link href={`/sessions/${session.id}`}>
+                <Button size="sm" variant="outline" className="w-full h-8 text-xs" data-testid={`button-view-session-${session.id}`}>
+                  <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+                  View Full Session
+                </Button>
+              </Link>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TimelineSessionCard({
   session,
   clubs,
   mySignup,
-  onClick,
+  isExpanded,
+  onToggleExpand,
+  onNavigate,
 }: {
   session: SessionItem;
   clubs: any[];
   mySignup?: any;
-  onClick: () => void;
+  isExpanded: boolean;
+  onToggleExpand: () => void;
+  onNavigate: () => void;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date(new Date().toDateString());
@@ -207,15 +381,26 @@ function TimelineSessionCard({
 
   const playerCount = session.signupCount || 0;
 
+  const handleCardClick = useCallback(() => {
+    onToggleExpand();
+  }, [onToggleExpand]);
+
+  const handleNavigate = useCallback((e: React.MouseEvent) => {
+    e.stopPropagation();
+    onNavigate();
+  }, [onNavigate]);
+
   return (
     <div
       role="button"
       tabIndex={0}
-      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
-      className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-[3px] hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
+      aria-expanded={isExpanded}
+      aria-controls={`session-details-${session.id}`}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}
+      className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
         isPast ? "opacity-55" : ""
-      } ${isElite && !isPast ? "ring-1 ring-amber-400/30" : ""}`}
-      onClick={onClick}
+      } ${isElite && !isPast ? "ring-1 ring-amber-400/30" : ""} ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
+      onClick={handleCardClick}
       data-testid={`timeline-session-${session.id}`}
     >
       <div className={`absolute left-0 top-0 bottom-0 w-1 ${accentColor}`} />
@@ -224,6 +409,7 @@ function TimelineSessionCard({
         isSignedUp ? "border-emerald-400/40 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
         isLive ? "border-green-500/40 bg-green-500/5 dark:bg-green-500/[0.07]" :
         isFull && !isPast ? "border-red-400/30 bg-card/80 dark:bg-card/60" :
+        isExpanded ? "border-primary/30 bg-card/90 dark:bg-card/70" :
         "border-border/40 bg-card/80 dark:bg-card/60 hover:border-primary/30"
       }`}>
         <div className="flex items-center justify-between gap-2 mb-2.5">
@@ -244,7 +430,20 @@ function TimelineSessionCard({
               <Badge className="text-[10px] h-5 bg-red-500 text-white">FULL</Badge>
             )}
           </div>
-          <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary group-hover:translate-x-0.5 transition-all flex-shrink-0" />
+          <div className="flex items-center gap-1 flex-shrink-0">
+            <button
+              type="button"
+              onClick={handleNavigate}
+              aria-label={`Open ${session.title || "session"}`}
+              className="p-1 rounded-md hover:bg-muted/50 transition-colors"
+              data-testid={`button-navigate-session-${session.id}`}
+            >
+              <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+            </button>
+            <div className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}>
+              <ChevronDown className="h-4 w-4 text-muted-foreground/40" />
+            </div>
+          </div>
         </div>
 
         <div className="h-px bg-border/40 mb-2.5" />
@@ -330,7 +529,7 @@ function TimelineSessionCard({
             )}
           </div>
 
-          {playerCount > 0 && (
+          {playerCount > 0 && !isExpanded && (
             <div className="flex items-center -space-x-1.5">
               {Array.from({ length: Math.min(playerCount, 4) }).map((_, i) => (
                 <div key={i} className="w-5 h-5 rounded-full bg-muted border-2 border-card flex items-center justify-center">
@@ -349,6 +548,8 @@ function TimelineSessionCard({
         {clubName && (
           <div className="mt-2 text-[10px] text-muted-foreground/60">{clubName}</div>
         )}
+
+        {isExpanded && <ExpandedSessionDetails session={session} />}
       </div>
     </div>
   );
@@ -809,6 +1010,7 @@ export function CalendarView({ sessions, clubs, onSessionClick, adminActions }: 
 
 export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, adminActions }: TimelineViewProps) {
   const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
+  const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
 
   const grouped = useMemo(() => {
     const groups: { label: string; key: string; dateObj: Date; sessions: SessionItem[] }[] = [];
@@ -843,7 +1045,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
     return <p className="text-center text-muted-foreground py-8">No sessions to display</p>;
   }
 
-  const handleCardClick = (session: SessionItem) => {
+  const handleNavigate = (session: SessionItem) => {
     const mySignup = mySignupsBySession?.get(session.id);
     const isSignedUp = mySignup && (mySignup.signupStatus === "CONFIRMED" || mySignup.signupStatus === "WAITING");
     const isAdmin = adminActions?.editableClubIds.has(session.clubId);
@@ -852,6 +1054,10 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
     } else {
       setPreviewSession(session);
     }
+  };
+
+  const handleToggleExpand = (sessionId: number) => {
+    setExpandedSessionId(prev => prev === sessionId ? null : sessionId);
   };
 
   let cardIdx = 0;
@@ -1058,7 +1264,9 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                               session={s}
                               clubs={clubs}
                               mySignup={mySignupsBySession?.get(s.id)}
-                              onClick={() => handleCardClick(s)}
+                              isExpanded={expandedSessionId === s.id}
+                              onToggleExpand={() => handleToggleExpand(s.id)}
+                              onNavigate={() => handleNavigate(s)}
                             />
                           </div>
                         </div>
