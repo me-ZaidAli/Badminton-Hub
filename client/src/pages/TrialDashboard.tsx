@@ -9,9 +9,23 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import {
   CheckCircle2, Circle, Clock, Calendar, MapPin, User, Building2,
-  Loader2, ArrowRight, Star, AlertTriangle, XCircle, Trophy, ClipboardCheck
+  Loader2, ArrowRight, Star, AlertTriangle, XCircle, Trophy, ClipboardCheck,
+  Timer, Dumbbell, Target, Heart, Users, Handshake
 } from "lucide-react";
-import { format } from "date-fns";
+import { format, differenceInDays, differenceInHours, differenceInMinutes, isPast } from "date-fns";
+import { useState, useEffect } from "react";
+
+interface SuggestedExercise {
+  id: number;
+  name: string;
+  description: string;
+  category: string;
+  difficulty: string;
+  durationMinutes: number | null;
+  reps: number | null;
+  sets: number | null;
+  equipment: string | null;
+}
 
 interface TrialDetails {
   id: number;
@@ -36,7 +50,11 @@ interface TrialDetails {
     title: string;
     date: string;
     startTime: string;
+    endTime: string | null;
     venueName: string | null;
+    venueAddress: string | null;
+    venuePostcode: string | null;
+    matchMode: string | null;
   } | null;
   evaluation: {
     technicalLevel: number;
@@ -49,6 +67,53 @@ interface TrialDetails {
     adminOverrideDecision: string | null;
     notes: string | null;
   } | null;
+  suggestedExercises: SuggestedExercise[];
+}
+
+function SessionCountdown({ sessionDate, startTime }: { sessionDate: string; startTime: string }) {
+  const [now, setNow] = useState(new Date());
+
+  useEffect(() => {
+    const interval = setInterval(() => setNow(new Date()), 60000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const dateStr = format(new Date(sessionDate), "yyyy-MM-dd");
+  const target = new Date(`${dateStr}T${startTime || "00:00"}`);
+
+  if (isPast(target)) {
+    return (
+      <div className="text-center p-4 rounded-lg bg-primary/5 border border-primary/20" data-testid="countdown-past">
+        <p className="text-sm font-medium text-primary">Your trial session has started or already taken place</p>
+      </div>
+    );
+  }
+
+  const days = differenceInDays(target, now);
+  const hours = differenceInHours(target, now) % 24;
+  const minutes = differenceInMinutes(target, now) % 60;
+
+  return (
+    <div className="text-center p-4 rounded-lg bg-primary/5 border border-primary/20" data-testid="countdown-timer">
+      <p className="text-xs text-muted-foreground mb-2 uppercase tracking-wider font-medium">Your trial starts in</p>
+      <div className="flex items-center justify-center gap-4">
+        <div className="text-center">
+          <p className="text-3xl font-bold text-primary">{days}</p>
+          <p className="text-[10px] text-muted-foreground uppercase">Days</p>
+        </div>
+        <span className="text-2xl text-muted-foreground/40 font-light">:</span>
+        <div className="text-center">
+          <p className="text-3xl font-bold text-primary">{hours}</p>
+          <p className="text-[10px] text-muted-foreground uppercase">Hours</p>
+        </div>
+        <span className="text-2xl text-muted-foreground/40 font-light">:</span>
+        <div className="text-center">
+          <p className="text-3xl font-bold text-primary">{minutes}</p>
+          <p className="text-[10px] text-muted-foreground uppercase">Minutes</p>
+        </div>
+      </div>
+    </div>
+  );
 }
 
 const STAGES = [
@@ -244,29 +309,187 @@ export default function TrialDashboard() {
       </Card>
 
       {trial.session && (
-        <Card data-testid="card-session-info">
-          <CardHeader>
+        <Card data-testid="card-session-info" className="border-primary/20">
+          <CardHeader className="pb-3">
             <CardTitle className="text-lg flex items-center gap-2">
               <Calendar className="w-5 h-5 text-primary" />
-              Assigned Session
+              Your Trial Session
             </CardTitle>
+            <CardDescription>
+              We're looking forward to seeing you play! Here are all the details for your trial.
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center gap-3">
-              <div>
-                <p className="text-sm font-medium" data-testid="text-session-title">{trial.session.title}</p>
-                <p className="text-xs text-muted-foreground" data-testid="text-session-date">
-                  {trial.session.date ? format(new Date(trial.session.date), "EEEE, MMMM d, yyyy") : "Date TBC"}
-                  {trial.session.startTime ? ` at ${trial.session.startTime}` : ""}
-                </p>
+          <CardContent className="space-y-4">
+            <SessionCountdown sessionDate={trial.session.date} startTime={trial.session.startTime} />
+
+            <div className="rounded-lg border bg-card p-4 space-y-3">
+              <p className="font-semibold text-base" data-testid="text-session-title">{trial.session.title}</p>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="flex items-start gap-2.5">
+                  <Calendar className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Date</p>
+                    <p className="text-sm font-medium" data-testid="text-session-date">
+                      {trial.session.date ? format(new Date(trial.session.date), "EEEE, d MMMM yyyy") : "Date TBC"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="flex items-start gap-2.5">
+                  <Clock className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                  <div>
+                    <p className="text-xs text-muted-foreground">Time</p>
+                    <p className="text-sm font-medium" data-testid="text-session-time">
+                      {trial.session.startTime || "TBC"}
+                      {trial.session.endTime ? ` - ${trial.session.endTime}` : ""}
+                    </p>
+                  </div>
+                </div>
+
+                {trial.session.venueName && (
+                  <div className="flex items-start gap-2.5 sm:col-span-2">
+                    <MapPin className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Location</p>
+                      <p className="text-sm font-medium" data-testid="text-session-venue">{trial.session.venueName}</p>
+                      {(trial.session.venueAddress || trial.session.venuePostcode) && (
+                        <p className="text-xs text-muted-foreground mt-0.5" data-testid="text-session-address">
+                          {[trial.session.venueAddress, trial.session.venuePostcode].filter(Boolean).join(", ")}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {trial.session.matchMode && (
+                  <div className="flex items-start gap-2.5">
+                    <Target className="w-4 h-4 text-muted-foreground mt-0.5 shrink-0" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Format</p>
+                      <p className="text-sm font-medium capitalize">{trial.session.matchMode.toLowerCase()}</p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
-            {trial.session.venueName && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground" data-testid="text-session-venue">
-                <MapPin className="w-4 h-4 shrink-0" />
-                <span>{trial.session.venueName}</span>
+          </CardContent>
+        </Card>
+      )}
+
+      {trial.session && (trial.status === "SCHEDULED" || trial.status === "PENDING") && (
+        <Card data-testid="card-trial-expectations">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <ClipboardCheck className="w-5 h-5 text-primary" />
+              What to Expect & How to Prepare
+            </CardTitle>
+            <CardDescription>
+              Here's what we'll be looking for during your trial. Don't worry - just play your best and enjoy the session!
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="space-y-3">
+              <div className="flex items-start gap-3 p-3 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full bg-blue-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Target className="w-4 h-4 text-blue-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Play at Your Level</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Show us you can play at the level you've assessed yourself at ({trial.selfAssessedLevel?.toLowerCase() || "your level"}). Demonstrate consistent technique, shot placement, and court awareness.
+                  </p>
+                </div>
               </div>
-            )}
+
+              <div className="flex items-start gap-3 p-3 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full bg-emerald-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <CheckCircle2 className="w-4 h-4 text-emerald-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Know the Rules</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Demonstrate a good understanding of the rules of the game, including scoring, serving, and court rotations. If you're unsure about anything, don't hesitate to ask.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Handshake className="w-4 h-4 text-purple-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Partner Coordination</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    In doubles, show that you can communicate and coordinate effectively with your partner. Good positioning, calling shots, and supporting each other are key.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full bg-pink-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Heart className="w-4 h-4 text-pink-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Attitude & Sportsmanship</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    A positive attitude goes a long way! Be kind and respectful to all players, encourage others, and show good sportsmanship whether you win or lose.
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-start gap-3 p-3 rounded-md bg-muted/30">
+                <div className="w-8 h-8 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">
+                  <Users className="w-4 h-4 text-amber-500" />
+                </div>
+                <div>
+                  <p className="text-sm font-semibold">Be Part of the Team</p>
+                  <p className="text-xs text-muted-foreground mt-0.5">
+                    Our club is a community. Introduce yourself, be friendly, and show that you'd be a great addition to the group. We value players who lift everyone around them.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-3 rounded-lg bg-primary/5 border border-primary/10">
+              <p className="text-xs text-muted-foreground">
+                <span className="font-semibold text-foreground">Tip:</span> Arrive 10-15 minutes early, bring water, and wear appropriate sports clothing and non-marking court shoes. Most importantly - have fun!
+              </p>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {trial.session && trial.suggestedExercises && trial.suggestedExercises.length > 0 && (trial.status === "SCHEDULED" || trial.status === "PENDING") && (
+        <Card data-testid="card-suggested-exercises">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Dumbbell className="w-5 h-5 text-primary" />
+              Warm-Up Exercises
+            </CardTitle>
+            <CardDescription>
+              Try these exercises before your trial to get yourself warmed up and ready to play.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {trial.suggestedExercises.map((ex) => (
+                <div key={ex.id} className="p-3 rounded-md border bg-card space-y-1.5" data-testid={`exercise-${ex.id}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">{ex.name}</p>
+                    <Badge variant="outline" className="text-[10px] capitalize shrink-0">
+                      {ex.difficulty.toLowerCase()}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{ex.description}</p>
+                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground pt-1">
+                    {ex.durationMinutes && <span>{ex.durationMinutes} min</span>}
+                    {ex.reps && ex.sets && <span>{ex.sets} x {ex.reps} reps</span>}
+                    {ex.category && <Badge variant="secondary" className="text-[9px] capitalize h-4">{ex.category.toLowerCase()}</Badge>}
+                  </div>
+                </div>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

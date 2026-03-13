@@ -28063,8 +28063,13 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       if (trial.assignedSessionId) {
         const [sess] = await db.select().from(sessions).where(eq(sessions.id, trial.assignedSessionId)).limit(1);
         if (sess) {
-          const [venue] = await db.select().from(venues).where(eq(venues.id, sess.venueId)).limit(1);
-          sessionDetails = { ...sess, venueName: venue?.name || null };
+          const [venue] = sess.venueId ? await db.select().from(venues).where(eq(venues.id, sess.venueId)).limit(1) : [null];
+          sessionDetails = {
+            ...sess,
+            venueName: venue?.name || null,
+            venueAddress: venue?.address || null,
+            venuePostcode: venue?.postcode || null,
+          };
         }
       }
       let observerName = null;
@@ -28076,12 +28081,18 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const ev = await storage.getTrialEvaluation(trial.id);
       if (ev) evaluation = ev;
 
+      const suggestedExercises = await db.select().from(juniorExercises)
+        .where(and(eq(juniorExercises.isActive, true), inArray(juniorExercises.difficulty, ["EASY", "MEDIUM"])))
+        .orderBy(sql`RANDOM()`)
+        .limit(4);
+
       res.json({
         ...trial,
         clubName: club?.name || null,
         session: sessionDetails,
         observerName,
         evaluation,
+        suggestedExercises,
       });
     } catch (err: any) {
       console.error("Error getting trial player:", err);
