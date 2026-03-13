@@ -8157,3 +8157,19 @@ html.theme-transitioning * {
   100% { opacity: 0; }
 }
 
+@keyframes tl-energy-fill {
+  0% { width: 0; }
+  100% { width: var(--energy-width, 0%); }
+}
+
+.tl-energy-bar {
+  width: var(--energy-width, 0%);
+  animation: tl-energy-fill 0.8s ease-out forwards;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .tl-energy-bar {
+    animation: none;
+  }
+}
+

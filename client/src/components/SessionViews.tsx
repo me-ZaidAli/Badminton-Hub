@@ -160,10 +160,11 @@ function computeEnergyScore(session: SessionItem): number {
   const playerRatio = Math.min(1, (session.signupCount || 0) / Math.max(1, session.maxPlayers));
   const durationFactor = Math.min(1, session.durationMinutes / 180);
   const modeFactor = session.matchMode === "COMPETITIVE" ? 1 : session.matchMode === "TRAINING" ? 0.7 : 0.5;
+  const typeFactor = session.sessionType === "JUNIORS_ONLY" ? 0.6 : session.genderRestriction === "FEMALE_ONLY" ? 0.75 : 1;
   const courtDensity = session.maxPlayers > 0 && session.courtsAvailable > 0
     ? Math.min(1, (session.signupCount || 0) / (session.courtsAvailable * 4))
     : 0.5;
-  return Math.round((playerRatio * 35 + durationFactor * 20 + modeFactor * 25 + courtDensity * 20));
+  return Math.round((playerRatio * 30 + durationFactor * 15 + modeFactor * 25 + courtDensity * 15 + typeFactor * 15));
 }
 
 function getIntensityLevel(session: SessionItem): { label: string; color: string } {
@@ -492,20 +493,20 @@ function TimelineSessionCard({
           </span>
         </div>
 
-        {!isPast && (
-          <div className="flex items-center gap-2 mb-2.5">
-            <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${energy > 70 ? "text-orange-500" : energy > 40 ? "text-amber-500" : "text-blue-500"}`} />
-            <div className="flex-1 h-1.5 rounded-full bg-muted/40 overflow-hidden max-w-[100px]">
-              <div
-                className={`h-full rounded-full tl-bar-fill ${
-                  energy > 70 ? "bg-orange-500" : energy > 40 ? "bg-amber-500" : "bg-blue-500"
-                }`}
-                style={{ width: `${energy}%` }}
-              />
-            </div>
-            <span className="text-[10px] text-muted-foreground tabular-nums">{energy}%</span>
+        <div className="flex items-center gap-2 mb-2.5" data-testid={`energy-score-${session.id}`}>
+          <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${energy > 70 ? "text-orange-500" : energy > 40 ? "text-amber-500" : "text-blue-500"}`} />
+          <div className="flex-1 h-2 rounded-full bg-muted/40 overflow-hidden max-w-[120px]">
+            <div
+              className={`h-full rounded-full tl-energy-bar ${
+                energy > 70 ? "bg-orange-500" : energy > 40 ? "bg-amber-500" : "bg-blue-500"
+              }`}
+              style={{ "--energy-width": `${energy}%` } as React.CSSProperties}
+            />
           </div>
-        )}
+          <span className={`text-[10px] font-semibold tabular-nums ${energy > 70 ? "text-orange-500" : energy > 40 ? "text-amber-500" : "text-blue-500"}`}>
+            {energy}%
+          </span>
+        </div>
 
         <div className="flex items-center justify-between gap-2 flex-wrap">
           <div className="flex items-center gap-1.5 flex-wrap">
