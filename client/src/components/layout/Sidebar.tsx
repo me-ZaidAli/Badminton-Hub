@@ -142,7 +142,6 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
 
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
-    { href: "/dashboard/analytics", label: "Analytics Dashboard", icon: BarChart3, group: "godmode", hidden: user?.role !== "OWNER" },
     { href: "/my-insights", label: "My Insights", icon: Lightbulb, group: "main" },
 
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },

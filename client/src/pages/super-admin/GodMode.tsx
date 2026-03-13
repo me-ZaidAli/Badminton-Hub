@@ -71,6 +71,7 @@ const controlSections = [
   {
     label: "Analytics & Insights",
     items: [
+      { href: "/dashboard/analytics", label: "Analytics Dashboard", desc: "Power BI-level business intelligence and insights", icon: BarChart3, color: "text-violet-500", bg: "bg-violet-500/10" },
       { href: "/admin/acquisition-analytics", label: "Acquisition & KPI", desc: "Growth, channels, and retention", icon: BarChart3, color: "text-blue-500", bg: "bg-blue-500/10" },
       { href: "/admin/attendance-analytics", label: "Attendance Analytics", desc: "Session attendance and engagement", icon: Activity, color: "text-teal-500", bg: "bg-teal-500/10" },
       { href: "/admin/match-engine-lab", label: "Match Engine Lab", desc: "Stress-test the matchmaking algorithm", icon: FlaskConical, color: "text-indigo-500", bg: "bg-indigo-500/10" },
