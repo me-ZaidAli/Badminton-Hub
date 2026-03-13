@@ -860,16 +860,24 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
     <div className="relative">
       <style>{`
         @keyframes tl-fadeSlideIn {
-          from { opacity: 0; transform: translateY(16px); }
+          from { opacity: 0; transform: translateY(18px); }
           to { opacity: 1; transform: translateY(0); }
         }
+        @keyframes tl-dateFadeIn {
+          from { opacity: 0; transform: translateY(-8px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
         @keyframes tl-nodeGlow {
-          0%, 100% { box-shadow: 0 0 6px 2px hsl(var(--primary) / 0.25); }
-          50% { box-shadow: 0 0 14px 4px hsl(var(--primary) / 0.45); }
+          0%, 100% { box-shadow: 0 0 5px 1px hsl(var(--primary) / 0.2); }
+          50% { box-shadow: 0 0 12px 3px hsl(var(--primary) / 0.4); }
+        }
+        @keyframes tl-nodeRingPulse {
+          0%, 100% { transform: scale(1); opacity: 0.4; }
+          50% { transform: scale(1.3); opacity: 0.15; }
         }
         @keyframes tl-railDraw {
-          from { transform: scaleY(0); }
-          to { transform: scaleY(1); }
+          from { transform: scaleY(0); opacity: 0; }
+          to { transform: scaleY(1); opacity: 1; }
         }
         @keyframes tl-barFill {
           from { transform: scaleX(0); }
@@ -877,31 +885,68 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         }
         @keyframes tl-livePulse {
           0%, 100% { opacity: 1; transform: scale(1); }
-          50% { opacity: 0.5; transform: scale(1.8); }
+          50% { opacity: 0.4; transform: scale(2); }
         }
-        .tl-card-anim { animation: tl-fadeSlideIn 0.45s ease-out both; }
-        .tl-node-glow { animation: tl-nodeGlow 2.5s ease-in-out infinite; }
-        .tl-rail-anim { animation: tl-railDraw 0.6s ease-out both; transform-origin: top; }
-        .tl-bar-fill { animation: tl-barFill 0.8s ease-out 0.3s both; transform-origin: left; }
-        @media (prefers-reduced-motion: reduce) {
-          .tl-card-anim { animation: none; }
-          .tl-node-glow { animation: none; }
-          .tl-rail-anim { animation: none; }
-          .tl-bar-fill { animation: none; transform: scaleX(1); }
-          .tl-live-dot::before { animation: none; }
+        @keyframes tl-connectorFade {
+          from { opacity: 0; transform: scaleX(0); }
+          to { opacity: 0.5; transform: scaleX(1); }
+        }
+        @keyframes tl-timeFadeIn {
+          from { opacity: 0; transform: translateY(6px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        .tl-card-anim {
+          animation: tl-fadeSlideIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .tl-date-anim {
+          animation: tl-dateFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        .tl-time-anim {
+          animation: tl-timeFadeIn 0.35s ease-out both;
+        }
+        .tl-node-glow {
+          animation: tl-nodeGlow 3s ease-in-out infinite;
+        }
+        .tl-node-ring {
+          animation: tl-nodeRingPulse 3s ease-in-out infinite;
+        }
+        .tl-rail-anim {
+          animation: tl-railDraw 0.7s ease-out both;
+          transform-origin: top;
+        }
+        .tl-bar-fill {
+          animation: tl-barFill 0.8s ease-out 0.3s both;
+          transform-origin: left;
+        }
+        .tl-connector-anim {
+          animation: tl-connectorFade 0.4s ease-out both;
+          transform-origin: left;
         }
         .tl-live-dot { position: relative; }
         .tl-live-dot::before {
           content: '';
           position: absolute;
-          inset: -2px;
+          inset: -3px;
           border-radius: 50%;
-          background: rgba(255,255,255,0.6);
+          background: rgba(239,68,68,0.5);
           animation: tl-livePulse 1.5s ease-in-out infinite;
         }
-        .tl-connector { transition: opacity 0.2s; }
-        .group:hover .tl-connector,
-        .tl-connector:hover { opacity: 1 !important; }
+        .tl-live-badge {
+          animation: tl-livePulse 2s ease-in-out infinite;
+          animation-fill-mode: none;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .tl-card-anim,
+          .tl-date-anim,
+          .tl-time-anim,
+          .tl-node-glow,
+          .tl-node-ring,
+          .tl-rail-anim,
+          .tl-connector-anim { animation: none; }
+          .tl-bar-fill { animation: none; transform: scaleX(1); }
+          .tl-live-dot::before { animation: none; }
+          .tl-live-badge { animation: none; }
+        }
       `}</style>
 
       <div className="space-y-0">
@@ -918,12 +963,12 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
             <div key={group.key} className="relative" data-testid={`timeline-group-${group.key}`}>
               <div className="flex items-stretch">
                 <div className="flex flex-col items-center flex-shrink-0 w-[56px] sm:w-[72px]">
-                  <div className={`flex flex-col items-center rounded-xl px-1.5 py-2.5 w-full ${
+                  <div className={`tl-date-anim flex flex-col items-center rounded-xl px-1.5 py-2.5 w-full ${
                     isToday ? "bg-primary/10 ring-1 ring-primary/30" :
                     isTomorrow ? "bg-blue-500/10 ring-1 ring-blue-500/30" :
                     isPast ? "bg-muted/40" :
                     "bg-card border border-border/40"
-                  }`}>
+                  }`} style={{ animationDelay: `${gi * 80}ms` }}>
                     <span className={`text-[22px] sm:text-[28px] font-black leading-none tabular-nums ${
                       isToday ? "text-primary" :
                       isTomorrow ? "text-blue-500" :
@@ -944,7 +989,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                       ? `${Math.floor(s.durationMinutes / 60)}h${s.durationMinutes % 60 > 0 ? `${s.durationMinutes % 60}m` : ""}`
                       : `${s.durationMinutes}m`;
                     return (
-                      <div key={s.id} className={`flex flex-col items-center w-full ${si === 0 ? "mt-6" : "mt-[26px]"}`}>
+                      <div key={s.id} className={`tl-time-anim flex flex-col items-center w-full ${si === 0 ? "mt-6" : "mt-[26px]"}`} style={{ animationDelay: `${gi * 80 + (si + 1) * 100}ms` }}>
                         <span className={`text-sm sm:text-[15px] font-bold tabular-nums leading-tight ${
                           isPast ? "text-muted-foreground/50 dark:text-muted-foreground/40" : "text-foreground dark:text-white"
                         }`}>{s.startTime}</span>
@@ -971,7 +1016,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                       "bg-primary/60 border-primary/50 tl-node-glow"
                     }`} />
                     <div className={`absolute inset-[-3px] rounded-full border ${
-                      isPast ? "border-muted-foreground/10" : "border-primary/20"
+                      isPast ? "border-muted-foreground/10" : "border-primary/20 tl-node-ring"
                     }`} />
                   </div>
 
@@ -984,7 +1029,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
 
                 <div className="flex-1 min-w-0 pb-6 sm:pb-8">
                   <div className="flex items-center gap-2 mb-3 pt-2.5">
-                    <div className={`hidden sm:block w-6 h-px tl-connector ${isPast ? "bg-border/30" : "bg-primary/25"}`} style={{ opacity: 0.6 }} />
+                    <div className={`hidden sm:block w-6 h-px tl-connector-anim ${isPast ? "bg-border/30" : "bg-primary/25"}`} style={{ animationDelay: `${gi * 80 + 50}ms` }} />
                     <h3 className={`font-bold text-sm ${
                       isToday ? "text-primary" :
                       isTomorrow ? "text-blue-500" :
@@ -1005,7 +1050,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                       return (
                         <div key={s.id} className="flex items-start gap-0 group/card">
                           <div className="hidden sm:flex items-center flex-shrink-0 pt-5 mr-1">
-                            <div className={`w-5 h-px tl-connector ${isPast ? "bg-border/25" : "bg-primary/20"}`} style={{ opacity: 0.5 }} />
+                            <div className={`w-5 h-px tl-connector-anim ${isPast ? "bg-border/25" : "bg-primary/20"}`} />
                           </div>
 
                           <div className="flex-1 min-w-0 tl-card-anim" style={{ animationDelay: `${idx * 70}ms` }}>
