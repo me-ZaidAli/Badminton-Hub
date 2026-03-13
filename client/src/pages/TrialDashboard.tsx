@@ -2,7 +2,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
-import { useLocation } from "wouter";
+import { useLocation, Link } from "wouter";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -367,6 +367,19 @@ export default function TrialDashboard() {
                   Based on your evaluation, we recommend joining our Beginner Programme Group (BPG) to help you develop your skills further. This will prepare you to join the club at a competitive level in the future.
                 </p>
               </div>
+              <div className="flex gap-3 mt-4">
+                <Link href="/clubs">
+                  <Button variant="default" data-testid="button-browse-clubs-redirected">
+                    <Building2 className="w-4 h-4 mr-2" />
+                    Browse Clubs
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline" data-testid="button-go-dashboard-redirected">
+                    Go to Dashboard
+                  </Button>
+                </Link>
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -384,6 +397,19 @@ export default function TrialDashboard() {
                 <p className="text-sm text-muted-foreground mt-1 max-w-md">
                   Thank you for your interest. Unfortunately, we are unable to offer a place at this time. We encourage you to continue developing your skills and try again in the future.
                 </p>
+              </div>
+              <div className="flex gap-3 mt-4">
+                <Link href="/clubs">
+                  <Button variant="default" data-testid="button-browse-clubs-rejected">
+                    <Building2 className="w-4 h-4 mr-2" />
+                    Browse Clubs
+                  </Button>
+                </Link>
+                <Link href="/dashboard">
+                  <Button variant="outline" data-testid="button-go-dashboard-rejected">
+                    Go to Dashboard
+                  </Button>
+                </Link>
               </div>
             </div>
           </CardContent>

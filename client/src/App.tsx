@@ -160,7 +160,7 @@ function PrivateRoute({ component: Component, allowTrial }: { component: React.C
     return null;
   }
 
-  const isActiveTrial = trialData && trialData.status !== "APPROVED";
+  const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
   if (isActiveTrial && !allowTrial && location !== "/trial-dashboard") {
     setLocation("/trial-dashboard");
     return null;

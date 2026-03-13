@@ -111,7 +111,7 @@ export function BottomNavBar() {
 
   if (!user) return null;
 
-  const isActiveTrial = trialData && trialData.status !== "APPROVED";
+  const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
 
   if (isActiveTrial) {
     const trialNavItems = [
@@ -225,7 +225,7 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
 
   if (!user) return null;
 
-  const isActiveTrial = trialData && trialData.status !== "APPROVED";
+  const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
   const isAdminOrOwner = user.role === "OWNER" || user.role === "ADMIN";
 
   if (isActiveTrial) {

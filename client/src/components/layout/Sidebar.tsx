@@ -120,7 +120,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     },
   });
 
-  const isActiveTrial = trialData && trialData.status !== "APPROVED";
+  const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
 
   if (isActiveTrial) {
     const trialItems: NavItem[] = [

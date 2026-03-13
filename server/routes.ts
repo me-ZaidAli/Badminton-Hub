@@ -28043,6 +28043,21 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const trial = await storage.getTrialPlayerByUserId(req.user!.id);
       if (!trial) return res.json(null);
 
+      const userProfiles = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED")))
+        .limit(1);
+      const activeClubMembership = await db.select({ id: clubMemberships.id }).from(clubMemberships)
+        .where(and(eq(clubMemberships.userId, req.user!.id), eq(clubMemberships.status, "ACTIVE")))
+        .limit(1);
+      const hasClubAccess = userProfiles.length > 0 || activeClubMembership.length > 0;
+      if (hasClubAccess && trial.status !== "APPROVED") {
+        await storage.updateTrialPlayer(trial.id, { status: "APPROVED", finalDecision: "APPROVED", statusMessage: "Approved via club membership." } as any);
+        return res.json(null);
+      }
+      if (hasClubAccess && trial.status === "APPROVED") {
+        return res.json(null);
+      }
+
       const club = await storage.getClub(trial.clubId);
       let sessionDetails = null;
       if (trial.assignedSessionId) {
