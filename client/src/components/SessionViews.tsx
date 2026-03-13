@@ -154,11 +154,13 @@ function TimelineSessionCard({
   clubs,
   mySignup,
   onClick,
+  animDelay,
 }: {
   session: SessionItem;
   clubs: any[];
   mySignup?: any;
   onClick: () => void;
+  animDelay?: number;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date(new Date().toDateString());
@@ -169,93 +171,124 @@ function TimelineSessionCard({
   const venueName = venue?.name || "";
   const spotsLeft = session.maxPlayers - (session.signupCount || 0);
   const isFull = spotsLeft <= 0;
+  const fillPercent = Math.min(100, Math.round(((session.signupCount || 0) / session.maxPlayers) * 100));
+
+  const accentColor = session.matchMode === "TRAINING"
+    ? "bg-violet-500" : session.matchMode === "COMPETITIVE"
+    ? "bg-amber-500" : "bg-blue-500";
 
   return (
     <div
-      className={`p-4 rounded-xl border cursor-pointer transition-all hover:shadow-md ${
-        isSignedUp ? "border-emerald-400/60 bg-emerald-50/30 dark:bg-emerald-950/15 ring-1 ring-emerald-300/40" :
-        isLive ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" :
-        isPast ? "border-border/30 opacity-70" :
-        "border-border/50 hover:border-primary/30 bg-card"
+      className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:-translate-y-[3px] hover:shadow-lg group ${
+        isPast ? "opacity-60" : ""
       }`}
+      style={{ animationDelay: `${(animDelay || 0) * 80}ms` }}
       onClick={onClick}
       data-testid={`timeline-session-${session.id}`}
     >
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1.5 flex-wrap">
-            {isLive && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse flex-shrink-0" />}
-            {isSignedUp && (
-              <CheckCircle className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-            )}
-            <h4 className="font-bold text-sm sm:text-base truncate">{session.title}</h4>
-          </div>
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${accentColor}`} />
 
-          <div className="grid grid-cols-2 gap-x-4 gap-y-1.5 mt-2">
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Clock className="h-3.5 w-3.5 flex-shrink-0" />
-              <span>{session.startTime} · {session.durationMinutes}min</span>
-            </div>
-            <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <Users className="h-3.5 w-3.5 flex-shrink-0" />
-              <span className={isFull && !isPast ? "text-red-500 font-medium" : ""}>
-                {session.signupCount || 0}/{session.maxPlayers}
-                {!isPast && (isFull ? " (Full)" : ` (${spotsLeft} left)`)}
+      <div className={`p-4 pl-5 border rounded-xl backdrop-blur-sm ${
+        isSignedUp ? "border-emerald-400/40 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
+        isLive ? "border-green-500/40 bg-green-500/5 dark:bg-green-500/[0.07]" :
+        "border-border/40 bg-card/80 dark:bg-card/60 hover:border-primary/30"
+      }`}>
+        <div className="flex items-start justify-between gap-3">
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2 mb-2 flex-wrap">
+              <span className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold font-mono tracking-wide ${
+                isLive ? "bg-green-500/15 text-green-600 dark:text-green-400 ring-1 ring-green-500/30" :
+                isPast ? "bg-muted text-muted-foreground" :
+                "bg-primary/10 text-primary ring-1 ring-primary/20"
+              }`}>
+                <Clock className="h-3 w-3 mr-1" />
+                {session.startTime}
               </span>
+              {isLive && (
+                <span className="inline-flex items-center gap-1 rounded-md px-2 py-0.5 text-[10px] font-bold bg-green-500 text-white">
+                  <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
+                  LIVE
+                </span>
+              )}
+              {isSignedUp && (
+                <Badge className={`text-[10px] h-5 ${isWaiting ? "bg-amber-500" : "bg-emerald-500"} text-white`}>
+                  {isWaiting ? "Waitlist" : "Joined"}
+                </Badge>
+              )}
             </div>
-            {venueName && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <MapPin className="h-3.5 w-3.5 flex-shrink-0" />
-                <span className="truncate">{venueName}{venue?.city ? `, ${venue.city}` : ""}</span>
+
+            <h4 className="font-bold text-sm sm:text-base truncate mb-2">{session.title || "Session"}</h4>
+
+            <div className="space-y-2">
+              <div className="flex items-center gap-4 flex-wrap text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <Timer className="h-3.5 w-3.5" />
+                  {session.durationMinutes}min
+                </span>
+                {session.courtsAvailable > 0 && (
+                  <span className="flex items-center gap-1.5">
+                    <Layers className="h-3.5 w-3.5" />
+                    {session.courtsAvailable} court{session.courtsAvailable !== 1 ? "s" : ""}
+                  </span>
+                )}
+                {session.sessionFee != null && (
+                  <span className="flex items-center gap-1.5">
+                    <PoundSterling className="h-3.5 w-3.5" />
+                    £{(session.sessionFee / 100).toFixed(2)}
+                  </span>
+                )}
+                {venueName && (
+                  <span className="flex items-center gap-1.5">
+                    <MapPin className="h-3.5 w-3.5" />
+                    <span className="truncate max-w-[150px]">{venueName}</span>
+                  </span>
+                )}
               </div>
-            )}
-            {session.sessionFee != null && (
-              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
-                <PoundSterling className="h-3.5 w-3.5 flex-shrink-0" />
-                <span>£{(session.sessionFee / 100).toFixed(2)}</span>
-              </div>
-            )}
+
+              {!isPast && (
+                <div className="flex items-center gap-2">
+                  <Users className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                  <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden max-w-[140px]">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500"
+                      }`}
+                      style={{ width: `${fillPercent}%` }}
+                    />
+                  </div>
+                  <span className={`text-xs font-medium ${isFull ? "text-red-500" : "text-muted-foreground"}`}>
+                    {session.signupCount || 0}/{session.maxPlayers}
+                  </span>
+                  {isFull && <span className="text-[10px] text-red-500 font-semibold">FULL</span>}
+                </div>
+              )}
+            </div>
+
+            <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+              <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                session.matchMode === "COMPETITIVE"
+                  ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
+                  : session.matchMode === "TRAINING"
+                  ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
+                  : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
+              }`}>
+                {session.matchMode}
+              </span>
+              {session.genderRestriction === "FEMALE_ONLY" && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">Females</span>
+              )}
+              {session.sessionType === "JUNIORS_ONLY" && (
+                <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
+              )}
+              {clubName && (
+                <span className="text-[10px] text-muted-foreground ml-1">{clubName}</span>
+              )}
+            </div>
           </div>
 
-          {session.sessionDetails && (
-            <div className="flex items-start gap-1.5 mt-2 text-xs text-muted-foreground">
-              <FileText className="h-3.5 w-3.5 flex-shrink-0 mt-0.5" />
-              <span className="line-clamp-2">{session.sessionDetails}</span>
-            </div>
-          )}
-
-          <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
-            <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-              session.matchMode === "COMPETITIVE"
-                ? "bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300"
-                : session.matchMode === "TRAINING"
-                ? "bg-violet-100 text-violet-700 dark:bg-violet-900/40 dark:text-violet-300"
-                : "bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300"
-            }`}>
-              {session.matchMode}
-            </span>
-            {session.genderRestriction === "FEMALE_ONLY" && (
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-pink-100 text-pink-700 dark:bg-pink-900/40 dark:text-pink-300">Females</span>
-            )}
-            {session.sessionType === "JUNIORS_ONLY" && (
-              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
-            )}
-            {clubName && (
-              <span className="text-[10px] text-muted-foreground">{clubName}</span>
-            )}
-            {isLive && <Badge className="bg-green-600 text-white text-[10px] h-5">LIVE</Badge>}
+          <div className="flex-shrink-0">
+            <ArrowRight className="h-4 w-4 text-muted-foreground/50 group-hover:text-primary transition-colors" />
           </div>
-        </div>
-
-        <div className="flex flex-col items-end gap-1 flex-shrink-0">
-          {isSignedUp && (
-            <Badge className={`text-[10px] h-5 ${isWaiting ? "bg-amber-500" : "bg-emerald-500"} text-white`}>
-              {isWaiting ? "Waiting" : "Signed Up"}
-            </Badge>
-          )}
-          {session.courtsAvailable > 0 && (
-            <span className="text-[10px] text-muted-foreground">{session.courtsAvailable} court{session.courtsAvailable !== 1 ? "s" : ""}</span>
-          )}
         </div>
       </div>
     </div>
@@ -719,7 +752,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
   const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
 
   const grouped = useMemo(() => {
-    const groups: { label: string; key: string; sessions: SessionItem[] }[] = [];
+    const groups: { label: string; key: string; dateObj: Date; sessions: SessionItem[] }[] = [];
     const map = new Map<string, SessionItem[]>();
     const today = new Date();
     today.setHours(0, 0, 0, 0);
@@ -732,15 +765,13 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         label = "Today";
       } else if (isSameDay(d, addDays(today, 1))) {
         label = "Tomorrow";
-      } else if (d < today) {
-        label = format(d, "EEEE, d MMMM yyyy");
       } else {
-        label = format(d, "EEEE, d MMMM yyyy");
+        label = format(d, "EEEE");
       }
       const key = format(d, "yyyy-MM-dd");
       if (!map.has(key)) {
         map.set(key, []);
-        groups.push({ label, key, sessions: map.get(key)! });
+        groups.push({ label, key, dateObj: new Date(d), sessions: map.get(key)! });
       }
       map.get(key)!.push(s);
     });
@@ -764,49 +795,109 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
     }
   };
 
+  let cardIdx = 0;
+
   return (
     <div className="relative">
-      <div className="absolute left-4 sm:left-6 top-0 bottom-0 w-0.5 bg-border" />
+      <style>{`
+        @keyframes tl-fadeSlideIn {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes tl-nodeGlow {
+          0%, 100% { box-shadow: 0 0 4px 1px hsl(var(--primary) / 0.3); }
+          50% { box-shadow: 0 0 10px 3px hsl(var(--primary) / 0.5); }
+        }
+        .tl-card-anim {
+          animation: tl-fadeSlideIn 0.4s ease-out both;
+        }
+        .tl-node-upcoming {
+          animation: tl-nodeGlow 2.5s ease-in-out infinite;
+        }
+      `}</style>
 
-      <div className="space-y-6">
-        {grouped.map(group => {
+      <div className="space-y-8">
+        {grouped.map((group, gi) => {
           const isToday = group.label === "Today";
           const isTomorrow = group.label === "Tomorrow";
-          const isPast = new Date(group.key) < new Date(new Date().toDateString());
+          const isPast = group.dateObj < new Date(new Date().toDateString());
+          const isUpcoming = !isPast;
+          const day = format(group.dateObj, "d");
+          const month = format(group.dateObj, "MMM").toUpperCase();
+          const year = format(group.dateObj, "yyyy");
 
           return (
             <div key={group.key} className="relative" data-testid={`timeline-group-${group.key}`}>
-              <div className="flex items-center gap-3 mb-3">
-                <div className={`relative z-10 w-3 h-3 rounded-full border-2 ${
-                  isToday ? "bg-primary border-primary" :
-                  isTomorrow ? "bg-blue-500 border-blue-500" :
-                  isPast ? "bg-muted border-muted-foreground/30" :
-                  "bg-background border-primary"
-                }`} />
-                <h3 className={`font-bold text-sm ${
-                  isToday ? "text-primary" :
-                  isPast ? "text-muted-foreground" :
-                  ""
-                }`}>
-                  {group.label}
-                </h3>
-                <Badge variant="outline" className="text-xs">
-                  {group.sessions.length} session{group.sessions.length !== 1 ? "s" : ""}
-                </Badge>
-              </div>
+              <div className="flex gap-3 sm:gap-5">
+                <div className="flex flex-col items-center flex-shrink-0 w-14 sm:w-16">
+                  <div className={`flex flex-col items-center rounded-xl px-2 py-2 w-full ${
+                    isToday ? "bg-primary/10 ring-1 ring-primary/30" :
+                    isTomorrow ? "bg-blue-500/10 ring-1 ring-blue-500/30" :
+                    isPast ? "bg-muted/50" :
+                    "bg-card border border-border/50"
+                  }`}>
+                    <span className={`text-2xl sm:text-3xl font-black leading-none ${
+                      isToday ? "text-primary" :
+                      isTomorrow ? "text-blue-500" :
+                      isPast ? "text-muted-foreground/60" :
+                      "text-foreground"
+                    }`}>{day}</span>
+                    <span className={`text-[10px] sm:text-xs font-bold tracking-wider mt-0.5 ${
+                      isToday ? "text-primary" :
+                      isTomorrow ? "text-blue-500" :
+                      isPast ? "text-muted-foreground/50" :
+                      "text-muted-foreground"
+                    }`}>{month}</span>
+                    <span className="text-[9px] text-muted-foreground/40 mt-0.5">{year}</span>
+                  </div>
 
-              <div className="ml-8 sm:ml-10 space-y-3">
-                {group.sessions
-                  .sort((a, b) => a.startTime.localeCompare(b.startTime))
-                  .map(s => (
-                    <TimelineSessionCard
-                      key={s.id}
-                      session={s}
-                      clubs={clubs}
-                      mySignup={mySignupsBySession?.get(s.id)}
-                      onClick={() => handleCardClick(s)}
-                    />
-                  ))}
+                  {gi < grouped.length - 1 && (
+                    <div className={`w-0.5 flex-1 mt-2 rounded-full ${
+                      isPast ? "bg-border/30" : "bg-primary/20"
+                    }`} />
+                  )}
+                </div>
+
+                <div className="flex-1 min-w-0 pb-2">
+                  <div className="flex items-center gap-2 mb-3">
+                    <div className={`w-3 h-3 rounded-full flex-shrink-0 ${
+                      isToday ? "bg-primary tl-node-upcoming" :
+                      isTomorrow ? "bg-blue-500 tl-node-upcoming" :
+                      isPast ? "bg-muted-foreground/30" :
+                      "bg-primary/70 tl-node-upcoming"
+                    }`} />
+                    <h3 className={`font-bold text-sm ${
+                      isToday ? "text-primary" :
+                      isTomorrow ? "text-blue-500" :
+                      isPast ? "text-muted-foreground" :
+                      ""
+                    }`}>
+                      {group.label}
+                    </h3>
+                    <Badge variant="outline" className="text-[10px] h-5">
+                      {group.sessions.length} session{group.sessions.length !== 1 ? "s" : ""}
+                    </Badge>
+                  </div>
+
+                  <div className="space-y-3">
+                    {group.sessions
+                      .sort((a, b) => a.startTime.localeCompare(b.startTime))
+                      .map(s => {
+                        const idx = cardIdx++;
+                        return (
+                          <div key={s.id} className="tl-card-anim" style={{ animationDelay: `${idx * 60}ms` }}>
+                            <TimelineSessionCard
+                              session={s}
+                              clubs={clubs}
+                              mySignup={mySignupsBySession?.get(s.id)}
+                              onClick={() => handleCardClick(s)}
+                              animDelay={idx}
+                            />
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
               </div>
             </div>
           );

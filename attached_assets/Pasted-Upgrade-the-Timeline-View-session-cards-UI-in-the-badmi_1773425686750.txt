@@ -1,0 +1,152 @@
+Upgrade the Timeline View session cards UI in the badminton web app.
+
+The current timeline is functional but sessions blend into the background and the dates are not visually prominent.
+
+Redesign the timeline to make session cards more visible, modern, and easy to scan.
+
+The design should resemble a modern sports scheduling dashboard.
+
+BIG DATE MARKER
+
+Add a large date anchor on the left side of the timeline.
+
+Each date block should show:
+
+Large day number
+Month abbreviation
+Year
+
+Example:
+
+14
+MAR
+2026
+
+Style:
+
+• large bold day number
+• smaller month text
+• subtle glow or accent color
+• positioned next to the timeline rail
+
+The date marker should visually group all sessions for that day.
+
+TIMELINE RAIL
+
+Improve the vertical timeline line.
+
+Requirements:
+
+• slightly thicker vertical line
+• circular nodes for each session
+• glow effect for upcoming sessions
+
+Color logic:
+
+Blue = upcoming
+Green = joined
+Red = full session
+
+Nodes should animate when the page loads.
+
+SESSION CARDS
+
+Make session cards more visually prominent.
+
+Improvements:
+
+• soft glass-style card background
+• rounded corners
+• subtle drop shadow
+• gradient borders
+• hover elevation animation
+
+Hover effect:
+
+transform translateY(-3px)
+stronger shadow
+
+TIME BADGE
+
+Display the session time as a badge at the top of each card.
+
+Example:
+
+[20:00]
+
+This should appear before the session title.
+
+SESSION STATUS INDICATOR
+
+Add a colored accent strip on the left edge of the card.
+
+Example:
+
+Purple = Training
+Blue = Social
+Gold = Elite
+
+This helps users quickly identify session types.
+
+ATTENDANCE PROGRESS BAR
+
+Add a small attendance progress bar.
+
+Example:
+
+Players
+
+████████░░ 8 / 10
+
+If session is full, the bar turns red.
+
+EXPANDABLE SESSION DETAILS
+
+Allow session cards to expand when clicked.
+
+Expanded view shows:
+
+• players attending
+• courts used
+• full session description
+• join or waitlist button
+
+Use smooth height animation.
+
+MOBILE DESIGN
+
+Ensure the timeline works well on phones.
+
+Mobile layout:
+
+Date marker
+Session card
+Timeline rail remains visible
+
+Cards must remain readable and touch-friendly.
+
+ANIMATIONS
+
+Add subtle animations:
+
+• timeline rail draws downward on load
+• cards fade in sequentially
+• hover elevation effect
+• smooth expand animation
+
+Animations must remain lightweight.
+
+OUTPUT
+
+Generate:
+
+HTML structure
+CSS for timeline layout
+CSS animations
+JavaScript for expand/collapse cards
+
+Do not change backend session logic.
+
+GOAL
+
+The timeline should feel like a modern sports scheduling interface, making sessions visually engaging and easy to scan.
