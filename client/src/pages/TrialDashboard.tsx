@@ -10,10 +10,20 @@ import { PageHeader } from "@/components/ui/page-header";
 import {
   CheckCircle2, Circle, Clock, Calendar, MapPin, User, Building2,
   Loader2, ArrowRight, Star, AlertTriangle, XCircle, Trophy, ClipboardCheck,
-  Timer, Dumbbell, Target, Heart, Users, Handshake
+  Timer, Dumbbell, Target, Heart, Users, Handshake, Play, ChevronDown,
+  Repeat, ExternalLink
 } from "lucide-react";
 import { format, differenceInDays, differenceInHours, differenceInMinutes, isPast } from "date-fns";
 import { useState, useEffect } from "react";
+
+interface ExerciseVideo {
+  id: number;
+  title: string;
+  youtubeUrl: string;
+  exerciseId: number | null;
+  category: string | null;
+  description: string | null;
+}
 
 interface SuggestedExercise {
   id: number;
@@ -25,6 +35,9 @@ interface SuggestedExercise {
   reps: number | null;
   sets: number | null;
   equipment: string | null;
+  videoUrl: string | null;
+  location: string | null;
+  videos: ExerciseVideo[];
 }
 
 interface TrialDetails {
@@ -113,6 +126,176 @@ function SessionCountdown({ sessionDate, startTime }: { sessionDate: string; sta
         </div>
       </div>
     </div>
+  );
+}
+
+function getDifficultyColor(difficulty: string) {
+  switch (difficulty.toUpperCase()) {
+    case "EASY": return "bg-emerald-500/15 text-emerald-600 border-emerald-500/30";
+    case "MEDIUM": return "bg-amber-500/15 text-amber-600 border-amber-500/30";
+    case "HARD": return "bg-red-500/15 text-red-600 border-red-500/30";
+    default: return "bg-muted text-muted-foreground";
+  }
+}
+
+function ExerciseCard({ exercise }: { exercise: SuggestedExercise }) {
+  const [expanded, setExpanded] = useState(false);
+
+  const videoUrl = exercise.videoUrl || (exercise.videos && exercise.videos.length > 0 ? exercise.videos[0].youtubeUrl : null);
+  const allVideos = [
+    ...(exercise.videoUrl ? [{ id: 0, title: exercise.name, youtubeUrl: exercise.videoUrl }] : []),
+    ...(exercise.videos || []).filter(v => v.youtubeUrl !== exercise.videoUrl),
+  ];
+
+  return (
+    <div
+      className="rounded-lg border bg-card overflow-hidden cursor-pointer transition-all duration-200 hover:shadow-md"
+      onClick={() => setExpanded(!expanded)}
+      data-testid={`exercise-${exercise.id}`}
+    >
+      <div className="p-4 space-y-2.5">
+        <div className="flex items-start justify-between gap-3">
+          <h4 className="font-bold text-base">{exercise.name}</h4>
+          <Badge className={`text-[10px] uppercase font-semibold shrink-0 border ${getDifficultyColor(exercise.difficulty)}`}>
+            {exercise.difficulty}
+          </Badge>
+        </div>
+
+        <p className={`text-sm text-muted-foreground ${expanded ? "" : "line-clamp-2"}`}>
+          {exercise.description}
+        </p>
+
+        <div className="flex items-center flex-wrap gap-x-4 gap-y-1.5 text-xs text-muted-foreground pt-1">
+          {exercise.reps && (
+            <span className="flex items-center gap-1">
+              <Repeat className="w-3.5 h-3.5" />
+              {exercise.reps} reps{exercise.sets ? ` · ${exercise.sets} sets` : ""}
+            </span>
+          )}
+          {exercise.durationMinutes && (
+            <span className="flex items-center gap-1">
+              <Clock className="w-3.5 h-3.5" />
+              {exercise.durationMinutes} min
+            </span>
+          )}
+          {exercise.equipment && (
+            <span className="flex items-center gap-1">
+              <Dumbbell className="w-3.5 h-3.5" />
+              {exercise.equipment}
+            </span>
+          )}
+          {exercise.location && (
+            <Badge variant="outline" className="text-[10px] capitalize h-5">
+              {exercise.location.toLowerCase()}
+            </Badge>
+          )}
+          {exercise.category && (
+            <Badge variant="secondary" className="text-[10px] capitalize h-5">
+              {exercise.category.toLowerCase()}
+            </Badge>
+          )}
+        </div>
+
+        {videoUrl && !expanded && (
+          <button
+            className="flex items-center gap-1.5 text-xs font-medium text-primary hover:underline pt-0.5"
+            onClick={(e) => { e.stopPropagation(); window.open(videoUrl, "_blank"); }}
+            data-testid={`watch-tutorial-${exercise.id}`}
+          >
+            <Play className="w-3.5 h-3.5 fill-primary" />
+            Watch Tutorial
+          </button>
+        )}
+
+        <div className="flex items-center justify-center pt-1">
+          <ChevronDown className={`w-4 h-4 text-muted-foreground/50 transition-transform duration-200 ${expanded ? "rotate-180" : ""}`} />
+        </div>
+      </div>
+
+      {expanded && (
+        <div className="border-t bg-muted/20 p-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+          {exercise.description.length > 100 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Full Description</p>
+              <p className="text-sm">{exercise.description}</p>
+            </div>
+          )}
+
+          {(exercise.reps || exercise.durationMinutes || exercise.sets) && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">How to Do It</p>
+              <div className="flex flex-wrap gap-3 text-sm">
+                {exercise.sets && <span><span className="font-medium">{exercise.sets}</span> sets</span>}
+                {exercise.reps && <span><span className="font-medium">{exercise.reps}</span> reps</span>}
+                {exercise.durationMinutes && <span><span className="font-medium">{exercise.durationMinutes}</span> minutes</span>}
+              </div>
+            </div>
+          )}
+
+          {exercise.equipment && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-1">Equipment</p>
+              <p className="text-sm">{exercise.equipment}</p>
+            </div>
+          )}
+
+          {allVideos.length > 0 && (
+            <div>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-2">Tutorial Videos</p>
+              <div className="space-y-2">
+                {allVideos.map((v, idx) => (
+                  <a
+                    key={v.id || idx}
+                    href={v.youtubeUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-2 p-2 rounded-md border bg-card hover:bg-primary/5 transition-colors group"
+                    data-testid={`video-link-${exercise.id}-${idx}`}
+                  >
+                    <div className="w-8 h-8 rounded-md bg-red-500/10 flex items-center justify-center shrink-0">
+                      <Play className="w-4 h-4 text-red-500 fill-red-500" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate group-hover:text-primary transition-colors">
+                        {v.title || "Watch Tutorial"}
+                      </p>
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5 text-muted-foreground shrink-0" />
+                  </a>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {!allVideos.length && !videoUrl && (
+            <p className="text-xs text-muted-foreground italic">No tutorial videos available for this exercise yet.</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ExerciseSection({ exercises }: { exercises: SuggestedExercise[] }) {
+  return (
+    <Card data-testid="card-suggested-exercises">
+      <CardHeader className="pb-3">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <Dumbbell className="w-5 h-5 text-primary" />
+          Warm-Up Exercises
+        </CardTitle>
+        <CardDescription>
+          Try these exercises before your trial to get yourself warmed up and ready to play. Tap each exercise to see full details and tutorial videos.
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <div className="space-y-3">
+          {exercises.map((ex) => (
+            <ExerciseCard key={ex.id} exercise={ex} />
+          ))}
+        </div>
+      </CardContent>
+    </Card>
   );
 }
 
@@ -461,37 +644,7 @@ export default function TrialDashboard() {
       )}
 
       {trial.session && trial.suggestedExercises && trial.suggestedExercises.length > 0 && (trial.status === "SCHEDULED" || trial.status === "PENDING") && (
-        <Card data-testid="card-suggested-exercises">
-          <CardHeader className="pb-3">
-            <CardTitle className="text-lg flex items-center gap-2">
-              <Dumbbell className="w-5 h-5 text-primary" />
-              Warm-Up Exercises
-            </CardTitle>
-            <CardDescription>
-              Try these exercises before your trial to get yourself warmed up and ready to play.
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {trial.suggestedExercises.map((ex) => (
-                <div key={ex.id} className="p-3 rounded-md border bg-card space-y-1.5" data-testid={`exercise-${ex.id}`}>
-                  <div className="flex items-center justify-between gap-2">
-                    <p className="text-sm font-semibold">{ex.name}</p>
-                    <Badge variant="outline" className="text-[10px] capitalize shrink-0">
-                      {ex.difficulty.toLowerCase()}
-                    </Badge>
-                  </div>
-                  <p className="text-xs text-muted-foreground line-clamp-2">{ex.description}</p>
-                  <div className="flex items-center gap-3 text-[10px] text-muted-foreground pt-1">
-                    {ex.durationMinutes && <span>{ex.durationMinutes} min</span>}
-                    {ex.reps && ex.sets && <span>{ex.sets} x {ex.reps} reps</span>}
-                    {ex.category && <Badge variant="secondary" className="text-[9px] capitalize h-4">{ex.category.toLowerCase()}</Badge>}
-                  </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
+        <ExerciseSection exercises={trial.suggestedExercises} />
       )}
 
       {trial.evaluation && (

@@ -28081,10 +28081,22 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const ev = await storage.getTrialEvaluation(trial.id);
       if (ev) evaluation = ev;
 
-      const suggestedExercises = await db.select().from(juniorExercises)
+      const exerciseRows = await db.select().from(juniorExercises)
         .where(and(eq(juniorExercises.isActive, true), inArray(juniorExercises.difficulty, ["EASY", "MEDIUM"])))
         .orderBy(sql`RANDOM()`)
         .limit(4);
+
+      const exerciseIds = exerciseRows.map(e => e.id);
+      let exerciseVideos: any[] = [];
+      if (exerciseIds.length > 0) {
+        exerciseVideos = await db.select().from(juniorExerciseVideos)
+          .where(inArray(juniorExerciseVideos.exerciseId, exerciseIds));
+      }
+
+      const suggestedExercises = exerciseRows.map(ex => ({
+        ...ex,
+        videos: exerciseVideos.filter(v => v.exerciseId === ex.id),
+      }));
 
       res.json({
         ...trial,
