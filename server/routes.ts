@@ -28587,14 +28587,10 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.get("/api/dashboard/analytics", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isAdmin = await isAnyClubAdmin(user.id, user.role);
-    if (!isAdmin) return res.sendStatus(403);
+    if (user.role !== "OWNER") return res.sendStatus(403);
 
     const accessibleClubIds = await getUserAdminClubIds(user.id, user.role);
     if (accessibleClubIds.length === 0) return res.json({ kpis: { totalSessions: 0, totalPlayers: 0, totalRevenue: 0, paidRevenue: 0, avgPlayersPerSession: 0, revenuePerSession: 0, revenuePerPlayer: 0, fillRate: 0, noShowRate: 0, noShows: 0, mostPopularClub: null, mostProfitableSession: null, totalMatches: 0, completedMatches: 0 }, attendanceTrend: [], sessionRankings: [], sessionStats: [], weekdayStats: [], timeOfDayStats: [], clubStats: [], capacityUtilization: [], playerRetention: { newPlayers: 0, returningPlayers: 0, frequentPlayers: 0 }, playerFrequency: { one: 0, twoToFive: 0, fiveToTen: 0, tenPlus: 0 }, noShowByWeekday: [], alerts: [], seasonalityData: [], churn: { churnedPlayers: 0, decliningPlayers: 0, loyalPlayers: 0 }, demandSuggestions: [], clubs: [], sessionList: [] });
-
-    const premiumClubs = await db.select({ id: clubs.id }).from(clubs).where(and(inArray(clubs.id, accessibleClubIds), eq(clubs.planType, "PREMIUM")));
-    if (premiumClubs.length === 0 && user.role !== "OWNER" && user.role !== "ADMIN") return res.status(403).json({ message: "Premium plan required" });
 
     try {
 
@@ -28922,8 +28918,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.post("/api/dashboard/analytics/ai-insights", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isAdmin = await isAnyClubAdmin(user.id, user.role);
-    if (!isAdmin) return res.sendStatus(403);
+    if (user.role !== "OWNER") return res.sendStatus(403);
 
     try {
       const { kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn, question } = req.body;

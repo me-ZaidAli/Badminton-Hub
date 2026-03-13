@@ -617,7 +617,7 @@ function Router() {
         <OwnerRoute component={SuperAdminClubs} />
       </Route>
       <Route path="/dashboard/analytics">
-        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><AnalyticsDashboard /></Suspense>} />
+        <OwnerRoute component={() => <Suspense fallback={<LazyFallback />}><AnalyticsDashboard /></Suspense>} />
       </Route>
       <Route path="/admin/analytics">
         <OwnerRoute component={Analytics} />
