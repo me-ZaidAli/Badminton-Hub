@@ -270,7 +270,7 @@ export default function AnalyticsDashboard() {
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="kpi-cards">
             <KpiCard icon={Calendar} label="Sessions" value={kpis?.totalSessions || 0} color="blue" />
-            <KpiCard icon={Users} label="Total Signups" value={kpis?.totalPlayers || 0} color="green" />
+            <KpiCard icon={Users} label="Confirmed Signups" value={kpis?.totalPlayers || 0} color="green" />
             <KpiCard icon={DollarSign} label="Revenue" value={formatPence(kpis?.totalRevenue || 0)} color="emerald" />
             <KpiCard icon={Users} label="Avg Players/Session" value={kpis?.avgPlayersPerSession || 0} color="violet" />
             <KpiCard icon={DollarSign} label="Rev/Session" value={formatPence(kpis?.revenuePerSession || 0)} color="amber" />

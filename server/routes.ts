@@ -28664,18 +28664,22 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         }).from(matches).where(inArray(matches.sessionId, filteredSessionIds));
       }
 
-      const confirmedSignups = allSignups.filter(s => s.signupStatus === "CONFIRMED" || s.signupStatus === "INVITED");
+      const confirmedSignups = allSignups.filter(s => s.signupStatus === "CONFIRMED");
       const totalRevenue = confirmedSignups.reduce((sum, s) => sum + (s.fee || 0), 0);
       const paidRevenue = confirmedSignups.filter(s => s.paymentStatus === "PAID").reduce((sum, s) => sum + (s.fee || 0), 0);
       const totalPlayers = confirmedSignups.length;
       const totalSessionsCount = filteredSessions.length;
-      const avgPlayersPerSession = totalSessionsCount > 0 ? Math.round((totalPlayers / totalSessionsCount) * 10) / 10 : 0;
-      const revenuePerSession = totalSessionsCount > 0 ? Math.round(totalRevenue / totalSessionsCount) : 0;
+      const sessionsWithSignups = new Set(confirmedSignups.map(s => s.sessionId)).size;
+      const avgPlayersPerSession = sessionsWithSignups > 0 ? Math.round((totalPlayers / sessionsWithSignups) * 10) / 10 : 0;
+      const revenuePerSession = sessionsWithSignups > 0 ? Math.round(totalRevenue / sessionsWithSignups) : 0;
       const revenuePerPlayer = totalPlayers > 0 ? Math.round(totalRevenue / totalPlayers) : 0;
       const totalCapacity = filteredSessions.reduce((sum, s) => sum + (s.maxPlayers || 0), 0);
       const fillRate = totalCapacity > 0 ? Math.round((totalPlayers / totalCapacity) * 1000) / 10 : 0;
-      const noShows = confirmedSignups.filter(s => s.attendanceStatus === "NOT_ATTENDED").length;
-      const noShowRate = confirmedSignups.length > 0 ? Math.round((noShows / confirmedSignups.length) * 1000) / 10 : 0;
+      const pastSessionIds = new Set(filteredSessions.filter(s => new Date(s.date) < new Date()).map(s => s.id));
+      const pastConfirmedSignups = confirmedSignups.filter(s => pastSessionIds.has(s.sessionId));
+      const noShows = pastConfirmedSignups.filter(s => s.attendanceStatus === "NOT_ATTENDED").length;
+      const attendanceTracked = pastConfirmedSignups.filter(s => s.attendanceStatus === "ATTENDED" || s.attendanceStatus === "NOT_ATTENDED" || s.attendanceStatus === "PARTIAL_ATTENDANCE" || s.attendanceStatus === "JUSTIFIED_CANCELLATION").length;
+      const noShowRate = attendanceTracked > 0 ? Math.round((noShows / attendanceTracked) * 1000) / 10 : 0;
 
       const clubStats = allClubsData.map(c => {
         const cSessions = filteredSessions.filter(s => s.clubId === c.id);
