@@ -917,7 +917,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
           return (
             <div key={group.key} className="relative" data-testid={`timeline-group-${group.key}`}>
               <div className="flex items-stretch">
-                <div className="flex flex-col items-center flex-shrink-0 w-[48px] sm:w-[68px]">
+                <div className="flex flex-col items-center flex-shrink-0 w-[56px] sm:w-[72px]">
                   <div className={`flex flex-col items-center rounded-xl px-1.5 py-2.5 w-full ${
                     isToday ? "bg-primary/10 ring-1 ring-primary/30" :
                     isTomorrow ? "bg-blue-500/10 ring-1 ring-blue-500/30" :
@@ -939,8 +939,24 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                     <span className="text-[9px] text-muted-foreground/30">{year}</span>
                   </div>
 
+                  {sortedSessions.map((s, si) => {
+                    const durLabel = s.durationMinutes >= 60
+                      ? `${Math.floor(s.durationMinutes / 60)}h${s.durationMinutes % 60 > 0 ? `${s.durationMinutes % 60}m` : ""}`
+                      : `${s.durationMinutes}m`;
+                    return (
+                      <div key={s.id} className={`flex flex-col items-center w-full ${si === 0 ? "mt-6" : "mt-[26px]"}`}>
+                        <span className={`text-sm sm:text-[15px] font-bold tabular-nums leading-tight ${
+                          isPast ? "text-muted-foreground/40" : "text-foreground"
+                        }`}>{s.startTime}</span>
+                        <span className={`text-[10px] sm:text-[11px] tabular-nums leading-tight mt-0.5 px-1.5 py-0.5 rounded-md ${
+                          isPast ? "text-muted-foreground/30" : "text-muted-foreground/70 bg-muted/40"
+                        }`}>{durLabel}</span>
+                      </div>
+                    );
+                  })}
+
                   {gi < grouped.length - 1 && (
-                    <div className={`w-[2px] flex-1 mt-1 rounded-full tl-rail-anim ${
+                    <div className={`w-[2px] flex-1 mt-2 rounded-full tl-rail-anim ${
                       isPast ? "bg-border/25" : "bg-gradient-to-b from-primary/30 to-primary/10"
                     }`} style={{ animationDelay: `${gi * 100}ms` }} />
                   )}
@@ -985,19 +1001,9 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                   <div className="space-y-3">
                     {sortedSessions.map((s) => {
                       const idx = cardIdx++;
-                      const durationLabel = s.durationMinutes >= 60
-                        ? `${Math.floor(s.durationMinutes / 60)}h${s.durationMinutes % 60 > 0 ? `${s.durationMinutes % 60}m` : ""}`
-                        : `${s.durationMinutes}m`;
 
                       return (
                         <div key={s.id} className="flex items-start gap-0 group/card">
-                          <div className="hidden sm:flex flex-col items-center flex-shrink-0 w-[52px] mr-2 pt-3">
-                            <span className={`text-sm font-bold tabular-nums ${isPast ? "text-muted-foreground/40" : "text-foreground"}`}>
-                              {s.startTime}
-                            </span>
-                            <span className="text-[10px] text-muted-foreground/50">{durationLabel}</span>
-                          </div>
-
                           <div className="hidden sm:flex items-center flex-shrink-0 pt-5 mr-1">
                             <div className={`w-5 h-px tl-connector ${isPast ? "bg-border/25" : "bg-primary/20"}`} style={{ opacity: 0.5 }} />
                           </div>
