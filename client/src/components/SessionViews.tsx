@@ -177,7 +177,7 @@ function getIntensityLevel(session: SessionItem): { label: string; color: string
   return { label: "LOW", color: "bg-blue-400/15 text-blue-600 dark:text-blue-400 ring-blue-400/30" };
 }
 
-function ExpandedSessionDetails({ session }: { session: SessionItem }) {
+function ExpandedSessionDetails({ session, mySignup, onSignUp, onNavigate }: { session: SessionItem; mySignup?: any; onSignUp?: (session: SessionItem) => void; onNavigate: () => void }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
 
@@ -331,13 +331,40 @@ function ExpandedSessionDetails({ session }: { session: SessionItem }) {
               </div>
             )}
 
-            <div className="pt-1">
-              <Link href={`/sessions/${session.id}`}>
-                <Button size="sm" variant="outline" className="w-full h-8 text-xs" data-testid={`button-view-session-${session.id}`}>
-                  <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
-                  View Full Session
-                </Button>
-              </Link>
+            <div className="pt-1 flex gap-2">
+              {(() => {
+                const isPast = new Date(session.date) < new Date(new Date().toDateString());
+                const isSignedUp = mySignup && (mySignup.signupStatus === "CONFIRMED" || mySignup.signupStatus === "WAITING");
+                const isWaiting = mySignup?.signupStatus === "WAITING";
+                const isFull = (session.signupCount || 0) >= session.maxPlayers;
+
+                if (isSignedUp) {
+                  return (
+                    <Button size="sm" variant="outline" className={`flex-1 h-8 text-xs cursor-default ${isWaiting ? "border-amber-400/50 text-amber-600 dark:text-amber-400" : "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"}`} disabled data-testid={`button-joined-${session.id}`}>
+                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                      {isWaiting ? "On Waitlist" : "Joined"}
+                    </Button>
+                  );
+                }
+                if (!isPast && onSignUp) {
+                  return (
+                    <Button
+                      size="sm"
+                      className="flex-1 h-8 text-xs bg-primary hover:bg-primary/90 text-primary-foreground"
+                      onClick={(e) => { e.stopPropagation(); onSignUp(session); }}
+                      data-testid={`button-join-session-${session.id}`}
+                    >
+                      <Users className="h-3.5 w-3.5 mr-1.5" />
+                      {isFull ? "Join Waitlist" : "Join Session"}
+                    </Button>
+                  );
+                }
+                return null;
+              })()}
+              <Button size="sm" variant="outline" className={`${(!mySignup && !onSignUp) || new Date(session.date) < new Date(new Date().toDateString()) ? "flex-1" : ""} h-8 text-xs`} onClick={(e) => { e.stopPropagation(); onNavigate(); }} data-testid={`button-view-session-${session.id}`}>
+                <ArrowRight className="h-3.5 w-3.5 mr-1.5" />
+                View Session
+              </Button>
             </div>
           </div>
         )}
@@ -353,6 +380,7 @@ function TimelineSessionCard({
   isExpanded,
   onToggleExpand,
   onNavigate,
+  onSignUp,
 }: {
   session: SessionItem;
   clubs: any[];
@@ -360,6 +388,7 @@ function TimelineSessionCard({
   isExpanded: boolean;
   onToggleExpand: () => void;
   onNavigate: () => void;
+  onSignUp?: (session: SessionItem) => void;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date(new Date().toDateString());
@@ -571,7 +600,7 @@ function TimelineSessionCard({
           <div className="mt-2 text-[10px] font-medium text-foreground/50 dark:text-white/50">{clubName}</div>
         )}
 
-        {isExpanded && <ExpandedSessionDetails session={session} />}
+        {isExpanded && <ExpandedSessionDetails session={session} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} />}
       </div>
     </div>
   );
@@ -1289,6 +1318,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                               isExpanded={expandedSessionId === s.id}
                               onToggleExpand={() => handleToggleExpand(s.id)}
                               onNavigate={() => handleNavigate(s)}
+                              onSignUp={onSignUp}
                             />
                           </div>
                         </div>
