@@ -1,6 +1,8 @@
-import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor, CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Activity, Gauge, Trophy, Orbit, Ghost, Codesandbox, Flower2, GlassWater, Terminal, RefreshCw, CircleDot, TreeDeciduous, CloudSun, Layers, BatteryCharging, Wind, Disc, LayoutGrid } from "lucide-react";
+import { Sun, Moon, Eye, Palette, Contrast, CircleOff, Zap, Crown, Gem, Leaf, Diamond, Snowflake, Flame, Rocket, Shield, Sparkles, Cpu, Waves, Sunset, Monitor, CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Activity, Gauge, Trophy, Orbit, Ghost, Codesandbox, Flower2, GlassWater, Terminal, RefreshCw, CircleDot, TreeDeciduous, CloudSun, Layers, BatteryCharging, Wind, Disc, LayoutGrid, Lock } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { useTheme, DISPLAY_MODES, type DisplayMode } from "@/hooks/use-theme";
+import { useTheme, DISPLAY_MODES, type ThemeModeInfo } from "@/hooks/use-theme";
+import { useQuery } from "@tanstack/react-query";
+import { useUser } from "@/hooks/use-auth";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -78,9 +80,48 @@ const MODE_ICONS: Record<string, typeof Sun> = {
 
 const GRADE_ORDER = ["Standard", "Premium", "Elite", "Signature", "Ultra Exclusive", "Metallic Comet", "Royal Duty", "Accessibility"] as const;
 
+function isThemeLocked(mode: ThemeModeInfo, unlockedThemes?: string[]): boolean {
+  if (mode.grade === "Standard" || mode.grade === "Accessibility") return false;
+  if (mode.grade === "Royal Duty" || mode.grade === "Metallic Comet") {
+    if (!unlockedThemes) return true;
+    return !unlockedThemes.includes(mode.value);
+  }
+  if (mode.isRankLocked || mode.isBlackCard) {
+    if (!unlockedThemes) return true;
+    return !unlockedThemes.includes(mode.value);
+  }
+  if (mode.grade === "Premium" || mode.grade === "Elite" || mode.grade === "Signature" || mode.grade === "Ultra Exclusive") {
+    if (!unlockedThemes) return true;
+    return !unlockedThemes.includes(mode.value);
+  }
+  return false;
+}
+
+function getLockReason(mode: ThemeModeInfo): string {
+  if (mode.grade === "Royal Duty") return "Royal Duty Card required";
+  if (mode.grade === "Metallic Comet") return "Metallic Comet Card required";
+  if (mode.isBlackCard) return "Black Card required";
+  if (mode.requiredRank === "champion") return "Reach #1 to unlock";
+  if (mode.requiredRank === "top10") return "Top 10 to unlock";
+  if (mode.requiredRank === "all") return "Ranked to unlock";
+  return "Unlock by ranking up";
+}
+
 export function ThemeToggle() {
   const { displayMode, reducedMotion, setDisplayMode, setReducedMotion } = useTheme();
+  const { data: user } = useUser();
   const CurrentIcon = MODE_ICONS[displayMode] || Sun;
+
+  const { data: availableThemes } = useQuery<{
+    unlockedThemes: string[];
+    userRank: string;
+    hasBlackCard: boolean;
+    hasMetallicComet: boolean;
+    hasRoyalDuty: boolean;
+  }>({
+    queryKey: ["/api/user/available-themes"],
+    enabled: !!user,
+  });
 
   const grouped = GRADE_ORDER.map(grade => ({
     grade,
@@ -108,21 +149,29 @@ export function ThemeToggle() {
             {group.modes.map((mode) => {
               const Icon = MODE_ICONS[mode.value] || Sun;
               const isActive = displayMode === mode.value;
+              const locked = isThemeLocked(mode, availableThemes?.unlockedThemes);
               return (
                 <DropdownMenuItem
                   key={mode.value}
-                  onClick={() => setDisplayMode(mode.value)}
-                  className={isActive ? "bg-muted" : ""}
+                  onClick={() => {
+                    if (!locked) setDisplayMode(mode.value);
+                  }}
+                  className={`${isActive ? "bg-muted" : ""} ${locked ? "opacity-50 cursor-not-allowed" : ""}`}
                   data-testid={`menu-display-mode-${mode.value}`}
+                  disabled={locked}
                 >
                   <Icon className="h-4 w-4 mr-2 shrink-0" />
                   <div className="flex flex-col min-w-0">
                     <span className="text-sm font-medium truncate">{mode.label}</span>
-                    <span className="text-xs text-muted-foreground truncate">{mode.description}</span>
+                    <span className="text-xs text-muted-foreground truncate">
+                      {locked ? getLockReason(mode) : mode.description}
+                    </span>
                   </div>
-                  {isActive && (
+                  {locked ? (
+                    <Lock className="ml-auto h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                  ) : isActive ? (
                     <span className="ml-auto text-xs text-primary font-medium shrink-0">Active</span>
-                  )}
+                  ) : null}
                 </DropdownMenuItem>
               );
             })}
