@@ -61,7 +61,7 @@ export interface IStorage {
   deleteVenue(id: number): Promise<void>;
 
   // Sessions
-  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; venue?: Venue })[]>;
+  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; matchCount: number; venue?: Venue })[]>;
   getSession(id: number): Promise<(Session & { venue?: Venue }) | undefined>;
   createSession(session: InsertSession & { createdBy: number }): Promise<Session>;
   updateSession(id: number, updates: Partial<Session>): Promise<Session>;
@@ -490,8 +490,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; venue?: Venue })[]> {
-    // Simple implementation for now, ignoring dates
+  async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; matchCount: number; venue?: Venue })[]> {
     const allSessions = await db.select().from(sessions).orderBy(desc(sessions.date));
     
     const sessionIds = allSessions.map(s => s.id);
@@ -509,6 +508,19 @@ export class DatabaseStorage implements IStorage {
       countsBySession.set(row.sessionId, (countsBySession.get(row.sessionId) || 0) + 1);
     }
 
+    const matchCountRows = sessionIds.length > 0 ? await db.select({
+      sessionId: matches.sessionId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(matches)
+      .where(and(inArray(matches.sessionId, sessionIds), eq(matches.isCompleted, true)))
+      .groupBy(matches.sessionId) : [];
+
+    const matchCountsBySession = new Map<number, number>();
+    for (const row of matchCountRows) {
+      matchCountsBySession.set(row.sessionId, row.count);
+    }
+
     const venueIds = [...new Set(allSessions.map(s => s.venueId).filter(Boolean))] as number[];
     const venueRows = venueIds.length > 0 ? await db.select().from(venues).where(inArray(venues.id, venueIds)) : [];
     const venueMap = new Map(venueRows.map(v => [v.id, v]));
@@ -516,6 +528,7 @@ export class DatabaseStorage implements IStorage {
     const sessionsWithData = allSessions.map((s) => ({
       ...s,
       signupCount: countsBySession.get(s.id) || 0,
+      matchCount: matchCountsBySession.get(s.id) || 0,
       venue: s.venueId ? venueMap.get(s.venueId) : undefined,
     }));
 

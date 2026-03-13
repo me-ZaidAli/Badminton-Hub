@@ -545,6 +545,27 @@ function TimelineSessionCard({
           )}
         </div>
 
+        {(playerCount > 0 || (session as any).matchCount > 0) && (
+          <div className="mt-2.5 flex items-center gap-3 text-[10px] text-muted-foreground border-t border-border/30 pt-2" data-testid={`stats-strip-${session.id}`}>
+            <div className="flex items-center gap-1">
+              <Users className="h-3 w-3 text-blue-500/70" />
+              <span className="font-medium">{playerCount} Player{playerCount !== 1 ? "s" : ""}</span>
+            </div>
+            {(session as any).matchCount > 0 && (
+              <div className="flex items-center gap-1">
+                <Swords className="h-3 w-3 text-emerald-500/70" />
+                <span className="font-medium">{(session as any).matchCount} Match{(session as any).matchCount !== 1 ? "es" : ""}</span>
+              </div>
+            )}
+            {(session as any).matchCount > 0 && playerCount > 1 && (
+              <div className="flex items-center gap-1">
+                <Zap className="h-3 w-3 text-orange-500/70" />
+                <span className="font-medium">Avg {Math.min(10, ((session as any).matchCount / playerCount * 5)).toFixed(1)} Difficulty</span>
+              </div>
+            )}
+          </div>
+        )}
+
         {clubName && (
           <div className="mt-2 text-[10px] text-muted-foreground/60">{clubName}</div>
         )}
