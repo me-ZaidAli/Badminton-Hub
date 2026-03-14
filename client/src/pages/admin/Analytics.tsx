@@ -219,18 +219,18 @@ export default function Analytics() {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
                 <XAxis
                   dataKey="name"
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: "var(--foreground)" }}
                   tickLine={false}
                 />
                 <YAxis
-                  tick={{ fontSize: 12 }}
+                  tick={{ fontSize: 12, fill: "var(--foreground)" }}
                   tickLine={false}
                   axisLine={false}
                   tickFormatter={(value) => `£${value}`}
                 />
                 <Tooltip
                   contentStyle={{
-                    backgroundColor: "hsl(var(--card))",
+                    backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                     border: "1px solid hsl(var(--border))",
                     borderRadius: "8px",
                   }}

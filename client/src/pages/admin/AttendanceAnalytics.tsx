@@ -319,6 +319,7 @@ export default function AttendanceAnalytics() {
 
   const tooltipStyle = {
     backgroundColor: "hsl(var(--card))",
+    color: "hsl(var(--card-foreground))",
     border: "1px solid hsl(var(--border))",
     borderRadius: "8px",
   };
@@ -525,8 +526,8 @@ export default function AttendanceAnalytics() {
                     <ResponsiveContainer width="100%" height={Math.max(500, sortedTopMembers.length * 40)}>
                       <BarChart data={sortedTopMembers} layout="vertical" margin={{ left: 10, right: 30 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis type="number" tick={{ fontSize: 12 }} />
-                        <YAxis dataKey="name" type="category" tick={{ fontSize: 12 }} width={140} />
+                        <XAxis type="number" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
+                        <YAxis dataKey="name" type="category" tick={{ fontSize: 12, fill: "var(--foreground)" }} width={140} />
                         <Tooltip contentStyle={tooltipStyle} />
                         <Bar
                           dataKey={topSortBy === "total" ? "totalAttendances" : "attendanceRate"}
@@ -558,8 +559,8 @@ export default function AttendanceAnalytics() {
                       <ResponsiveContainer width="100%" height={Math.max(280, sortedTopMembers.length * 32)}>
                         <BarChart data={sortedTopMembers} layout="vertical" margin={{ left: 10, right: 10 }}>
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis type="number" tick={{ fontSize: 11 }} />
-                          <YAxis dataKey="name" type="category" tick={{ fontSize: 10 }} width={100} />
+                          <XAxis type="number" tick={{ fontSize: 11, fill: "var(--foreground)" }} />
+                          <YAxis dataKey="name" type="category" tick={{ fontSize: 10, fill: "var(--foreground)" }} width={100} />
                           <Tooltip contentStyle={tooltipStyle} />
                           <Bar
                             dataKey={topSortBy === "total" ? "totalAttendances" : "attendanceRate"}
@@ -596,8 +597,8 @@ export default function AttendanceAnalytics() {
                   <ResponsiveContainer width="100%" height={500}>
                     <BarChart data={data.distribution}>
                       <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                      <XAxis dataKey="bucket" tick={{ fontSize: 12 }} />
-                      <YAxis tick={{ fontSize: 12 }} />
+                      <XAxis dataKey="bucket" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
+                      <YAxis tick={{ fontSize: 12, fill: "var(--foreground)" }} />
                       <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value}`, "Members"]} />
                       <Bar
                         dataKey="count"
@@ -632,8 +633,8 @@ export default function AttendanceAnalytics() {
                     <ResponsiveContainer width="100%" height={300}>
                       <BarChart data={data.distribution}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="bucket" tick={{ fontSize: 11 }} />
-                        <YAxis tick={{ fontSize: 11 }} />
+                        <XAxis dataKey="bucket" tick={{ fontSize: 11, fill: "var(--foreground)" }} />
+                        <YAxis tick={{ fontSize: 11, fill: "var(--foreground)" }} />
                         <Tooltip contentStyle={tooltipStyle} formatter={(value: number) => [`${value}`, "Members"]} />
                         <Bar
                           dataKey="count"
@@ -701,8 +702,8 @@ export default function AttendanceAnalytics() {
                         }}
                       >
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="date" tick={{ fontSize: 12 }} />
-                        <YAxis tick={{ fontSize: 12 }} />
+                        <XAxis dataKey="date" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
+                        <YAxis tick={{ fontSize: 12, fill: "var(--foreground)" }} />
                         <Tooltip contentStyle={tooltipStyle} />
                         <Legend />
                         <Line type="monotone" dataKey="attendances" stroke="hsl(var(--primary))" strokeWidth={2} name="Attendances" />
@@ -740,8 +741,8 @@ export default function AttendanceAnalytics() {
                           }}
                         >
                           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
-                          <YAxis tick={{ fontSize: 11 }} />
+                          <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                          <YAxis tick={{ fontSize: 11, fill: "var(--foreground)" }} />
                           <Tooltip contentStyle={tooltipStyle} />
                           <Legend />
                           <Line type="monotone" dataKey="attendances" stroke="hsl(var(--primary))" strokeWidth={2} name="Attendances" />

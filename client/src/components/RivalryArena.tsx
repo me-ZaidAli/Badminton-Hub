@@ -385,7 +385,7 @@ function PointsEfficiency({ s1, s2, player1Name, player2Name }: {
             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" />
             <XAxis dataKey="name" tick={{ fill: "#64748b", fontSize: 10 }} tickLine={false} axisLine={false} />
             <YAxis tick={{ fill: "#475569", fontSize: 9 }} tickLine={false} axisLine={false} />
-            <Tooltip contentStyle={{ background: "#0f1729", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", fontSize: "11px" }}
+            <Tooltip contentStyle={{ background: "#0f1729", color: "#fff", border: "1px solid rgba(255,255,255,0.08)", borderRadius: "10px", fontSize: "11px" }}
               labelStyle={{ color: "#94a3b8" }} />
             <Bar dataKey="scored" name="Avg Scored" radius={[4, 4, 0, 0]} barSize={20}>
               {efficiencyData.map((_, i) => <Cell key={i} fill={i === 0 ? COLOR1 : COLOR2} />)}

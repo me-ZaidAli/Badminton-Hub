@@ -440,11 +440,11 @@ export default function AcquisitionAnalytics() {
                           <ResponsiveContainer width="100%" height={550}>
                             <LineChart data={data.signupsPerMonth}>
                               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                              <XAxis dataKey="month" tick={{ fontSize: 13 }} />
-                              <YAxis tick={{ fontSize: 13 }} />
+                              <XAxis dataKey="month" tick={{ fontSize: 13, fill: "var(--foreground)" }} />
+                              <YAxis tick={{ fontSize: 13, fill: "var(--foreground)" }} />
                               <Tooltip
                                 contentStyle={{
-                                  backgroundColor: "hsl(var(--card))",
+                                  backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                                   border: "1px solid hsl(var(--border))",
                                   borderRadius: "8px",
                                 }}
@@ -458,11 +458,11 @@ export default function AcquisitionAnalytics() {
                         <ResponsiveContainer width="100%" height={280}>
                           <LineChart data={data.signupsPerMonth}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="month" tick={{ fontSize: 11 }} />
-                            <YAxis tick={{ fontSize: 11 }} />
+                            <XAxis dataKey="month" tick={{ fontSize: 11, fill: "var(--foreground)" }} />
+                            <YAxis tick={{ fontSize: 11, fill: "var(--foreground)" }} />
                             <Tooltip
                               contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
+                                backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
                               }}
@@ -529,7 +529,7 @@ export default function AcquisitionAnalytics() {
                                 </text>
                                 <Tooltip
                                   contentStyle={{
-                                    backgroundColor: "hsl(var(--card))",
+                                    backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                                     border: "1px solid hsl(var(--border))",
                                     borderRadius: "8px",
                                     padding: "8px 12px",
@@ -648,7 +648,7 @@ export default function AcquisitionAnalytics() {
                               </text>
                               <Tooltip
                                 contentStyle={{
-                                  backgroundColor: "hsl(var(--card))",
+                                  backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                                   border: "1px solid hsl(var(--border))",
                                   borderRadius: "8px",
                                   padding: "8px 12px",
@@ -718,11 +718,11 @@ export default function AcquisitionAnalytics() {
                         <ResponsiveContainer width="100%" height={Math.max(400, qualityScoreData.length * 55)}>
                           <BarChart data={qualityScoreData} layout="vertical" margin={{ left: 10, right: 10 }}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis type="number" tick={{ fontSize: 13 }} domain={[0, 100]} />
-                            <YAxis dataKey="channel" type="category" tick={{ fontSize: 13 }} width={120} />
+                            <XAxis type="number" tick={{ fontSize: 13, fill: "var(--foreground)" }} domain={[0, 100]} />
+                            <YAxis dataKey="channel" type="category" tick={{ fontSize: 13, fill: "var(--foreground)" }} width={120} />
                             <Tooltip
                               contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
+                                backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
                               }}
@@ -736,11 +736,11 @@ export default function AcquisitionAnalytics() {
                     <ResponsiveContainer width="100%" height={Math.max(200, qualityScoreData.length * 40)}>
                       <BarChart data={qualityScoreData} layout="vertical" margin={{ left: 10, right: 10 }}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis type="number" tick={{ fontSize: 11 }} domain={[0, 100]} />
-                        <YAxis dataKey="channel" type="category" tick={{ fontSize: 10 }} width={100} />
+                        <XAxis type="number" tick={{ fontSize: 11, fill: "var(--foreground)" }} domain={[0, 100]} />
+                        <YAxis dataKey="channel" type="category" tick={{ fontSize: 10, fill: "var(--foreground)" }} width={100} />
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
+                            backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}
@@ -834,11 +834,11 @@ export default function AcquisitionAnalytics() {
                         <ResponsiveContainer width="100%" height={500}>
                           <BarChart data={retentionData}>
                             <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                            <XAxis dataKey="channel" tick={{ fontSize: 13, angle: -20, textAnchor: "end" }} height={60} interval={0} />
-                            <YAxis tick={{ fontSize: 13 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                            <XAxis dataKey="channel" tick={{ fontSize: 13, fill: "var(--foreground)" }} angle={-20} textAnchor="end" height={60} interval={0} />
+                            <YAxis tick={{ fontSize: 13, fill: "var(--foreground)" }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                             <Tooltip
                               contentStyle={{
-                                backgroundColor: "hsl(var(--card))",
+                                backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                                 border: "1px solid hsl(var(--border))",
                                 borderRadius: "8px",
                               }}
@@ -852,11 +852,11 @@ export default function AcquisitionAnalytics() {
                     <ResponsiveContainer width="100%" height={250}>
                       <BarChart data={retentionData}>
                         <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-                        <XAxis dataKey="channel" tick={{ fontSize: 9, angle: -30, textAnchor: "end" }} height={50} interval={0} />
-                        <YAxis tick={{ fontSize: 11 }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
+                        <XAxis dataKey="channel" tick={{ fontSize: 9, fill: "var(--foreground)" }} angle={-30} textAnchor="end" height={50} interval={0} />
+                        <YAxis tick={{ fontSize: 11, fill: "var(--foreground)" }} domain={[0, 100]} tickFormatter={(v) => `${v}%`} />
                         <Tooltip
                           contentStyle={{
-                            backgroundColor: "hsl(var(--card))",
+                            backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                             border: "1px solid hsl(var(--border))",
                             borderRadius: "8px",
                           }}

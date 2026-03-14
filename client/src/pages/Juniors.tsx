@@ -745,7 +745,7 @@ function MonthlyProgressChart({ userId }: { userId: number }) {
                 <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" strokeOpacity={0.15} />
                 <XAxis dataKey="month" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }} axisLine={false} tickLine={false} />
                 <YAxis domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
-                <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+                <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', color: "hsl(var(--foreground))", border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
                 <Area type="monotone" dataKey="overall" stroke="#22c55e" strokeWidth={2} fill="url(#progressGradient)" dot={{ r: 4, fill: '#22c55e' }} name="Overall %" />
               </AreaChart>
             </ResponsiveContainer>
@@ -854,7 +854,7 @@ function SkillBarChart({ categories, progressMap }: { categories: any[]; progres
           <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" strokeOpacity={0.15} horizontal={false} />
           <XAxis type="number" domain={[0, 100]} tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} />
           <YAxis type="category" dataKey="name" tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }} axisLine={false} tickLine={false} width={80} />
-          <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
+          <RechartsTooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', color: "hsl(var(--foreground))", border: '1px solid hsl(var(--border))', borderRadius: '8px', fontSize: '12px' }} />
           <Bar dataKey="value" radius={[0, 6, 6, 0]} barSize={14}>
             {data.map((entry, index) => (
               <Cell key={`cell-${index}`} fill={entry.value >= 80 ? '#22c55e' : entry.value >= 50 ? '#f59e0b' : entry.value >= 25 ? '#3b82f6' : '#4b5563'} />

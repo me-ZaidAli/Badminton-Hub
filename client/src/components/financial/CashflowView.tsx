@@ -275,8 +275,8 @@ export default function CashflowView({ filteredData, dashboardData }: FinancialV
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={cashflowTimeline} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
+                  <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 12, fill: "var(--foreground)" }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Bar dataKey="inflow" name="Inflow" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
                   <Bar dataKey="outflow" name="Outflow" fill="hsl(0, 84%, 60%)" radius={[4, 4, 0, 0]} />
@@ -357,8 +357,8 @@ export default function CashflowView({ filteredData, dashboardData }: FinancialV
                 <ResponsiveContainer width="100%" height="100%">
                   <AreaChart data={outstandingTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis dataKey="month" tick={{ fontSize: 12 }} />
-                    <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 12 }} />
+                    <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
+                    <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 12, fill: "var(--foreground)" }} />
                     <Tooltip content={<CustomTooltip />} />
                     <Area
                       type="monotone"
@@ -392,16 +392,17 @@ export default function CashflowView({ filteredData, dashboardData }: FinancialV
               <ResponsiveContainer width="100%" height="100%">
                 <LineChart data={collectionRateTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="month" tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="month" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
                   <YAxis
                     domain={[0, 100]}
                     tickFormatter={(v) => `${v}%`}
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: "var(--foreground)" }}
                   />
                   <Tooltip
                     formatter={(value: number) => [`${value}%`, "Collection Rate"]}
                     contentStyle={{
                       backgroundColor: "hsl(var(--popover))",
+                      color: "hsl(var(--popover-foreground))",
                       border: "1px solid hsl(var(--border))",
                       borderRadius: "0.5rem",
                     }}

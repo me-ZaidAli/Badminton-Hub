@@ -457,7 +457,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
     },
   });
 
-  const tooltipStyle = { fontSize: 11, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 };
+  const tooltipStyle = { fontSize: 11, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 };
 
   const metricConfig: Record<string, { color: string; label: string; yAxisId: string; formatter?: (v: number) => string }> = {
     players: { color: "#3b82f6", label: "Players", yAxisId: "left" },
@@ -593,16 +593,16 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
             <ResponsiveContainer width="100%" height="100%">
               <ComposedChart data={masterChartData} onClick={(e: any) => { if (e?.activeLabel && drillLevel !== "day") handleDrillDown(e.activeLabel); }}>
                 <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                <XAxis dataKey="label" tick={{ fontSize: 9 }} tickFormatter={(v: string) => v.length > 7 ? v.slice(5) : v} />
-                <YAxis yAxisId="left" tick={{ fontSize: 9 }} />
-                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9 }} tickFormatter={(v: number) => formatPenceShort(v)} />
+                <XAxis dataKey="label" tick={{ fontSize: 9, fill: "var(--foreground)" }} tickFormatter={(v: string) => v.length > 7 ? v.slice(5) : v} />
+                <YAxis yAxisId="left" tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+                <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 9, fill: "var(--foreground)" }} tickFormatter={(v: number) => formatPenceShort(v)} />
                 <Tooltip contentStyle={tooltipStyle}
                   formatter={(value: number, name: string) => {
                     const cfg = Object.values(metricConfig).find(c => c.label === name);
                     return cfg?.formatter ? cfg.formatter(value) : value;
                   }}
                   labelFormatter={(label: string) => `Period: ${label}`} />
-                <Legend wrapperStyle={{ fontSize: 10 }} />
+                <Legend wrapperStyle={{ fontSize: 10, color: "var(--foreground)" }} />
                 {enabledMetrics.has("players") && <Bar yAxisId="left" dataKey="players" fill="#3b82f6" radius={[3, 3, 0, 0]} name="Players" opacity={0.8} />}
                 {enabledMetrics.has("sessions") && <Bar yAxisId="left" dataKey="sessions" fill="#f59e0b" radius={[3, 3, 0, 0]} name="Sessions" opacity={0.8} />}
                 {enabledMetrics.has("noShows") && <Bar yAxisId="left" dataKey="noShows" fill="#ef4444" radius={[3, 3, 0, 0]} name="No-Shows" opacity={0.8} />}
@@ -638,13 +638,13 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                   }
                 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="name" tick={{ fontSize: 9 }} />
-                  <YAxis tick={{ fontSize: 9 }} />
+                  <XAxis dataKey="name" tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+                  <YAxis tick={{ fontSize: 9, fill: "var(--foreground)" }} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => {
                     if (name === "Revenue" || name === "Total Revenue") return formatPence(v);
                     return v;
                   }} />
-                  <Legend wrapperStyle={{ fontSize: 9 }} />
+                  <Legend wrapperStyle={{ fontSize: 9, color: "var(--foreground)" }} />
                   {hasFilter && (
                     <Bar dataKey="totalPlayers" name="Total Players" radius={[3, 3, 0, 0]} fill="#3b82f6" opacity={0.15} isAnimationActive={false} />
                   )}
@@ -690,8 +690,8 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                   }
                 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis dataKey="dayName" tick={{ fontSize: 9 }} />
-                  <YAxis tick={{ fontSize: 9 }} />
+                  <XAxis dataKey="dayName" tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+                  <YAxis tick={{ fontSize: 9, fill: "var(--foreground)" }} />
                   <Tooltip contentStyle={tooltipStyle} />
                   {hasFilter && (
                     <Bar dataKey="totalAvgPlayers" name="Total Avg" radius={[3, 3, 0, 0]} fill="#8b5cf6" opacity={0.15} isAnimationActive={false} />
@@ -729,8 +729,8 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                   }
                 }}>
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                  <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={(v: number) => formatPenceShort(v)} />
-                  <YAxis dataKey="title" type="category" width={90} tick={{ fontSize: 8 }} />
+                  <XAxis type="number" tick={{ fontSize: 9, fill: "var(--foreground)" }} tickFormatter={(v: number) => formatPenceShort(v)} />
+                  <YAxis dataKey="title" type="category" width={90} tick={{ fontSize: 8, fill: "var(--foreground)" }} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => formatPence(v)} />
                   {hasFilter && (
                     <Bar dataKey="totalRevenue" name="Total Revenue" radius={[0, 3, 3, 0]} fill="#10b981" opacity={0.15} isAnimationActive={false} />

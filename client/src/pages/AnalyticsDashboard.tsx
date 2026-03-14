@@ -362,10 +362,10 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <AreaChart data={data.attendanceTrend || []}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
-                      <YAxis tick={{ fontSize: 10 }} tickFormatter={activeChartTab === "revenue" ? (v: number) => formatPenceShort(v) : undefined} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--foreground)" }} tickFormatter={(v) => v.slice(5)} />
+                      <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} tickFormatter={activeChartTab === "revenue" ? (v: number) => formatPenceShort(v) : undefined} />
                       <Tooltip
-                        contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }}
+                        contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }}
                         formatter={(value: number) => activeChartTab === "revenue" ? formatPence(value) : value}
                       />
                       <Area
@@ -400,9 +400,9 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={revenueChartData}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickFormatter={(v) => v.slice(5)} />
-                      <YAxis tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatPenceShort(v)} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} formatter={(v: number) => formatPence(v)} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--foreground)" }} tickFormatter={(v) => v.slice(5)} />
+                      <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} tickFormatter={(v: number) => formatPenceShort(v)} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} formatter={(v: number) => formatPence(v)} />
                       <Bar dataKey="revenue" fill="#10b981" radius={[4, 4, 0, 0]} />
                     </BarChart>
                   </ResponsiveContainer>
@@ -419,9 +419,9 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={(data.sessionRankings || []).sort((a: any, b: any) => b.avgPlayers - a.avgPlayers).slice(0, 8)} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis type="number" tick={{ fontSize: 10 }} />
-                      <YAxis dataKey="title" type="category" width={100} tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <YAxis dataKey="title" type="category" width={100} tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                       <Bar dataKey="avgPlayers" fill="#3b82f6" radius={[0, 4, 4, 0]} name="Avg Players" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -436,9 +436,9 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={(data.sessionRankings || []).sort((a: any, b: any) => b.totalRevenue - a.totalRevenue).slice(0, 8)} layout="vertical">
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis type="number" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatPenceShort(v)} />
-                      <YAxis dataKey="title" type="category" width={100} tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} formatter={(v: number) => formatPence(v)} />
+                      <XAxis type="number" tick={{ fontSize: 10, fill: "var(--foreground)" }} tickFormatter={(v: number) => formatPenceShort(v)} />
+                      <YAxis dataKey="title" type="category" width={100} tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} formatter={(v: number) => formatPence(v)} />
                       <Bar dataKey="totalRevenue" fill="#10b981" radius={[0, 4, 4, 0]} name="Total Revenue" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -455,9 +455,9 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.timeOfDayStats || []}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="label" tick={{ fontSize: 9 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                      <XAxis dataKey="label" tick={{ fontSize: 9, fill: "var(--foreground)" }} />
+                      <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                       <Bar dataKey="avgPlayers" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Avg Players" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -472,10 +472,10 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <ComposedChart data={data.weekdayStats || []}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="dayName" tick={{ fontSize: 10 }} />
-                      <YAxis yAxisId="left" tick={{ fontSize: 10 }} />
-                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10 }} tickFormatter={(v: number) => formatPenceShort(v)} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                      <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <YAxis yAxisId="left" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <YAxis yAxisId="right" orientation="right" tick={{ fontSize: 10, fill: "var(--foreground)" }} tickFormatter={(v: number) => formatPenceShort(v)} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                       <Bar yAxisId="left" dataKey="avgPlayers" fill="#3b82f6" radius={[4, 4, 0, 0]} name="Avg Players" />
                       <Line yAxisId="right" type="monotone" dataKey="totalRevenue" stroke="#10b981" strokeWidth={2} name="Revenue" dot={{ r: 3 }} />
                     </ComposedChart>
@@ -491,9 +491,9 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.capacityUtilization || []}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="label" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                      <XAxis dataKey="label" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                       <Bar dataKey="count" fill="#f59e0b" radius={[4, 4, 0, 0]} name="Sessions" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -511,10 +511,10 @@ export default function AnalyticsDashboard() {
                     <ResponsiveContainer width="100%" height="100%">
                       <BarChart data={data.clubStats}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis dataKey="name" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
-                        <Legend wrapperStyle={{ fontSize: 11 }} />
+                        <XAxis dataKey="name" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                        <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                        <Legend wrapperStyle={{ fontSize: 11, color: "var(--foreground)" }} />
                         <Bar dataKey="sessions" fill="#3b82f6" name="Sessions" radius={[4, 4, 0, 0]} />
                         <Bar dataKey="players" fill="#10b981" name="Players" radius={[4, 4, 0, 0]} />
                       </BarChart>
@@ -544,8 +544,8 @@ export default function AnalyticsDashboard() {
                         >
                           {[0, 1, 2].map(i => <Cell key={i} fill={COLORS[i]} />)}
                         </Pie>
-                        <Legend wrapperStyle={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 11 }} />
+                        <Legend wrapperStyle={{ fontSize: 10, color: "var(--foreground)" }} />
+                        <Tooltip contentStyle={{ fontSize: 11, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                       </RPieChart>
                     </ResponsiveContainer>
                   </div>
@@ -559,9 +559,9 @@ export default function AnalyticsDashboard() {
                         { range: "10+", count: data.playerFrequency?.tenPlus || 0 },
                       ]}>
                         <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                        <XAxis dataKey="range" tick={{ fontSize: 10 }} />
-                        <YAxis tick={{ fontSize: 10 }} />
-                        <Tooltip contentStyle={{ fontSize: 11 }} />
+                        <XAxis dataKey="range" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                        <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                        <Tooltip contentStyle={{ fontSize: 11, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                         <Bar dataKey="count" fill="#8b5cf6" radius={[4, 4, 0, 0]} name="Players" />
                       </BarChart>
                     </ResponsiveContainer>
@@ -579,9 +579,9 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={data.noShowByWeekday || []}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="dayName" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                      <XAxis dataKey="dayName" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                       <Bar dataKey="noShows" fill="#ef4444" radius={[4, 4, 0, 0]} name="No-Shows" />
                     </BarChart>
                   </ResponsiveContainer>
@@ -596,9 +596,9 @@ export default function AnalyticsDashboard() {
                   <ResponsiveContainer width="100%" height="100%">
                     <LineChart data={data.seasonalityData || []}>
                       <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
-                      <XAxis dataKey="month" tick={{ fontSize: 10 }} />
-                      <YAxis tick={{ fontSize: 10 }} />
-                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", border: "1px solid var(--border)", borderRadius: 8 }} />
+                      <XAxis dataKey="month" tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <YAxis tick={{ fontSize: 10, fill: "var(--foreground)" }} />
+                      <Tooltip contentStyle={{ fontSize: 12, background: "var(--card)", color: "var(--card-foreground)", border: "1px solid var(--border)", borderRadius: 8 }} />
                       <Line type="monotone" dataKey="players" stroke="#3b82f6" strokeWidth={2} dot={{ r: 3 }} name="Players" />
                       <Line type="monotone" dataKey="sessions" stroke="#10b981" strokeWidth={2} dot={{ r: 3 }} name="Sessions" />
                     </LineChart>

@@ -291,8 +291,8 @@ export default function ProfitabilityView({ filteredData, dashboardData }: Finan
               <ResponsiveContainer width="100%" height="100%">
                 <BarChart data={sessionTypeComparison} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                  <XAxis dataKey="type" tick={{ fontSize: 12 }} />
-                  <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 12 }} />
+                  <XAxis dataKey="type" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
+                  <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 12, fill: "var(--foreground)" }} />
                   <Tooltip content={<CustomTooltip />} />
                   <Legend />
                   <Bar dataKey="collected" name="Collected" fill="hsl(142, 71%, 45%)" radius={[4, 4, 0, 0]} />
@@ -322,14 +322,14 @@ export default function ProfitabilityView({ filteredData, dashboardData }: Finan
                     dataKey="revenue"
                     name="Revenue"
                     tickFormatter={(v) => `£${(v / 100).toFixed(0)}`}
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: "var(--foreground)" }}
                   />
                   <YAxis
                     type="number"
                     dataKey="collected"
                     name="Collected"
                     tickFormatter={(v) => `£${(v / 100).toFixed(0)}`}
-                    tick={{ fontSize: 12 }}
+                    tick={{ fontSize: 12, fill: "var(--foreground)" }}
                   />
                   <ZAxis type="number" dataKey="signups" range={[40, 400]} name="Signups" />
                   <Tooltip content={<ScatterTooltip />} />

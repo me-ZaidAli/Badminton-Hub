@@ -192,11 +192,11 @@ export function PlayerStatsDialog({
                 <CardContent>
                   <ResponsiveContainer width="100%" height={160}>
                     <LineChart data={chartData}>
-                      <XAxis dataKey="date" tick={{ fontSize: 10 }} tickLine={false} />
+                      <XAxis dataKey="date" tick={{ fontSize: 10, fill: "var(--foreground)" }} tickLine={false} />
                       <YAxis hide />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: "hsl(var(--card))",
+                          backgroundColor: "hsl(var(--card))", color: "hsl(var(--foreground))",
                           border: "1px solid hsl(var(--border))",
                           borderRadius: "8px",
                           fontSize: "12px",

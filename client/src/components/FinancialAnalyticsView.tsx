@@ -388,8 +388,8 @@ export default function FinancialAnalyticsView({ filteredData, dashboardData, do
             <ResponsiveContainer width="100%" height="100%">
               <AreaChart data={revenueTrend} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                 <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 12 }} />
-                <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} className="text-xs" tick={{ fontSize: 12 }} />
+                <XAxis dataKey="month" className="text-xs" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
+                <YAxis tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} className="text-xs" tick={{ fontSize: 12, fill: "var(--foreground)" }} />
                 <Tooltip content={<CustomTooltip />} />
                 {revenueLayers.sessions && (
                   <Area type="monotone" dataKey="sessions" name="Sessions" stroke="hsl(142, 71%, 45%)" fill="hsl(142, 71%, 45%)" fillOpacity={0.15} strokeWidth={2} />
@@ -455,8 +455,8 @@ export default function FinancialAnalyticsView({ filteredData, dashboardData, do
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={clubRevenue} layout="vertical" margin={{ top: 5, right: 10, left: 10, bottom: 5 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis type="number" tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 11 }} />
-                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }} />
+                    <XAxis type="number" tickFormatter={(v) => `£${(v / 100).toFixed(0)}`} tick={{ fontSize: 11, fill: "var(--foreground)" }} />
+                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11, fill: "var(--foreground)" }} />
                     <Tooltip content={<CustomTooltip />} />
                     <Bar dataKey="collected" name="Collected" fill="hsl(142, 71%, 45%)" radius={[0, 4, 4, 0]} stackId="a" />
                     <Bar dataKey="outstanding" name="Outstanding" fill="hsl(47, 96%, 53%)" radius={[0, 4, 4, 0]} stackId="a" />
@@ -603,7 +603,8 @@ export default function FinancialAnalyticsView({ filteredData, dashboardData, do
                       <Cell fill="hsl(47, 96%, 53%)" />
                       <Cell fill="hsl(0, 84%, 60%)" />
                     </Pie>
-                    <Tooltip formatter={(value: number, name: string) => [`${value} signups`, name]} />
+                    <Tooltip formatter={(value: number, name: string) => [`${value} signups`, name]}
+                      contentStyle={{ background: "hsl(var(--card))", color: "hsl(var(--card-foreground))", border: "1px solid hsl(var(--border))", borderRadius: 8 }} />
                     <Legend />
                   </PieChart>
                 </ResponsiveContainer>

@@ -37,8 +37,8 @@ const DONUT_SETS = [
 function CustomTooltip({ active, payload, label }: any) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-slate-900 border border-slate-700 rounded-lg px-3 py-2 shadow-xl" data-testid="chart-tooltip">
-      <p className="text-xs font-medium text-slate-300 mb-1">{label}</p>
+    <div className="bg-card border rounded-lg px-3 py-2 shadow-xl" data-testid="chart-tooltip">
+      <p className="text-xs font-medium text-card-foreground mb-1">{label}</p>
       {payload.map((p: any, i: number) => (
         <p key={i} className="text-xs" style={{ color: p.color }}>
           {p.name}: <span className="font-bold">{p.value}</span>

@@ -355,10 +355,10 @@ export default function MyInsights() {
                       </linearGradient>
                     </defs>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} className="text-muted-foreground" axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12 }} className="text-muted-foreground" axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--foreground)" }} className="text-muted-foreground" axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "var(--foreground)" }} className="text-muted-foreground" axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
-                      contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "12px" }}
+                      contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "var(--card-foreground)", fontSize: "12px" }}
                       labelStyle={{ fontWeight: 600 }}
                     />
                     <Area type="monotone" dataKey="sessions" stroke="hsl(var(--primary))" strokeWidth={2} fill="url(#sessionGradientInsights)" name="Club Sessions" />
@@ -387,10 +387,10 @@ export default function MyInsights() {
                 <ResponsiveContainer width="100%" height="100%">
                   <BarChart data={monthlyAttendanceData} margin={{ top: 5, right: 5, left: -20, bottom: 0 }}>
                     <CartesianGrid strokeDasharray="3 3" className="stroke-border/30" vertical={false} />
-                    <XAxis dataKey="name" tick={{ fontSize: 12 }} axisLine={false} tickLine={false} />
-                    <YAxis tick={{ fontSize: 12 }} axisLine={false} tickLine={false} allowDecimals={false} />
+                    <XAxis dataKey="name" tick={{ fontSize: 12, fill: "var(--foreground)" }} axisLine={false} tickLine={false} />
+                    <YAxis tick={{ fontSize: 12, fill: "var(--foreground)" }} axisLine={false} tickLine={false} allowDecimals={false} />
                     <Tooltip
-                      contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", fontSize: "12px" }}
+                      contentStyle={{ borderRadius: "8px", border: "1px solid hsl(var(--border))", background: "hsl(var(--card))", color: "var(--card-foreground)", fontSize: "12px" }}
                       labelStyle={{ fontWeight: 600 }}
                     />
                     <Bar dataKey="attended" fill="hsl(217 91% 60%)" radius={[4, 4, 0, 0]} name="Attended" />
