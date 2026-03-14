@@ -738,67 +738,128 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
 
   const stats = (analytics as any)?.stats;
 
+  const heroRadarData = useMemo(() => {
+    if (!stats) return [];
+    const maxMatches = Math.max(stats.matchesPlayed || 1, 1);
+    const maxPoints = Math.max(stats.pointsScored || 1, 1);
+    return [
+      { stat: "Win Rate", value: stats.winRate || 0, fullMark: 100 },
+      { stat: "Attack", value: maxPoints > 0 ? Math.min(Math.round((stats.pointsScored / Math.max(stats.pointsScored + (stats.pointsConceded || 0), 1)) * 100), 100) : 0, fullMark: 100 },
+      { stat: "Consistency", value: stats.sessionsAttended > 0 ? Math.min(Math.round((stats.sessions30d / Math.max(stats.sessionsAttended, 1)) * 100), 100) : Math.min(stats.matchesPlayed * 10, 100), fullMark: 100 },
+      { stat: "Impact", value: Math.min(stats.sessionImpactScore || 0, 100), fullMark: 100 },
+      { stat: "Experience", value: Math.min(Math.round((stats.uniqueOpponents || 0) * 8), 100), fullMark: 100 },
+    ];
+  }, [stats]);
+
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl bg-card border border-border p-6">
-        <div className="absolute inset-0 bg-gradient-to-r from-cyan-500/5 via-transparent to-purple-500/5" />
-        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-cyan-500/5 to-transparent rounded-bl-full" />
-        <div className="relative z-10 flex items-start gap-5">
-          <div className="relative">
-            <PlayerAvatar
-              name={player.fullName}
-              id={player.id}
-              size="hero"
-              profilePictureUrl={player.profilePictureUrl}
-              selectedAvatar={player.selectedAvatar}
-              gender={profile?.gender}
-              grade={grade}
-            />
-            <div className={`absolute -bottom-1 -right-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-foreground bg-gradient-to-r ${GRADE_COLORS[grade] || "from-muted to-muted"} shadow-lg ${GRADE_GLOW[grade] || ""} border border-white/20`}>
-              {grade}
+      <div className="relative overflow-hidden rounded-2xl border border-white/[0.08]" style={{
+        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #4338ca 50%, #6366f1 75%, #818cf8 100%)",
+      }} data-testid="player-hero-card">
+        <div className="absolute inset-0 pointer-events-none" style={{
+          background: "radial-gradient(ellipse at 30% 50%, rgba(139,92,246,0.3) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(99,102,241,0.2) 0%, transparent 50%)",
+        }} />
+        <div className="absolute top-0 right-0 w-60 h-60 bg-gradient-to-bl from-white/5 to-transparent rounded-bl-full pointer-events-none" />
+
+        <div className="relative z-10 p-6 md:p-8">
+          <div className="flex flex-col lg:flex-row items-start gap-6">
+            <div className="flex items-start gap-5 lg:gap-6 flex-1 min-w-0">
+              <div className="relative shrink-0">
+                <div className="relative">
+                  <PlayerAvatar
+                    name={player.fullName}
+                    id={player.id}
+                    size="hero"
+                    profilePictureUrl={player.profilePictureUrl}
+                    selectedAvatar={player.selectedAvatar}
+                    gender={profile?.gender}
+                    grade={grade}
+                  />
+                  <div className={`absolute -bottom-1 -right-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-slate-500 to-slate-600"} shadow-lg border border-white/30`}>
+                    {grade}
+                  </div>
+                </div>
+              </div>
+
+              <div className="hidden md:block w-[200px] h-[200px] shrink-0 relative" data-testid="hero-radar">
+                {heroRadarData.length > 0 ? (
+                  <ResponsiveContainer width="100%" height="100%">
+                    <RadarChart data={heroRadarData} cx="50%" cy="50%">
+                      <PolarGrid stroke="rgba(255,255,255,0.15)" gridType="polygon" />
+                      <PolarAngleAxis dataKey="stat" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.7)", fontWeight: 600 }} />
+                      <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                      <Radar name="Stats" dataKey="value" stroke="#f472b6" fill="#f472b6" fillOpacity={0.2} strokeWidth={2.5} dot={{ r: 4, fill: "#f472b6", stroke: "#fff", strokeWidth: 1 }} />
+                    </RadarChart>
+                  </ResponsiveContainer>
+                ) : (
+                  <div className="flex items-center justify-center h-full">
+                    <Activity className="h-12 w-12 text-white/20" />
+                  </div>
+                )}
+                {stats?.matchesPlayed && (
+                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                    <span className="text-4xl font-black text-white/10">{stats.matchesPlayed}</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex-1 min-w-0 pt-1">
+                <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white leading-tight">{player.fullName}</h2>
+                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                  <span className="text-sm text-white/60 font-medium flex items-center gap-1.5 truncate max-w-[180px]">
+                    <Shield className="h-3.5 w-3.5 text-white/40 shrink-0" />
+                    {clubName}
+                  </span>
+                  {profile && (
+                    <span className="text-sm text-white/60 flex items-center gap-1">
+                      <Trophy className="h-3.5 w-3.5 text-amber-400" />
+                      <span className="font-semibold text-amber-300">{profile.rankingPoints}</span> pts
+                    </span>
+                  )}
+                </div>
+                <div className="mt-2">
+                  <AIStyleBadge playerId={profileId!} />
+                </div>
+
+                {stats && (
+                  <div className="flex items-center gap-3 mt-4 flex-wrap">
+                    <div className="flex flex-col items-center px-4 py-2.5 rounded-xl min-w-[80px]" style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.25)" }}>
+                      <Trophy className="h-4 w-4 text-red-400 mb-1" />
+                      <span className="text-xl font-black text-white leading-none">{stats.matchesWon || 0}</span>
+                      <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Wins</span>
+                    </div>
+                    <div className="flex flex-col items-center px-4 py-2.5 rounded-xl min-w-[80px]" style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)" }}>
+                      <XCircle className="h-4 w-4 text-purple-400 mb-1" />
+                      <span className="text-xl font-black text-white leading-none">{stats.matchesLost || 0}</span>
+                      <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Losses</span>
+                    </div>
+                    <div className="flex flex-col items-center px-4 py-2.5 rounded-xl min-w-[80px]" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                      <Star className="h-4 w-4 text-white/70 mb-1" />
+                      <span className="text-xl font-black text-white leading-none">{stats.winRate || 0}%</span>
+                      <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Win %</span>
+                    </div>
+                  </div>
+                )}
+              </div>
             </div>
-          </div>
-          <div className="flex-1 min-w-0 pt-1">
-            <h2 className="text-2xl font-black tracking-tight text-foreground">{player.fullName}</h2>
-            <div className="flex items-center gap-3 mt-1.5 flex-wrap">
-              <span className="text-sm text-muted-foreground font-medium">{clubName}</span>
-              {profile && (
-                <span className="text-sm text-muted-foreground flex items-center gap-1">
-                  <Trophy className="h-3.5 w-3.5 text-amber-400" />
-                  <span className="font-semibold text-amber-300">{profile.rankingPoints}</span> pts
-                </span>
-              )}
-            </div>
-            <AIStyleBadge playerId={profileId!} />
 
             {stats && (
-              <div className="flex items-center gap-4 mt-3 flex-wrap">
-                <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-cyan-500/15 flex items-center justify-center">
-                    <Trophy className="h-4 w-4 text-cyan-400" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-black leading-none text-foreground">{stats.matchesWon || 0}</p>
-                    <p className="text-[10px] text-muted-foreground">Wins</p>
-                  </div>
+              <div className="grid grid-cols-2 gap-2 shrink-0 w-full lg:w-auto" data-testid="hero-info-cards">
+                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Matches</span>
+                  <span className="text-base font-black text-white mt-0.5">{stats.matchesPlayed || 0}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-purple-500/15 flex items-center justify-center">
-                    <XCircle className="h-4 w-4 text-purple-400" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-black leading-none text-foreground">{stats.matchesLost || 0}</p>
-                    <p className="text-[10px] text-muted-foreground">Losses</p>
-                  </div>
+                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Sessions</span>
+                  <span className="text-base font-black text-white mt-0.5">{stats.sessionsAttended || 0}</span>
                 </div>
-                <div className="flex items-center gap-1.5">
-                  <div className="w-8 h-8 rounded-lg bg-emerald-500/15 flex items-center justify-center">
-                    <Star className="h-4 w-4 text-emerald-400" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-black leading-none text-foreground">{stats.winRate || 0}%</p>
-                    <p className="text-[10px] text-muted-foreground">Win Rate</p>
-                  </div>
+                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Opponents</span>
+                  <span className="text-base font-black text-white mt-0.5">{stats.uniqueOpponents || 0}</span>
+                </div>
+                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Impact</span>
+                  <span className="text-base font-black text-white mt-0.5">{stats.sessionImpactScore ?? "—"}</span>
                 </div>
               </div>
             )}
