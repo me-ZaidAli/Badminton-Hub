@@ -201,6 +201,265 @@ function SectionHeader({ title, subtitle, icon: Icon }: { title: string; subtitl
   );
 }
 
+function SunburstChart({ data, centerValue, centerLabel }: {
+  data: { label: string; value: number }[];
+  centerValue: string;
+  centerLabel: string;
+}) {
+  const maxVal = Math.max(...data.map(d => d.value), 1);
+  const numRays = data.length || 12;
+  const cx = 140;
+  const cy = 140;
+  const innerR = 55;
+  const outerR = 120;
+  const tickR = outerR + 14;
+
+  return (
+    <svg viewBox="0 0 280 280" className="w-full h-full" data-testid="sunburst-chart">
+      {[0.25, 0.5, 0.75, 1].map((frac, i) => (
+        <circle key={i} cx={cx} cy={cy} r={innerR + (outerR - innerR) * frac}
+          fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+      ))}
+
+      {data.map((d, i) => {
+        const angle = (i / numRays) * Math.PI * 2 - Math.PI / 2;
+        const ratio = d.value / maxVal;
+        const barLen = (outerR - innerR) * ratio;
+        const x1 = cx + Math.cos(angle) * innerR;
+        const y1 = cy + Math.sin(angle) * innerR;
+        const x2 = cx + Math.cos(angle) * (innerR + barLen);
+        const y2 = cy + Math.sin(angle) * (innerR + barLen);
+        const labelX = cx + Math.cos(angle) * tickR;
+        const labelY = cy + Math.sin(angle) * tickR;
+
+        const hue = 45 + (1 - ratio) * 10;
+        const color = ratio > 0.7 ? `hsl(${hue}, 90%, 60%)` : ratio > 0.3 ? `hsl(${hue}, 70%, 50%)` : "rgba(255,255,255,0.15)";
+
+        return (
+          <g key={i}>
+            <line x1={cx + Math.cos(angle) * innerR} y1={cy + Math.sin(angle) * innerR}
+              x2={cx + Math.cos(angle) * outerR} y2={cy + Math.sin(angle) * outerR}
+              stroke="rgba(255,255,255,0.03)" strokeWidth="2" />
+            <line x1={x1} y1={y1} x2={x2} y2={y2}
+              stroke={color} strokeWidth="3" strokeLinecap="round"
+              style={{ filter: ratio > 0.5 ? `drop-shadow(0 0 3px ${color})` : "none" }} />
+            <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
+              className="text-[7px]" fill="rgba(255,255,255,0.35)" fontWeight="500">
+              {d.label}
+            </text>
+          </g>
+        );
+      })}
+
+      <circle cx={cx} cy={cy} r={innerR - 2} fill="rgba(11,15,20,0.8)" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+      <text x={cx} y={cy - 12} textAnchor="middle" fill="rgba(255,255,255,0.4)" className="text-[8px]" fontWeight="500">
+        Annual
+      </text>
+      <text x={cx} y={cy + 4} textAnchor="middle" fill="#fff" className="text-[13px]" fontWeight="800">
+        {centerValue}
+      </text>
+      <text x={cx} y={cy + 18} textAnchor="middle" fill="rgba(255,255,255,0.3)" className="text-[7px]" fontWeight="500">
+        {centerLabel}
+      </text>
+    </svg>
+  );
+}
+
+function MiniSparkline({ data, color = "#6366f1" }: { data: number[]; color?: string }) {
+  if (data.length < 2) return null;
+  const max = Math.max(...data, 1);
+  const min = Math.min(...data, 0);
+  const range = max - min || 1;
+  const w = 200;
+  const h = 50;
+  const points = data.map((v, i) => ({
+    x: (i / (data.length - 1)) * w,
+    y: h - ((v - min) / range) * (h - 4) - 2,
+  }));
+  const pathD = points.map((p, i) => `${i === 0 ? "M" : "L"} ${p.x} ${p.y}`).join(" ");
+  const areaD = `${pathD} L ${w} ${h} L 0 ${h} Z`;
+
+  return (
+    <svg viewBox={`0 0 ${w} ${h}`} className="w-full h-full" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id="sparkGrad" x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.3" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      <path d={areaD} fill="url(#sparkGrad)" />
+      <path d={pathD} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" />
+      {points.length > 0 && (
+        <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="3" fill={color} stroke="#0b0f14" strokeWidth="1.5" />
+      )}
+    </svg>
+  );
+}
+
+function ExecutiveHeroPanel({ kpis, seasonalData, clubBreakdown, sessionBreakdown, hasFilter, totalKpis, toggleItem, filter }: {
+  kpis: any;
+  seasonalData: any[];
+  clubBreakdown: any[];
+  sessionBreakdown: any[];
+  hasFilter: boolean;
+  totalKpis: any;
+  toggleItem: (cat: string, val: any, label?: string) => void;
+  filter: MultiFilter;
+}) {
+  const sunburstData = useMemo(() => {
+    const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+    return months.map(m => {
+      const matchingEntries = seasonalData.filter(s => s.label.startsWith(m));
+      const total = matchingEntries.reduce((sum, e) => sum + e.revenue, 0);
+      return { label: m, value: total };
+    });
+  }, [seasonalData]);
+
+  const revTrend = useMemo(() => seasonalData.map(s => s.revenue), [seasonalData]);
+
+  const latestMonthRev = seasonalData.length > 0 ? seasonalData[seasonalData.length - 1].revenue : 0;
+  const prevMonthRev = seasonalData.length > 1 ? seasonalData[seasonalData.length - 2].revenue : 0;
+  const monthlyPctChange = prevMonthRev > 0 ? Math.round(((latestMonthRev - prevMonthRev) / prevMonthRev) * 100) : 0;
+
+  const totalSessionRevenue = kpis.totalRevenue;
+  const topClubs = useMemo(() => {
+    const sorted = [...clubBreakdown].sort((a, b) =>
+      hasFilter ? (b.filteredRevenue - a.filteredRevenue) : (b.revenue - a.revenue)
+    );
+    return sorted.slice(0, 3);
+  }, [clubBreakdown, hasFilter]);
+  const topSessions = useMemo(() => {
+    const sorted = [...sessionBreakdown].sort((a, b) =>
+      hasFilter ? (b.filteredRevenue - a.filteredRevenue) : (b.revenue - a.revenue)
+    );
+    return sorted.slice(0, 3);
+  }, [sessionBreakdown, hasFilter]);
+
+  const sessionRevenueShare = totalSessionRevenue > 0
+    ? topSessions.map(s => ({
+        title: s.title,
+        pct: Math.round(((hasFilter ? s.filteredRevenue : s.revenue) / totalSessionRevenue) * 100),
+        revenue: hasFilter ? s.filteredRevenue : s.revenue,
+      }))
+    : [];
+
+  return (
+    <GlassCard className="overflow-visible" glow="rgba(99,102,241,0.15)">
+      <div className="p-5 md:p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
+          <div className="lg:col-span-3 space-y-4">
+            <div>
+              <h3 className="text-xs font-bold text-white/80 uppercase tracking-widest mb-1">Club Revenue Breakdown</h3>
+              <p className="text-[9px] text-white/25 leading-relaxed">Revenue distribution across your clubs for the active period</p>
+            </div>
+
+            {topClubs.map((club, i) => {
+              const pct = totalSessionRevenue > 0 ? Math.round(((hasFilter ? club.filteredRevenue : club.revenue) / totalSessionRevenue) * 100) : 0;
+              const isActive = filter.clubIds.length === 0 || filter.clubIds.includes(club.id);
+              return (
+                <div key={club.id}
+                  className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${isActive ? "hover:bg-white/[0.04]" : "opacity-40"}`}
+                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
+                  onClick={() => toggleItem("club", club.id, club.name)}
+                  data-testid={`hero-club-${club.id}`}>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full" style={{ background: GRADIENT_COLORS[i % GRADIENT_COLORS.length] }} />
+                      <span className="text-[11px] font-semibold text-white/70">{club.name}</span>
+                    </div>
+                    <span className="text-[10px] font-bold" style={{ color: GRADIENT_COLORS[i % GRADIENT_COLORS.length] }}>{pct}%</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-black text-white">{formatPence(hasFilter ? club.filteredRevenue : club.revenue)}</span>
+                    <span className="text-[9px] text-white/25">{hasFilter ? `${Math.round(club.filteredPlayers / Math.max(club.sessions, 1))} avg players` : `${club.sessions} sessions`}</span>
+                  </div>
+                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
+                    <div className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${pct}%`, background: GRADIENT_COLORS[i % GRADIENT_COLORS.length], opacity: 0.7 }} />
+                  </div>
+                </div>
+              );
+            })}
+            {topClubs.length === 0 && <p className="text-[10px] text-white/20 text-center py-4">No club data</p>}
+          </div>
+
+          <div className="lg:col-span-4 flex flex-col items-center justify-center">
+            <div className="w-[240px] h-[240px] md:w-[260px] md:h-[260px] relative">
+              <SunburstChart
+                data={sunburstData}
+                centerValue={formatPence(kpis.totalRevenue)}
+                centerLabel="Total Revenue"
+              />
+              <div className="absolute inset-0 pointer-events-none" style={{
+                background: "radial-gradient(circle at 50% 50%, rgba(245,158,11,0.06) 0%, transparent 60%)",
+              }} />
+            </div>
+            {hasFilter && totalKpis?.totalRevenue && (
+              <div className="flex items-center gap-2 mt-1">
+                <span className="text-[9px] text-white/25 line-through">{formatPence(totalKpis.totalRevenue)}</span>
+                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,0.15)", color: NEON.purple }}>
+                  {Math.round((kpis.totalRevenue / totalKpis.totalRevenue) * 100)}%
+                </span>
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-5 space-y-4">
+            <div>
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="text-xs font-bold text-white/80 uppercase tracking-widest">Monthly Revenue</h3>
+                {monthlyPctChange !== 0 && (
+                  <span className={`text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded ${monthlyPctChange >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
+                    {monthlyPctChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                    {monthlyPctChange > 0 ? "+" : ""}{monthlyPctChange}%
+                  </span>
+                )}
+              </div>
+              <div className="flex items-end gap-3 mb-2">
+                <span className="text-3xl font-black text-white tracking-tight">{formatPence(latestMonthRev)}</span>
+              </div>
+              <div className="h-[50px] w-full" data-testid="hero-sparkline">
+                <MiniSparkline data={revTrend} color={NEON.indigo} />
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                {seasonalData.length > 0 && (
+                  <>
+                    <span className="text-[8px] text-white/20">{seasonalData[0]?.label}</span>
+                    <span className="text-[8px] text-white/20">{seasonalData[seasonalData.length - 1]?.label}</span>
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="space-y-2.5 mt-2">
+              <h4 className="text-[10px] text-white/40 uppercase tracking-widest font-semibold">Top Sessions</h4>
+              {sessionRevenueShare.map((s, i) => {
+                const isActive = filter.sessionTitles.length === 0 || filter.sessionTitles.includes(s.title);
+                return (
+                  <div key={s.title}
+                    className={`flex items-center gap-3 cursor-pointer transition-all duration-200 ${isActive ? "" : "opacity-30"}`}
+                    onClick={() => toggleItem("session", s.title)}
+                    data-testid={`hero-session-${i}`}>
+                    <div className="w-1.5 h-6 rounded-full" style={{ background: GRADIENT_COLORS[(i + 3) % GRADIENT_COLORS.length] }} />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center justify-between">
+                        <span className="text-[11px] font-semibold text-white/70 truncate">{s.title}</span>
+                        <span className="text-[10px] font-bold text-white/50 ml-2">{s.pct}%</span>
+                      </div>
+                      <span className="text-[10px] text-white/25">{formatPence(s.revenue)}</span>
+                    </div>
+                  </div>
+                );
+              })}
+              {sessionRevenueShare.length === 0 && <p className="text-[9px] text-white/20">No session data</p>}
+            </div>
+          </div>
+        </div>
+      </div>
+    </GlassCard>
+  );
+}
+
 function iconForCategory(cat: string) {
   switch (cat) {
     case "club": return Building2;
@@ -562,6 +821,17 @@ export default function CommandCenterDashboard({ data }: CommandCenterProps) {
         )}
 
         <p className="text-[10px] text-white/20 px-1">Tap any chart bar to filter. Long-press to enable multi-select.</p>
+
+        <ExecutiveHeroPanel
+          kpis={kpis}
+          seasonalData={seasonalData}
+          clubBreakdown={clubBreakdown}
+          sessionBreakdown={sessionBreakdown}
+          hasFilter={hasFilter}
+          totalKpis={data?.kpis}
+          toggleItem={toggleItem}
+          filter={filter}
+        />
 
         <SectionHeader title="Global Performance" subtitle="Key performance indicators across all clubs" icon={BarChart3} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="cc-kpis">
