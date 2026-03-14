@@ -35,6 +35,7 @@ import {
 
 type ProfileData = {
   id: number;
+  userId: number;
   clubId: number;
   gender: string | null;
   category: string | null;
@@ -42,6 +43,8 @@ type ProfileData = {
   rankingPoints: number;
   matchesPlayed: number;
   matchesWon: number;
+  matchesLost?: number;
+  membershipStatus?: string | null;
 };
 
 type PlayerData = {
@@ -193,9 +196,9 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
     ? player.playerProfiles.find(p => p.clubId === Number(clubId)) || player.playerProfiles[0]
     : player.playerProfiles[0];
   const grade = profile?.grade || profile?.category || "—";
-  const matchesWon = profile?.matchesWon || 0;
-  const matchesLost = profile?.matchesLost || 0;
   const matchesPlayed = profile?.matchesPlayed || 0;
+  const matchesWon = profile?.matchesWon || 0;
+  const matchesLost = profile?.matchesLost != null ? profile.matchesLost : (matchesPlayed - matchesWon);
 
   const initials = player.fullName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
   const gradeColor = grade !== "—" && GRADE_COLORS[grade] ? GRADE_COLORS[grade] : "from-slate-400 to-slate-500";
