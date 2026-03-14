@@ -28601,7 +28601,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       let sessionQuery = db.select().from(sessions).where(inArray(sessions.clubId, accessibleClubIds));
       const allSessions = await sessionQuery;
 
-      let filteredSessions = allSessions;
+      let filteredSessions = allSessions.filter(s => s.status === "COMPLETED");
       if (from) filteredSessions = filteredSessions.filter(s => new Date(s.date) >= new Date(from as string));
       if (to) filteredSessions = filteredSessions.filter(s => new Date(s.date) <= new Date(to as string));
       if (clubId && clubId !== "all") filteredSessions = filteredSessions.filter(s => s.clubId === parseInt(clubId as string));
@@ -28620,6 +28620,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         const dayNum = parseInt(weekday as string);
         filteredSessions = filteredSessions.filter(s => new Date(s.date).getDay() === dayNum);
       }
+      filteredSessions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
       const filteredSessionIds = filteredSessions.map(s => s.id);
 
