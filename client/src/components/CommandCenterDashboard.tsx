@@ -201,65 +201,190 @@ function SectionHeader({ title, subtitle, icon: Icon }: { title: string; subtitl
   );
 }
 
-function SunburstChart({ data, centerValue, centerLabel }: {
+function SunburstChart({ data, centerValue, centerLabel, centerPct }: {
   data: { label: string; value: number }[];
   centerValue: string;
   centerLabel: string;
+  centerPct?: number;
 }) {
   const maxVal = Math.max(...data.map(d => d.value), 1);
   const numRays = data.length || 12;
-  const cx = 140;
-  const cy = 140;
-  const innerR = 55;
-  const outerR = 120;
-  const tickR = outerR + 14;
+  const cx = 160;
+  const cy = 160;
+  const innerR = 48;
+  const outerR = 130;
+  const totalRays = 72;
+  const tickR = outerR + 16;
+
+  const rings = [
+    { r: innerR + 14, w: 2.5, opacity: 0.12 },
+    { r: innerR + 30, w: 1.5, opacity: 0.07 },
+    { r: innerR + 48, w: 1, opacity: 0.05 },
+    { r: innerR + 66, w: 0.7, opacity: 0.03 },
+  ];
 
   return (
-    <svg viewBox="0 0 280 280" className="w-full h-full" data-testid="sunburst-chart">
-      {[0.25, 0.5, 0.75, 1].map((frac, i) => (
-        <circle key={i} cx={cx} cy={cy} r={innerR + (outerR - innerR) * frac}
-          fill="none" stroke="rgba(255,255,255,0.04)" strokeWidth="0.5" />
+    <svg viewBox="0 0 320 320" className="w-full h-full" data-testid="sunburst-chart">
+      <defs>
+        <radialGradient id="sunGlow" cx="50%" cy="50%" r="50%">
+          <stop offset="0%" stopColor="#c026d3" stopOpacity="0.15" />
+          <stop offset="40%" stopColor="#a855f7" stopOpacity="0.06" />
+          <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
+        </radialGradient>
+        <linearGradient id="rayGradHot" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#ec4899" />
+          <stop offset="100%" stopColor="#f97316" />
+        </linearGradient>
+        <linearGradient id="rayGradMid" x1="0" y1="0" x2="1" y2="0">
+          <stop offset="0%" stopColor="#a855f7" />
+          <stop offset="100%" stopColor="#ec4899" />
+        </linearGradient>
+        <filter id="sunBlur">
+          <feGaussianBlur stdDeviation="3" />
+        </filter>
+        <filter id="softGlow">
+          <feGaussianBlur stdDeviation="1.5" />
+        </filter>
+      </defs>
+
+      <circle cx={cx} cy={cy} r={outerR + 8} fill="url(#sunGlow)" />
+
+      {rings.map((ring, i) => (
+        <circle key={`ring-${i}`} cx={cx} cy={cy} r={ring.r}
+          fill="none" stroke={`rgba(168,85,247,${ring.opacity})`} strokeWidth={ring.w}
+          strokeDasharray="2 3" />
       ))}
+
+      {Array.from({ length: totalRays }).map((_, i) => {
+        const angle = (i / totalRays) * Math.PI * 2 - Math.PI / 2;
+        const x1 = cx + Math.cos(angle) * (innerR + 8);
+        const y1 = cy + Math.sin(angle) * (innerR + 8);
+        const x2 = cx + Math.cos(angle) * (outerR - 8);
+        const y2 = cy + Math.sin(angle) * (outerR - 8);
+        return (
+          <line key={`tick-${i}`} x1={x1} y1={y1} x2={x2} y2={y2}
+            stroke="rgba(168,85,247,0.03)" strokeWidth="0.5" />
+        );
+      })}
 
       {data.map((d, i) => {
         const angle = (i / numRays) * Math.PI * 2 - Math.PI / 2;
         const ratio = d.value / maxVal;
-        const barLen = (outerR - innerR) * ratio;
-        const x1 = cx + Math.cos(angle) * innerR;
-        const y1 = cy + Math.sin(angle) * innerR;
-        const x2 = cx + Math.cos(angle) * (innerR + barLen);
-        const y2 = cy + Math.sin(angle) * (innerR + barLen);
+        const barLen = (outerR - innerR - 16) * ratio;
+        const x1 = cx + Math.cos(angle) * (innerR + 8);
+        const y1 = cy + Math.sin(angle) * (innerR + 8);
+        const x2 = cx + Math.cos(angle) * (innerR + 8 + barLen);
+        const y2 = cy + Math.sin(angle) * (innerR + 8 + barLen);
         const labelX = cx + Math.cos(angle) * tickR;
         const labelY = cy + Math.sin(angle) * tickR;
 
-        const hue = 45 + (1 - ratio) * 10;
-        const color = ratio > 0.7 ? `hsl(${hue}, 90%, 60%)` : ratio > 0.3 ? `hsl(${hue}, 70%, 50%)` : "rgba(255,255,255,0.15)";
+        const color = ratio > 0.7 ? "#f472b6" : ratio > 0.4 ? "#c084fc" : ratio > 0.1 ? "#818cf8" : "rgba(255,255,255,0.1)";
 
         return (
           <g key={i}>
-            <line x1={cx + Math.cos(angle) * innerR} y1={cy + Math.sin(angle) * innerR}
-              x2={cx + Math.cos(angle) * outerR} y2={cy + Math.sin(angle) * outerR}
-              stroke="rgba(255,255,255,0.03)" strokeWidth="2" />
+            {ratio > 0.3 && (
+              <line x1={x1} y1={y1} x2={x2} y2={y2}
+                stroke={color} strokeWidth="5" strokeLinecap="round"
+                opacity="0.25" filter="url(#softGlow)" />
+            )}
             <line x1={x1} y1={y1} x2={x2} y2={y2}
-              stroke={color} strokeWidth="3" strokeLinecap="round"
-              style={{ filter: ratio > 0.5 ? `drop-shadow(0 0 3px ${color})` : "none" }} />
+              stroke={color} strokeWidth={ratio > 0.5 ? 3.5 : 2} strokeLinecap="round"
+              style={{ filter: ratio > 0.6 ? `drop-shadow(0 0 4px ${color})` : "none" }} />
+
+            {ratio > 0.15 && (
+              <circle cx={x2} cy={y2} r={ratio > 0.6 ? 3 : 2}
+                fill={color} opacity={0.6 + ratio * 0.4}
+                style={{ filter: ratio > 0.5 ? `drop-shadow(0 0 3px ${color})` : "none" }} />
+            )}
+
             <text x={labelX} y={labelY} textAnchor="middle" dominantBaseline="middle"
-              className="text-[7px]" fill="rgba(255,255,255,0.35)" fontWeight="500">
+              className="text-[6.5px]" fill="rgba(255,255,255,0.4)" fontWeight="600"
+              letterSpacing="0.5">
               {d.label}
             </text>
           </g>
         );
       })}
 
-      <circle cx={cx} cy={cy} r={innerR - 2} fill="rgba(11,15,20,0.8)" stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
-      <text x={cx} y={cy - 12} textAnchor="middle" fill="rgba(255,255,255,0.4)" className="text-[8px]" fontWeight="500">
-        Annual
-      </text>
-      <text x={cx} y={cy + 4} textAnchor="middle" fill="#fff" className="text-[13px]" fontWeight="800">
+      <circle cx={cx} cy={cy} r={innerR + 4} fill="none" stroke="rgba(192,38,211,0.2)" strokeWidth="1.5" />
+      <circle cx={cx} cy={cy} r={innerR + 4} fill="none" stroke="rgba(192,38,211,0.08)" strokeWidth="4" filter="url(#sunBlur)" />
+
+      <circle cx={cx} cy={cy} r={innerR} fill="rgba(8,8,16,0.85)" stroke="rgba(168,85,247,0.25)" strokeWidth="1.5" />
+      <circle cx={cx} cy={cy} r={innerR} fill="none" stroke="rgba(168,85,247,0.1)" strokeWidth="6" filter="url(#sunBlur)" />
+
+      {centerPct !== undefined && (
+        <text x={cx} y={cy - 12} textAnchor="middle" fill="#e879f9" className="text-[22px]" fontWeight="900"
+          style={{ filter: "drop-shadow(0 0 8px rgba(232,121,249,0.4))" }}>
+          {centerPct}%
+        </text>
+      )}
+      {centerPct === undefined && (
+        <text x={cx} y={cy - 8} textAnchor="middle" fill="rgba(255,255,255,0.35)" className="text-[7px]" fontWeight="500">
+          REVENUE
+        </text>
+      )}
+      <text x={cx} y={cy + (centerPct !== undefined ? 6 : 8)} textAnchor="middle" fill="#fff" className="text-[11px]" fontWeight="800">
         {centerValue}
       </text>
-      <text x={cx} y={cy + 18} textAnchor="middle" fill="rgba(255,255,255,0.3)" className="text-[7px]" fontWeight="500">
+      <text x={cx} y={cy + (centerPct !== undefined ? 20 : 22)} textAnchor="middle" fill="rgba(255,255,255,0.25)" className="text-[6.5px]" fontWeight="500">
         {centerLabel}
+      </text>
+    </svg>
+  );
+}
+
+function GaugeChart({ value, max, label, color = "#22d3ee" }: {
+  value: number;
+  max: number;
+  label: string;
+  color?: string;
+}) {
+  const pct = max > 0 ? Math.min(value / max, 1) : 0;
+  const pctDisplay = Math.round(pct * 100);
+  const cx = 80;
+  const cy = 80;
+  const r = 60;
+  const strokeW = 8;
+  const circumference = 2 * Math.PI * r;
+  const arcLength = circumference * 0.75;
+  const filledLength = arcLength * pct;
+  const startAngle = 135;
+
+  return (
+    <svg viewBox="0 0 160 160" className="w-full h-full" data-testid="gauge-chart">
+      <defs>
+        <linearGradient id="gaugeGrad" x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0%" stopColor={color} />
+          <stop offset="100%" stopColor="#a855f7" />
+        </linearGradient>
+        <filter id="gaugeGlow">
+          <feGaussianBlur stdDeviation="3" />
+        </filter>
+      </defs>
+      <circle cx={cx} cy={cy} r={r}
+        fill="none" stroke="rgba(255,255,255,0.05)" strokeWidth={strokeW}
+        strokeDasharray={`${arcLength} ${circumference - arcLength}`}
+        strokeLinecap="round"
+        transform={`rotate(${startAngle} ${cx} ${cy})`} />
+      <circle cx={cx} cy={cy} r={r}
+        fill="none" stroke="url(#gaugeGrad)" strokeWidth={strokeW}
+        strokeDasharray={`${filledLength} ${circumference - filledLength}`}
+        strokeLinecap="round"
+        transform={`rotate(${startAngle} ${cx} ${cy})`}
+        style={{ filter: `drop-shadow(0 0 6px ${color}40)` }} />
+      <circle cx={cx} cy={cy} r={r}
+        fill="none" stroke={color} strokeWidth={strokeW + 4}
+        strokeDasharray={`${filledLength} ${circumference - filledLength}`}
+        strokeLinecap="round"
+        transform={`rotate(${startAngle} ${cx} ${cy})`}
+        opacity="0.15" filter="url(#gaugeGlow)" />
+      <text x={cx} y={cy - 4} textAnchor="middle" fill="#fff" className="text-[20px]" fontWeight="900"
+        style={{ filter: `drop-shadow(0 0 4px ${color}30)` }}>
+        {pctDisplay}%
+      </text>
+      <text x={cx} y={cy + 14} textAnchor="middle" fill="rgba(255,255,255,0.35)" className="text-[7px]" fontWeight="600"
+        letterSpacing="1">
+        {label}
       </text>
     </svg>
   );
@@ -293,6 +418,23 @@ function MiniSparkline({ data, color = "#6366f1" }: { data: number[]; color?: st
         <circle cx={points[points.length - 1].x} cy={points[points.length - 1].y} r="3" fill={color} stroke="#0b0f14" strokeWidth="1.5" />
       )}
     </svg>
+  );
+}
+
+function QuantityTable({ items }: { items: { label: string; value: string; subValue?: string }[] }) {
+  return (
+    <div className="space-y-1" data-testid="hero-quantity-table">
+      {items.map((item, i) => (
+        <div key={i} className="flex items-center justify-between py-1 px-2 rounded-lg"
+          style={{ background: i % 2 === 0 ? "rgba(255,255,255,0.02)" : "transparent" }}>
+          <span className="text-[9px] text-white/40 font-medium">{item.label}</span>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] text-white/80 font-bold tabular-nums">{item.value}</span>
+            {item.subValue && <span className="text-[8px] text-white/25">{item.subValue}</span>}
+          </div>
+        </div>
+      ))}
+    </div>
   );
 }
 
@@ -343,115 +485,138 @@ function ExecutiveHeroPanel({ kpis, seasonalData, clubBreakdown, sessionBreakdow
       }))
     : [];
 
+  const quantityItems = useMemo(() => [
+    { label: "Sessions", value: String(kpis.totalSessions), subValue: hasFilter && totalKpis ? `of ${totalKpis.totalSessions}` : undefined },
+    { label: "Avg Players/Session", value: String(kpis.avgPlayersPerSession) },
+    { label: "Revenue/Session", value: formatPence(kpis.revenuePerSession) },
+    { label: "Revenue/Player", value: formatPence(kpis.revenuePerPlayer) },
+    { label: "No-Shows", value: String(kpis.noShows), subValue: `${kpis.noShowRate}%` },
+  ], [kpis, hasFilter, totalKpis]);
+
   return (
-    <GlassCard className="overflow-visible" glow="rgba(99,102,241,0.15)">
-      <div className="p-5 md:p-6">
-        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
-          <div className="lg:col-span-3 space-y-4">
-            <div>
-              <h3 className="text-xs font-bold text-white/80 uppercase tracking-widest mb-1">Club Revenue Breakdown</h3>
-              <p className="text-[9px] text-white/25 leading-relaxed">Revenue distribution across your clubs for the active period</p>
+    <GlassCard className="overflow-visible" glow="rgba(192,38,211,0.12)">
+      <div className="p-4 md:p-6">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
+
+          <div className="lg:col-span-3 space-y-3">
+            <div className="px-1">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="w-1.5 h-1.5 rounded-full bg-fuchsia-400 animate-pulse" />
+                <span className="text-[9px] text-fuchsia-400/70 uppercase tracking-[0.2em] font-bold">Financial Statistics</span>
+              </div>
+              <div className="text-3xl font-black text-white tracking-tight leading-none">{formatPence(kpis.totalRevenue)}</div>
+              {hasFilter && totalKpis?.totalRevenue ? (
+                <div className="flex items-center gap-2 mt-1">
+                  <span className="text-[9px] text-white/20 line-through">{formatPence(totalKpis.totalRevenue)}</span>
+                  <span className="text-[9px] font-semibold px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,0.15)", color: "#c084fc" }}>
+                    {Math.round((kpis.totalRevenue / totalKpis.totalRevenue) * 100)}% of total
+                  </span>
+                </div>
+              ) : (
+                <span className="text-[9px] text-white/20">Income Target: All Clubs</span>
+              )}
             </div>
 
-            {topClubs.map((club, i) => {
-              const pct = totalSessionRevenue > 0 ? Math.round(((hasFilter ? club.filteredRevenue : club.revenue) / totalSessionRevenue) * 100) : 0;
-              const isActive = filter.clubIds.length === 0 || filter.clubIds.includes(club.id);
-              return (
-                <div key={club.id}
-                  className={`p-3 rounded-xl cursor-pointer transition-all duration-200 ${isActive ? "hover:bg-white/[0.04]" : "opacity-40"}`}
-                  style={{ background: "rgba(255,255,255,0.02)", border: "1px solid rgba(255,255,255,0.05)" }}
-                  onClick={() => toggleItem("club", club.id, club.name)}
-                  data-testid={`hero-club-${club.id}`}>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <div className="flex items-center gap-2">
-                      <div className="w-2 h-2 rounded-full" style={{ background: GRADIENT_COLORS[i % GRADIENT_COLORS.length] }} />
-                      <span className="text-[11px] font-semibold text-white/70">{club.name}</span>
-                    </div>
-                    <span className="text-[10px] font-bold" style={{ color: GRADIENT_COLORS[i % GRADIENT_COLORS.length] }}>{pct}%</span>
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-black text-white">{formatPence(hasFilter ? club.filteredRevenue : club.revenue)}</span>
-                    <span className="text-[9px] text-white/25">{hasFilter ? `${Math.round(club.filteredPlayers / Math.max(club.sessions, 1))} avg players` : `${club.sessions} sessions`}</span>
-                  </div>
-                  <div className="mt-1.5 h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.05)" }}>
-                    <div className="h-full rounded-full transition-all duration-500"
-                      style={{ width: `${pct}%`, background: GRADIENT_COLORS[i % GRADIENT_COLORS.length], opacity: 0.7 }} />
-                  </div>
-                </div>
-              );
-            })}
-            {topClubs.length === 0 && <p className="text-[10px] text-white/20 text-center py-4">No club data</p>}
+            <div className="h-[44px] w-full px-1" data-testid="hero-sparkline">
+              <MiniSparkline data={revTrend} color="#c084fc" />
+            </div>
+            <div className="flex items-center justify-between px-1">
+              {seasonalData.length > 0 && (
+                <>
+                  <span className="text-[7px] text-white/15">{seasonalData[0]?.label}</span>
+                  <span className="text-[7px] text-white/15">{seasonalData[seasonalData.length - 1]?.label}</span>
+                </>
+              )}
+            </div>
+
+            <div className="mt-1">
+              <span className="text-[8px] text-white/25 uppercase tracking-widest font-semibold px-1">Quantity of Items</span>
+              <div className="mt-1.5">
+                <QuantityTable items={quantityItems} />
+              </div>
+            </div>
           </div>
 
-          <div className="lg:col-span-4 flex flex-col items-center justify-center">
-            <div className="w-[240px] h-[240px] md:w-[260px] md:h-[260px] relative">
+          <div className="lg:col-span-5 flex flex-col items-center justify-center relative">
+            <div className="w-[260px] h-[260px] md:w-[290px] md:h-[290px] relative">
               <SunburstChart
                 data={sunburstData}
                 centerValue={formatPence(kpis.totalRevenue)}
                 centerLabel="Total Revenue"
+                centerPct={kpis.fillRate > 0 ? Math.round(kpis.fillRate) : undefined}
               />
-              <div className="absolute inset-0 pointer-events-none" style={{
-                background: "radial-gradient(circle at 50% 50%, rgba(245,158,11,0.06) 0%, transparent 60%)",
-              }} />
             </div>
-            {hasFilter && totalKpis?.totalRevenue && (
-              <div className="flex items-center gap-2 mt-1">
-                <span className="text-[9px] text-white/25 line-through">{formatPence(totalKpis.totalRevenue)}</span>
-                <span className="text-[9px] font-medium px-1.5 py-0.5 rounded" style={{ background: "rgba(168,85,247,0.15)", color: NEON.purple }}>
-                  {Math.round((kpis.totalRevenue / totalKpis.totalRevenue) * 100)}%
-                </span>
-              </div>
-            )}
+
+            <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 mt-2">
+              {topClubs.map((club, i) => {
+                const pct = totalSessionRevenue > 0 ? Math.round(((hasFilter ? club.filteredRevenue : club.revenue) / totalSessionRevenue) * 100) : 0;
+                const isActive = filter.clubIds.length === 0 || filter.clubIds.includes(club.id);
+                return (
+                  <div key={club.id}
+                    className={`flex items-center gap-1.5 cursor-pointer transition-opacity duration-200 ${isActive ? "" : "opacity-30"}`}
+                    onClick={() => toggleItem("club", club.id, club.name)}
+                    data-testid={`hero-club-${club.id}`}>
+                    <div className="w-2 h-2 rounded-full" style={{ background: GRADIENT_COLORS[i % GRADIENT_COLORS.length] }} />
+                    <span className="text-[9px] text-white/50 font-medium">{club.name}</span>
+                    <span className="text-[9px] font-bold" style={{ color: GRADIENT_COLORS[i % GRADIENT_COLORS.length] }}>{pct}%</span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
-          <div className="lg:col-span-5 space-y-4">
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <h3 className="text-xs font-bold text-white/80 uppercase tracking-widest">Monthly Revenue</h3>
-                {monthlyPctChange !== 0 && (
-                  <span className={`text-[10px] font-semibold flex items-center gap-0.5 px-1.5 py-0.5 rounded ${monthlyPctChange >= 0 ? "bg-emerald-500/15 text-emerald-400" : "bg-red-500/15 text-red-400"}`}>
-                    {monthlyPctChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                    {monthlyPctChange > 0 ? "+" : ""}{monthlyPctChange}%
-                  </span>
-                )}
+          <div className="lg:col-span-4 space-y-3">
+            <div className="flex items-center justify-between px-1">
+              <div>
+                <span className="text-[9px] text-cyan-400/70 uppercase tracking-[0.2em] font-bold">Financial Statistics</span>
+                <div className="text-2xl font-black text-white tracking-tight mt-0.5">{formatPence(latestMonthRev)}</div>
+                <span className="text-[8px] text-white/20">Latest Month Revenue</span>
               </div>
-              <div className="flex items-end gap-3 mb-2">
-                <span className="text-3xl font-black text-white tracking-tight">{formatPence(latestMonthRev)}</span>
+              {monthlyPctChange !== 0 && (
+                <span className={`text-[10px] font-bold flex items-center gap-0.5 px-2 py-1 rounded-lg ${monthlyPctChange >= 0 ? "bg-emerald-500/10 text-emerald-400" : "bg-red-500/10 text-red-400"}`}>
+                  {monthlyPctChange >= 0 ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
+                  {monthlyPctChange > 0 ? "+" : ""}{monthlyPctChange}%
+                </span>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 mt-1">
+              <div className="flex flex-col items-center">
+                <div className="w-[120px] h-[120px]">
+                  <GaugeChart value={kpis.fillRate} max={100} label="FILL RATE" color="#22d3ee" />
+                </div>
               </div>
-              <div className="h-[50px] w-full" data-testid="hero-sparkline">
-                <MiniSparkline data={revTrend} color={NEON.indigo} />
-              </div>
-              <div className="flex items-center justify-between mt-1">
-                {seasonalData.length > 0 && (
-                  <>
-                    <span className="text-[8px] text-white/20">{seasonalData[0]?.label}</span>
-                    <span className="text-[8px] text-white/20">{seasonalData[seasonalData.length - 1]?.label}</span>
-                  </>
-                )}
+              <div className="flex flex-col items-center">
+                <div className="w-[120px] h-[120px]">
+                  <GaugeChart value={100 - kpis.noShowRate} max={100} label="ATTENDANCE" color="#a855f7" />
+                </div>
               </div>
             </div>
 
-            <div className="space-y-2.5 mt-2">
-              <h4 className="text-[10px] text-white/40 uppercase tracking-widest font-semibold">Top Sessions</h4>
+            <div className="space-y-2 mt-1">
+              <span className="text-[8px] text-white/25 uppercase tracking-widest font-semibold px-1">Top Sessions</span>
               {sessionRevenueShare.map((s, i) => {
                 const isActive = filter.sessionTitles.length === 0 || filter.sessionTitles.includes(s.title);
                 return (
                   <div key={s.title}
-                    className={`flex items-center gap-3 cursor-pointer transition-all duration-200 ${isActive ? "" : "opacity-30"}`}
+                    className={`flex items-center gap-2.5 px-2 py-1.5 rounded-lg cursor-pointer transition-all duration-200 hover:bg-white/[0.03] ${isActive ? "" : "opacity-30"}`}
                     onClick={() => toggleItem("session", s.title)}
                     data-testid={`hero-session-${i}`}>
-                    <div className="w-1.5 h-6 rounded-full" style={{ background: GRADIENT_COLORS[(i + 3) % GRADIENT_COLORS.length] }} />
+                    <div className="w-1.5 h-5 rounded-full" style={{ background: GRADIENT_COLORS[(i + 3) % GRADIENT_COLORS.length] }} />
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between">
-                        <span className="text-[11px] font-semibold text-white/70 truncate">{s.title}</span>
-                        <span className="text-[10px] font-bold text-white/50 ml-2">{s.pct}%</span>
+                        <span className="text-[10px] font-semibold text-white/60 truncate">{s.title}</span>
+                        <span className="text-[9px] font-bold text-white/40 ml-2">{s.pct}%</span>
                       </div>
-                      <span className="text-[10px] text-white/25">{formatPence(s.revenue)}</span>
+                      <div className="mt-0.5 h-0.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.04)" }}>
+                        <div className="h-full rounded-full" style={{ width: `${s.pct}%`, background: GRADIENT_COLORS[(i + 3) % GRADIENT_COLORS.length], opacity: 0.6 }} />
+                      </div>
                     </div>
+                    <span className="text-[9px] text-white/30 font-medium">{formatPence(s.revenue)}</span>
                   </div>
                 );
               })}
-              {sessionRevenueShare.length === 0 && <p className="text-[9px] text-white/20">No session data</p>}
+              {sessionRevenueShare.length === 0 && <p className="text-[9px] text-white/20 text-center">No session data</p>}
             </div>
           </div>
         </div>
