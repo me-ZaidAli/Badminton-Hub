@@ -4,13 +4,10 @@ import { useClubs } from "@/hooks/use-clubs";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
-import { getAvatarUrl } from "@/components/AvatarPicker";
 import { RivalryArenaView } from "@/components/RivalryArena";
-import malePlayerFallback from "@assets/image_1773528669368.png";
-import femalePlayerFallback from "@assets/hero_female_player.png";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -93,9 +90,6 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
   const sizeMap = { sm: "h-8 w-8", md: "h-12 w-12", lg: "h-20 w-20", xl: "h-24 w-24", hero: "h-32 w-32" };
   const textSize = { sm: "text-[10px]", md: "text-xs", lg: "text-lg", xl: "text-2xl", hero: "text-4xl" };
   const initials = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
-  const avatarSrc = profilePictureUrl || getAvatarUrl(selectedAvatar) || null;
-  const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
-  const fallbackPhoto = isFemale ? femalePlayerFallback : malePlayerFallback;
 
   const gradeGradient = grade && GRADE_COLORS[grade]
     ? GRADE_COLORS[grade]
@@ -112,12 +106,7 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
     <div className={`relative inline-flex ${className}`}>
       <div className={`rounded-full bg-gradient-to-br ${gradeGradient} ${outerPadding[size]} ${glowSize} ${glowColor}`}>
         <Avatar className={`${sizeMap[size]} border-2 border-background`}>
-          {avatarSrc ? (
-            <AvatarImage src={avatarSrc} alt={name} className="object-cover" />
-          ) : (
-            <AvatarImage src={fallbackPhoto} alt={name} className="object-cover" />
-          )}
-          <AvatarFallback className={`${textSize[size]} bg-muted font-bold`}>
+          <AvatarFallback className={`${textSize[size]} bg-gradient-to-br ${gradeGradient} text-white font-bold`}>
             {initials}
           </AvatarFallback>
         </Avatar>
@@ -207,6 +196,9 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
   const winRate = profile && profile.matchesPlayed > 0
     ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) : 0;
 
+  const initials = player.fullName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
+  const gradeColor = grade !== "—" && GRADE_COLORS[grade] ? GRADE_COLORS[grade] : "from-slate-400 to-slate-500";
+
   return (
     <button
       onClick={onSelect}
@@ -217,9 +209,11 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
       }`}
       data-testid={`player-list-item-${player.id}`}
     >
-      <PlayerAvatar name={player.fullName} id={player.id} size="md" profilePictureUrl={player.profilePictureUrl} selectedAvatar={player.selectedAvatar} gender={profile?.gender} grade={grade !== "—" ? grade : undefined} />
+      <div className={`w-9 h-9 rounded-lg bg-gradient-to-br ${gradeColor} flex items-center justify-center shrink-0 shadow-sm`}>
+        <span className="text-[11px] font-bold text-white">{initials}</span>
+      </div>
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold text-sm truncate ${isSelected ? "text-cyan-300" : "text-foreground"}`}>{player.fullName}</p>
+        <p className={`font-semibold text-sm truncate ${isSelected ? "text-cyan-400" : "text-foreground"}`}>{player.fullName}</p>
         <p className="text-[11px] text-muted-foreground mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
       </div>
       {isSelected && <ChevronRight className="h-4 w-4 text-cyan-400 shrink-0" />}
@@ -754,8 +748,6 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
     ];
   }, [stats]);
 
-  const isFemale = profile?.gender?.toLowerCase() === "female";
-
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden rounded-2xl border border-white/[0.08]" style={{
@@ -766,30 +758,13 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
           background: "radial-gradient(ellipse at 15% 90%, rgba(192,38,211,0.35) 0%, transparent 50%), radial-gradient(ellipse at 75% 15%, rgba(99,102,241,0.2) 0%, transparent 50%)",
         }} />
 
-        <div className="absolute bottom-0 left-2 sm:left-4 md:left-6 h-[90%] pointer-events-none select-none" data-testid="hero-athlete-figure">
-          <svg viewBox="0 0 200 440" className="h-full w-auto" style={{ filter: "drop-shadow(6px 4px 30px rgba(139,92,246,0.5)) drop-shadow(0 0 60px rgba(168,85,247,0.25))" }}>
-            <defs>
-              <linearGradient id="playerGrad" x1="0.2" y1="0" x2="0.8" y2="1">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.30)" />
-                <stop offset="40%" stopColor="rgba(200,180,255,0.18)" />
-                <stop offset="100%" stopColor="rgba(139,92,246,0.06)" />
-              </linearGradient>
-            </defs>
-            {isFemale ? (
-              <path d="M100,18 C88,18 78,28 78,42 C78,56 88,66 100,66 C112,66 122,56 122,42 C122,28 112,18 100,18Z M84,70 C74,72 66,80 64,90 L58,130 L32,118 C28,116 24,118 22,122 C20,126 22,130 26,132 L60,150 L56,190 L48,200 C46,202 46,206 48,208 L50,210 L60,196 L64,240 L58,340 L54,400 C53,408 56,414 62,416 L68,416 C72,416 74,412 74,408 L80,340 L88,270 L96,340 L102,408 C102,412 104,416 108,416 L114,416 C120,414 123,408 122,400 L118,340 L112,240 L116,196 L126,210 L128,208 C130,206 130,202 128,200 L120,190 L116,150 L150,132 C154,130 156,126 154,122 C152,118 148,116 144,118 L118,130 L112,90 C110,80 102,72 92,70 Z" fill="url(#playerGrad)" />
-            ) : (
-              <path d="M100,14 C87,14 76,25 76,38 C76,51 87,62 100,62 C113,62 124,51 124,38 C124,25 113,14 100,14Z M80,66 C68,68 58,78 56,90 L50,135 L24,120 C20,118 14,120 12,124 C10,128 12,134 16,136 L54,155 L50,195 L40,208 C38,210 38,214 40,216 L44,218 L56,200 L60,250 L52,348 L48,408 C47,416 50,422 58,424 L64,424 C70,424 74,418 74,412 L80,348 L92,272 L104,348 L110,412 C110,418 114,424 120,424 L126,424 C134,422 137,416 136,408 L132,348 L124,250 L128,200 L140,218 L144,216 C146,214 146,210 144,208 L134,195 L130,155 L168,136 C172,134 174,128 172,124 C170,120 164,118 160,120 L134,135 L128,90 C126,78 116,68 104,66 Z" fill="url(#playerGrad)" />
-            )}
-          </svg>
-        </div>
-
         {stats?.matchesPlayed != null && (
-          <div className="absolute bottom-6 left-[60px] sm:left-[80px] md:left-[100px] pointer-events-none select-none" style={{ opacity: 0.07 }}>
+          <div className="absolute bottom-6 left-6 sm:left-8 md:left-10 pointer-events-none select-none" style={{ opacity: 0.07 }}>
             <span className="text-[100px] sm:text-[130px] md:text-[160px] font-black text-white leading-none tracking-tighter">{stats.matchesPlayed}</span>
           </div>
         )}
 
-        <div className="relative z-10 p-5 sm:p-6 md:p-8 ml-[120px] sm:ml-[160px] md:ml-[200px]">
+        <div className="relative z-10 p-5 sm:p-6 md:p-8">
           <div className="flex flex-col lg:flex-row items-start gap-5">
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-3 mb-3">
