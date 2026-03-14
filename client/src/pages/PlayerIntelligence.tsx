@@ -674,7 +674,7 @@ function AIStyleBadge({ playerId }: { playerId: number }) {
         <Brain className="h-3 w-3 mr-1" />
         {data.style} Player
       </Badge>
-      {data.explanation && <p className="text-[11px] text-muted-foreground leading-relaxed">{data.explanation}</p>}
+      {data.explanation && <p className="text-xs text-white/80 leading-relaxed" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.6)" }}>{data.explanation}</p>}
     </div>
   );
 }
@@ -756,117 +756,92 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden rounded-2xl border border-white/[0.08]" style={{
-        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 20%, #4338ca 45%, #7c3aed 70%, #a855f7 90%, #c084fc 100%)",
-        minHeight: "340px",
+        background: "linear-gradient(135deg, #1a103a 0%, #2d1b69 30%, #5b21b6 60%, #7c3aed 80%, #a855f7 95%, #c084fc 100%)",
+        minHeight: "360px",
       }} data-testid="player-hero-card">
         <div className="absolute inset-0 pointer-events-none" style={{
-          background: "radial-gradient(ellipse at 20% 80%, rgba(192,38,211,0.25) 0%, transparent 50%), radial-gradient(ellipse at 70% 20%, rgba(99,102,241,0.3) 0%, transparent 50%), radial-gradient(ellipse at 90% 90%, rgba(236,72,153,0.15) 0%, transparent 40%)",
+          background: "radial-gradient(ellipse at 15% 90%, rgba(192,38,211,0.35) 0%, transparent 50%), radial-gradient(ellipse at 75% 15%, rgba(99,102,241,0.2) 0%, transparent 50%)",
         }} />
-        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-white/5 to-transparent rounded-bl-full pointer-events-none" />
 
-        <div className="absolute bottom-0 left-0 w-[200px] sm:w-[260px] md:w-[320px] h-full pointer-events-none select-none" data-testid="hero-athlete-figure">
-          <svg viewBox="0 0 300 500" className="absolute bottom-0 left-0 h-full w-auto" style={{ filter: "drop-shadow(4px 0 20px rgba(139,92,246,0.3))" }}>
+        <div className="absolute bottom-0 left-2 sm:left-4 md:left-6 h-[90%] pointer-events-none select-none" data-testid="hero-athlete-figure">
+          <svg viewBox="0 0 200 440" className="h-full w-auto" style={{ filter: "drop-shadow(6px 4px 30px rgba(139,92,246,0.5)) drop-shadow(0 0 60px rgba(168,85,247,0.25))" }}>
             <defs>
-              <linearGradient id="athleteGrad" x1="0" y1="0" x2="0.3" y2="1">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.25)" />
-                <stop offset="50%" stopColor="rgba(255,255,255,0.12)" />
-                <stop offset="100%" stopColor="rgba(139,92,246,0.08)" />
-              </linearGradient>
-              <linearGradient id="athleteEdge" x1="0" y1="0" x2="1" y2="0.5">
-                <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
-                <stop offset="100%" stopColor="rgba(168,85,247,0.2)" />
+              <linearGradient id="playerGrad" x1="0.2" y1="0" x2="0.8" y2="1">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.30)" />
+                <stop offset="40%" stopColor="rgba(200,180,255,0.18)" />
+                <stop offset="100%" stopColor="rgba(139,92,246,0.06)" />
               </linearGradient>
             </defs>
             {isFemale ? (
-              <g fill="url(#athleteGrad)" stroke="url(#athleteEdge)" strokeWidth="0.8">
-                <ellipse cx="150" cy="52" rx="32" ry="38" />
-                <path d="M150 30 C155 10,165 5,150 0 C135 5,145 10,150 30" opacity="0.6" />
-                <path d="M118 90 C115 80,120 72,135 68 L150 90 L165 68 C180 72,185 80,182 90 L182 90 L190 140 C192 155,188 165,175 168 L172 200 L178 260 C180 275,176 285,172 300 L170 340 L168 390 L166 430 C165 445,162 460,155 470 L150 480 L145 470 C138 460,135 445,134 430 L132 390 L130 340 L128 300 C124 285,120 275,122 260 L128 200 L125 168 C112 165,108 155,110 140 L118 90Z" />
-                <path d="M110 140 C100 135,85 140,75 155 L65 180 C60 190,55 200,58 205 L70 200 L75 195 C80 188,85 182,90 178 L105 165" opacity="0.9" />
-                <path d="M190 140 C200 135,215 140,225 155 L235 180 C240 190,245 200,242 205 L230 200 L225 195 C220 188,215 182,210 178 L195 165" opacity="0.9" />
-                <ellipse cx="65" cy="208" rx="10" ry="8" opacity="0.7" />
-                <ellipse cx="235" cy="208" rx="10" ry="8" opacity="0.7" />
-                <rect x="130" y="475" width="15" height="20" rx="4" opacity="0.5" />
-                <rect x="155" y="475" width="15" height="20" rx="4" opacity="0.5" />
-              </g>
+              <path d="M100,18 C88,18 78,28 78,42 C78,56 88,66 100,66 C112,66 122,56 122,42 C122,28 112,18 100,18Z M84,70 C74,72 66,80 64,90 L58,130 L32,118 C28,116 24,118 22,122 C20,126 22,130 26,132 L60,150 L56,190 L48,200 C46,202 46,206 48,208 L50,210 L60,196 L64,240 L58,340 L54,400 C53,408 56,414 62,416 L68,416 C72,416 74,412 74,408 L80,340 L88,270 L96,340 L102,408 C102,412 104,416 108,416 L114,416 C120,414 123,408 122,400 L118,340 L112,240 L116,196 L126,210 L128,208 C130,206 130,202 128,200 L120,190 L116,150 L150,132 C154,130 156,126 154,122 C152,118 148,116 144,118 L118,130 L112,90 C110,80 102,72 92,70 Z" fill="url(#playerGrad)" />
             ) : (
-              <g fill="url(#athleteGrad)" stroke="url(#athleteEdge)" strokeWidth="0.8">
-                <ellipse cx="150" cy="48" rx="30" ry="35" />
-                <path d="M150 28 C158 10,165 8,155 0 C140 5,142 10,150 28" opacity="0.5" />
-                <path d="M120 83 C115 75,122 68,138 65 L150 82 L162 65 C178 68,185 75,180 83 L186 95 L195 145 C198 160,194 170,182 175 L178 210 L185 270 C188 290,184 310,180 330 L176 370 L172 410 L168 445 C166 458,163 468,158 475 L150 485 L142 475 C137 468,134 458,132 445 L128 410 L124 370 L120 330 C116 310,112 290,115 270 L122 210 L118 175 C106 170,102 160,105 145 L114 95 L120 83Z" />
-                <path d="M105 145 C92 138,78 142,65 160 L52 190 C47 202,50 210,55 212 L68 205 L72 198 C78 188,85 180,92 175 L100 168" opacity="0.9" />
-                <path d="M195 145 C208 138,222 142,235 160 L248 190 C253 202,250 210,245 212 L232 205 L228 198 C222 188,215 180,208 175 L200 168" opacity="0.9" />
-                <ellipse cx="52" cy="216" rx="11" ry="9" opacity="0.7" />
-                <ellipse cx="248" cy="216" rx="11" ry="9" opacity="0.7" />
-                <rect x="128" y="480" width="17" height="18" rx="4" opacity="0.5" />
-                <rect x="155" y="480" width="17" height="18" rx="4" opacity="0.5" />
-              </g>
+              <path d="M100,14 C87,14 76,25 76,38 C76,51 87,62 100,62 C113,62 124,51 124,38 C124,25 113,14 100,14Z M80,66 C68,68 58,78 56,90 L50,135 L24,120 C20,118 14,120 12,124 C10,128 12,134 16,136 L54,155 L50,195 L40,208 C38,210 38,214 40,216 L44,218 L56,200 L60,250 L52,348 L48,408 C47,416 50,422 58,424 L64,424 C70,424 74,418 74,412 L80,348 L92,272 L104,348 L110,412 C110,418 114,424 120,424 L126,424 C134,422 137,416 136,408 L132,348 L124,250 L128,200 L140,218 L144,216 C146,214 146,210 144,208 L134,195 L130,155 L168,136 C172,134 174,128 172,124 C170,120 164,118 160,120 L134,135 L128,90 C126,78 116,68 104,66 Z" fill="url(#playerGrad)" />
             )}
           </svg>
         </div>
 
-        {stats?.matchesPlayed && (
-          <div className="absolute bottom-4 left-[80px] md:left-[100px] pointer-events-none select-none" style={{ opacity: 0.06 }}>
-            <span className="text-[120px] md:text-[160px] font-black text-white leading-none tracking-tighter">{stats.matchesPlayed}</span>
+        {stats?.matchesPlayed != null && (
+          <div className="absolute bottom-6 left-[60px] sm:left-[80px] md:left-[100px] pointer-events-none select-none" style={{ opacity: 0.07 }}>
+            <span className="text-[100px] sm:text-[130px] md:text-[160px] font-black text-white leading-none tracking-tighter">{stats.matchesPlayed}</span>
           </div>
         )}
 
-        <div className="relative z-10 p-6 md:p-8 ml-[140px] sm:ml-[180px] md:ml-[240px]">
+        <div className="relative z-10 p-5 sm:p-6 md:p-8 ml-[120px] sm:ml-[160px] md:ml-[200px]">
           <div className="flex flex-col lg:flex-row items-start gap-5">
             <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-3 mb-2">
-                <div className={`px-3 py-1 rounded-lg text-xs font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-slate-500 to-slate-600"} shadow-lg border border-white/30`}>
+              <div className="flex items-center gap-3 mb-3">
+                <div className={`px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-slate-500 to-slate-600"} shadow-lg border border-white/20`}>
                   {grade}
                 </div>
                 {profile && (
-                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold" style={{ background: "rgba(245,158,11,0.2)", border: "1px solid rgba(245,158,11,0.3)" }}>
-                    <Trophy className="h-3 w-3 text-amber-400" />
-                    <span className="text-amber-300">{profile.rankingPoints} pts</span>
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: "rgba(245,158,11,0.25)", border: "1px solid rgba(245,158,11,0.4)" }}>
+                    <Trophy className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="text-amber-200 font-extrabold">{profile.rankingPoints} pts</span>
                   </div>
                 )}
               </div>
 
-              <h2 className="text-3xl md:text-4xl font-black tracking-tight text-white leading-none">{player.fullName}</h2>
-              <div className="flex items-center gap-2 mt-2">
-                <span className="text-sm text-white/50 font-medium flex items-center gap-1.5">
-                  <Shield className="h-3.5 w-3.5 text-white/40" />
+              <h2 className="text-3xl sm:text-4xl md:text-5xl font-black tracking-tight text-white leading-none drop-shadow-lg" style={{ textShadow: "0 2px 10px rgba(0,0,0,0.5)" }}>{player.fullName}</h2>
+              <div className="flex items-center gap-2 mt-2.5">
+                <span className="text-sm text-white/80 font-semibold flex items-center gap-1.5" style={{ textShadow: "0 1px 4px rgba(0,0,0,0.5)" }}>
+                  <Shield className="h-3.5 w-3.5 text-white/60" />
                   {clubName}
                 </span>
               </div>
-              <div className="mt-2.5">
+              <div className="mt-3">
                 <AIStyleBadge playerId={profileId!} />
               </div>
 
               {stats && (
-                <div className="flex items-center gap-3 mt-5 flex-wrap">
-                  <div className="flex flex-col items-center px-4 py-3 rounded-xl min-w-[80px]" style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.25)", backdropFilter: "blur(8px)" }}>
-                    <Trophy className="h-4 w-4 text-red-400 mb-1" />
-                    <span className="text-2xl font-black text-white leading-none">{stats.matchesWon || 0}</span>
-                    <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Wins</span>
+                <div className="flex items-center gap-3 mt-6 flex-wrap">
+                  <div className="flex flex-col items-center px-5 py-3.5 rounded-xl min-w-[85px]" style={{ background: "rgba(239,68,68,0.2)", border: "1px solid rgba(239,68,68,0.35)", backdropFilter: "blur(12px)" }}>
+                    <Trophy className="h-4 w-4 text-red-300 mb-1" />
+                    <span className="text-2xl font-black text-white leading-none" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.4)" }}>{stats.matchesWon || 0}</span>
+                    <span className="text-[10px] text-white/80 uppercase tracking-wider mt-1 font-bold">Wins</span>
                   </div>
-                  <div className="flex flex-col items-center px-4 py-3 rounded-xl min-w-[80px]" style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)", backdropFilter: "blur(8px)" }}>
-                    <XCircle className="h-4 w-4 text-purple-400 mb-1" />
-                    <span className="text-2xl font-black text-white leading-none">{stats.matchesLost || 0}</span>
-                    <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Losses</span>
+                  <div className="flex flex-col items-center px-5 py-3.5 rounded-xl min-w-[85px]" style={{ background: "rgba(139,92,246,0.2)", border: "1px solid rgba(139,92,246,0.35)", backdropFilter: "blur(12px)" }}>
+                    <XCircle className="h-4 w-4 text-purple-300 mb-1" />
+                    <span className="text-2xl font-black text-white leading-none" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.4)" }}>{stats.matchesLost || 0}</span>
+                    <span className="text-[10px] text-white/80 uppercase tracking-wider mt-1 font-bold">Losses</span>
                   </div>
-                  <div className="flex flex-col items-center px-4 py-3 rounded-xl min-w-[80px]" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}>
-                    <Star className="h-4 w-4 text-white/70 mb-1" />
-                    <span className="text-2xl font-black text-white leading-none">{stats.winRate || 0}%</span>
-                    <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Win %</span>
+                  <div className="flex flex-col items-center px-5 py-3.5 rounded-xl min-w-[85px]" style={{ background: "rgba(255,255,255,0.1)", border: "1px solid rgba(255,255,255,0.18)", backdropFilter: "blur(12px)" }}>
+                    <Star className="h-4 w-4 text-white/80 mb-1" />
+                    <span className="text-2xl font-black text-white leading-none" style={{ textShadow: "0 1px 6px rgba(0,0,0,0.4)" }}>{stats.winRate || 0}%</span>
+                    <span className="text-[10px] text-white/80 uppercase tracking-wider mt-1 font-bold">Win %</span>
                   </div>
                 </div>
               )}
             </div>
 
             <div className="flex flex-col items-end gap-3 shrink-0">
-              <div className="hidden md:block w-[180px] h-[180px] relative" data-testid="hero-radar">
+              <div className="hidden md:block w-[190px] h-[190px] relative rounded-xl p-2" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }} data-testid="hero-radar">
                 {heroRadarData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={heroRadarData} cx="50%" cy="50%">
-                      <PolarGrid stroke="rgba(255,255,255,0.12)" gridType="polygon" />
-                      <PolarAngleAxis dataKey="stat" tick={{ fontSize: 8, fill: "rgba(255,255,255,0.6)", fontWeight: 600 }} />
+                      <PolarGrid stroke="rgba(255,255,255,0.15)" gridType="polygon" />
+                      <PolarAngleAxis dataKey="stat" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.8)", fontWeight: 700 }} />
                       <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
-                      <Radar name="Stats" dataKey="value" stroke="#f472b6" fill="#f472b6" fillOpacity={0.2} strokeWidth={2.5} dot={{ r: 3, fill: "#f472b6", stroke: "#fff", strokeWidth: 1 }} />
+                      <Radar name="Stats" dataKey="value" stroke="#f472b6" fill="#f472b6" fillOpacity={0.25} strokeWidth={2.5} dot={{ r: 3.5, fill: "#f472b6", stroke: "#fff", strokeWidth: 1.5 }} />
                     </RadarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -878,21 +853,21 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
 
               {stats && (
                 <div className="grid grid-cols-2 gap-2 w-full lg:w-auto" data-testid="hero-info-cards">
-                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Matches</span>
-                    <span className="text-sm font-black text-white">{stats.matchesPlayed || 0}</span>
+                  <div className="flex flex-col items-center px-4 py-2 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                    <span className="text-[10px] text-white/70 uppercase tracking-wider font-bold">Matches</span>
+                    <span className="text-base font-black text-white">{stats.matchesPlayed || 0}</span>
                   </div>
-                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Sessions</span>
-                    <span className="text-sm font-black text-white">{stats.sessionsAttended || 0}</span>
+                  <div className="flex flex-col items-center px-4 py-2 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                    <span className="text-[10px] text-white/70 uppercase tracking-wider font-bold">Sessions</span>
+                    <span className="text-base font-black text-white">{stats.sessionsAttended || 0}</span>
                   </div>
-                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Opponents</span>
-                    <span className="text-sm font-black text-white">{stats.uniqueOpponents || 0}</span>
+                  <div className="flex flex-col items-center px-4 py-2 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                    <span className="text-[10px] text-white/70 uppercase tracking-wider font-bold">Opponents</span>
+                    <span className="text-base font-black text-white">{stats.uniqueOpponents || 0}</span>
                   </div>
-                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Impact</span>
-                    <span className="text-sm font-black text-white">{stats.sessionImpactScore ?? "—"}</span>
+                  <div className="flex flex-col items-center px-4 py-2 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
+                    <span className="text-[10px] text-white/70 uppercase tracking-wider font-bold">Impact</span>
+                    <span className="text-base font-black text-white">{stats.sessionImpactScore ?? "—"}</span>
                   </div>
                 </div>
               )}
