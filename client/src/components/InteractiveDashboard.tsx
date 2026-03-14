@@ -29,6 +29,8 @@ type MultiFilter = {
   weekdays: number[];
   weekdayNames: string[];
   timeOfDay?: string;
+  dateFrom?: string;
+  dateTo?: string;
 };
 
 const emptyFilter: MultiFilter = {
@@ -48,7 +50,8 @@ function useToggleFilter() {
 
   const hasFilter = filter.playerIds.length > 0 || filter.sessionTitles.length > 0 ||
     filter.clubIds.length > 0 || filter.months.length > 0 ||
-    filter.weekdays.length > 0 || !!filter.timeOfDay;
+    filter.weekdays.length > 0 || !!filter.timeOfDay ||
+    !!filter.dateFrom || !!filter.dateTo;
 
   const toggleItem = useCallback((category: string, value: any, label?: string) => {
     setFilter(prev => {
@@ -149,6 +152,7 @@ function useToggleFilter() {
       if (category === "player") { next.playerIds = []; next.playerNames = []; }
       if (category === "month") { next.months = []; }
       if (category === "timeOfDay") { next.timeOfDay = undefined; }
+      if (category === "dateRange") { next.dateFrom = undefined; next.dateTo = undefined; }
       return next;
     });
     if (multiSelectMode === category) setMultiSelectMode(null);
@@ -201,6 +205,12 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
         if (filter.timeOfDay === "evening") return hour >= 17 && hour < 21;
         return hour >= 21 || hour < 6;
       });
+    }
+    if (filter.dateFrom) {
+      sigs = sigs.filter((s: any) => s.date && s.date >= filter.dateFrom!);
+    }
+    if (filter.dateTo) {
+      sigs = sigs.filter((s: any) => s.date && s.date <= filter.dateTo!);
     }
     return sigs;
   }, [data, filter]);
@@ -306,28 +316,59 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
     if (drillLevel === "year") {
       setDrillPath(prev => [...prev, label]);
       setDrillLevel("month");
-      setFilter(prev => ({ ...prev, months: [...prev.months, label] }));
+      const yearStart = `${label}-01-01`;
+      const yearEnd = `${label}-12-31`;
+      setFilter(prev => ({ ...prev, dateFrom: yearStart, dateTo: yearEnd, months: [] }));
     } else if (drillLevel === "month") {
       setDrillPath(prev => [...prev, label]);
       setDrillLevel("week");
-      setFilter(prev => ({ ...prev, months: [label] }));
+      const [y, m] = label.split("-");
+      const monthStart = `${label}-01`;
+      const lastDay = new Date(Number(y), Number(m), 0).getDate();
+      const monthEnd = `${label}-${String(lastDay).padStart(2, "0")}`;
+      setFilter(prev => ({ ...prev, months: [label], dateFrom: monthStart, dateTo: monthEnd }));
     } else if (drillLevel === "week") {
       setDrillPath(prev => [...prev, label]);
       setDrillLevel("day");
+      const weekStart = new Date(label);
+      const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
+      setFilter(prev => ({
+        ...prev,
+        dateFrom: weekStart.toISOString().split("T")[0],
+        dateTo: weekEnd.toISOString().split("T")[0],
+      }));
     }
   }, [drillLevel, setFilter]);
 
   const handleDrillUp = useCallback(() => {
     const levels: DrillLevel[] = ["year", "month", "week", "day"];
     const idx = levels.indexOf(drillLevel);
-    if (idx > 0) {
-      setDrillLevel(levels[idx - 1]);
-      setDrillPath(prev => prev.slice(0, -1));
-      if (drillLevel === "month" || drillLevel === "week") {
-        setFilter(prev => ({ ...prev, months: [] }));
+    if (idx <= 0) return;
+    const newPath = drillPath.slice(0, -1);
+    const parentLevel = levels[idx - 1];
+    setDrillLevel(parentLevel);
+    setDrillPath(newPath);
+
+    if (parentLevel === "year") {
+      setFilter(prev => ({ ...prev, months: [], dateFrom: undefined, dateTo: undefined }));
+    } else if (parentLevel === "month") {
+      const yearLabel = newPath[0];
+      if (yearLabel) {
+        setFilter(prev => ({ ...prev, months: [], dateFrom: `${yearLabel}-01-01`, dateTo: `${yearLabel}-12-31` }));
+      } else {
+        setFilter(prev => ({ ...prev, months: [], dateFrom: undefined, dateTo: undefined }));
+      }
+    } else if (parentLevel === "week") {
+      const monthLabel = newPath[newPath.length - 1];
+      if (monthLabel && monthLabel.match(/^\d{4}-\d{2}$/)) {
+        const [y, m] = monthLabel.split("-");
+        const lastDay = new Date(Number(y), Number(m), 0).getDate();
+        setFilter(prev => ({ ...prev, months: [monthLabel], dateFrom: `${monthLabel}-01`, dateTo: `${monthLabel}-${String(lastDay).padStart(2, "0")}` }));
+      } else {
+        setFilter(prev => ({ ...prev, dateFrom: undefined, dateTo: undefined }));
       }
     }
-  }, [drillLevel, setFilter]);
+  }, [drillLevel, drillPath, setFilter]);
 
   const toggleMetric = useCallback((metric: string) => {
     setEnabledMetrics(prev => {
@@ -381,12 +422,19 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
   if (filter.months.length > 0) filterBadges.push({ label: `Months: ${filter.months.join(", ")}`, category: "month" });
   if (filter.weekdayNames.length > 0) filterBadges.push({ label: `Days: ${filter.weekdayNames.join(", ")}`, category: "weekday" });
   if (filter.timeOfDay) filterBadges.push({ label: `Time: ${filter.timeOfDay}`, category: "timeOfDay" });
+  if (filter.dateFrom || filter.dateTo) {
+    const rangeLabel = filter.dateFrom && filter.dateTo
+      ? `Period: ${filter.dateFrom} to ${filter.dateTo}`
+      : filter.dateFrom ? `From: ${filter.dateFrom}` : `To: ${filter.dateTo}`;
+    filterBadges.push({ label: rangeLabel, category: "dateRange" });
+  }
 
   const iconForCategory = (cat: string) => {
     if (cat === "club") return Building2;
     if (cat === "session") return Calendar;
     if (cat === "player") return User;
     if (cat === "weekday" || cat === "timeOfDay") return Clock;
+    if (cat === "dateRange") return Calendar;
     return Calendar;
   };
 
@@ -404,7 +452,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
         </div>
         <div className="flex items-center gap-2">
           {(hasFilter || multiSelectMode) && (
-            <Button variant="destructive" size="sm" className="h-7 text-xs gap-1.5" onClick={clearAll} data-testid="button-reset-filters">
+            <Button variant="destructive" size="sm" className="h-7 text-xs gap-1.5" onClick={() => { clearAll(); setDrillLevel("month"); setDrillPath([]); }} data-testid="button-reset-filters">
               <RotateCcw className="h-3.5 w-3.5" />
               Reset All Filters
             </Button>
@@ -425,13 +473,19 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
               <Badge key={fb.category} variant="secondary" className="text-xs gap-1 pr-1" data-testid={`filter-badge-${fb.category}`}>
                 <Icon className="h-3 w-3" />
                 <span className="max-w-[200px] truncate">{fb.label}</span>
-                <button className="ml-0.5 p-0.5 rounded hover:bg-destructive/20 transition-colors" onClick={() => removeCategory(fb.category)}>
+                <button className="ml-0.5 p-0.5 rounded hover:bg-destructive/20 transition-colors" onClick={() => {
+                  removeCategory(fb.category);
+                  if (fb.category === "dateRange" || fb.category === "month") {
+                    setDrillPath([]);
+                    setDrillLevel("month");
+                  }
+                }}>
                   <X className="h-3 w-3" />
                 </button>
               </Badge>
             );
           })}
-          <Button variant="ghost" size="sm" className="h-5 text-[10px] text-red-500 px-1.5" onClick={clearAll}>
+          <Button variant="ghost" size="sm" className="h-5 text-[10px] text-red-500 px-1.5" onClick={() => { clearAll(); setDrillLevel("month"); setDrillPath([]); }}>
             Clear All
           </Button>
         </div>
@@ -464,7 +518,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
             <div className="flex items-center gap-1 flex-wrap">
               {(["year", "month", "week", "day"] as DrillLevel[]).map(level => (
                 <Button key={level} variant={drillLevel === level ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2"
-                  onClick={() => { setDrillLevel(level); setDrillPath([]); }} data-testid={`button-drill-${level}`}>
+                  onClick={() => { setDrillLevel(level); setDrillPath([]); setFilter(prev => ({ ...prev, months: [], dateFrom: undefined, dateTo: undefined })); }} data-testid={`button-drill-${level}`}>
                   {level.charAt(0).toUpperCase() + level.slice(1)}
                 </Button>
               ))}
