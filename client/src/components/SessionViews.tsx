@@ -247,18 +247,18 @@ function ExpandedSessionDetails({ session, mySignup, onSignUp, onNavigate }: { s
           <div className="flex items-center gap-3 text-[10px]">
             <div className="flex items-center gap-1">
               <Users className="h-3 w-3 text-blue-500" />
-              <span className="font-semibold text-foreground/70 dark:text-white/70">{session.signupCount || 0} Player{(session.signupCount || 0) !== 1 ? "s" : ""}</span>
+              <span className="font-semibold text-foreground dark:text-white/80">{session.signupCount || 0} Player{(session.signupCount || 0) !== 1 ? "s" : ""}</span>
             </div>
             {(session as any).matchCount > 0 && (
               <div className="flex items-center gap-1">
                 <Swords className="h-3 w-3 text-emerald-500" />
-                <span className="font-semibold text-foreground/70 dark:text-white/70">{(session as any).matchCount} Match{(session as any).matchCount !== 1 ? "es" : ""}</span>
+                <span className="font-semibold text-foreground dark:text-white/80">{(session as any).matchCount} Match{(session as any).matchCount !== 1 ? "es" : ""}</span>
               </div>
             )}
             {(session as any).matchCount > 0 && (session.signupCount || 0) > 1 && (
               <div className="flex items-center gap-1">
                 <Zap className="h-3 w-3 text-orange-500" />
-                <span className="font-semibold text-foreground/70 dark:text-white/70">Avg {Math.min(10, ((session as any).matchCount / (session.signupCount || 1) * 5)).toFixed(1)} Difficulty</span>
+                <span className="font-semibold text-foreground dark:text-white/80">Avg {Math.min(10, ((session as any).matchCount / (session.signupCount || 1) * 5)).toFixed(1)} Difficulty</span>
               </div>
             )}
           </div>
@@ -485,31 +485,31 @@ function TimelineSessionCard({
 
         <div className="h-px bg-border/40 mb-2.5" />
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-foreground/70 dark:text-white/70 mb-2.5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-foreground dark:text-white/80 mb-2.5">
           {venueName && (
             <div className="flex items-center gap-1.5">
-              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-foreground/50 dark:text-white/50" />
+              <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
               <span className="truncate">{venueName}{venue?.city ? `, ${venue.city}` : ""}</span>
             </div>
           )}
           <div className="flex items-center gap-1.5">
-            <Clock className="h-3.5 w-3.5 flex-shrink-0 text-foreground/50 dark:text-white/50" />
-            <span className="font-medium text-foreground/80 dark:text-white/80">{session.startTime} → {endTime}</span>
+            <Clock className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
+            <span className="font-medium text-foreground dark:text-white/90">{session.startTime} → {endTime}</span>
           </div>
           {session.courtsAvailable > 0 && (
             <div className="flex items-center gap-1.5">
-              <Layers className="h-3.5 w-3.5 flex-shrink-0 text-foreground/50 dark:text-white/50" />
+              <Layers className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
               <span>{session.courtsAvailable} Court{session.courtsAvailable !== 1 ? "s" : ""}</span>
             </div>
           )}
           {session.sessionFee != null && (
             <div className="flex items-center gap-1.5">
-              <PoundSterling className="h-3.5 w-3.5 flex-shrink-0 text-foreground/50 dark:text-white/50" />
+              <PoundSterling className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
               <span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span>
             </div>
           )}
           <div className="flex items-center gap-1.5">
-            <Timer className="h-3.5 w-3.5 flex-shrink-0 text-foreground/50 dark:text-white/50" />
+            <Timer className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
             <span>{session.durationMinutes >= 60 ? `${Math.floor(session.durationMinutes / 60)}h${session.durationMinutes % 60 > 0 ? ` ${session.durationMinutes % 60}m` : ""}` : `${session.durationMinutes}m`}</span>
           </div>
         </div>
@@ -552,14 +552,14 @@ function TimelineSessionCard({
                 ));
               })()}
             </div>
-            <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-foreground/70 dark:text-white/70"}`}>
+            <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-foreground dark:text-white/80"}`}>
               {playerCount}/{session.maxPlayers}
             </span>
           </div>
         </div>
 
         {clubName && (
-          <div className="mt-2 text-[10px] font-medium text-foreground/50 dark:text-white/50">{clubName}</div>
+          <div className="mt-2 text-[10px] font-medium text-foreground/70 dark:text-white/60">{clubName}</div>
         )}
 
         {isExpanded && <ExpandedSessionDetails session={session} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} />}
