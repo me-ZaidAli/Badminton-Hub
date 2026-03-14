@@ -275,35 +275,6 @@ function ExpandedSessionDetails({ session, mySignup, onSignUp, onNavigate }: { s
           </div>
         ) : (
           <div className="space-y-3">
-            {confirmedPlayers.length > 0 && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Users className="h-3 w-3 text-muted-foreground/70" />
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Players ({confirmedPlayers.length})</span>
-                </div>
-                <div className="flex flex-wrap gap-1.5">
-                  {confirmedPlayers.slice(0, 12).map((p: any, i: number) => (
-                    <div key={p.id || i} className="flex items-center gap-1.5 bg-muted/40 dark:bg-muted/30 rounded-md px-2 py-1" data-testid={`expanded-player-${p.id || i}`}>
-                      <div className="w-4 h-4 rounded-full bg-muted-foreground/20 flex items-center justify-center">
-                        <Users className="h-2.5 w-2.5 text-muted-foreground/50" />
-                      </div>
-                      <span className="text-[11px] text-foreground dark:text-white/80 truncate max-w-[100px]">{p.playerName || p.fullName || "Player"}</span>
-                    </div>
-                  ))}
-                  {confirmedPlayers.length > 12 && (
-                    <div className="flex items-center bg-muted/40 dark:bg-muted/30 rounded-md px-2 py-1">
-                      <span className="text-[11px] text-muted-foreground">+{confirmedPlayers.length - 12} more</span>
-                    </div>
-                  )}
-                </div>
-                {waitingPlayers.length > 0 && (
-                  <div className="mt-1.5 text-[10px] text-amber-600 dark:text-amber-400">
-                    {waitingPlayers.length} on waiting list
-                  </div>
-                )}
-              </div>
-            )}
-
             {(matchesPlayed > 0 || leaderboard?.length) && (
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
