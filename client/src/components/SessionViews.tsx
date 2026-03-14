@@ -275,7 +275,7 @@ function ExpandedSessionDetails({ session, mySignup, onSignUp, onNavigate }: { s
           </div>
         ) : (
           <div className="space-y-3">
-            {(matchesPlayed > 0 || leaderboard?.length) && (
+            {(matchesPlayed > 0 || (leaderboard && leaderboard.length > 0)) && (
               <div>
                 <div className="flex items-center gap-1.5 mb-1.5">
                   <Swords className="h-3 w-3 text-muted-foreground/70" />
