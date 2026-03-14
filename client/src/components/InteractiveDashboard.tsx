@@ -169,7 +169,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
   const [playerSearch, setPlayerSearch] = useState("");
   const [aiQuestion, setAiQuestion] = useState("");
 
-  const { filter, hasFilter, toggleItem, startLongPress, cancelLongPress, clearAll, removeCategory, multiSelectMode, setFilter } = useToggleFilter();
+  const { filter, hasFilter, toggleItem, startLongPress, cancelLongPress, clearAll, removeCategory, multiSelectMode, setMultiSelectMode, setFilter } = useToggleFilter();
 
   const filteredSignups = useMemo(() => {
     if (!data?.signupsRaw) return [];
