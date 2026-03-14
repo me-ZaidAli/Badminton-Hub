@@ -218,20 +218,24 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
   const filteredSessionStats = useMemo(() => {
     if (!data?.sessionStats) return [];
     let stats = data.sessionStats;
-    const sigSessionIds = new Set(filteredSignups.map((s: any) => s.sessionId));
-    if (hasFilter) stats = stats.filter((s: any) => sigSessionIds.has(s.id));
+    if (hasFilter) {
+      const sigSessionIds = new Set(filteredSignups.map((s: any) => s.sessionId));
+      stats = stats.filter((s: any) => sigSessionIds.has(s.id));
+    }
     return stats;
   }, [data, filteredSignups, hasFilter]);
 
+  const activeSessionStats = hasFilter ? filteredSessionStats : (data?.sessionStats || []);
+  const activeSignups = hasFilter ? filteredSignups : (data?.signupsRaw || []);
+
   const kpis = useMemo(() => {
-    if (!hasFilter) return data?.kpis;
-    const sessions = filteredSessionStats.length;
-    const signups = filteredSignups.length;
-    const revenue = filteredSignups.reduce((s: number, sg: any) => s + sg.fee, 0);
-    const paid = filteredSignups.filter((s: any) => s.payment === "PAID").reduce((s: number, sg: any) => s + sg.fee, 0);
-    const noShows = filteredSignups.filter((s: any) => s.attendance === "NOT_ATTENDED").length;
-    const tracked = filteredSignups.filter((s: any) => ["ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "JUSTIFIED_CANCELLATION"].includes(s.attendance)).length;
-    const totalCap = filteredSessionStats.reduce((s: number, ss: any) => s + (ss.maxPlayers || 0), 0);
+    const sessions = activeSessionStats.length;
+    const signups = activeSignups.length;
+    const revenue = activeSignups.reduce((s: number, sg: any) => s + sg.fee, 0);
+    const paid = activeSignups.filter((s: any) => s.payment === "PAID").reduce((s: number, sg: any) => s + sg.fee, 0);
+    const noShows = activeSignups.filter((s: any) => s.attendance === "NOT_ATTENDED").length;
+    const tracked = activeSignups.filter((s: any) => ["ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "JUSTIFIED_CANCELLATION"].includes(s.attendance)).length;
+    const totalCap = activeSessionStats.reduce((s: number, ss: any) => s + (ss.maxPlayers || 0), 0);
     return {
       totalSessions: sessions, totalPlayers: signups, totalRevenue: revenue, paidRevenue: paid,
       avgPlayersPerSession: sessions > 0 ? Math.round((signups / sessions) * 10) / 10 : 0,
@@ -241,10 +245,10 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
       noShowRate: tracked > 0 ? Math.round((noShows / tracked) * 1000) / 10 : 0,
       noShows,
     };
-  }, [data, hasFilter, filteredSignups, filteredSessionStats]);
+  }, [activeSessionStats, activeSignups]);
 
   const masterChartData = useMemo(() => {
-    const source = hasFilter ? filteredSessionStats : data?.sessionStats || [];
+    const source = activeSessionStats;
     const map = new Map<string, { label: string; players: number; revenue: number; sessions: number; fillRate: number; noShows: number; count: number }>();
     for (const s of source) {
       const d = new Date(s.date);
@@ -263,15 +267,23 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
       ...v, fillRate: v.count > 0 ? Math.round((v.fillRate / v.count) * 10) / 10 : 0,
       revenuePerPlayer: v.players > 0 ? Math.round(v.revenue / v.players) : 0,
     })).sort((a, b) => a.label.localeCompare(b.label));
-  }, [data, hasFilter, filteredSessionStats, drillLevel]);
+  }, [activeSessionStats, drillLevel]);
 
   const clubBreakdown = useMemo(() => {
-    if (!data?.clubStats) return [];
-    return data.clubStats;
-  }, [data]);
+    const source = activeSessionStats;
+    const map = new Map<number, { id: number; name: string; sessions: number; players: number; revenue: number; fillRate: number }>();
+    for (const s of source) {
+      if (!map.has(s.clubId)) map.set(s.clubId, { id: s.clubId, name: s.clubName || "Unknown", sessions: 0, players: 0, revenue: 0, fillRate: 0 });
+      const e = map.get(s.clubId)!;
+      e.sessions++; e.players += s.players; e.revenue += s.revenue; e.fillRate += s.fillRate;
+    }
+    return [...map.values()].map(v => ({
+      ...v, fillRate: v.sessions > 0 ? Math.round((v.fillRate / v.sessions) * 10) / 10 : 0,
+    })).sort((a, b) => b.revenue - a.revenue);
+  }, [activeSessionStats]);
 
   const weekdayBreakdown = useMemo(() => {
-    const source = data?.sessionStats || [];
+    const source = activeSessionStats;
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return days.map((name, i) => {
       const daySess = source.filter((s: any) => new Date(s.date).getDay() === i);
@@ -282,10 +294,10 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
         avgPlayers: daySess.length > 0 ? Math.round((daySess.reduce((s: number, ss: any) => s + ss.players, 0) / daySess.length) * 10) / 10 : 0,
       };
     });
-  }, [data]);
+  }, [activeSessionStats]);
 
   const sessionBreakdown = useMemo(() => {
-    const source = data?.sessionStats || [];
+    const source = activeSessionStats;
     const m = new Map<string, { title: string; sessions: number; players: number; revenue: number; avgFillRate: number }>();
     for (const s of source) {
       const key = s.title || "Untitled";
@@ -293,7 +305,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
       const e = m.get(key)!; e.sessions++; e.players += s.players; e.revenue += s.revenue; e.avgFillRate += s.fillRate;
     }
     return [...m.values()].map(v => ({ ...v, avgFillRate: v.sessions > 0 ? Math.round((v.avgFillRate / v.sessions) * 10) / 10 : 0 })).sort((a, b) => b.revenue - a.revenue);
-  }, [data]);
+  }, [activeSessionStats]);
 
   const filteredPlayers = useMemo(() => {
     if (!data?.playerStats) return [];
@@ -311,36 +323,6 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
     }
     return players.slice(0, 50);
   }, [data, hasFilter, filter, filteredSignups, playerSearch]);
-
-  const getDateRangeForLevel = useCallback((level: DrillLevel): { dateFrom?: string; dateTo?: string; months: string[] } => {
-    const now = new Date();
-    const todayStr = now.toISOString().split("T")[0];
-    if (level === "day") {
-      return { dateFrom: todayStr, dateTo: todayStr, months: [] };
-    }
-    if (level === "week") {
-      const dayOfWeek = now.getDay();
-      const weekStart = new Date(now.getTime() - dayOfWeek * 86400000);
-      const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
-      return {
-        dateFrom: weekStart.toISOString().split("T")[0],
-        dateTo: weekEnd.toISOString().split("T")[0],
-        months: [],
-      };
-    }
-    if (level === "month") {
-      const y = now.getFullYear();
-      const m = String(now.getMonth() + 1).padStart(2, "0");
-      const monthKey = `${y}-${m}`;
-      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
-      return {
-        dateFrom: `${monthKey}-01`,
-        dateTo: `${monthKey}-${String(lastDay).padStart(2, "0")}`,
-        months: [monthKey],
-      };
-    }
-    return { dateFrom: undefined, dateTo: undefined, months: [] };
-  }, []);
 
   const handleDrillLevelClick = useCallback((level: DrillLevel) => {
     setDrillLevel(level);
@@ -424,13 +406,14 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
         avgPlayersPerSession: kpis.avgPlayersPerSession, fillRatePercent: kpis.fillRate, noShowRatePercent: kpis.noShowRate,
       } : null;
       const filterContext = hasFilter ? `Active filters: ${JSON.stringify(filter)}` : "No filters active (showing all data)";
+      const periodContext = `Period granularity: ${drillLevel}`;
       const body: any = {
         kpis: kpisForAI,
         topSessions: sessionBreakdown.slice(0, 5).map(s => ({ title: s.title, sessions: s.sessions, revenue_GBP: penceToGBP(s.revenue), avgFillRate: s.avgFillRate })),
         bottomSessions: sessionBreakdown.slice(-5).map(s => ({ title: s.title, sessions: s.sessions, revenue_GBP: penceToGBP(s.revenue), avgFillRate: s.avgFillRate })),
         clubStats: clubBreakdown.map((c: any) => ({ name: c.name, sessions: c.sessions, players: c.players, revenue_GBP: penceToGBP(c.revenue) })),
         weekdayStats: weekdayBreakdown.filter(w => w.sessions > 0).map(w => ({ day: w.dayName, sessions: w.sessions, avgPlayers: w.avgPlayers, revenue_GBP: penceToGBP(w.revenue) })),
-        filterContext,
+        filterContext: `${filterContext}. ${periodContext}`,
       };
       if (question) body.question = question;
       const res = await apiRequest("POST", "/api/dashboard/analytics/ai-insights", body);
@@ -500,6 +483,21 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
         </div>
       </div>
 
+      <div className="flex items-center gap-2 mb-3 flex-wrap">
+        <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide">Group by:</span>
+        {(["year", "month", "week", "day"] as DrillLevel[]).map(level => (
+          <Button key={level} variant={drillLevel === level ? "default" : "outline"} size="sm"
+            className={`h-7 text-xs px-3 ${drillLevel === level ? "ring-2 ring-primary/30 shadow-sm" : ""}`}
+            onClick={() => handleDrillLevelClick(level)} data-testid={`button-drill-${level}`}>
+            {level.charAt(0).toUpperCase() + level.slice(1)}
+          </Button>
+        ))}
+        <Badge variant="outline" className="text-[10px] ml-1">{drillLevel} view</Badge>
+        {drillPath.length > 0 && (
+          <Button variant="ghost" size="sm" className="h-7 text-xs" onClick={handleDrillUp} data-testid="button-drill-up">← Back</Button>
+        )}
+      </div>
+
       {filterBadges.length > 0 && (
         <div className="flex items-center gap-1.5 flex-wrap p-2 bg-muted/30 rounded-lg border border-border/50" data-testid="active-filters-bar">
           <span className="text-[10px] font-semibold text-muted-foreground uppercase tracking-wide mr-1">Filters:</span>
@@ -530,35 +528,20 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
       <p className="text-[10px] text-muted-foreground">Tap a chart bar to filter/unfilter. Long-press (hold) to enable multi-select for that chart.</p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2" data-testid="interactive-kpis">
-        <MiniKpi label="Sessions" value={kpis?.totalSessions || 0} icon={Calendar} totalValue={hasFilter ? (data?.kpis?.totalSessions || 0) : undefined} />
-        <MiniKpi label="Signups" value={kpis?.totalPlayers || 0} icon={Users} totalValue={hasFilter ? (data?.kpis?.totalPlayers || 0) : undefined} />
-        <MiniKpi label="Revenue" value={formatPence(kpis?.totalRevenue || 0)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.totalRevenue || 0) : undefined} />
-        <MiniKpi label="Rev/Session" value={formatPence(kpis?.revenuePerSession || 0)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.revenuePerSession || 0) : undefined} />
-        <MiniKpi label="Avg Players" value={kpis?.avgPlayersPerSession || 0} icon={Users} totalValue={hasFilter ? (data?.kpis?.avgPlayersPerSession || 0) : undefined} />
-        <MiniKpi label="Fill Rate" value={`${kpis?.fillRate || 0}%`} icon={Target} totalValue={hasFilter ? `${data?.kpis?.fillRate || 0}%` : undefined} />
-        <MiniKpi label="No-Show" value={`${kpis?.noShowRate || 0}%`} icon={Activity} totalValue={hasFilter ? `${data?.kpis?.noShowRate || 0}%` : undefined} />
+        <MiniKpi label="Sessions" value={kpis.totalSessions} icon={Calendar} totalValue={hasFilter ? (data?.kpis?.totalSessions || 0) : undefined} />
+        <MiniKpi label="Signups" value={kpis.totalPlayers} icon={Users} totalValue={hasFilter ? (data?.kpis?.totalPlayers || 0) : undefined} />
+        <MiniKpi label="Revenue" value={formatPence(kpis.totalRevenue)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.totalRevenue || 0) : undefined} />
+        <MiniKpi label="Rev/Session" value={formatPence(kpis.revenuePerSession)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.revenuePerSession || 0) : undefined} />
+        <MiniKpi label="Avg Players" value={kpis.avgPlayersPerSession} icon={Users} totalValue={hasFilter ? (data?.kpis?.avgPlayersPerSession || 0) : undefined} />
+        <MiniKpi label="Fill Rate" value={`${kpis.fillRate}%`} icon={Target} totalValue={hasFilter ? `${data?.kpis?.fillRate || 0}%` : undefined} />
+        <MiniKpi label="No-Show" value={`${kpis.noShowRate}%`} icon={Activity} totalValue={hasFilter ? `${data?.kpis?.noShowRate || 0}%` : undefined} />
       </div>
 
       <Card data-testid="master-chart">
         <CardHeader className="pb-1 pt-3 px-4">
           <div className="flex items-center justify-between flex-wrap gap-2">
-            <div className="flex items-center gap-2">
-              <CardTitle className="text-sm">Multi-Metric Analysis</CardTitle>
-              <div className="flex items-center gap-1">
-                {drillPath.length > 0 && (
-                  <Button variant="ghost" size="sm" className="h-6 text-[10px]" onClick={handleDrillUp} data-testid="button-drill-up">← Back</Button>
-                )}
-                <Badge variant="outline" className="text-[10px]">{drillLevel}</Badge>
-              </div>
-            </div>
+            <CardTitle className="text-sm">Multi-Metric Analysis</CardTitle>
             <div className="flex items-center gap-1 flex-wrap">
-              {(["year", "month", "week", "day"] as DrillLevel[]).map(level => (
-                <Button key={level} variant={drillLevel === level ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2"
-                  onClick={() => handleDrillLevelClick(level)} data-testid={`button-drill-${level}`}>
-                  {level.charAt(0).toUpperCase() + level.slice(1)}
-                </Button>
-              ))}
-              <div className="w-px h-4 bg-border mx-1" />
               {Object.entries(metricConfig).map(([key, cfg]) => (
                 <Button key={key} variant={enabledMetrics.has(key) ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2"
                   style={enabledMetrics.has(key) ? { backgroundColor: cfg.color, borderColor: cfg.color } : {}}
@@ -788,7 +771,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                   </tr>
                 </thead>
                 <tbody>
-                  {filteredSessionStats.slice(0, 30).map((s: any) => {
+                  {activeSessionStats.slice(0, 30).map((s: any) => {
                     const isSelected = filter.sessionTitles.includes(s.title);
                     return (
                       <tr key={`${s.id}-${s.date}`}
@@ -804,7 +787,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                       </tr>
                     );
                   })}
-                  {filteredSessionStats.length === 0 && (
+                  {activeSessionStats.length === 0 && (
                     <tr><td colSpan={6} className="py-4 text-center text-muted-foreground text-xs">No sessions found</td></tr>
                   )}
                 </tbody>
