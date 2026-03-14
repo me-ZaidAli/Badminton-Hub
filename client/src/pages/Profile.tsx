@@ -2138,7 +2138,7 @@ export default function Profile() {
   }
 
   return (
-    <div className="container max-w-4xl mx-auto p-0 sm:p-4 md:p-6 space-y-4 sm:space-y-6">
+    <div className="container max-w-5xl mx-auto p-0 sm:p-4 md:p-6 space-y-4 sm:space-y-5">
       {!isProfileComplete && (
         <Card className="border-amber-300 dark:border-amber-700">
           <CardContent className="p-4">
@@ -2153,66 +2153,78 @@ export default function Profile() {
         </Card>
       )}
 
-      {/* Profile Header */}
-      <Card data-testid="card-profile-header">
-        <CardContent className="p-4 sm:p-6">
-          <div className="flex items-start gap-3 sm:gap-4 flex-wrap">
-            <div className="relative">
+      {/* HERO BANNER */}
+      <div className="relative rounded-2xl overflow-hidden" data-testid="card-profile-header" style={{
+        background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 35%, #24243e 65%, #1a1a3e 100%)",
+      }}>
+        <div className="absolute inset-0" style={{
+          backgroundImage: "radial-gradient(circle at 20% 80%, rgba(99,102,241,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%)",
+        }} />
+        <div className="absolute inset-0 opacity-[0.03]" style={{
+          backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.05) 40px, rgba(255,255,255,0.05) 41px), repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.05) 40px, rgba(255,255,255,0.05) 41px)",
+        }} />
+
+        <div className="relative p-4 sm:p-6 md:p-8">
+          <div className="flex items-start gap-4 sm:gap-6">
+            <div className="relative shrink-0">
               {(() => {
                 const avatarUrl = getAvatarUrl((user as any).selectedAvatar);
                 return avatarUrl ? (
-                  <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-full overflow-hidden ring-2 ring-cyan-400/40 shadow-[0_0_15px_rgba(34,211,238,0.2)]">
+                  <div className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-xl overflow-hidden ring-2 ring-indigo-400/50 shadow-[0_0_25px_rgba(99,102,241,0.3)]">
                     <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" data-testid="img-profile-3d-avatar" />
                   </div>
                 ) : (
-                  <Avatar className="h-16 w-16 sm:h-20 sm:w-20">
-                    {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} /> : null}
-                    <AvatarFallback className="text-lg sm:text-xl">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
+                  <Avatar className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-xl ring-2 ring-indigo-400/50 shadow-[0_0_25px_rgba(99,102,241,0.3)]">
+                    {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} className="rounded-xl" /> : null}
+                    <AvatarFallback className="text-2xl sm:text-3xl rounded-xl bg-indigo-900/50 text-white/90">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
                   </Avatar>
                 );
               })()}
-              <div className="absolute -bottom-1 -right-1 flex gap-0.5">
+              <div className="absolute -bottom-2 -right-2 flex gap-0.5">
                 <AvatarPicker
                   currentAvatar={(user as any).selectedAvatar}
                   trigger={
-                    <button className="bg-gradient-to-r from-cyan-500 to-blue-500 text-white rounded-full p-1.5 shadow-sm" data-testid="button-open-avatar-picker-profile">
+                    <button className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full p-1.5 shadow-lg shadow-indigo-500/30" data-testid="button-open-avatar-picker-profile">
                       <Sparkles className="w-3.5 h-3.5" />
                     </button>
                   }
                 />
-                <button className="bg-primary text-primary-foreground rounded-full p-1.5 shadow-sm" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
+                <button className="bg-white/10 backdrop-blur text-white rounded-full p-1.5 shadow-lg border border-white/10" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
                   {isUploadingPic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
                 </button>
               </div>
               <input type="file" accept="image/*" className="hidden" ref={profilePicInputRef}
                 onChange={(e) => { const file = e.target.files?.[0]; if (file) { uploadProfilePicture({ file }); e.target.value = ""; } }} data-testid="input-profile-pic" />
             </div>
-            <div className="flex-1 min-w-0">
-              <div className="flex items-center gap-2">
-                <h1 className="text-xl sm:text-2xl font-bold" data-testid="text-user-name">{user.fullName || "New User"}</h1>
+
+            <div className="flex-1 min-w-0 pt-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wide text-white" style={{ textShadow: "0 2px 10px rgba(99,102,241,0.3)" }} data-testid="text-user-name">{user.fullName || "New User"}</h1>
                 {(user as any).blackCardAccess && (
-                  <Crown className="h-5 w-5 text-amber-500 shrink-0" data-testid="icon-black-card-holder" />
+                  <Crown className="h-5 w-5 text-amber-400 shrink-0 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" data-testid="icon-black-card-holder" />
                 )}
               </div>
-              <div className="flex items-center gap-1.5 sm:gap-2 mt-1 flex-wrap">
-                <Badge variant="secondary" data-testid="badge-role">
+
+              <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
+                <Badge className="bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 hover:bg-indigo-500/30" data-testid="badge-role">
                   <Shield className="h-3 w-3 mr-1" />
                   {user.role === "OWNER" ? "Platform Owner" : user.role.charAt(0) + user.role.slice(1).toLowerCase()}
                 </Badge>
                 {primaryProfile?.grade && (
-                  <Badge variant="outline" data-testid="badge-grade">
+                  <Badge className="bg-amber-500/15 text-amber-200 border border-amber-400/25 hover:bg-amber-500/25" data-testid="badge-grade">
                     <Award className="h-3 w-3 mr-1" />
                     Grade {primaryProfile.grade}
                   </Badge>
                 )}
                 {mySquadStatus && mySquadStatus.length > 0 && (
-                  <Badge className="bg-emerald-600/90 text-white border-0 text-[10px]" data-testid="badge-league-player">
+                  <Badge className="bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 hover:bg-emerald-500/30" data-testid="badge-league-player">
                     <Trophy className="h-3 w-3 mr-1" />
                     League Player
                   </Badge>
                 )}
               </div>
-              <div className="flex items-center gap-3 sm:gap-4 mt-2 sm:mt-3 text-xs sm:text-sm text-muted-foreground flex-wrap">
+
+              <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-white/50 flex-wrap">
                 {(user as any)?.email && (
                   <span data-testid="text-email">{user.email}</span>
                 )}
@@ -2221,19 +2233,20 @@ export default function Profile() {
                 )}
               </div>
               {profiles && profiles.length > 0 && (
-                <Badge variant="outline" className="text-xs cursor-pointer mt-2" onClick={() => setClubsModalOpen(true)} data-testid="badge-clubs-count">
+                <Badge className="text-xs cursor-pointer mt-2 bg-white/5 text-white/70 border border-white/10 hover:bg-white/10" onClick={() => setClubsModalOpen(true)} data-testid="badge-clubs-count">
                   <Building2 className="h-3 w-3 mr-1" />
                   {profiles.length} Club{profiles.length !== 1 ? "s" : ""}
                   <ChevronRight className="h-3 w-3 ml-1" />
                 </Badge>
               )}
             </div>
+
             {mySquadStatus && mySquadStatus.length > 0 && (
-              <div className="flex flex-col items-center justify-center shrink-0" data-testid="league-player-emblem">
+              <div className="hidden sm:flex flex-col items-center justify-center shrink-0" data-testid="league-player-emblem">
                 <div className="relative w-20 h-20 flex items-center justify-center">
                   <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-teal-500/20 animate-pulse" />
-                  <div className="absolute inset-1 rounded-full border-2 border-emerald-500/40 border-dashed" style={{ animation: "spin 12s linear infinite" }} />
-                  <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/30">
+                  <div className="absolute inset-1 rounded-full border-2 border-emerald-400/40 border-dashed" style={{ animation: "spin 12s linear infinite" }} />
+                  <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/40">
                     <svg viewBox="0 0 40 40" className="w-8 h-8 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                       <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" fill="currentColor" opacity="0.3" />
                       <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" />
@@ -2242,22 +2255,43 @@ export default function Profile() {
                     </svg>
                   </div>
                 </div>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-500 mt-1">League Player</span>
+                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 mt-1">League Player</span>
               </div>
             )}
-            <div className="flex gap-2 flex-wrap">
-              <Button variant="outline" size="sm" onClick={startEditing} data-testid="button-edit-profile">
-                <Pencil className="h-4 w-4 mr-1" />
+          </div>
+
+          <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+            <div className="grid grid-cols-4 gap-3 sm:gap-6 flex-1">
+              <div className="text-center">
+                <p className="text-lg sm:text-xl font-bold text-white" style={{ textShadow: "0 0 10px rgba(99,102,241,0.4)" }}>{performance.played}</p>
+                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Matches</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg sm:text-xl font-bold text-emerald-400">{performance.won}</p>
+                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Won</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg sm:text-xl font-bold text-rose-400">{performance.lost}</p>
+                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Lost</p>
+              </div>
+              <div className="text-center">
+                <p className="text-lg sm:text-xl font-bold text-indigo-300">{performance.winPct}%</p>
+                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Win Rate</p>
+              </div>
+            </div>
+            <div className="flex gap-2 ml-4 shrink-0">
+              <Button size="sm" className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur" onClick={startEditing} data-testid="button-edit-profile">
+                <Pencil className="h-3.5 w-3.5 mr-1" />
                 Edit
               </Button>
-              <Button variant="ghost" size="sm" onClick={handleLogout} data-testid="button-logout">
-                <LogOut className="h-4 w-4 mr-1" />
+              <Button size="sm" className="bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" onClick={handleLogout} data-testid="button-logout">
+                <LogOut className="h-3.5 w-3.5 mr-1" />
                 Sign Out
               </Button>
             </div>
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {mySquadStatus && mySquadStatus.length > 0 && (
         <Card data-testid="card-league-squad-status">
@@ -2549,16 +2583,28 @@ export default function Profile() {
         );
       })()}
 
-      {/* Financial Summary */}
-      <div className="grid grid-cols-2 gap-2 sm:gap-4">
+      {/* STATS BAR */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
         <MetricCard icon={Wallet} label="Credit Balance" value={`£${(totalCredits / 100).toFixed(2)}`}
           subtext={creditBalances && creditBalances.length > 0 ? `Across ${creditBalances.length} club${creditBalances.length > 1 ? "s" : ""}` : "No credits yet"}
           onClick={() => setCreditsModalOpen(true)} />
-        <MetricCard icon={AlertCircle} label="Outstanding Balance" value={`£${(totalOutstanding / 100).toFixed(2)}`}
-          subtext={outstandingPayments && outstandingPayments.length > 0 ? `${outstandingPayments.length} unpaid session${outstandingPayments.length > 1 ? "s" : ""}` : "All paid up"}
+        <MetricCard icon={AlertCircle} label="Outstanding" value={`£${(totalOutstanding / 100).toFixed(2)}`}
+          subtext={outstandingPayments && outstandingPayments.length > 0 ? `${outstandingPayments.length} unpaid` : "All clear"}
           onClick={() => setOutstandingModalOpen(true)}
           className={totalOutstanding > 0 ? "border-amber-300/50 dark:border-amber-700/50" : ""} />
+        <MetricCard icon={CalendarDays} label="Sessions" value={`${sessionActivity?.totalSessions ?? 0}`}
+          subtext={`${sessionActivity?.sessionsThisMonth ?? 0} this month`}
+          onClick={() => setTotalSessionsModalOpen(true)} />
+        <MetricCard icon={PoundSterling} label="Total Spent" value={`£${((sessionActivity?.totalSpent ?? 0) / 100).toFixed(2)}`}
+          subtext="All time"
+          onClick={() => setTotalSpentModalOpen(true)} />
       </div>
+
+      {/* MAIN DASHBOARD GRID */}
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-4">
+
+      {/* LEFT COLUMN */}
+      <div className="lg:col-span-7 space-y-4">
 
       {/* My Rewards */}
       <ProfileRewardsSection />
@@ -2691,6 +2737,11 @@ export default function Profile() {
           </div>
         </div>
       </CollapsibleSection>
+
+      </div>{/* END LEFT COLUMN */}
+
+      {/* RIGHT COLUMN */}
+      <div className="lg:col-span-5 space-y-4">
 
       {/* Credit Wallet & History */}
       <CollapsibleSection
@@ -2967,6 +3018,9 @@ export default function Profile() {
           </CardContent>
         </Card>
       )}
+
+      </div>{/* END RIGHT COLUMN */}
+      </div>{/* END MAIN DASHBOARD GRID */}
 
       <CollapsibleSection title="Membership Benefits" icon={Star} testId="card-membership-benefits">
         <div className="space-y-6">
