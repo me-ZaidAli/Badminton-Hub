@@ -1,6 +1,5 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { Button } from "@/components/ui/button";
-import { getAvatarUrl } from "@/components/AvatarPicker";
 import { useToast } from "@/hooks/use-toast";
 import {
   Swords, Sparkles, Brain, Loader2, Trophy, Target,
@@ -13,21 +12,9 @@ import {
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   BarChart, Bar, Cell
 } from "recharts";
-import malePlayerSrc from "@assets/image_1773528669368.png";
-import femalePlayerSrc from "@assets/hero_female_player.png";
-
 const COLOR1 = "#818cf8";
 const COLOR2 = "#c084fc";
 const CARD_BG = "linear-gradient(180deg, rgba(15,23,42,0.95) 0%, rgba(10,15,30,0.98) 100%)";
-
-function getPlayerImage(player: any) {
-  return player.profilePictureUrl || getAvatarUrl(player.selectedAvatar) || null;
-}
-
-function getGenderPhoto(gender?: string | null) {
-  const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
-  return isFemale ? femalePlayerSrc : malePlayerSrc;
-}
 
 function AnimatedNumber({ value, duration = 1200, decimals = 0 }: { value: number; duration?: number; decimals?: number }) {
   const [display, setDisplay] = useState(0);
@@ -181,10 +168,6 @@ function deriveRivalryStats(results: any[]) {
 function RivalryHeader({ player1, player2, p1Wins, p2Wins, totalMatches }: {
   player1: any; player2: any; p1Wins: number; p2Wins: number; totalMatches: number;
 }) {
-  const p1Img = getPlayerImage(player1);
-  const p2Img = getPlayerImage(player2);
-  const p1Gender = player1.playerProfiles?.[0]?.gender;
-  const p2Gender = player2.playerProfiles?.[0]?.gender;
   const p1Grade = player1.playerProfiles?.[0]?.grade || player1.playerProfiles?.[0]?.category;
   const p2Grade = player2.playerProfiles?.[0]?.grade || player2.playerProfiles?.[0]?.category;
   const p1Leading = p1Wins > p2Wins;
@@ -203,11 +186,7 @@ function RivalryHeader({ player1, player2, p1Wins, p2Wins, totalMatches }: {
               <div className="absolute -inset-2 rounded-full animate-pulse opacity-20" style={{ boxShadow: `0 0 25px 8px ${COLOR1}` }} />
               <div className="rounded-full p-[2px]" style={{ background: `linear-gradient(135deg, ${COLOR1}, ${COLOR1}66)`, boxShadow: `0 0 15px 3px ${COLOR1}30` }}>
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#0c1322] flex items-center justify-center overflow-hidden">
-                  {p1Img ? (
-                    <img src={p1Img} alt={player1.fullName} className="w-full h-full object-cover" />
-                  ) : (
-                    <img src={getGenderPhoto(p1Gender)} alt="Player" className="w-full h-full object-cover" />
-                  )}
+                  <span className="text-2xl sm:text-3xl font-black text-white/80">{player1.fullName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}</span>
                 </div>
               </div>
             </div>
@@ -229,11 +208,7 @@ function RivalryHeader({ player1, player2, p1Wins, p2Wins, totalMatches }: {
               <div className="absolute -inset-2 rounded-full animate-pulse opacity-20" style={{ boxShadow: `0 0 25px 8px ${COLOR2}` }} />
               <div className="rounded-full p-[2px]" style={{ background: `linear-gradient(135deg, ${COLOR2}, ${COLOR2}66)`, boxShadow: `0 0 15px 3px ${COLOR2}30` }}>
                 <div className="w-20 h-20 sm:w-24 sm:h-24 rounded-full bg-[#0c1322] flex items-center justify-center overflow-hidden">
-                  {p2Img ? (
-                    <img src={p2Img} alt={player2.fullName} className="w-full h-full object-cover" />
-                  ) : (
-                    <img src={getGenderPhoto(p2Gender)} alt="Player" className="w-full h-full object-cover" />
-                  )}
+                  <span className="text-2xl sm:text-3xl font-black text-white/80">{player2.fullName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase()}</span>
                 </div>
               </div>
             </div>
