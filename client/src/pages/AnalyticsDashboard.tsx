@@ -7,9 +7,10 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, Users, DollarSign, Calendar, BarChart3, AlertTriangle, Brain, Search, Download, Send, Clock, Building2, Target, Activity, Zap, PieChart, ArrowUpRight, ArrowDownRight, Minus } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Users, DollarSign, Calendar, BarChart3, AlertTriangle, Brain, Search, Download, Send, Clock, Building2, Target, Activity, Zap, PieChart, ArrowUpRight, ArrowDownRight, Minus, LayoutDashboard } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart } from "recharts";
 import { apiRequest } from "@/lib/queryClient";
+import InteractiveDashboard from "@/components/InteractiveDashboard";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#f97316"];
 
@@ -39,6 +40,7 @@ export default function AnalyticsDashboard() {
   const [sessionSearch, setSessionSearch] = useState("");
   const [sessionPage, setSessionPage] = useState(0);
   const [sessionSort, setSessionSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "revenue", dir: "desc" });
+  const [dashboardView, setDashboardView] = useState<"classic" | "interactive">("interactive");
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -175,10 +177,34 @@ export default function AnalyticsDashboard() {
           <h1 className="text-2xl font-bold text-foreground" data-testid="text-page-title">Analytics Dashboard</h1>
           <p className="text-sm text-muted-foreground mt-1">Business intelligence and performance analytics</p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleExportCSV} data-testid="button-export-csv">
-          <Download className="h-4 w-4 mr-2" />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <div className="flex bg-muted rounded-lg p-0.5">
+            <Button
+              variant={dashboardView === "interactive" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs gap-1.5 rounded-md"
+              onClick={() => setDashboardView("interactive")}
+              data-testid="button-view-interactive"
+            >
+              <LayoutDashboard className="h-3.5 w-3.5" />
+              Interactive
+            </Button>
+            <Button
+              variant={dashboardView === "classic" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs gap-1.5 rounded-md"
+              onClick={() => setDashboardView("classic")}
+              data-testid="button-view-classic"
+            >
+              <BarChart3 className="h-3.5 w-3.5" />
+              Classic
+            </Button>
+          </div>
+          <Button variant="outline" size="sm" onClick={handleExportCSV} data-testid="button-export-csv">
+            <Download className="h-4 w-4 mr-2" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       <Card data-testid="filter-panel">
@@ -266,6 +292,8 @@ export default function AnalyticsDashboard() {
         </Card>
       ) : !data ? (
         <div className="text-center py-20 text-muted-foreground">No data available</div>
+      ) : dashboardView === "interactive" ? (
+        <InteractiveDashboard data={data} />
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="kpi-cards">

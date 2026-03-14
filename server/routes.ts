@@ -28887,6 +28887,41 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         demandSuggestions.push(`${bestWeekday.dayName} sessions have the highest average attendance (${bestWeekday.avgPlayers} players)`);
       }
 
+      const playerStatsMap = new Map<number, { id: number; name: string; sessions: number; revenue: number; noShows: number; attended: number; clubs: Set<string>; sessionTitles: Set<string> }>();
+      for (const su of confirmedSignups) {
+        const sess = filteredSessions.find(s => s.id === su.sessionId);
+        if (!sess) continue;
+        const clubName = allClubsData.find(c => c.id === sess.clubId)?.name || "Unknown";
+        if (!playerStatsMap.has(su.playerId)) {
+          const player = allPlayers.find(p => p.id === su.playerId);
+          const name = player ? (userMap.get(player.userId) || `Player ${su.playerId}`) : `Player ${su.playerId}`;
+          playerStatsMap.set(su.playerId, { id: su.playerId, name, sessions: 0, revenue: 0, noShows: 0, attended: 0, clubs: new Set(), sessionTitles: new Set() });
+        }
+        const ps = playerStatsMap.get(su.playerId)!;
+        ps.sessions++;
+        ps.revenue += su.fee || 0;
+        if (su.attendanceStatus === "NOT_ATTENDED") ps.noShows++;
+        if (su.attendanceStatus === "ATTENDED" || su.attendanceStatus === "PARTIAL_ATTENDANCE") ps.attended++;
+        ps.clubs.add(clubName);
+        if (sess.title) ps.sessionTitles.add(sess.title);
+      }
+      const playerStats = [...playerStatsMap.values()].map(p => ({
+        id: p.id, name: p.name, sessions: p.sessions, revenue: p.revenue,
+        noShows: p.noShows, attended: p.attended,
+        clubs: [...p.clubs], sessionTitles: [...p.sessionTitles],
+        attendanceRate: p.sessions > 0 ? Math.round((p.attended / p.sessions) * 1000) / 10 : 0,
+      })).sort((a, b) => b.sessions - a.sessions);
+
+      const signupsForInteractive = confirmedSignups.map(su => {
+        const sess = filteredSessions.find(s => s.id === su.sessionId);
+        return {
+          playerId: su.playerId, sessionId: su.sessionId, fee: su.fee || 0,
+          attendance: su.attendanceStatus, payment: su.paymentStatus,
+          date: sess ? new Date(sess.date).toISOString().split("T")[0] : null,
+          clubId: sess?.clubId || null,
+        };
+      }).filter(s => s.date);
+
       res.json({
         kpis: {
           totalSessions: totalSessionsCount, totalPlayers, totalRevenue, paidRevenue,
@@ -28913,6 +28948,8 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         demandSuggestions,
         clubs: allClubsData.map(c => ({ id: c.id, name: c.name })),
         sessionList: [...new Map(allSessions.map(s => [s.title, { id: s.id, title: s.title }])).values()],
+        playerStats,
+        signupsRaw: signupsForInteractive,
       });
     } catch (err: any) {
       console.error("Error fetching dashboard analytics:", err);
