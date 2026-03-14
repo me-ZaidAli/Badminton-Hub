@@ -13,8 +13,8 @@ import {
   PolarGrid, PolarAngleAxis, PolarRadiusAxis,
   BarChart, Bar, Cell
 } from "recharts";
-import maleSilhouetteSrc from "@assets/male_badminton_silhouette.png";
-import femaleSilhouetteSrc from "@assets/female_badminton_silhouette.png";
+import malePlayerSrc from "@assets/image_1773528669368.png";
+import femalePlayerSrc from "@assets/hero_female_player.png";
 
 const COLOR1 = "#818cf8";
 const COLOR2 = "#c084fc";
@@ -24,9 +24,9 @@ function getPlayerImage(player: any) {
   return player.profilePictureUrl || getAvatarUrl(player.selectedAvatar) || null;
 }
 
-function getGenderSilhouette(gender?: string | null) {
+function getGenderPhoto(gender?: string | null) {
   const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
-  return isFemale ? femaleSilhouetteSrc : maleSilhouetteSrc;
+  return isFemale ? femalePlayerSrc : malePlayerSrc;
 }
 
 function AnimatedNumber({ value, duration = 1200, decimals = 0 }: { value: number; duration?: number; decimals?: number }) {
@@ -206,8 +206,7 @@ function RivalryHeader({ player1, player2, p1Wins, p2Wins, totalMatches }: {
                   {p1Img ? (
                     <img src={p1Img} alt={player1.fullName} className="w-full h-full object-cover" />
                   ) : (
-                    <img src={getGenderSilhouette(p1Gender)} alt="Player" className="h-14 sm:h-16 object-contain"
-                      style={{ filter: "invert(1) brightness(0.55) sepia(1) hue-rotate(200deg) saturate(2)" }} />
+                    <img src={getGenderPhoto(p1Gender)} alt="Player" className="w-full h-full object-cover" />
                   )}
                 </div>
               </div>
@@ -233,8 +232,7 @@ function RivalryHeader({ player1, player2, p1Wins, p2Wins, totalMatches }: {
                   {p2Img ? (
                     <img src={p2Img} alt={player2.fullName} className="w-full h-full object-cover" />
                   ) : (
-                    <img src={getGenderSilhouette(p2Gender)} alt="Player" className="h-14 sm:h-16 object-contain"
-                      style={{ filter: "invert(1) brightness(0.55) sepia(1) hue-rotate(240deg) saturate(2)" }} />
+                    <img src={getGenderPhoto(p2Gender)} alt="Player" className="w-full h-full object-cover" />
                   )}
                 </div>
               </div>

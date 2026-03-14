@@ -6,6 +6,8 @@ import { apiRequest } from "@/lib/queryClient";
 import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 import { getAvatarUrl } from "@/components/AvatarPicker";
 import { RivalryArenaView } from "@/components/RivalryArena";
+import malePlayerFallback from "@assets/image_1773528669368.png";
+import femalePlayerFallback from "@assets/hero_female_player.png";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -90,9 +92,10 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
 }) {
   const sizeMap = { sm: "h-8 w-8", md: "h-12 w-12", lg: "h-20 w-20", xl: "h-24 w-24", hero: "h-32 w-32" };
   const textSize = { sm: "text-[10px]", md: "text-xs", lg: "text-lg", xl: "text-2xl", hero: "text-4xl" };
-  const silhouetteSize = { sm: "h-5 w-5", md: "h-7 w-7", lg: "h-12 w-12", xl: "h-14 w-14", hero: "h-20 w-20" };
   const initials = name.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
   const avatarSrc = profilePictureUrl || getAvatarUrl(selectedAvatar) || null;
+  const isFemale = gender?.toUpperCase() === "FEMALE" || gender?.toUpperCase() === "F";
+  const fallbackPhoto = isFemale ? femalePlayerFallback : malePlayerFallback;
 
   const gradeGradient = grade && GRADE_COLORS[grade]
     ? GRADE_COLORS[grade]
@@ -109,13 +112,13 @@ function PlayerAvatar({ name, id, size = "md", className = "", profilePictureUrl
     <div className={`relative inline-flex ${className}`}>
       <div className={`rounded-full bg-gradient-to-br ${gradeGradient} ${outerPadding[size]} ${glowSize} ${glowColor}`}>
         <Avatar className={`${sizeMap[size]} border-2 border-background`}>
-          {avatarSrc && <AvatarImage src={avatarSrc} alt={name} className="object-cover" />}
+          {avatarSrc ? (
+            <AvatarImage src={avatarSrc} alt={name} className="object-cover" />
+          ) : (
+            <AvatarImage src={fallbackPhoto} alt={name} className="object-cover" />
+          )}
           <AvatarFallback className={`${textSize[size]} bg-muted font-bold`}>
-            {avatarSrc ? initials : (
-              <svg className={`${silhouetteSize[size]} text-muted-foreground`} viewBox="0 0 24 24" fill="currentColor">
-                <path d="M12 12c2.7 0 4.8-2.1 4.8-4.8S14.7 2.4 12 2.4 7.2 4.5 7.2 7.2 9.3 12 12 12zm0 2.4c-3.2 0-9.6 1.6-9.6 4.8v2.4h19.2v-2.4c0-3.2-6.4-4.8-9.6-4.8z" />
-              </svg>
-            )}
+            {initials}
           </AvatarFallback>
         </Avatar>
       </div>
