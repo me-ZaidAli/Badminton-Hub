@@ -193,8 +193,9 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
     ? player.playerProfiles.find(p => p.clubId === Number(clubId)) || player.playerProfiles[0]
     : player.playerProfiles[0];
   const grade = profile?.grade || profile?.category || "—";
-  const winRate = profile && profile.matchesPlayed > 0
-    ? Math.round((profile.matchesWon / profile.matchesPlayed) * 100) : 0;
+  const matchesWon = profile?.matchesWon || 0;
+  const matchesLost = profile?.matchesLost || 0;
+  const matchesPlayed = profile?.matchesPlayed || 0;
 
   const initials = player.fullName.split(" ").map(w => w[0]).join("").substring(0, 2).toUpperCase();
   const gradeColor = grade !== "—" && GRADE_COLORS[grade] ? GRADE_COLORS[grade] : "from-slate-400 to-slate-500";
@@ -202,10 +203,10 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
   return (
     <button
       onClick={onSelect}
-      className={`w-full flex items-center gap-3 p-2.5 rounded-xl transition-all duration-200 text-left ${
+      className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-left ${
         isSelected
           ? "bg-cyan-500/10 border border-cyan-500/30 shadow-lg shadow-cyan-500/5"
-          : "border border-transparent hover:bg-muted/40 hover:border-border"
+          : "bg-muted/30 border border-transparent hover:bg-muted/50 hover:border-border"
       }`}
       data-testid={`player-list-item-${player.id}`}
     >
@@ -213,10 +214,20 @@ function PlayerListItem({ player, isSelected, onSelect, clubId }: {
         <span className="text-[11px] font-bold text-white">{initials}</span>
       </div>
       <div className="flex-1 min-w-0">
-        <p className={`font-semibold text-sm truncate ${isSelected ? "text-cyan-400" : "text-foreground"}`}>{player.fullName}</p>
-        <p className="text-[11px] text-muted-foreground mt-0.5">{grade !== "—" ? grade : "Ungraded"}</p>
+        <p className={`font-bold text-sm truncate uppercase tracking-wide ${isSelected ? "text-cyan-400" : "text-foreground"}`}>{player.fullName}</p>
+        <p className="text-[11px] font-semibold mt-0.5">
+          <span className="text-emerald-400">{matchesWon}</span>
+          <span className="text-muted-foreground"> : </span>
+          <span className="text-red-400">{matchesLost}</span>
+        </p>
       </div>
-      {isSelected && <ChevronRight className="h-4 w-4 text-cyan-400 shrink-0" />}
+      <div className="text-right shrink-0">
+        <p className="text-[10px] text-muted-foreground font-medium tracking-wider">W / L / P</p>
+        <p className="text-xs font-bold text-foreground">{matchesWon} / {matchesLost} / {matchesPlayed}</p>
+      </div>
+      <div className={`w-7 h-7 rounded-full bg-gradient-to-br ${gradeColor} flex items-center justify-center shrink-0 shadow-sm`}>
+        <span className="text-[8px] font-black text-white">{grade !== "—" ? grade : "?"}</span>
+      </div>
     </button>
   );
 }
