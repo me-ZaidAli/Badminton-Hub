@@ -312,6 +312,47 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
     return players.slice(0, 50);
   }, [data, hasFilter, filter, filteredSignups, playerSearch]);
 
+  const getDateRangeForLevel = useCallback((level: DrillLevel): { dateFrom?: string; dateTo?: string; months: string[] } => {
+    const now = new Date();
+    const todayStr = now.toISOString().split("T")[0];
+    if (level === "day") {
+      return { dateFrom: todayStr, dateTo: todayStr, months: [] };
+    }
+    if (level === "week") {
+      const dayOfWeek = now.getDay();
+      const weekStart = new Date(now.getTime() - dayOfWeek * 86400000);
+      const weekEnd = new Date(weekStart.getTime() + 6 * 86400000);
+      return {
+        dateFrom: weekStart.toISOString().split("T")[0],
+        dateTo: weekEnd.toISOString().split("T")[0],
+        months: [],
+      };
+    }
+    if (level === "month") {
+      const y = now.getFullYear();
+      const m = String(now.getMonth() + 1).padStart(2, "0");
+      const monthKey = `${y}-${m}`;
+      const lastDay = new Date(y, now.getMonth() + 1, 0).getDate();
+      return {
+        dateFrom: `${monthKey}-01`,
+        dateTo: `${monthKey}-${String(lastDay).padStart(2, "0")}`,
+        months: [monthKey],
+      };
+    }
+    return { dateFrom: undefined, dateTo: undefined, months: [] };
+  }, []);
+
+  const handleDrillLevelClick = useCallback((level: DrillLevel) => {
+    setDrillLevel(level);
+    setDrillPath([]);
+    if (level === "year") {
+      setFilter(prev => ({ ...prev, months: [], dateFrom: undefined, dateTo: undefined }));
+    } else {
+      const range = getDateRangeForLevel(level);
+      setFilter(prev => ({ ...prev, months: range.months, dateFrom: range.dateFrom, dateTo: range.dateTo }));
+    }
+  }, [getDateRangeForLevel, setFilter]);
+
   const handleDrillDown = useCallback((label: string) => {
     if (drillLevel === "year") {
       setDrillPath(prev => [...prev, label]);
@@ -518,7 +559,7 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
             <div className="flex items-center gap-1 flex-wrap">
               {(["year", "month", "week", "day"] as DrillLevel[]).map(level => (
                 <Button key={level} variant={drillLevel === level ? "default" : "outline"} size="sm" className="h-6 text-[10px] px-2"
-                  onClick={() => { setDrillLevel(level); setDrillPath([]); setFilter(prev => ({ ...prev, months: [], dateFrom: undefined, dateTo: undefined })); }} data-testid={`button-drill-${level}`}>
+                  onClick={() => handleDrillLevelClick(level)} data-testid={`button-drill-${level}`}>
                   {level.charAt(0).toUpperCase() + level.slice(1)}
                 </Button>
               ))}
