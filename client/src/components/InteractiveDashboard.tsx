@@ -215,18 +215,18 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
     return sigs;
   }, [data, filter]);
 
-  const filteredSessionStats = useMemo(() => {
+  const activeSessionStats = useMemo(() => {
     if (!data?.sessionStats) return [];
-    let stats = data.sessionStats;
-    if (hasFilter) {
-      const sigSessionIds = new Set(filteredSignups.map((s: any) => s.sessionId));
-      stats = stats.filter((s: any) => sigSessionIds.has(s.id));
-    }
-    return stats;
+    if (!hasFilter) return data.sessionStats;
+    const sigSessionIds = new Set(filteredSignups.map((s: any) => s.sessionId));
+    return data.sessionStats.filter((s: any) => sigSessionIds.has(s.id));
   }, [data, filteredSignups, hasFilter]);
 
-  const activeSessionStats = hasFilter ? filteredSessionStats : (data?.sessionStats || []);
-  const activeSignups = hasFilter ? filteredSignups : (data?.signupsRaw || []);
+  const activeSignups = useMemo(() => {
+    if (!data?.signupsRaw) return [];
+    if (!hasFilter) return data.signupsRaw;
+    return filteredSignups;
+  }, [data, filteredSignups, hasFilter]);
 
   const kpis = useMemo(() => {
     const sessions = activeSessionStats.length;
@@ -236,8 +236,10 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
     const noShows = activeSignups.filter((s: any) => s.attendance === "NOT_ATTENDED").length;
     const tracked = activeSignups.filter((s: any) => ["ATTENDED", "NOT_ATTENDED", "PARTIAL_ATTENDANCE", "JUSTIFIED_CANCELLATION"].includes(s.attendance)).length;
     const totalCap = activeSessionStats.reduce((s: number, ss: any) => s + (ss.maxPlayers || 0), 0);
+    const distinctPlayers = new Set(activeSignups.map((s: any) => s.playerId)).size;
     return {
       totalSessions: sessions, totalPlayers: signups, totalRevenue: revenue, paidRevenue: paid,
+      distinctPlayers,
       avgPlayersPerSession: sessions > 0 ? Math.round((signups / sessions) * 10) / 10 : 0,
       revenuePerSession: sessions > 0 ? Math.round(revenue / sessions) : 0,
       revenuePerPlayer: signups > 0 ? Math.round(revenue / signups) : 0,
@@ -270,42 +272,76 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
   }, [activeSessionStats, drillLevel]);
 
   const clubBreakdown = useMemo(() => {
-    const source = activeSessionStats;
-    const map = new Map<number, { id: number; name: string; sessions: number; players: number; revenue: number; fillRate: number }>();
-    for (const s of source) {
-      if (!map.has(s.clubId)) map.set(s.clubId, { id: s.clubId, name: s.clubName || "Unknown", sessions: 0, players: 0, revenue: 0, fillRate: 0 });
-      const e = map.get(s.clubId)!;
+    const allStats = data?.sessionStats || [];
+    const filteredStats = activeSessionStats;
+    const allMap = new Map<number, { id: number; name: string; sessions: number; players: number; revenue: number; fillRate: number }>();
+    for (const s of allStats) {
+      if (!allMap.has(s.clubId)) allMap.set(s.clubId, { id: s.clubId, name: s.clubName || "Unknown", sessions: 0, players: 0, revenue: 0, fillRate: 0 });
+      const e = allMap.get(s.clubId)!;
       e.sessions++; e.players += s.players; e.revenue += s.revenue; e.fillRate += s.fillRate;
     }
-    return [...map.values()].map(v => ({
-      ...v, fillRate: v.sessions > 0 ? Math.round((v.fillRate / v.sessions) * 10) / 10 : 0,
-    })).sort((a, b) => b.revenue - a.revenue);
-  }, [activeSessionStats]);
+    const filtMap = new Map<number, { sessions: number; players: number; revenue: number }>();
+    for (const s of filteredStats) {
+      if (!filtMap.has(s.clubId)) filtMap.set(s.clubId, { sessions: 0, players: 0, revenue: 0 });
+      const e = filtMap.get(s.clubId)!;
+      e.sessions++; e.players += s.players; e.revenue += s.revenue;
+    }
+    return [...allMap.values()].map(v => {
+      const filt = filtMap.get(v.id);
+      return {
+        ...v,
+        fillRate: v.sessions > 0 ? Math.round((v.fillRate / v.sessions) * 10) / 10 : 0,
+        filteredPlayers: hasFilter ? (filt?.players ?? 0) : v.players,
+        filteredRevenue: hasFilter ? (filt?.revenue ?? 0) : v.revenue,
+        totalPlayers: v.players,
+        totalRevenue: v.revenue,
+      };
+    }).sort((a, b) => b.revenue - a.revenue);
+  }, [data, activeSessionStats]);
 
   const weekdayBreakdown = useMemo(() => {
-    const source = activeSessionStats;
+    const allStats = data?.sessionStats || [];
+    const filteredStats = activeSessionStats;
     const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return days.map((name, i) => {
-      const daySess = source.filter((s: any) => new Date(s.date).getDay() === i);
+      const allDaySess = allStats.filter((s: any) => new Date(s.date).getDay() === i);
+      const filtDaySess = filteredStats.filter((s: any) => new Date(s.date).getDay() === i);
+      const allPlayers = allDaySess.reduce((s: number, ss: any) => s + ss.players, 0);
+      const filtPlayers = filtDaySess.reduce((s: number, ss: any) => s + ss.players, 0);
       return {
-        day: i, dayName: name, sessions: daySess.length,
-        players: daySess.reduce((s: number, ss: any) => s + ss.players, 0),
-        revenue: daySess.reduce((s: number, ss: any) => s + ss.revenue, 0),
-        avgPlayers: daySess.length > 0 ? Math.round((daySess.reduce((s: number, ss: any) => s + ss.players, 0) / daySess.length) * 10) / 10 : 0,
+        day: i, dayName: name,
+        sessions: allDaySess.length,
+        players: allPlayers,
+        revenue: allDaySess.reduce((s: number, ss: any) => s + ss.revenue, 0),
+        avgPlayers: allDaySess.length > 0 ? Math.round((allPlayers / allDaySess.length) * 10) / 10 : 0,
+        filteredAvgPlayers: filtDaySess.length > 0 ? Math.round((filtPlayers / filtDaySess.length) * 10) / 10 : 0,
+        totalAvgPlayers: allDaySess.length > 0 ? Math.round((allPlayers / allDaySess.length) * 10) / 10 : 0,
       };
     });
-  }, [activeSessionStats]);
+  }, [data, activeSessionStats]);
 
   const sessionBreakdown = useMemo(() => {
-    const source = activeSessionStats;
-    const m = new Map<string, { title: string; sessions: number; players: number; revenue: number; avgFillRate: number }>();
-    for (const s of source) {
+    const allStats = data?.sessionStats || [];
+    const filteredStats = activeSessionStats;
+    const allMap = new Map<string, { title: string; sessions: number; players: number; revenue: number; avgFillRate: number }>();
+    for (const s of allStats) {
       const key = s.title || "Untitled";
-      if (!m.has(key)) m.set(key, { title: key, sessions: 0, players: 0, revenue: 0, avgFillRate: 0 });
-      const e = m.get(key)!; e.sessions++; e.players += s.players; e.revenue += s.revenue; e.avgFillRate += s.fillRate;
+      if (!allMap.has(key)) allMap.set(key, { title: key, sessions: 0, players: 0, revenue: 0, avgFillRate: 0 });
+      const e = allMap.get(key)!; e.sessions++; e.players += s.players; e.revenue += s.revenue; e.avgFillRate += s.fillRate;
     }
-    return [...m.values()].map(v => ({ ...v, avgFillRate: v.sessions > 0 ? Math.round((v.avgFillRate / v.sessions) * 10) / 10 : 0 })).sort((a, b) => b.revenue - a.revenue);
-  }, [activeSessionStats]);
+    const filtMap = new Map<string, { revenue: number }>();
+    for (const s of filteredStats) {
+      const key = s.title || "Untitled";
+      if (!filtMap.has(key)) filtMap.set(key, { revenue: 0 });
+      filtMap.get(key)!.revenue += s.revenue;
+    }
+    return [...allMap.values()].map(v => ({
+      ...v,
+      avgFillRate: v.sessions > 0 ? Math.round((v.avgFillRate / v.sessions) * 10) / 10 : 0,
+      filteredRevenue: hasFilter ? (filtMap.get(v.title)?.revenue ?? 0) : v.revenue,
+      totalRevenue: v.revenue,
+    })).sort((a, b) => b.revenue - a.revenue);
+  }, [data, activeSessionStats]);
 
   const filteredPlayers = useMemo(() => {
     if (!data?.playerStats) return [];
@@ -604,15 +640,24 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                   <CartesianGrid strokeDasharray="3 3" stroke="var(--border)" />
                   <XAxis dataKey="name" tick={{ fontSize: 9 }} />
                   <YAxis tick={{ fontSize: 9 }} />
-                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => name === "Revenue" ? formatPence(v) : v} />
+                  <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => {
+                    if (name === "Revenue" || name === "Total Revenue") return formatPence(v);
+                    return v;
+                  }} />
                   <Legend wrapperStyle={{ fontSize: 9 }} />
-                  <Bar dataKey="players" name="Players" radius={[3, 3, 0, 0]} cursor="pointer"
+                  {hasFilter && (
+                    <Bar dataKey="totalPlayers" name="Total Players" radius={[3, 3, 0, 0]} fill="#3b82f6" opacity={0.15} isAnimationActive={false} />
+                  )}
+                  <Bar dataKey="filteredPlayers" name="Players" radius={[3, 3, 0, 0]} cursor="pointer"
                     fill="#3b82f6"
                     shape={(props: any) => {
                       const isActive = filter.clubIds.length === 0 || filter.clubIds.includes(props.payload?.id);
                       return <rect {...props} opacity={isActive ? 1 : 0.3} />;
                     }} />
-                  <Bar dataKey="revenue" name="Revenue" radius={[3, 3, 0, 0]} cursor="pointer"
+                  {hasFilter && (
+                    <Bar dataKey="totalRevenue" name="Total Revenue" radius={[3, 3, 0, 0]} fill="#10b981" opacity={0.15} isAnimationActive={false} />
+                  )}
+                  <Bar dataKey="filteredRevenue" name="Revenue" radius={[3, 3, 0, 0]} cursor="pointer"
                     fill="#10b981"
                     shape={(props: any) => {
                       const isActive = filter.clubIds.length === 0 || filter.clubIds.includes(props.payload?.id);
@@ -648,7 +693,10 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                   <XAxis dataKey="dayName" tick={{ fontSize: 9 }} />
                   <YAxis tick={{ fontSize: 9 }} />
                   <Tooltip contentStyle={tooltipStyle} />
-                  <Bar dataKey="avgPlayers" name="Avg Players" radius={[3, 3, 0, 0]} cursor="pointer"
+                  {hasFilter && (
+                    <Bar dataKey="totalAvgPlayers" name="Total Avg" radius={[3, 3, 0, 0]} fill="#8b5cf6" opacity={0.15} isAnimationActive={false} />
+                  )}
+                  <Bar dataKey={hasFilter ? "filteredAvgPlayers" : "avgPlayers"} name="Avg Players" radius={[3, 3, 0, 0]} cursor="pointer"
                     fill="#8b5cf6"
                     shape={(props: any) => {
                       const isActive = filter.weekdays.length === 0 || filter.weekdays.includes(props.payload?.day);
@@ -684,7 +732,10 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
                   <XAxis type="number" tick={{ fontSize: 9 }} tickFormatter={(v: number) => formatPenceShort(v)} />
                   <YAxis dataKey="title" type="category" width={90} tick={{ fontSize: 8 }} />
                   <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => formatPence(v)} />
-                  <Bar dataKey="revenue" name="Revenue" radius={[0, 3, 3, 0]} cursor="pointer"
+                  {hasFilter && (
+                    <Bar dataKey="totalRevenue" name="Total Revenue" radius={[0, 3, 3, 0]} fill="#10b981" opacity={0.15} isAnimationActive={false} />
+                  )}
+                  <Bar dataKey={hasFilter ? "filteredRevenue" : "revenue"} name="Revenue" radius={[0, 3, 3, 0]} cursor="pointer"
                     fill="#10b981"
                     shape={(props: any) => {
                       const isActive = filter.sessionTitles.length === 0 || filter.sessionTitles.includes(props.payload?.title);
@@ -891,14 +942,34 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
 function MiniKpi({ label, value, icon: Icon, totalValue }: { label: string; value: string | number; icon: any; totalValue?: string | number }) {
   const hasTotal = totalValue !== undefined;
   const isChanged = hasTotal && totalValue !== value;
+
+  const pctLabel = useMemo(() => {
+    if (!isChanged) return null;
+    const parseNum = (v: string | number): number | null => {
+      if (typeof v === "number") return v;
+      const stripped = v.replace(/[£%,]/g, "");
+      const n = parseFloat(stripped);
+      return isNaN(n) ? null : n;
+    };
+    const cur = parseNum(value);
+    const total = parseNum(totalValue!);
+    if (cur === null || total === null || total === 0) return null;
+    const pct = Math.round((cur / total) * 100);
+    return `${pct}%`;
+  }, [value, totalValue, isChanged]);
+
   return (
-    <div className={`border rounded-lg p-2.5 text-center ${isChanged ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" : hasTotal ? "bg-card border-primary/20" : "bg-card"}`} data-testid={`mini-kpi-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
+    <div className={`border rounded-lg p-2.5 text-center transition-all duration-200 ${isChanged ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20 shadow-sm" : hasTotal ? "bg-card border-primary/20" : "bg-card"}`} data-testid={`mini-kpi-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
       <Icon className={`h-3.5 w-3.5 mx-auto mb-1 ${isChanged ? "text-primary" : "text-muted-foreground"}`} />
-      <div className="text-sm font-bold text-foreground truncate">{value}</div>
-      {hasTotal && (
-        <div className={`text-[8px] ${isChanged ? "text-muted-foreground line-through" : "text-muted-foreground/50"}`}>
-          {isChanged ? totalValue : "= total"}
+      <div className={`text-sm font-bold truncate ${isChanged ? "text-primary" : "text-foreground"}`}>{value}</div>
+      {hasTotal && isChanged && (
+        <div className="flex items-center justify-center gap-1">
+          <span className="text-[8px] text-muted-foreground line-through">{totalValue}</span>
+          {pctLabel && <span className="text-[8px] font-medium text-primary bg-primary/10 rounded px-1">{pctLabel}</span>}
         </div>
+      )}
+      {hasTotal && !isChanged && (
+        <div className="text-[8px] text-muted-foreground/50">= total</div>
       )}
       <div className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</div>
     </div>
