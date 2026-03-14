@@ -11,6 +11,7 @@ import { Loader2, TrendingUp, TrendingDown, Users, DollarSign, Calendar, BarChar
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart } from "recharts";
 import { apiRequest } from "@/lib/queryClient";
 import InteractiveDashboard from "@/components/InteractiveDashboard";
+import CommandCenterDashboard from "@/components/CommandCenterDashboard";
 
 const COLORS = ["#3b82f6", "#10b981", "#f59e0b", "#ef4444", "#8b5cf6", "#06b6d4", "#ec4899", "#f97316"];
 
@@ -40,7 +41,7 @@ export default function AnalyticsDashboard() {
   const [sessionSearch, setSessionSearch] = useState("");
   const [sessionPage, setSessionPage] = useState(0);
   const [sessionSort, setSessionSort] = useState<{ key: string; dir: "asc" | "desc" }>({ key: "revenue", dir: "desc" });
-  const [dashboardView, setDashboardView] = useState<"classic" | "interactive">("interactive");
+  const [dashboardView, setDashboardView] = useState<"classic" | "interactive" | "command">("interactive");
 
   const dateRange = useMemo(() => {
     const now = new Date();
@@ -190,6 +191,16 @@ export default function AnalyticsDashboard() {
               Interactive
             </Button>
             <Button
+              variant={dashboardView === "command" ? "default" : "ghost"}
+              size="sm"
+              className="h-7 text-xs gap-1.5 rounded-md"
+              onClick={() => setDashboardView("command")}
+              data-testid="button-view-command"
+            >
+              <Zap className="h-3.5 w-3.5" />
+              Command Center
+            </Button>
+            <Button
               variant={dashboardView === "classic" ? "default" : "ghost"}
               size="sm"
               className="h-7 text-xs gap-1.5 rounded-md"
@@ -294,6 +305,8 @@ export default function AnalyticsDashboard() {
         <div className="text-center py-20 text-muted-foreground">No data available</div>
       ) : dashboardView === "interactive" ? (
         <InteractiveDashboard data={data} />
+      ) : dashboardView === "command" ? (
+        <CommandCenterDashboard data={data} />
       ) : (
         <>
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="kpi-cards">
