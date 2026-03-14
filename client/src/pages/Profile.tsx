@@ -1,6 +1,8 @@
 import { useState, useRef, useMemo } from "react";
 import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import heroMalePath from "@assets/hero_male_player.png";
+import heroFemalePath from "@assets/hero_female_player.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -2154,144 +2156,150 @@ export default function Profile() {
       )}
 
       {/* HERO BANNER */}
-      <div className="relative rounded-2xl overflow-hidden" data-testid="card-profile-header" style={{
-        background: "linear-gradient(135deg, #0f0c29 0%, #1a1a3e 35%, #24243e 65%, #1a1a3e 100%)",
-      }}>
-        <div className="absolute inset-0" style={{
-          backgroundImage: "radial-gradient(circle at 20% 80%, rgba(99,102,241,0.08) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(139,92,246,0.06) 0%, transparent 50%)",
-        }} />
-        <div className="absolute inset-0 opacity-[0.03]" style={{
-          backgroundImage: "repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,0.05) 40px, rgba(255,255,255,0.05) 41px), repeating-linear-gradient(90deg, transparent, transparent 40px, rgba(255,255,255,0.05) 40px, rgba(255,255,255,0.05) 41px)",
-        }} />
+      {(() => {
+        const isFemale = primaryProfile?.gender?.toLowerCase() === "female";
+        const heroImg = isFemale ? heroFemalePath : heroMalePath;
+        return (
+          <div className="relative rounded-2xl overflow-hidden" data-testid="card-profile-header" style={{ minHeight: "280px" }}>
+            <img src={heroImg} alt="" className="absolute inset-0 w-full h-full object-cover object-top" />
+            <div className="absolute inset-0" style={{
+              background: "linear-gradient(90deg, rgba(15,12,41,0.92) 0%, rgba(15,12,41,0.75) 40%, rgba(15,12,41,0.3) 70%, rgba(15,12,41,0.15) 100%)",
+            }} />
+            <div className="absolute inset-0" style={{
+              background: "linear-gradient(to top, rgba(15,12,41,0.95) 0%, transparent 40%)",
+            }} />
 
-        <div className="relative p-4 sm:p-6 md:p-8">
-          <div className="flex items-start gap-4 sm:gap-6">
-            <div className="relative shrink-0">
-              {(() => {
-                const avatarUrl = getAvatarUrl((user as any).selectedAvatar);
-                return avatarUrl ? (
-                  <div className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-xl overflow-hidden ring-2 ring-indigo-400/50 shadow-[0_0_25px_rgba(99,102,241,0.3)]">
-                    <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" data-testid="img-profile-3d-avatar" />
-                  </div>
-                ) : (
-                  <Avatar className="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 rounded-xl ring-2 ring-indigo-400/50 shadow-[0_0_25px_rgba(99,102,241,0.3)]">
-                    {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} className="rounded-xl" /> : null}
-                    <AvatarFallback className="text-2xl sm:text-3xl rounded-xl bg-indigo-900/50 text-white/90">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
-                  </Avatar>
-                );
-              })()}
-              <div className="absolute -bottom-2 -right-2 flex gap-0.5">
-                <AvatarPicker
-                  currentAvatar={(user as any).selectedAvatar}
-                  trigger={
-                    <button className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full p-1.5 shadow-lg shadow-indigo-500/30" data-testid="button-open-avatar-picker-profile">
-                      <Sparkles className="w-3.5 h-3.5" />
+            <div className="relative h-full flex flex-col justify-between p-4 sm:p-6 md:p-8" style={{ minHeight: "280px" }}>
+              <div className="flex items-start gap-4 sm:gap-5">
+                <div className="relative shrink-0">
+                  {(() => {
+                    const avatarUrl = getAvatarUrl((user as any).selectedAvatar);
+                    return avatarUrl ? (
+                      <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl overflow-hidden ring-2 ring-white/20 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                        <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" data-testid="img-profile-3d-avatar" />
+                      </div>
+                    ) : (
+                      <Avatar className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl ring-2 ring-white/20 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                        {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} className="rounded-xl" /> : null}
+                        <AvatarFallback className="text-xl sm:text-2xl rounded-xl bg-indigo-900/60 text-white/90">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
+                      </Avatar>
+                    );
+                  })()}
+                  <div className="absolute -bottom-2 -right-2 flex gap-0.5">
+                    <AvatarPicker
+                      currentAvatar={(user as any).selectedAvatar}
+                      trigger={
+                        <button className="bg-gradient-to-r from-indigo-500 to-purple-500 text-white rounded-full p-1.5 shadow-lg" data-testid="button-open-avatar-picker-profile">
+                          <Sparkles className="w-3 h-3" />
+                        </button>
+                      }
+                    />
+                    <button className="bg-black/40 backdrop-blur text-white rounded-full p-1.5 shadow-lg border border-white/10" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
+                      {isUploadingPic ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
                     </button>
-                  }
-                />
-                <button className="bg-white/10 backdrop-blur text-white rounded-full p-1.5 shadow-lg border border-white/10" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
-                  {isUploadingPic ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Camera className="w-3.5 h-3.5" />}
-                </button>
-              </div>
-              <input type="file" accept="image/*" className="hidden" ref={profilePicInputRef}
-                onChange={(e) => { const file = e.target.files?.[0]; if (file) { uploadProfilePicture({ file }); e.target.value = ""; } }} data-testid="input-profile-pic" />
-            </div>
+                  </div>
+                  <input type="file" accept="image/*" className="hidden" ref={profilePicInputRef}
+                    onChange={(e) => { const file = e.target.files?.[0]; if (file) { uploadProfilePicture({ file }); e.target.value = ""; } }} data-testid="input-profile-pic" />
+                </div>
 
-            <div className="flex-1 min-w-0 pt-1">
-              <div className="flex items-center gap-2 flex-wrap">
-                <h1 className="text-xl sm:text-2xl md:text-3xl font-black uppercase tracking-wide text-white" style={{ textShadow: "0 2px 10px rgba(99,102,241,0.3)" }} data-testid="text-user-name">{user.fullName || "New User"}</h1>
-                {(user as any).blackCardAccess && (
-                  <Crown className="h-5 w-5 text-amber-400 shrink-0 drop-shadow-[0_0_6px_rgba(251,191,36,0.4)]" data-testid="icon-black-card-holder" />
-                )}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h1 className="text-2xl sm:text-3xl md:text-4xl font-black uppercase tracking-wide text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.6)]" data-testid="text-user-name">{user.fullName || "New User"}</h1>
+                    {(user as any).blackCardAccess && (
+                      <Crown className="h-6 w-6 text-amber-400 shrink-0 drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" data-testid="icon-black-card-holder" />
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
+                    <Badge className="bg-white/10 text-white/90 border border-white/20 backdrop-blur-sm hover:bg-white/20" data-testid="badge-role">
+                      <Shield className="h-3 w-3 mr-1" />
+                      {user.role === "OWNER" ? "Platform Owner" : user.role.charAt(0) + user.role.slice(1).toLowerCase()}
+                    </Badge>
+                    {primaryProfile?.grade && (
+                      <Badge className="bg-amber-500/20 text-amber-200 border border-amber-400/30 backdrop-blur-sm hover:bg-amber-500/30" data-testid="badge-grade">
+                        <Award className="h-3 w-3 mr-1" />
+                        Grade {primaryProfile.grade}
+                      </Badge>
+                    )}
+                    {mySquadStatus && mySquadStatus.length > 0 && (
+                      <Badge className="bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 backdrop-blur-sm hover:bg-emerald-500/30" data-testid="badge-league-player">
+                        <Trophy className="h-3 w-3 mr-1" />
+                        League Player
+                      </Badge>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-white/50 flex-wrap">
+                    {(user as any)?.email && (
+                      <span data-testid="text-email">{user.email}</span>
+                    )}
+                    {(user as any)?.city && (
+                      <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{(user as any).city}{(user as any).country ? `, ${(user as any).country}` : ""}</span>
+                    )}
+                  </div>
+                  {profiles && profiles.length > 0 && (
+                    <Badge className="text-xs cursor-pointer mt-2 bg-white/5 text-white/70 border border-white/10 hover:bg-white/10" onClick={() => setClubsModalOpen(true)} data-testid="badge-clubs-count">
+                      <Building2 className="h-3 w-3 mr-1" />
+                      {profiles.length} Club{profiles.length !== 1 ? "s" : ""}
+                      <ChevronRight className="h-3 w-3 ml-1" />
+                    </Badge>
+                  )}
+                </div>
+
+                <div className="flex gap-2 shrink-0">
+                  <Button size="sm" className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur-sm" onClick={startEditing} data-testid="button-edit-profile">
+                    <Pencil className="h-3.5 w-3.5 sm:mr-1" />
+                    <span className="hidden sm:inline">Edit</span>
+                  </Button>
+                  <Button size="sm" className="bg-white/5 hover:bg-white/10 text-white/70 border border-white/10 backdrop-blur-sm" onClick={handleLogout} data-testid="button-logout">
+                    <LogOut className="h-3.5 w-3.5 sm:mr-1" />
+                    <span className="hidden sm:inline">Sign Out</span>
+                  </Button>
+                </div>
               </div>
 
-              <div className="flex items-center gap-1.5 sm:gap-2 mt-2 flex-wrap">
-                <Badge className="bg-indigo-500/20 text-indigo-200 border border-indigo-400/30 hover:bg-indigo-500/30" data-testid="badge-role">
-                  <Shield className="h-3 w-3 mr-1" />
-                  {user.role === "OWNER" ? "Platform Owner" : user.role.charAt(0) + user.role.slice(1).toLowerCase()}
-                </Badge>
-                {primaryProfile?.grade && (
-                  <Badge className="bg-amber-500/15 text-amber-200 border border-amber-400/25 hover:bg-amber-500/25" data-testid="badge-grade">
-                    <Award className="h-3 w-3 mr-1" />
-                    Grade {primaryProfile.grade}
-                  </Badge>
-                )}
-                {mySquadStatus && mySquadStatus.length > 0 && (
-                  <Badge className="bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 hover:bg-emerald-500/30" data-testid="badge-league-player">
-                    <Trophy className="h-3 w-3 mr-1" />
-                    League Player
-                  </Badge>
-                )}
-              </div>
-
-              <div className="flex items-center gap-3 sm:gap-4 mt-2 text-xs sm:text-sm text-white/50 flex-wrap">
-                {(user as any)?.email && (
-                  <span data-testid="text-email">{user.email}</span>
-                )}
-                {(user as any)?.city && (
-                  <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{(user as any).city}{(user as any).country ? `, ${(user as any).country}` : ""}</span>
-                )}
-              </div>
-              {profiles && profiles.length > 0 && (
-                <Badge className="text-xs cursor-pointer mt-2 bg-white/5 text-white/70 border border-white/10 hover:bg-white/10" onClick={() => setClubsModalOpen(true)} data-testid="badge-clubs-count">
-                  <Building2 className="h-3 w-3 mr-1" />
-                  {profiles.length} Club{profiles.length !== 1 ? "s" : ""}
-                  <ChevronRight className="h-3 w-3 ml-1" />
-                </Badge>
+              {mySquadStatus && mySquadStatus.length > 0 && (
+                <div className="hidden md:flex flex-col items-center justify-center absolute top-4 right-4 md:top-6 md:right-6" data-testid="league-player-emblem">
+                  <div className="relative w-16 h-16 flex items-center justify-center">
+                    <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-teal-500/20 animate-pulse" />
+                    <div className="absolute inset-1 rounded-full border-2 border-emerald-400/40 border-dashed" style={{ animation: "spin 12s linear infinite" }} />
+                    <div className="relative w-10 h-10 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/40">
+                      <svg viewBox="0 0 40 40" className="w-6 h-6 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" fill="currentColor" opacity="0.3" />
+                        <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" />
+                        <circle cx="20" cy="19" r="5" fill="currentColor" opacity="0.5" />
+                        <path d="M17 19L19 21L23 17" strokeWidth="1.5" />
+                      </svg>
+                    </div>
+                  </div>
+                  <span className="text-[8px] font-bold uppercase tracking-widest text-emerald-400 mt-0.5">League</span>
+                </div>
               )}
-            </div>
 
-            {mySquadStatus && mySquadStatus.length > 0 && (
-              <div className="hidden sm:flex flex-col items-center justify-center shrink-0" data-testid="league-player-emblem">
-                <div className="relative w-20 h-20 flex items-center justify-center">
-                  <div className="absolute inset-0 rounded-full bg-gradient-to-br from-emerald-500/20 via-emerald-600/10 to-teal-500/20 animate-pulse" />
-                  <div className="absolute inset-1 rounded-full border-2 border-emerald-400/40 border-dashed" style={{ animation: "spin 12s linear infinite" }} />
-                  <div className="relative w-14 h-14 rounded-full bg-gradient-to-br from-emerald-500 to-teal-600 flex items-center justify-center shadow-lg shadow-emerald-500/40">
-                    <svg viewBox="0 0 40 40" className="w-8 h-8 text-white" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                      <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" fill="currentColor" opacity="0.3" />
-                      <path d="M20 4L24 14H36L26 21L30 32L20 25L10 32L14 21L4 14H16L20 4Z" />
-                      <circle cx="20" cy="19" r="5" fill="currentColor" opacity="0.5" />
-                      <path d="M17 19L19 21L23 17" strokeWidth="1.5" />
-                    </svg>
+              <div className="mt-auto pt-4">
+                <div className="grid grid-cols-4 gap-3 sm:gap-8 max-w-md">
+                  <div>
+                    <p className="text-2xl sm:text-3xl font-black text-white drop-shadow-[0_2px_8px_rgba(0,0,0,0.5)]">{performance.played}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Matches</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl sm:text-3xl font-black text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.3)]">{performance.won}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Won</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl sm:text-3xl font-black text-rose-400 drop-shadow-[0_0_10px_rgba(251,113,133,0.3)]">{performance.lost}</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Lost</p>
+                  </div>
+                  <div>
+                    <p className="text-2xl sm:text-3xl font-black text-indigo-300 drop-shadow-[0_0_10px_rgba(165,180,252,0.3)]">{performance.winPct}%</p>
+                    <p className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Win Rate</p>
                   </div>
                 </div>
-                <span className="text-[9px] font-bold uppercase tracking-widest text-emerald-400 mt-1">League Player</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center justify-between mt-4 pt-4" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-            <div className="grid grid-cols-4 gap-3 sm:gap-6 flex-1">
-              <div className="text-center">
-                <p className="text-lg sm:text-xl font-bold text-white" style={{ textShadow: "0 0 10px rgba(99,102,241,0.4)" }}>{performance.played}</p>
-                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Matches</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg sm:text-xl font-bold text-emerald-400">{performance.won}</p>
-                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Won</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg sm:text-xl font-bold text-rose-400">{performance.lost}</p>
-                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Lost</p>
-              </div>
-              <div className="text-center">
-                <p className="text-lg sm:text-xl font-bold text-indigo-300">{performance.winPct}%</p>
-                <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Win Rate</p>
               </div>
             </div>
-            <div className="flex gap-2 ml-4 shrink-0">
-              <Button size="sm" className="bg-white/10 hover:bg-white/20 text-white border border-white/10 backdrop-blur" onClick={startEditing} data-testid="button-edit-profile">
-                <Pencil className="h-3.5 w-3.5 mr-1" />
-                Edit
-              </Button>
-              <Button size="sm" className="bg-white/5 hover:bg-white/10 text-white/70 border border-white/10" onClick={handleLogout} data-testid="button-logout">
-                <LogOut className="h-3.5 w-3.5 mr-1" />
-                Sign Out
-              </Button>
-            </div>
           </div>
-        </div>
-      </div>
+        );
+      })()}
 
       {mySquadStatus && mySquadStatus.length > 0 && (
         <Card data-testid="card-league-squad-status">
