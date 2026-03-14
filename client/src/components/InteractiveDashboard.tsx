@@ -345,13 +345,8 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
   const handleDrillLevelClick = useCallback((level: DrillLevel) => {
     setDrillLevel(level);
     setDrillPath([]);
-    if (level === "year") {
-      setFilter(prev => ({ ...prev, months: [], dateFrom: undefined, dateTo: undefined }));
-    } else {
-      const range = getDateRangeForLevel(level);
-      setFilter(prev => ({ ...prev, months: range.months, dateFrom: range.dateFrom, dateTo: range.dateTo }));
-    }
-  }, [getDateRangeForLevel, setFilter]);
+    setFilter(prev => ({ ...prev, months: [], dateFrom: undefined, dateTo: undefined }));
+  }, [setFilter]);
 
   const handleDrillDown = useCallback((label: string) => {
     if (drillLevel === "year") {
