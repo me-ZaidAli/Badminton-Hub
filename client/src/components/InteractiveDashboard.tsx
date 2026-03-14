@@ -440,13 +440,13 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
       <p className="text-[10px] text-muted-foreground">Tap a chart bar to filter/unfilter. Long-press (hold) to enable multi-select for that chart.</p>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2" data-testid="interactive-kpis">
-        <MiniKpi label="Sessions" value={kpis?.totalSessions || 0} icon={Calendar} />
-        <MiniKpi label="Signups" value={kpis?.totalPlayers || 0} icon={Users} />
-        <MiniKpi label="Revenue" value={formatPence(kpis?.totalRevenue || 0)} icon={DollarSign} />
-        <MiniKpi label="Rev/Session" value={formatPence(kpis?.revenuePerSession || 0)} icon={DollarSign} />
-        <MiniKpi label="Avg Players" value={kpis?.avgPlayersPerSession || 0} icon={Users} />
-        <MiniKpi label="Fill Rate" value={`${kpis?.fillRate || 0}%`} icon={Target} />
-        <MiniKpi label="No-Show" value={`${kpis?.noShowRate || 0}%`} icon={Activity} />
+        <MiniKpi label="Sessions" value={kpis?.totalSessions || 0} icon={Calendar} totalValue={hasFilter ? (data?.kpis?.totalSessions || 0) : undefined} />
+        <MiniKpi label="Signups" value={kpis?.totalPlayers || 0} icon={Users} totalValue={hasFilter ? (data?.kpis?.totalPlayers || 0) : undefined} />
+        <MiniKpi label="Revenue" value={formatPence(kpis?.totalRevenue || 0)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.totalRevenue || 0) : undefined} />
+        <MiniKpi label="Rev/Session" value={formatPence(kpis?.revenuePerSession || 0)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.revenuePerSession || 0) : undefined} />
+        <MiniKpi label="Avg Players" value={kpis?.avgPlayersPerSession || 0} icon={Users} totalValue={hasFilter ? (data?.kpis?.avgPlayersPerSession || 0) : undefined} />
+        <MiniKpi label="Fill Rate" value={`${kpis?.fillRate || 0}%`} icon={Target} totalValue={hasFilter ? `${data?.kpis?.fillRate || 0}%` : undefined} />
+        <MiniKpi label="No-Show" value={`${kpis?.noShowRate || 0}%`} icon={Activity} totalValue={hasFilter ? `${data?.kpis?.noShowRate || 0}%` : undefined} />
       </div>
 
       <Card data-testid="master-chart">
@@ -815,11 +815,18 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
   );
 }
 
-function MiniKpi({ label, value, icon: Icon }: { label: string; value: string | number; icon: any }) {
+function MiniKpi({ label, value, icon: Icon, totalValue }: { label: string; value: string | number; icon: any; totalValue?: string | number }) {
+  const hasTotal = totalValue !== undefined;
+  const isChanged = hasTotal && totalValue !== value;
   return (
-    <div className="bg-card border rounded-lg p-2.5 text-center" data-testid={`mini-kpi-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
-      <Icon className="h-3.5 w-3.5 mx-auto text-muted-foreground mb-1" />
+    <div className={`border rounded-lg p-2.5 text-center ${isChanged ? "bg-primary/5 border-primary/30 ring-1 ring-primary/20" : hasTotal ? "bg-card border-primary/20" : "bg-card"}`} data-testid={`mini-kpi-${label.toLowerCase().replace(/[^a-z]/g, "-")}`}>
+      <Icon className={`h-3.5 w-3.5 mx-auto mb-1 ${isChanged ? "text-primary" : "text-muted-foreground"}`} />
       <div className="text-sm font-bold text-foreground truncate">{value}</div>
+      {hasTotal && (
+        <div className={`text-[8px] ${isChanged ? "text-muted-foreground line-through" : "text-muted-foreground/50"}`}>
+          {isChanged ? totalValue : "= total"}
+        </div>
+      )}
       <div className="text-[9px] text-muted-foreground uppercase tracking-wide">{label}</div>
     </div>
   );
