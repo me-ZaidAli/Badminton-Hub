@@ -20,7 +20,7 @@ import {
   CircleOff, Zap, Crown, Gem, Trophy, Target, BarChart3, Activity, CalendarDays,
   PoundSterling, ChevronRight, ChevronDown, Star, Clock, Award, Building2, Tag, ExternalLink, Gift, PartyPopper, Lock, Cake, CheckCircle,
   Diamond, Snowflake, Leaf, Rocket, Flame, Sparkles, Cpu, Waves, Sunset, Monitor,
-  CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Gauge, Orbit, Ghost
+  CircuitBoard, Binary, Radio, Hexagon, Heart, Grid3x3, Mountain, Droplets, TreePine, Gauge, Orbit, Ghost, Copy, ArrowLeft, Ticket, Store, CalendarCheck
 } from "lucide-react";
 import { Switch } from "@/components/ui/switch";
 import { format } from "date-fns";
@@ -1144,14 +1144,198 @@ function MembershipsModal({ open, onClose, memberships }: {
   );
 }
 
+function DiscountCodeFullView({ code, clubName, onBack }: { code: any; clubName: string; onBack: () => void }) {
+  const { toast } = useToast();
+  const [copied, setCopied] = useState(false);
+  const isExpired = code.validUntil && new Date(code.validUntil) < new Date();
+  const daysLeft = code.validUntil ? Math.max(0, Math.ceil((new Date(code.validUntil).getTime() - Date.now()) / 86400000)) : null;
+
+  const handleCopy = () => {
+    navigator.clipboard.writeText(code.code).then(() => {
+      setCopied(true);
+      toast({ title: "Copied!", description: "Discount code copied to clipboard" });
+      setTimeout(() => setCopied(false), 2000);
+    });
+  };
+
+  const barcodeLines = useMemo(() => {
+    const lines: number[] = [];
+    let seed = code.code.split("").reduce((a: number, c: string) => a + c.charCodeAt(0), 0);
+    for (let i = 0; i < 60; i++) {
+      seed = (seed * 1103515245 + 12345) & 0x7fffffff;
+      lines.push(1 + (seed % 4));
+    }
+    return lines;
+  }, [code.code]);
+
+  return (
+    <div className="fixed inset-0 z-[100] flex flex-col" style={{
+      background: "linear-gradient(160deg, #0f0a2e 0%, #1a1145 25%, #2d1b69 50%, #1e1250 75%, #0c0820 100%)",
+    }} data-testid={`discount-fullview-${code.codeId}`}>
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        <div className="absolute top-[-20%] right-[-10%] w-[500px] h-[500px] rounded-full" style={{ background: "radial-gradient(circle, rgba(139,92,246,0.15) 0%, transparent 60%)" }} />
+        <div className="absolute bottom-[-10%] left-[-10%] w-[400px] h-[400px] rounded-full" style={{ background: "radial-gradient(circle, rgba(236,72,153,0.1) 0%, transparent 60%)" }} />
+        <div className="absolute top-[30%] left-[20%] w-[300px] h-[300px] rounded-full" style={{ background: "radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 60%)" }} />
+      </div>
+
+      <div className="relative z-10 flex items-center justify-between p-4 sm:p-6">
+        <button onClick={onBack} className="flex items-center gap-2 text-white/70 hover:text-white transition-colors" data-testid="btn-back-discount">
+          <ArrowLeft className="h-5 w-5" />
+          <span className="text-sm font-medium">Back</span>
+        </button>
+        <div className="flex items-center gap-2 text-white/50">
+          <Building2 className="h-4 w-4" />
+          <span className="text-sm">{clubName}</span>
+        </div>
+      </div>
+
+      <div className="relative z-10 flex-1 flex flex-col items-center justify-center px-4 pb-8 overflow-y-auto">
+        <div className="w-full max-w-[400px] space-y-6">
+          {code.discountPercent && (
+            <div className="text-center">
+              <div className="inline-flex items-baseline gap-1">
+                <span className="text-[80px] sm:text-[100px] font-black leading-none tracking-tighter" style={{
+                  background: "linear-gradient(135deg, #f59e0b, #fbbf24, #f59e0b)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                  filter: "drop-shadow(0 4px 20px rgba(245,158,11,0.3))",
+                }}>{code.discountPercent}</span>
+                <span className="text-3xl sm:text-4xl font-black" style={{
+                  background: "linear-gradient(135deg, #fbbf24, #f59e0b)",
+                  WebkitBackgroundClip: "text",
+                  WebkitTextFillColor: "transparent",
+                }}>% OFF</span>
+              </div>
+            </div>
+          )}
+
+          <div className="rounded-2xl overflow-hidden" style={{
+            background: "linear-gradient(135deg, rgba(255,255,255,0.12) 0%, rgba(255,255,255,0.05) 100%)",
+            border: "1px solid rgba(255,255,255,0.12)",
+            backdropFilter: "blur(20px)",
+            boxShadow: "0 25px 50px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.1)",
+          }}>
+            <div className="p-6 space-y-5">
+              <div className="text-center space-y-2">
+                <button
+                  onClick={handleCopy}
+                  className="group relative inline-flex items-center gap-3 px-6 py-3 rounded-xl transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, rgba(245,158,11,0.2) 0%, rgba(251,191,36,0.1) 100%)",
+                    border: "1.5px dashed rgba(245,158,11,0.5)",
+                  }}
+                  data-testid={`btn-copy-code-${code.codeId}`}
+                >
+                  <span className="font-mono text-2xl sm:text-3xl font-black tracking-[0.15em] text-amber-300">{code.code}</span>
+                  {copied ? (
+                    <CheckCircle className="h-5 w-5 text-green-400" />
+                  ) : (
+                    <Copy className="h-5 w-5 text-amber-400/60 group-hover:text-amber-300 transition-colors" />
+                  )}
+                </button>
+                <p className="text-xs text-white/40">{copied ? "Copied to clipboard!" : "Tap to copy code"}</p>
+              </div>
+
+              {code.description && (
+                <p className="text-center text-white/70 text-sm leading-relaxed">{code.description}</p>
+              )}
+
+              <div className="flex justify-center py-2" data-testid="discount-barcode">
+                <svg width="240" height="60" viewBox="0 0 240 60">
+                  {barcodeLines.map((w, i) => (
+                    <rect key={i} x={i * 4} y="0" width={w} height="50" fill="rgba(255,255,255,0.6)" rx="0.5" />
+                  ))}
+                  <text x="120" y="58" textAnchor="middle" fill="rgba(255,255,255,0.35)" fontSize="7" fontFamily="monospace">{code.code}</text>
+                </svg>
+              </div>
+            </div>
+
+            <div className="relative">
+              <div className="absolute left-0 top-0 w-full flex justify-between px-0" style={{ transform: "translateY(-50%)" }}>
+                <div className="w-5 h-5 rounded-full" style={{ background: "#0f0a2e", marginLeft: "-10px" }} />
+                <div className="w-5 h-5 rounded-full" style={{ background: "#0f0a2e", marginRight: "-10px" }} />
+              </div>
+              <div className="border-t border-dashed border-white/10 mx-5" />
+            </div>
+
+            <div className="p-6 space-y-4">
+              {code.shopName && (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className="w-10 h-10 rounded-lg flex items-center justify-center" style={{ background: "linear-gradient(135deg, rgba(245,158,11,0.2), rgba(251,191,36,0.1))" }}>
+                    <Store className="h-5 w-5 text-amber-400" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Shop</p>
+                    {code.shopUrl ? (
+                      <a href={code.shopUrl} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-amber-300 hover:text-amber-200 flex items-center gap-1.5 transition-colors" data-testid={`link-shop-full-${code.codeId}`}>
+                        {code.shopName} <ExternalLink className="h-3.5 w-3.5" />
+                      </a>
+                    ) : (
+                      <p className="text-sm font-semibold text-white">{code.shopName}</p>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              {code.validUntil && (
+                <div className="flex items-center gap-3 p-3 rounded-xl" style={{ background: "rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.06)" }}>
+                  <div className={`w-10 h-10 rounded-lg flex items-center justify-center`} style={{
+                    background: isExpired ? "rgba(239,68,68,0.15)" : "rgba(34,197,94,0.15)",
+                  }}>
+                    <CalendarCheck className={`h-5 w-5 ${isExpired ? "text-red-400" : "text-green-400"}`} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[10px] uppercase tracking-wider text-white/40 font-medium">Valid Until</p>
+                    <p className={`text-sm font-semibold ${isExpired ? "text-red-400" : "text-white"}`}>
+                      {format(new Date(code.validUntil), "MMMM d, yyyy")}
+                    </p>
+                  </div>
+                  {!isExpired && daysLeft !== null && (
+                    <Badge className={`${daysLeft <= 7 ? "bg-red-500/20 text-red-300 border-red-500/30" : "bg-green-500/20 text-green-300 border-green-500/30"} border no-default-hover-elevate text-xs`}>
+                      {daysLeft}d left
+                    </Badge>
+                  )}
+                </div>
+              )}
+
+              {code.shopUrl && (
+                <a href={code.shopUrl} target="_blank" rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 w-full py-3.5 rounded-xl text-sm font-bold tracking-wide transition-all duration-200 hover:scale-[1.02] active:scale-[0.98]"
+                  style={{
+                    background: "linear-gradient(135deg, #f59e0b 0%, #d97706 100%)",
+                    color: "#fff",
+                    boxShadow: "0 8px 24px rgba(245,158,11,0.3), inset 0 1px 0 rgba(255,255,255,0.2)",
+                  }}
+                  data-testid={`btn-shop-now-${code.codeId}`}
+                >
+                  <Store className="h-4 w-4" />
+                  Shop Now
+                  <ExternalLink className="h-3.5 w-3.5" />
+                </a>
+              )}
+            </div>
+          </div>
+
+          <p className="text-center text-white/30 text-xs">Exclusive member discount from {clubName}</p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function DiscountCodesModal({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { data: discountData = [], isLoading } = useQuery<{ clubId: number; clubName: string; codes: any[] }[]>({
     queryKey: ["/api/my-discount-codes"],
     enabled: open,
   });
+  const [selectedCode, setSelectedCode] = useState<{ code: any; clubName: string } | null>(null);
+
+  if (selectedCode) {
+    return <DiscountCodeFullView code={selectedCode.code} clubName={selectedCode.clubName} onBack={() => setSelectedCode(null)} />;
+  }
 
   return (
-    <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
+    <Dialog open={open} onOpenChange={(o) => { if (!o) { setSelectedCode(null); onClose(); } }}>
       <DialogContent className="sm:max-w-[500px] max-h-[80vh] overflow-y-auto" data-testid="modal-discount-codes">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -1177,16 +1361,21 @@ function DiscountCodesModal({ open, onClose }: { open: boolean; onClose: () => v
                   {club.codes.map((code: any) => (
                     <div
                       key={code.codeId}
-                      className="rounded-md bg-gradient-to-br from-amber-600 via-amber-500 to-yellow-400 dark:from-amber-700 dark:via-amber-600 dark:to-yellow-500 p-[1px]"
+                      className="rounded-md bg-gradient-to-br from-amber-600 via-amber-500 to-yellow-400 dark:from-amber-700 dark:via-amber-600 dark:to-yellow-500 p-[1px] cursor-pointer transition-transform hover:scale-[1.01] active:scale-[0.99]"
+                      onClick={() => setSelectedCode({ code, clubName: club.clubName })}
+                      data-testid={`discount-card-${code.codeId}`}
                     >
                       <div className="rounded-md bg-background/95 dark:bg-background/90 p-3 space-y-2">
                         <div className="flex items-center justify-between gap-2 flex-wrap">
                           <Badge variant="outline" className="font-mono text-sm tracking-wider border-amber-500/30 no-default-hover-elevate">
                             {code.code}
                           </Badge>
-                          {code.discountPercent && (
-                            <Badge className="bg-amber-500 text-white no-default-hover-elevate">{code.discountPercent}% OFF</Badge>
-                          )}
+                          <div className="flex items-center gap-2">
+                            {code.discountPercent && (
+                              <Badge className="bg-amber-500 text-white no-default-hover-elevate">{code.discountPercent}% OFF</Badge>
+                            )}
+                            <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                          </div>
                         </div>
                         {code.description && (
                           <p className="text-sm text-muted-foreground">{code.description}</p>
@@ -1195,13 +1384,7 @@ function DiscountCodesModal({ open, onClose }: { open: boolean; onClose: () => v
                           <div className="flex items-center gap-2 text-sm">
                             <Star className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
                             <span className="text-muted-foreground">Shop:</span>
-                            {code.shopUrl ? (
-                              <a href={code.shopUrl} target="_blank" rel="noopener noreferrer" className="text-primary flex items-center gap-1" data-testid={`link-shop-${code.codeId}`}>
-                                {code.shopName} <ExternalLink className="h-3 w-3" />
-                              </a>
-                            ) : (
-                              <span className="font-medium">{code.shopName}</span>
-                            )}
+                            <span className="font-medium">{code.shopName}</span>
                           </div>
                         )}
                         {code.validUntil && (
