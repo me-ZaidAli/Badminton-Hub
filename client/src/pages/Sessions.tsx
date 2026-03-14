@@ -529,6 +529,7 @@ export default function Sessions() {
   const { data: sessionClubs } = useMySessionClubs(!!user);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+  const [sessionsScope, setSessionsScope] = useState<"regular" | "juniors">("regular");
   const [clubScope, setClubScope] = useState<"my" | "all">("my");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [sessionTypeFilter, setSessionTypeFilter] = useState<"all" | "grouped" | "single">("all");
@@ -752,6 +753,64 @@ export default function Sessions() {
     return result.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [sessions, selectedClubId, searchQuery, managedClubIds, isPlatformAdmin]);
 
+  const juniorFilteredSessions = useMemo(() => {
+    let result = sessions;
+    if (!result) return [];
+    result = result.filter(s => (s as any).sessionType === "JUNIORS_ONLY");
+    result = result.filter(s => {
+      const isScheduled = (s as any).publishAt && new Date((s as any).publishAt) > new Date();
+      if (isScheduled) return false;
+      return true;
+    });
+    if (!isPlatformAdmin && clubScope === "my") {
+      result = result.filter(s => myClubIds.has(s.clubId));
+    }
+    if (selectedClubId !== "all") {
+      result = result.filter(s => s.clubId === Number(selectedClubId));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(s => s.title.toLowerCase().includes(q));
+    }
+    return result;
+  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isPlatformAdmin]);
+
+  const juniorUpcoming = useMemo(() => {
+    const n = new Date(); n.setHours(0, 0, 0, 0);
+    return juniorFilteredSessions.filter(s => {
+      const d = new Date(s.date); d.setHours(0, 0, 0, 0);
+      return d >= n && s.status !== "COMPLETED" && s.status !== "CANCELLED";
+    }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+  }, [juniorFilteredSessions]);
+
+  const juniorPast = useMemo(() => {
+    const n = new Date(); n.setHours(0, 0, 0, 0);
+    return juniorFilteredSessions.filter(s => {
+      const d = new Date(s.date); d.setHours(0, 0, 0, 0);
+      return d < n || s.status === "COMPLETED";
+    }).sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  }, [juniorFilteredSessions]);
+
+  const juniorLive = useMemo(() =>
+    juniorFilteredSessions.filter(s => s.status === "ACTIVE" || (s as any).liveMatchCount > 0)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [juniorFilteredSessions]
+  );
+
+  const juniorAllVisible = useMemo(() => {
+    const combined = [...juniorLive, ...juniorUpcoming];
+    const seen = new Set<number>();
+    return combined.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
+  }, [juniorLive, juniorUpcoming]);
+
+  const [juniorStatusFilter, setJuniorStatusFilter] = useState<string>("all");
+  const juniorDisplaySessions = useMemo(() => {
+    if (juniorStatusFilter === "upcoming") return juniorUpcoming;
+    if (juniorStatusFilter === "live") return juniorLive;
+    if (juniorStatusFilter === "past") return juniorPast;
+    return juniorAllVisible;
+  }, [juniorStatusFilter, juniorUpcoming, juniorPast, juniorLive, juniorAllVisible]);
+
   const now = useMemo(() => {
     const d = new Date();
     d.setHours(0, 0, 0, 0);
@@ -919,6 +978,33 @@ export default function Sessions() {
         }
       />
 
+      <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 w-fit" data-testid="tabs-sessions-scope">
+        <Button
+          variant={sessionsScope === "regular" ? "default" : "ghost"}
+          size="sm"
+          className={`h-8 px-3 gap-1.5 text-xs ${sessionsScope === "regular" ? "" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setSessionsScope("regular")}
+          data-testid="tab-sessions-regular"
+        >
+          <Calendar className="h-3.5 w-3.5" />
+          Sessions
+        </Button>
+        <Button
+          variant={sessionsScope === "juniors" ? "default" : "ghost"}
+          size="sm"
+          className={`h-8 px-3 gap-1.5 text-xs ${sessionsScope === "juniors" ? "" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setSessionsScope("juniors")}
+          data-testid="tab-sessions-juniors"
+        >
+          <Baby className="h-3.5 w-3.5" />
+          Juniors
+          {juniorFilteredSessions.length > 0 && (
+            <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">{juniorFilteredSessions.length}</Badge>
+          )}
+        </Button>
+      </div>
+
+      {sessionsScope === "regular" && (<>
       <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         {!isPlatformAdmin && (
           <div className="flex items-center gap-1">
@@ -1607,6 +1693,143 @@ export default function Sessions() {
           );
         })}
       </div>
+      )}
+      </>)}
+
+      {sessionsScope === "juniors" && (
+        <div className="space-y-4">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button variant={juniorStatusFilter === "all" ? "default" : "outline"} size="sm"
+              onClick={() => setJuniorStatusFilter("all")} data-testid="button-junior-filter-all">
+              All ({juniorAllVisible.length})
+            </Button>
+            {juniorLive.length > 0 && (
+              <Button variant={juniorStatusFilter === "live" ? "default" : "outline"} size="sm"
+                onClick={() => setJuniorStatusFilter("live")} data-testid="button-junior-filter-live">
+                <Activity className="w-3 h-3 mr-1" /> Live ({juniorLive.length})
+              </Button>
+            )}
+            <Button variant={juniorStatusFilter === "upcoming" ? "default" : "outline"} size="sm"
+              onClick={() => setJuniorStatusFilter("upcoming")} data-testid="button-junior-filter-upcoming">
+              <Calendar className="w-3 h-3 mr-1" /> Upcoming ({juniorUpcoming.length})
+            </Button>
+            <Button variant={juniorStatusFilter === "past" ? "default" : "outline"} size="sm"
+              onClick={() => setJuniorStatusFilter("past")} data-testid="button-junior-filter-past">
+              <CheckCircle className="w-3 h-3 mr-1" /> Past ({juniorPast.length})
+            </Button>
+          </div>
+
+          <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 w-fit">
+            {([
+              { key: "timeline" as const, icon: AlignJustify, label: "Timeline" },
+              { key: "cards" as const, icon: LayoutGrid, label: "Cards" },
+              { key: "calendar" as const, icon: CalendarDays, label: "Calendar" },
+              { key: "grouped" as const, icon: Layers, label: "Grouped" },
+            ]).map(v => (
+              <Button key={v.key} variant={viewMode === v.key ? "default" : "ghost"} size="sm"
+                className={`h-8 px-2.5 gap-1.5 text-xs ${viewMode === v.key ? "" : "text-muted-foreground hover:text-foreground"}`}
+                onClick={() => setViewMode(v.key)} data-testid={`button-junior-view-${v.key}`}>
+                <v.icon className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">{v.label}</span>
+              </Button>
+            ))}
+          </div>
+
+          {viewMode === "timeline" && (
+            <TimelineView
+              sessions={juniorDisplaySessions}
+              clubs={clubs || []}
+              onSessionClick={handleSessionClickFromView}
+              mySignupsBySession={mySignupsBySession}
+              onSignUp={(session) => setJoinSession(session)}
+              adminActions={viewAdminActions}
+            />
+          )}
+          {viewMode === "calendar" && (
+            <CalendarView
+              sessions={juniorDisplaySessions}
+              clubs={clubs || []}
+              onSessionClick={handleSessionClickFromView}
+              adminActions={viewAdminActions}
+            />
+          )}
+          {viewMode === "grouped" && (
+            <GroupedView
+              sessions={juniorDisplaySessions}
+              clubs={clubs || []}
+              onSessionClick={handleSessionClickFromView}
+              adminActions={viewAdminActions}
+            />
+          )}
+          {viewMode === "cards" && (
+            <div className="grid gap-3 sm:gap-6 md:grid-cols-2 lg:grid-cols-3">
+              {juniorDisplaySessions.length === 0 ? (
+                <div className="col-span-full">
+                  <Card className="border-dashed">
+                    <CardContent className="p-8 text-center">
+                      <Baby className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+                      <h3 className="font-semibold mb-1">No Junior Sessions</h3>
+                      <p className="text-sm text-muted-foreground">There are no junior sessions matching your filters.</p>
+                    </CardContent>
+                  </Card>
+                </div>
+              ) : juniorDisplaySessions.map(session => {
+                const sessionDate = new Date(session.date);
+                const isLive = session.status === "ACTIVE";
+                const spotsLeft = session.maxPlayers - (session.signupCount || 0);
+                return (
+                  <Card key={session.id} className="overflow-hidden" data-testid={`card-junior-session-${session.id}`}>
+                    {isLive && <div className="h-1 bg-gradient-to-r from-emerald-400 to-green-400" />}
+                    <CardContent className="p-4">
+                      <div className="flex items-start justify-between mb-2">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <h4 className="font-semibold">{session.title}</h4>
+                            <Badge className="bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30 text-[10px]">
+                              <Baby className="h-2.5 w-2.5 mr-0.5" /> Juniors
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                            <Calendar className="h-3.5 w-3.5" />
+                            <span>{format(sessionDate, "EEE, d MMM yyyy")}</span>
+                          </div>
+                          {session.startTime && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                              <Clock className="h-3.5 w-3.5" />
+                              <span>{session.startTime} ({session.durationMinutes}min)</span>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex flex-col items-end gap-1">
+                          {isLive && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Live</Badge>}
+                          {spotsLeft > 0 && !isLive && <Badge variant="secondary">{spotsLeft} spots</Badge>}
+                          {spotsLeft <= 0 && !isLive && <Badge variant="destructive">Full</Badge>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Users className="h-3.5 w-3.5" />
+                        <span>{session.signupCount || 0}/{session.maxPlayers} players</span>
+                      </div>
+                      {(session as any).sessionFee != null && (
+                        <div className="flex items-center gap-1 mt-1 text-sm">
+                          <PoundSterling className="h-3.5 w-3.5 text-amber-500" />
+                          <span className="font-medium">£{((session as any).sessionFee / 100).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="mt-3">
+                        <Link href={`/sessions/${session.id}`}>
+                          <Button size="sm" className="w-full" variant="outline" data-testid={`button-view-junior-session-${session.id}`}>
+                            View & Sign Up <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                          </Button>
+                        </Link>
+                      </div>
+                    </CardContent>
+                  </Card>
+                );
+              })}
+            </div>
+          )}
+        </div>
       )}
 
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>

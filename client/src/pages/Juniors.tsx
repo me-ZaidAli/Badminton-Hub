@@ -19,7 +19,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Link, useSearch } from "wouter";
+import { Link, useSearch, useLocation } from "wouter";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
 import { SkillCategoryManager } from "@/components/SkillCategoryManager";
 import { format } from "date-fns";
@@ -103,7 +103,12 @@ import {
   HelpCircle,
   FileDown,
   ArrowRightLeft,
+  LayoutGrid,
+  AlignJustify,
+  CalendarDays,
+  Layers,
 } from "lucide-react";
+import { TimelineView, CalendarView, GroupedView } from "@/components/SessionViews";
 
 const ICON_MAP: Record<string, any> = {
   BookOpen, Flame, Dumbbell, Footprints, Crosshair, Send, Swords, Shield, Target, Brain, Users,
@@ -2076,13 +2081,19 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
 }
 
 function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: { juniors: any[] | undefined; selectedChildId: number | null; setSelectedChildId: (id: number | null) => void }) {
+  const [, navigate] = useLocation();
   const { data: sessions, isLoading } = useQuery<any[]>({ queryKey: ["/api/sessions"] });
   const { data: user } = useUser();
   const { data: adminClubs } = useMyAdminClubs();
   const { toast } = useToast();
   const [sessionsTab, setSessionsTab] = useState<"upcoming" | "past" | "scheduled">("upcoming");
+  const [viewMode, setViewMode] = useState<"timeline" | "cards" | "calendar" | "grouped">(() => {
+    const saved = localStorage.getItem("juniorSessionsViewMode");
+    return (saved === "timeline" || saved === "cards" || saved === "calendar" || saved === "grouped") ? saved : "cards";
+  });
   const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
   const [togglingSessionId, setTogglingSessionId] = useState<number | null>(null);
+  const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/clubs"] });
   const { mutate: toggleSessionTypeMut } = useUpdateSession();
   const handleMoveToSessions = async (session: any) => {
     setTogglingSessionId(session.id);
@@ -2103,6 +2114,11 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
       toast({ title: "Error", description: error.message || "Failed to update", variant: "destructive" });
     }
     setTogglingSessionId(null);
+  };
+
+  const handleSetViewMode = (mode: "timeline" | "cards" | "calendar" | "grouped") => {
+    setViewMode(mode);
+    localStorage.setItem("juniorSessionsViewMode", mode);
   };
 
   const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
@@ -2334,83 +2350,124 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
               </CardContent>
             </Card>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {upcomingSessions.map((session: any) => {
-                const sessionDate = new Date(session.date);
-                const isLive = session.status === "ACTIVE";
-                const spotsLeft = session.maxPlayers - (session.signupCount || 0);
-                return (
-                  <Card key={session.id} className="overflow-hidden" data-testid={`card-session-${session.id}`}>
-                    {isLive && <div className="h-1 bg-gradient-to-r from-emerald-400 to-green-400" />}
-                    <CardContent className="p-4">
-                      <div className="flex items-start justify-between mb-2">
-                        <div>
-                          <h4 className="font-semibold">{session.title}</h4>
-                          <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
-                            <Calendar className="h-3.5 w-3.5" />
-                            <span>{format(sessionDate, "EEE, d MMM yyyy")}</span>
+            <div className="space-y-4">
+              <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 w-fit">
+                {([
+                  { key: "timeline" as const, icon: AlignJustify, label: "Timeline" },
+                  { key: "cards" as const, icon: LayoutGrid, label: "Cards" },
+                  { key: "calendar" as const, icon: CalendarDays, label: "Calendar" },
+                  { key: "grouped" as const, icon: Layers, label: "Grouped" },
+                ]).map(v => (
+                  <Button key={v.key} variant={viewMode === v.key ? "default" : "ghost"} size="sm"
+                    className={`h-8 px-2.5 gap-1.5 text-xs ${viewMode === v.key ? "" : "text-muted-foreground hover:text-foreground"}`}
+                    onClick={() => handleSetViewMode(v.key)} data-testid={`button-junior-view-${v.key}`}>
+                    <v.icon className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{v.label}</span>
+                  </Button>
+                ))}
+              </div>
+
+              {viewMode === "timeline" && (
+                <TimelineView
+                  sessions={upcomingSessions}
+                  clubs={clubs || []}
+                  onSessionClick={(session) => navigate(`/sessions/${session.id}`)}
+                />
+              )}
+              {viewMode === "calendar" && (
+                <CalendarView
+                  sessions={upcomingSessions}
+                  clubs={clubs || []}
+                  onSessionClick={(session) => navigate(`/sessions/${session.id}`)}
+                />
+              )}
+              {viewMode === "grouped" && (
+                <GroupedView
+                  sessions={upcomingSessions}
+                  clubs={clubs || []}
+                  onSessionClick={(session) => navigate(`/sessions/${session.id}`)}
+                />
+              )}
+              {viewMode === "cards" && (
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  {upcomingSessions.map((session: any) => {
+                    const sessionDate = new Date(session.date);
+                    const isLive = session.status === "ACTIVE";
+                    const spotsLeft = session.maxPlayers - (session.signupCount || 0);
+                    return (
+                      <Card key={session.id} className="overflow-hidden" data-testid={`card-session-${session.id}`}>
+                        {isLive && <div className="h-1 bg-gradient-to-r from-emerald-400 to-green-400" />}
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <h4 className="font-semibold">{session.title}</h4>
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground mt-1">
+                                <Calendar className="h-3.5 w-3.5" />
+                                <span>{format(sessionDate, "EEE, d MMM yyyy")}</span>
+                              </div>
+                              {session.startTime && (
+                                <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
+                                  <Clock className="h-3.5 w-3.5" />
+                                  <span>{session.startTime}</span>
+                                </div>
+                              )}
+                            </div>
+                            <div>
+                              {isLive && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Live</Badge>}
+                              {spotsLeft > 0 && !isLive && <Badge variant="secondary">{spotsLeft} spots</Badge>}
+                            </div>
                           </div>
-                          {session.startTime && (
-                            <div className="flex items-center gap-2 text-sm text-muted-foreground mt-0.5">
-                              <Clock className="h-3.5 w-3.5" />
-                              <span>{session.startTime}</span>
+                          {(session as any).venue && (
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <MapPin className="h-3.5 w-3.5" />
+                              <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ""}</span>
                             </div>
                           )}
-                        </div>
-                        <div>
-                          {isLive && <Badge className="bg-emerald-500/20 text-emerald-400 border-emerald-500/30">Live</Badge>}
-                          {spotsLeft > 0 && !isLive && <Badge variant="secondary">{spotsLeft} spots</Badge>}
-                        </div>
-                      </div>
-                      {(session as any).venue && (
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <MapPin className="h-3.5 w-3.5" />
-                          <span>{(session as any).venue.name}{(session as any).venue.city ? `, ${(session as any).venue.city}` : ""}</span>
-                        </div>
-                      )}
-                      {session.sessionFee != null && (
-                        <div className="flex items-center gap-1 mt-2 text-sm">
-                          <PoundSterling className="h-3.5 w-3.5 text-amber-500" />
-                          <span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span>
-                        </div>
-                      )}
-                      {user && (
-                        <div className="flex items-center gap-2 mt-3">
-                          <Link href={`/sessions/${session.id}`} className="flex-1">
-                            <Button size="sm" className="w-full" variant="outline" data-testid={`button-view-session-${session.id}`}>
-                              View & Sign Up <ChevronRight className="h-3.5 w-3.5 ml-1" />
-                            </Button>
-                          </Link>
-                          {isAdmin && (isPlatformAdmin || managedClubIds.has(session.clubId)) && (
-                            <>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0"
-                                onClick={() => handleMoveToSessions(session)}
-                                disabled={togglingSessionId === session.id}
-                                data-testid={`button-move-to-sessions-${session.id}`}
-                                title="Move to Sessions"
-                              >
-                                <ArrowRightLeft className="h-3.5 w-3.5" />
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
-                                data-testid={`button-delete-junior-session-${session.id}`}
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </Button>
-                            </>
+                          {session.sessionFee != null && (
+                            <div className="flex items-center gap-1 mt-2 text-sm">
+                              <PoundSterling className="h-3.5 w-3.5 text-amber-500" />
+                              <span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span>
+                            </div>
                           )}
-                        </div>
-                      )}
-                    </CardContent>
-                  </Card>
-                );
-              })}
+                          {user && (
+                            <div className="flex items-center gap-2 mt-3">
+                              <Link href={`/sessions/${session.id}`} className="flex-1">
+                                <Button size="sm" className="w-full" variant="outline" data-testid={`button-view-session-${session.id}`}>
+                                  View & Sign Up <ChevronRight className="h-3.5 w-3.5 ml-1" />
+                                </Button>
+                              </Link>
+                              {isAdmin && (isPlatformAdmin || managedClubIds.has(session.clubId)) && (
+                                <>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0"
+                                    onClick={() => handleMoveToSessions(session)}
+                                    disabled={togglingSessionId === session.id}
+                                    data-testid={`button-move-to-sessions-${session.id}`}
+                                    title="Move to Sessions"
+                                  >
+                                    <ArrowRightLeft className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                                    onClick={() => setDeleteSession({ id: session.id, recurringEventId: session.recurringEventId || null, date: session.date || null })}
+                                    data-testid={`button-delete-junior-session-${session.id}`}
+                                  >
+                                    <Trash2 className="h-3.5 w-3.5" />
+                                  </Button>
+                                </>
+                              )}
+                            </div>
+                          )}
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           )}
         </>
