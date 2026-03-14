@@ -751,44 +751,122 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
     ];
   }, [stats]);
 
+  const isFemale = profile?.gender?.toLowerCase() === "female";
+
   return (
     <div className="space-y-6">
       <div className="relative overflow-hidden rounded-2xl border border-white/[0.08]" style={{
-        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 25%, #4338ca 50%, #6366f1 75%, #818cf8 100%)",
+        background: "linear-gradient(135deg, #1e1b4b 0%, #312e81 20%, #4338ca 45%, #7c3aed 70%, #a855f7 90%, #c084fc 100%)",
+        minHeight: "340px",
       }} data-testid="player-hero-card">
         <div className="absolute inset-0 pointer-events-none" style={{
-          background: "radial-gradient(ellipse at 30% 50%, rgba(139,92,246,0.3) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(99,102,241,0.2) 0%, transparent 50%)",
+          background: "radial-gradient(ellipse at 20% 80%, rgba(192,38,211,0.25) 0%, transparent 50%), radial-gradient(ellipse at 70% 20%, rgba(99,102,241,0.3) 0%, transparent 50%), radial-gradient(ellipse at 90% 90%, rgba(236,72,153,0.15) 0%, transparent 40%)",
         }} />
-        <div className="absolute top-0 right-0 w-60 h-60 bg-gradient-to-bl from-white/5 to-transparent rounded-bl-full pointer-events-none" />
+        <div className="absolute top-0 right-0 w-80 h-80 bg-gradient-to-bl from-white/5 to-transparent rounded-bl-full pointer-events-none" />
 
-        <div className="relative z-10 p-6 md:p-8">
-          <div className="flex flex-col lg:flex-row items-start gap-6">
-            <div className="flex items-start gap-5 lg:gap-6 flex-1 min-w-0">
-              <div className="relative shrink-0">
-                <div className="relative">
-                  <PlayerAvatar
-                    name={player.fullName}
-                    id={player.id}
-                    size="hero"
-                    profilePictureUrl={player.profilePictureUrl}
-                    selectedAvatar={player.selectedAvatar}
-                    gender={profile?.gender}
-                    grade={grade}
-                  />
-                  <div className={`absolute -bottom-1 -right-1 px-2.5 py-1 rounded-lg text-[11px] font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-slate-500 to-slate-600"} shadow-lg border border-white/30`}>
-                    {grade}
-                  </div>
+        <div className="absolute bottom-0 left-0 w-[200px] sm:w-[260px] md:w-[320px] h-full pointer-events-none select-none" data-testid="hero-athlete-figure">
+          <svg viewBox="0 0 300 500" className="absolute bottom-0 left-0 h-full w-auto" style={{ filter: "drop-shadow(4px 0 20px rgba(139,92,246,0.3))" }}>
+            <defs>
+              <linearGradient id="athleteGrad" x1="0" y1="0" x2="0.3" y2="1">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.25)" />
+                <stop offset="50%" stopColor="rgba(255,255,255,0.12)" />
+                <stop offset="100%" stopColor="rgba(139,92,246,0.08)" />
+              </linearGradient>
+              <linearGradient id="athleteEdge" x1="0" y1="0" x2="1" y2="0.5">
+                <stop offset="0%" stopColor="rgba(255,255,255,0.35)" />
+                <stop offset="100%" stopColor="rgba(168,85,247,0.2)" />
+              </linearGradient>
+            </defs>
+            {isFemale ? (
+              <g fill="url(#athleteGrad)" stroke="url(#athleteEdge)" strokeWidth="0.8">
+                <ellipse cx="150" cy="52" rx="32" ry="38" />
+                <path d="M150 30 C155 10,165 5,150 0 C135 5,145 10,150 30" opacity="0.6" />
+                <path d="M118 90 C115 80,120 72,135 68 L150 90 L165 68 C180 72,185 80,182 90 L182 90 L190 140 C192 155,188 165,175 168 L172 200 L178 260 C180 275,176 285,172 300 L170 340 L168 390 L166 430 C165 445,162 460,155 470 L150 480 L145 470 C138 460,135 445,134 430 L132 390 L130 340 L128 300 C124 285,120 275,122 260 L128 200 L125 168 C112 165,108 155,110 140 L118 90Z" />
+                <path d="M110 140 C100 135,85 140,75 155 L65 180 C60 190,55 200,58 205 L70 200 L75 195 C80 188,85 182,90 178 L105 165" opacity="0.9" />
+                <path d="M190 140 C200 135,215 140,225 155 L235 180 C240 190,245 200,242 205 L230 200 L225 195 C220 188,215 182,210 178 L195 165" opacity="0.9" />
+                <ellipse cx="65" cy="208" rx="10" ry="8" opacity="0.7" />
+                <ellipse cx="235" cy="208" rx="10" ry="8" opacity="0.7" />
+                <rect x="130" y="475" width="15" height="20" rx="4" opacity="0.5" />
+                <rect x="155" y="475" width="15" height="20" rx="4" opacity="0.5" />
+              </g>
+            ) : (
+              <g fill="url(#athleteGrad)" stroke="url(#athleteEdge)" strokeWidth="0.8">
+                <ellipse cx="150" cy="48" rx="30" ry="35" />
+                <path d="M150 28 C158 10,165 8,155 0 C140 5,142 10,150 28" opacity="0.5" />
+                <path d="M120 83 C115 75,122 68,138 65 L150 82 L162 65 C178 68,185 75,180 83 L186 95 L195 145 C198 160,194 170,182 175 L178 210 L185 270 C188 290,184 310,180 330 L176 370 L172 410 L168 445 C166 458,163 468,158 475 L150 485 L142 475 C137 468,134 458,132 445 L128 410 L124 370 L120 330 C116 310,112 290,115 270 L122 210 L118 175 C106 170,102 160,105 145 L114 95 L120 83Z" />
+                <path d="M105 145 C92 138,78 142,65 160 L52 190 C47 202,50 210,55 212 L68 205 L72 198 C78 188,85 180,92 175 L100 168" opacity="0.9" />
+                <path d="M195 145 C208 138,222 142,235 160 L248 190 C253 202,250 210,245 212 L232 205 L228 198 C222 188,215 180,208 175 L200 168" opacity="0.9" />
+                <ellipse cx="52" cy="216" rx="11" ry="9" opacity="0.7" />
+                <ellipse cx="248" cy="216" rx="11" ry="9" opacity="0.7" />
+                <rect x="128" y="480" width="17" height="18" rx="4" opacity="0.5" />
+                <rect x="155" y="480" width="17" height="18" rx="4" opacity="0.5" />
+              </g>
+            )}
+          </svg>
+        </div>
+
+        {stats?.matchesPlayed && (
+          <div className="absolute bottom-4 left-[80px] md:left-[100px] pointer-events-none select-none" style={{ opacity: 0.06 }}>
+            <span className="text-[120px] md:text-[160px] font-black text-white leading-none tracking-tighter">{stats.matchesPlayed}</span>
+          </div>
+        )}
+
+        <div className="relative z-10 p-6 md:p-8 ml-[140px] sm:ml-[180px] md:ml-[240px]">
+          <div className="flex flex-col lg:flex-row items-start gap-5">
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`px-3 py-1 rounded-lg text-xs font-bold text-white bg-gradient-to-r ${GRADE_COLORS[grade] || "from-slate-500 to-slate-600"} shadow-lg border border-white/30`}>
+                  {grade}
                 </div>
+                {profile && (
+                  <div className="flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-bold" style={{ background: "rgba(245,158,11,0.2)", border: "1px solid rgba(245,158,11,0.3)" }}>
+                    <Trophy className="h-3 w-3 text-amber-400" />
+                    <span className="text-amber-300">{profile.rankingPoints} pts</span>
+                  </div>
+                )}
               </div>
 
-              <div className="hidden md:block w-[200px] h-[200px] shrink-0 relative" data-testid="hero-radar">
+              <h2 className="text-3xl md:text-4xl font-black tracking-tight text-white leading-none">{player.fullName}</h2>
+              <div className="flex items-center gap-2 mt-2">
+                <span className="text-sm text-white/50 font-medium flex items-center gap-1.5">
+                  <Shield className="h-3.5 w-3.5 text-white/40" />
+                  {clubName}
+                </span>
+              </div>
+              <div className="mt-2.5">
+                <AIStyleBadge playerId={profileId!} />
+              </div>
+
+              {stats && (
+                <div className="flex items-center gap-3 mt-5 flex-wrap">
+                  <div className="flex flex-col items-center px-4 py-3 rounded-xl min-w-[80px]" style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.25)", backdropFilter: "blur(8px)" }}>
+                    <Trophy className="h-4 w-4 text-red-400 mb-1" />
+                    <span className="text-2xl font-black text-white leading-none">{stats.matchesWon || 0}</span>
+                    <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Wins</span>
+                  </div>
+                  <div className="flex flex-col items-center px-4 py-3 rounded-xl min-w-[80px]" style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)", backdropFilter: "blur(8px)" }}>
+                    <XCircle className="h-4 w-4 text-purple-400 mb-1" />
+                    <span className="text-2xl font-black text-white leading-none">{stats.matchesLost || 0}</span>
+                    <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Losses</span>
+                  </div>
+                  <div className="flex flex-col items-center px-4 py-3 rounded-xl min-w-[80px]" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)", backdropFilter: "blur(8px)" }}>
+                    <Star className="h-4 w-4 text-white/70 mb-1" />
+                    <span className="text-2xl font-black text-white leading-none">{stats.winRate || 0}%</span>
+                    <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Win %</span>
+                  </div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col items-end gap-3 shrink-0">
+              <div className="hidden md:block w-[180px] h-[180px] relative" data-testid="hero-radar">
                 {heroRadarData.length > 0 ? (
                   <ResponsiveContainer width="100%" height="100%">
                     <RadarChart data={heroRadarData} cx="50%" cy="50%">
-                      <PolarGrid stroke="rgba(255,255,255,0.15)" gridType="polygon" />
-                      <PolarAngleAxis dataKey="stat" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.7)", fontWeight: 600 }} />
+                      <PolarGrid stroke="rgba(255,255,255,0.12)" gridType="polygon" />
+                      <PolarAngleAxis dataKey="stat" tick={{ fontSize: 8, fill: "rgba(255,255,255,0.6)", fontWeight: 600 }} />
                       <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
-                      <Radar name="Stats" dataKey="value" stroke="#f472b6" fill="#f472b6" fillOpacity={0.2} strokeWidth={2.5} dot={{ r: 4, fill: "#f472b6", stroke: "#fff", strokeWidth: 1 }} />
+                      <Radar name="Stats" dataKey="value" stroke="#f472b6" fill="#f472b6" fillOpacity={0.2} strokeWidth={2.5} dot={{ r: 3, fill: "#f472b6", stroke: "#fff", strokeWidth: 1 }} />
                     </RadarChart>
                   </ResponsiveContainer>
                 ) : (
@@ -796,73 +874,29 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
                     <Activity className="h-12 w-12 text-white/20" />
                   </div>
                 )}
-                {stats?.matchesPlayed && (
-                  <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
-                    <span className="text-4xl font-black text-white/10">{stats.matchesPlayed}</span>
-                  </div>
-                )}
               </div>
 
-              <div className="flex-1 min-w-0 pt-1">
-                <h2 className="text-2xl md:text-3xl font-black tracking-tight text-white leading-tight">{player.fullName}</h2>
-                <div className="flex items-center gap-2 mt-1.5 flex-wrap">
-                  <span className="text-sm text-white/60 font-medium flex items-center gap-1.5 truncate max-w-[180px]">
-                    <Shield className="h-3.5 w-3.5 text-white/40 shrink-0" />
-                    {clubName}
-                  </span>
-                  {profile && (
-                    <span className="text-sm text-white/60 flex items-center gap-1">
-                      <Trophy className="h-3.5 w-3.5 text-amber-400" />
-                      <span className="font-semibold text-amber-300">{profile.rankingPoints}</span> pts
-                    </span>
-                  )}
-                </div>
-                <div className="mt-2">
-                  <AIStyleBadge playerId={profileId!} />
-                </div>
-
-                {stats && (
-                  <div className="flex items-center gap-3 mt-4 flex-wrap">
-                    <div className="flex flex-col items-center px-4 py-2.5 rounded-xl min-w-[80px]" style={{ background: "rgba(239,68,68,0.15)", border: "1px solid rgba(239,68,68,0.25)" }}>
-                      <Trophy className="h-4 w-4 text-red-400 mb-1" />
-                      <span className="text-xl font-black text-white leading-none">{stats.matchesWon || 0}</span>
-                      <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Wins</span>
-                    </div>
-                    <div className="flex flex-col items-center px-4 py-2.5 rounded-xl min-w-[80px]" style={{ background: "rgba(139,92,246,0.15)", border: "1px solid rgba(139,92,246,0.25)" }}>
-                      <XCircle className="h-4 w-4 text-purple-400 mb-1" />
-                      <span className="text-xl font-black text-white leading-none">{stats.matchesLost || 0}</span>
-                      <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Losses</span>
-                    </div>
-                    <div className="flex flex-col items-center px-4 py-2.5 rounded-xl min-w-[80px]" style={{ background: "rgba(255,255,255,0.08)", border: "1px solid rgba(255,255,255,0.12)" }}>
-                      <Star className="h-4 w-4 text-white/70 mb-1" />
-                      <span className="text-xl font-black text-white leading-none">{stats.winRate || 0}%</span>
-                      <span className="text-[9px] text-white/50 uppercase tracking-wider mt-1 font-semibold">Win %</span>
-                    </div>
+              {stats && (
+                <div className="grid grid-cols-2 gap-2 w-full lg:w-auto" data-testid="hero-info-cards">
+                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Matches</span>
+                    <span className="text-sm font-black text-white">{stats.matchesPlayed || 0}</span>
                   </div>
-                )}
-              </div>
+                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Sessions</span>
+                    <span className="text-sm font-black text-white">{stats.sessionsAttended || 0}</span>
+                  </div>
+                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Opponents</span>
+                    <span className="text-sm font-black text-white">{stats.uniqueOpponents || 0}</span>
+                  </div>
+                  <div className="flex flex-col items-center px-3 py-1.5 rounded-lg text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
+                    <span className="text-[8px] text-white/40 uppercase tracking-wider font-medium">Impact</span>
+                    <span className="text-sm font-black text-white">{stats.sessionImpactScore ?? "—"}</span>
+                  </div>
+                </div>
+              )}
             </div>
-
-            {stats && (
-              <div className="grid grid-cols-2 gap-2 shrink-0 w-full lg:w-auto" data-testid="hero-info-cards">
-                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Matches</span>
-                  <span className="text-base font-black text-white mt-0.5">{stats.matchesPlayed || 0}</span>
-                </div>
-                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Sessions</span>
-                  <span className="text-base font-black text-white mt-0.5">{stats.sessionsAttended || 0}</span>
-                </div>
-                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Opponents</span>
-                  <span className="text-base font-black text-white mt-0.5">{stats.uniqueOpponents || 0}</span>
-                </div>
-                <div className="flex flex-col items-center px-4 py-2 rounded-xl text-center" style={{ background: "rgba(255,255,255,0.06)", border: "1px solid rgba(255,255,255,0.08)" }}>
-                  <span className="text-[9px] text-white/40 uppercase tracking-wider font-medium">Impact</span>
-                  <span className="text-base font-black text-white mt-0.5">{stats.sessionImpactScore ?? "—"}</span>
-                </div>
-              </div>
-            )}
           </div>
         </div>
       </div>
