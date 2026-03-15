@@ -1,30 +1,21 @@
+import { useState, useMemo, useEffect } from "react";
 import { Link } from "wouter";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Badge } from "@/components/ui/badge";
 import {
   ArrowRight,
   Users,
   Calendar,
   Search,
   Activity,
-  Zap,
-  CheckCircle2,
-  ClipboardList,
   CreditCard,
-  MapPin,
-  ShieldCheck,
-  UserCheck,
-  Bell,
-  ListChecks,
-  Receipt,
-  Building2,
-  Lock,
+  Gamepad2,
+  Check,
+  Star,
 } from "lucide-react";
-import { useUser } from "@/hooks/use-auth";
-import { useClubs } from "@/hooks/use-clubs";
 import { useQuery } from "@tanstack/react-query";
-import { useMemo } from "react";
 import heroPath from "@assets/bpg_20260217_093920_0000_1771321177372.png";
 import playersPath from "@assets/landing-players.png";
 import organisersPath from "@assets/image_1771422277330.png";
@@ -33,9 +24,24 @@ import paymentsPath from "@assets/image_1771423821388.png";
 import venuesPath from "@assets/landing-venues.png";
 import adminPath from "@assets/landing-admin.png";
 
+const PREVIEW_TABS = [
+  { key: "sessions", label: "Sessions", icon: Calendar },
+  { key: "matches", label: "Matches", icon: Gamepad2 },
+  { key: "players", label: "Players", icon: Users },
+  { key: "finances", label: "Finances", icon: CreditCard },
+] as const;
+
+type PreviewTab = typeof PREVIEW_TABS[number]["key"];
+
+const PREVIEW_IMAGES: Record<PreviewTab, { src: string; alt: string }> = {
+  sessions: { src: sessionsPath, alt: "Session scheduling dashboard" },
+  matches: { src: organisersPath, alt: "Match organization view" },
+  players: { src: playersPath, alt: "Player management interface" },
+  finances: { src: paymentsPath, alt: "Financial tracking dashboard" },
+};
+
 export default function Home() {
-  const { data: user } = useUser();
-  const { data: clubs } = useClubs();
+  const [activePreview, setActivePreview] = useState<PreviewTab>("sessions");
 
   const { data: allSessions } = useQuery<any[]>({
     queryKey: ["/api/public/all-sessions"],
@@ -46,171 +52,398 @@ export default function Home() {
     return allSessions?.filter(s => s.liveMatchCount > 0) || [];
   }, [allSessions]);
 
+  useEffect(() => {
+    document.title = "BadmintonHub - Run Your Badminton Club Without the Spreadsheets";
+    const setMeta = (name: string, content: string, property?: boolean) => {
+      const attr = property ? "property" : "name";
+      let el = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement | null;
+      if (!el) {
+        el = document.createElement("meta");
+        el.setAttribute(attr, name);
+        document.head.appendChild(el);
+      }
+      el.content = content;
+    };
+    setMeta("description", "Schedule sessions, manage players, organize matches, and track club finances in one place. Free to start — no credit card required.");
+    setMeta("og:title", "BadmintonHub - Club Management Made Simple", true);
+    setMeta("og:description", "The all-in-one platform for badminton clubs. Session scheduling, match tracking, player management, and finances.", true);
+    setMeta("og:type", "website", true);
+  }, []);
+
   return (
     <PublicLayout>
+      {/* ===== 1. HERO SECTION ===== */}
       <section className="relative w-full overflow-hidden" data-testid="section-hero">
         <div className="absolute inset-0">
           <img
             src={heroPath}
-            alt="Indoor sports court with players in action"
+            alt="Badminton players in action on indoor court"
             className="w-full h-full object-cover"
           />
-          <div className="absolute inset-0 bg-gradient-to-r from-black/80 via-black/60 to-black/30" />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/85 via-black/70 to-black/40" />
         </div>
         <div className="relative max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-24 md:py-36 lg:py-44">
           <div className="max-w-2xl">
-            <h1 className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight text-white mb-6 leading-tight" data-testid="text-hero-headline">
-              Run Your Club <span className="text-primary">Smarter</span>
+            <h1
+              className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight text-white mb-6 leading-[1.1]"
+              data-testid="text-hero-headline"
+            >
+              Run Your Badminton Club{" "}
+              <span className="text-primary">Without the Spreadsheets</span>
             </h1>
-            <p className="text-lg md:text-xl text-white/80 mb-10 leading-relaxed max-w-xl" data-testid="text-hero-subheading">
-              All-in-one session, member, venue, and payment management built specifically for racket sports clubs.
+            <p
+              className="text-lg md:text-xl text-white/80 mb-10 leading-relaxed max-w-xl"
+              data-testid="text-hero-subheading"
+            >
+              Schedule sessions, manage players, organize matches, and track club finances — all in one place.
             </p>
             <div className="flex flex-col sm:flex-row flex-wrap items-start gap-3">
               <Link href="/register">
-                <Button size="lg" className="rounded-md" data-testid="button-hero-get-started">
-                  Get Started <ArrowRight className="ml-2 h-5 w-5" />
+                <Button size="lg" className="rounded-md text-base px-8" data-testid="button-hero-get-started">
+                  Create Your Free Club <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <a href="#features">
-                <Button variant="outline" size="lg" className="rounded-md bg-white/10 backdrop-blur-sm border-white/20 text-white" data-testid="button-hero-how-it-works">
+              <a href="#how-it-works">
+                <Button
+                  variant="outline"
+                  size="lg"
+                  className="rounded-md bg-white/10 backdrop-blur-sm border-white/20 text-white text-base"
+                  data-testid="button-hero-how-it-works"
+                >
                   See How It Works
                 </Button>
               </a>
             </div>
+            <p className="text-white/50 text-sm mt-4">No credit card required</p>
           </div>
         </div>
       </section>
 
-      <section className="py-12 border-b border-border/40" data-testid="section-stats">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            <StatCard value={clubs?.length || 0} label="Active Clubs" testId="stat-clubs" />
-            <StatCard value={allSessions?.length || 0} label="Sessions" testId="stat-sessions" />
-            <StatCard value={liveSessions.length} label="Live Now" testId="stat-live" accent />
-            <StatCard value="100+" label="Players" testId="stat-players" />
-          </div>
-        </div>
-      </section>
-
+      {/* ===== LIVE SESSIONS BANNER ===== */}
       {liveSessions.length > 0 && (
-        <section className="py-10 bg-green-500/5 border-b border-green-500/10" data-testid="section-live-preview">
-          <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-4">
+        <section className="py-4 bg-green-500/5 border-b border-green-500/10" data-testid="section-live-preview">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
-              <div className="h-10 w-10 bg-green-500/10 rounded-md flex items-center justify-center">
+              <div className="h-9 w-9 bg-green-500/10 rounded-md flex items-center justify-center">
                 <Activity className="w-5 h-5 text-green-600 dark:text-green-400 animate-pulse" />
               </div>
               <div>
-                <p className="font-semibold" data-testid="text-live-count">{liveSessions.length} Live Session{liveSessions.length !== 1 ? "s" : ""}</p>
-                <p className="text-sm text-muted-foreground">Matches happening right now</p>
+                <p className="font-semibold text-sm" data-testid="text-live-count">
+                  {liveSessions.length} Live Session{liveSessions.length !== 1 ? "s" : ""} right now
+                </p>
               </div>
             </div>
             <Link href="/explore/sessions">
-              <Button variant="outline" data-testid="button-view-live">
-                View Live Sessions <ArrowRight className="ml-2 h-4 w-4" />
+              <Button variant="outline" size="sm" data-testid="button-view-live">
+                Watch Live <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
           </div>
         </section>
       )}
 
-      <div id="features">
-        <FeatureSection
-          testId="section-players"
-          badge="For Players"
-          title="Designed for Players"
-          description="Take control of your session participation with self-service tools that keep you informed and organised."
-          points={[
-            { icon: UserCheck, text: "Join or cancel sessions independently" },
-            { icon: ListChecks, text: "Automatically join waiting lists when sessions are full" },
-            { icon: Bell, text: "Receive session invitations and updates in real time" },
-            { icon: CheckCircle2, text: "Clear visibility of attendance and payment status" },
-          ]}
-          imageSrc={playersPath}
-          imageAlt="Player session management interface"
-          reverse={false}
-        />
+      {/* ===== 2. FEATURE HIGHLIGHTS (4-card grid) ===== */}
+      <section className="py-20 lg:py-24" id="features" data-testid="section-feature-highlights">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-features-title">
+              Everything You Need to Run a Club
+            </h2>
+            <p className="text-muted-foreground text-lg" data-testid="text-features-subtitle">
+              Replace spreadsheets, group chats, and manual tracking with one purpose-built platform.
+            </p>
+          </div>
 
-        <FeatureSection
-          testId="section-organisers"
-          badge="For Organisers"
-          title="Built for Organisers"
-          description="Stop chasing spreadsheets. Get a real-time view of who's coming, who's paid, and who's waiting."
-          points={[
-            { icon: Users, text: "Live view of confirmed players, waiting lists, and invitations" },
-            { icon: Zap, text: "Automatic waiting list promotion" },
-            { icon: CreditCard, text: "Integrated payment tracking per session" },
-            { icon: ClipboardList, text: "No spreadsheets or manual follow-ups" },
-          ]}
-          imageSrc={organisersPath}
-          imageAlt="Organiser dashboard with player management"
-          reverse
-        />
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
+            <FeatureCard
+              testId="feature-scheduling"
+              image={sessionsPath}
+              imageAlt="Session scheduling interface"
+              title="Session Scheduling"
+              description="Create sessions and manage attendance easily."
+              icon={Calendar}
+            />
+            <FeatureCard
+              testId="feature-matches"
+              image={organisersPath}
+              imageAlt="Match organization dashboard"
+              title="Match Organization"
+              description="Track matches and organize players for games."
+              icon={Gamepad2}
+            />
+            <FeatureCard
+              testId="feature-players"
+              image={playersPath}
+              imageAlt="Player management interface"
+              title="Player Management"
+              description="Manage members, guests, and skill levels."
+              icon={Users}
+            />
+            <FeatureCard
+              testId="feature-finances"
+              image={paymentsPath}
+              imageAlt="Club finance tracking"
+              title="Club Finances"
+              description="Track payments, balances, and guest fees."
+              icon={CreditCard}
+            />
+          </div>
+        </div>
+      </section>
 
-        <FeatureSection
-          testId="section-sessions"
-          badge="Session Management"
-          title="Smart Session & Attendance Management"
-          description="Four clear participation states give everyone visibility into who's in, who's waiting, and who's been invited."
-          points={[
-            { icon: ListChecks, text: "Player-controlled participation statuses" },
-            { icon: CheckCircle2, text: "Invited, Confirmed, Waiting List, and Not Attending states" },
-            { icon: Bell, text: "Automatic notifications when sessions are created" },
-            { icon: Calendar, text: "Full session overview in one click" },
-          ]}
-          imageSrc={sessionsPath}
-          imageAlt="Session attendance management interface"
-          reverse={false}
-        />
+      {/* ===== 3. PRODUCT PREVIEW / INTERACTIVE DASHBOARD ===== */}
+      <section className="py-20 lg:py-24 bg-muted/30" data-testid="section-product-preview">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-12">
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-preview-title">
+              See BadmintonHub in Action
+            </h2>
+            <p className="text-muted-foreground text-lg" data-testid="text-preview-subtitle">
+              Explore how your club can schedule sessions, organize matches, track players, and manage finances — all in one platform.
+            </p>
+          </div>
 
-        <FeatureSection
-          testId="section-payments"
-          badge="Payments"
-          title="Simple, Transparent Payments"
-          description="Track every payment at the session level. No more guessing who owes what."
-          points={[
-            { icon: Receipt, text: "Session-level finance panel" },
-            { icon: CreditCard, text: "Track paid and unpaid players" },
-            { icon: ClipboardList, text: "Record payment methods and notes" },
-            { icon: ShieldCheck, text: "Admin override for full control" },
-          ]}
-          imageSrc={paymentsPath}
-          imageAlt="Payment tracking dashboard"
-          reverse
-        />
+          <div className="flex flex-wrap justify-center gap-2 mb-8">
+            {PREVIEW_TABS.map(tab => (
+              <button
+                key={tab.key}
+                onClick={() => setActivePreview(tab.key)}
+                className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
+                  activePreview === tab.key
+                    ? "bg-primary text-primary-foreground shadow-md"
+                    : "bg-card border border-border/60 text-muted-foreground hover:text-foreground hover:border-primary/30"
+                }`}
+                data-testid={`button-preview-${tab.key}`}
+              >
+                <tab.icon className="w-4 h-4" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
 
-        <FeatureSection
-          testId="section-venues"
-          badge="Venues"
-          title="Manage Venues and Courts with Ease"
-          description="Centralise your venue information and reuse it across sessions without re-entering details."
-          points={[
-            { icon: Building2, text: "Centralised venue management" },
-            { icon: MapPin, text: "Court capacity per session" },
-            { icon: Calendar, text: "Reusable venues across sessions" },
-          ]}
-          imageSrc={venuesPath}
-          imageAlt="Venue and court management interface"
-          reverse={false}
-        />
+          <div className="max-w-5xl mx-auto">
+            <div className="rounded-xl overflow-hidden border border-border/60 shadow-lg bg-card">
+              <div className="bg-muted/50 border-b border-border/40 px-4 py-2.5 flex items-center gap-2">
+                <div className="flex gap-1.5">
+                  <div className="w-3 h-3 rounded-full bg-red-400/70" />
+                  <div className="w-3 h-3 rounded-full bg-yellow-400/70" />
+                  <div className="w-3 h-3 rounded-full bg-green-400/70" />
+                </div>
+                <span className="text-xs text-muted-foreground ml-2">
+                  BadmintonHub — {PREVIEW_TABS.find(t => t.key === activePreview)?.label}
+                </span>
+              </div>
+              <div className="relative overflow-hidden">
+                {PREVIEW_TABS.map(tab => (
+                  <img
+                    key={tab.key}
+                    src={PREVIEW_IMAGES[tab.key].src}
+                    alt={PREVIEW_IMAGES[tab.key].alt}
+                    className={`w-full h-auto transition-opacity duration-300 ${
+                      activePreview === tab.key ? "opacity-100" : "opacity-0 absolute inset-0"
+                    }`}
+                    loading="lazy"
+                  />
+                ))}
+              </div>
+            </div>
 
-        <FeatureSection
-          testId="section-admin"
-          badge="Admin Tools"
-          title="Powerful Admin Control"
-          description="Full governance over members, sessions, and venues with simple, intuitive controls."
-          points={[
-            { icon: ShieldCheck, text: "Full control over members, sessions, and venues" },
-            { icon: ClipboardList, text: "Edit everything via simple pop-ups" },
-            { icon: Lock, text: 'Super Admin "God Mode" with unrestricted access' },
-            { icon: Users, text: "Seamlessly manage single or multiple clubs" },
-          ]}
-          imageSrc={adminPath}
-          imageAlt="Admin governance control panel"
-          reverse
-        />
-      </div>
+            <p className="text-center text-xs text-muted-foreground mt-3">
+              Unlock full features with{" "}
+              <a href="#pricing" className="text-primary hover:underline font-medium">
+                Premium
+              </a>
+            </p>
+          </div>
 
-      <section className="py-16 bg-muted/30" data-testid="section-explore-links">
+          <div className="text-center mt-10">
+            <Link href="/register">
+              <Button size="lg" className="rounded-md text-base px-8" data-testid="button-preview-cta">
+                Create Your Free Club <ArrowRight className="ml-2 h-5 w-5" />
+              </Button>
+            </Link>
+            <p className="text-sm text-muted-foreground mt-3">No credit card required</p>
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 4. HOW IT WORKS ===== */}
+      <section className="py-20 lg:py-24" id="how-it-works" data-testid="section-how-it-works">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-hiw-title">
+              Get Started in 3 Steps
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              From signup to running sessions in minutes.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-8 lg:gap-12">
+            <HowItWorksStep
+              step={1}
+              title="Create your club"
+              description="Sign up for free and set up your club profile with venues, courts, and basic info."
+              image={adminPath}
+              imageAlt="Club creation and admin setup"
+              testId="step-1"
+            />
+            <HowItWorksStep
+              step={2}
+              title="Invite players and schedule sessions"
+              description="Add members, set up recurring sessions, and let players manage their own attendance."
+              image={sessionsPath}
+              imageAlt="Session scheduling with player signups"
+              testId="step-2"
+            />
+            <HowItWorksStep
+              step={3}
+              title="Run matches and track club activity"
+              description="Organize matches, track payments, and see your club's activity at a glance."
+              image={organisersPath}
+              imageAlt="Match tracking and club activity dashboard"
+              testId="step-3"
+            />
+          </div>
+        </div>
+      </section>
+
+      {/* ===== 5. PRICING SECTION ===== */}
+      <section className="py-20 lg:py-24 bg-muted/30" id="pricing" data-testid="section-pricing">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-pricing-title">
+              Simple, Transparent Pricing
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              Start free. Upgrade when your club grows.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
+            {/* FREE tier */}
+            <Card className="p-8 border-border/60 relative" data-testid="card-pricing-free">
+              <div className="mb-6">
+                <h3 className="text-xl font-bold mb-1">Free</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-bold">£0</span>
+                  <span className="text-muted-foreground">/ month</span>
+                </div>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {[
+                  "Up to 20 members",
+                  "2 admins",
+                  "Session scheduling",
+                  "Match tracking",
+                  "Basic finances",
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                    <Check className="w-4 h-4 text-green-500 mt-0.5 shrink-0" />
+                    <span>{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register">
+                <Button variant="outline" className="w-full" size="lg" data-testid="button-pricing-free">
+                  Start Free
+                </Button>
+              </Link>
+            </Card>
+
+            {/* PREMIUM tier */}
+            <Card
+              className="p-8 border-primary/40 relative ring-2 ring-primary/20 shadow-lg"
+              data-testid="card-pricing-premium"
+            >
+              <Badge className="absolute -top-3 left-1/2 -translate-x-1/2 bg-primary text-primary-foreground px-4 py-1">
+                Most Popular
+              </Badge>
+              <div className="mb-6">
+                <h3 className="text-xl font-bold mb-1">Premium</h3>
+                <div className="flex items-baseline gap-1">
+                  <span className="text-4xl font-bold">£19</span>
+                  <span className="text-muted-foreground">/ month</span>
+                </div>
+                <p className="text-sm text-primary font-medium mt-1">
+                  or £180/year <span className="text-green-600 dark:text-green-400">(Save £48)</span>
+                </p>
+              </div>
+              <ul className="space-y-3 mb-8">
+                {[
+                  "Unlimited members",
+                  "Unlimited admins",
+                  "Unlimited sessions",
+                  "Guest management",
+                  "Advanced finances",
+                  "Reports & analytics",
+                  "Data export",
+                ].map((item, i) => (
+                  <li key={i} className="flex items-start gap-2.5 text-sm">
+                    <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                    <span className="font-medium">{item}</span>
+                  </li>
+                ))}
+              </ul>
+              <Link href="/register">
+                <Button className="w-full" size="lg" data-testid="button-pricing-premium">
+                  Upgrade to Premium <Star className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </Card>
+          </div>
+
+          <p className="text-center text-sm text-muted-foreground mt-8" data-testid="text-pricing-note">
+            Most badminton clubs upgrade once they exceed 20 members.
+          </p>
+        </div>
+      </section>
+
+      {/* ===== 6. SCREENSHOTS SECTION ===== */}
+      <section className="py-20 lg:py-24" data-testid="section-screenshots">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="text-center max-w-2xl mx-auto mb-14">
+            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-screenshots-title">
+              Everything Your Club Needs in One App
+            </h2>
+            <p className="text-muted-foreground text-lg">
+              From session scheduling to finance tracking, see the tools that power badminton clubs.
+            </p>
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
+            {[
+              { src: sessionsPath, alt: "Session scheduling and management", label: "Session Management" },
+              { src: organisersPath, alt: "Organiser dashboard with live view", label: "Organiser Dashboard" },
+              { src: playersPath, alt: "Player profiles and attendance", label: "Player Profiles" },
+              { src: paymentsPath, alt: "Payment tracking per session", label: "Payment Tracking" },
+              { src: venuesPath, alt: "Venue and court setup", label: "Venue Management" },
+              { src: adminPath, alt: "Admin tools and governance", label: "Admin Tools" },
+            ].map((screenshot, i) => (
+              <div
+                key={i}
+                className="group rounded-xl overflow-hidden border border-border/50 shadow-sm hover:shadow-md transition-shadow bg-card"
+                data-testid={`screenshot-${i}`}
+              >
+                <div className="overflow-hidden">
+                  <img
+                    src={screenshot.src}
+                    alt={screenshot.alt}
+                    className="w-full h-auto object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                    loading="lazy"
+                  />
+                </div>
+                <div className="px-4 py-3 border-t border-border/40">
+                  <p className="text-sm font-medium">{screenshot.label}</p>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      {/* ===== EXPLORE LINKS ===== */}
+      <section className="py-16 bg-muted/30 border-t border-border/40" data-testid="section-explore-links">
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
             <h2 className="text-3xl md:text-4xl font-display font-bold mb-3" data-testid="text-explore-title">Explore</h2>
@@ -229,15 +462,15 @@ export default function Home() {
                 </span>
               </Card>
             </Link>
-            <Link href="/explore/sessions">
+            <Link href="/play">
               <Card className="p-6 hover-elevate cursor-pointer h-full" data-testid="card-explore-sessions">
                 <div className="h-12 w-12 bg-primary/10 rounded-md flex items-center justify-center mb-4 text-primary">
                   <Calendar className="h-6 w-6" />
                 </div>
-                <h3 className="text-xl font-bold mb-2">Club Sessions</h3>
-                <p className="text-muted-foreground leading-relaxed mb-4">View upcoming and live sessions across all clubs.</p>
+                <h3 className="text-xl font-bold mb-2">Find Sessions</h3>
+                <p className="text-muted-foreground leading-relaxed mb-4">Discover upcoming sessions and find a game near you.</p>
                 <span className="inline-flex items-center text-sm font-medium text-primary">
-                  View Sessions <ArrowRight className="ml-1 w-4 h-4" />
+                  Browse Sessions <ArrowRight className="ml-1 w-4 h-4" />
                 </span>
               </Card>
             </Link>
@@ -245,92 +478,105 @@ export default function Home() {
         </div>
       </section>
 
+      {/* ===== 7. FINAL CTA ===== */}
       <section className="py-20 lg:py-28 relative overflow-hidden" data-testid="section-closing-cta">
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 -z-10" />
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <h2 className="text-3xl md:text-4xl font-display font-bold mb-5" data-testid="text-closing-headline">
-            Built for How Sports Clubs Really Operate
+          <h2
+            className="text-3xl md:text-4xl font-display font-bold mb-5"
+            data-testid="text-closing-headline"
+          >
+            Start Managing Your Club the Easy Way
           </h2>
-          <p className="text-muted-foreground text-lg mb-10 leading-relaxed max-w-2xl mx-auto" data-testid="text-closing-description">
-            From grassroots clubs to multi-venue operations, Club Master helps you fill courts fairly, reduce admin workload, and keep players informed.
+          <p
+            className="text-muted-foreground text-lg mb-10 leading-relaxed max-w-2xl mx-auto"
+            data-testid="text-closing-description"
+          >
+            Join badminton clubs already using BadmintonHub to schedule sessions, organize matches, and manage their finances without the hassle.
           </p>
           <Link href="/register">
-            <Button size="lg" className="rounded-md" data-testid="button-closing-cta">
-              Start Managing Your Club Today <ArrowRight className="ml-2 h-5 w-5" />
+            <Button size="lg" className="rounded-md text-base px-8" data-testid="button-closing-cta">
+              Create Your Free Club <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
+          <p className="text-sm text-muted-foreground mt-4">No credit card required.</p>
         </div>
       </section>
     </PublicLayout>
   );
 }
 
-function StatCard({ value, label, testId, accent }: { value: string | number; label: string; testId: string; accent?: boolean }) {
+function FeatureCard({
+  testId,
+  image,
+  imageAlt,
+  title,
+  description,
+  icon: Icon,
+}: {
+  testId: string;
+  image: string;
+  imageAlt: string;
+  title: string;
+  description: string;
+  icon: any;
+}) {
   return (
-    <div className="text-center" data-testid={testId}>
-      <div className={`text-3xl font-bold ${accent ? "text-green-600 dark:text-green-400" : "text-primary"}`}>{value}</div>
-      <div className="text-sm text-muted-foreground mt-1">{label}</div>
-    </div>
+    <Card
+      className="overflow-hidden hover:shadow-md transition-shadow border-border/60 group"
+      data-testid={testId}
+    >
+      <div className="overflow-hidden aspect-[16/10]">
+        <img
+          src={image}
+          alt={imageAlt}
+          className="w-full h-full object-cover group-hover:scale-[1.03] transition-transform duration-300"
+          loading="lazy"
+        />
+      </div>
+      <div className="p-5">
+        <div className="flex items-center gap-2.5 mb-2">
+          <div className="h-8 w-8 bg-primary/10 rounded-md flex items-center justify-center text-primary shrink-0">
+            <Icon className="h-4 w-4" />
+          </div>
+          <h3 className="font-semibold text-base">{title}</h3>
+        </div>
+        <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
+      </div>
+    </Card>
   );
 }
 
-interface FeaturePoint {
-  icon: any;
-  text: string;
-}
-
-function FeatureSection({
-  testId,
-  badge,
+function HowItWorksStep({
+  step,
   title,
   description,
-  points,
-  imageSrc,
+  image,
   imageAlt,
-  reverse,
+  testId,
 }: {
-  testId: string;
-  badge: string;
+  step: number;
   title: string;
   description: string;
-  points: FeaturePoint[];
-  imageSrc: string;
+  image: string;
   imageAlt: string;
-  reverse: boolean;
+  testId: string;
 }) {
   return (
-    <section className="py-16 lg:py-20" data-testid={testId}>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className={`flex flex-col flex-wrap ${reverse ? "lg:flex-row-reverse" : "lg:flex-row"} items-center gap-10 lg:gap-16`}>
-          <div className="flex-1 w-full">
-            <span className="inline-block text-xs font-semibold tracking-wider uppercase text-primary mb-3" data-testid={`badge-${testId}`}>
-              {badge}
-            </span>
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid={`text-${testId}-title`}>{title}</h2>
-            <p className="text-muted-foreground text-lg mb-6 leading-relaxed" data-testid={`text-${testId}-description`}>{description}</p>
-            <ul className="space-y-3">
-              {points.map((point, i) => (
-                <li key={i} className="flex items-start gap-3" data-testid={`text-${testId}-point-${i}`}>
-                  <div className="h-6 w-6 mt-0.5 flex-shrink-0 text-primary">
-                    <point.icon className="h-5 w-5" />
-                  </div>
-                  <span className="text-foreground/90">{point.text}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-          <div className="flex-1 w-full">
-            <div className="rounded-md overflow-hidden border border-border/50 shadow-sm">
-              <img
-                src={imageSrc}
-                alt={imageAlt}
-                className="w-full h-auto object-cover"
-                loading="lazy"
-              />
-            </div>
-          </div>
-        </div>
+    <div className="text-center" data-testid={testId}>
+      <div className="rounded-xl overflow-hidden border border-border/50 shadow-sm mb-6">
+        <img
+          src={image}
+          alt={imageAlt}
+          className="w-full h-auto object-cover"
+          loading="lazy"
+        />
       </div>
-    </section>
+      <div className="inline-flex items-center justify-center h-10 w-10 rounded-full bg-primary text-primary-foreground font-bold text-lg mb-3">
+        {step}
+      </div>
+      <h3 className="text-lg font-bold mb-2">{title}</h3>
+      <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">{description}</p>
+    </div>
   );
 }
