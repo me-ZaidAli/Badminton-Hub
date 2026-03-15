@@ -1575,88 +1575,106 @@ export async function registerRoutes(
     try {
       const allClubs = await storage.getClubs();
       const approvedClubs = allClubs.filter((c: any) => c.status === "APPROVED" && c.isActive);
-      
-      const allSessions: any[] = [];
-      for (const club of approvedClubs) {
-        const sessions = await storage.getSessionsByClub(club.id);
-        const publicSessions = sessions.filter(s => s.status !== "CANCELLED" && !s.isPrivate);
-        
-        for (const session of publicSessions) {
-          const signups = await storage.getSessionSignups(session.id);
-          const matches = await storage.getSessionMatches(session.id);
-          
-          const liveMatches = matches.filter((m: any) => m.status === "LIVE");
-          const queuedMatches = matches.filter((m: any) => m.status === "QUEUED");
-          const completedMatches = matches.filter((m: any) => m.status === "COMPLETED");
+      const clubMap = new Map(approvedClubs.map((c: any) => [c.id, c]));
 
-          const sanitizePlayer = (p: any) => {
-            if (!p) return null;
-            const showPublic = p.user?.showPublicName === true;
-            const displayName = showPublic
-              ? (p.user?.nickname || p.user?.fullName)
-              : p.user?.fullName;
-            return {
-              id: p.id,
-              fullName: displayName,
-              category: p.category,
-              nameBlurred: !showPublic,
-            };
-          };
+      const allDbSessions = await storage.getSessions();
+      const threeMonthsAgo = new Date();
+      threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
 
-          allSessions.push({
-            id: session.id,
-            clubId: session.clubId,
-            clubName: club.name,
-            clubSlug: (club as any).slug,
-            clubCity: (club as any).city || null,
-            clubPostcode: (club as any).postcode || null,
-            clubAddress: (club as any).address || null,
-            playerLevels: (club as any).playerLevels || [],
-            title: session.title,
-            date: session.date,
-            startTime: session.startTime,
-            durationMinutes: session.durationMinutes,
-            maxPlayers: session.maxPlayers,
-            courtsAvailable: session.courtsAvailable,
-            matchMode: session.matchMode,
-            genderRestriction: session.genderRestriction,
-            status: session.status,
-            liveStreamUrl: session.liveStreamUrl,
-            signupCount: signups.filter((s: any) => s.signupStatus === "CONFIRMED").length,
-            liveMatchCount: liveMatches.length,
-            queuedMatchCount: queuedMatches.length,
-            completedMatchCount: completedMatches.length,
-            liveMatches: liveMatches.slice(0, 4).map(m => ({
-              id: m.id,
-              courtNumber: m.courtNumber,
-              scoreA: m.scoreA,
-              scoreB: m.scoreB,
-              teamAPlayer1: sanitizePlayer(m.teamAPlayer1),
-              teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
-              teamBPlayer1: sanitizePlayer(m.teamBPlayer1),
-              teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
-            })),
-            queuedMatches: queuedMatches.slice(0, 3).map(m => ({
-              id: m.id,
-              queuePosition: m.queuePosition,
-              teamAPlayer1: sanitizePlayer(m.teamAPlayer1),
-              teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
-              teamBPlayer1: sanitizePlayer(m.teamBPlayer1),
-              teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
-            })),
-            recentResults: completedMatches.slice(0, 3).map(m => ({
-              id: m.id,
-              scoreA: m.scoreA,
-              scoreB: m.scoreB,
-              teamAPlayer1: sanitizePlayer(m.teamAPlayer1),
-              teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
-              teamBPlayer1: sanitizePlayer(m.teamBPlayer1),
-              teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
-            })),
-          });
+      const publicSessions = allDbSessions.filter(s =>
+        clubMap.has(s.clubId) &&
+        !s.isPrivate &&
+        s.status !== "CANCELLED" &&
+        new Date(s.date) >= threeMonthsAgo
+      );
+
+      const sanitizePlayer = (p: any) => {
+        if (!p) return null;
+        const showPublic = p.user?.showPublicName === true;
+        const displayName = showPublic
+          ? (p.user?.nickname || p.user?.fullName)
+          : p.user?.fullName;
+        return {
+          id: p.id,
+          fullName: displayName,
+          category: p.category,
+          nameBlurred: !showPublic,
+        };
+      };
+
+      const enrichedPromises = publicSessions.map(async (session) => {
+        const club = clubMap.get(session.clubId)!;
+        const isLiveOrUpcoming = session.status === "UPCOMING" || session.status === "ACTIVE";
+
+        let signupCount = (session as any).signupCount || 0;
+        let liveMatches: any[] = [];
+        let queuedMatches: any[] = [];
+        let recentResults: any[] = [];
+        let liveMatchCount = 0;
+        let queuedMatchCount = 0;
+        let completedMatchCount = 0;
+
+        if (isLiveOrUpcoming) {
+          try {
+            const [signups, matches] = await Promise.all([
+              storage.getSessionSignups(session.id),
+              storage.getSessionMatches(session.id),
+            ]);
+            signupCount = signups.filter((s: any) => s.signupStatus === "CONFIRMED").length;
+            const live = matches.filter((m: any) => m.status === "LIVE");
+            const queued = matches.filter((m: any) => m.status === "QUEUED");
+            const completed = matches.filter((m: any) => m.status === "COMPLETED");
+            liveMatchCount = live.length;
+            queuedMatchCount = queued.length;
+            completedMatchCount = completed.length;
+            liveMatches = live.slice(0, 4).map((m: any) => ({
+              id: m.id, courtNumber: m.courtNumber, scoreA: m.scoreA, scoreB: m.scoreB,
+              teamAPlayer1: sanitizePlayer(m.teamAPlayer1), teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
+              teamBPlayer1: sanitizePlayer(m.teamBPlayer1), teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
+            }));
+            queuedMatches = queued.slice(0, 3).map((m: any) => ({
+              id: m.id, queuePosition: m.queuePosition,
+              teamAPlayer1: sanitizePlayer(m.teamAPlayer1), teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
+              teamBPlayer1: sanitizePlayer(m.teamBPlayer1), teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
+            }));
+            recentResults = completed.slice(0, 3).map((m: any) => ({
+              id: m.id, scoreA: m.scoreA, scoreB: m.scoreB,
+              teamAPlayer1: sanitizePlayer(m.teamAPlayer1), teamAPlayer2: sanitizePlayer(m.teamAPlayer2),
+              teamBPlayer1: sanitizePlayer(m.teamBPlayer1), teamBPlayer2: sanitizePlayer(m.teamBPlayer2),
+            }));
+          } catch {}
         }
-      }
-      
+
+        return {
+          id: session.id,
+          clubId: session.clubId,
+          clubName: club.name,
+          clubSlug: (club as any).slug,
+          clubCity: (club as any).city || null,
+          clubPostcode: (club as any).postcode || null,
+          clubAddress: (club as any).address || null,
+          playerLevels: (club as any).playerLevels || [],
+          title: session.title,
+          date: session.date,
+          startTime: session.startTime,
+          durationMinutes: session.durationMinutes,
+          maxPlayers: session.maxPlayers,
+          courtsAvailable: session.courtsAvailable,
+          matchMode: session.matchMode,
+          genderRestriction: session.genderRestriction,
+          status: session.status,
+          liveStreamUrl: session.liveStreamUrl,
+          signupCount,
+          liveMatchCount,
+          queuedMatchCount,
+          completedMatchCount,
+          liveMatches,
+          queuedMatches,
+          recentResults,
+        };
+      });
+
+      const allSessions = await Promise.all(enrichedPromises);
       allSessions.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
       res.json(allSessions);
     } catch (err: any) {
@@ -12177,15 +12195,8 @@ export async function registerRoutes(
       const allClubs = await storage.getClubs();
       const clubMap = new Map(allClubs.filter(c => c.status === "APPROVED" && c.isActive).map(c => [c.id, c]));
 
-      const now = new Date();
       const enriched = allSessions
-        .filter(s => clubMap.has(s.clubId) && !s.isPrivate && s.status !== "CANCELLED")
-        .filter(s => {
-          const sessionDate = new Date(s.date);
-          const threeMonthsAgo = new Date();
-          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
-          return sessionDate >= threeMonthsAgo;
-        })
+        .filter(s => clubMap.has(s.clubId) && !s.isPrivate && (s.status === "UPCOMING" || s.status === "ACTIVE"))
         .map(s => {
           const club = clubMap.get(s.clubId)!;
           return {
@@ -12204,7 +12215,8 @@ export async function registerRoutes(
             clubCity: club.city || null,
             clubPostcode: club.postcode || null,
           };
-        });
+        })
+        .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
       res.json(enriched);
     } catch (err) {
