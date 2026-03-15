@@ -286,6 +286,62 @@ function AIReportsSection({ clubs }: { clubs: any[] }) {
   );
 }
 
+function HistoricalImportButton() {
+  const { toast } = useToast();
+  const [result, setResult] = useState<any>(null);
+
+  const importMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/seed-historical-sessions");
+      if (!res.ok) throw new Error((await res.json()).message);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setResult(data);
+      toast({
+        title: "Historical Import Complete",
+        description: data.message || `${data.sessionsCreated} sessions, ${data.signupsCreated} signups created`,
+      });
+    },
+    onError: (err: any) => {
+      toast({ title: "Import Failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  return (
+    <>
+      <Dialog open={!!result} onOpenChange={() => setResult(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Import Result</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            <p>{result?.message}</p>
+            {result?.sessionsCreated !== undefined && <p>Sessions created: {result.sessionsCreated}</p>}
+            {result?.signupsCreated !== undefined && <p>Signups created: {result.signupsCreated}</p>}
+            {(result?.unmatchedNames?.length > 0) && (
+              <div>
+                <p className="font-medium mt-2">Unmatched names ({result.unmatchedNames.length}):</p>
+                <p className="text-muted-foreground">{result.unmatchedNames.join(", ")}</p>
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <Button
+        data-testid="button-import-historical"
+        size="sm"
+        variant="outline"
+        onClick={() => importMutation.mutate()}
+        disabled={importMutation.isPending}
+      >
+        {importMutation.isPending ? <Loader2 className="h-4 w-4 mr-1.5 animate-spin" /> : <Upload className="h-4 w-4 mr-1.5" />}
+        {importMutation.isPending ? "Importing..." : "Import Historical Data"}
+      </Button>
+    </>
+  );
+}
+
 export default function AdminDashboard() {
   const { data: user } = useUser();
   const { data: players } = usePlayers();
@@ -400,10 +456,15 @@ export default function AdminDashboard() {
             {`Overview of your managed club${(myAdminClubs?.length ?? 0) > 1 ? 's' : ''}.`}
           </p>
         </div>
-        <Badge variant="outline" className="text-sm py-1 px-3">
-          <Shield className="h-4 w-4 mr-2" />
-          {isOrganiserOnly ? "ORGANISER" : user?.role}
-        </Badge>
+        <div className="flex items-center gap-2">
+          {user?.role === "OWNER" && (
+            <HistoricalImportButton />
+          )}
+          <Badge variant="outline" className="text-sm py-1 px-3">
+            <Shield className="h-4 w-4 mr-2" />
+            {isOrganiserOnly ? "ORGANISER" : user?.role}
+          </Badge>
+        </div>
       </div>
 
       <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
