@@ -14,8 +14,11 @@ import {
   Gamepad2,
   Check,
   Star,
+  Clock,
+  MapPin,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
+import { format, parseISO, isAfter, startOfToday } from "date-fns";
 import heroPath from "@assets/bpg_20260217_093920_0000_1771321177372.png";
 import playersPath from "@assets/landing-players.png";
 import organisersPath from "@assets/image_1771422277330.png";
@@ -48,9 +51,36 @@ export default function Home() {
     refetchInterval: 30000,
   });
 
+  const { data: playSessions } = useQuery<any[]>({
+    queryKey: ["/api/public/play-sessions"],
+    staleTime: 30000,
+  });
+
   const liveSessions = useMemo(() => {
     return allSessions?.filter(s => s.liveMatchCount > 0) || [];
   }, [allSessions]);
+
+  const upcomingSessions = useMemo(() => {
+    if (!playSessions) return [];
+    const today = startOfToday();
+    return playSessions
+      .filter(s => {
+        const d = parseISO(s.date);
+        return isAfter(d, today) && s.status !== "COMPLETED" && s.status !== "CANCELLED";
+      })
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+      .slice(0, 6);
+  }, [playSessions]);
+
+  const recentSessions = useMemo(() => {
+    if (!playSessions) return [];
+    return playSessions
+      .filter(s => s.status === "COMPLETED")
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 6);
+  }, [playSessions]);
+
+  const displaySessions = upcomingSessions.length > 0 ? upcomingSessions : recentSessions;
 
   useEffect(() => {
     document.title = "BadmintonHub - Run Your Badminton Club Without the Spreadsheets";
@@ -138,6 +168,101 @@ export default function Home() {
                 Watch Live <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
+          </div>
+        </section>
+      )}
+
+      {/* ===== UPCOMING SESSIONS SECTION ===== */}
+      {displaySessions.length > 0 && (
+        <section className="py-16 lg:py-20 border-b border-border/40" data-testid="section-upcoming-sessions">
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-10">
+              <div>
+                <h2 className="text-3xl md:text-4xl font-display font-bold mb-2" data-testid="text-sessions-title">
+                  {upcomingSessions.length > 0 ? "Upcoming Sessions" : "Recent Sessions"}
+                </h2>
+                <p className="text-muted-foreground text-lg">
+                  {upcomingSessions.length > 0
+                    ? "Find a session and join a game near you."
+                    : "See what's been happening across clubs."}
+                </p>
+              </div>
+              <Link href="/play">
+                <Button variant="outline" className="shrink-0" data-testid="button-view-all-sessions">
+                  View All Sessions <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              </Link>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+              {displaySessions.map(session => {
+                const sessionDate = parseISO(session.date);
+                const dayNames = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+                const dayName = dayNames[sessionDate.getDay()];
+                const spotsLeft = Math.max(0, session.maxPlayers - session.signupCount);
+                const isFull = spotsLeft === 0;
+                const isUpcoming = isAfter(sessionDate, startOfToday());
+
+                return (
+                  <Card
+                    key={session.id}
+                    className="overflow-hidden border-border/60 hover:shadow-md transition-shadow"
+                    data-testid={`card-home-session-${session.id}`}
+                  >
+                    <div className="p-5">
+                      <div className="flex items-start justify-between gap-2 mb-3">
+                        <div className="min-w-0 flex-1">
+                          <h3 className="font-semibold text-sm truncate">
+                            {session.title || "Club Session"}
+                          </h3>
+                          <p className="text-xs text-primary font-medium mt-0.5">{session.clubName}</p>
+                        </div>
+                        {isUpcoming ? (
+                          <Badge variant="secondary" className="text-[10px] shrink-0 px-2">Upcoming</Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-[10px] shrink-0 px-2 text-muted-foreground">Completed</Badge>
+                        )}
+                      </div>
+
+                      <div className="space-y-1.5 mb-3">
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Calendar className="w-3.5 h-3.5 shrink-0" />
+                          <span>{dayName}, {format(sessionDate, "d MMM yyyy")}</span>
+                        </div>
+                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                          <Clock className="w-3.5 h-3.5 shrink-0" />
+                          <span>{session.startTime} · {session.durationMinutes} mins</span>
+                        </div>
+                        {session.clubCity && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <MapPin className="w-3.5 h-3.5 shrink-0" />
+                            <span>{session.clubCity}</span>
+                          </div>
+                        )}
+                      </div>
+
+                      <div className="flex items-center justify-between pt-3 border-t border-border/40">
+                        <div className="flex items-center gap-1.5">
+                          <Users className="w-3.5 h-3.5 text-muted-foreground" />
+                          <span className={`text-xs font-medium ${
+                            isFull ? "text-red-500" : spotsLeft <= 3 ? "text-orange-500" : "text-green-600 dark:text-green-400"
+                          }`}>
+                            {isFull ? "Full" : `${spotsLeft} spot${spotsLeft !== 1 ? "s" : ""} left`}
+                          </span>
+                        </div>
+                        {isUpcoming && !isFull && (
+                          <Link href="/register">
+                            <Button size="sm" variant="outline" className="h-7 text-xs px-3" data-testid={`button-join-home-${session.id}`}>
+                              Join
+                            </Button>
+                          </Link>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         </section>
       )}
