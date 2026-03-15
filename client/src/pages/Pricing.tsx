@@ -10,10 +10,13 @@ import {
 import { useUser } from "@/hooks/use-auth";
 
 const FREE_FEATURES = [
-  { text: "Unlimited sessions", included: true },
+  { text: "Up to 20 members", included: true },
+  { text: "2 admins", included: true },
+  { text: "Session scheduling", included: true },
+  { text: "Match tracking", included: true },
+  { text: "Basic finances", included: true },
   { text: "Attendance tracking", included: true },
   { text: "Member directory", included: true },
-  { text: "Basic club settings", included: true },
   { text: "Session sign-ups & waiting lists", included: true },
   { text: "Court & match management", included: true },
   { text: "Player profiles", included: true },
@@ -26,20 +29,21 @@ const FREE_FEATURES = [
 
 const PREMIUM_FEATURES = [
   { text: "Everything in Free, plus:", included: true, highlight: true },
+  { text: "Unlimited members", included: true },
+  { text: "Unlimited admins", included: true },
+  { text: "Unlimited sessions", included: true },
+  { text: "Guest management", included: true },
+  { text: "Advanced finances", included: true },
+  { text: "Reports & analytics", included: true },
+  { text: "Data export", included: true },
   { text: "Dynamic player rankings", included: true },
   { text: "League management", included: true },
-  { text: "Financial dashboard & tracking", included: true },
   { text: "Automated match generation", included: true },
-  { text: "Performance analytics", included: true },
   { text: "AI-powered reports", included: true },
   { text: "Junior management & skill tracking", included: true },
   { text: "Coach analytics dashboard", included: true },
   { text: "Referral programs", included: true },
   { text: "Rewards & milestone system", included: true },
-  { text: "Inventory & expense tracking", included: true },
-  { text: "CSV import / export", included: true },
-  { text: "Acquisition analytics", included: true },
-  { text: "Attendance analytics", included: true },
   { text: "35 premium themes", included: true },
   { text: "Priority support", included: true },
 ];
@@ -164,10 +168,11 @@ export default function Pricing() {
                 </div>
               </div>
               <div className="flex items-baseline gap-1 mt-2">
-                <span className="text-4xl font-bold" data-testid="text-price-premium">£10</span>
+                <span className="text-4xl font-bold" data-testid="text-price-premium">£19</span>
                 <span className="text-muted-foreground">/month</span>
               </div>
-              <p className="text-sm text-muted-foreground mt-2">Per club. Paid via bank transfer.</p>
+              <p className="text-sm text-primary font-medium mt-1">or £180/year <span className="text-green-600 dark:text-green-400">(Save £48)</span></p>
+              <p className="text-sm text-muted-foreground mt-1">Per club. Paid via bank transfer.</p>
             </CardHeader>
             <CardContent className="space-y-4">
               <Link href={user ? "/admin/billing" : "/register"}>
@@ -254,12 +259,16 @@ export default function Pricing() {
               <div className="text-sm text-muted-foreground space-y-2 text-left max-w-md mx-auto">
                 <p>1. Sign up and create your club for free.</p>
                 <p>2. When ready, request a Premium upgrade from your club billing page.</p>
-                <p>3. Transfer £10/month via bank transfer to the platform account.</p>
+                <p>3. Transfer £19/month (or £180/year) via bank transfer to the platform account.</p>
                 <p>4. Our team will activate your Premium plan within 24 hours.</p>
                 <p>5. Your data is always preserved — downgrading just locks premium features.</p>
               </div>
             </CardContent>
           </Card>
+
+          <p className="text-sm text-muted-foreground mb-8" data-testid="text-pricing-note">
+            Most badminton clubs upgrade once they exceed 20 members.
+          </p>
 
           <div className="space-y-3">
             <h3 className="text-2xl font-bold" data-testid="text-cta-title">Ready to elevate your club?</h3>
