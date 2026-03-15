@@ -29089,9 +29089,13 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           const defaultFee = is1to1 ? 3500 : 2000;
           const maxPlayers = is1to1 ? 2 : 20;
 
+          const hours = sessionDate.getUTCHours().toString().padStart(2, "0");
+          const mins = sessionDate.getUTCMinutes().toString().padStart(2, "0");
+          const startTime = `${hours}:${mins}`;
+
           const insertResult = await db.execute(sql`
-            INSERT INTO sessions (title, date, club_id, venue_id, status, session_fee, max_players, created_by)
-            VALUES (${s.t}, ${sessionDate}, ${clubId}, ${venueId}, 'COMPLETED', ${defaultFee}, ${maxPlayers}, ${user.id})
+            INSERT INTO sessions (title, date, start_time, club_id, venue_id, status, session_fee, max_players, created_by)
+            VALUES (${s.t}, ${sessionDate}, ${startTime}, ${clubId}, ${venueId}, 'COMPLETED', ${defaultFee}, ${maxPlayers}, ${user.id})
             RETURNING id
           `);
           sessionId = (insertResult as any).rows[0].id;
