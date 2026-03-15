@@ -29020,7 +29020,9 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       if (!historicalData) return res.status(404).json({ message: "Historical data file not found" });
 
       const clubId = 1;
-      const venueId = 1;
+
+      const venueResult = await db.execute(sql`SELECT id FROM venues WHERE club_id = ${clubId} LIMIT 1`);
+      const venueId = (venueResult as any).rows?.[0]?.id || null;
 
       const existingCheck = await db.execute(sql`
         SELECT COUNT(*) as cnt FROM sessions WHERE club_id = ${clubId} AND status = 'COMPLETED' AND title LIKE '%|%'
@@ -29082,7 +29084,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           const maxPlayers = is1to1 ? 2 : 20;
 
           const insertResult = await db.execute(sql`
-            INSERT INTO sessions (title, date, club_id, venue_id, status, fee, max_players, created_by)
+            INSERT INTO sessions (title, date, club_id, venue_id, status, session_fee, max_players, created_by)
             VALUES (${s.t}, ${sessionDate}, ${clubId}, ${venueId}, 'COMPLETED', ${defaultFee}, ${maxPlayers}, ${user.id})
             RETURNING id
           `);
