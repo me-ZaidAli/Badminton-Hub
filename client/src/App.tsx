@@ -46,6 +46,7 @@ const OrganizerDashboard = lazy(() => import("@/pages/OrganizerDashboard"));
 const PendingApproval = lazy(() => import("@/pages/PendingApproval"));
 const ExploreClubs = lazy(() => import("@/pages/explore/ExploreClubs"));
 const ExploreSessions = lazy(() => import("@/pages/explore/ExploreSessions"));
+const PlaySessions = lazy(() => import("@/pages/PlaySessions"));
 const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
 const MyInsights = lazy(() => import("@/pages/MyInsights"));
 
@@ -412,6 +413,7 @@ function Router() {
       <Route path="/reset-password/:token" component={ResetPassword} />
       <Route path="/explore/clubs">{() => <Suspense fallback={<LazyFallback />}><ExploreClubs /></Suspense>}</Route>
       <Route path="/explore/sessions">{() => <Suspense fallback={<LazyFallback />}><ExploreSessions /></Suspense>}</Route>
+      <Route path="/play">{() => <Suspense fallback={<LazyFallback />}><PlaySessions /></Suspense>}</Route>
       <Route path="/claim-account">{() => <Suspense fallback={<LazyFallback />}><ClaimAccount /></Suspense>}</Route>
       
       {/* Protected Routes */}

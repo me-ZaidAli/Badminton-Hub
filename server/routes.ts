@@ -12171,6 +12171,48 @@ export async function registerRoutes(
   });
 
   // Public endpoint: sessions with club info for location search
+  app.get("/api/public/play-sessions", async (_req, res) => {
+    try {
+      const allSessions = await storage.getSessions();
+      const allClubs = await storage.getClubs();
+      const clubMap = new Map(allClubs.filter(c => c.status === "APPROVED" && c.isActive).map(c => [c.id, c]));
+
+      const now = new Date();
+      const enriched = allSessions
+        .filter(s => clubMap.has(s.clubId) && !s.isPrivate && s.status !== "CANCELLED")
+        .filter(s => {
+          const sessionDate = new Date(s.date);
+          const threeMonthsAgo = new Date();
+          threeMonthsAgo.setMonth(threeMonthsAgo.getMonth() - 3);
+          return sessionDate >= threeMonthsAgo;
+        })
+        .map(s => {
+          const club = clubMap.get(s.clubId)!;
+          return {
+            id: s.id,
+            title: s.title,
+            date: s.date,
+            startTime: s.startTime,
+            durationMinutes: s.durationMinutes,
+            maxPlayers: s.maxPlayers,
+            signupCount: (s as any).signupCount || 0,
+            allowedCategories: s.allowedCategories || [],
+            status: s.status,
+            sessionType: s.sessionType,
+            matchMode: s.matchMode,
+            clubName: club.name,
+            clubCity: club.city || null,
+            clubPostcode: club.postcode || null,
+          };
+        });
+
+      res.json(enriched);
+    } catch (err) {
+      console.error("Error fetching play sessions:", err);
+      res.status(500).json({ message: "Failed to fetch sessions" });
+    }
+  });
+
   app.get("/api/public/sessions-with-clubs", async (_req, res) => {
     try {
       const allSessions = await storage.getSessions();
