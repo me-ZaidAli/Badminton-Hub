@@ -133,14 +133,24 @@ export default function Home() {
                   Create Your Free Club <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
-              <a href="#how-it-works">
+              <Link href="/demo">
                 <Button
                   variant="outline"
                   size="lg"
                   className="rounded-md bg-white/10 backdrop-blur-sm border-white/20 text-white text-base"
+                  data-testid="button-hero-see-demo"
+                >
+                  <Eye className="mr-2 h-5 w-5" /> See Live Demo
+                </Button>
+              </Link>
+              <a href="#how-it-works">
+                <Button
+                  variant="ghost"
+                  size="lg"
+                  className="rounded-md text-white/80 hover:text-white text-base"
                   data-testid="button-hero-how-it-works"
                 >
-                  See How It Works
+                  How It Works
                 </Button>
               </a>
             </div>

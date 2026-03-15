@@ -1,7 +1,7 @@
 import { Link, useLocation, Redirect } from "wouter";
 import logoPath from "@assets/image_1770381062912_optimized.png";
 import { Button } from "@/components/ui/button";
-import { Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut, Shield, ShieldCheck, Download, CreditCard, Play } from "lucide-react";
+import { Search, Calendar, Menu, X, Mail, LayoutDashboard, User, LogOut, Shield, ShieldCheck, Download, CreditCard, Play, Eye } from "lucide-react";
 import { useState } from "react";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
@@ -14,6 +14,7 @@ const publicNavItems = [
   { label: "Play", href: "/play", icon: Play },
   { label: "Clubs", href: "/explore/clubs", icon: Search },
   { label: "Sessions", href: "/explore/sessions", icon: Calendar },
+  { label: "Demo", href: "/demo", icon: Eye },
   { label: "Pricing", href: "/pricing", icon: CreditCard },
   { label: "Contact", href: "/contact", icon: Mail },
 ];

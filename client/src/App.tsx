@@ -47,6 +47,7 @@ const PendingApproval = lazy(() => import("@/pages/PendingApproval"));
 const ExploreClubs = lazy(() => import("@/pages/explore/ExploreClubs"));
 const ExploreSessions = lazy(() => import("@/pages/explore/ExploreSessions"));
 const PlaySessions = lazy(() => import("@/pages/PlaySessions"));
+const Demo = lazy(() => import("@/pages/Demo"));
 const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
 const MyInsights = lazy(() => import("@/pages/MyInsights"));
 
@@ -414,6 +415,7 @@ function Router() {
       <Route path="/explore/clubs">{() => <Suspense fallback={<LazyFallback />}><ExploreClubs /></Suspense>}</Route>
       <Route path="/explore/sessions">{() => <Suspense fallback={<LazyFallback />}><ExploreSessions /></Suspense>}</Route>
       <Route path="/play">{() => <Suspense fallback={<LazyFallback />}><PlaySessions /></Suspense>}</Route>
+      <Route path="/demo">{() => <Suspense fallback={<LazyFallback />}><Demo /></Suspense>}</Route>
       <Route path="/claim-account">{() => <Suspense fallback={<LazyFallback />}><ClaimAccount /></Suspense>}</Route>
       
       {/* Protected Routes */}
