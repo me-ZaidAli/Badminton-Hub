@@ -29019,7 +29019,13 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       }
       if (!historicalData) return res.status(404).json({ message: "Historical data file not found" });
 
-      const clubId = 1;
+      const clubResult = await db.execute(sql`SELECT id FROM clubs WHERE name ILIKE '%badminton performance group%' LIMIT 1`);
+      let clubId = (clubResult as any).rows?.[0]?.id;
+      if (!clubId) {
+        const firstClub = await db.execute(sql`SELECT id FROM clubs ORDER BY id LIMIT 1`);
+        clubId = (firstClub as any).rows?.[0]?.id;
+      }
+      if (!clubId) return res.status(404).json({ message: "No club found" });
 
       const venueResult = await db.execute(sql`SELECT id FROM venues WHERE club_id = ${clubId} LIMIT 1`);
       const venueId = (venueResult as any).rows?.[0]?.id || null;
