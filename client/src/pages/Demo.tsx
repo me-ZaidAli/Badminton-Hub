@@ -17,11 +17,9 @@ import {
   TrendingUp,
   TrendingDown,
   CheckCircle2,
-  XCircle,
   AlertCircle,
   Star,
   Flame,
-  Award,
   Zap,
   Crown,
   Activity,
@@ -119,7 +117,7 @@ function modeColor(mode: string) {
 function DemoBanner() {
   return (
     <div className="bg-amber-500 text-black text-center py-2 px-4 text-sm font-bold tracking-wider" data-testid="demo-banner">
-      {DEMO_BANNER_TEXT} — This page shows sample data to demonstrate the platform. <Link href="/register"><span className="underline cursor-pointer">Create your free club</span></Link> to use with real data.
+      {DEMO_BANNER_TEXT} — This page shows sample data to demonstrate the platform. <Link href="/register"><span className="underline cursor-pointer" data-testid="link-demo-banner-register">Create your free club</span></Link> to use with real data.
     </div>
   );
 }
@@ -141,10 +139,13 @@ export default function Demo() {
           </p>
         </div>
 
-        <div className="flex flex-wrap gap-2 mb-8 border-b border-border/60 pb-4" data-testid="demo-tab-bar">
+        <div className="flex flex-wrap gap-2 mb-8 border-b border-border/60 pb-4" data-testid="demo-tab-bar" role="tablist" aria-label="Demo sections">
           {DEMO_TABS.map(tab => (
             <button
               key={tab.key}
+              role="tab"
+              aria-selected={activeTab === tab.key}
+              aria-controls={`panel-${tab.key}`}
               onClick={() => setActiveTab(tab.key)}
               className={`inline-flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all ${
                 activeTab === tab.key
@@ -159,13 +160,15 @@ export default function Demo() {
           ))}
         </div>
 
-        {activeTab === "dashboard" && <DemoDashboard />}
-        {activeTab === "sessions" && <DemoSessions />}
-        {activeTab === "matches" && <DemoMatches />}
-        {activeTab === "players" && <DemoPlayers />}
-        {activeTab === "finances" && <DemoFinances />}
-        {activeTab === "rankings" && <DemoRankings />}
-        {activeTab === "analytics" && <DemoAnalytics />}
+        <div role="tabpanel" id={`panel-${activeTab}`}>
+          {activeTab === "dashboard" && <DemoDashboard />}
+          {activeTab === "sessions" && <DemoSessions />}
+          {activeTab === "matches" && <DemoMatches />}
+          {activeTab === "players" && <DemoPlayers />}
+          {activeTab === "finances" && <DemoFinances />}
+          {activeTab === "rankings" && <DemoRankings />}
+          {activeTab === "analytics" && <DemoAnalytics />}
+        </div>
 
         <div className="mt-12 text-center py-10 border-t border-border/40">
           <h2 className="text-2xl font-bold mb-3">Ready to try it for real?</h2>
@@ -242,8 +245,8 @@ function DemoDashboard() {
                   </div>
                 </div>
                 <div className="flex gap-2 shrink-0">
-                  <Button variant="outline" size="sm" className="text-xs h-8" disabled>Withdraw</Button>
-                  <Button size="sm" className="text-xs h-8" disabled>View</Button>
+                  <Button variant="outline" size="sm" className="text-xs h-8" disabled data-testid={`button-demo-withdraw-${s.id}`}>Withdraw</Button>
+                  <Button size="sm" className="text-xs h-8" disabled data-testid={`button-demo-view-${s.id}`}>View</Button>
                 </div>
               </div>
             </Card>
@@ -260,7 +263,7 @@ function DemoDashboard() {
             <h3 className="font-semibold">Refer &amp; Earn <SampleBadge /></h3>
             <p className="text-sm text-muted-foreground">Invite friends to join your club and earn £4 credit for each approved referral.</p>
           </div>
-          <Button variant="outline" size="sm" disabled>Share Invite Link</Button>
+          <Button variant="outline" size="sm" disabled data-testid="button-demo-share-invite">Share Invite Link</Button>
         </div>
       </Card>
     </div>
@@ -317,7 +320,7 @@ function DemoSessions() {
                   }`}>
                     {spotsLeft === 0 ? "Full" : `${spotsLeft} spot${spotsLeft !== 1 ? "s" : ""} left`}
                   </span>
-                  <Button size="sm" className="text-xs h-7" disabled>
+                  <Button size="sm" className="text-xs h-7" disabled data-testid={`button-demo-signup-${s.id}`}>
                     {spotsLeft === 0 ? "Join Waitlist" : "Sign Up"}
                   </Button>
                 </div>

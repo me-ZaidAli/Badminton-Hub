@@ -16,6 +16,7 @@ import {
   Star,
   Clock,
   MapPin,
+  Eye,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, isAfter, startOfToday } from "date-fns";
