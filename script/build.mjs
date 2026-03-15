@@ -1,6 +1,6 @@
 import { build as esbuildBuild } from "esbuild";
 import { build as viteBuild } from "vite";
-import { rm } from "fs/promises";
+import { rm, copyFile, mkdir } from "fs/promises";
 
 async function buildAll() {
   await rm("dist", { recursive: true, force: true });
@@ -47,7 +47,11 @@ async function buildAll() {
   });
 }
 
-buildAll().then(() => {
+buildAll().then(async () => {
+  try {
+    await copyFile("server/historical_data.json", "dist/historical_data.json");
+    console.log("Copied historical_data.json to dist/");
+  } catch {}
   console.log("Build completed successfully!");
 }).catch((err) => {
   console.error("Build failed:", err);

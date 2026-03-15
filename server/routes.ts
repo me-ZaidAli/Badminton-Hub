@@ -28996,5 +28996,158 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     }
   });
 
+  app.post("/api/admin/seed-historical-sessions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (user.role !== "OWNER" && user.role !== "ADMIN") return res.sendStatus(403);
+
+    try {
+      const fs = await import("fs");
+      const path = await import("path");
+
+      let historicalData: any;
+      const possiblePaths = [
+        path.join(process.cwd(), "server", "historical_data.json"),
+        path.join(process.cwd(), "dist", "historical_data.json"),
+        path.join(__dirname, "historical_data.json"),
+      ];
+      for (const p of possiblePaths) {
+        try {
+          historicalData = JSON.parse(fs.readFileSync(p, "utf8"));
+          break;
+        } catch {}
+      }
+      if (!historicalData) return res.status(404).json({ message: "Historical data file not found" });
+
+      const clubId = 1;
+      const venueId = 1;
+
+      const existingCheck = await db.execute(sql`
+        SELECT COUNT(*) as cnt FROM sessions WHERE club_id = ${clubId} AND status = 'COMPLETED' AND title LIKE '%|%'
+      `);
+      const existingCount = Number((existingCheck as any).rows?.[0]?.cnt || 0);
+      if (existingCount > 100) {
+        return res.json({ message: "Historical sessions already imported", existingCount });
+      }
+
+      const allUsers = await db.execute(sql`SELECT id, full_name FROM users`);
+      const userRows = (allUsers as any).rows || [];
+      const nameToUserId = new Map<string, number>();
+      for (const u of userRows) {
+        nameToUserId.set(u.full_name.toLowerCase().trim(), u.id);
+      }
+
+      const trialSuffix = /\s*\(trial\)\s*/i;
+      const findUserId = (name: string): number | null => {
+        const lower = name.toLowerCase().trim();
+        if (nameToUserId.has(lower)) return nameToUserId.get(lower)!;
+        const withoutTrial = lower.replace(trialSuffix, "").trim();
+        if (nameToUserId.has(withoutTrial)) return nameToUserId.get(withoutTrial)!;
+        const normalized = lower.replace(/-/g, " ").replace(/\s+/g, " ");
+        for (const [k, v] of nameToUserId) {
+          if (k.replace(/-/g, " ").replace(/\s+/g, " ") === normalized) return v;
+        }
+        const manualMap: Record<string, string> = {
+          "gisselle gonzalez lopato": "gisselle pascaline gonzalez lopato",
+          "franz joseph zaragoza": "franz joseph",
+          "mif choudhury (trial)": "mif choudhury",
+          "sri injeti": "srichand injeti",
+          "syndia": "syndia wu",
+          "kunal kukreja": "kunal",
+          "saptak chatterjee": "saptak",
+          "ojas k": "ojas",
+          "emily": "emily jiang",
+        };
+        const mapped = manualMap[lower];
+        if (mapped && nameToUserId.has(mapped)) return nameToUserId.get(mapped)!;
+        return null;
+      };
+
+      let sessionsCreated = 0;
+      let signupsCreated = 0;
+      let unmatchedNames = new Set<string>();
+
+      for (const s of historicalData.sessions) {
+        const sessionDate = new Date(s.d);
+
+        const existingSessions = await db.execute(sql`
+          SELECT id FROM sessions WHERE title = ${s.t} AND date = ${sessionDate} AND club_id = ${clubId} LIMIT 1
+        `);
+        let sessionId: number;
+        if ((existingSessions as any).rows?.length > 0) {
+          sessionId = (existingSessions as any).rows[0].id;
+        } else {
+          const is1to1 = s.t.toLowerCase().includes("1 to 1") || s.t.toLowerCase().includes("1to1");
+          const defaultFee = is1to1 ? 3500 : 2000;
+          const maxPlayers = is1to1 ? 2 : 20;
+
+          const insertResult = await db.execute(sql`
+            INSERT INTO sessions (title, date, club_id, venue_id, status, fee, max_players, created_by)
+            VALUES (${s.t}, ${sessionDate}, ${clubId}, ${venueId}, 'COMPLETED', ${defaultFee}, ${maxPlayers}, ${user.id})
+            RETURNING id
+          `);
+          sessionId = (insertResult as any).rows[0].id;
+          sessionsCreated++;
+        }
+
+        for (const memberName of s.a) {
+          const userId = findUserId(memberName);
+          if (!userId) {
+            unmatchedNames.add(memberName);
+            continue;
+          }
+
+          const profiles = await db.execute(sql`
+            SELECT id FROM player_profiles WHERE user_id = ${userId} AND club_id = ${clubId} LIMIT 1
+          `);
+          let profileId: number;
+          if ((profiles as any).rows?.length > 0) {
+            profileId = (profiles as any).rows[0].id;
+          } else {
+            const insertProfile = await db.execute(sql`
+              INSERT INTO player_profiles (user_id, club_id, club_role) VALUES (${userId}, ${clubId}, 'PLAYER') RETURNING id
+            `);
+            profileId = (insertProfile as any).rows[0].id;
+          }
+
+          const existingSignup = await db.execute(sql`
+            SELECT id FROM session_signups WHERE session_id = ${sessionId} AND player_id = ${profileId} LIMIT 1
+          `);
+          if ((existingSignup as any).rows?.length > 0) continue;
+
+          const feeInfo = historicalData.fees[memberName] || { g: 20, o: 35 };
+          const is1to1 = s.t.toLowerCase().includes("1 to 1") || s.t.toLowerCase().includes("1to1");
+          const feePence = is1to1 ? feeInfo.o * 100 : feeInfo.g * 100;
+
+          await db.execute(sql`
+            INSERT INTO session_signups (session_id, player_id, fee, payment_status, attendance_status, signup_status, signup_time, is_paused, payment_method)
+            VALUES (${sessionId}, ${profileId}, ${feePence}, 'PAID', 'ATTENDED', 'CONFIRMED', ${sessionDate}, false, 'CASH')
+          `);
+          signupsCreated++;
+        }
+      }
+
+      await db.execute(sql`
+        UPDATE player_profiles pp SET matches_played = sub.cnt
+        FROM (
+          SELECT ss.player_id, COUNT(DISTINCT ss.session_id) as cnt
+          FROM session_signups ss WHERE ss.attendance_status = 'ATTENDED'
+          GROUP BY ss.player_id
+        ) sub
+        WHERE pp.id = sub.player_id
+      `);
+
+      res.json({
+        message: "Historical data import complete",
+        sessionsCreated,
+        signupsCreated,
+        unmatchedNames: [...unmatchedNames],
+      });
+    } catch (err: any) {
+      console.error("Historical import error:", err);
+      res.status(500).json({ message: "Import failed", error: err.message });
+    }
+  });
+
   return httpServer;
 }
