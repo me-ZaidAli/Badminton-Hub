@@ -29093,9 +29093,12 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           const mins = sessionDate.getUTCMinutes().toString().padStart(2, "0");
           const startTime = `${hours}:${mins}`;
 
+          const courtsAvailable = is1to1 ? 1 : 3;
+          const allowedCategories = JSON.stringify(["A", "B", "C", "D"]);
+
           const insertResult = await db.execute(sql`
-            INSERT INTO sessions (title, date, start_time, club_id, venue_id, status, session_fee, max_players, created_by)
-            VALUES (${s.t}, ${sessionDate}, ${startTime}, ${clubId}, ${venueId}, 'COMPLETED', ${defaultFee}, ${maxPlayers}, ${user.id})
+            INSERT INTO sessions (title, date, start_time, duration_minutes, club_id, venue_id, status, session_fee, max_players, courts_available, allowed_categories, created_by, match_mode, is_private, gender_restriction, session_type, players_per_side, match_gender_type, number_of_sets, auto_generate_active, ai_brain_enabled)
+            VALUES (${s.t}, ${sessionDate}, ${startTime}, 120, ${clubId}, ${venueId}, 'COMPLETED', ${defaultFee}, ${maxPlayers}, ${courtsAvailable}, ${allowedCategories}::jsonb, ${user.id}, 'SOCIAL', false, 'ALL', 'OPEN', 2, 'MIXED', 1, false, false)
             RETURNING id
           `);
           sessionId = (insertResult as any).rows[0].id;
