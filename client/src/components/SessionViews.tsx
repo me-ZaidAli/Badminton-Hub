@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2 } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -499,7 +499,13 @@ function TimelineSessionCard({
           {session.courtsAvailable > 0 && (
             <div className="flex items-center gap-1.5">
               <Layers className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
-              <span>{session.courtsAvailable} Court{session.courtsAvailable !== 1 ? "s" : ""}</span>
+              <span>{session.courtsAvailable} Court{session.courtsAvailable !== 1 ? "s" : ""}{session.hallName ? ` · ${session.hallName}` : ""}{session.courtNames && session.courtNames.length > 0 ? ` (${session.courtNames.join(", ")})` : ""}</span>
+            </div>
+          )}
+          {!session.courtsAvailable && (session.hallName || (session.courtNames && session.courtNames.length > 0)) && (
+            <div className="flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
+              <span>{[session.hallName, session.courtNames?.join(", ")].filter(Boolean).join(" · ")}</span>
             </div>
           )}
           {session.sessionFee != null && (
@@ -776,7 +782,13 @@ function SessionPreviewDialog({
             {session.courtsAvailable > 0 && (
               <div className="flex items-center gap-2 text-sm">
                 <Swords className="h-4 w-4 text-muted-foreground" />
-                <span>{session.courtsAvailable} court{session.courtsAvailable !== 1 ? "s" : ""}</span>
+                <span>{session.courtsAvailable} court{session.courtsAvailable !== 1 ? "s" : ""}{session.hallName ? ` · ${session.hallName}` : ""}{session.courtNames && session.courtNames.length > 0 ? ` (${session.courtNames.join(", ")})` : ""}</span>
+              </div>
+            )}
+            {!session.courtsAvailable && (session.hallName || (session.courtNames && session.courtNames.length > 0)) && (
+              <div className="flex items-center gap-2 text-sm">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <span>{[session.hallName, session.courtNames?.join(", ")].filter(Boolean).join(" · ")}</span>
               </div>
             )}
           </div>
