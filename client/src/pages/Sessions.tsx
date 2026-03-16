@@ -927,6 +927,7 @@ export default function Sessions() {
       onToggleJunior: (s: any) => handleToggleSessionType(s),
       onDelete: (s: any) => setDeleteSession({ id: s.id, recurringEventId: s.recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
       onDetails: (s: any) => setDetailsSession(s),
+      onRemindMembers: (id: number) => remindInviteesMutation.mutate(id),
     };
   }, [canManageSessions, editableClubIds, isOrganiserOnly]);
 

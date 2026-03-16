@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2 } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -40,6 +40,7 @@ type AdminActions = {
   onToggleJunior: (session: SessionItem) => void;
   onDelete: (session: SessionItem) => void;
   onDetails: (session: SessionItem) => void;
+  onRemindMembers?: (sessionId: number) => void;
 };
 
 type SessionViewProps = {
@@ -118,6 +119,16 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
             </TooltipTrigger>
             <TooltipContent>Crowd</TooltipContent>
           </Tooltip>
+          {adminActions.onRemindMembers && (
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-6 w-6 p-0 text-muted-foreground" onClick={() => adminActions.onRemindMembers!(session.id)} data-testid={`button-remind-mini-${session.id}`}>
+                  <Bell className="h-3 w-3" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>Remind Members</TooltipContent>
+            </Tooltip>
+          )}
           <div className="flex-1" />
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -626,6 +637,23 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
               </Button>
             </TooltipTrigger>
             <TooltipContent>Session Finances</TooltipContent>
+          </Tooltip>
+        )}
+        {adminActions.onRemindMembers && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+                onClick={(e) => { e.stopPropagation(); adminActions.onRemindMembers!(session.id); }}
+                data-testid={`button-remind-view-${session.id}`}
+              >
+                <Bell className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">Remind</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>Remind Members</TooltipContent>
           </Tooltip>
         )}
         <Tooltip>
