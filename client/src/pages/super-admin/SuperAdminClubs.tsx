@@ -1365,6 +1365,15 @@ export default function SuperAdminClubs() {
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => setEditClub(club)}
+                          data-testid={`button-edit-club-${club.id}`}
+                          title="Edit club details"
+                        >
+                          <Pencil className="w-4 h-4 text-primary" />
+                        </Button>
                         {club.status === "PENDING" && (
                           <>
                             <Button
