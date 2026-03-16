@@ -429,8 +429,14 @@ export async function registerRoutes(
   // Public clubs list - only approved clubs for browsing
   app.get("/api/clubs", async (req, res) => {
     const allClubs = await storage.getClubs();
-    // Filter to only show approved clubs for public viewing
     const approvedClubs = allClubs.filter((c: any) => c.status === "APPROVED");
+    if (!req.isAuthenticated()) {
+      const sanitized = approvedClubs.map((c: any) => {
+        const { bankAccountName, bankSortCode, bankAccountNumber, ...rest } = c;
+        return rest;
+      });
+      return res.json(sanitized);
+    }
     res.json(approvedClubs);
   });
 
@@ -7822,7 +7828,8 @@ export async function registerRoutes(
         "latitude", "longitude", "description", "beRegistrationNumber",
         "socialGameTimings", "trainingDetails", "shuttlecockType",
         "contactFullName", "contactPhone", "contactAddress",
-        "region", "country", "continent", "clubPolicies", "clubStandards", "status"
+        "region", "country", "continent", "clubPolicies", "clubStandards", "status",
+        "bankAccountName", "bankSortCode", "bankAccountNumber"
       ];
       for (const field of stringFields) {
         if (body[field] !== undefined) {
@@ -12655,7 +12662,8 @@ export async function registerRoutes(
         isRegisteredWithBE, beRegistrationNumber, hasCompetitions, hasSocialGames,
         socialGameTimings, providesTraining, trainingDetails,
         sessionFee, hasMembership, membershipFee, shuttlecockType,
-        providesClubTShirts, ageGroups, playerLevels, sportTypes, adminUserId } = req.body;
+        providesClubTShirts, ageGroups, playerLevels, sportTypes, adminUserId,
+        bankAccountName, bankSortCode, bankAccountNumber } = req.body;
       const updateData: Record<string, any> = {};
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description || null;
@@ -12685,6 +12693,9 @@ export async function registerRoutes(
       if (playerLevels !== undefined) updateData.playerLevels = playerLevels;
       if (sportTypes !== undefined) updateData.sportTypes = Array.isArray(sportTypes) ? sportTypes : null;
       if (req.body.socialLinks !== undefined) updateData.socialLinks = Array.isArray(req.body.socialLinks) ? req.body.socialLinks : [];
+      if (bankAccountName !== undefined) updateData.bankAccountName = bankAccountName || null;
+      if (bankSortCode !== undefined) updateData.bankSortCode = bankSortCode || null;
+      if (bankAccountNumber !== undefined) updateData.bankAccountNumber = bankAccountNumber || null;
 
       if (adminUserId) {
         const uid = parseInt(adminUserId);

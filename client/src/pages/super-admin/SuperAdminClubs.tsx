@@ -54,6 +54,9 @@ interface ClubRecord {
   providesClubTShirts?: boolean;
   ageGroups?: string[];
   playerLevels?: string[];
+  bankAccountName?: string;
+  bankSortCode?: string;
+  bankAccountNumber?: string;
   latitude?: string;
   longitude?: string;
   googleMapsUrl?: string;
@@ -91,6 +94,9 @@ interface ClubEditForm {
   providesClubTShirts: boolean;
   isRegisteredWithBE: boolean;
   beRegistrationNumber: string;
+  bankAccountName: string;
+  bankSortCode: string;
+  bankAccountNumber: string;
 }
 
 interface UserRecord {
@@ -1052,6 +1058,9 @@ export default function SuperAdminClubs() {
     providesClubTShirts: false,
     isRegisteredWithBE: false,
     beRegistrationNumber: "",
+    bankAccountName: "",
+    bankSortCode: "",
+    bankAccountNumber: "",
   });
   const [archiveClub, setArchiveClub] = useState<ClubRecord | null>(null);
   const [permanentDeleteClub, setPermanentDeleteClub] = useState<ClubRecord | null>(null);
@@ -1091,6 +1100,9 @@ export default function SuperAdminClubs() {
         providesClubTShirts: editClub.providesClubTShirts || false,
         isRegisteredWithBE: editClub.isRegisteredWithBE || false,
         beRegistrationNumber: editClub.beRegistrationNumber || "",
+        bankAccountName: editClub.bankAccountName || "",
+        bankSortCode: editClub.bankSortCode || "",
+        bankAccountNumber: editClub.bankAccountNumber || "",
       });
     }
   }, [editClub]);
@@ -1208,6 +1220,9 @@ export default function SuperAdminClubs() {
         providesClubTShirts: data.form.providesClubTShirts,
         isRegisteredWithBE: data.form.isRegisteredWithBE,
         beRegistrationNumber: data.form.beRegistrationNumber,
+        bankAccountName: data.form.bankAccountName || null,
+        bankSortCode: data.form.bankSortCode || null,
+        bankAccountNumber: data.form.bankAccountNumber || null,
       });
       return res.json();
     },
@@ -1566,6 +1581,39 @@ export default function SuperAdminClubs() {
                     value={editClubForm.contactAddress}
                     onChange={(e) => setEditClubForm(f => ({ ...f, contactAddress: e.target.value }))}
                     data-testid="input-edit-club-contact-address"
+                  />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <div className="text-sm font-semibold text-muted-foreground border-b pb-1 mb-3">Bank Details</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <Label>Account Name</Label>
+                  <Input
+                    value={editClubForm.bankAccountName}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, bankAccountName: e.target.value }))}
+                    placeholder="e.g. Club Name"
+                    data-testid="input-edit-club-bank-account-name"
+                  />
+                </div>
+                <div>
+                  <Label>Sort Code</Label>
+                  <Input
+                    value={editClubForm.bankSortCode}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, bankSortCode: e.target.value }))}
+                    placeholder="e.g. 12-34-56"
+                    data-testid="input-edit-club-bank-sort-code"
+                  />
+                </div>
+                <div>
+                  <Label>Account Number</Label>
+                  <Input
+                    value={editClubForm.bankAccountNumber}
+                    onChange={(e) => setEditClubForm(f => ({ ...f, bankAccountNumber: e.target.value }))}
+                    placeholder="e.g. 12345678"
+                    data-testid="input-edit-club-bank-account-number"
                   />
                 </div>
               </div>

@@ -46,6 +46,9 @@ interface ClubEditState {
   contactAddress: string;
   ageGroups: string[];
   playerLevels: string[];
+  bankAccountName: string;
+  bankSortCode: string;
+  bankAccountNumber: string;
 }
 
 const AGE_GROUP_OPTIONS = ["Juniors", "Adults", "Seniors", "All Ages"];
@@ -76,6 +79,9 @@ function clubToEditState(club: ClubWithStatus): ClubEditState {
     contactAddress: (club as any).contactAddress || "",
     ageGroups: (club as any).ageGroups || [],
     playerLevels: (club as any).playerLevels || [],
+    bankAccountName: (club as any).bankAccountName || "",
+    bankSortCode: (club as any).bankSortCode || "",
+    bankAccountNumber: (club as any).bankAccountNumber || "",
   };
 }
 
@@ -94,6 +100,7 @@ export default function ClubManagement() {
     hasSocialGames: false, socialGameTimings: "", providesTraining: false, trainingDetails: "",
     sessionFee: "", membershipFee: "", shuttlecockType: "", providesClubTShirts: false,
     contactFullName: "", contactPhone: "", contactAddress: "", ageGroups: [], playerLevels: [],
+    bankAccountName: "", bankSortCode: "", bankAccountNumber: "",
   });
   const [manageTab, setManageTab] = useState("details");
 
@@ -249,6 +256,9 @@ export default function ClubManagement() {
       contactAddress: editDetails.contactAddress || null,
       ageGroups: editDetails.ageGroups.length > 0 ? editDetails.ageGroups : null,
       playerLevels: editDetails.playerLevels.length > 0 ? editDetails.playerLevels : null,
+      bankAccountName: editDetails.bankAccountName || null,
+      bankSortCode: editDetails.bankSortCode || null,
+      bankAccountNumber: editDetails.bankAccountNumber || null,
     };
     updateClubDetailsMutation.mutate({ clubId: manageClub.id, updates });
   };
@@ -804,6 +814,39 @@ export default function ClubManagement() {
                     onChange={(e) => setEditDetails({ ...editDetails, contactAddress: e.target.value })}
                     data-testid="input-contact-address"
                   />
+                </div>
+              </div>
+
+              <div className="border-t pt-4 mt-4">
+                <h4 className="text-sm font-semibold mb-3">Bank Details</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="space-y-1.5">
+                    <Label>Account Name</Label>
+                    <Input
+                      value={editDetails.bankAccountName}
+                      onChange={(e) => setEditDetails({ ...editDetails, bankAccountName: e.target.value })}
+                      placeholder="e.g. Club Name"
+                      data-testid="input-bank-account-name"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Sort Code</Label>
+                    <Input
+                      value={editDetails.bankSortCode}
+                      onChange={(e) => setEditDetails({ ...editDetails, bankSortCode: e.target.value })}
+                      placeholder="e.g. 12-34-56"
+                      data-testid="input-bank-sort-code"
+                    />
+                  </div>
+                  <div className="space-y-1.5">
+                    <Label>Account Number</Label>
+                    <Input
+                      value={editDetails.bankAccountNumber}
+                      onChange={(e) => setEditDetails({ ...editDetails, bankAccountNumber: e.target.value })}
+                      placeholder="e.g. 12345678"
+                      data-testid="input-bank-account-number"
+                    />
+                  </div>
                 </div>
               </div>
 

@@ -188,7 +188,7 @@ function getIntensityLevel(session: SessionItem): { label: string; color: string
   return { label: "LOW", color: "bg-blue-400/15 text-blue-600 dark:text-blue-400 ring-blue-400/30" };
 }
 
-function ExpandedSessionDetails({ session, mySignup, onSignUp, onNavigate }: { session: SessionItem; mySignup?: any; onSignUp?: (session: SessionItem) => void; onNavigate: () => void }) {
+function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate }: { session: SessionItem; clubs?: any[]; mySignup?: any; onSignUp?: (session: SessionItem) => void; onNavigate: () => void }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
 
@@ -348,6 +348,37 @@ function ExpandedSessionDetails({ session, mySignup, onSignUp, onNavigate }: { s
                 </p>
               </div>
             )}
+
+            {(() => {
+              const club = clubs?.find(c => c.id === session.clubId);
+              if (!club?.bankAccountName) return null;
+              return (
+                <div>
+                  <div className="flex items-center gap-1.5 mb-1.5">
+                    <Building2 className="h-3 w-3 text-muted-foreground/70" />
+                    <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Payment Details</span>
+                  </div>
+                  <div className="bg-muted/25 dark:bg-muted/15 rounded-md px-2.5 py-2 space-y-1">
+                    <div className="flex items-center justify-between text-[11px]">
+                      <span className="text-muted-foreground">Account Name</span>
+                      <span className="font-medium text-foreground dark:text-white/80">{club.bankAccountName}</span>
+                    </div>
+                    {club.bankSortCode && (
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">Sort Code</span>
+                        <span className="font-medium text-foreground dark:text-white/80">{club.bankSortCode}</span>
+                      </div>
+                    )}
+                    {club.bankAccountNumber && (
+                      <div className="flex items-center justify-between text-[11px]">
+                        <span className="text-muted-foreground">Account Number</span>
+                        <span className="font-medium text-foreground dark:text-white/80">{club.bankAccountNumber}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="pt-1 flex gap-2">
               {(() => {
@@ -579,7 +610,7 @@ function TimelineSessionCard({
           <div className="mt-2 text-[10px] font-medium text-foreground/70 dark:text-white/60">{clubName}</div>
         )}
 
-        {isExpanded && <ExpandedSessionDetails session={session} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} />}
+        {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} />}
       </div>
     </div>
   );
