@@ -2171,6 +2171,43 @@ export const insertPlayerAvatarSchema = createInsertSchema(playerAvatarSelection
 export type PlayerAvatarSelection = typeof playerAvatarSelections.$inferSelect;
 export type InsertPlayerAvatar = z.infer<typeof insertPlayerAvatarSchema>;
 
+export const playerAnalyticsEnrollments = pgTable("player_analytics_enrollments", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  type: text("type").notNull(),
+  enrolledByUserId: integer("enrolled_by_user_id").references(() => users.id).notNull(),
+  enrolledAt: timestamp("enrolled_at").defaultNow().notNull(),
+});
+
+export const playerSkillProgress = pgTable("player_skill_progress", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  skillId: integer("skill_id").references(() => playerSkills.id).notNull(),
+  percentage: integer("percentage").default(0).notNull(),
+  level: integer("level").default(0).notNull(),
+  comment: text("comment"),
+  priority: boolean("priority").default(false).notNull(),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const playerSkillProgressHistory = pgTable("player_skill_progress_history", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  skillId: integer("skill_id").references(() => playerSkills.id).notNull(),
+  percentage: integer("percentage").notNull(),
+  level: integer("level").notNull(),
+  changedByUserId: integer("changed_by_user_id").references(() => users.id).notNull(),
+  changedAt: timestamp("changed_at").defaultNow().notNull(),
+});
+
+export type PlayerAnalyticsEnrollment = typeof playerAnalyticsEnrollments.$inferSelect;
+export type InsertPlayerAnalyticsEnrollment = typeof playerAnalyticsEnrollments.$inferInsert;
+export type PlayerSkillProgress = typeof playerSkillProgress.$inferSelect;
+export type InsertPlayerSkillProgress = typeof playerSkillProgress.$inferInsert;
+export type PlayerSkillProgressHistory = typeof playerSkillProgressHistory.$inferSelect;
+
 export const insertPlayerSkillCategorySchema = createInsertSchema(playerSkillCategories).omit({ id: true, createdAt: true });
 export type PlayerSkillCategory = typeof playerSkillCategories.$inferSelect;
 export type InsertPlayerSkillCategory = z.infer<typeof insertPlayerSkillCategorySchema>;

@@ -150,6 +150,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
     { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity", premiumOnly: true },
+    { href: "/coach/player-skills", label: "Player Skills", icon: BarChart3, group: "activity", hidden: !isAdminOrOwner, premiumOnly: true },
     // { href: "/find-coach", label: "Find a Coach", icon: GraduationCap, group: "activity", premiumOnly: true },
     // { href: "/my-lessons", label: "My Lessons", icon: GraduationCap, group: "activity", premiumOnly: true },
 

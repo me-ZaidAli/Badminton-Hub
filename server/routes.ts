@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -29300,6 +29300,304 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     } catch (err: any) {
       console.error("Historical import error:", err);
       res.status(500).json({ message: "Import failed", error: err.message });
+    }
+  });
+
+  // === PLAYER ANALYTICS ENROLLMENTS ===
+
+  app.get("/api/admin/player-analytics/enrollments", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const type = req.query.type as string | undefined;
+      const conditions: any[] = [];
+      if (clubId) conditions.push(eq(playerAnalyticsEnrollments.clubId, clubId));
+      if (type) conditions.push(eq(playerAnalyticsEnrollments.type, type));
+      const enrollments = await db.select({
+        id: playerAnalyticsEnrollments.id,
+        playerId: playerAnalyticsEnrollments.playerId,
+        clubId: playerAnalyticsEnrollments.clubId,
+        type: playerAnalyticsEnrollments.type,
+        enrolledAt: playerAnalyticsEnrollments.enrolledAt,
+        fullName: users.fullName,
+        gender: playerProfiles.gender,
+        category: playerProfiles.category,
+        grade: playerProfiles.grade,
+      }).from(playerAnalyticsEnrollments)
+        .innerJoin(playerProfiles, eq(playerAnalyticsEnrollments.playerId, playerProfiles.id))
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(playerAnalyticsEnrollments.enrolledAt));
+      res.json(enrollments);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/player-analytics/enroll", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const { playerId, clubId, type } = req.body;
+      if (!playerId || !clubId || !type) return res.status(400).json({ message: "playerId, clubId, and type are required" });
+      if (!["LEAGUE", "PREMIUM"].includes(type)) return res.status(400).json({ message: "type must be LEAGUE or PREMIUM" });
+      const existing = await db.select().from(playerAnalyticsEnrollments)
+        .where(and(eq(playerAnalyticsEnrollments.playerId, playerId), eq(playerAnalyticsEnrollments.clubId, clubId), eq(playerAnalyticsEnrollments.type, type)))
+        .limit(1);
+      if (existing.length > 0) return res.status(400).json({ message: "Player already enrolled in this analytics type" });
+      const [enrollment] = await db.insert(playerAnalyticsEnrollments).values({
+        playerId, clubId, type, enrolledByUserId: user.id,
+      }).returning();
+      res.json(enrollment);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/admin/player-analytics/enroll/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      await db.delete(playerAnalyticsEnrollments).where(eq(playerAnalyticsEnrollments.id, parseInt(req.params.id)));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === PLAYER SKILL PROGRESS (like junior skill progress) ===
+
+  app.patch("/api/player-skills/progress/:playerId/:skillId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const skillId = parseInt(req.params.skillId);
+      const { percentage, level, comment, priority } = req.body;
+      const existing = await db.select().from(playerSkillProgress)
+        .where(and(eq(playerSkillProgress.playerId, playerId), eq(playerSkillProgress.skillId, skillId)))
+        .limit(1);
+      let result;
+      if (existing.length > 0) {
+        [result] = await db.update(playerSkillProgress).set({
+          percentage: percentage ?? existing[0].percentage,
+          level: level ?? existing[0].level,
+          comment: comment !== undefined ? comment : existing[0].comment,
+          priority: priority !== undefined ? priority : existing[0].priority,
+          updatedByUserId: user.id,
+          updatedAt: new Date(),
+        }).where(eq(playerSkillProgress.id, existing[0].id)).returning();
+      } else {
+        [result] = await db.insert(playerSkillProgress).values({
+          playerId, skillId,
+          percentage: percentage ?? 0,
+          level: level ?? 0,
+          comment: comment || null,
+          priority: priority || false,
+          updatedByUserId: user.id,
+        }).returning();
+      }
+      await db.insert(playerSkillProgressHistory).values({
+        playerId, skillId,
+        percentage: result.percentage,
+        level: result.level,
+        changedByUserId: user.id,
+      });
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/player-skills/progress/:playerId/bulk", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const { updates } = req.body;
+      if (!Array.isArray(updates)) return res.status(400).json({ message: "updates array required" });
+      const results = [];
+      for (const u of updates) {
+        const existing = await db.select().from(playerSkillProgress)
+          .where(and(eq(playerSkillProgress.playerId, playerId), eq(playerSkillProgress.skillId, u.skillId)))
+          .limit(1);
+        let result;
+        if (existing.length > 0) {
+          [result] = await db.update(playerSkillProgress).set({
+            percentage: u.percentage ?? existing[0].percentage,
+            level: u.level ?? existing[0].level,
+            comment: u.comment !== undefined ? u.comment : existing[0].comment,
+            priority: u.priority !== undefined ? u.priority : existing[0].priority,
+            updatedByUserId: user.id,
+            updatedAt: new Date(),
+          }).where(eq(playerSkillProgress.id, existing[0].id)).returning();
+        } else {
+          [result] = await db.insert(playerSkillProgress).values({
+            playerId, skillId: u.skillId,
+            percentage: u.percentage ?? 0,
+            level: u.level ?? 0,
+            comment: u.comment || null,
+            priority: u.priority || false,
+            updatedByUserId: user.id,
+          }).returning();
+        }
+        await db.insert(playerSkillProgressHistory).values({
+          playerId, skillId: u.skillId,
+          percentage: result.percentage,
+          level: result.level,
+          changedByUserId: user.id,
+        });
+        results.push(result);
+      }
+      res.json(results);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/player-skills/progress/:playerId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const playerId = parseInt(req.params.playerId);
+      const progress = await db.select({
+        id: playerSkillProgress.id,
+        playerId: playerSkillProgress.playerId,
+        skillId: playerSkillProgress.skillId,
+        percentage: playerSkillProgress.percentage,
+        level: playerSkillProgress.level,
+        comment: playerSkillProgress.comment,
+        priority: playerSkillProgress.priority,
+        updatedAt: playerSkillProgress.updatedAt,
+        skillName: playerSkills.name,
+        categoryId: playerSkills.categoryId,
+        categoryName: playerSkillCategories.name,
+      }).from(playerSkillProgress)
+        .innerJoin(playerSkills, eq(playerSkillProgress.skillId, playerSkills.id))
+        .innerJoin(playerSkillCategories, eq(playerSkills.categoryId, playerSkillCategories.id))
+        .where(eq(playerSkillProgress.playerId, playerId));
+      res.json(progress);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // === PLAYER SKILLS ANALYTICS (overview, weak/strong - like junior analytics) ===
+
+  app.get("/api/coach/players/skills/overview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const clubId = Number(req.query.clubId);
+      const type = (req.query.type as string) || "LEAGUE";
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+
+      const enrollments = await db.select({ playerId: playerAnalyticsEnrollments.playerId })
+        .from(playerAnalyticsEnrollments)
+        .where(and(eq(playerAnalyticsEnrollments.clubId, clubId), eq(playerAnalyticsEnrollments.type, type)));
+      const playerIds = enrollments.map(e => e.playerId);
+
+      if (playerIds.length === 0) {
+        const categories = await db.select().from(playerSkillCategories)
+          .where(or(eq(playerSkillCategories.clubId, clubId), isNull(playerSkillCategories.clubId)))
+          .orderBy(playerSkillCategories.displayOrder);
+        return res.json({
+          categories: categories.map(c => ({ categoryId: c.id, categoryName: c.name, avgScore: 0, skillCount: 0 })),
+          totalPlayers: 0, overallAvg: 0,
+        });
+      }
+
+      const categories = await db.select().from(playerSkillCategories)
+        .where(or(eq(playerSkillCategories.clubId, clubId), isNull(playerSkillCategories.clubId)))
+        .orderBy(playerSkillCategories.displayOrder);
+      const skills = await db.select().from(playerSkills)
+        .where(or(eq(playerSkills.clubId, clubId), isNull(playerSkills.clubId)));
+      const allProgress = await db.select().from(playerSkillProgress)
+        .where(inArray(playerSkillProgress.playerId, playerIds));
+
+      const categoryStats = categories.map(cat => {
+        const catSkillIds = skills.filter(s => s.categoryId === cat.id).map(s => s.id);
+        const catProgress = allProgress.filter(p => catSkillIds.includes(p.skillId));
+        const avgScore = catProgress.length > 0 ? Math.round(catProgress.reduce((s, p) => s + p.percentage, 0) / catProgress.length) : 0;
+        return {
+          categoryId: cat.id, categoryName: cat.name, iconName: cat.iconName,
+          avgScore, skillCount: catSkillIds.length,
+        };
+      });
+
+      const allScores = allProgress.map(p => p.percentage);
+      const overallAvg = allScores.length > 0 ? Math.round(allScores.reduce((a, b) => a + b, 0) / allScores.length) : 0;
+
+      res.json({ categories: categoryStats, totalPlayers: playerIds.length, overallAvg });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/coach/players/skills/weak-strong", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const clubId = Number(req.query.clubId);
+      const type = (req.query.type as string) || "LEAGUE";
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+
+      const enrollments = await db.select({ playerId: playerAnalyticsEnrollments.playerId })
+        .from(playerAnalyticsEnrollments)
+        .where(and(eq(playerAnalyticsEnrollments.clubId, clubId), eq(playerAnalyticsEnrollments.type, type)));
+      const playerIds = enrollments.map(e => e.playerId);
+      if (playerIds.length === 0) return res.json({ weakest: [], strongest: [] });
+
+      const skills = await db.select().from(playerSkills)
+        .where(or(eq(playerSkills.clubId, clubId), isNull(playerSkills.clubId)));
+      const categories = await db.select().from(playerSkillCategories)
+        .where(or(eq(playerSkillCategories.clubId, clubId), isNull(playerSkillCategories.clubId)));
+      const allProgress = await db.select().from(playerSkillProgress)
+        .where(inArray(playerSkillProgress.playerId, playerIds));
+
+      const catMap = new Map(categories.map(c => [c.id, c.name]));
+
+      const skillAggregates = skills.map(skill => {
+        const prog = allProgress.filter(p => p.skillId === skill.id);
+        const avgScore = prog.length > 0 ? Math.round(prog.reduce((s, p) => s + p.percentage, 0) / prog.length) : 0;
+        return {
+          skillId: skill.id, skillName: skill.name,
+          categoryName: catMap.get(skill.categoryId) || "Unknown",
+          avgScore, playerCount: prog.length,
+        };
+      }).filter(s => s.playerCount > 0);
+
+      const sorted = [...skillAggregates].sort((a, b) => a.avgScore - b.avgScore);
+      const weakest = sorted.slice(0, 5);
+      const strongest = [...skillAggregates].sort((a, b) => b.avgScore - a.avgScore).slice(0, 5);
+
+      res.json({ weakest, strongest });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/my/player-analytics-enrollment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const profiles = await db.select({ id: playerProfiles.id }).from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      const profileIds = profiles.map(p => p.id);
+      if (profileIds.length === 0) return res.json([]);
+      const enrollments = await db.select().from(playerAnalyticsEnrollments)
+        .where(inArray(playerAnalyticsEnrollments.playerId, profileIds));
+      res.json(enrollments);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 
