@@ -28281,7 +28281,23 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
 
-      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, trial.userId)).limit(1);
+      let [profile] = await db.select().from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, trial.userId), eq(playerProfiles.clubId, trial.clubId)))
+        .limit(1);
+
+      if (!profile) {
+        const [trialUser] = await db.select().from(users).where(eq(users.id, trial.userId)).limit(1);
+        if (trialUser) {
+          [profile] = await db.insert(playerProfiles).values({
+            userId: trial.userId,
+            clubId: trial.clubId,
+            clubRole: "PLAYER" as any,
+            membershipStatus: "PENDING" as any,
+            playerStatus: "ACTIVE" as any,
+            gender: trialUser.gender || null,
+          } as any).returning();
+        }
+      }
 
       if (profile && trial.assignedSessionId && trial.assignedSessionId !== sessionId) {
         await db.delete(sessionSignups).where(
