@@ -539,14 +539,14 @@ export default function Financials() {
         return saved as any;
       }
     } catch {}
-    return "classic";
+    return "sessions";
   });
 
   useEffect(() => {
     try { localStorage.setItem("financialDashboardView", dashboardView); } catch {}
   }, [dashboardView]);
-  const [sessionTimeTab, setSessionTimeTab] = useState<"all" | "upcoming" | "outstanding" | "past" | "missing-invoice">("all");
-  const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("recent");
+  const [sessionTimeTab, setSessionTimeTab] = useState<"all" | "upcoming" | "outstanding" | "past" | "missing-invoice">("upcoming");
+  const [sessionSortOrder, setSessionSortOrder] = useState<"recent" | "oldest" | "az">("oldest");
 
   const [expandedSessions, setExpandedSessions] = useState<Set<number>>(new Set());
   const [expandedPlayers, setExpandedPlayers] = useState<Set<string>>(new Set());
@@ -1983,6 +1983,20 @@ export default function Financials() {
         <div className="flex items-center gap-1 bg-muted rounded-lg p-1 flex-wrap" data-testid="view-switcher">
           <Button
             size="sm"
+            variant={dashboardView === "sessions" ? "default" : "ghost"}
+            onClick={() => {
+              setDashboardView("sessions");
+              setSessionTimeTab("upcoming");
+              setSessionSortOrder("oldest");
+            }}
+            className="gap-1.5"
+            data-testid="button-sessions-view"
+          >
+            <Calendar className="h-4 w-4" />
+            <span className="hidden sm:inline">Sessions</span>
+          </Button>
+          <Button
+            size="sm"
             variant={dashboardView === "classic" ? "default" : "ghost"}
             onClick={() => setDashboardView("classic")}
             className="gap-1.5"
@@ -2030,20 +2044,6 @@ export default function Financials() {
           >
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Reports</span>
-          </Button>
-          <Button
-            size="sm"
-            variant={dashboardView === "sessions" ? "default" : "ghost"}
-            onClick={() => {
-              setDashboardView("sessions");
-              setSessionTimeTab("upcoming");
-              setSessionSortOrder("oldest");
-            }}
-            className="gap-1.5"
-            data-testid="button-sessions-view"
-          >
-            <Calendar className="h-4 w-4" />
-            <span className="hidden sm:inline">Sessions</span>
           </Button>
         </div>
       </div>
