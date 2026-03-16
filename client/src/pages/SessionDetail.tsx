@@ -479,7 +479,7 @@ export default function SessionDetail() {
             )}
             {session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < ALL_GRADES.length && (
               <Badge variant="secondary" className="bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" data-testid="badge-allowed-grades">
-                Grades: {session.allowedCategories.join(", ")}
+                Recommended: {session.allowedCategories.filter((g: string) => !["A", "B", "C", "D"].includes(g)).join(", ") || session.allowedCategories.join(", ")}
               </Badge>
             )}
             {session.isPrivate && (
@@ -1243,16 +1243,6 @@ export default function SessionDetail() {
                     Browse Clubs
                   </Button>
                 </Link>
-              </div>
-            ) : !meetsGradeCriteria ? (
-              <div className="space-y-2" data-testid="grade-restriction-warning">
-                <Badge variant="secondary" className="w-full justify-center py-2 text-base bg-amber-50 text-amber-700 dark:bg-amber-950 dark:text-amber-300">
-                  <AlertTriangle className="w-4 h-4 mr-2" />
-                  Does Not Meet Grading
-                </Badge>
-                <p className="text-xs text-muted-foreground text-center">
-                  Your grade ({userProfileForClub?.grade || userProfileForClub?.category || "ungraded"}) does not meet the criteria for this session. Allowed grades: {session.allowedCategories?.join(", ")}.
-                </p>
               </div>
             ) : (
               <Button 

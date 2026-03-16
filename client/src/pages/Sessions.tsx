@@ -621,17 +621,8 @@ export default function Sessions() {
   };
 
   const ALL_GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
-  const checkGradeEligibility = (session: any): boolean => {
-    if (!user) return true;
-    if (isPlatformAdmin || editableClubIds.has(session.clubId)) return true;
-    const allowed = session.allowedCategories;
-    if (!allowed || allowed.length === 0 || allowed.length >= ALL_GRADES.length) return true;
-    const profile = user.playerProfiles?.find((p: any) => p.clubId === session.clubId);
-    if (!profile) return false;
-    const playerGrade = profile?.grade || profile?.category;
-    if (!playerGrade) return false;
-    const playerCategory = playerGrade.charAt(0);
-    return allowed.includes(playerGrade) || allowed.includes(playerCategory);
+  const checkGradeEligibility = (_session: any): boolean => {
+    return true;
   };
 
   const bulkDeleteMutation = useMutation({
@@ -1459,7 +1450,7 @@ export default function Sessions() {
                     <span>
                       {session.allowedCategories.length >= 9
                         ? "All grades welcome"
-                        : `Grades: ${session.allowedCategories.join(", ")}`}
+                        : `Recommended: ${session.allowedCategories.filter((g: string) => !["A", "B", "C", "D"].includes(g)).join(", ") || session.allowedCategories.join(", ")}`}
                     </span>
                   </div>
                 )}

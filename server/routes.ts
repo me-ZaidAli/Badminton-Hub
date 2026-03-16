@@ -2397,16 +2397,7 @@ export async function registerRoutes(
       }
     }
 
-    // Check category/grade restriction
-    if (session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 9) {
-      const playerGrade = profile.grade || profile.category;
-      if (playerGrade) {
-        const playerCategory = playerGrade.charAt(0);
-        if (!session.allowedCategories.includes(playerGrade) && !session.allowedCategories.includes(playerCategory)) {
-          return res.status(400).json({ message: `This session is only open to grades: ${session.allowedCategories.join(", ")}` });
-        }
-      }
-    }
+    // Grade restriction removed — allowedCategories is now advisory only (shown on card as recommended grades)
 
     // Determine fee: check active membership first, then session fee, then club default
     let fee = session.sessionFee;
@@ -8192,7 +8183,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Invalid club role" });
       }
       const gradeInput = gradeField || category;
-      if (gradeInput && !["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1", "A", "B", "C", "D"].includes(gradeInput)) {
+      if (gradeInput && !["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].includes(gradeInput)) {
         return res.status(400).json({ message: "Invalid grade" });
       }
       if (gender && !["MALE", "FEMALE"].includes(gender)) {
@@ -29148,7 +29139,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           const startTime = `${hours}:${mins}`;
 
           const courtsAvailable = is1to1 ? 1 : 3;
-          const allowedCategories = JSON.stringify(["A", "B", "C", "D"]);
+          const allowedCategories = JSON.stringify(["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"]);
 
           const insertResult = await db.execute(sql`
             INSERT INTO sessions (title, date, start_time, duration_minutes, club_id, venue_id, status, session_fee, max_players, courts_available, allowed_categories, created_by, match_mode, is_private, gender_restriction, session_type, players_per_side, match_gender_type, number_of_sets, auto_generate_active, ai_brain_enabled)

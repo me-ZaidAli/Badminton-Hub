@@ -30,18 +30,15 @@ interface PublicSession {
 }
 
 const SKILL_LABELS: Record<string, string> = {
-  A: "Advanced+",
   A1: "Advanced 1",
   A2: "Advanced 2",
   A3: "Advanced 3",
-  B: "Intermediate+",
   B1: "Intermediate 1",
   B2: "Intermediate 2",
-  C: "Improver+",
+  B3: "Intermediate 3",
   C1: "Improver 1",
   C2: "Improver 2",
   C3: "Improver 3",
-  D: "Beginner",
 };
 
 const DAY_NAMES = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
@@ -54,11 +51,11 @@ function getSkillColor(cat: string): string {
 }
 
 function getHighestSkill(categories: string[]): string {
-  const order = ["A", "A1", "A2", "A3", "B", "B1", "B2", "C", "C1", "C2", "C3", "D"];
+  const order = ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"];
   for (const o of order) {
     if (categories.includes(o)) return o;
   }
-  return categories[0] || "D";
+  return categories[0] || "C3";
 }
 
 export default function PlaySessions() {
@@ -87,7 +84,7 @@ export default function PlaySessions() {
     sessions.forEach(s => {
       (s.allowedCategories || []).forEach(c => catSet.add(c));
     });
-    const order = ["A", "A1", "A2", "A3", "B", "B1", "B2", "C", "C1", "C2", "C3", "D"];
+    const order = ["A1", "A2", "A3", "B1", "B2", "B3", "C1", "C2", "C3"];
     return order.filter(o => catSet.has(o));
   }, [sessions]);
 
@@ -347,7 +344,7 @@ export default function PlaySessions() {
                           </div>
 
                           <div className="flex items-center gap-2 flex-wrap mb-4">
-                            {(session.allowedCategories || []).slice(0, 4).map(cat => (
+                            {(session.allowedCategories || []).filter(cat => !["A", "B", "C", "D"].includes(cat)).slice(0, 4).map(cat => (
                               <span
                                 key={cat}
                                 className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${getSkillColor(cat)}`}

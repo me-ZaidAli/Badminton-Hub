@@ -40,7 +40,7 @@ export const api = {
       path: "/api/auth/register",
       input: insertUserSchema.extend({
         gender: z.enum(["MALE", "FEMALE"]).optional(),
-        category: z.enum(["A", "B", "C", "D"]).optional(),
+        category: z.enum(["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"]).optional(),
       }),
       responses: {
         201: z.custom<typeof users.$inferSelect>(),
