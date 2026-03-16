@@ -13,7 +13,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ArrowLeft, BarChart3, TrendingUp, TrendingDown, AlertTriangle, Users, Target,
-  ChevronDown, ChevronUp, Loader2, UserPlus, Trash2, Shield, Trophy
+  ChevronDown, ChevronUp, Loader2, UserPlus, Trash2, Shield, Trophy, Pencil
 } from "lucide-react";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
@@ -342,20 +342,38 @@ export default function CoachPlayerSkillsDashboard() {
           ) : enrollments.length > 0 ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
               {enrollments.map((e: any) => (
-                <div key={e.id} data-testid={`enrolled-player-${e.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-white/5 bg-white/[0.02]">
-                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold" style={{ background: GOLD + "30", color: GOLD }}>
-                    {e.fullName?.charAt(0) || "?"}
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm text-white truncate">{e.fullName}</div>
-                    <div className="text-xs text-gray-500">{e.grade || e.category || "—"}</div>
-                  </div>
+                <div key={e.id} data-testid={`enrolled-player-${e.id}`} className="flex items-center gap-3 p-3 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-colors">
+                  <button
+                    className="flex items-center gap-3 flex-1 min-w-0 text-left"
+                    onClick={() => navigate(`/coach/player-skills/${e.playerId}`)}
+                    data-testid={`link-player-profile-${e.playerId}`}
+                  >
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold shrink-0" style={{ background: GOLD + "30", color: GOLD }}>
+                      {e.fullName?.charAt(0) || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm text-white truncate">{e.fullName}</div>
+                      <div className="text-xs text-gray-500">{e.grade || e.category || "—"}</div>
+                    </div>
+                  </button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 w-7 p-0 hover:bg-white/10"
+                    style={{ color: GOLD }}
+                    onClick={() => navigate(`/coach/player-skills/${e.playerId}`)}
+                    data-testid={`button-edit-skills-${e.playerId}`}
+                    title="Edit skills"
+                  >
+                    <Pencil size={14} />
+                  </Button>
                   <Button
                     size="sm"
                     variant="ghost"
                     className="h-7 w-7 p-0 text-red-400 hover:text-red-300 hover:bg-red-400/10"
                     onClick={() => unenrollMutation.mutate(e.id)}
                     data-testid={`button-unenroll-${e.id}`}
+                    title="Remove from analytics"
                   >
                     <Trash2 size={14} />
                   </Button>

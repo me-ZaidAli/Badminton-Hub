@@ -29303,6 +29303,28 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     }
   });
 
+  app.get("/api/players/:profileId/profile", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    try {
+      const profileId = parseInt(req.params.profileId);
+      const profile = await storage.getPlayerProfileById(profileId);
+      if (!profile) return res.status(404).json({ message: "Player not found" });
+      res.json({
+        id: profile.id,
+        clubId: profile.clubId,
+        grade: profile.grade,
+        gender: profile.gender,
+        category: profile.category,
+        clubRole: profile.clubRole,
+        user: { fullName: profile.user?.fullName },
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // === PLAYER ANALYTICS ENROLLMENTS ===
 
   app.get("/api/admin/player-analytics/enrollments", async (req, res) => {
