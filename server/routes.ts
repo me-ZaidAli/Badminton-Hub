@@ -28270,6 +28270,17 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const trial = await storage.getTrialPlayerById(parseInt(req.params.id));
       if (!trial) return res.status(404).json({ message: "Trial player not found" });
 
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, trial.userId)).limit(1);
+
+      if (profile && trial.assignedSessionId && trial.assignedSessionId !== sessionId) {
+        await db.delete(sessionSignups).where(
+          and(eq(sessionSignups.sessionId, trial.assignedSessionId), eq(sessionSignups.playerId, profile.id))
+        );
+        try {
+          await removeUserFromSessionChat(trial.assignedSessionId, trial.userId);
+        } catch {}
+      }
+
       const updated = await storage.updateTrialPlayer(trial.id, {
         assignedSessionId: sessionId,
         observerUserId: observerUserId || null,
@@ -28278,6 +28289,29 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       } as any);
 
       const [sess] = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+
+      if (profile) {
+        const existingSignup = await db.select().from(sessionSignups)
+          .where(and(eq(sessionSignups.sessionId, sessionId), eq(sessionSignups.playerId, profile.id)))
+          .limit(1);
+        if (existingSignup.length === 0) {
+          const fee = sess?.sessionFee ?? 0;
+          await storage.createSessionSignupEnhanced({
+            sessionId,
+            playerId: profile.id,
+            fee,
+            paymentStatus: "UNPAID",
+            signupStatus: "CONFIRMED",
+            signedUpByUserId: user.id,
+          });
+          try {
+            await addUserToSessionChat(sessionId, trial.userId);
+          } catch (chatErr) {
+            console.error("[TRIAL ASSIGN] Failed to add trial player to session chat:", chatErr);
+          }
+        }
+      }
+
       await storage.createNotification({
         userId: trial.userId,
         type: "trial_scheduled",
