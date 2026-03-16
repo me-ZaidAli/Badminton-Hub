@@ -1419,6 +1419,18 @@ export default function Sessions() {
                     <span className="text-xs font-medium">{session.courtsAvailable}</span>
                     <span className="text-[10px] text-muted-foreground">Courts</span>
                   </div>
+                  {session.hallName && (
+                    <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
+                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium truncate max-w-[120px]">{session.hallName}</span>
+                    </div>
+                  )}
+                  {session.courtNames && session.courtNames.length > 0 && (
+                    <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
+                      <Layers className="h-3.5 w-3.5 text-muted-foreground" />
+                      <span className="text-xs font-medium truncate max-w-[150px]">{session.courtNames.join(", ")}</span>
+                    </div>
+                  )}
                   {venue && (
                     <div className="flex items-center gap-1.5 bg-muted/50 rounded-lg px-2.5 py-1.5">
                       <MapPin className="h-3.5 w-3.5 text-muted-foreground" />
@@ -2736,6 +2748,8 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       defaultPointsToPlayTo: prefillData?.defaultPointsToPlayTo ?? 21,
       numberOfSets: prefillData?.numberOfSets ?? 1,
       sessionDetails: prefillData?.sessionDetails ?? "",
+      hallName: prefillData?.hallName ?? "",
+      courtNames: prefillData?.courtNames ?? [],
     }
   });
 
@@ -2743,6 +2757,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
   const watchSessionType = form.watch("sessionType");
   const watchGenderRestriction = form.watch("genderRestriction");
   const watchDate = form.watch("date");
+  const [courtNamesText, setCourtNamesText] = useState(prefillData?.courtNames?.join(", ") || "");
   const { data: venues } = useVenues(watchClubId || null);
 
   useEffect(() => {
@@ -2753,8 +2768,10 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
 
   function onSubmit(values: z.infer<typeof createSessionSchema>) {
     const publishAt = scheduleEnabled ? computePublishAt(values.date, weeksBefore) : null;
+    const courtNamesArray = courtNamesText ? courtNamesText.split(",").map(s => s.trim()).filter(Boolean) : null;
     const payload = {
       ...values,
+      courtNames: courtNamesArray,
       publishAt: publishAt?.toISOString() || null,
       inviteePlayerIds: selectedInvitees.size > 0 ? Array.from(selectedInvitees) : undefined,
     };
@@ -2964,6 +2981,33 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                   </FormItem>
                 )}
               />
+            </div>
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="hallName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Hall Name / Number</FormLabel>
+                    <FormControl>
+                      <Input type="text" placeholder="e.g. Main Hall, Hall 2" {...field} value={field.value || ""} data-testid="input-create-hall-name" />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormItem>
+                <FormLabel>Court Names</FormLabel>
+                <FormControl>
+                  <Input
+                    type="text"
+                    placeholder="e.g. Court 1, Court 2"
+                    value={courtNamesText}
+                    onChange={(e) => setCourtNamesText(e.target.value)}
+                    data-testid="input-create-court-names"
+                  />
+                </FormControl>
+              </FormItem>
             </div>
             <FormField
               control={form.control}
@@ -3363,6 +3407,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editNumberOfSets, setEditNumberOfSets] = useState(1);
   const [editSessionDetails, setEditSessionDetails] = useState("");
+  const [editHallName, setEditHallName] = useState("");
+  const [editCourtNames, setEditCourtNames] = useState("");
   const [editScheduleEnabled, setEditScheduleEnabled] = useState(false);
   const [editWeeksBefore, setEditWeeksBefore] = useState(1);
   const [showSeriesConfirm, setShowSeriesConfirm] = useState(false);
@@ -3421,6 +3467,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditShuttleTubes(session.shuttleTubesUsed || 0);
     setEditNumberOfSets(session.numberOfSets || 1);
     setEditSessionDetails(session.sessionDetails || "");
+    setEditHallName(session.hallName || "");
+    setEditCourtNames(session.courtNames?.join(", ") || "");
     if (session.publishAt) {
       setEditScheduleEnabled(true);
       const sessionDate = new Date(session.date);
@@ -3482,6 +3530,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       liveStreamUrl: editLiveStreamUrl || "",
       shuttleTubesUsed: editShuttleTubes,
       sessionDetails: editSessionDetails || null,
+      hallName: editHallName || null,
+      courtNames: editCourtNames ? editCourtNames.split(",").map(s => s.trim()).filter(Boolean) : null,
       publishAt: publishAt?.toISOString() || null,
       scheduleWeeksBefore: editScheduleEnabled ? editWeeksBefore : undefined,
     };
@@ -3663,6 +3713,30 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                 onChange={(e) => setEditCourts(Math.min(10, Math.max(1, Number(e.target.value))))}
                 className="mt-2"
                 data-testid="input-edit-courts"
+              />
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label>Hall Name / Number</Label>
+              <Input
+                type="text"
+                placeholder="e.g. Main Hall, Hall 2"
+                value={editHallName}
+                onChange={(e) => setEditHallName(e.target.value)}
+                className="mt-2"
+                data-testid="input-edit-hall-name"
+              />
+            </div>
+            <div>
+              <Label>Court Names</Label>
+              <Input
+                type="text"
+                placeholder="e.g. Court 1, Court 2"
+                value={editCourtNames}
+                onChange={(e) => setEditCourtNames(e.target.value)}
+                className="mt-2"
+                data-testid="input-edit-court-names"
               />
             </div>
           </div>

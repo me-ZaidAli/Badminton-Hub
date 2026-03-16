@@ -3599,7 +3599,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, hallName } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -3634,11 +3634,15 @@ export async function registerRoutes(
       if (venueId !== undefined) updates.venueId = venueId !== null ? Number(venueId) : null;
       if (numberOfSets !== undefined) updates.numberOfSets = Number(numberOfSets);
       if (courtNames !== undefined) {
-        if (!Array.isArray(courtNames) || !courtNames.every((n: any) => typeof n === "string" && n.trim().length > 0)) {
+        if (courtNames === null || (Array.isArray(courtNames) && courtNames.length === 0)) {
+          updates.courtNames = null;
+        } else if (Array.isArray(courtNames) && courtNames.every((n: any) => typeof n === "string" && n.trim().length > 0)) {
+          updates.courtNames = courtNames.map((n: string) => n.trim());
+        } else {
           return res.status(400).json({ message: "Court names must be an array of non-empty strings" });
         }
-        updates.courtNames = courtNames.map((n: string) => n.trim());
       }
+      if (hallName !== undefined) updates.hallName = hallName || null;
       if (allowedCategories !== undefined) {
         const validCategories = ["D", "C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
         if (!Array.isArray(allowedCategories)) {
@@ -12202,6 +12206,8 @@ export async function registerRoutes(
             status: s.status,
             sessionType: s.sessionType,
             matchMode: s.matchMode,
+            hallName: s.hallName || null,
+            courtNames: s.courtNames || null,
             clubName: club.name,
             clubCity: club.city || null,
             clubPostcode: club.postcode || null,

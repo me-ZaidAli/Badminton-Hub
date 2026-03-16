@@ -111,6 +111,8 @@ export default function SessionDetail() {
   const [editShuttlecockType, setEditShuttlecockType] = useState("");
   const [editDefaultPoints, setEditDefaultPoints] = useState(21);
   const [editVenueId, setEditVenueId] = useState<number | null>(null);
+  const [editHallName, setEditHallName] = useState("");
+  const [editCourtNames, setEditCourtNames] = useState("");
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
@@ -510,6 +512,8 @@ export default function SessionDetail() {
                   setEditShuttlecockType(session.shuttlecockType || "");
                   setEditDefaultPoints(session.defaultPointsToPlayTo || 21);
                   setEditVenueId(session.venueId || null);
+                  setEditHallName(session.hallName || "");
+                  setEditCourtNames(session.courtNames?.join(", ") || "");
                 }
               }}>
                 <DialogTrigger asChild>
@@ -587,6 +591,30 @@ export default function SessionDetail() {
                           onChange={(e) => setEditCourts(Math.min(10, Math.max(1, Number(e.target.value))))}
                           className="mt-2"
                           data-testid="input-edit-courts"
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <Label>Hall Name / Number</Label>
+                        <Input 
+                          type="text" 
+                          placeholder="e.g. Main Hall, Hall 2"
+                          value={editHallName}
+                          onChange={(e) => setEditHallName(e.target.value)}
+                          className="mt-2"
+                          data-testid="input-detail-edit-hall-name"
+                        />
+                      </div>
+                      <div>
+                        <Label>Court Names</Label>
+                        <Input 
+                          type="text" 
+                          placeholder="e.g. Court 1, Court 2"
+                          value={editCourtNames}
+                          onChange={(e) => setEditCourtNames(e.target.value)}
+                          className="mt-2"
+                          data-testid="input-detail-edit-court-names"
                         />
                       </div>
                     </div>
@@ -848,6 +876,8 @@ export default function SessionDetail() {
                           shuttlecockType: editShuttlecockType || null,
                           defaultPointsToPlayTo: editDefaultPoints,
                           venueId: editVenueId,
+                          hallName: editHallName || null,
+                          courtNames: editCourtNames ? editCourtNames.split(",").map((s: string) => s.trim()).filter(Boolean) : null,
                         };
                         if (editClubId && editClubId !== session.clubId) {
                           sessionUpdates.clubId = editClubId;
@@ -1057,6 +1087,8 @@ export default function SessionDetail() {
           <h1 className="text-4xl font-display font-bold mb-2">{session.title}</h1>
           <p className="text-xl text-muted-foreground">
             {format(new Date(session.date), "EEEE, MMMM do")} • {session.startTime} • {session.courtsAvailable} Courts
+            {session.hallName && ` • ${session.hallName}`}
+            {session.courtNames && session.courtNames.length > 0 && ` • ${session.courtNames.join(", ")}`}
             {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Equipment Used`}
           </p>
           {session.sessionDetails && (

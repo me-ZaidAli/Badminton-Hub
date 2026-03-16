@@ -9,7 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, parseISO, isAfter, startOfToday } from "date-fns";
 import {
   MapPin, Clock, Users, Calendar, Filter, Search,
-  ChevronRight, Loader2, Trophy, Zap
+  ChevronRight, Loader2, Trophy, Zap, Building
 } from "lucide-react";
 
 interface PublicSession {
@@ -27,6 +27,8 @@ interface PublicSession {
   clubCity: string | null;
   clubPostcode: string | null;
   matchMode: string;
+  hallName: string | null;
+  courtNames: string[] | null;
 }
 
 const SKILL_LABELS: Record<string, string> = {
@@ -333,6 +335,14 @@ export default function PlaySessions() {
                                 {session.startTime} · {session.durationMinutes} mins
                               </span>
                             </div>
+                            {(session.hallName || (session.courtNames && session.courtNames.length > 0)) && (
+                              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                                <Building className="w-4 h-4 shrink-0" />
+                                <span data-testid={`text-session-venue-${session.id}`}>
+                                  {[session.hallName, session.courtNames?.join(", ")].filter(Boolean).join(" · ")}
+                                </span>
+                              </div>
+                            )}
                             {session.clubCity && (
                               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                                 <MapPin className="w-4 h-4 shrink-0" />

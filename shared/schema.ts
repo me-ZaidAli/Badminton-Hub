@@ -355,6 +355,7 @@ export const sessions = pgTable("sessions", {
   shuttleTubesUsed: integer("shuttle_tubes_used").default(0),
   sessionFee: integer("session_fee"),
   shuttlecockType: text("shuttlecock_type"),
+  hallName: text("hall_name"),
   courtNames: jsonb("court_names").$type<string[]>(),
   liveStreamUrl: text("live_stream_url"),
   defaultPointsToPlayTo: integer("default_points_to_play_to").default(21),
