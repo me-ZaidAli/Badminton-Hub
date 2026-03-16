@@ -532,10 +532,10 @@ export default function Financials() {
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships" | "manage-credits" | "donations">("session");
-  const [dashboardView, setDashboardView] = useState<"classic" | "analytics" | "profitability" | "cashflow" | "reports">(() => {
+  const [dashboardView, setDashboardView] = useState<"classic" | "analytics" | "profitability" | "cashflow" | "reports" | "sessions">(() => {
     try {
       const saved = localStorage.getItem("financialDashboardView");
-      if (saved && ["classic", "analytics", "profitability", "cashflow", "reports"].includes(saved)) {
+      if (saved && ["classic", "analytics", "profitability", "cashflow", "reports", "sessions"].includes(saved)) {
         return saved as any;
       }
     } catch {}
@@ -2031,6 +2031,20 @@ export default function Financials() {
             <FileText className="h-4 w-4" />
             <span className="hidden sm:inline">Reports</span>
           </Button>
+          <Button
+            size="sm"
+            variant={dashboardView === "sessions" ? "default" : "ghost"}
+            onClick={() => {
+              setDashboardView("sessions");
+              setSessionTimeTab("upcoming");
+              setSessionSortOrder("oldest");
+            }}
+            className="gap-1.5"
+            data-testid="button-sessions-view"
+          >
+            <Calendar className="h-4 w-4" />
+            <span className="hidden sm:inline">Sessions</span>
+          </Button>
         </div>
       </div>
 
@@ -2163,7 +2177,7 @@ export default function Financials() {
         </CardContent>
       </Card>
 
-      {dashboardView !== "classic" && (
+      {dashboardView !== "classic" && dashboardView !== "sessions" && (
         <SmartInsights filteredData={filteredData} dashboardData={dashboardData} />
       )}
 
@@ -2178,6 +2192,34 @@ export default function Financials() {
         <CashflowView filteredData={filteredData} dashboardData={dashboardData} />
       ) : dashboardView === "reports" ? (
         <ReportsView filteredData={filteredData} dashboardData={dashboardData} />
+      ) : dashboardView === "sessions" ? (
+      <>
+      {clubRevenueData.length > 0 && (
+        <div className="space-y-3">
+          <h2 className="text-lg font-semibold flex items-center gap-2">
+            <Building2 className="h-5 w-5" />
+            Revenue by Club
+          </h2>
+          <div className="grid gap-2 grid-cols-2 sm:grid-cols-2 lg:grid-cols-3">
+            {clubRevenueData.map(club => (
+              <Card key={club.clubId} className="hover-elevate cursor-pointer min-w-0" onClick={() => setRevenueClubDialog({ clubId: club.clubId, clubName: club.clubName })} data-testid={`card-club-revenue-sessions-${club.clubId}`}>
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium" data-testid={`text-club-name-sessions-${club.clubId}`}>{club.clubName}</CardTitle>
+                  <Building2 className="h-3 w-3 shrink-0 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold" data-testid={`text-club-total-sessions-${club.clubId}`}>{"£"}{formatPounds(club.totalRevenue)}</div>
+                  <div className="flex items-center justify-between gap-1 mt-1 text-[9px] sm:text-[11px] text-muted-foreground flex-wrap">
+                    <span className="text-green-600" data-testid={`text-club-paid-sessions-${club.clubId}`}>{"£"}{formatPounds(club.totalPaid)} paid</span>
+                    <span data-testid={`text-club-members-sessions-${club.clubId}`}>{club.memberCount} members</span>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+      </>
       ) : (
       <>
       <div className="grid gap-2 grid-cols-3 sm:grid-cols-3 md:grid-cols-5">
@@ -2515,583 +2557,7 @@ export default function Financials() {
         </div>
       )}
 
-      {viewMode === "session" ? (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 border-b pb-2 flex-wrap" data-testid="tabs-session-time">
-            <div className="flex items-center gap-1 flex-wrap">
-              <Button
-                size="sm"
-                variant={sessionTimeTab === "all" ? "default" : "outline"}
-                onClick={() => { setSessionTimeTab("all"); setSelectedSessions(new Set()); }}
-                data-testid="button-all-sessions"
-              >
-                <List className="h-4 w-4 mr-1" />
-                All ({Object.keys(sessionGroups).length})
-              </Button>
-              <Button
-                size="sm"
-                variant={sessionTimeTab === "upcoming" ? "default" : "outline"}
-                onClick={() => { setSessionTimeTab("upcoming"); setSelectedSessions(new Set()); }}
-                data-testid="button-upcoming-sessions"
-              >
-                <Calendar className="h-4 w-4 mr-1" />
-                Upcoming ({Object.keys(upcomingSessionGroups).length})
-              </Button>
-              <Button
-                size="sm"
-                variant={sessionTimeTab === "outstanding" ? "default" : "outline"}
-                onClick={() => { setSessionTimeTab("outstanding"); setSelectedSessions(new Set()); }}
-                className={sessionTimeTab !== "outstanding" && Object.keys(outstandingSessionGroups).length > 0 ? "border-orange-300 text-orange-600" : ""}
-                data-testid="button-outstanding-sessions"
-              >
-                <AlertCircle className="h-4 w-4 mr-1" />
-                Outstanding ({Object.keys(outstandingSessionGroups).length})
-              </Button>
-              <Button
-                size="sm"
-                variant={sessionTimeTab === "past" ? "default" : "outline"}
-                onClick={() => { setSessionTimeTab("past"); setSelectedSessions(new Set()); }}
-                data-testid="button-past-sessions"
-              >
-                <History className="h-4 w-4 mr-1" />
-                Past ({Object.keys(pastSessionGroups).length})
-              </Button>
-              <Button
-                size="sm"
-                variant={sessionTimeTab === "missing-invoice" ? "default" : "outline"}
-                onClick={() => { setSessionTimeTab("missing-invoice"); setSelectedSessions(new Set()); }}
-                className={sessionTimeTab !== "missing-invoice" && Object.keys(missingInvoiceSessionGroups).length > 0 ? "border-red-300 text-red-600" : ""}
-                data-testid="button-missing-invoice-sessions"
-              >
-                <FileText className="h-4 w-4 mr-1" />
-                Missing Invoice ({Object.keys(missingInvoiceSessionGroups).length})
-              </Button>
-            </div>
-            <div className="flex items-center gap-1 flex-wrap">
-              <Select value={sessionSortOrder} onValueChange={(v) => setSessionSortOrder(v as "recent" | "oldest" | "az")}>
-                <SelectTrigger className="w-[150px]" data-testid="select-session-sort">
-                  <ArrowUpDown className="h-3.5 w-3.5 mr-1 shrink-0" />
-                  <SelectValue placeholder="Sort by" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="recent">Recent First</SelectItem>
-                  <SelectItem value="oldest">Oldest First</SelectItem>
-                  <SelectItem value="az">A - Z</SelectItem>
-                </SelectContent>
-              </Select>
-              {activeSessionGroupsList.length > 0 && (
-                <>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      const allIds = activeSessionGroupsList.map(([id]) => Number(id));
-                      if (selectedSessions.size === allIds.length) {
-                        setSelectedSessions(new Set());
-                      } else {
-                        setSelectedSessions(new Set(allIds));
-                      }
-                    }}
-                    data-testid="button-select-all-sessions"
-                  >
-                    {selectedSessions.size === activeSessionGroupsList.length && selectedSessions.size > 0 ? (
-                      <CheckSquare className="h-4 w-4 mr-1" />
-                    ) : (
-                      <Square className="h-4 w-4 mr-1" />
-                    )}
-                    {selectedSessions.size > 0 ? `${selectedSessions.size} selected` : "Select All"}
-                  </Button>
-                  {selectedSessions.size > 0 && (
-                    <Button
-                      size="sm"
-                      variant="destructive"
-                      onClick={() => setBulkDeleteDialog(true)}
-                      data-testid="button-bulk-delete-sessions"
-                    >
-                      <Trash2 className="h-4 w-4 mr-1" />
-                      Delete ({selectedSessions.size})
-                    </Button>
-                  )}
-                </>
-              )}
-            </div>
-          </div>
-
-          {selectedEntries.size > 0 && (
-            <Card className="mb-4 border-primary/30 bg-primary/5">
-              <CardContent className="py-3 px-4">
-                <div className="flex items-center justify-between flex-wrap gap-2">
-                  <span className="text-sm font-medium" data-testid="text-selected-count">
-                    {selectedEntries.size} entry{selectedEntries.size !== 1 ? "ies" : ""} selected
-                  </span>
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
-                      onClick={() => handleBulkConfirmation(true)}
-                      disabled={bulkPaymentConfirmation.isPending}
-                      data-testid="button-bulk-send-confirmation"
-                    >
-                      {bulkPaymentConfirmation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
-                      Send Confirmations
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      className="text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
-                      onClick={() => handleBulkReminder()}
-                      disabled={bulkPaymentReminder.isPending}
-                      data-testid="button-bulk-send-reminder"
-                    >
-                      {bulkPaymentReminder.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Bell className="h-3 w-3 mr-1" />}
-                      Send Reminders
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      onClick={() => setSelectedEntries(new Set())}
-                      data-testid="button-clear-selection"
-                    >
-                      <X className="h-3 w-3 mr-1" />
-                      Clear
-                    </Button>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          )}
-
-          {activeSessionGroupsList.length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
-                No {sessionTimeTab === "all" ? "" : sessionTimeTab === "upcoming" ? "upcoming" : sessionTimeTab === "outstanding" ? "outstanding" : sessionTimeTab === "missing-invoice" ? "missing invoice" : "past"} sessions found for the selected filters.
-              </CardContent>
-            </Card>
-          ) : (
-            activeSessionGroupsList.map(([sessionIdStr, entries]) => {
-              const sessionId = Number(sessionIdStr);
-              const first = entries[0];
-              const sessionPaid = entries.filter((e) => e.paymentStatus === "PAID").reduce((s, e) => s + (e.fee || 0), 0);
-              const sessionUnpaid = entries.filter((e) => e.paymentStatus === "UNPAID").reduce((s, e) => s + (e.fee || 0), 0);
-              const sessionTotal = sessionPaid + sessionUnpaid;
-              const isExpanded = expandedSessions.has(sessionId);
-              const sessionIsToday = first.sessionDate ? isToday(new Date(first.sessionDate)) : false;
-
-              return (
-                <Card key={sessionId} data-testid={`card-session-${sessionId}`}>
-                  <CardHeader
-                    className="cursor-pointer"
-                    onClick={() => toggleSessionExpand(sessionId)}
-                    data-testid={`button-expand-session-${sessionId}`}
-                  >
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="shrink-0"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            toggleSessionSelect(sessionId);
-                          }}
-                          data-testid={`button-select-session-${sessionId}`}
-                        >
-                          {selectedSessions.has(sessionId) ? (
-                            <CheckSquare className="h-5 w-5 text-primary" />
-                          ) : (
-                            <Square className="h-5 w-5 text-muted-foreground" />
-                          )}
-                        </Button>
-                        {isExpanded ? (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        )}
-                        <div>
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <CardTitle className="text-base" data-testid={`text-session-title-${sessionId}`}>
-                              {first.sessionTitle}
-                            </CardTitle>
-                            {first.sessionType && (
-                              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-type-${sessionId}`}>
-                                {first.sessionType}
-                              </Badge>
-                            )}
-                            {first.matchMode && (
-                              <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-mode-${sessionId}`}>
-                                {first.matchMode}
-                              </Badge>
-                            )}
-                            {sessionIsToday && (
-                              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-today-${sessionId}`}>
-                                <Clock className="h-3 w-3 mr-1" />
-                                Today
-                              </Badge>
-                            )}
-                          </div>
-                          <p className="text-sm text-muted-foreground mt-0.5">
-                            {first.sessionDate ? format(new Date(first.sessionDate), "MMM d, yyyy") : "N/A"}
-                            {" "}/{" "}{first.clubName}{" "}/{" "}{entries.length} players
-                          </p>
-                          <div className="flex items-center gap-1.5 mt-0.5">
-                            {invoiceEditSessionId === sessionId ? (
-                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                                <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
-                                <Input
-                                  className="h-6 w-36 text-xs px-1.5"
-                                  placeholder="Invoice number..."
-                                  value={invoiceEditValue}
-                                  onChange={(e) => setInvoiceEditValue(e.target.value)}
-                                  onKeyDown={(e) => {
-                                    if (e.key === "Enter") {
-                                      updateInvoiceNumber.mutate({ sessionId, invoiceNumber: invoiceEditValue });
-                                    } else if (e.key === "Escape") {
-                                      setInvoiceEditSessionId(null);
-                                    }
-                                  }}
-                                  autoFocus
-                                  data-testid={`input-invoice-${sessionId}`}
-                                />
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    updateInvoiceNumber.mutate({ sessionId, invoiceNumber: invoiceEditValue });
-                                  }}
-                                  disabled={updateInvoiceNumber.isPending}
-                                  data-testid={`button-save-invoice-${sessionId}`}
-                                >
-                                  <Check className="h-3 w-3" />
-                                </Button>
-                                <Button
-                                  size="icon"
-                                  variant="ghost"
-                                  className="h-6 w-6"
-                                  onClick={(e) => { e.stopPropagation(); setInvoiceEditSessionId(null); }}
-                                  data-testid={`button-cancel-invoice-${sessionId}`}
-                                >
-                                  <X className="h-3 w-3" />
-                                </Button>
-                              </div>
-                            ) : (
-                              <button
-                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-transparent border-0 cursor-pointer p-0"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setInvoiceEditSessionId(sessionId);
-                                  setInvoiceEditValue(first.invoiceNumber || "");
-                                }}
-                                data-testid={`button-edit-invoice-${sessionId}`}
-                              >
-                                <Hash className="h-3 w-3" />
-                                {first.invoiceNumber ? (
-                                  <span>Inv: {first.invoiceNumber}</span>
-                                ) : (
-                                  <span className="italic opacity-60">Add invoice no.</span>
-                                )}
-                                <Pencil className="h-2.5 w-2.5 opacity-50" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-4 flex-wrap">
-                        <span className="text-sm font-medium" data-testid={`text-session-total-${sessionId}`}>
-                          Total: £{formatPounds(sessionTotal)}
-                        </span>
-                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
-                          Paid: £{formatPounds(sessionPaid)}
-                        </Badge>
-                        {sessionUnpaid > 0 && (
-                          <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
-                            Unpaid: £{formatPounds(sessionUnpaid)}
-                          </Badge>
-                        )}
-                        <Button
-                          size="icon"
-                          variant="ghost"
-                          className="text-destructive"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setDeleteSessionDialog({ sessionId, sessionTitle: first.sessionTitle });
-                          }}
-                          data-testid={`button-delete-session-${sessionId}`}
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  {isExpanded && (
-                    <CardContent>
-                      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <div className="flex items-center gap-1 border rounded-md p-0.5" data-testid={`filter-payment-view-${sessionId}`}>
-                            <Button size="sm" variant={sessionPaymentView === "all" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("all"); }} data-testid={`button-view-all-${sessionId}`}>
-                              All
-                            </Button>
-                            <Button size="sm" variant={sessionPaymentView === "paid" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("paid"); }} data-testid={`button-view-paid-${sessionId}`}>
-                              Paid
-                            </Button>
-                            <Button size="sm" variant={sessionPaymentView === "unpaid" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("unpaid"); }} data-testid={`button-view-unpaid-${sessionId}`}>
-                              Unpaid
-                            </Button>
-                            <Button size="sm" variant={sessionPaymentView === "grouped" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("grouped"); }} data-testid={`button-view-grouped-${sessionId}`}>
-                              Group
-                            </Button>
-                          </div>
-                          {bulkFeeSessionId === sessionId ? (
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="flex items-center gap-1">
-                                <span className="text-sm text-muted-foreground">£</span>
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  step="0.01"
-                                  placeholder="e.g. 7.50"
-                                  value={bulkFeeAmount}
-                                  onChange={(e) => setBulkFeeAmount(e.target.value)}
-                                  className="w-[100px]"
-                                  data-testid={`input-bulk-fee-${sessionId}`}
-                                  onClick={(e) => e.stopPropagation()}
-                                />
-                              </div>
-                              <Button
-                                size="sm"
-                                variant="default"
-                                disabled={!bulkFeeAmount || parseFloat(bulkFeeAmount) < 0}
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  const pence = Math.round(parseFloat(bulkFeeAmount) * 100);
-                                  if (isNaN(pence) || pence < 0) return;
-                                  try {
-                                    await apiRequest("PATCH", `/api/admin/sessions/${sessionId}/bulk-fee`, { fee: pence });
-                                    toast({ title: "Fees Updated", description: `Applied £${parseFloat(bulkFeeAmount).toFixed(2)} to all ${entries.length} players.` });
-                                    qc.invalidateQueries({ queryKey: [financialQueryUrl] });
-                                    setBulkFeeSessionId(null);
-                                    setBulkFeeAmount("");
-                                  } catch (err: any) {
-                                    toast({ title: "Error", description: err.message || "Failed to apply bulk fee", variant: "destructive" });
-                                  }
-                                }}
-                                data-testid={`button-apply-bulk-fee-${sessionId}`}
-                              >
-                                Apply to All
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setBulkFeeSessionId(null);
-                                  setBulkFeeAmount("");
-                                }}
-                                data-testid={`button-cancel-bulk-fee-${sessionId}`}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1.5 flex-wrap">
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setBulkFeeSessionId(sessionId);
-                                  setBulkFeeAmount("");
-                                }}
-                                data-testid={`button-set-standard-rate-${sessionId}`}
-                              >
-                                <DollarSign className="h-3 w-3 mr-1" />
-                                Set Standard Rate
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={async (e) => {
-                                  e.stopPropagation();
-                                  const updates: Promise<any>[] = [];
-                                  for (const entry of entries) {
-                                    const targetFee = entry.membershipStatus === "ACTIVE" && entry.membershipSessionFee != null
-                                      ? entry.membershipSessionFee
-                                      : (entry.sessionFee ?? entry.clubSessionFee ?? 0);
-                                    if (entry.fee !== targetFee) {
-                                      updates.push(apiRequest("PATCH", `/api/admin/signups/${entry.signupId}/fee`, { fee: targetFee }));
-                                    }
-                                  }
-                                  if (updates.length === 0) {
-                                    toast({ title: "No Changes", description: "All fees already match membership rates." });
-                                    return;
-                                  }
-                                  try {
-                                    await Promise.all(updates);
-                                    toast({ title: "Fees Updated", description: `Applied membership-based rates to ${updates.length} player(s).` });
-                                    qc.invalidateQueries({ queryKey: [financialQueryUrl] });
-                                  } catch (err: any) {
-                                    toast({ title: "Error", description: err.message || "Failed to apply rates", variant: "destructive" });
-                                  }
-                                }}
-                                data-testid={`button-apply-member-rates-${sessionId}`}
-                              >
-                                <Crown className="h-3 w-3 mr-1" />
-                                Apply Member Rates
-                              </Button>
-                            </div>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAddPlayerDialog({
-                                sessionId,
-                                clubId: first.clubId,
-                                sessionTitle: first.sessionTitle,
-                                sessionFee: first.sessionFee || 0,
-                              });
-                              setAddPlayerMode("existing");
-                              setAddPlayerSearch("");
-                              setAddPlayerSelectedId(null);
-                              setNewPlayerName("");
-                              setNewPlayerEmail("");
-                              setNewPlayerGender("MALE");
-                            }}
-                            data-testid={`button-add-player-session-${sessionId}`}
-                          >
-                            <UserPlus className="h-3 w-3 mr-1" />
-                            Add Player
-                          </Button>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setAddCreditDialog({ sessionId, entries });
-                              setCreditSelectedPlayers([]);
-                              setCreditAmount("");
-                              setCreditReason("");
-                            }}
-                            data-testid={`button-add-credit-session-${sessionId}`}
-                          >
-                            <Plus className="h-3 w-3 mr-1" />
-                            Add Credit
-                          </Button>
-                        </div>
-                      </div>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead className="w-8 px-2">
-                                <input
-                                  type="checkbox"
-                                  checked={entries.every(e => selectedEntries.has(e.signupId))}
-                                  onChange={() => {
-                                    const allSelected = entries.every(e => selectedEntries.has(e.signupId));
-                                    setSelectedEntries(prev => {
-                                      const next = new Set(prev);
-                                      entries.forEach(e => allSelected ? next.delete(e.signupId) : next.add(e.signupId));
-                                      return next;
-                                    });
-                                  }}
-                                  className="h-4 w-4 rounded cursor-pointer accent-primary"
-                                  data-testid={`checkbox-select-all-${sessionId}`}
-                                />
-                              </TableHead>
-                              <TableHead>
-                                <button
-                                  className="flex items-center gap-1 cursor-pointer"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    setSortPlayersAlpha((prev) => !prev);
-                                  }}
-                                  data-testid={`button-sort-players-${sessionId}`}
-                                >
-                                  Player
-                                  <ArrowDownAZ className={`h-3 w-3 ${sortPlayersAlpha ? "text-foreground" : "text-muted-foreground"}`} />
-                                </button>
-                              </TableHead>
-                              <TableHead>Fee</TableHead>
-                              <TableHead>Credit Bal.</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Action</TableHead>
-                              <TableHead>Attendance</TableHead>
-                              <TableHead>Notify</TableHead>
-                              <TableHead>Credit</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {(() => {
-                              let filtered = entries;
-                              if (sessionPaymentView === "paid") {
-                                filtered = entries.filter((e) => e.paymentStatus === "PAID");
-                              } else if (sessionPaymentView === "unpaid") {
-                                filtered = entries.filter((e) => e.paymentStatus === "UNPAID");
-                              } else if (sessionPaymentView === "grouped") {
-                                filtered = [...entries].sort((a, b) => {
-                                  if (a.paymentStatus === b.paymentStatus) return 0;
-                                  return a.paymentStatus === "UNPAID" ? -1 : 1;
-                                });
-                              }
-                              if (sortPlayersAlpha) {
-                                filtered = [...filtered].sort((a, b) => (a.playerName || "").localeCompare(b.playerName || ""));
-                              }
-                              if (filtered.length === 0) {
-                                return (
-                                  <TableRow>
-                                    <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
-                                      No {sessionPaymentView === "paid" ? "paid" : "unpaid"} players in this session.
-                                    </TableCell>
-                                  </TableRow>
-                                );
-                              }
-                              if (sessionPaymentView === "grouped" && !sortPlayersAlpha) {
-                                const unpaidEntries = filtered.filter((e) => e.paymentStatus === "UNPAID");
-                                const paidEntries = filtered.filter((e) => e.paymentStatus === "PAID");
-                                return (
-                                  <>
-                                    {unpaidEntries.length > 0 && (
-                                      <>
-                                        <TableRow>
-                                          <TableCell colSpan={7} className="font-semibold text-orange-600 bg-orange-500/5 py-1.5 text-xs">
-                                            Unpaid ({unpaidEntries.length})
-                                          </TableCell>
-                                        </TableRow>
-                                        {unpaidEntries.map((entry) => renderPlayerRow(entry))}
-                                      </>
-                                    )}
-                                    {paidEntries.length > 0 && (
-                                      <>
-                                        <TableRow>
-                                          <TableCell colSpan={7} className="font-semibold text-green-600 bg-green-500/5 py-1.5 text-xs">
-                                            Paid ({paidEntries.length})
-                                          </TableCell>
-                                        </TableRow>
-                                        {paidEntries.map((entry) => renderPlayerRow(entry))}
-                                      </>
-                                    )}
-                                  </>
-                                );
-                              }
-                              return filtered.map((entry) => renderPlayerRow(entry));
-                            })()}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  )}
-                </Card>
-              );
-            })
-          )}
-        </div>
-      ) : viewMode === "player" ? (
+      {viewMode === "session" ? null : viewMode === "player" ? (
         <div className="space-y-3">
           <div className="flex items-center gap-3 flex-wrap">
             <div className="relative flex-1 min-w-[200px]">
@@ -3947,6 +3413,584 @@ export default function Financials() {
         </div>
       )}
       </>
+      )}
+
+      {(dashboardView === "sessions" || (dashboardView === "classic" && viewMode === "session")) && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2 border-b pb-2 flex-wrap" data-testid="tabs-session-time">
+            <div className="flex items-center gap-1 flex-wrap">
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "all" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("all"); setSelectedSessions(new Set()); }}
+                data-testid="button-all-sessions"
+              >
+                <List className="h-4 w-4 mr-1" />
+                All ({Object.keys(sessionGroups).length})
+              </Button>
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "upcoming" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("upcoming"); setSelectedSessions(new Set()); }}
+                data-testid="button-upcoming-sessions"
+              >
+                <Calendar className="h-4 w-4 mr-1" />
+                Upcoming ({Object.keys(upcomingSessionGroups).length})
+              </Button>
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "outstanding" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("outstanding"); setSelectedSessions(new Set()); }}
+                className={sessionTimeTab !== "outstanding" && Object.keys(outstandingSessionGroups).length > 0 ? "border-orange-300 text-orange-600" : ""}
+                data-testid="button-outstanding-sessions"
+              >
+                <AlertCircle className="h-4 w-4 mr-1" />
+                Outstanding ({Object.keys(outstandingSessionGroups).length})
+              </Button>
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "past" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("past"); setSelectedSessions(new Set()); }}
+                data-testid="button-past-sessions"
+              >
+                <History className="h-4 w-4 mr-1" />
+                Past ({Object.keys(pastSessionGroups).length})
+              </Button>
+              <Button
+                size="sm"
+                variant={sessionTimeTab === "missing-invoice" ? "default" : "outline"}
+                onClick={() => { setSessionTimeTab("missing-invoice"); setSelectedSessions(new Set()); }}
+                className={sessionTimeTab !== "missing-invoice" && Object.keys(missingInvoiceSessionGroups).length > 0 ? "border-red-300 text-red-600" : ""}
+                data-testid="button-missing-invoice-sessions"
+              >
+                <FileText className="h-4 w-4 mr-1" />
+                Missing Invoice ({Object.keys(missingInvoiceSessionGroups).length})
+              </Button>
+            </div>
+            <div className="flex items-center gap-1 flex-wrap">
+              <Select value={sessionSortOrder} onValueChange={(v) => setSessionSortOrder(v as "recent" | "oldest" | "az")}>
+                <SelectTrigger className="w-[150px]" data-testid="select-session-sort">
+                  <ArrowUpDown className="h-3.5 w-3.5 mr-1 shrink-0" />
+                  <SelectValue placeholder="Sort by" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="recent">Recent First</SelectItem>
+                  <SelectItem value="oldest">Oldest First</SelectItem>
+                  <SelectItem value="az">A - Z</SelectItem>
+                </SelectContent>
+              </Select>
+              {activeSessionGroupsList.length > 0 && (
+                <>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      const allIds = activeSessionGroupsList.map(([id]) => Number(id));
+                      if (selectedSessions.size === allIds.length) {
+                        setSelectedSessions(new Set());
+                      } else {
+                        setSelectedSessions(new Set(allIds));
+                      }
+                    }}
+                    data-testid="button-select-all-sessions"
+                  >
+                    {selectedSessions.size === activeSessionGroupsList.length && selectedSessions.size > 0 ? (
+                      <CheckSquare className="h-4 w-4 mr-1" />
+                    ) : (
+                      <Square className="h-4 w-4 mr-1" />
+                    )}
+                    {selectedSessions.size > 0 ? `${selectedSessions.size} selected` : "Select All"}
+                  </Button>
+                  {selectedSessions.size > 0 && (
+                    <Button
+                      size="sm"
+                      variant="destructive"
+                      onClick={() => setBulkDeleteDialog(true)}
+                      data-testid="button-bulk-delete-sessions"
+                    >
+                      <Trash2 className="h-4 w-4 mr-1" />
+                      Delete ({selectedSessions.size})
+                    </Button>
+                  )}
+                </>
+              )}
+            </div>
+          </div>
+
+          {selectedEntries.size > 0 && (
+            <Card className="mb-4 border-primary/30 bg-primary/5">
+              <CardContent className="py-3 px-4">
+                <div className="flex items-center justify-between flex-wrap gap-2">
+                  <span className="text-sm font-medium" data-testid="text-selected-count">
+                    {selectedEntries.size} entry{selectedEntries.size !== 1 ? "ies" : ""} selected
+                  </span>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-green-600 hover:bg-green-50 dark:hover:bg-green-950"
+                      onClick={() => handleBulkConfirmation(true)}
+                      disabled={bulkPaymentConfirmation.isPending}
+                      data-testid="button-bulk-send-confirmation"
+                    >
+                      {bulkPaymentConfirmation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Send className="h-3 w-3 mr-1" />}
+                      Send Confirmations
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950"
+                      onClick={() => handleBulkReminder()}
+                      disabled={bulkPaymentReminder.isPending}
+                      data-testid="button-bulk-send-reminder"
+                    >
+                      {bulkPaymentReminder.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Bell className="h-3 w-3 mr-1" />}
+                      Send Reminders
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => setSelectedEntries(new Set())}
+                      data-testid="button-clear-selection"
+                    >
+                      <X className="h-3 w-3 mr-1" />
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
+          {activeSessionGroupsList.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-sessions">
+                No {sessionTimeTab === "all" ? "" : sessionTimeTab === "upcoming" ? "upcoming" : sessionTimeTab === "outstanding" ? "outstanding" : sessionTimeTab === "missing-invoice" ? "missing invoice" : "past"} sessions found for the selected filters.
+              </CardContent>
+            </Card>
+          ) : (
+            activeSessionGroupsList.map(([sessionIdStr, entries]) => {
+              const sessionId = Number(sessionIdStr);
+              const first = entries[0];
+              const sessionPaid = entries.filter((e) => e.paymentStatus === "PAID").reduce((s, e) => s + (e.fee || 0), 0);
+              const sessionUnpaid = entries.filter((e) => e.paymentStatus === "UNPAID").reduce((s, e) => s + (e.fee || 0), 0);
+              const sessionTotal = sessionPaid + sessionUnpaid;
+              const isExpanded = expandedSessions.has(sessionId);
+              const sessionIsToday = first.sessionDate ? isToday(new Date(first.sessionDate)) : false;
+
+              return (
+                <Card key={sessionId} data-testid={`card-session-${sessionId}`}>
+                  <CardHeader
+                    className="cursor-pointer"
+                    onClick={() => toggleSessionExpand(sessionId)}
+                    data-testid={`button-expand-session-${sessionId}`}
+                  >
+                    <div className="flex items-center justify-between gap-4 flex-wrap">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="shrink-0"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            toggleSessionSelect(sessionId);
+                          }}
+                          data-testid={`button-select-session-${sessionId}`}
+                        >
+                          {selectedSessions.has(sessionId) ? (
+                            <CheckSquare className="h-5 w-5 text-primary" />
+                          ) : (
+                            <Square className="h-5 w-5 text-muted-foreground" />
+                          )}
+                        </Button>
+                        {isExpanded ? (
+                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                        ) : (
+                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        )}
+                        <div>
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <CardTitle className="text-base" data-testid={`text-session-title-${sessionId}`}>
+                              {first.sessionTitle}
+                            </CardTitle>
+                            {first.sessionType && (
+                              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-type-${sessionId}`}>
+                                {first.sessionType}
+                              </Badge>
+                            )}
+                            {first.matchMode && (
+                              <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-mode-${sessionId}`}>
+                                {first.matchMode}
+                              </Badge>
+                            )}
+                            {sessionIsToday && (
+                              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-today-${sessionId}`}>
+                                <Clock className="h-3 w-3 mr-1" />
+                                Today
+                              </Badge>
+                            )}
+                          </div>
+                          <p className="text-sm text-muted-foreground mt-0.5">
+                            {first.sessionDate ? format(new Date(first.sessionDate), "MMM d, yyyy") : "N/A"}
+                            {" "}/{" "}{first.clubName}{" "}/{" "}{entries.length} players
+                          </p>
+                          <div className="flex items-center gap-1.5 mt-0.5">
+                            {invoiceEditSessionId === sessionId ? (
+                              <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+                                <Hash className="h-3 w-3 text-muted-foreground shrink-0" />
+                                <Input
+                                  className="h-6 w-36 text-xs px-1.5"
+                                  placeholder="Invoice number..."
+                                  value={invoiceEditValue}
+                                  onChange={(e) => setInvoiceEditValue(e.target.value)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      updateInvoiceNumber.mutate({ sessionId, invoiceNumber: invoiceEditValue });
+                                    } else if (e.key === "Escape") {
+                                      setInvoiceEditSessionId(null);
+                                    }
+                                  }}
+                                  autoFocus
+                                  data-testid={`input-invoice-${sessionId}`}
+                                />
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    updateInvoiceNumber.mutate({ sessionId, invoiceNumber: invoiceEditValue });
+                                  }}
+                                  disabled={updateInvoiceNumber.isPending}
+                                  data-testid={`button-save-invoice-${sessionId}`}
+                                >
+                                  <Check className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  size="icon"
+                                  variant="ghost"
+                                  className="h-6 w-6"
+                                  onClick={(e) => { e.stopPropagation(); setInvoiceEditSessionId(null); }}
+                                  data-testid={`button-cancel-invoice-${sessionId}`}
+                                >
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <button
+                                className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors bg-transparent border-0 cursor-pointer p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setInvoiceEditSessionId(sessionId);
+                                  setInvoiceEditValue(first.invoiceNumber || "");
+                                }}
+                                data-testid={`button-edit-invoice-${sessionId}`}
+                              >
+                                <Hash className="h-3 w-3" />
+                                {first.invoiceNumber ? (
+                                  <span>Inv: {first.invoiceNumber}</span>
+                                ) : (
+                                  <span className="italic opacity-60">Add invoice no.</span>
+                                )}
+                                <Pencil className="h-2.5 w-2.5 opacity-50" />
+                              </button>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-4 flex-wrap">
+                        <span className="text-sm font-medium" data-testid={`text-session-total-${sessionId}`}>
+                          Total: £{formatPounds(sessionTotal)}
+                        </span>
+                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                          Paid: £{formatPounds(sessionPaid)}
+                        </Badge>
+                        {sessionUnpaid > 0 && (
+                          <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                            Unpaid: £{formatPounds(sessionUnpaid)}
+                          </Badge>
+                        )}
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="text-destructive"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setDeleteSessionDialog({ sessionId, sessionTitle: first.sessionTitle });
+                          }}
+                          data-testid={`button-delete-session-${sessionId}`}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </CardHeader>
+                  {isExpanded && (
+                    <CardContent>
+                      <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <div className="flex items-center gap-1 border rounded-md p-0.5" data-testid={`filter-payment-view-${sessionId}`}>
+                            <Button size="sm" variant={sessionPaymentView === "all" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("all"); }} data-testid={`button-view-all-${sessionId}`}>
+                              All
+                            </Button>
+                            <Button size="sm" variant={sessionPaymentView === "paid" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("paid"); }} data-testid={`button-view-paid-${sessionId}`}>
+                              Paid
+                            </Button>
+                            <Button size="sm" variant={sessionPaymentView === "unpaid" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("unpaid"); }} data-testid={`button-view-unpaid-${sessionId}`}>
+                              Unpaid
+                            </Button>
+                            <Button size="sm" variant={sessionPaymentView === "grouped" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionPaymentView("grouped"); }} data-testid={`button-view-grouped-${sessionId}`}>
+                              Group
+                            </Button>
+                          </div>
+                          {bulkFeeSessionId === sessionId ? (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm text-muted-foreground">£</span>
+                                <Input
+                                  type="number"
+                                  min="0"
+                                  step="0.01"
+                                  placeholder="e.g. 7.50"
+                                  value={bulkFeeAmount}
+                                  onChange={(e) => setBulkFeeAmount(e.target.value)}
+                                  className="w-[100px]"
+                                  data-testid={`input-bulk-fee-${sessionId}`}
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="default"
+                                disabled={!bulkFeeAmount || parseFloat(bulkFeeAmount) < 0}
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const pence = Math.round(parseFloat(bulkFeeAmount) * 100);
+                                  if (isNaN(pence) || pence < 0) return;
+                                  try {
+                                    await apiRequest("PATCH", `/api/admin/sessions/${sessionId}/bulk-fee`, { fee: pence });
+                                    toast({ title: "Fees Updated", description: `Applied £${parseFloat(bulkFeeAmount).toFixed(2)} to all ${entries.length} players.` });
+                                    qc.invalidateQueries({ queryKey: [financialQueryUrl] });
+                                    setBulkFeeSessionId(null);
+                                    setBulkFeeAmount("");
+                                  } catch (err: any) {
+                                    toast({ title: "Error", description: err.message || "Failed to apply bulk fee", variant: "destructive" });
+                                  }
+                                }}
+                                data-testid={`button-apply-bulk-fee-${sessionId}`}
+                              >
+                                Apply to All
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBulkFeeSessionId(null);
+                                  setBulkFeeAmount("");
+                                }}
+                                data-testid={`button-cancel-bulk-fee-${sessionId}`}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1.5 flex-wrap">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setBulkFeeSessionId(sessionId);
+                                  setBulkFeeAmount("");
+                                }}
+                                data-testid={`button-set-standard-rate-${sessionId}`}
+                              >
+                                <DollarSign className="h-3 w-3 mr-1" />
+                                Set Standard Rate
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={async (e) => {
+                                  e.stopPropagation();
+                                  const updates: Promise<any>[] = [];
+                                  for (const entry of entries) {
+                                    const targetFee = entry.membershipStatus === "ACTIVE" && entry.membershipSessionFee != null
+                                      ? entry.membershipSessionFee
+                                      : (entry.sessionFee ?? entry.clubSessionFee ?? 0);
+                                    if (entry.fee !== targetFee) {
+                                      updates.push(apiRequest("PATCH", `/api/admin/signups/${entry.signupId}/fee`, { fee: targetFee }));
+                                    }
+                                  }
+                                  if (updates.length === 0) {
+                                    toast({ title: "No Changes", description: "All fees already match membership rates." });
+                                    return;
+                                  }
+                                  try {
+                                    await Promise.all(updates);
+                                    toast({ title: "Fees Updated", description: `Applied membership-based rates to ${updates.length} player(s).` });
+                                    qc.invalidateQueries({ queryKey: [financialQueryUrl] });
+                                  } catch (err: any) {
+                                    toast({ title: "Error", description: err.message || "Failed to apply rates", variant: "destructive" });
+                                  }
+                                }}
+                                data-testid={`button-apply-member-rates-${sessionId}`}
+                              >
+                                <Crown className="h-3 w-3 mr-1" />
+                                Apply Member Rates
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddPlayerDialog({
+                                sessionId,
+                                clubId: first.clubId,
+                                sessionTitle: first.sessionTitle,
+                                sessionFee: first.sessionFee || 0,
+                              });
+                              setAddPlayerMode("existing");
+                              setAddPlayerSearch("");
+                              setAddPlayerSelectedId(null);
+                              setNewPlayerName("");
+                              setNewPlayerEmail("");
+                              setNewPlayerGender("MALE");
+                            }}
+                            data-testid={`button-add-player-session-${sessionId}`}
+                          >
+                            <UserPlus className="h-3 w-3 mr-1" />
+                            Add Player
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setAddCreditDialog({ sessionId, entries });
+                              setCreditSelectedPlayers([]);
+                              setCreditAmount("");
+                              setCreditReason("");
+                            }}
+                            data-testid={`button-add-credit-session-${sessionId}`}
+                          >
+                            <Plus className="h-3 w-3 mr-1" />
+                            Add Credit
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="overflow-x-auto">
+                        <Table>
+                          <TableHeader>
+                            <TableRow>
+                              <TableHead className="w-8 px-2">
+                                <input
+                                  type="checkbox"
+                                  checked={entries.every(e => selectedEntries.has(e.signupId))}
+                                  onChange={() => {
+                                    const allSelected = entries.every(e => selectedEntries.has(e.signupId));
+                                    setSelectedEntries(prev => {
+                                      const next = new Set(prev);
+                                      entries.forEach(e => allSelected ? next.delete(e.signupId) : next.add(e.signupId));
+                                      return next;
+                                    });
+                                  }}
+                                  className="h-4 w-4 rounded cursor-pointer accent-primary"
+                                  data-testid={`checkbox-select-all-${sessionId}`}
+                                />
+                              </TableHead>
+                              <TableHead>
+                                <button
+                                  className="flex items-center gap-1 cursor-pointer"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setSortPlayersAlpha((prev) => !prev);
+                                  }}
+                                  data-testid={`button-sort-players-${sessionId}`}
+                                >
+                                  Player
+                                  <ArrowDownAZ className={`h-3 w-3 ${sortPlayersAlpha ? "text-foreground" : "text-muted-foreground"}`} />
+                                </button>
+                              </TableHead>
+                              <TableHead>Fee</TableHead>
+                              <TableHead>Credit Bal.</TableHead>
+                              <TableHead>Status</TableHead>
+                              <TableHead>Action</TableHead>
+                              <TableHead>Attendance</TableHead>
+                              <TableHead>Notify</TableHead>
+                              <TableHead>Credit</TableHead>
+                            </TableRow>
+                          </TableHeader>
+                          <TableBody>
+                            {(() => {
+                              let filtered = entries;
+                              if (sessionPaymentView === "paid") {
+                                filtered = entries.filter((e) => e.paymentStatus === "PAID");
+                              } else if (sessionPaymentView === "unpaid") {
+                                filtered = entries.filter((e) => e.paymentStatus === "UNPAID");
+                              } else if (sessionPaymentView === "grouped") {
+                                filtered = [...entries].sort((a, b) => {
+                                  if (a.paymentStatus === b.paymentStatus) return 0;
+                                  return a.paymentStatus === "UNPAID" ? -1 : 1;
+                                });
+                              }
+                              if (sortPlayersAlpha) {
+                                filtered = [...filtered].sort((a, b) => (a.playerName || "").localeCompare(b.playerName || ""));
+                              }
+                              if (filtered.length === 0) {
+                                return (
+                                  <TableRow>
+                                    <TableCell colSpan={7} className="text-center text-muted-foreground py-4">
+                                      No {sessionPaymentView === "paid" ? "paid" : "unpaid"} players in this session.
+                                    </TableCell>
+                                  </TableRow>
+                                );
+                              }
+                              if (sessionPaymentView === "grouped" && !sortPlayersAlpha) {
+                                const unpaidEntries = filtered.filter((e) => e.paymentStatus === "UNPAID");
+                                const paidEntries = filtered.filter((e) => e.paymentStatus === "PAID");
+                                return (
+                                  <>
+                                    {unpaidEntries.length > 0 && (
+                                      <>
+                                        <TableRow>
+                                          <TableCell colSpan={7} className="font-semibold text-orange-600 bg-orange-500/5 py-1.5 text-xs">
+                                            Unpaid ({unpaidEntries.length})
+                                          </TableCell>
+                                        </TableRow>
+                                        {unpaidEntries.map((entry) => renderPlayerRow(entry))}
+                                      </>
+                                    )}
+                                    {paidEntries.length > 0 && (
+                                      <>
+                                        <TableRow>
+                                          <TableCell colSpan={7} className="font-semibold text-green-600 bg-green-500/5 py-1.5 text-xs">
+                                            Paid ({paidEntries.length})
+                                          </TableCell>
+                                        </TableRow>
+                                        {paidEntries.map((entry) => renderPlayerRow(entry))}
+                                      </>
+                                    )}
+                                  </>
+                                );
+                              }
+                              return filtered.map((entry) => renderPlayerRow(entry));
+                            })()}
+                          </TableBody>
+                        </Table>
+                      </div>
+                    </CardContent>
+                  )}
+                </Card>
+              );
+            })
+          )}
+        </div>
       )}
 
       <Dialog open={!!attendanceModal} onOpenChange={(open) => { if (!open) setAttendanceModal(null); }}>
