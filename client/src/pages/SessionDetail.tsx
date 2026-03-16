@@ -29,7 +29,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -254,6 +254,19 @@ export default function SessionDetail() {
       return res.json();
     },
     onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); toast({ title: "Player promoted from waiting list" }); },
+  });
+
+  const remindInviteesMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/remind-invitees`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Reminder Sent", description: data.message || "Reminders sent to members." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to send reminders", variant: "destructive" });
+    },
   });
 
   const publishNowMutation = useMutation({
@@ -486,6 +499,19 @@ export default function SessionDetail() {
             )}
             {session.isPrivate && (
               <Badge variant="outline">Private</Badge>
+            )}
+            {canEditSession && (
+              <Button
+                variant="outline"
+                size="sm"
+                className="gap-1 hover:text-amber-600 dark:hover:text-amber-400"
+                onClick={() => remindInviteesMutation.mutate(session.id)}
+                disabled={remindInviteesMutation.isPending}
+                data-testid="button-remind-session"
+              >
+                <Bell className="w-4 h-4" />
+                {remindInviteesMutation.isPending ? "Sending..." : "Remind Members"}
+              </Button>
             )}
             {canEditSession && (
               <Dialog open={settingsOpen} onOpenChange={(open) => {

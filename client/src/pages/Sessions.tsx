@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -682,6 +682,19 @@ export default function Sessions() {
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const remindInviteesMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/remind-invitees`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Reminder Sent", description: data.message || "Reminders sent to members." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to send reminders", variant: "destructive" });
     },
   });
 
@@ -1625,6 +1638,25 @@ export default function Sessions() {
                           <TooltipContent>Session Finances</TooltipContent>
                         </Tooltip>
                       )}
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="rounded-lg h-8 gap-1 text-muted-foreground hover:text-amber-600 dark:hover:text-amber-400"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              remindInviteesMutation.mutate(session.id);
+                            }}
+                            disabled={remindInviteesMutation.isPending}
+                            data-testid={`button-remind-session-${session.id}`}
+                          >
+                            <Bell className="h-3.5 w-3.5" />
+                            <span className="hidden sm:inline text-xs">Remind</span>
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Send reminder to members who haven't signed up</TooltipContent>
+                      </Tooltip>
                       <EditSessionDialog session={session} venues={[]} adminClubs={isPlatformAdmin ? (clubs || []) : (adminClubs || [])} />
                       <div className="flex-1" />
                       <DropdownMenu>

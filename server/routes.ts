@@ -15,7 +15,7 @@ import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
 import { computeSessionMetrics } from "./adaptiveFairnessAI";
 import { runSimulation } from "./matchEngineLab";
-import { sendTicketReplyNotification, sendNewMessageNotification } from "./notification-scheduler";
+import { sendTicketReplyNotification, sendNewMessageNotification, sendWithdrawSpaceNotification, sendAdminSessionReminder } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
 import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, removeUserFromSessionChat, sendSystemChatMessage } from "./chatRoutes";
@@ -2486,6 +2486,15 @@ export async function registerRoutes(
           });
         }
       }
+
+      // Notify invitees that a space has opened up (only if a confirmed player left and spaces exist)
+      const updatedSignups = await storage.getSessionSignups(sessionId);
+      const updatedConfirmedCount = updatedSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+      if (updatedConfirmedCount < session.maxPlayers) {
+        sendWithdrawSpaceNotification(sessionId).catch(err => {
+          console.error("[SESSION WITHDRAW] Failed to send space notification:", err);
+        });
+      }
     }
 
     res.sendStatus(200);
@@ -3663,6 +3672,24 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error updating session:", err);
       res.status(500).json({ message: err.message || "Failed to update session" });
+    }
+  });
+
+  app.post("/api/sessions/:id/remind-invitees", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      const canEdit = await canPerform({ id: req.user!.id, role: req.user!.role }, "EDIT_SESSIONS", session.clubId);
+      if (!canEdit) return res.sendStatus(403);
+
+      const result = await sendAdminSessionReminder(sessionId, req.user!.id);
+      res.json({ message: `Reminder sent to ${result.sent} member(s)`, sent: result.sent });
+    } catch (err: any) {
+      console.error("Error sending session reminder:", err);
+      res.status(500).json({ message: err.message || "Failed to send reminder" });
     }
   });
 

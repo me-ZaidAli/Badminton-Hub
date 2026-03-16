@@ -24,6 +24,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Admin & Player Management**: Tools for comprehensive user, club, venue, and administrator management.
 - **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing and flexible editing/deletion.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system, supporting optional hall and court names.
+- **Session Availability Notifications**: Automatic in-app + chat + email notifications for session spaces. When a player withdraws, invitees are notified. Scheduled reminders at 2 days, 1 day, and day-of session if spaces remain. Admin "Remind Members" bell button sends manual reminders to unconfirmed members. Route: `POST /api/sessions/:id/remind-invitees`. Logic in `server/notification-scheduler.ts`.
 - **Session Match Recovery**: Allows recovery of soft-deleted (archived) matches.
 - **Coach Directory & Lesson Booking**: Manages public coach profiles, an interactive map, and an in-app private lesson request system.
 - **Global Account Merge System**: Tool for merging duplicate user accounts (OWNER-only).

@@ -544,6 +544,259 @@ export async function processAnniversaryNotifications() {
 }
 
 // ============================================================
+// SESSION AVAILABILITY REMINDERS (2 days, 1 day, day-of)
+// ============================================================
+async function processSessionAvailabilityReminders() {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const tomorrow = new Date(today);
+  tomorrow.setDate(tomorrow.getDate() + 1);
+  const dayAfterTomorrow = new Date(today);
+  dayAfterTomorrow.setDate(dayAfterTomorrow.getDate() + 2);
+  const endOfDayAfterTomorrow = new Date(dayAfterTomorrow);
+  endOfDayAfterTomorrow.setDate(endOfDayAfterTomorrow.getDate() + 1);
+
+  const upcomingSessions = await db.select().from(sessions)
+    .where(and(
+      gte(sessions.date, today),
+      lt(sessions.date, endOfDayAfterTomorrow),
+      sql`${sessions.status} IN ('UPCOMING', 'ACTIVE')`,
+    ));
+
+  for (const session of upcomingSessions) {
+    const sessionDate = new Date(session.date);
+    const sessionDay = new Date(sessionDate.getFullYear(), sessionDate.getMonth(), sessionDate.getDate());
+    
+    const allSignups = await db.select().from(sessionSignups)
+      .where(eq(sessionSignups.sessionId, session.id));
+    
+    const confirmedCount = allSignups.filter(s => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+    const spacesAvailable = session.maxPlayers - confirmedCount;
+    
+    if (spacesAvailable <= 0) continue;
+
+    let scheduleKey = "";
+    let timeLabel = "";
+    const diffDays = Math.round((sessionDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000));
+    
+    if (diffDays === 0) {
+      scheduleKey = `session_avail_today_${session.id}`;
+      timeLabel = "today";
+    } else if (diffDays === 1) {
+      scheduleKey = `session_avail_1day_${session.id}`;
+      timeLabel = "tomorrow";
+    } else if (diffDays === 2) {
+      scheduleKey = `session_avail_2day_${session.id}`;
+      timeLabel = `on ${formatDate(sessionDate)}`;
+    } else {
+      continue;
+    }
+
+    const club = await db.select().from(clubs).where(eq(clubs.id, session.clubId)).limit(1);
+    const clubName = club.length > 0 ? club[0].name : "your club";
+    const settings = await getClubSettings(session.clubId);
+
+    const invitedPlayers = allSignups.filter(s => s.signupStatus === "INVITED");
+    const clubProfiles = await db.select({
+      playerId: playerProfiles.id,
+      userId: playerProfiles.userId,
+    }).from(playerProfiles)
+      .where(eq(playerProfiles.clubId, session.clubId));
+    
+    const confirmedPlayerIds = new Set(
+      allSignups
+        .filter(s => !s.signupStatus || s.signupStatus === "CONFIRMED" || s.signupStatus === "WAITING")
+        .map(s => s.playerId)
+    );
+    
+    const invitedPlayerIds = new Set(invitedPlayers.map(s => s.playerId));
+
+    const targetPlayerIds = new Set<number>();
+    invitedPlayers.forEach(s => targetPlayerIds.add(s.playerId));
+    clubProfiles.forEach(p => {
+      if (!confirmedPlayerIds.has(p.playerId)) {
+        targetPlayerIds.add(p.playerId);
+      }
+    });
+
+    if (targetPlayerIds.size === 0) continue;
+
+    const profileUserMap = new Map(clubProfiles.map(p => [p.playerId, p.userId]));
+    const invitedUserIds = Array.from(targetPlayerIds)
+      .map(pid => profileUserMap.get(pid))
+      .filter((uid): uid is number => uid !== undefined);
+
+    if (invitedUserIds.length === 0) continue;
+
+    const targetUsers = await db.select({
+      id: users.id,
+      email: users.email,
+      fullName: users.fullName,
+    }).from(users)
+      .where(inArray(users.id, invitedUserIds));
+
+    const spacesText = spacesAvailable === 1 ? "1 space" : `${spacesAvailable} spaces`;
+    const title = `${spacesText} available — ${session.title}`;
+    const message = `There ${spacesAvailable === 1 ? "is" : "are"} ${spacesText} available for "${session.title}" ${timeLabel} at ${session.startTime} (${clubName}). Sign up now to secure your spot!`;
+
+    for (const user of targetUsers) {
+      const firstName = user.fullName?.split(" ")[0] || "Player";
+      await sendMultiChannel(
+        user.id, user.email, firstName, session.clubId,
+        "SESSION", session.id, scheduleKey,
+        "SESSION_AVAILABILITY_REMINDER", title, message,
+        `/sessions/${session.id}`,
+        settings.emailNotificationsEnabled ?? true,
+        "SESSION_REMINDER"
+      );
+    }
+  }
+}
+
+export async function sendWithdrawSpaceNotification(sessionId: number) {
+  try {
+    const session = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+    if (!session.length) return;
+    const s = session[0];
+
+    if (s.status !== "UPCOMING" && s.status !== "ACTIVE") return;
+
+    const allSignups = await db.select().from(sessionSignups)
+      .where(eq(sessionSignups.sessionId, sessionId));
+    
+    const confirmedCount = allSignups.filter(su => !su.signupStatus || su.signupStatus === "CONFIRMED").length;
+    const spacesAvailable = s.maxPlayers - confirmedCount;
+    
+    if (spacesAvailable <= 0) return;
+
+    const club = await db.select().from(clubs).where(eq(clubs.id, s.clubId)).limit(1);
+    const clubName = club.length > 0 ? club[0].name : "your club";
+
+    const invitedPlayers = allSignups.filter(su => su.signupStatus === "INVITED");
+    if (invitedPlayers.length === 0) return;
+
+    const invitedPlayerIds = invitedPlayers.map(su => su.playerId);
+    const profiles = await db.select({
+      playerId: playerProfiles.id,
+      userId: playerProfiles.userId,
+    }).from(playerProfiles)
+      .where(inArray(playerProfiles.id, invitedPlayerIds));
+
+    const userIds = profiles.map(p => p.userId);
+    if (userIds.length === 0) return;
+
+    const targetUsers = await db.select({
+      id: users.id,
+      email: users.email,
+      fullName: users.fullName,
+    }).from(users)
+      .where(inArray(users.id, userIds));
+
+    const spacesText = spacesAvailable === 1 ? "1 space" : `${spacesAvailable} spaces`;
+    const sessionDate = new Date(s.date);
+    const dateStr = formatDate(sessionDate);
+    const title = `A space just opened up — ${s.title}`;
+    const message = `Someone has pulled out of "${s.title}" on ${dateStr} at ${s.startTime} (${clubName}). There ${spacesAvailable === 1 ? "is now" : "are now"} ${spacesText} available. Sign up now to take the spot!`;
+
+    const now = new Date();
+    const hourKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}-${String(now.getHours()).padStart(2,'0')}`;
+    const scheduleKey = `session_withdraw_${sessionId}_${hourKey}`;
+
+    for (const user of targetUsers) {
+      const firstName = user.fullName?.split(" ")[0] || "Player";
+      await sendMultiChannel(
+        user.id, user.email, firstName, s.clubId,
+        "SESSION", sessionId, scheduleKey,
+        "SESSION_SPACE_OPENED", title, message,
+        `/sessions/${sessionId}`,
+        true,
+        "SESSION_REMINDER"
+      );
+    }
+    console.log(`[SESSION REMINDER] Sent withdraw space notification for session ${sessionId} to ${targetUsers.length} invitees`);
+  } catch (err) {
+    console.error(`[SESSION REMINDER] Failed to send withdraw space notification for session ${sessionId}:`, err);
+  }
+}
+
+export async function sendAdminSessionReminder(sessionId: number, adminUserId: number) {
+  const session = await db.select().from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+  if (!session.length) throw new Error("Session not found");
+  const s = session[0];
+
+  const allSignups = await db.select().from(sessionSignups)
+    .where(eq(sessionSignups.sessionId, sessionId));
+  
+  const confirmedPlayerIds = new Set(
+    allSignups
+      .filter(su => !su.signupStatus || su.signupStatus === "CONFIRMED")
+      .map(su => su.playerId)
+  );
+
+  const invitedPlayers = allSignups.filter(su => su.signupStatus === "INVITED");
+  const clubProfiles = await db.select({
+    playerId: playerProfiles.id,
+    userId: playerProfiles.userId,
+  }).from(playerProfiles)
+    .where(eq(playerProfiles.clubId, s.clubId));
+
+  const targetPlayerIds = new Set<number>();
+  invitedPlayers.forEach(su => targetPlayerIds.add(su.playerId));
+  clubProfiles.forEach(p => {
+    if (!confirmedPlayerIds.has(p.playerId)) {
+      targetPlayerIds.add(p.playerId);
+    }
+  });
+
+  if (targetPlayerIds.size === 0) return { sent: 0 };
+
+  const profileUserMap = new Map(clubProfiles.map(p => [p.playerId, p.userId]));
+  const targetUserIds = Array.from(targetPlayerIds)
+    .map(pid => profileUserMap.get(pid))
+    .filter((uid): uid is number => uid !== undefined && uid !== adminUserId);
+
+  if (targetUserIds.length === 0) return { sent: 0 };
+
+  const targetUsers = await db.select({
+    id: users.id,
+    email: users.email,
+    fullName: users.fullName,
+  }).from(users)
+    .where(inArray(users.id, targetUserIds));
+
+  const club = await db.select().from(clubs).where(eq(clubs.id, s.clubId)).limit(1);
+  const clubName = club.length > 0 ? club[0].name : "your club";
+  const confirmedCount = confirmedPlayerIds.size;
+  const spacesAvailable = s.maxPlayers - confirmedCount;
+  const spacesText = spacesAvailable === 1 ? "1 space" : `${spacesAvailable} spaces`;
+  const sessionDate = new Date(s.date);
+  const dateStr = formatDate(sessionDate);
+
+  const title = `Reminder: ${s.title} — ${spacesText} left`;
+  const message = `This is a friendly reminder about "${s.title}" on ${dateStr} at ${s.startTime} (${clubName}). There ${spacesAvailable === 1 ? "is" : "are"} still ${spacesText} available (${confirmedCount}/${s.maxPlayers} confirmed). Please confirm your attendance or sign up!`;
+
+  const today = new Date();
+  const dayKey = `${today.getFullYear()}-${String(today.getMonth()+1).padStart(2,'0')}-${String(today.getDate()).padStart(2,'0')}`;
+  const scheduleKey = `session_admin_remind_${sessionId}_${dayKey}`;
+
+  let sent = 0;
+  for (const user of targetUsers) {
+    const firstName = user.fullName?.split(" ")[0] || "Player";
+    await sendMultiChannel(
+      user.id, user.email, firstName, s.clubId,
+      "SESSION", sessionId, scheduleKey,
+      "SESSION_ADMIN_REMINDER", title, message,
+      `/sessions/${sessionId}`,
+      true,
+      "SESSION_REMINDER"
+    );
+    sent++;
+  }
+  console.log(`[SESSION REMINDER] Admin sent reminder for session ${sessionId} to ${sent} members`);
+  return { sent };
+}
+
+// ============================================================
 // MAIN SCHEDULER
 // ============================================================
 export async function runNotificationScheduler() {
@@ -567,6 +820,11 @@ export async function runNotificationScheduler() {
     await processAnniversaryNotifications();
   } catch (err) {
     console.error("[NOTIFICATION SCHEDULER] Anniversary notifications failed:", err);
+  }
+  try {
+    await processSessionAvailabilityReminders();
+  } catch (err) {
+    console.error("[NOTIFICATION SCHEDULER] Session availability reminders failed:", err);
   }
   console.log("[NOTIFICATION SCHEDULER] Scheduled notification check complete.");
 }
