@@ -2005,6 +2005,55 @@ export async function registerRoutes(
     const isOwner = user.role === "OWNER";
     const isPlatformAdmin = user.role === "ADMIN";
 
+    const realMatchStats = await db.execute(sql`
+      SELECT player_id, COUNT(*) as played, SUM(CASE WHEN won THEN 1 ELSE 0 END) as won
+      FROM (
+        SELECT m.team_a_player_1_id as player_id,
+               CASE WHEN COALESCE(m.sets_won_a,0)+COALESCE(m.sets_won_b,0)>0
+                    THEN COALESCE(m.sets_won_a,0)>COALESCE(m.sets_won_b,0)
+                    ELSE COALESCE(m.score_a,0)>COALESCE(m.score_b,0) END as won
+        FROM matches m WHERE m.is_completed=true AND m.deleted_at IS NULL AND m.team_a_player_1_id IS NOT NULL
+        UNION ALL
+        SELECT m.team_a_player_2_id,
+               CASE WHEN COALESCE(m.sets_won_a,0)+COALESCE(m.sets_won_b,0)>0
+                    THEN COALESCE(m.sets_won_a,0)>COALESCE(m.sets_won_b,0)
+                    ELSE COALESCE(m.score_a,0)>COALESCE(m.score_b,0) END
+        FROM matches m WHERE m.is_completed=true AND m.deleted_at IS NULL AND m.team_a_player_2_id IS NOT NULL
+        UNION ALL
+        SELECT m.team_b_player_1_id,
+               CASE WHEN COALESCE(m.sets_won_a,0)+COALESCE(m.sets_won_b,0)>0
+                    THEN COALESCE(m.sets_won_b,0)>COALESCE(m.sets_won_a,0)
+                    ELSE COALESCE(m.score_b,0)>COALESCE(m.score_a,0) END
+        FROM matches m WHERE m.is_completed=true AND m.deleted_at IS NULL AND m.team_b_player_1_id IS NOT NULL
+        UNION ALL
+        SELECT m.team_b_player_2_id,
+               CASE WHEN COALESCE(m.sets_won_a,0)+COALESCE(m.sets_won_b,0)>0
+                    THEN COALESCE(m.sets_won_b,0)>COALESCE(m.sets_won_a,0)
+                    ELSE COALESCE(m.score_b,0)>COALESCE(m.score_a,0) END
+        FROM matches m WHERE m.is_completed=true AND m.deleted_at IS NULL AND m.team_b_player_2_id IS NOT NULL
+      ) sub
+      GROUP BY player_id
+    `);
+
+    const statsMap = new Map<number, { played: number; won: number }>();
+    for (const row of realMatchStats.rows as any[]) {
+      statsMap.set(Number(row.player_id), { played: Number(row.played), won: Number(row.won) });
+    }
+
+    function enrichUsers(userList: any[]) {
+      return userList.map((u: any) => ({
+        ...u,
+        playerProfiles: (u.playerProfiles || []).map((p: any) => {
+          const real = statsMap.get(p.id);
+          return {
+            ...p,
+            matchesPlayed: real ? real.played : 0,
+            matchesWon: real ? real.won : 0,
+          };
+        }),
+      }));
+    }
+
     if (!isOwner && !isPlatformAdmin) {
       const adminClubIds = await getUserAdminClubIds(user.id, user.role);
       if (adminClubIds.length === 0) return res.sendStatus(403);
@@ -2016,11 +2065,11 @@ export async function registerRoutes(
         const hasClubProfile = u.playerProfiles?.some((p: any) => clubIdSet.has(p.clubId));
         return hasClubProfile;
       });
-      return res.json(scopedUsers);
+      return res.json(enrichUsers(scopedUsers));
     }
 
     const users = await storage.getAllUsers();
-    res.json(users);
+    res.json(enrichUsers(users));
   });
 
   app.get(api.users.profile.path, async (req, res) => {
