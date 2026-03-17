@@ -345,7 +345,7 @@ function PlayerProfileDialog({
               <ProfileField label="Phone" value={player.phone || "N/A"} testId="text-view-phone" />
               <ProfileField label="Sex" value={player.gender === "MALE" ? "Male" : player.gender === "FEMALE" ? "Female" : player.gender || "N/A"} testId="text-view-gender" />
               <ProfileField label="Age Group" value={player.isJunior ? "Junior" : "Adult"} testId="text-view-agegroup" />
-              <ProfileField label="Grade" value={(player as any).grade || player.category ? `Grade ${(player as any).grade || player.category}` : "N/A"} testId="text-view-grade" />
+              <ProfileField label="Grade" value={(player as any).grade ? `Grade ${(player as any).grade}` : "N/A"} testId="text-view-grade" />
               <ProfileField label="Club" value={player.clubName} testId="text-view-club" />
               <ProfileField label="Club Role" value={player.clubRole} testId="text-view-clubrole" />
               <ProfileField label="Country" value={player.userCountry || player.clubCountry || "N/A"} testId="text-view-country" />
@@ -509,40 +509,10 @@ export default function AllRankings() {
     }));
   }, [rankings]);
 
-  const filtered = useMemo(() => {
-    let result = enrichedRankings;
-
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.fullName.toLowerCase().includes(q) ||
-          (p.email || "").toLowerCase().includes(q) ||
-          p.clubName.toLowerCase().includes(q)
-      );
-    }
-
-    if (ageGroupFilter === "junior") {
-      result = result.filter(p => p.isJunior);
-    } else if (ageGroupFilter === "adult") {
-      result = result.filter(p => !p.isJunior);
-    }
-
-    if (membershipFilter !== "all") {
-      result = result.filter(p => p.membershipStatus === membershipFilter);
-    }
-
-    if (verifiedFilter !== "all") {
-      const isVerified = verifiedFilter === "verified";
-      result = result.filter(p => p.emailVerified === isVerified);
-    }
-
-    if (genderFilter === "JUNIOR") {
-      result = result.filter(p => p.isJunior);
-    }
-
+  const sortedRankings = useMemo(() => {
+    const result = [...enrichedRankings];
     if (sortBy === "grade") {
-      result.sort((a, b) => gradeRank((b as any).grade || b.category) - gradeRank((a as any).grade || a.category));
+      result.sort((a, b) => gradeRank((b as any).grade) - gradeRank((a as any).grade));
     } else if (sortBy === "winpct") {
       result.sort((a, b) => b.winPercentage - a.winPercentage || b.matchesWon - a.matchesWon);
     } else if (sortBy === "matches") {
@@ -553,20 +523,49 @@ export default function AllRankings() {
       result.sort((a, b) => b.matchesWon - a.matchesWon || b.winPercentage - a.winPercentage || b.matchesPlayed - a.matchesPlayed);
     }
     return result;
-  }, [enrichedRankings, searchQuery, ageGroupFilter, membershipFilter, verifiedFilter, genderFilter, sortBy]);
+  }, [enrichedRankings, sortBy]);
 
-  const rankedList = useMemo(() => {
+  const fullRankedList = useMemo(() => {
     let currentRank = 0;
     let lastWins = -1;
     let lastPct = -1;
-    return filtered.map((player, index) => {
+    return sortedRankings.map((player, index) => {
       const isTied = player.matchesWon === lastWins && player.winPercentage === lastPct;
       if (!isTied) currentRank = index + 1;
       lastWins = player.matchesWon;
       lastPct = player.winPercentage;
       return { ...player, rank: currentRank, isTied, totalPoints: computePoints(player) };
     });
-  }, [filtered]);
+  }, [sortedRankings]);
+
+  const rankedList = useMemo(() => {
+    let result = fullRankedList;
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.fullName.toLowerCase().includes(q) ||
+          (p.email || "").toLowerCase().includes(q) ||
+          p.clubName.toLowerCase().includes(q)
+      );
+    }
+    if (ageGroupFilter === "junior") {
+      result = result.filter(p => p.isJunior);
+    } else if (ageGroupFilter === "adult") {
+      result = result.filter(p => !p.isJunior);
+    }
+    if (membershipFilter !== "all") {
+      result = result.filter(p => p.membershipStatus === membershipFilter);
+    }
+    if (verifiedFilter !== "all") {
+      const isVerified = verifiedFilter === "verified";
+      result = result.filter(p => p.emailVerified === isVerified);
+    }
+    if (genderFilter === "JUNIOR") {
+      result = result.filter(p => p.isJunior);
+    }
+    return result;
+  }, [fullRankedList, searchQuery, ageGroupFilter, membershipFilter, verifiedFilter, genderFilter]);
 
   const uniqueBadgesMap = useMemo(() => getUniqueBadges(rankedList), [rankedList]);
   const badgeHolders = useMemo(() => getBadgeHolders(rankedList), [rankedList]);
@@ -1033,7 +1032,7 @@ export default function AllRankings() {
                       )}
                     </TableCell>
                     <TableCell className="text-center">
-                      <Badge variant="outline" className="font-mono">{(player as any).grade || player.category || "?"}</Badge>
+                      <Badge variant="outline" className="font-mono">{(player as any).grade || "?"}</Badge>
                     </TableCell>
                     <TableCell className="text-right font-medium">{player.matchesPlayed}</TableCell>
                     <TableCell className="text-right font-medium">

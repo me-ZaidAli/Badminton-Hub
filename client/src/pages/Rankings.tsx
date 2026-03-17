@@ -348,20 +348,11 @@ export default function Rankings() {
     return (player.matchesWon * 3) + (player.matchesLost * 1);
   };
 
-  const filteredLeaderboard = useMemo(() => {
+  const sortedLeaderboard = useMemo(() => {
     if (!leaderboard) return [];
-    let result = leaderboard;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(p =>
-        p.fullName.toLowerCase().includes(q) ||
-        (p.clubName && p.clubName.toLowerCase().includes(q))
-      );
-    }
-
-    const sorted = [...result];
+    const sorted = [...leaderboard];
     if (sortBy === "grade") {
-      sorted.sort((a, b) => gradeRank(b.grade || b.category) - gradeRank(a.grade || a.category));
+      sorted.sort((a, b) => gradeRank(b.grade) - gradeRank(a.grade));
     } else if (sortBy === "winpct") {
       sorted.sort((a, b) => b.winPercentage - a.winPercentage || b.matchesWon - a.matchesWon);
     } else if (sortBy === "matches") {
@@ -371,22 +362,30 @@ export default function Rankings() {
     } else {
       sorted.sort((a, b) => b.matchesWon - a.matchesWon || b.winPercentage - a.winPercentage || b.matchesPlayed - a.matchesPlayed);
     }
-
     return sorted;
-  }, [leaderboard, searchQuery, sortBy]);
+  }, [leaderboard, sortBy]);
 
-  const rankedLeaderboard = useMemo(() => {
+  const fullRankedLeaderboard = useMemo(() => {
     let currentRank = 0;
     let lastWins = -1;
     let lastPct = -1;
-    return filteredLeaderboard.map((player, index) => {
+    return sortedLeaderboard.map((player, index) => {
       const isTied = player.matchesWon === lastWins && player.winPercentage === lastPct;
       if (!isTied) currentRank = index + 1;
       lastWins = player.matchesWon;
       lastPct = player.winPercentage;
       return { ...player, rank: currentRank, isTied, totalPoints: computePoints(player) };
     });
-  }, [filteredLeaderboard]);
+  }, [sortedLeaderboard]);
+
+  const rankedLeaderboard = useMemo(() => {
+    if (!searchQuery.trim()) return fullRankedLeaderboard;
+    const q = searchQuery.toLowerCase();
+    return fullRankedLeaderboard.filter(p =>
+      p.fullName.toLowerCase().includes(q) ||
+      (p.clubName && p.clubName.toLowerCase().includes(q))
+    );
+  }, [fullRankedLeaderboard, searchQuery]);
 
   const uniqueBadgesMap = useMemo(() => getUniqueBadges(rankedLeaderboard), [rankedLeaderboard]);
   const badgeHolders = useMemo(() => getBadgeHolders(rankedLeaderboard), [rankedLeaderboard]);
@@ -684,7 +683,7 @@ export default function Rankings() {
                     </TableCell>
                   )}
                   <TableCell className="text-center">
-                    <Badge variant="outline" className="font-mono">{player.grade || player.category || "?"}</Badge>
+                    <Badge variant="outline" className="font-mono">{player.grade || "?"}</Badge>
                   </TableCell>
                   <TableCell className="text-right font-medium">
                     {player.matchesPlayed}

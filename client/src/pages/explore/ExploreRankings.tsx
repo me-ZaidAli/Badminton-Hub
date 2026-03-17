@@ -114,30 +114,30 @@ export default function ExploreRankings() {
 
   const { data: leaderboard, isLoading } = useFilteredLeaderboard(filters);
 
-  const filteredLeaderboard = useMemo(() => {
+  const fullRankedLeaderboard = useMemo(() => {
     if (!leaderboard) return [];
     const ranked = leaderboard.filter(p => p.matchesPlayed > 0);
-    if (!searchQuery.trim()) return ranked;
-    const q = searchQuery.toLowerCase();
-    return ranked.filter(p => {
-      const displayName = p.nickname || p.fullName;
-      return displayName.toLowerCase().includes(q) ||
-        (p.clubName && p.clubName.toLowerCase().includes(q));
-    });
-  }, [leaderboard, searchQuery]);
-
-  const rankedLeaderboard = useMemo(() => {
     let currentRank = 0;
     let lastWins = -1;
     let lastPct = -1;
-    return filteredLeaderboard.map((player, index) => {
+    return ranked.map((player, index) => {
       const isTied = player.matchesWon === lastWins && player.winPercentage === lastPct;
       if (!isTied) currentRank = index + 1;
       lastWins = player.matchesWon;
       lastPct = player.winPercentage;
       return { ...player, rank: currentRank, isTied };
     });
-  }, [filteredLeaderboard]);
+  }, [leaderboard]);
+
+  const rankedLeaderboard = useMemo(() => {
+    if (!searchQuery.trim()) return fullRankedLeaderboard;
+    const q = searchQuery.toLowerCase();
+    return fullRankedLeaderboard.filter(p => {
+      const displayName = p.nickname || p.fullName;
+      return displayName.toLowerCase().includes(q) ||
+        (p.clubName && p.clubName.toLowerCase().includes(q));
+    });
+  }, [fullRankedLeaderboard, searchQuery]);
 
   const hasActiveFilters = selectedClubId !== "all" || category !== "all" || matchType !== "all" || timePeriod !== "all" || searchQuery.trim();
 
@@ -331,7 +331,7 @@ export default function ExploreRankings() {
                         </TableCell>
                       )}
                       <TableCell className="text-center">
-                        <Badge variant="outline" className="font-mono">{(player as any).grade || player.category || "?"}</Badge>
+                        <Badge variant="outline" className="font-mono">{(player as any).grade || "?"}</Badge>
                       </TableCell>
                       <TableCell className="text-right font-medium">
                         {player.matchesPlayed}

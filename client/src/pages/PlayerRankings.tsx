@@ -288,18 +288,10 @@ export default function PlayerRankings() {
     return leaderboard;
   }, [leaderboard, clubScope, selectedClubId, myClubIds]);
 
-  const filteredLeaderboard = useMemo(() => {
-    let result = [...scopedLeaderboard];
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(p =>
-        p.fullName.toLowerCase().includes(q) ||
-        (p.clubName && p.clubName.toLowerCase().includes(q))
-      );
-    }
-
+  const sortedLeaderboard = useMemo(() => {
+    const result = [...scopedLeaderboard];
     if (sortBy === "grade") {
-      result.sort((a, b) => gradeRank(b.grade || b.category) - gradeRank(a.grade || a.category));
+      result.sort((a, b) => gradeRank(b.grade) - gradeRank(a.grade));
     } else if (sortBy === "winpct") {
       result.sort((a, b) => b.winPercentage - a.winPercentage || b.matchesWon - a.matchesWon);
     } else if (sortBy === "matches") {
@@ -309,22 +301,30 @@ export default function PlayerRankings() {
     } else {
       result.sort((a, b) => b.matchesWon - a.matchesWon || b.winPercentage - a.winPercentage || b.matchesPlayed - a.matchesPlayed);
     }
-
     return result;
-  }, [scopedLeaderboard, searchQuery, sortBy]);
+  }, [scopedLeaderboard, sortBy]);
 
-  const rankedLeaderboard = useMemo(() => {
+  const fullRankedLeaderboard = useMemo(() => {
     let currentRank = 0;
     let lastWins = -1;
     let lastPct = -1;
-    return filteredLeaderboard.map((player, index) => {
+    return sortedLeaderboard.map((player, index) => {
       const isTied = player.matchesWon === lastWins && player.winPercentage === lastPct;
       if (!isTied) currentRank = index + 1;
       lastWins = player.matchesWon;
       lastPct = player.winPercentage;
       return { ...player, rank: currentRank, isTied, totalPoints: computePoints(player) };
     });
-  }, [filteredLeaderboard]);
+  }, [sortedLeaderboard]);
+
+  const rankedLeaderboard = useMemo(() => {
+    if (!searchQuery.trim()) return fullRankedLeaderboard;
+    const q = searchQuery.toLowerCase();
+    return fullRankedLeaderboard.filter(p =>
+      p.fullName.toLowerCase().includes(q) ||
+      (p.clubName && p.clubName.toLowerCase().includes(q))
+    );
+  }, [fullRankedLeaderboard, searchQuery]);
 
   const myProfile = user?.playerProfile;
   const myStats = useMemo(() => {
@@ -734,7 +734,7 @@ export default function PlayerRankings() {
                           )}
                           <td className="px-4 py-3 text-center">
                             <span className="text-xs font-mono font-bold text-slate-300 bg-[#1e293b]/50 px-2 py-0.5 rounded">
-                              {(player as any).grade || player.category || "?"}
+                              {(player as any).grade || "?"}
                             </span>
                           </td>
                           <td className="px-4 py-3 text-center">

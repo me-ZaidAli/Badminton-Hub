@@ -1431,8 +1431,7 @@ export class DatabaseStorage implements IStorage {
     }>();
 
     for (const r of profileRows) {
-      const playerGrade = r.player_profiles.grade || r.player_profiles.category;
-      if (filters.category && playerGrade !== filters.category && r.player_profiles.category !== filters.category) continue;
+      if (filters.category && r.player_profiles.grade !== filters.category) continue;
       if (filters.gender === "JUNIOR") {
         if (!r.users.isJunior) continue;
       } else if (filters.gender && r.player_profiles.gender !== filters.gender) continue;

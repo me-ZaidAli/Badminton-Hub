@@ -175,19 +175,10 @@ export default function AdminRankings() {
     }));
   }, [rankings]);
 
-  const filtered = useMemo(() => {
-    let result = enrichedRankings;
-    if (searchQuery.trim()) {
-      const q = searchQuery.toLowerCase();
-      result = result.filter(
-        (p) =>
-          p.fullName.toLowerCase().includes(q) ||
-          (p.email || "").toLowerCase().includes(q) ||
-          p.clubName.toLowerCase().includes(q)
-      );
-    }
+  const sortedRankings = useMemo(() => {
+    const result = [...enrichedRankings];
     if (sortBy === "grade") {
-      result.sort((a, b) => gradeRank(b.grade || b.category) - gradeRank(a.grade || a.category));
+      result.sort((a, b) => gradeRank(b.grade) - gradeRank(a.grade));
     } else if (sortBy === "winpct") {
       result.sort((a, b) => b.winPercentage - a.winPercentage || b.matchesWon - a.matchesWon);
     } else if (sortBy === "matches") {
@@ -198,20 +189,31 @@ export default function AdminRankings() {
       result.sort((a, b) => b.matchesWon - a.matchesWon || b.winPercentage - a.winPercentage || b.matchesPlayed - a.matchesPlayed);
     }
     return result;
-  }, [enrichedRankings, searchQuery, sortBy]);
+  }, [enrichedRankings, sortBy]);
 
-  const rankedList = useMemo(() => {
+  const fullRankedList = useMemo(() => {
     let currentRank = 0;
     let lastWins = -1;
     let lastPct = -1;
-    return filtered.map((player, index) => {
+    return sortedRankings.map((player, index) => {
       const isTied = player.matchesWon === lastWins && player.winPercentage === lastPct;
       if (!isTied) currentRank = index + 1;
       lastWins = player.matchesWon;
       lastPct = player.winPercentage;
       return { ...player, rank: currentRank, isTied, totalPoints: computePoints(player) };
     });
-  }, [filtered]);
+  }, [sortedRankings]);
+
+  const rankedList = useMemo(() => {
+    if (!searchQuery.trim()) return fullRankedList;
+    const q = searchQuery.toLowerCase();
+    return fullRankedList.filter(
+      (p) =>
+        p.fullName.toLowerCase().includes(q) ||
+        (p.email || "").toLowerCase().includes(q) ||
+        p.clubName.toLowerCase().includes(q)
+    );
+  }, [fullRankedList, searchQuery]);
 
   const totalPlayers = rankedList.length;
   const totalMatches = totalPlayers > 0 ? rankedList.reduce((sum, p) => sum + p.matchesPlayed, 0) : 0;
@@ -511,7 +513,7 @@ export default function AdminRankings() {
                         </TableCell>
                         <TableCell className="text-center">
                           <Badge variant="outline" className="font-mono" data-testid={`badge-category-${player.profileId}`}>
-                            {player.grade || player.category || "C3"}
+                            {player.grade || "?"}
                           </Badge>
                         </TableCell>
                         <TableCell className="text-center hidden sm:table-cell" data-testid={`text-gender-${player.profileId}`}>
