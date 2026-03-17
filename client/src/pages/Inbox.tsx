@@ -152,7 +152,6 @@ export default function InboxPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [chatListCollapsed, setChatListCollapsed] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
-  const [showAllConversations, setShowAllConversations] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const BASIC_EMOJIS = [
@@ -509,7 +508,7 @@ export default function InboxPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto">
+          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
             {convoLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map(i => (
@@ -534,12 +533,7 @@ export default function InboxPage() {
                 </Button>
               </div>
             ) : (
-              <>
-              {(() => {
-                const activeInTop5 = !activeConversation || filteredConversations.findIndex(c => c.contactId === activeConversation) < 5;
-                const displayConvos = (showAllConversations || !activeInTop5) ? filteredConversations : filteredConversations.slice(0, 5);
-                return displayConvos;
-              })().map(convo => (
+              filteredConversations.map(convo => (
                 <div
                   key={convo.contactId}
                   className={`flex items-center gap-3 px-3 py-3 cursor-pointer chat-list-item hover-elevate ${activeConversation === convo.contactId ? "bg-primary/5 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"}`}
@@ -578,27 +572,7 @@ export default function InboxPage() {
                     </div>
                   </div>
                 </div>
-              ))}
-              {filteredConversations.length > 5 && (
-                <button
-                  onClick={() => setShowAllConversations(!showAllConversations)}
-                  className="w-full px-3 py-2.5 text-xs text-muted-foreground hover:text-foreground hover:bg-muted/50 transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-                  data-testid="button-show-more-conversations"
-                >
-                  {showAllConversations ? (
-                    <>
-                      <ChevronLeft className="h-3.5 w-3.5 rotate-90" />
-                      Show less
-                    </>
-                  ) : (
-                    <>
-                      <ChevronRight className="h-3.5 w-3.5 -rotate-90" />
-                      {filteredConversations.length - 5} more conversations
-                    </>
-                  )}
-                </button>
-              )}
-              </>
+              ))
             )}
           </div>
         </div>
@@ -658,13 +632,13 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-3 chat-bg-default" data-testid="chat-messages-area">
+              <div className="flex-1 overflow-y-auto px-4 py-3 chat-bg-default overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }} data-testid="chat-messages-area">
                 {threadLoading ? (
-                  <div className="flex items-center justify-center min-h-[120px] py-8">
+                  <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                   </div>
                 ) : threadMessages.length === 0 ? (
-                  <div className="flex items-center justify-center min-h-[120px] py-8 text-center text-muted-foreground">
+                  <div className="flex items-center justify-center h-full text-center text-muted-foreground">
                     <div>
                       <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
                         <MessageCircle className="h-8 w-8 text-primary/40" />
@@ -753,8 +727,10 @@ export default function InboxPage() {
                   ))}
                   </>
                 )}
+                <div ref={messagesEndRef} />
+              </div>
 
-              <div className="border-t p-3 pb-4 bg-background relative">
+              <div className="border-t p-3 pb-4 bg-background relative flex-shrink-0">
                 {emojiPickerOpen && (
                   <div className="absolute bottom-full left-0 right-0 mb-1 mx-3 bg-popover border rounded-lg shadow-lg p-3 z-20" data-testid="emoji-picker">
                     <div className="grid grid-cols-8 gap-1">
@@ -808,8 +784,6 @@ export default function InboxPage() {
                     )}
                   </Button>
                 </div>
-              </div>
-              <div ref={messagesEndRef} />
               </div>
             </>
           ) : (
