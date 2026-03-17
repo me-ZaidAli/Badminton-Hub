@@ -136,12 +136,27 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
                 <MoreVertical className="h-3 w-3" />
               </Button>
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              {!adminActions.isOrganiserOnly && (
-                <DropdownMenuItem onClick={() => adminActions.onFinances(session)}>
-                  <Wallet className="h-4 w-4 mr-2" />Finances
+            <DropdownMenuContent align="end" className="w-48">
+              <DropdownMenuItem onClick={() => adminActions.onDetails(session)}>
+                <Users className="h-4 w-4 mr-2" />RSVP List
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => adminActions.onEdit(session)}>
+                <Pencil className="h-4 w-4 mr-2" />Edit Session
+              </DropdownMenuItem>
+              {adminActions.onRemindMembers && (
+                <DropdownMenuItem onClick={() => adminActions.onRemindMembers!(session.id)}>
+                  <Bell className="h-4 w-4 mr-2" />Remind Members
                 </DropdownMenuItem>
               )}
+              {!adminActions.isOrganiserOnly && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={() => adminActions.onFinances(session)}>
+                    <Wallet className="h-4 w-4 mr-2" />Finances
+                  </DropdownMenuItem>
+                </>
+              )}
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => adminActions.onDuplicate(session)}>
                 <Copy className="h-4 w-4 mr-2" />Duplicate
               </DropdownMenuItem>
@@ -716,6 +731,30 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
             <DropdownMenuItem
+              onClick={(e) => { e.stopPropagation(); adminActions.onDetails(session); }}
+              data-testid={`button-rsvp-dropdown-${session.id}`}
+            >
+              <Users className="h-4 w-4 mr-2" />
+              RSVP List
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              onClick={(e) => { e.stopPropagation(); adminActions.onEdit(session); }}
+              data-testid={`button-edit-dropdown-${session.id}`}
+            >
+              <Pencil className="h-4 w-4 mr-2" />
+              Edit Session
+            </DropdownMenuItem>
+            {adminActions.onRemindMembers && (
+              <DropdownMenuItem
+                onClick={(e) => { e.stopPropagation(); adminActions.onRemindMembers!(session.id); }}
+                data-testid={`button-remind-dropdown-${session.id}`}
+              >
+                <Bell className="h-4 w-4 mr-2" />
+                Remind Members
+              </DropdownMenuItem>
+            )}
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
               onClick={(e) => { e.stopPropagation(); adminActions.onDuplicate(session); }}
               data-testid={`button-copy-view-${session.id}`}
             >
@@ -778,7 +817,7 @@ function SessionPreviewDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md" data-testid="dialog-session-preview">
+      <DialogContent className="max-w-md max-h-[85vh] overflow-y-auto" data-testid="dialog-session-preview">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2" data-testid="text-preview-title">
             {isLive && <span className="w-2.5 h-2.5 rounded-full bg-green-500 animate-pulse" />}

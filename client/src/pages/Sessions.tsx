@@ -1673,6 +1673,21 @@ export default function Sessions() {
                         </DropdownMenuTrigger>
                         <DropdownMenuContent align="end" className="w-48">
                           <DropdownMenuItem
+                            onClick={(e) => { e.stopPropagation(); setDetailsSession(session); }}
+                            data-testid={`button-rsvp-dropdown-session-${session.id}`}
+                          >
+                            <Users className="h-4 w-4 mr-2" />
+                            RSVP List
+                          </DropdownMenuItem>
+                          <DropdownMenuItem
+                            onClick={(e) => { e.stopPropagation(); remindInviteesMutation.mutate(session.id); }}
+                            data-testid={`button-remind-dropdown-session-${session.id}`}
+                          >
+                            <Bell className="h-4 w-4 mr-2" />
+                            Remind Members
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
                             onClick={(e) => { e.stopPropagation(); setCopySession(session); }}
                             data-testid={`button-copy-session-${session.id}`}
                           >

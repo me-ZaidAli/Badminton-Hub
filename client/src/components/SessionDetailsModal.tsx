@@ -895,7 +895,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   return (
     <>
       <Drawer open={open} onOpenChange={onOpenChange}>
-        <DrawerContent>
+        <DrawerContent className="max-h-[85vh]">
           <DrawerHeader className="sr-only">
             <DrawerTitle>{session.title}</DrawerTitle>
             <DrawerDescription>Session details and player responses</DrawerDescription>
