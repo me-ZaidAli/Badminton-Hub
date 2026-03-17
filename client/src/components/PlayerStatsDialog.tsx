@@ -94,7 +94,7 @@ export function PlayerStatsDialog({
               <div className="flex-1 min-w-0">
                 <h3 className="text-lg font-bold truncate" data-testid="text-player-name">{stats.fullName}</h3>
                 <div className="flex flex-wrap items-center gap-2">
-                  <Badge variant="outline">{stats.category || "D"}</Badge>
+                  <Badge variant="outline">{stats.grade || stats.category || "C3"}</Badge>
                   {stats.gender && (
                     <Badge variant="secondary" className="text-xs">{stats.gender}</Badge>
                   )}

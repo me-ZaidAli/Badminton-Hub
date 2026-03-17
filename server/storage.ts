@@ -1555,7 +1555,8 @@ export class DatabaseStorage implements IStorage {
           return {
             id: profile.id,
             fullName: profile.user.fullName,
-            category: profile.category,
+            category: profile.grade || profile.category,
+            grade: profile.grade || profile.category,
             gender: profile.gender,
             clubId: profile.clubId,
             clubName: club?.name || "Unknown",
@@ -1652,7 +1653,8 @@ export class DatabaseStorage implements IStorage {
     return {
       id: profile.id,
       fullName: profile.user.fullName,
-      category: profile.category,
+      category: profile.grade || profile.category,
+      grade: profile.grade || profile.category,
       gender: profile.gender,
       clubId: profile.clubId,
       clubName: club?.name || "Unknown",

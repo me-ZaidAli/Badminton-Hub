@@ -288,19 +288,9 @@ export default function ExploreRankings() {
                     >
                       <TableCell className="text-center">
                         <div className="flex items-center justify-center">
-                          {player.rank <= 3 ? (
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center font-bold text-sm ${
-                              player.rank === 1 ? "bg-amber-500 text-white" :
-                              player.rank === 2 ? "bg-gray-400 text-white" :
-                              "bg-amber-700 text-white"
-                            }`}>
-                              {player.rank}
-                            </div>
-                          ) : (
-                            <span className={`text-lg font-bold ${player.isTied ? "text-muted-foreground" : "text-foreground"}`}>
-                              {player.isTied ? `=${player.rank}` : player.rank}
-                            </span>
-                          )}
+                          <span className={`text-lg font-bold ${player.isTied ? "text-muted-foreground" : "text-foreground"}`}>
+                            {player.isTied ? `=${player.rank}` : player.rank}
+                          </span>
                         </div>
                       </TableCell>
                       <TableCell>

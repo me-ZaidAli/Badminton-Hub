@@ -71,8 +71,8 @@ export function PlayerStatsPopup({ profileId, playerName, open, onOpenChange }: 
               <div>
                 <h3 className="text-xl font-bold">{stats.fullName}</h3>
                 <div className="flex items-center gap-2 mt-1">
-                  <Badge variant="outline" className={getCategoryColor(stats.category)}>
-                    Category {stats.category || "?"}
+                  <Badge variant="outline" className={getCategoryColor(stats.grade || stats.category)}>
+                    {stats.grade || stats.category || "C3"}
                   </Badge>
                   {stats.gender && (
                     <Badge variant="secondary">{stats.gender}</Badge>
