@@ -14564,7 +14564,11 @@ export async function registerRoutes(
           contactName: contactMap.get(c.contactId)?.fullName || "Unknown",
           contactRole: contactMap.get(c.contactId)?.role || "PLAYER",
         }))
-        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+        .sort((a, b) => {
+          if (a.unreadCount > 0 && b.unreadCount === 0) return -1;
+          if (a.unreadCount === 0 && b.unreadCount > 0) return 1;
+          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        });
 
       res.json(result);
     } catch (err: any) {
@@ -14577,6 +14581,17 @@ export async function registerRoutes(
     try {
       const userId = (req.user as any).id;
       const contactId = Number(req.params.contactId);
+      const limit = Math.min(Number(req.query.limit) || 15, 50);
+      const before = req.query.before ? Number(req.query.before) : null;
+
+      const threadFilter = or(
+        and(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, contactId)),
+        and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId))
+      );
+
+      const whereClause = before
+        ? and(threadFilter, sql`${internalMessages.id} < ${before}`)
+        : threadFilter;
 
       const messages = await db.select({
         id: internalMessages.id,
@@ -14587,13 +14602,14 @@ export async function registerRoutes(
         createdAt: internalMessages.createdAt,
         messageCategory: internalMessages.messageCategory,
       }).from(internalMessages)
-        .where(
-          or(
-            and(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, contactId)),
-            and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId))
-          )
-        )
-        .orderBy(internalMessages.createdAt);
+        .where(whereClause!)
+        .orderBy(desc(internalMessages.id))
+        .limit(limit + 1);
+
+      const hasMore = messages.length > limit;
+      const page = hasMore ? messages.slice(0, limit) : messages;
+      const sorted = page.reverse();
+      const nextCursor = hasMore ? page[page.length - 1].id : null;
 
       await db.update(internalMessages)
         .set({ readAt: new Date() })
@@ -14605,7 +14621,7 @@ export async function registerRoutes(
           )
         );
 
-      res.json(messages);
+      res.json({ messages: sorted, nextCursor });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch thread" });
     }

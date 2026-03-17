@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, lazy, Suspense } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useLocation } from "wouter";
 import { useUser } from "@/hooks/use-auth";
@@ -67,6 +67,10 @@ import {
   User,
   Users,
   Smile,
+  Clock,
+  CreditCard,
+  CalendarCheck,
+  Info,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -174,17 +178,87 @@ export default function InboxPage() {
     refetchInterval: 10000,
   });
 
-  const { data: threadMessages = [], isLoading: threadLoading } = useQuery<ThreadMessage[]>({
-    queryKey: ["/api/messages/thread", activeConversation],
-    queryFn: async () => {
-      if (!activeConversation) return [];
-      const res = await fetch(`/api/messages/thread/${activeConversation}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch thread");
-      return res.json();
-    },
-    enabled: !!user && !!activeConversation,
-    refetchInterval: 5000,
-  });
+  const [threadMessages, setThreadMessages] = useState<ThreadMessage[]>([]);
+  const [threadCursor, setThreadCursor] = useState<number | null>(null);
+  const [hasOlderMessages, setHasOlderMessages] = useState(false);
+  const [loadingOlder, setLoadingOlder] = useState(false);
+  const [threadLoading, setThreadLoading] = useState(false);
+  const loadThread = useCallback(async (contactId: number, before?: number) => {
+    const url = before
+      ? `/api/messages/thread/${contactId}?limit=15&before=${before}`
+      : `/api/messages/thread/${contactId}?limit=15`;
+    const res = await fetch(url, { credentials: "include" });
+    if (!res.ok) throw new Error("Failed to fetch thread");
+    const data = await res.json();
+    return data as { messages: ThreadMessage[]; nextCursor: number | null };
+  }, []);
+
+  const loadGenerationRef = useRef(0);
+
+  useEffect(() => {
+    if (!activeConversation || !user) {
+      setThreadMessages([]);
+      setThreadCursor(null);
+      setHasOlderMessages(false);
+      return;
+    }
+    const generation = ++loadGenerationRef.current;
+    setThreadLoading(true);
+    loadThread(activeConversation).then(data => {
+      if (loadGenerationRef.current !== generation) return;
+      setThreadMessages(data.messages);
+      setThreadCursor(data.nextCursor);
+      setHasOlderMessages(data.nextCursor !== null);
+      setThreadLoading(false);
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+    }).catch(() => {
+      if (loadGenerationRef.current === generation) setThreadLoading(false);
+    });
+  }, [activeConversation, user, loadThread]);
+
+  const pollGenerationRef = useRef(0);
+
+  useEffect(() => {
+    if (!activeConversation || !user) return;
+    const generation = ++pollGenerationRef.current;
+    const interval = setInterval(async () => {
+      if (pollGenerationRef.current !== generation) return;
+      try {
+        const data = await loadThread(activeConversation);
+        if (pollGenerationRef.current !== generation) return;
+        setThreadMessages(prev => {
+          const existingIds = new Set(prev.map(m => m.id));
+          const newMsgs = data.messages.filter(m => !existingIds.has(m.id));
+          const readUpdates = new Map(data.messages.filter(m => m.readAt).map(m => [m.id, m.readAt]));
+          let updated = prev;
+          if (readUpdates.size > 0) {
+            updated = updated.map(msg => {
+              const newReadAt = readUpdates.get(msg.id);
+              return !msg.readAt && newReadAt ? { ...msg, readAt: newReadAt } : msg;
+            });
+          }
+          if (newMsgs.length > 0) {
+            return [...updated, ...newMsgs];
+          }
+          return updated === prev ? prev : updated;
+        });
+      } catch {}
+    }, 5000);
+    return () => { clearInterval(interval); };
+  }, [activeConversation, user, loadThread]);
+
+  const handleLoadOlder = useCallback(async () => {
+    if (!activeConversation || !threadCursor || loadingOlder) return;
+    setLoadingOlder(true);
+    try {
+      const data = await loadThread(activeConversation, threadCursor);
+      setThreadMessages(prev => [...data.messages, ...prev]);
+      setThreadCursor(data.nextCursor);
+      setHasOlderMessages(data.nextCursor !== null);
+    } catch {}
+    setLoadingOlder(false);
+  }, [activeConversation, threadCursor, loadingOlder, loadThread]);
 
   const activeContact = useMemo(() => {
     if (!activeConversation) return null;
@@ -201,13 +275,6 @@ export default function InboxPage() {
     }
   }, [threadMessages]);
 
-  useEffect(() => {
-    if (activeConversation && threadMessages.length > 0) {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
-    }
-  }, [activeConversation, threadMessages.length]);
 
   useEffect(() => {
     if (initialRecipientHandled || !user) return;
@@ -226,10 +293,16 @@ export default function InboxPage() {
 
   const sendMutation = useMutation({
     mutationFn: async (data: { recipientId: number; body: string }) => {
-      await apiRequest("POST", "/api/messages/send", data);
+      const res = await apiRequest("POST", "/api/messages/send", data);
+      return await res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/messages/thread", activeConversation] });
+    onSuccess: (newMsg: any) => {
+      if (newMsg && newMsg.id) {
+        setThreadMessages(prev => {
+          if (prev.some(m => m.id === newMsg.id)) return prev;
+          return [...prev, newMsg];
+        });
+      }
       queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       setMessageInput("");
@@ -575,8 +648,24 @@ export default function InboxPage() {
                     </div>
                   </div>
                 ) : (
-                  groupedMessages.map((group, gi) => (
-                    <div key={gi}>
+                  <>
+                    {hasOlderMessages && (
+                      <div className="flex justify-center mb-3">
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={handleLoadOlder}
+                          disabled={loadingOlder}
+                          className="text-xs text-muted-foreground gap-1.5"
+                          data-testid="button-load-older"
+                        >
+                          {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
+                          Load older messages
+                        </Button>
+                      </div>
+                    )}
+                    {groupedMessages.map((group, gi) => (
+                    <div key={group.date}>
                       <div className="flex justify-center my-4">
                         <span className="text-[11px] text-muted-foreground bg-muted/80 px-4 py-1 rounded-full shadow-sm" data-testid={`text-date-separator-${gi}`}>
                           {formatDateSeparator(group.date)}
@@ -584,6 +673,13 @@ export default function InboxPage() {
                       </div>
                       {group.messages.map((msg) => {
                         const isMine = msg.senderId === user.id;
+                        const isSystem = msg.messageCategory && msg.messageCategory !== "GENERAL";
+                        const systemIcon = msg.messageCategory === "PAYMENT" ? <CreditCard className="h-3 w-3" /> :
+                                          msg.messageCategory === "SESSION" ? <CalendarCheck className="h-3 w-3" /> :
+                                          isSystem ? <Info className="h-3 w-3" /> : null;
+                        const systemLabel = msg.messageCategory === "PAYMENT" ? "Payment" :
+                                           msg.messageCategory === "SESSION" ? "Session" :
+                                           isSystem ? msg.messageCategory : null;
                         return (
                           <div
                             key={msg.id}
@@ -602,12 +698,12 @@ export default function InboxPage() {
                                 isMine
                                   ? "bg-primary text-primary-foreground rounded-2xl rounded-br-sm chat-bubble-right"
                                   : "bg-card border rounded-2xl rounded-bl-sm chat-bubble-left"
-                              } ${msg.messageCategory === "PAYMENT" ? (isMine ? "ring-1 ring-amber-400/50" : "border-amber-300 dark:border-amber-700") : ""}`}
+                              } ${isSystem && !isMine ? "border-l-2 border-l-amber-400 dark:border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20" : ""} ${isSystem && isMine ? "ring-1 ring-amber-400/50" : ""}`}
                             >
-                              {msg.messageCategory === "PAYMENT" && (
+                              {isSystem && systemIcon && (
                                 <div className={`flex items-center gap-1 mb-1 text-[10px] font-medium ${isMine ? "text-primary-foreground/70" : "text-amber-600 dark:text-amber-400"}`}>
-                                  <PoundSterling className="h-3 w-3" />
-                                  Payment
+                                  {systemIcon}
+                                  {systemLabel}
                                 </div>
                               )}
                               <p className="whitespace-pre-wrap break-words" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
@@ -628,12 +724,13 @@ export default function InboxPage() {
                         );
                       })}
                     </div>
-                  ))
+                  ))}
+                  </>
                 )}
                 <div ref={messagesEndRef} />
               </div>
 
-              <div className="border-t p-3 pb-4 bg-background relative">
+              <div className="sticky bottom-0 border-t p-3 pb-4 bg-background relative z-10">
                 {emojiPickerOpen && (
                   <div className="absolute bottom-full left-0 right-0 mb-1 mx-3 bg-popover border rounded-lg shadow-lg p-3 z-20" data-testid="emoji-picker">
                     <div className="grid grid-cols-8 gap-1">
