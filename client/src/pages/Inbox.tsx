@@ -434,8 +434,8 @@ export default function InboxPage() {
 
   return (
     <PremiumFeatureGate featureName="In-App Messaging" description="Send direct messages and group chats with your club members. Upgrade to Premium to unlock messaging.">
-    <div className="h-[calc(100vh-120px)] flex flex-col" data-testid="chat-container">
-      <Tabs value={activeTab} onValueChange={setActiveTab} className="flex flex-col flex-1 min-h-0">
+    <div className="flex flex-col" data-testid="chat-container">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="mx-3 mt-2 w-fit" data-testid="inbox-tabs">
           <TabsTrigger value="direct" className="gap-1.5" data-testid="tab-direct-messages">
             <MessageCircle className="h-4 w-4" />Direct Messages
@@ -444,13 +444,13 @@ export default function InboxPage() {
             <Users className="h-4 w-4" />Group Chats
           </TabsTrigger>
         </TabsList>
-        <TabsContent value="group" className="flex-1 min-h-0 mt-2 mx-0">
+        <TabsContent value="group" className="mt-2 mx-0">
           <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
             <GroupChats />
           </Suspense>
         </TabsContent>
-        <TabsContent value="direct" className="flex-1 min-h-0 mt-2 mx-0">
-      <div className="flex flex-1 min-h-0 border rounded-md overflow-hidden relative">
+        <TabsContent value="direct" className="mt-2 mx-0">
+      <div className="flex border rounded-md relative" style={{ height: "calc(100vh - 160px)", minHeight: "400px" }}>
         <div className={`${chatListCollapsed ? "w-0 overflow-hidden border-r-0" : "w-full md:w-80 lg:w-96"} flex-shrink-0 border-r flex flex-col bg-background transition-all duration-300 ${mobileShowThread ? "hidden md:flex" : "flex"}`}>
           <div className="p-3 border-b space-y-2">
             <div className="flex items-center justify-between gap-2">
@@ -508,7 +508,7 @@ export default function InboxPage() {
             </div>
           </div>
 
-          <div className="flex-1 overflow-y-auto overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }}>
+          <div className="flex-1 min-h-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}>
             {convoLoading ? (
               <div className="p-4 space-y-3">
                 {[1, 2, 3].map(i => (
@@ -588,7 +588,7 @@ export default function InboxPage() {
           </button>
         )}
 
-        <div className={`flex-1 flex flex-col ${!mobileShowThread ? "hidden md:flex" : "flex"}`}>
+        <div className={`flex-1 min-h-0 flex flex-col ${!mobileShowThread ? "hidden md:flex" : "flex"}`}>
           {activeConversation && activeContact ? (
             <>
               <div className="flex items-center gap-3 px-4 py-3 border-b chat-header-gradient">
@@ -632,7 +632,7 @@ export default function InboxPage() {
                 </div>
               </div>
 
-              <div className="flex-1 overflow-y-auto px-4 py-3 chat-bg-default overscroll-contain" style={{ WebkitOverflowScrolling: "touch" }} data-testid="chat-messages-area">
+              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 chat-bg-default" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }} data-testid="chat-messages-area">
                 {threadLoading ? (
                   <div className="flex items-center justify-center h-full">
                     <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
