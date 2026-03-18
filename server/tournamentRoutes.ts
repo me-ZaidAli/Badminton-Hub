@@ -294,6 +294,59 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post("/api/tournament-categories/:id/auto-populate-teams", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const existingTeams = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
+      const existingPlayerIds = new Set<number>();
+      for (const t of existingTeams) {
+        existingPlayerIds.add(t.player1Id);
+        if (t.player2Id) existingPlayerIds.add(t.player2Id);
+      }
+
+      const pairs = await db.select().from(tournamentPairRequests)
+        .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
+
+      let added = 0;
+      for (const pair of pairs) {
+        const [p1Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.fromUserId));
+        const [p2Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.toUserId));
+        if (!p1Profile || !p2Profile) continue;
+        if (existingPlayerIds.has(p1Profile.id) || existingPlayerIds.has(p2Profile.id)) continue;
+        await db.insert(tournamentTeams).values({
+          categoryId: catId, player1Id: p1Profile.id, player2Id: p2Profile.id,
+        });
+        existingPlayerIds.add(p1Profile.id);
+        existingPlayerIds.add(p2Profile.id);
+        added++;
+      }
+
+      const regs = await db.select().from(tournamentRegistrations)
+        .where(and(
+          eq(tournamentRegistrations.tournamentId, cat.tournamentId),
+          eq(tournamentRegistrations.status, "APPROVED"),
+          eq(tournamentRegistrations.registrationType, "INDIVIDUAL"),
+        ));
+      for (const reg of regs) {
+        const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+        if (!profile || existingPlayerIds.has(profile.id)) continue;
+        await db.insert(tournamentTeams).values({ categoryId: catId, player1Id: profile.id });
+        existingPlayerIds.add(profile.id);
+        added++;
+      }
+
+      res.json({ success: true, teamsAdded: added, totalTeams: existingTeams.length + added });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/tournament-categories/:id/generate-matches", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

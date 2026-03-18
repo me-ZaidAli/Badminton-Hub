@@ -283,6 +283,18 @@ export function useWithdrawRegistration() {
   });
 }
 
+export function useAutoPopulateTeams() {
+  return useMutation({
+    mutationFn: async (categoryId: number) => {
+      const res = await apiRequest("POST", `/api/tournament-categories/${categoryId}/auto-populate-teams`);
+      return res.json();
+    },
+    onSuccess: (_data: any, categoryId: number) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", categoryId, "teams"] });
+    },
+  });
+}
+
 export function useGenerateMatches() {
   return useMutation({
     mutationFn: async (categoryId: number) => {

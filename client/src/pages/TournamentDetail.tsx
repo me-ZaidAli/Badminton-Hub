@@ -8,7 +8,7 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest,
-  useWithdrawRegistration, useAdminCreatePair,
+  useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers,
@@ -138,6 +138,7 @@ export default function TournamentDetail() {
 
   const createCatMutation = useCreateCategory();
   const generateMatchesMutation = useGenerateMatches();
+  const autoPopulateMutation = useAutoPopulateTeams();
   const advanceWinnersMutation = useAdvanceWinners();
 
   const categories = tournament?.categories || [];
@@ -321,10 +322,14 @@ export default function TournamentDetail() {
       {subPage === "pairs" && <PairsTab tournamentId={tournamentId} />}
       {subPage === "signup" && <SignUpTab tournamentId={tournamentId} tournament={tournament} />}
       {subPage === "matches" && activeCategory && <MatchesTab category={activeCategory} canManage={canManage} tournamentId={tournamentId} onGenerateMatches={async () => {
-        try { await generateMatchesMutation.mutateAsync(activeCategory.id); toast({ title: "Matches Generated" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+        try {
+          await autoPopulateMutation.mutateAsync(activeCategory.id);
+          await generateMatchesMutation.mutateAsync(activeCategory.id);
+          toast({ title: "Tournament Started", description: "Teams populated and fixtures generated!" });
+        } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
       }} onAdvanceWinners={async () => {
         try { const r = await advanceWinnersMutation.mutateAsync(activeCategory.id); toast({ title: r.message === "Tournament complete" ? "Tournament Complete" : "Next Round Created" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-      }} isGenerating={generateMatchesMutation.isPending} isAdvancing={advanceWinnersMutation.isPending} />}
+      }} isGenerating={generateMatchesMutation.isPending || autoPopulateMutation.isPending} isAdvancing={advanceWinnersMutation.isPending} />}
       {subPage === "matches" && !activeCategory && (
         <EmptyState icon={Swords} title="No Categories" description="Add a category to create matches." />
       )}
@@ -1481,7 +1486,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
           <div className="relative flex items-center gap-3 flex-wrap">
             <button
               onClick={onGenerateMatches}
-              disabled={isGenerating || !teams || teams.length < 2}
+              disabled={isGenerating}
               className={cn(
                 "group relative px-6 py-3 rounded-xl font-black text-sm uppercase tracking-[0.15em] transition-all duration-300",
                 "bg-gradient-to-r from-cyan-500 via-violet-500 to-fuchsia-500",
