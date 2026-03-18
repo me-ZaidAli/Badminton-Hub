@@ -634,10 +634,12 @@ function OverviewTab({ tournament, categories, tournamentId }: { tournament: any
                       {prize.title && <p className="text-xs text-muted-foreground truncate">{prize.title}</p>}
                     </div>
                     <div className="text-right flex-shrink-0">
-                      {prize.prizeValue && (
-                        <p className="text-base font-black text-foreground">£{parseFloat(prize.prizeValue).toFixed(0)}</p>
+                      {prize.prizeValue && !isNaN(parseFloat(prize.prizeValue)) && (
+                        <>
+                          <p className="text-base font-black text-foreground">£{parseFloat(prize.prizeValue).toFixed(0)}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Amount</p>
+                        </>
                       )}
-                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Amount</p>
                     </div>
                   </div>
                 </div>
