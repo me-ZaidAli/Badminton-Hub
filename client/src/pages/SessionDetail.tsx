@@ -3215,6 +3215,158 @@ function AISessionDesigner({ sessionId }: { sessionId: number }) {
   );
 }
 
+function WaitingPlayersSection({ confirmedSignups, liveMatches, queuedMatches, sessionMatchCounts, isOrganiser, sessionId, updateSession }: {
+  confirmedSignups: any[];
+  liveMatches: any[];
+  queuedMatches: any[];
+  sessionMatchCounts: Record<number, number>;
+  isOrganiser: boolean;
+  sessionId: number;
+  updateSession: any;
+}) {
+  const { mutate: togglePause } = useTogglePause();
+  const { mutate: toggleGender } = useToggleGender();
+
+  const playingPlayerIds = new Set<number>();
+  for (const m of liveMatches) {
+    for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+      if (p?.id) playingPlayerIds.add(p.id);
+    }
+  }
+  for (const m of queuedMatches) {
+    for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+      if (p?.id) playingPlayerIds.add(p.id);
+    }
+  }
+
+  const waitingPlayers = confirmedSignups
+    .filter(s => {
+      const pid = s.player?.id || s.playerId;
+      const isPaused = s.isPaused;
+      const isAttending = !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING";
+      return isAttending && !isPaused && !playingPlayerIds.has(pid);
+    })
+    .map(s => ({
+      id: s.player?.id || s.playerId,
+      signupId: (s as any).id,
+      fullName: s.player?.user?.fullName || "Unknown",
+      category: s.player?.category || null,
+      gender: (s as any).gender || (s as any).player?.gender || null,
+      gamesPlayed: sessionMatchCounts[s.player?.id || s.playerId] || 0,
+    }))
+    .sort((a, b) => a.gamesPlayed - b.gamesPlayed);
+
+  const pausedPlayers = confirmedSignups
+    .filter(s => s.isPaused && (!(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING"))
+    .map(s => ({
+      id: s.player?.id || s.playerId,
+      signupId: (s as any).id,
+      fullName: s.player?.user?.fullName || "Unknown",
+      gamesPlayed: sessionMatchCounts[s.player?.id || s.playerId] || 0,
+      gender: (s as any).gender || (s as any).player?.gender || null,
+    }));
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-background/80 dark:bg-[#0D1117] overflow-hidden" data-testid="waiting-players-section">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-muted/30">
+        <h3 className="text-base font-semibold flex items-center gap-2">
+          Waiting
+          <Badge variant="secondary" className="text-xs">{waitingPlayers.length}</Badge>
+        </h3>
+      </div>
+
+      <div className="p-3 sm:p-4">
+        <table className="w-full" data-testid="waiting-players-table">
+          <thead>
+            <tr className="text-xs text-muted-foreground border-b border-border/30">
+              <th className="text-left font-medium pb-2 pl-1">Name</th>
+              <th className="text-center font-medium pb-2">Games played</th>
+              {isOrganiser && <th className="text-right font-medium pb-2 pr-1">Actions</th>}
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-border/20">
+            {waitingPlayers.length === 0 && (
+              <tr>
+                <td colSpan={isOrganiser ? 3 : 2} className="py-6 text-center text-sm text-muted-foreground">
+                  All players are in matches
+                </td>
+              </tr>
+            )}
+            {waitingPlayers.map(player => (
+              <tr key={player.id} className="group hover:bg-muted/30 transition-colors" data-testid={`waiting-player-${player.id}`}>
+                <td className="py-2.5 pl-1">
+                  <span className="text-sm font-medium text-primary hover:underline cursor-pointer">{player.fullName}</span>
+                  {player.category && (
+                    <Badge variant="outline" className="text-[10px] ml-2 py-0">{player.category}</Badge>
+                  )}
+                </td>
+                <td className="py-2.5 text-center">
+                  <span className="text-sm tabular-nums font-medium text-muted-foreground">{player.gamesPlayed}</span>
+                </td>
+                {isOrganiser && (
+                  <td className="py-2.5 pr-1">
+                    <div className="flex items-center justify-end gap-1.5">
+                      <button
+                        onClick={() => togglePause({ sessionId, signupId: player.signupId, isPaused: true })}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md text-amber-600 dark:text-amber-400 hover:bg-amber-50 dark:hover:bg-amber-950/30 transition-colors"
+                        title="Pause player"
+                        data-testid={`button-pause-${player.id}`}
+                      >
+                        <PauseCircle className="w-3.5 h-3.5" />
+                      </button>
+                      <span className="text-[10px] font-medium text-muted-foreground uppercase">{player.gender === "FEMALE" ? "F" : player.gender === "MALE" ? "M" : "ANY"}</span>
+                      <button
+                        onClick={() => {
+                          const newGender = player.gender === "MALE" ? "FEMALE" : "MALE";
+                          toggleGender({ sessionId, signupId: player.signupId, gender: newGender });
+                        }}
+                        className="inline-flex items-center text-xs px-1.5 py-1 rounded-md text-gray-500 dark:text-white/50 hover:bg-gray-100 dark:hover:bg-white/10 transition-colors"
+                        title="Toggle gender"
+                        data-testid={`button-gender-${player.id}`}
+                      >
+                        <Shuffle className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </td>
+                )}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        {pausedPlayers.length > 0 && (
+          <div className="mt-4 pt-3 border-t border-border/30">
+            <p className="text-xs font-medium text-muted-foreground mb-2 flex items-center gap-1.5">
+              <PauseCircle className="w-3.5 h-3.5" />
+              Paused ({pausedPlayers.length})
+            </p>
+            <div className="space-y-1">
+              {pausedPlayers.map(p => (
+                <div key={p.id} className="flex items-center justify-between py-1.5 px-1 rounded hover:bg-muted/30 transition-colors" data-testid={`paused-player-${p.id}`}>
+                  <span className="text-sm text-muted-foreground">{p.fullName}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs tabular-nums text-muted-foreground">{p.gamesPlayed} games</span>
+                    {isOrganiser && (
+                      <button
+                        onClick={() => togglePause({ sessionId, signupId: p.signupId, isPaused: false })}
+                        className="inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 transition-colors"
+                        title="Resume player"
+                        data-testid={`button-resume-${p.id}`}
+                      >
+                        <PlayCircle className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileId, matchMode, courtsAvailable, courtNames: initialCourtNames, signups, playersPerSide, matchGenderType, defaultPointsToPlayTo = 21, sessionStatus, autoGenerateActive, savedQueueTargetSize = 3, clubId }: { 
   sessionId: number; 
   isOrganiser: boolean;
@@ -4374,30 +4526,39 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               busyPlayerIds={busyPlayerIds}
             />
 
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 sm:gap-6">
-              <MatchQueue
-                matches={typedMatches}
-                availablePlayers={availablePlayers}
-                isOrganiser={isOrganiser}
-                onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-                onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
-                availableCourts={availableCourts}
-                activeMode={activeMode}
-                genderType={generateGenderType}
-                defaultPointsToPlayTo={defaultPointsToPlayTo}
-                onGenerateMatch={handleSmartGenerate}
-                isGenerating={isSmartGenerating}
-                queueTargetSize={queueTargetSize}
-                onQueueTargetSizeChange={handleQueueTargetSizeChange}
-                onClearQueue={handleClearQueue}
-                notEnoughPlayersMessage={notEnoughPlayersMessage}
-                sessionId={sessionId}
-                busyPlayerIds={busyPlayerIds}
-                sessionMatchCounts={sessionMatchCounts}
-                achievements={playerAchievements}
-              />
-              <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
-            </div>
+            <MatchQueue
+              matches={typedMatches}
+              availablePlayers={availablePlayers}
+              isOrganiser={isOrganiser}
+              onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+              onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+              availableCourts={availableCourts}
+              activeMode={activeMode}
+              genderType={generateGenderType}
+              defaultPointsToPlayTo={defaultPointsToPlayTo}
+              onGenerateMatch={handleSmartGenerate}
+              isGenerating={isSmartGenerating}
+              queueTargetSize={queueTargetSize}
+              onQueueTargetSizeChange={handleQueueTargetSizeChange}
+              onClearQueue={handleClearQueue}
+              notEnoughPlayersMessage={notEnoughPlayersMessage}
+              sessionId={sessionId}
+              busyPlayerIds={busyPlayerIds}
+              sessionMatchCounts={sessionMatchCounts}
+              achievements={playerAchievements}
+            />
+
+            <WaitingPlayersSection
+              confirmedSignups={confirmedSignups}
+              liveMatches={liveMatches}
+              queuedMatches={queuedMatches}
+              sessionMatchCounts={sessionMatchCounts}
+              isOrganiser={isOrganiser}
+              sessionId={sessionId}
+              updateSession={updateSession}
+            />
+
+            <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
           </div>
 
           <div className="xl:sticky xl:top-4 xl:self-start">
