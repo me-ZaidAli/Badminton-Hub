@@ -562,6 +562,20 @@ export const tournamentWaitlist = pgTable("tournament_waitlist", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tournamentAdmins = pgTable("tournament_admins", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  grantedBy: integer("granted_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentAdminsRelations = relations(tournamentAdmins, ({ one }) => ({
+  tournament: one(tournaments, { fields: [tournamentAdmins.tournamentId], references: [tournaments.id] }),
+  user: one(users, { fields: [tournamentAdmins.userId], references: [users.id] }),
+  grantedByUser: one(users, { fields: [tournamentAdmins.grantedBy], references: [users.id] }),
+}));
+
 // === COACHES ===
 export const coachStatusEnum = pgEnum("coach_status", ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"]);
 export const coachSeekerStatusEnum = pgEnum("coach_seeker_status", ["ACTIVE", "SUSPENDED", "CANCELLED", "PENDING"]);

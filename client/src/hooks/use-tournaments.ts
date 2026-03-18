@@ -341,3 +341,65 @@ export function useRespondPairRequest() {
     },
   });
 }
+
+export function useTournamentIsAdmin(tournamentId: number) {
+  return useQuery<{ isAdmin: boolean }>({
+    queryKey: ["/api/tournaments", tournamentId, "is-admin"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/is-admin`, { credentials: "include" });
+      if (!res.ok) return { isAdmin: false };
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useTournamentAdmins(tournamentId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/tournaments", tournamentId, "admins"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/admins`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useTournamentEligibleAdmins(tournamentId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/tournaments", tournamentId, "eligible-admins"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/eligible-admins`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useAddTournamentAdmin() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, userId }: { tournamentId: number; userId: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/admins`, { userId });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "admins"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "eligible-admins"] });
+    },
+  });
+}
+
+export function useRemoveTournamentAdmin() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, adminId }: { tournamentId: number; adminId: number }) => {
+      const res = await apiRequest("DELETE", `/api/tournaments/${tournamentId}/admins/${adminId}`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "admins"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "eligible-admins"] });
+    },
+  });
+}

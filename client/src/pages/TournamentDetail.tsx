@@ -8,6 +8,8 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest,
+  useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
+  useAddTournamentAdmin, useRemoveTournamentAdmin,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { useMyTournamentClubs } from "@/hooks/use-clubs";
@@ -122,9 +124,10 @@ export default function TournamentDetail() {
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
 
+  const { data: adminCheck } = useTournamentIsAdmin(tournamentId);
   const isSuperAdmin = user?.role === "OWNER";
   const managedClubIds = new Set(tournamentClubs?.map(c => c.id) || []);
-  const canManage = tournament ? (isSuperAdmin || managedClubIds.has(tournament.clubId)) : false;
+  const canManage = tournament ? (isSuperAdmin || managedClubIds.has(tournament.clubId) || adminCheck?.isAdmin === true) : false;
 
   const createCatMutation = useCreateCategory();
   const generateMatchesMutation = useGenerateMatches();
@@ -1430,12 +1433,17 @@ function BracketView({ matches, teams }: { matches: any[]; teams: any[] }) {
 function AdminTab({ tournamentId, tournament, categories }: { tournamentId: number; tournament: any; categories: any[] }) {
   const { data: registrations, isLoading: regsLoading } = useTournamentRegistrations(tournamentId);
   const { data: waitlist } = useTournamentWaitlist(tournamentId);
+  const { data: tournamentAdminsList } = useTournamentAdmins(tournamentId);
+  const { data: eligibleAdmins } = useTournamentEligibleAdmins(tournamentId);
   const updateRegMutation = useUpdateRegistration();
   const updateTournamentMutation = useUpdateTournament();
   const registerTeamMutation = useRegisterTeam();
   const deleteCatMutation = useDeleteCategory();
+  const addAdminMutation = useAddTournamentAdmin();
+  const removeAdminMutation = useRemoveTournamentAdmin();
   const { toast } = useToast();
   const [adminView, setAdminView] = useState<"registrations" | "waitlist" | "settings">("registrations");
+  const [addAdminOpen, setAddAdminOpen] = useState(false);
 
   async function handleApprove(id: number) {
     try { await updateRegMutation.mutateAsync({ id, status: "APPROVED" }); toast({ title: "Approved" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
@@ -1550,6 +1558,96 @@ function AdminTab({ tournamentId, tournament, categories }: { tournamentId: numb
               </div>
             ))}
           </div>
+
+          <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Shield className="h-4 w-4 text-violet-400" />
+                <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Admins</h4>
+              </div>
+              <Button size="sm" onClick={() => setAddAdminOpen(true)}
+                className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white font-bold" data-testid="button-add-tournament-admin">
+                <UserPlus className="h-3 w-3 mr-1" />Add Admin
+              </Button>
+            </div>
+            <p className="text-[11px] text-muted-foreground">Assign members as tournament admins. They can manage registrations, matches, and settings for this tournament only.</p>
+
+            {(!tournamentAdminsList || tournamentAdminsList.length === 0) ? (
+              <div className="text-center py-4">
+                <Shield className="h-8 w-8 text-muted-foreground/30 mx-auto mb-2" />
+                <p className="text-xs text-muted-foreground">No tournament admins assigned yet.</p>
+              </div>
+            ) : (
+              <div className="divide-y divide-border/20">
+                {tournamentAdminsList.map((admin: any) => (
+                  <div key={admin.id} className="flex items-center justify-between py-2.5" data-testid={`tournament-admin-${admin.userId}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <PlayerAvatar name={admin.userName || "?"} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground truncate">{admin.userName}</p>
+                        <p className="text-[10px] text-muted-foreground truncate">{admin.userEmail}</p>
+                      </div>
+                    </div>
+                    <Button size="sm" variant="ghost" className="h-7 text-destructive hover:text-destructive"
+                      onClick={async () => {
+                        try {
+                          await removeAdminMutation.mutateAsync({ tournamentId, adminId: admin.id });
+                          toast({ title: "Admin Removed" });
+                        } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                      }}
+                      disabled={removeAdminMutation.isPending}
+                      data-testid={`button-remove-admin-${admin.userId}`}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {addAdminOpen && (
+            <Dialog open onOpenChange={() => setAddAdminOpen(false)}>
+              <DialogContent className="max-w-md">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Shield className="h-5 w-5 text-violet-500" />
+                    Add Tournament Admin
+                  </DialogTitle>
+                  <DialogDescription>Select a club member to grant tournament admin access.</DialogDescription>
+                </DialogHeader>
+                <div className="space-y-2 max-h-72 overflow-y-auto">
+                  {(!eligibleAdmins || eligibleAdmins.length === 0) ? (
+                    <p className="text-sm text-muted-foreground text-center py-4">No eligible members found.</p>
+                  ) : (
+                    eligibleAdmins.map((member: any) => (
+                      <div key={member.userId} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors"
+                        data-testid={`eligible-admin-${member.userId}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <PlayerAvatar name={member.fullName || "?"} size="sm" />
+                          <div className="min-w-0">
+                            <p className="text-sm font-bold text-foreground truncate">{member.fullName}</p>
+                            <p className="text-[10px] text-muted-foreground truncate">{member.email}</p>
+                          </div>
+                        </div>
+                        <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white font-bold"
+                          disabled={addAdminMutation.isPending}
+                          onClick={async () => {
+                            try {
+                              await addAdminMutation.mutateAsync({ tournamentId, userId: member.userId });
+                              toast({ title: "Admin Added", description: `${member.fullName} is now a tournament admin.` });
+                              setAddAdminOpen(false);
+                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                          }}
+                          data-testid={`button-grant-admin-${member.userId}`}>
+                          <UserPlus className="h-3 w-3 mr-1" />Add
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
         </div>
       )}
     </div>

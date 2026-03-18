@@ -4,7 +4,7 @@ import { eq, and, or, desc, asc, sql, inArray, ne } from "drizzle-orm";
 import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches,
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
-  tournamentWaitlist, users, clubs, venues, playerProfiles, matches,
+  tournamentWaitlist, tournamentAdmins, users, clubs, venues, playerProfiles, matches,
   notifications, clubMemberships
 } from "@shared/schema";
 
@@ -806,6 +806,115 @@ export function registerTournamentRoutes(app: Express) {
         };
       }));
       res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  async function isTournamentAdmin(userId: number, tournamentId: number): Promise<boolean> {
+    const [user] = await db.select().from(users).where(eq(users.id, userId));
+    if (!user) return false;
+    if (user.role === "OWNER") return true;
+    const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+    if (!tournament) return false;
+    const clubAdmin = await db.select().from(playerProfiles).where(
+      and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, tournament.clubId), eq(playerProfiles.clubRole, "ADMIN"))
+    );
+    if (clubAdmin.length > 0) return true;
+    const [ta] = await db.select().from(tournamentAdmins).where(
+      and(eq(tournamentAdmins.tournamentId, tournamentId), eq(tournamentAdmins.userId, userId))
+    );
+    return !!ta;
+  }
+
+  app.get("/api/tournaments/:id/admins", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const admins = await db.select({
+        id: tournamentAdmins.id,
+        tournamentId: tournamentAdmins.tournamentId,
+        userId: tournamentAdmins.userId,
+        grantedBy: tournamentAdmins.grantedBy,
+        createdAt: tournamentAdmins.createdAt,
+        userName: users.fullName,
+        userEmail: users.email,
+      }).from(tournamentAdmins)
+        .innerJoin(users, eq(tournamentAdmins.userId, users.id))
+        .where(eq(tournamentAdmins.tournamentId, tournamentId));
+      res.json(admins);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/tournaments/:id/is-admin", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      res.json({ isAdmin });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/admins", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const canManage = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ message: "userId required" });
+      const existing = await db.select().from(tournamentAdmins).where(
+        and(eq(tournamentAdmins.tournamentId, tournamentId), eq(tournamentAdmins.userId, userId))
+      );
+      if (existing.length > 0) return res.status(400).json({ message: "User is already a tournament admin" });
+      const [admin] = await db.insert(tournamentAdmins).values({
+        tournamentId, userId, grantedBy: req.user!.id,
+      }).returning();
+      res.json(admin);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/tournaments/:id/admins/:adminId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const adminId = Number(req.params.adminId);
+      const canManage = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
+      await db.delete(tournamentAdmins).where(eq(tournamentAdmins.id, adminId));
+      res.json({ success: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/tournaments/:id/eligible-admins", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      if (!tournament) return res.status(404).json({ message: "Not found" });
+      const members = await db.select({
+        userId: playerProfiles.userId,
+        fullName: users.fullName,
+        email: users.email,
+      }).from(playerProfiles)
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(and(
+          eq(playerProfiles.clubId, tournament.clubId),
+          eq(playerProfiles.membershipStatus, "APPROVED"),
+        ));
+      const existingAdmins = await db.select().from(tournamentAdmins)
+        .where(eq(tournamentAdmins.tournamentId, tournamentId));
+      const existingIds = new Set(existingAdmins.map(a => a.userId));
+      const eligible = members.filter(m => !existingIds.has(m.userId));
+      res.json(eligible);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
