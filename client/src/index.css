@@ -8181,10 +8181,9 @@ html.theme-transitioning * {
   }
   .landscape-court-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.75rem !important;
-  }
-  .landscape-court-grid > * {
-    max-height: calc(50vh - 4rem);
+    gap: 0.5rem !important;
+    max-height: calc(100vh - 6rem);
+    overflow: hidden;
   }
 }
 
