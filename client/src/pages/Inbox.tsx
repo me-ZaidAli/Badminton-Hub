@@ -384,7 +384,7 @@ export default function InboxPage() {
   if (userLoading) {
     return (
       <div className="h-32 flex items-center justify-center" data-testid="loading-auth">
-        <Loader2 className="h-6 w-6 animate-spin text-white/40" />
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
       </div>
     );
   }
@@ -393,9 +393,9 @@ export default function InboxPage() {
     return (
       <div className="flex items-center justify-center min-h-[50vh]" data-testid="access-denied">
         <div className="text-center py-12">
-          <MessageCircle className="h-12 w-12 mx-auto mb-4 text-white/20" />
-          <h2 className="text-lg font-semibold mb-2 text-white">Login Required</h2>
-          <p className="text-white/50">Please log in to access your messages.</p>
+          <MessageCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground/40" />
+          <h2 className="text-lg font-semibold mb-2 text-foreground">Login Required</h2>
+          <p className="text-muted-foreground">Please log in to access your messages.</p>
         </div>
       </div>
     );
@@ -411,12 +411,12 @@ export default function InboxPage() {
     <div className="flex flex-col h-[calc(100vh-64px)]" data-testid="chat-container">
 
       {view === "list" && (
-        <div className="flex border-b border-white/[0.06]">
+        <div className="flex border-b border-border">
           <button
             onClick={() => setActiveTab("direct")}
             className={cn(
               "flex-1 py-3 text-sm font-semibold transition-colors relative",
-              activeTab === "direct" ? "text-white" : "text-white/40 hover:text-white/60"
+              activeTab === "direct" ? "text-foreground" : "text-muted-foreground hover:text-foreground/70"
             )}
             data-testid="tab-direct-messages"
           >
@@ -430,7 +430,7 @@ export default function InboxPage() {
             onClick={() => setActiveTab("group")}
             className={cn(
               "flex-1 py-3 text-sm font-semibold transition-colors relative",
-              activeTab === "group" ? "text-white" : "text-white/40 hover:text-white/60"
+              activeTab === "group" ? "text-foreground" : "text-muted-foreground hover:text-foreground/70"
             )}
             data-testid="tab-group-chats"
           >
@@ -447,7 +447,7 @@ export default function InboxPage() {
 
         {activeTab === "group" && view === "list" ? (
           <div className="flex-1 overflow-y-auto">
-            <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>}>
+            <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
               <GroupChats />
             </Suspense>
           </div>
@@ -459,7 +459,7 @@ export default function InboxPage() {
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => setSearchOpen(!searchOpen)}
-                    className="h-9 w-9 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors"
+                    className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                     data-testid="button-toggle-search"
                   >
                     <Search className="h-5 w-5" />
@@ -469,18 +469,18 @@ export default function InboxPage() {
 
               {searchOpen && (
                 <div className="relative mb-3">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <input
                     type="text"
                     placeholder="Search conversations..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/[0.06] border border-white/[0.08] text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20 transition-colors"
+                    className="w-full h-10 pl-10 pr-10 rounded-xl bg-muted/50 dark:bg-white/[0.06] border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 transition-colors"
                     autoFocus
                     data-testid="input-search-conversations"
                   />
                   {searchQuery && (
-                    <button onClick={() => { setSearchQuery(""); setSearchOpen(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60">
+                    <button onClick={() => { setSearchQuery(""); setSearchOpen(false); }} className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground">
                       <X className="h-4 w-4" />
                     </button>
                   )}
@@ -498,8 +498,8 @@ export default function InboxPage() {
                     className={cn(
                       "px-4 py-1.5 rounded-full text-xs font-semibold transition-all",
                       categoryFilter === cat.value
-                        ? "bg-white text-black"
-                        : "bg-white/[0.06] text-white/50 hover:bg-white/[0.1]"
+                        ? "bg-foreground text-background"
+                        : "bg-muted/50 dark:bg-white/[0.06] text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.1]"
                     )}
                     data-testid={`filter-category-${cat.value.toLowerCase()}`}
                   >
@@ -513,22 +513,22 @@ export default function InboxPage() {
               {convoLoading ? (
                 <div className="space-y-3 py-2">
                   {[1, 2, 3, 4].map(i => (
-                    <div key={i} className="flex items-center gap-3.5 animate-pulse rounded-xl bg-white/[0.02] p-3">
-                      <div className="h-12 w-12 rounded-full bg-white/[0.06]" />
+                    <div key={i} className="flex items-center gap-3.5 animate-pulse rounded-xl bg-muted/30 dark:bg-white/[0.02] p-3">
+                      <div className="h-12 w-12 rounded-full bg-muted dark:bg-white/[0.06]" />
                       <div className="flex-1">
-                        <div className="h-3.5 w-28 bg-white/[0.06] rounded mb-2" />
-                        <div className="h-3 w-44 bg-white/[0.04] rounded" />
+                        <div className="h-3.5 w-28 bg-muted dark:bg-white/[0.06] rounded mb-2" />
+                        <div className="h-3 w-44 bg-muted/70 dark:bg-white/[0.04] rounded" />
                       </div>
                     </div>
                   ))}
                 </div>
               ) : filteredConversations.length === 0 ? (
                 <div className="py-16 text-center">
-                  <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
-                    <MessageCircle className="h-8 w-8 text-white/20" />
+                  <div className="h-16 w-16 rounded-full bg-muted/50 dark:bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
+                    <MessageCircle className="h-8 w-8 text-muted-foreground/40" />
                   </div>
-                  <p className="text-sm font-medium text-white/50 mb-1">No conversations yet</p>
-                  <p className="text-xs text-white/30 mb-4">Start chatting with a club member</p>
+                  <p className="text-sm font-medium text-muted-foreground mb-1">No conversations yet</p>
+                  <p className="text-xs text-muted-foreground/60 mb-4">Start chatting with a club member</p>
                   <button
                     onClick={handleStartNewChat}
                     className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-full"
@@ -548,8 +548,8 @@ export default function InboxPage() {
                         key={convo.contactId}
                         className={cn(
                           "w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all text-left relative overflow-hidden",
-                          "bg-white/[0.03] hover:bg-white/[0.06] active:bg-white/[0.08] active:scale-[0.99]",
-                          activeConversation === convo.contactId && "bg-white/[0.07]"
+                          "bg-muted/30 dark:bg-white/[0.03] hover:bg-muted/60 dark:hover:bg-white/[0.06] active:bg-muted dark:active:bg-white/[0.08] active:scale-[0.99]",
+                          activeConversation === convo.contactId && "bg-muted/70 dark:bg-white/[0.07]"
                         )}
                         onClick={() => handleOpenConversation(convo)}
                         data-testid={`conversation-item-${convo.contactId}`}
@@ -570,19 +570,19 @@ export default function InboxPage() {
                           <div className="flex items-center justify-between gap-2">
                             <span className={cn(
                               "text-[15px] truncate flex items-center gap-1.5",
-                              hasUnread ? "font-bold text-white" : "font-semibold text-white/80"
+                              hasUnread ? "font-bold text-foreground" : "font-semibold text-foreground/80"
                             )} data-testid={`text-contact-name-${convo.contactId}`}>
                               {convo.contactName}
-                              {convo.contactRole === "OWNER" && <Shield className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />}
+                              {convo.contactRole === "OWNER" && <Shield className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400 flex-shrink-0" />}
                             </span>
-                            <span className={cn("text-xs flex-shrink-0", hasUnread ? "text-red-400 font-semibold" : "text-white/30")}>
+                            <span className={cn("text-xs flex-shrink-0", hasUnread ? "text-red-500 dark:text-red-400 font-semibold" : "text-muted-foreground")}>
                               {formatMessageTime(convo.lastMessageAt)}
                             </span>
                           </div>
                           <div className="flex items-center justify-between gap-2 mt-0.5">
                             <p className={cn(
                               "text-[13px] truncate",
-                              hasUnread ? "text-white/60" : "text-white/30"
+                              hasUnread ? "text-foreground/60" : "text-muted-foreground"
                             )}>
                               {convo.lastMessage}
                             </p>
@@ -611,7 +611,6 @@ export default function InboxPage() {
               <button
                 onClick={handleStartNewChat}
                 className="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
-                style={{ boxShadow: "0 0 20px rgba(var(--primary), 0.3), 0 4px 12px rgba(0,0,0,0.3)" }}
                 data-testid="button-new-chat"
               >
                 <Plus className="h-6 w-6" />
@@ -620,10 +619,10 @@ export default function InboxPage() {
           </>
         ) : view === "thread" && activeContact ? (
           <>
-            <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-background/95 backdrop-blur-sm flex-shrink-0">
+            <div className="flex items-center gap-3 px-4 py-3 border-b border-border bg-background/95 backdrop-blur-sm flex-shrink-0">
               <button
                 onClick={handleBack}
-                className="h-9 w-9 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.06] transition-colors"
+                className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 data-testid="button-back-to-list"
               >
                 <ArrowLeft className="h-5 w-5" />
@@ -635,8 +634,8 @@ export default function InboxPage() {
                 {getInitials(activeContact.name)}
               </div>
               <div className="flex-1 min-w-0">
-                <h3 className="font-bold text-[15px] text-white truncate" data-testid="text-active-contact-name">{activeContact.name}</h3>
-                <p className="text-[11px] text-white/35">
+                <h3 className="font-bold text-[15px] text-foreground truncate" data-testid="text-active-contact-name">{activeContact.name}</h3>
+                <p className="text-[11px] text-muted-foreground">
                   {activeContact.role === "OWNER" ? "Super Admin" : "Direct Message"}
                 </p>
               </div>
@@ -645,7 +644,7 @@ export default function InboxPage() {
                   const convo = conversations.find(c => c.contactId === activeConversation);
                   if (convo) setArchiveDialogContact(convo);
                 }}
-                className="h-9 w-9 rounded-full flex items-center justify-center text-white/40 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
+                className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
                 data-testid="button-archive-conversation"
               >
                 <Archive className="h-4 w-4" />
@@ -659,7 +658,7 @@ export default function InboxPage() {
             >
               {threadLoading ? (
                 <div className="flex items-center justify-center h-full">
-                  <Loader2 className="h-6 w-6 animate-spin text-white/30" />
+                  <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
                 </div>
               ) : threadMessages.length === 0 ? (
                 <div className="flex items-center justify-center h-full text-center">
@@ -670,8 +669,8 @@ export default function InboxPage() {
                     )}>
                       {getInitials(activeContact.name)}
                     </div>
-                    <p className="text-sm font-medium text-white/60 mb-1">{activeContact.name}</p>
-                    <p className="text-xs text-white/30">Start the conversation</p>
+                    <p className="text-sm font-medium text-foreground/60 mb-1">{activeContact.name}</p>
+                    <p className="text-xs text-muted-foreground">Start the conversation</p>
                   </div>
                 </div>
               ) : (
@@ -681,7 +680,7 @@ export default function InboxPage() {
                       <button
                         onClick={handleLoadOlder}
                         disabled={loadingOlder}
-                        className="text-xs text-white/30 hover:text-white/50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+                        className="text-xs text-muted-foreground hover:text-foreground flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-muted/50 dark:bg-white/[0.04] hover:bg-muted dark:hover:bg-white/[0.08] transition-colors"
                         data-testid="button-load-older"
                       >
                         {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
@@ -692,7 +691,7 @@ export default function InboxPage() {
                   {groupedMessages.map((group, gi) => (
                     <div key={group.date}>
                       <div className="flex justify-center my-5">
-                        <span className="text-[11px] text-white/30 px-3 py-1" data-testid={`text-date-separator-${gi}`}>
+                        <span className="text-[11px] text-muted-foreground px-3 py-1" data-testid={`text-date-separator-${gi}`}>
                           {formatDateSeparator(group.date)}
                         </span>
                       </div>
@@ -723,8 +722,8 @@ export default function InboxPage() {
                               className={cn(
                                 "max-w-[78%] px-3.5 py-2.5 text-sm",
                                 isMine
-                                  ? "bg-white/[0.12] text-white rounded-2xl rounded-br-md"
-                                  : "bg-white/[0.05] text-white/90 rounded-2xl rounded-bl-md",
+                                  ? "bg-primary text-primary-foreground rounded-2xl rounded-br-md"
+                                  : "bg-muted dark:bg-white/[0.05] text-foreground rounded-2xl rounded-bl-md",
                                 isSystem && !isMine && "border-l-2 border-l-amber-500/50",
                                 isSystem && isMine && "ring-1 ring-amber-400/30"
                               )}
@@ -732,7 +731,7 @@ export default function InboxPage() {
                               {isSystem && systemIcon && (
                                 <div className={cn(
                                   "flex items-center gap-1 mb-1 text-[10px] font-medium",
-                                  isMine ? "text-white/50" : "text-amber-400/70"
+                                  isMine ? "text-primary-foreground/60" : "text-amber-600 dark:text-amber-400/70"
                                 )}>
                                   {systemIcon}
                                   {systemLabel}
@@ -740,11 +739,11 @@ export default function InboxPage() {
                               )}
                               <p className="whitespace-pre-wrap break-words leading-relaxed" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
                               <div className={cn("flex items-center gap-1.5 mt-1", isMine ? "justify-end" : "justify-start")}>
-                                <span className="text-[10px] text-white/30">{formatChatTime(msg.createdAt)}</span>
+                                <span className={cn("text-[10px]", isMine ? "text-primary-foreground/50" : "text-muted-foreground")}>{formatChatTime(msg.createdAt)}</span>
                                 {isMine && (
                                   msg.readAt
                                     ? <CheckCheck className="h-3.5 w-3.5 text-blue-400/70" />
-                                    : <Check className="h-3 w-3 text-white/30" />
+                                    : <Check className="h-3 w-3 text-primary-foreground/40" />
                                 )}
                               </div>
                             </div>
@@ -758,15 +757,15 @@ export default function InboxPage() {
               <div ref={messagesEndRef} />
             </div>
 
-            <div className="border-t border-white/[0.06] p-3 pb-4 bg-background relative flex-shrink-0">
+            <div className="border-t border-border p-3 pb-4 bg-background relative flex-shrink-0">
               {emojiPickerOpen && (
-                <div className="absolute bottom-full left-0 right-0 mb-1 mx-3 bg-[#1a1a2e] border border-white/[0.08] rounded-xl shadow-2xl p-3 z-20" data-testid="emoji-picker">
+                <div className="absolute bottom-full left-0 right-0 mb-1 mx-3 bg-popover border border-border rounded-xl shadow-2xl p-3 z-20" data-testid="emoji-picker">
                   <div className="grid grid-cols-8 gap-1">
                     {BASIC_EMOJIS.map((emoji, idx) => (
                       <button
                         key={emoji}
                         type="button"
-                        className="h-9 w-9 flex items-center justify-center text-lg rounded-lg hover:bg-white/[0.08] active:scale-90 transition-all"
+                        className="h-9 w-9 flex items-center justify-center text-lg rounded-lg hover:bg-muted dark:hover:bg-white/[0.08] active:scale-90 transition-all"
                         onClick={() => { setMessageInput(prev => prev + emoji); setEmojiPickerOpen(false); }}
                         data-testid={`emoji-btn-${idx}`}
                       >
@@ -779,7 +778,7 @@ export default function InboxPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
-                  className="h-10 w-10 rounded-full flex items-center justify-center text-white/30 hover:text-white/50 hover:bg-white/[0.06] transition-colors flex-shrink-0"
+                  className="h-10 w-10 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors flex-shrink-0"
                   data-testid="button-emoji-picker"
                 >
                   <Plus className="h-5 w-5" />
@@ -791,7 +790,7 @@ export default function InboxPage() {
                   onChange={(e) => setMessageInput(e.target.value)}
                   onKeyDown={handleKeyDown}
                   onFocus={() => setEmojiPickerOpen(false)}
-                  className="flex-1 h-10 px-4 rounded-full bg-white/[0.06] border border-white/[0.08] text-sm text-white placeholder:text-white/25 outline-none focus:border-white/15 transition-colors"
+                  className="flex-1 h-10 px-4 rounded-full bg-muted/50 dark:bg-white/[0.06] border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-primary/40 transition-colors"
                   data-testid="input-message"
                 />
                 <button
@@ -801,7 +800,7 @@ export default function InboxPage() {
                     "h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all",
                     messageInput.trim()
                       ? "bg-primary text-primary-foreground hover:opacity-90 active:scale-95"
-                      : "text-white/20"
+                      : "text-muted-foreground/40"
                   )}
                   data-testid="button-send-message"
                 >
@@ -814,16 +813,16 @@ export default function InboxPage() {
       </div>
 
       <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
-        <DialogContent className="sm:max-w-[400px] bg-[#1a1a2e] border-white/[0.08]" data-testid="dialog-new-chat">
+        <DialogContent className="sm:max-w-[400px]" data-testid="dialog-new-chat">
           <DialogHeader>
-            <DialogTitle className="text-white">New Chat</DialogTitle>
-            <DialogDescription className="text-white/40">Select a club member to start a conversation</DialogDescription>
+            <DialogTitle>New Chat</DialogTitle>
+            <DialogDescription>Select a club member to start a conversation</DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <Command className="border border-white/[0.08] rounded-xl bg-white/[0.03]">
+            <Command className="border border-border rounded-xl">
               <CommandInput placeholder="Search by name..." data-testid="input-search-contacts" />
               <CommandList className="max-h-[300px]">
-                <CommandEmpty className="text-white/40">No contacts found</CommandEmpty>
+                <CommandEmpty>No contacts found</CommandEmpty>
                 <CommandGroup heading="Super Admins">
                   {contacts.filter(c => c.role === "OWNER").map(contact => (
                     <CommandItem key={contact.id} onSelect={() => handleSelectContact(contact)} className="cursor-pointer gap-3" data-testid={`contact-item-${contact.id}`}>
@@ -831,8 +830,8 @@ export default function InboxPage() {
                         {getInitials(contact.fullName)}
                       </div>
                       <div className="flex items-center gap-1.5">
-                        <span className="text-sm font-medium text-white">{contact.fullName}</span>
-                        <Shield className="h-3.5 w-3.5 text-blue-400" />
+                        <span className="text-sm font-medium text-foreground">{contact.fullName}</span>
+                        <Shield className="h-3.5 w-3.5 text-blue-500 dark:text-blue-400" />
                       </div>
                     </CommandItem>
                   ))}
@@ -843,7 +842,7 @@ export default function InboxPage() {
                       <div className={cn("h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs", getAvatarColor(contact.fullName))}>
                         {getInitials(contact.fullName)}
                       </div>
-                      <span className="text-sm font-medium text-white">{contact.fullName}</span>
+                      <span className="text-sm font-medium text-foreground">{contact.fullName}</span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -854,45 +853,45 @@ export default function InboxPage() {
       </Dialog>
 
       <AlertDialog open={!!archiveDialogContact} onOpenChange={(open) => { if (!open) setArchiveDialogContact(null); }}>
-        <AlertDialogContent className="bg-[#1a1a2e] border-white/[0.08]">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Archive Conversation?</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/50">
+            <AlertDialogTitle>Archive Conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will archive your conversation with {archiveDialogContact?.contactName}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white/[0.06] text-white border-white/[0.08] hover:bg-white/[0.1]">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => archiveDialogContact && archiveMutation.mutate(archiveDialogContact.contactId)} className="bg-primary text-primary-foreground">Archive</AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => archiveDialogContact && archiveMutation.mutate(archiveDialogContact.contactId)}>Archive</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={!!deleteDialogContact} onOpenChange={(open) => { if (!open) setDeleteDialogContact(null); }}>
-        <AlertDialogContent className="bg-[#1a1a2e] border-white/[0.08]">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Delete Conversation?</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/50">
+            <AlertDialogTitle>Delete Conversation?</AlertDialogTitle>
+            <AlertDialogDescription>
               This will permanently delete your conversation with {deleteDialogContact?.contactName}.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white/[0.06] text-white border-white/[0.08] hover:bg-white/[0.1]">Cancel</AlertDialogCancel>
-            <AlertDialogAction onClick={() => deleteDialogContact && deleteConversationMutation.mutate(deleteDialogContact.contactId)} className="bg-destructive text-destructive-foreground">Delete</AlertDialogAction>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction onClick={() => deleteDialogContact && deleteConversationMutation.mutate(deleteDialogContact.contactId)} className="bg-destructive text-destructive-foreground hover:bg-destructive/90">Delete</AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={conversationLimitPrompt} onOpenChange={setConversationLimitPrompt}>
-        <AlertDialogContent className="bg-[#1a1a2e] border-white/[0.08]">
+        <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle className="text-white">Conversation Limit</AlertDialogTitle>
-            <AlertDialogDescription className="text-white/50">
+            <AlertDialogTitle>Conversation Limit</AlertDialogTitle>
+            <AlertDialogDescription>
               You have reached the maximum of 5 conversations. Please delete an existing conversation to start a new one.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel className="bg-white/[0.06] text-white border-white/[0.08] hover:bg-white/[0.1]">OK</AlertDialogCancel>
+            <AlertDialogCancel>OK</AlertDialogCancel>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
