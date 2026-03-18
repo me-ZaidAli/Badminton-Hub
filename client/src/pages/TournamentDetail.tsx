@@ -126,9 +126,12 @@ export default function TournamentDetail() {
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
 
   const { data: adminCheck } = useTournamentIsAdmin(tournamentId);
+  const { data: pairRequests } = useTournamentPairRequests(tournamentId);
+  const respondPairMutation = useRespondPairRequest();
   const isSuperAdmin = user?.role === "OWNER";
   const managedClubIds = new Set(tournamentClubs?.map(c => c.id) || []);
   const canManage = tournament ? (isSuperAdmin || managedClubIds.has(tournament.clubId) || adminCheck?.isAdmin === true) : false;
+  const myPendingProposals = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
 
   const createCatMutation = useCreateCategory();
   const generateMatchesMutation = useGenerateMatches();
@@ -207,6 +210,56 @@ export default function TournamentDetail() {
           </div>
         </div>
       </div>
+
+      {myPendingProposals.length > 0 && (
+        <div className="space-y-2" data-testid="pair-proposal-banner">
+          {myPendingProposals.map((pr: any) => (
+            <div key={pr.id} className="relative overflow-hidden rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 dark:from-amber-500/15 dark:via-orange-500/10 dark:to-amber-500/15 p-4"
+              data-testid={`pair-proposal-${pr.id}`}>
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/20">
+                    <UserPlus className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-foreground">
+                      {pr.fromUser?.fullName || "Someone"} wants to pair up with you!
+                    </p>
+                    {pr.message && (
+                      <p className="text-xs text-muted-foreground mt-0.5 italic truncate max-w-xs">"{pr.message}"</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white h-9 font-bold shadow-lg shadow-emerald-500/20 border-0"
+                    disabled={respondPairMutation.isPending}
+                    data-testid={`button-accept-pair-${pr.id}`}
+                    onClick={async () => {
+                      try {
+                        await respondPairMutation.mutateAsync({ id: pr.id, status: "ACCEPTED" });
+                        toast({ title: "Pair Confirmed!", description: `You're now paired with ${pr.fromUser?.fullName}.` });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <Check className="h-4 w-4 mr-1" />Accept
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
+                    disabled={respondPairMutation.isPending}
+                    data-testid={`button-decline-pair-${pr.id}`}
+                    onClick={async () => {
+                      try {
+                        await respondPairMutation.mutateAsync({ id: pr.id, status: "DECLINED" });
+                        toast({ title: "Request Declined" });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <X className="h-4 w-4 mr-1" />Decline
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {tabs.map(tab => {
@@ -827,6 +880,8 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
   const { toast } = useToast();
   const [regType, setRegType] = useState<"INDIVIDUAL" | "PAIR">("INDIVIDUAL");
   const [partnerSearch, setPartnerSearch] = useState("");
+  const [proposingTo, setProposingTo] = useState<{ userId: number; name: string } | null>(null);
+  const [proposalMessage, setProposalMessage] = useState("");
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
   const myPendingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
@@ -840,10 +895,12 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
     }
   }
 
-  async function handleSendPairRequest(toUserId: number) {
+  async function handleSendPairRequest(toUserId: number, message?: string) {
     try {
-      await sendPairMutation.mutateAsync({ tournamentId, toUserId });
-      toast({ title: "Pair Request Sent!" });
+      await sendPairMutation.mutateAsync({ tournamentId, toUserId, message: message || undefined });
+      toast({ title: "Pair Request Sent!", description: "They'll receive a notification and a message." });
+      setProposingTo(null);
+      setProposalMessage("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -964,14 +1021,69 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
                     </div>
                   </div>
                 </div>
-                <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 font-bold"
-                  onClick={() => handleSendPairRequest(p.userId)} disabled={sendPairMutation.isPending}>
-                  <UserPlus className="h-3 w-3 mr-1" />Pair Up
-                </Button>
+                {pairRequests?.some((pr: any) => pr.fromUserId === user?.id && pr.toUserId === p.userId && pr.status === "PENDING") ? (
+                  <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold">
+                    <Clock className="h-3 w-3 mr-1" />Pending
+                  </Badge>
+                ) : (
+                  <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 font-bold"
+                    data-testid={`button-propose-pair-${p.userId}`}
+                    onClick={() => setProposingTo({ userId: p.userId, name: p.user?.fullName || "Player" })}>
+                    <UserPlus className="h-3 w-3 mr-1" />Propose
+                  </Button>
+                )}
               </div>
             ))}
           </div>
         </div>
+      )}
+
+      {proposingTo && (
+        <Dialog open onOpenChange={() => { setProposingTo(null); setProposalMessage(""); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-amber-500" />
+                Propose Partner
+              </DialogTitle>
+              <DialogDescription>Send a pair request to {proposingTo.name} for this tournament.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
+                <PlayerAvatar name={proposingTo.name} size="md" />
+                <div>
+                  <p className="text-sm font-bold text-foreground">{proposingTo.name}</p>
+                  <p className="text-xs text-muted-foreground">Will be notified via in-app message</p>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <label className="text-xs font-bold text-foreground">Message (optional)</label>
+                <textarea
+                  placeholder="Hey! Want to team up for this tournament?"
+                  value={proposalMessage}
+                  onChange={(e) => setProposalMessage(e.target.value)}
+                  rows={3}
+                  maxLength={200}
+                  className="w-full rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors p-3 resize-none"
+                  data-testid="input-pair-message"
+                />
+                <p className="text-[10px] text-muted-foreground text-right">{proposalMessage.length}/200</p>
+              </div>
+              <div className="flex gap-2 justify-end">
+                <Button variant="outline" onClick={() => { setProposingTo(null); setProposalMessage(""); }}>
+                  Cancel
+                </Button>
+                <Button className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
+                  disabled={sendPairMutation.isPending}
+                  data-testid="button-send-pair-request"
+                  onClick={() => handleSendPairRequest(proposingTo.userId, proposalMessage)}>
+                  {sendPairMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
+                  Send Proposal
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

@@ -366,6 +366,7 @@ export function useRespondPairRequest() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"], type: "all" });
     },
   });
 }

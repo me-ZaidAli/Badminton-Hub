@@ -5,7 +5,7 @@ import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches,
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
   tournamentWaitlist, tournamentAdmins, users, clubs, venues, playerProfiles, matches,
-  notifications, clubMemberships
+  notifications, clubMemberships, internalMessages
 } from "@shared/schema";
 
 export function registerTournamentRoutes(app: Express) {
@@ -701,7 +701,7 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const tournamentId = Number(req.params.id);
-      const { toUserId, message } = req.body;
+      const { toUserId, message: pairMessage } = req.body;
       const existing = await db.select().from(tournamentPairRequests)
         .where(and(
           eq(tournamentPairRequests.tournamentId, tournamentId),
@@ -711,14 +711,27 @@ export function registerTournamentRoutes(app: Express) {
         ));
       if (existing.length > 0) return res.status(400).json({ message: "Request already sent" });
 
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      const tournamentName = tournament?.name || "a tournament";
+
       const [pr] = await db.insert(tournamentPairRequests).values({
-        tournamentId, fromUserId: req.user!.id, toUserId, message,
+        tournamentId, fromUserId: req.user!.id, toUserId, message: pairMessage,
       }).returning();
 
       await db.insert(notifications).values({
         userId: toUserId, type: "tournament_pair_request",
-        title: "Pair Request",
-        message: `${req.user!.fullName} wants to pair up with you for a tournament!`,
+        title: "🏸 Pair Request Received",
+        message: `${req.user!.fullName} wants to pair up with you for "${tournamentName}"!${pairMessage ? ` Message: "${pairMessage}"` : ""}`,
+        linkUrl: `/tournaments/${tournamentId}`,
+      });
+
+      await db.insert(internalMessages).values({
+        senderId: req.user!.id,
+        recipientId: toUserId,
+        subject: `Pair Request for ${tournamentName}`,
+        body: `Hi! I'd like to pair up with you for the tournament "${tournamentName}".${pairMessage ? `\n\n"${pairMessage}"` : ""}\n\nYou can accept or decline this request on the tournament page.`,
+        clubId: tournament?.clubId || null,
+        messageCategory: "GENERAL",
       });
 
       res.json(pr);
@@ -756,10 +769,36 @@ export function registerTournamentRoutes(app: Express) {
         await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.fromUserId })
           .where(and(eq(tournamentRegistrations.tournamentId, pr.tournamentId), eq(tournamentRegistrations.userId, pr.toUserId)));
 
+        const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, pr.tournamentId));
+        const tournamentName = tournament?.name || "a tournament";
+        const accepterName = req.user!.fullName || "Your partner";
+
         await db.insert(notifications).values({
           userId: pr.fromUserId, type: "tournament_pair_accepted",
-          title: "Pair Request Accepted",
-          message: `Your pair request has been accepted!`,
+          title: "🎉 Pair Request Accepted!",
+          message: `${accepterName} accepted your pair request for "${tournamentName}"! You're now partnered up.`,
+          linkUrl: `/tournaments/${pr.tournamentId}`,
+        });
+
+        await db.insert(internalMessages).values({
+          senderId: pr.toUserId,
+          recipientId: pr.fromUserId,
+          subject: `Pair Confirmed for ${tournamentName}`,
+          body: `Great news! I've accepted your pair request for "${tournamentName}". We're now partnered up. Let's do this! 💪`,
+          clubId: tournament?.clubId || null,
+          messageCategory: "GENERAL",
+        });
+      }
+
+      if (status === "DECLINED") {
+        const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, pr.tournamentId));
+        const tournamentName = tournament?.name || "a tournament";
+
+        await db.insert(notifications).values({
+          userId: pr.fromUserId, type: "tournament_pair_declined",
+          title: "Pair Request Declined",
+          message: `Your pair request for "${tournamentName}" was declined. You can try pairing with someone else.`,
+          linkUrl: `/tournaments/${pr.tournamentId}`,
         });
       }
       res.json(pr);
