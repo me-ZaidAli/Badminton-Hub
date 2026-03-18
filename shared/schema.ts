@@ -438,6 +438,10 @@ export const matches = pgTable("matches", {
 });
 
 // === TOURNAMENTS ===
+export const tournamentRegistrationStatusEnum = pgEnum("tournament_registration_status", ["PENDING", "APPROVED", "REJECTED", "WAITLISTED"]);
+export const tournamentRegistrationTypeEnum = pgEnum("tournament_registration_type", ["PAIR", "INDIVIDUAL"]);
+export const tournamentPairRequestStatusEnum = pgEnum("tournament_pair_request_status", ["PENDING", "ACCEPTED", "DECLINED"]);
+
 export const tournaments = pgTable("tournaments", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
@@ -451,6 +455,19 @@ export const tournaments = pgTable("tournaments", {
   courtsAvailable: integer("courts_available").default(4).notNull(),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
+  bannerUrl: text("banner_url"),
+  maxPlayers: integer("max_players"),
+  skillLevelMin: text("skill_level_min"),
+  skillLevelMax: text("skill_level_max"),
+  registrationDeadline: timestamp("registration_deadline"),
+  location: text("location"),
+  socialLinks: jsonb("social_links").$type<Record<string, string>>(),
+  isLocked: boolean("is_locked").default(false).notNull(),
+  entryFee: text("entry_fee"),
+  prizeInfo: text("prize_info"),
+  rules: text("rules"),
+  groupsPerSide: integer("groups_per_side").default(2),
+  pairsPerGroup: integer("pairs_per_group").default(4),
 });
 
 export const tournamentCategories = pgTable("tournament_categories", {
@@ -512,6 +529,37 @@ export const tournamentStandings = pgTable("tournament_standings", {
   pointsFor: integer("points_for").default(0).notNull(),
   pointsAgainst: integer("points_against").default(0).notNull(),
   points: integer("points").default(0).notNull(),
+});
+
+export const tournamentRegistrations = pgTable("tournament_registrations", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  registrationType: tournamentRegistrationTypeEnum("registration_type").default("INDIVIDUAL").notNull(),
+  partnerId: integer("partner_id").references(() => users.id),
+  partnerName: text("partner_name"),
+  status: tournamentRegistrationStatusEnum("status").default("PENDING").notNull(),
+  paymentConfirmed: boolean("payment_confirmed").default(false).notNull(),
+  categoryId: integer("category_id").references(() => tournamentCategories.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentPairRequests = pgTable("tournament_pair_requests", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  fromUserId: integer("from_user_id").references(() => users.id).notNull(),
+  toUserId: integer("to_user_id").references(() => users.id).notNull(),
+  status: tournamentPairRequestStatusEnum("status").default("PENDING").notNull(),
+  message: text("message"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentWaitlist = pgTable("tournament_waitlist", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  position: integer("position").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // === COACHES ===
@@ -787,6 +835,24 @@ export const tournamentsRelations = relations(tournaments, ({ one, many }) => ({
   venue: one(venues, { fields: [tournaments.venueId], references: [venues.id] }),
   creator: one(users, { fields: [tournaments.createdBy], references: [users.id] }),
   categories: many(tournamentCategories),
+  registrations: many(tournamentRegistrations),
+  pairRequests: many(tournamentPairRequests),
+  waitlist: many(tournamentWaitlist),
+}));
+
+export const tournamentRegistrationsRelations = relations(tournamentRegistrations, ({ one }) => ({
+  tournament: one(tournaments, { fields: [tournamentRegistrations.tournamentId], references: [tournaments.id] }),
+  user: one(users, { fields: [tournamentRegistrations.userId], references: [users.id] }),
+}));
+
+export const tournamentPairRequestsRelations = relations(tournamentPairRequests, ({ one }) => ({
+  tournament: one(tournaments, { fields: [tournamentPairRequests.tournamentId], references: [tournaments.id] }),
+  fromUser: one(users, { fields: [tournamentPairRequests.fromUserId], references: [users.id] }),
+}));
+
+export const tournamentWaitlistRelations = relations(tournamentWaitlist, ({ one }) => ({
+  tournament: one(tournaments, { fields: [tournamentWaitlist.tournamentId], references: [tournaments.id] }),
+  user: one(users, { fields: [tournamentWaitlist.userId], references: [users.id] }),
 }));
 
 export const tournamentCategoriesRelations = relations(tournamentCategories, ({ one, many }) => ({
@@ -888,6 +954,9 @@ export type TournamentCategory = typeof tournamentCategories.$inferSelect;
 export type TournamentTeam = typeof tournamentTeams.$inferSelect;
 export type TournamentMatch = typeof tournamentMatches.$inferSelect;
 export type TournamentStanding = typeof tournamentStandings.$inferSelect;
+export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect;
+export type TournamentPairRequest = typeof tournamentPairRequests.$inferSelect;
+export type TournamentWaitlistEntry = typeof tournamentWaitlist.$inferSelect;
 export type Coach = typeof coaches.$inferSelect;
 export type CoachSeekerMembership = typeof coachSeekerMemberships.$inferSelect;
 export type Review = typeof reviews.$inferSelect;

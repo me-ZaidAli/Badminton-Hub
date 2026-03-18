@@ -19,6 +19,7 @@ import { sendTicketReplyNotification, sendNewMessageNotification, sendWithdrawSp
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
 import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, removeUserFromSessionChat, sendSystemChatMessage } from "./chatRoutes";
+import { registerTournamentRoutes } from "./tournamentRoutes";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -27737,6 +27738,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
   // === GROUP CHAT ROUTES ===
   registerChatRoutes(app);
+  registerTournamentRoutes(app);
 
   // === INCIDENT REPORTS ===
   const incidentUploadsDir = path.join(process.cwd(), "public", "uploads", "incidents");
