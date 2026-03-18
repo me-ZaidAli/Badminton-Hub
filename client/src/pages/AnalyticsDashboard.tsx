@@ -7,7 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2, TrendingUp, TrendingDown, Users, DollarSign, Calendar, BarChart3, AlertTriangle, Brain, Search, Download, Send, Clock, Building2, Target, Activity, Zap, PieChart, ArrowUpRight, ArrowDownRight, Minus, LayoutDashboard } from "lucide-react";
+import { Loader2, TrendingUp, TrendingDown, Users, PoundSterling, Calendar, BarChart3, AlertTriangle, Brain, Search, Download, Send, Clock, Building2, Target, Activity, Zap, PieChart, ArrowUpRight, ArrowDownRight, Minus, LayoutDashboard } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart as RPieChart, Pie, Cell, Legend, AreaChart, Area, ComposedChart } from "recharts";
 import { apiRequest } from "@/lib/queryClient";
 import InteractiveDashboard from "@/components/InteractiveDashboard";
@@ -312,10 +312,10 @@ export default function AnalyticsDashboard() {
           <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3" data-testid="kpi-cards">
             <KpiCard icon={Calendar} label="Sessions" value={kpis?.totalSessions || 0} color="blue" />
             <KpiCard icon={Users} label="Confirmed Signups" value={kpis?.totalPlayers || 0} color="green" />
-            <KpiCard icon={DollarSign} label="Revenue" value={formatPence(kpis?.totalRevenue || 0)} color="emerald" />
+            <KpiCard icon={PoundSterling} label="Revenue" value={formatPence(kpis?.totalRevenue || 0)} color="emerald" />
             <KpiCard icon={Users} label="Avg Players/Session" value={kpis?.avgPlayersPerSession || 0} color="violet" />
-            <KpiCard icon={DollarSign} label="Rev/Session" value={formatPence(kpis?.revenuePerSession || 0)} color="amber" />
-            <KpiCard icon={DollarSign} label="Rev/Player" value={formatPence(kpis?.revenuePerPlayer || 0)} color="orange" />
+            <KpiCard icon={PoundSterling} label="Rev/Session" value={formatPence(kpis?.revenuePerSession || 0)} color="amber" />
+            <KpiCard icon={PoundSterling} label="Rev/Player" value={formatPence(kpis?.revenuePerPlayer || 0)} color="orange" />
             <KpiCard icon={Target} label="Fill Rate" value={`${kpis?.fillRate || 0}%`} color={kpis?.fillRate > 70 ? "green" : "amber"} />
             <KpiCard icon={AlertTriangle} label="No-Show Rate" value={`${kpis?.noShowRate || 0}%`} color={kpis?.noShowRate > 20 ? "red" : "green"} />
             <KpiCard icon={Building2} label="Top Club" value={kpis?.mostPopularClub?.name || "N/A"} subtitle={kpis?.mostPopularClub ? `${kpis.mostPopularClub.players} players` : undefined} color="blue" />

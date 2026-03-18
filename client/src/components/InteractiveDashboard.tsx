@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
-import { Loader2, Users, DollarSign, Calendar, Target, Activity, X, Maximize2, Minimize2, Search, Brain, Send, Building2, Clock, User, Lock, RotateCcw } from "lucide-react";
+import { Loader2, Users, PoundSterling, Calendar, Target, Activity, X, Maximize2, Minimize2, Search, Brain, Send, Building2, Clock, User, Lock, RotateCcw } from "lucide-react";
 import { Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Legend, ComposedChart } from "recharts";
 import { useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -566,8 +566,8 @@ export default function InteractiveDashboard({ data }: InteractiveDashboardProps
       <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2" data-testid="interactive-kpis">
         <MiniKpi label="Sessions" value={kpis.totalSessions} icon={Calendar} totalValue={hasFilter ? (data?.kpis?.totalSessions || 0) : undefined} />
         <MiniKpi label="Signups" value={kpis.totalPlayers} icon={Users} totalValue={hasFilter ? (data?.kpis?.totalPlayers || 0) : undefined} />
-        <MiniKpi label="Revenue" value={formatPence(kpis.totalRevenue)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.totalRevenue || 0) : undefined} />
-        <MiniKpi label="Rev/Session" value={formatPence(kpis.revenuePerSession)} icon={DollarSign} totalValue={hasFilter ? formatPence(data?.kpis?.revenuePerSession || 0) : undefined} />
+        <MiniKpi label="Revenue" value={formatPence(kpis.totalRevenue)} icon={PoundSterling} totalValue={hasFilter ? formatPence(data?.kpis?.totalRevenue || 0) : undefined} />
+        <MiniKpi label="Rev/Session" value={formatPence(kpis.revenuePerSession)} icon={PoundSterling} totalValue={hasFilter ? formatPence(data?.kpis?.revenuePerSession || 0) : undefined} />
         <MiniKpi label="Avg Players" value={kpis.avgPlayersPerSession} icon={Users} totalValue={hasFilter ? (data?.kpis?.avgPlayersPerSession || 0) : undefined} />
         <MiniKpi label="Fill Rate" value={`${kpis.fillRate}%`} icon={Target} totalValue={hasFilter ? `${data?.kpis?.fillRate || 0}%` : undefined} />
         <MiniKpi label="No-Show" value={`${kpis.noShowRate}%`} icon={Activity} totalValue={hasFilter ? `${data?.kpis?.noShowRate || 0}%` : undefined} />

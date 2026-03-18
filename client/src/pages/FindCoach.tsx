@@ -13,7 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, DollarSign, Languages, HeartHandshake, Trophy, Star, SendHorizonal } from "lucide-react";
+import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, PoundSterling, Languages, HeartHandshake, Trophy, Star, SendHorizonal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReviewSection from "@/components/ReviewSection";
 
@@ -417,7 +417,7 @@ function CoachDetailDialog({ coach, open, onOpenChange, onRequestLesson }: { coa
 
           {(coach.sessionPrices || coach.preferredGroupSize || coach.equipmentProvided || coach.cancellationPolicy) && (
             <div data-testid="dialog-coach-practical">
-              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><DollarSign className="w-4 h-4" /> Practical Info</h4>
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><PoundSterling className="w-4 h-4" /> Practical Info</h4>
               <div className="space-y-1 text-sm text-muted-foreground">
                 {coach.preferredGroupSize && <p><span className="font-medium text-foreground">Group Size:</span> {coach.preferredGroupSize}</p>}
                 {coach.sessionPrices && <p><span className="font-medium text-foreground">Prices:</span> {coach.sessionPrices}</p>}

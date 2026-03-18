@@ -23,7 +23,7 @@ import {
   Zap,
   Crown,
   Activity,
-  DollarSign,
+  PoundSterling,
   PieChart,
   UserCheck,
   Gamepad2,
@@ -223,7 +223,7 @@ function DemoDashboard() {
         <DemoKpi label="Total Sessions" value="156" trend="+12% vs last month" trendUp icon={Calendar} />
         <DemoKpi label="Active Members" value="84" trend="+5 this month" trendUp icon={Users} />
         <DemoKpi label="Matches Played" value="1,247" trend="+8% vs last month" trendUp icon={Gamepad2} />
-        <DemoKpi label="Revenue (MTD)" value="£2,340" trend="+15% vs last month" trendUp icon={DollarSign} />
+        <DemoKpi label="Revenue (MTD)" value="£2,340" trend="+15% vs last month" trendUp icon={PoundSterling} />
       </div>
 
       <div>
@@ -476,7 +476,7 @@ function DemoFinances() {
       <h2 className="text-xl font-bold">Financial Dashboard <SampleBadge /></h2>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-        <DemoKpi label="Total Pledged" value={`£${totalPledged}`} icon={DollarSign} />
+        <DemoKpi label="Total Pledged" value={`£${totalPledged}`} icon={PoundSterling} />
         <DemoKpi label="Received" value={`£${totalPaid}`} icon={CheckCircle2} />
         <DemoKpi label="Outstanding" value={`£${totalUnpaid}`} icon={AlertCircle} />
         <DemoKpi label="Collection Rate" value={`${Math.round((totalPaid / totalPledged) * 100)}%`} trend="+3% vs last month" trendUp icon={PieChart} />
@@ -623,7 +623,7 @@ function DemoAnalytics() {
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <DemoKpi label="Total Sessions" value="156" trend="+12%" trendUp icon={Calendar} />
-        <DemoKpi label="Total Revenue" value="£14,820" trend="+18%" trendUp icon={DollarSign} />
+        <DemoKpi label="Total Revenue" value="£14,820" trend="+18%" trendUp icon={PoundSterling} />
         <DemoKpi label="Avg Players/Session" value="14.2" trend="+0.8" trendUp icon={Users} />
         <DemoKpi label="Fill Rate" value="78%" trend="-2%" trendUp={false} icon={PieChart} />
       </div>

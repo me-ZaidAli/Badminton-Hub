@@ -16,7 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Link } from "wouter";
 import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
-  Save, Trash2, Pencil, Building2, Clock, User, Mail, DollarSign,
+  Save, Trash2, Pencil, Building2, Clock, User, Mail, PoundSterling,
   Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell, Gift, Activity, UserX, Trophy, Award, Share2,
   UserCheck, Baby, Target, FlaskConical, Megaphone, Swords
 } from "lucide-react";
@@ -45,7 +45,7 @@ const controlSections = [
   {
     label: "Finance & Memberships",
     items: [
-      { href: "/admin/financials", label: "Financials", desc: "Track payments and revenue", icon: DollarSign, color: "text-green-500", bg: "bg-green-500/10" },
+      { href: "/admin/financials", label: "Financials", desc: "Track payments and revenue", icon: PoundSterling, color: "text-green-500", bg: "bg-green-500/10" },
       { href: "/admin/membership-board", label: "Membership Board", desc: "Plans, requests, and status", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
       { href: "/admin/billing", label: "Billing & Plan", desc: "Manage club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
       { href: "/admin/inventory", label: "Inventory", desc: "Stock and expense tracking", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },

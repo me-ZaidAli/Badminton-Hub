@@ -15,7 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { format, isToday, startOfDay } from "date-fns";
 import {
-  DollarSign,
+  PoundSterling,
   Search,
   Filter,
   CheckCircle,
@@ -1974,7 +1974,7 @@ export default function Financials() {
           </Link>
           <div>
             <h1 className="text-2xl font-bold flex items-center gap-2 flex-wrap" data-testid="text-page-title">
-              <DollarSign className="h-6 w-6 text-green-500" />
+              <PoundSterling className="h-6 w-6 text-green-500" />
               Financial Dashboard
             </h1>
             <p className="text-muted-foreground">Track revenue, payments and outstanding fees.</p>
@@ -2226,7 +2226,7 @@ export default function Financials() {
         <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-total-revenue" onClick={() => setFinKpiDetail("revenue")}>
           <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
             <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Revenue</CardTitle>
-            <DollarSign className="h-3 w-3 shrink-0 text-muted-foreground" />
+            <PoundSterling className="h-3 w-3 shrink-0 text-muted-foreground" />
           </CardHeader>
           <CardContent className="px-3 pb-3">
             <div className="text-sm sm:text-xl font-bold" data-testid="text-total-revenue">
@@ -2348,7 +2348,7 @@ export default function Financials() {
           <Card className="cursor-pointer hover-elevate min-w-0" data-testid="card-net-revenue" onClick={() => setFinKpiDetail("net-revenue")}>
             <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
               <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Net Revenue</CardTitle>
-              <DollarSign className="h-3 w-3 shrink-0 text-muted-foreground" />
+              <PoundSterling className="h-3 w-3 shrink-0 text-muted-foreground" />
             </CardHeader>
             <CardContent className="px-3 pb-3">
               <div className={`text-sm sm:text-xl font-bold ${dashboardData.netRevenue >= 0 ? "text-green-600" : "text-red-600"}`} data-testid="text-net-revenue">
@@ -2938,7 +2938,7 @@ export default function Financials() {
           <Card data-testid="card-manage-credits">
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5" />
+                <PoundSterling className="h-5 w-5" />
                 Manage Player Credits & Debits
               </CardTitle>
             </CardHeader>
@@ -3806,7 +3806,7 @@ export default function Financials() {
                                 }}
                                 data-testid={`button-set-standard-rate-${sessionId}`}
                               >
-                                <DollarSign className="h-3 w-3 mr-1" />
+                                <PoundSterling className="h-3 w-3 mr-1" />
                                 Set Standard Rate
                               </Button>
                               <Button
@@ -4456,7 +4456,7 @@ export default function Financials() {
                   }}
                   data-testid="button-update-to-session-fee"
                 >
-                  <DollarSign className="h-3 w-3 mr-1" />
+                  <PoundSterling className="h-3 w-3 mr-1" />
                   Update to Session Fee ({"\u00A3"}{formatPounds(editCreditDialog.sessionFee)})
                 </Button>
               )}

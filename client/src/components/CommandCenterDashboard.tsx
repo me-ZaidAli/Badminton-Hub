@@ -3,7 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import {
-  Users, DollarSign, Calendar, Target, Activity, TrendingUp, TrendingDown,
+  Users, PoundSterling, Calendar, Target, Activity, TrendingUp, TrendingDown,
   Search, Brain, Send, Zap, Eye, Star, Lock, RotateCcw,
   ChevronRight, X, ArrowUpRight, ArrowDownRight, BarChart3, Building2, Clock, User
 } from "lucide-react";
@@ -1000,7 +1000,7 @@ export default function CommandCenterDashboard({ data }: CommandCenterProps) {
 
         <SectionHeader title="Global Performance" subtitle="Key performance indicators across all clubs" icon={BarChart3} />
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3" data-testid="cc-kpis">
-          <NeonKpiCard icon={DollarSign} label="Total Revenue" value={formatPence(kpis.totalRevenue)} glow={NEON.green} color="green"
+          <NeonKpiCard icon={PoundSterling} label="Total Revenue" value={formatPence(kpis.totalRevenue)} glow={NEON.green} color="green"
             subtitle="All clubs combined" totalValue={hasFilter ? formatPence(data?.kpis?.totalRevenue || 0) : undefined} />
           <NeonKpiCard icon={Calendar} label="Sessions" value={kpis.totalSessions} glow={NEON.blue} color="blue"
             subtitle="Completed sessions" totalValue={hasFilter ? (data?.kpis?.totalSessions || 0) : undefined} />
@@ -1010,7 +1010,7 @@ export default function CommandCenterDashboard({ data }: CommandCenterProps) {
             subtitle="Capacity utilisation" totalValue={hasFilter ? `${data?.kpis?.fillRate || 0}%` : undefined} />
           <NeonKpiCard icon={Activity} label="No-Show Rate" value={`${kpis.noShowRate}%`} glow={kpis.noShowRate > 15 ? NEON.red : NEON.green} color={kpis.noShowRate > 15 ? "red" : "green"}
             totalValue={hasFilter ? `${data?.kpis?.noShowRate || 0}%` : undefined} />
-          <NeonKpiCard icon={DollarSign} label="Rev/Player" value={formatPence(kpis.revenuePerPlayer)} glow={NEON.amber} color="amber"
+          <NeonKpiCard icon={PoundSterling} label="Rev/Player" value={formatPence(kpis.revenuePerPlayer)} glow={NEON.amber} color="amber"
             subtitle="Average spend" totalValue={hasFilter ? formatPence(data?.kpis?.revenuePerPlayer || 0) : undefined} />
         </div>
 
@@ -1157,7 +1157,7 @@ export default function CommandCenterDashboard({ data }: CommandCenterProps) {
           </GlassCard>
         </div>
 
-        <SectionHeader title="Financial Analytics" subtitle="Revenue breakdown and club performance" icon={DollarSign} />
+        <SectionHeader title="Financial Analytics" subtitle="Revenue breakdown and club performance" icon={PoundSterling} />
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
           <GlassCard className="lg:col-span-2">
             <div className="p-4">

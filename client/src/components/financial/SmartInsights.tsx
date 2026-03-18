@@ -10,7 +10,7 @@ import {
   Zap,
   Calendar,
   Target,
-  DollarSign,
+  PoundSterling,
   ArrowUpRight,
   ArrowDownRight,
 } from "lucide-react";
@@ -335,7 +335,7 @@ export default function SmartInsights({ filteredData, dashboardData }: Financial
             </div>
             <div className="flex items-center gap-4 flex-wrap">
               <div className="flex items-center gap-2">
-                <DollarSign className="h-5 w-5 text-green-500" />
+                <PoundSterling className="h-5 w-5 text-green-500" />
                 <span className="text-2xl font-bold tabular-nums" data-testid="forecast-amount">
                   £{formatPounds(forecast.predictedRevenue)}
                 </span>

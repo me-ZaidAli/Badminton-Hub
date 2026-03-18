@@ -31,7 +31,7 @@ import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
-  Building2, ExternalLink, Flame, Medal, DollarSign, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle,
+  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -2696,7 +2696,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                 disabled={updateRegMutation.isPending}
                 data-testid="button-bulk-confirm-payment"
                 onClick={() => handleBulkPayment(true)}>
-                <DollarSign className="h-3 w-3 mr-1" />Confirm Pay
+                <PoundSterling className="h-3 w-3 mr-1" />Confirm Pay
               </Button>
             </div>
           )}
@@ -2818,7 +2818,7 @@ function AdminEntryFeeSection({ tournament, tournamentId }: { tournament: any; t
         </div>
       ) : (
         <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
-          <DollarSign className="h-5 w-5 text-amber-500" />
+          <PoundSterling className="h-5 w-5 text-amber-500" />
           <div>
             <p className="text-xs text-muted-foreground">Current Entry Fee</p>
             <p className="text-lg font-black text-foreground">
@@ -2882,7 +2882,7 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: DollarSign, label: "Entry Fee", value: `£${entryFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500" },
+          { icon: PoundSterling, label: "Entry Fee", value: `£${entryFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500" },
           { icon: TrendingUp, label: "Expected Revenue", value: `£${finances.totalExpected.toFixed(2)}`, accent: "from-emerald-500 to-teal-500" },
           { icon: Wallet, label: "Collected", value: `£${finances.totalCollected.toFixed(2)}`, accent: "from-blue-500 to-indigo-500" },
           { icon: Clock, label: "Pending", value: `£${finances.totalPending.toFixed(2)}`, accent: "from-violet-500 to-purple-500" },
@@ -3020,7 +3020,7 @@ function AdminPrizesView({ tournamentId, tournament, categories }: { tournamentI
     { value: "award", label: "Award", icon: Award },
     { value: "gift", label: "Gift", icon: Gift },
     { value: "flame", label: "Flame", icon: Flame },
-    { value: "dollar", label: "Cash Prize", icon: DollarSign },
+    { value: "dollar", label: "Cash Prize", icon: PoundSterling },
   ];
 
   async function handleCreate() {
@@ -3109,7 +3109,7 @@ function AdminPrizesView({ tournamentId, tournament, categories }: { tournamentI
           </div>
           <div className="divide-y divide-border/20">
             {prizes.map((prize: any) => {
-              const PrizeIcon = { trophy: Trophy, medal: Medal, star: Star, crown: Crown, award: Award, gift: Gift, flame: Flame, dollar: DollarSign }[prize.iconType as string] || Trophy;
+              const PrizeIcon = { trophy: Trophy, medal: Medal, star: Star, crown: Crown, award: Award, gift: Gift, flame: Flame, dollar: PoundSterling }[prize.iconType as string] || Trophy;
               const placementColors = ["from-amber-400 to-yellow-500", "from-slate-300 to-slate-400", "from-amber-600 to-orange-700", "from-blue-400 to-indigo-500"];
               return (
                 <div key={prize.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`admin-prize-${prize.id}`}>
@@ -3148,7 +3148,7 @@ function AdminPrizesView({ tournamentId, tournament, categories }: { tournamentI
 function PrizesTab({ tournamentId, tournament, categories }: { tournamentId: number; tournament: any; categories: any[] }) {
   const { data: prizes, isLoading } = useTournamentPrizesQuery(tournamentId);
 
-  const ICON_MAP: Record<string, any> = { trophy: Trophy, medal: Medal, star: Star, crown: Crown, award: Award, gift: Gift, flame: Flame, dollar: DollarSign };
+  const ICON_MAP: Record<string, any> = { trophy: Trophy, medal: Medal, star: Star, crown: Crown, award: Award, gift: Gift, flame: Flame, dollar: PoundSterling };
 
   const entryFee = parseFloat(tournament.entryFee || "0");
   const regCount = tournament.registrationCount || 0;
@@ -3192,7 +3192,7 @@ function PrizesTab({ tournamentId, tournament, categories }: { tournamentId: num
       {entryFee > 0 && (
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-xl bg-card border border-border/50 p-4 text-center">
-            <DollarSign className="h-5 w-5 text-amber-500 mx-auto mb-1" />
+            <PoundSterling className="h-5 w-5 text-amber-500 mx-auto mb-1" />
             <p className="text-[10px] font-bold text-muted-foreground uppercase">Entry Fee</p>
             <p className="text-lg font-black text-foreground">£{entryFee.toFixed(2)}</p>
           </div>
@@ -3252,7 +3252,7 @@ function PrizesTab({ tournamentId, tournament, categories }: { tournamentId: num
                     {prize.description && <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{prize.description}</p>}
                     {prize.prizeValue && (
                       <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
-                        <DollarSign className="h-3 w-3 text-amber-500" />
+                        <PoundSterling className="h-3 w-3 text-amber-500" />
                         <span className="text-xs font-black text-amber-500">{prize.prizeValue}</span>
                       </div>
                     )}

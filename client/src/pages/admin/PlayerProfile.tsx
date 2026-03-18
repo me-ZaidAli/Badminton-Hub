@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { ArrowLeft, User, Calendar, DollarSign, CheckCircle, AlertCircle, Loader2, Send } from "lucide-react";
+import { ArrowLeft, User, Calendar, PoundSterling, CheckCircle, AlertCircle, Loader2, Send } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
 import { useToast } from "@/hooks/use-toast";
@@ -163,7 +163,7 @@ export default function PlayerProfile() {
       <Card>
         <CardHeader>
           <CardTitle className="text-lg flex items-center gap-2">
-            <DollarSign className="h-5 w-5" />
+            <PoundSterling className="h-5 w-5" />
             Session History ({signups?.length || 0})
           </CardTitle>
         </CardHeader>

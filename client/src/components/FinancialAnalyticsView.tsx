@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Button } from "@/components/ui/button";
 import {
-  DollarSign,
+  PoundSterling,
   TrendingUp,
   TrendingDown,
   Percent,
@@ -288,7 +288,7 @@ export default function FinancialAnalyticsView({ filteredData, dashboardData, do
           <div className="absolute inset-0 bg-gradient-to-br from-green-500/10 to-transparent pointer-events-none" />
           <CardContent className="pt-6 pb-4">
             <p className="text-sm text-muted-foreground mb-1 flex items-center gap-1.5">
-              <DollarSign className="h-4 w-4 text-green-500" />
+              <PoundSterling className="h-4 w-4 text-green-500" />
               Total Revenue
             </p>
             <AnimatedNumber value={formatPounds(totalRevenue)} prefix="£" />
@@ -473,7 +473,7 @@ export default function FinancialAnalyticsView({ filteredData, dashboardData, do
         <Card data-testid="card-analytics-breakdown">
           <CardHeader className="pb-2">
             <CardTitle className="text-lg flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
+              <PoundSterling className="h-5 w-5" />
               Revenue Breakdown
             </CardTitle>
           </CardHeader>

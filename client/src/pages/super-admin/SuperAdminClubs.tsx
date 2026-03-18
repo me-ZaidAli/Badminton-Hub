@@ -17,7 +17,7 @@ import { Label } from "@/components/ui/label";
 import {
   Building2, Search, Loader2, Pencil, Trash2, CheckCircle, XCircle,
   Clock, ChevronLeft, ChevronRight, Zap, Shield, UserPlus, ArrowRightLeft, MapPin, Users, Archive, Pause, Play,
-  Mail, Key, Save, Send, AlertTriangle, User, ShieldAlert, UserMinus, Ban, DollarSign, MessageSquare, Crown
+  Mail, Key, Save, Send, AlertTriangle, User, ShieldAlert, UserMinus, Ban, PoundSterling, MessageSquare, Crown
 } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
