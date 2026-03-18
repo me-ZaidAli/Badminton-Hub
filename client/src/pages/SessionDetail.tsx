@@ -511,7 +511,7 @@ export default function SessionDetail() {
 
       <div
         className="overflow-hidden transition-all ease-[cubic-bezier(0.4,0,0.2,1)]"
-        style={{ maxHeight: sessionHeaderOpen ? `${sessionHeaderHeight + 20}px` : '0px', opacity: sessionHeaderOpen ? 1 : 0, transitionDuration: '400ms', pointerEvents: sessionHeaderOpen ? 'auto' : 'none' }}
+        style={{ maxHeight: sessionHeaderOpen ? '5000px' : '0px', opacity: sessionHeaderOpen ? 1 : 0, transitionDuration: sessionHeaderOpen ? '600ms' : '300ms', pointerEvents: sessionHeaderOpen ? 'auto' : 'none' }}
         aria-hidden={!sessionHeaderOpen}
       >
         <div ref={sessionHeaderRef}>
@@ -4097,7 +4097,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
 
           <div
             className="overflow-hidden transition-all ease-[cubic-bezier(0.4,0,0.2,1)]"
-            style={{ maxHeight: enginePanelOpen ? `${enginePanelHeight + 40}px` : '0px', opacity: enginePanelOpen ? 1 : 0, transitionDuration: '400ms' }}
+            style={{ maxHeight: enginePanelOpen ? '5000px' : '0px', opacity: enginePanelOpen ? 1 : 0, transitionDuration: enginePanelOpen ? '600ms' : '300ms' }}
           >
             <div ref={enginePanelRef} className="border-t border-slate-200 dark:border-white/10 px-4 py-5 sm:px-6 sm:py-6">
               <div

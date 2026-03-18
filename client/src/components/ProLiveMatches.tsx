@@ -295,14 +295,14 @@ function LiveMatchRow({
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
-              className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} />
+              className="text-sm sm:text-base font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} />
             {match.teamAPlayer2 && (
               <>
-                <span className="text-gray-300 dark:text-white/20 text-[10px]">&</span>
+                <span className="text-gray-300 dark:text-white/20 text-xs">&</span>
                 <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
-                  className="text-xs sm:text-sm font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} />
+                  className="text-sm sm:text-base font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} />
               </>
             )}
           </div>
@@ -312,14 +312,14 @@ function LiveMatchRow({
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
-              className="text-xs sm:text-sm font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
+              className="text-sm sm:text-base font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
             {match.teamBPlayer2 && (
               <>
-                <span className="text-gray-300 dark:text-white/20 text-[10px]">&</span>
+                <span className="text-gray-300 dark:text-white/20 text-xs">&</span>
                 <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
                   availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                   showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
-                  className="text-xs sm:text-sm font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
+                  className="text-sm sm:text-base font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
               </>
             )}
           </div>
@@ -496,8 +496,8 @@ function CourtView({ match, sessionMatchCounts, achievements, isOrganiser, avail
   const courtColor = getCourtColor(match.courtNumber || 1);
   const canSwap = !!isOrganiser && !!onSwapPlayer;
 
-  const labelCls = "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md bg-slate-900/80 backdrop-blur-sm border text-[10px] sm:text-[12px] font-semibold truncate block";
-  const fontCls = "text-[10px] sm:text-[12px] font-semibold";
+  const labelCls = "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md bg-slate-900/80 backdrop-blur-sm border text-xs sm:text-sm font-semibold truncate block";
+  const fontCls = "text-xs sm:text-sm font-semibold";
   return (
     <div className="relative w-full aspect-[2/1.2] rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-court-view-${match.id}`}>
       <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/40 via-emerald-800/30 to-emerald-900/40" />
@@ -1171,14 +1171,14 @@ function ScoreboardCard({
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1.id]}
-              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
+              className="text-xs sm:text-sm font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer1.id)}
               style={{ color: courtColor.ring }} achievements={achievements} />
           )}
           {match.teamAPlayer2 && (
             <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2.id]}
-              className="text-[10px] font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
+              className="text-xs sm:text-sm font-semibold truncate" isBusy={busyPlayerIds?.has(match.teamAPlayer2.id)}
               style={{ color: courtColor.ring }} achievements={achievements} />
           )}
         </div>
@@ -1187,13 +1187,13 @@ function ScoreboardCard({
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1.id]}
-              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
+              className="text-xs sm:text-sm font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
           )}
           {match.teamBPlayer2 && (
             <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
               availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2.id]}
-              className="text-[10px] font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
+              className="text-xs sm:text-sm font-semibold text-blue-400 truncate text-right" isBusy={busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
           )}
         </div>
       </div>
@@ -1339,26 +1339,26 @@ function MiniCourtTile({
       <div className="absolute left-[8%] right-1/2 top-[32%] bottom-[32%] border border-gray-200 dark:border-white/10" />
       <div className="absolute right-[8%] left-1/2 top-[32%] bottom-[32%] border border-gray-200 dark:border-white/10" />
 
-      <div className="absolute left-[12%] top-[14%] z-10 max-w-[35%]">
-        <span className="text-[8px] sm:text-[9px] font-bold truncate block" style={{ color: courtColor.ring }}>
+      <div className="absolute left-[12%] top-[14%] z-10 max-w-[38%]">
+        <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: courtColor.ring }}>
           {firstName(match.teamAPlayer1?.user?.fullName)}
         </span>
       </div>
       {isDoubles && match.teamAPlayer2 && (
-        <div className="absolute left-[12%] bottom-[14%] z-10 max-w-[35%]">
-          <span className="text-[8px] sm:text-[9px] font-bold truncate block" style={{ color: courtColor.ring }}>
+        <div className="absolute left-[12%] bottom-[14%] z-10 max-w-[38%]">
+          <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: courtColor.ring }}>
             {firstName(match.teamAPlayer2?.user?.fullName)}
           </span>
         </div>
       )}
-      <div className="absolute right-[12%] top-[14%] z-10 max-w-[35%] text-right">
-        <span className="text-[8px] sm:text-[9px] font-bold text-blue-400 truncate block">
+      <div className="absolute right-[12%] top-[14%] z-10 max-w-[38%] text-right">
+        <span className="text-[10px] sm:text-xs font-bold text-blue-400 truncate block">
           {firstName(match.teamBPlayer1?.user?.fullName)}
         </span>
       </div>
       {isDoubles && match.teamBPlayer2 && (
-        <div className="absolute right-[12%] bottom-[14%] z-10 max-w-[35%] text-right">
-          <span className="text-[8px] sm:text-[9px] font-bold text-blue-400 truncate block">
+        <div className="absolute right-[12%] bottom-[14%] z-10 max-w-[38%] text-right">
+          <span className="text-[10px] sm:text-xs font-bold text-blue-400 truncate block">
             {firstName(match.teamBPlayer2?.user?.fullName)}
           </span>
         </div>
@@ -1792,7 +1792,7 @@ export function ProLiveMatches({
         )}
 
         {subView === "court" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 landscape-court-grid">
             {liveMatches.map(match => (
               <CourtCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} courtNames={courtNames}

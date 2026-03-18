@@ -8179,6 +8179,13 @@ html.theme-transitioning * {
     padding-right: 0.5rem !important;
     max-width: 100% !important;
   }
+  .landscape-court-grid {
+    grid-template-columns: repeat(2, 1fr) !important;
+    gap: 0.75rem !important;
+  }
+  .landscape-court-grid > * {
+    max-height: calc(50vh - 4rem);
+  }
 }
 
 @media (orientation: landscape) and (max-height: 600px) {
@@ -8187,6 +8194,9 @@ html.theme-transitioning * {
     padding-right: 0.25rem !important;
     padding-top: 0.25rem !important;
     padding-bottom: 0.25rem !important;
+  }
+  .landscape-court-grid {
+    gap: 0.5rem !important;
   }
 }
 
