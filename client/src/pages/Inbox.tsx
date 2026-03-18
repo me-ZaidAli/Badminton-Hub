@@ -7,18 +7,9 @@ import { PremiumFeatureGate } from "@/components/PremiumFeatureGate";
 
 const GroupChats = lazy(() => import("./GroupChats"));
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -38,16 +29,13 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 import {
   MessageCircle,
   Send,
@@ -62,8 +50,6 @@ import {
   PoundSterling,
   Shield,
   ChevronDown,
-  ChevronLeft,
-  ChevronRight,
   User,
   Users,
   Smile,
@@ -71,14 +57,10 @@ import {
   CreditCard,
   CalendarCheck,
   Info,
+  X,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-
-function getRoleColor(role: string) {
-  if (role === "OWNER") return "bg-blue-500 text-white";
-  return "bg-emerald-500 text-white";
-}
+import { cn } from "@/lib/utils";
 
 interface Conversation {
   contactId: number;
@@ -111,7 +93,7 @@ function formatMessageTime(dateStr: string) {
   const date = new Date(dateStr);
   if (isToday(date)) return format(date, "h:mm a");
   if (isYesterday(date)) return "Yesterday";
-  return format(date, "MMM d");
+  return format(date, "EEE");
 }
 
 function formatChatTime(dateStr: string) {
@@ -135,31 +117,41 @@ function getInitials(name: string) {
     .substring(0, 2);
 }
 
+function getAvatarColor(name: string) {
+  const colors = [
+    "bg-violet-600", "bg-rose-600", "bg-amber-600", "bg-emerald-600",
+    "bg-blue-600", "bg-pink-600", "bg-teal-600", "bg-indigo-600",
+    "bg-orange-600", "bg-cyan-600",
+  ];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  return colors[Math.abs(hash) % colors.length];
+}
+
+const BASIC_EMOJIS = [
+  "😊", "😂", "❤️", "👍", "👎", "🎉", "🔥", "💪",
+  "👏", "🙏", "😍", "🤔", "😢", "😮", "🤗", "😎",
+  "✅", "❌", "⭐", "💯", "🏸", "🎾", "🏓", "💰",
+  "📅", "⏰", "🏆", "🥇", "🥈", "🥉", "👋", "🙌",
+];
+
 export default function InboxPage() {
   const { data: user, isLoading: userLoading } = useUser();
   const { toast } = useToast();
   const [location, setLocation] = useLocation();
   const [activeConversation, setActiveConversation] = useState<number | null>(null);
   const [newChatOpen, setNewChatOpen] = useState(false);
-  const [contactPickerOpen, setContactPickerOpen] = useState(false);
   const [messageInput, setMessageInput] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
+  const [searchOpen, setSearchOpen] = useState(false);
   const [archiveDialogContact, setArchiveDialogContact] = useState<Conversation | null>(null);
   const [deleteDialogContact, setDeleteDialogContact] = useState<Conversation | null>(null);
   const [conversationLimitPrompt, setConversationLimitPrompt] = useState(false);
   const [mobileShowThread, setMobileShowThread] = useState(false);
   const [initialRecipientHandled, setInitialRecipientHandled] = useState(false);
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
-  const [chatListCollapsed, setChatListCollapsed] = useState(false);
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
-
-  const BASIC_EMOJIS = [
-    "😊", "😂", "❤️", "👍", "👎", "🎉", "🔥", "💪",
-    "👏", "🙏", "😍", "🤔", "😢", "😮", "🤗", "😎",
-    "✅", "❌", "⭐", "💯", "🏸", "🎾", "🏓", "💰",
-    "📅", "⏰", "🏆", "🥇", "🥈", "🥉", "👋", "🙌",
-  ];
 
   const { data: conversations = [], isLoading: convoLoading } = useQuery<Conversation[]>({
     queryKey: ["/api/messages/conversations"],
@@ -275,7 +267,6 @@ export default function InboxPage() {
     }
   }, [threadMessages]);
 
-
   useEffect(() => {
     if (initialRecipientHandled || !user) return;
     const params = new URLSearchParams(window.location.search);
@@ -362,7 +353,6 @@ export default function InboxPage() {
   const handleSelectContact = (contact: Contact) => {
     setActiveConversation(contact.id);
     setNewChatOpen(false);
-    setContactPickerOpen(false);
     setMobileShowThread(true);
   };
 
@@ -408,7 +398,7 @@ export default function InboxPage() {
   if (userLoading) {
     return (
       <div className="h-32 flex items-center justify-center" data-testid="loading-auth">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        <Loader2 className="h-6 w-6 animate-spin text-white/40" />
       </div>
     );
   }
@@ -416,13 +406,11 @@ export default function InboxPage() {
   if (!user) {
     return (
       <div className="flex items-center justify-center min-h-[50vh]" data-testid="access-denied">
-        <Card>
-          <CardContent className="py-12 text-center">
-            <MessageCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h2 className="text-lg font-semibold mb-2">Login Required</h2>
-            <p className="text-muted-foreground">Please log in to access your messages.</p>
-          </CardContent>
-        </Card>
+        <div className="text-center py-12">
+          <MessageCircle className="h-12 w-12 mx-auto mb-4 text-white/20" />
+          <h2 className="text-lg font-semibold mb-2 text-white">Login Required</h2>
+          <p className="text-white/50">Please log in to access your messages.</p>
+        </div>
       </div>
     );
   }
@@ -432,415 +420,500 @@ export default function InboxPage() {
     return params.get("chat") ? "group" : "direct";
   });
 
+  const showConversationList = !mobileShowThread || !activeConversation;
+
   return (
     <PremiumFeatureGate featureName="In-App Messaging" description="Send direct messages and group chats with your club members. Upgrade to Premium to unlock messaging.">
-    <div className="flex flex-col" data-testid="chat-container">
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="mx-3 mt-2 w-fit" data-testid="inbox-tabs">
-          <TabsTrigger value="direct" className="gap-1.5" data-testid="tab-direct-messages">
-            <MessageCircle className="h-4 w-4" />Direct Messages
-          </TabsTrigger>
-          <TabsTrigger value="group" className="gap-1.5" data-testid="tab-group-chats">
-            <Users className="h-4 w-4" />Group Chats
-          </TabsTrigger>
-        </TabsList>
-        <TabsContent value="group" className="mt-2 mx-0">
-          <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>}>
+    <div className="flex flex-col h-[calc(100vh-64px)] md:h-[calc(100vh-80px)]" data-testid="chat-container">
+
+      <div className="flex border-b border-white/[0.06] bg-background">
+        <button
+          onClick={() => { setActiveTab("direct"); setMobileShowThread(false); setActiveConversation(null); }}
+          className={cn(
+            "flex-1 py-3 text-sm font-semibold transition-colors relative",
+            activeTab === "direct"
+              ? "text-white"
+              : "text-white/40 hover:text-white/60"
+          )}
+          data-testid="tab-direct-messages"
+        >
+          <div className="flex items-center justify-center gap-2">
+            <MessageCircle className="h-4 w-4" />
+            <span>Messages</span>
+          </div>
+          {activeTab === "direct" && (
+            <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-primary rounded-full" />
+          )}
+        </button>
+        <button
+          onClick={() => setActiveTab("group")}
+          className={cn(
+            "flex-1 py-3 text-sm font-semibold transition-colors relative",
+            activeTab === "group"
+              ? "text-white"
+              : "text-white/40 hover:text-white/60"
+          )}
+          data-testid="tab-group-chats"
+        >
+          <div className="flex items-center justify-center gap-2">
+            <Users className="h-4 w-4" />
+            <span>Group Chats</span>
+          </div>
+          {activeTab === "group" && (
+            <div className="absolute bottom-0 left-1/4 right-1/4 h-0.5 bg-primary rounded-full" />
+          )}
+        </button>
+      </div>
+
+      {activeTab === "group" ? (
+        <div className="flex-1 overflow-y-auto">
+          <Suspense fallback={<div className="flex items-center justify-center h-32"><Loader2 className="h-6 w-6 animate-spin text-white/40" /></div>}>
             <GroupChats />
           </Suspense>
-        </TabsContent>
-        <TabsContent value="direct" className="mt-2 mx-0">
-      <div className="flex border rounded-md relative" style={{ height: "calc(100vh - 160px)", minHeight: "400px" }}>
-        <div className={`${chatListCollapsed ? "w-0 overflow-hidden border-r-0" : "w-full md:w-80 lg:w-96"} flex-shrink-0 border-r flex flex-col bg-background transition-all duration-300 ${mobileShowThread ? "hidden md:flex" : "flex"}`}>
-          <div className="p-3 border-b space-y-2">
-            <div className="flex items-center justify-between gap-2">
-              <h2 className="font-semibold text-lg" data-testid="text-chats-title">Chats</h2>
-              <div className="flex items-center gap-1">
-                {unreadCount && unreadCount.count > 0 && (
-                  <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate unread-badge-pulse" data-testid="badge-total-unread">
-                    {unreadCount.count}
-                  </Badge>
-                )}
-                <Button size="icon" variant="ghost" onClick={handleStartNewChat} data-testid="button-new-chat">
-                  <Plus className="h-5 w-5" />
-                </Button>
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  onClick={() => setChatListCollapsed(true)}
-                  className="hidden md:flex"
-                  title="Collapse chat list"
-                  data-testid="button-collapse-chat-list"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-              </div>
-            </div>
-            <div className="relative">
-              <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search conversations..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="pl-8 rounded-full"
-                data-testid="input-search-conversations"
-              />
-            </div>
-            <div className="flex gap-1.5 flex-wrap">
-              {[
-                { value: "ALL", label: "All" },
-                { value: "PAYMENT", label: "Payments" },
-              ].map(cat => (
-                <Button
-                  key={cat.value}
-                  size="sm"
-                  variant={categoryFilter === cat.value ? "default" : "outline"}
-                  className="h-6 text-xs px-2.5 rounded-full"
-                  onClick={() => setCategoryFilter(cat.value)}
-                  data-testid={`filter-category-${cat.value.toLowerCase()}`}
-                >
-                  {cat.label}
-                  {cat.value === "PAYMENT" && conversations.some(c => c.hasPaymentMessages) && (
-                    <PoundSterling className="h-3 w-3 ml-1" />
-                  )}
-                </Button>
-              ))}
-            </div>
-          </div>
+        </div>
+      ) : (
+        <div className="flex-1 min-h-0 flex">
 
-          <div className="flex-1 min-h-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}>
-            {convoLoading ? (
-              <div className="p-4 space-y-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="flex items-center gap-3 animate-pulse px-3 py-3">
-                    <div className="h-11 w-11 rounded-full bg-muted" />
-                    <div className="flex-1">
-                      <div className="h-4 w-24 bg-muted rounded mb-1.5" />
-                      <div className="h-3 w-40 bg-muted rounded" />
-                    </div>
-                  </div>
+          <div className={cn(
+            "w-full md:w-96 lg:w-[420px] flex-shrink-0 flex flex-col md:border-r border-white/[0.06]",
+            mobileShowThread ? "hidden md:flex" : "flex"
+          )}>
+            <div className="px-5 pt-5 pb-3">
+              <div className="flex items-center justify-between mb-4">
+                <h1 className="text-2xl font-bold text-foreground" data-testid="text-chats-title">Messages</h1>
+                <div className="flex items-center gap-2">
+                  {unreadCount && unreadCount.count > 0 && (
+                    <Badge variant="default" className="no-default-hover-elevate no-default-active-elevate" data-testid="badge-total-unread">
+                      {unreadCount.count}
+                    </Badge>
+                  )}
+                  <button
+                    onClick={() => setSearchOpen(!searchOpen)}
+                    className="h-9 w-9 rounded-full flex items-center justify-center text-white/50 hover:text-white hover:bg-white/[0.06] transition-colors"
+                    data-testid="button-toggle-search"
+                  >
+                    <Search className="h-5 w-5" />
+                  </button>
+                </div>
+              </div>
+
+              {searchOpen && (
+                <div className="relative mb-3">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/30" />
+                  <input
+                    type="text"
+                    placeholder="Search conversations..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full h-10 pl-10 pr-10 rounded-xl bg-white/[0.06] border border-white/[0.08] text-sm text-white placeholder:text-white/30 outline-none focus:border-white/20 transition-colors"
+                    autoFocus
+                    data-testid="input-search-conversations"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => { setSearchQuery(""); setSearchOpen(false); }}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/30 hover:text-white/60"
+                    >
+                      <X className="h-4 w-4" />
+                    </button>
+                  )}
+                </div>
+              )}
+
+              <div className="flex gap-2">
+                {[
+                  { value: "ALL", label: "All" },
+                  { value: "PAYMENT", label: "Payments" },
+                ].map(cat => (
+                  <button
+                    key={cat.value}
+                    onClick={() => setCategoryFilter(cat.value)}
+                    className={cn(
+                      "px-4 py-1.5 rounded-full text-xs font-semibold transition-all",
+                      categoryFilter === cat.value
+                        ? "bg-white text-black"
+                        : "bg-white/[0.06] text-white/50 hover:bg-white/[0.1] hover:text-white/70"
+                    )}
+                    data-testid={`filter-category-${cat.value.toLowerCase()}`}
+                  >
+                    {cat.label}
+                  </button>
                 ))}
               </div>
-            ) : filteredConversations.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground">
-                <div className="h-14 w-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                  <MessageCircle className="h-7 w-7 text-primary/50" />
-                </div>
-                <p className="text-sm font-medium mb-1">No conversations yet</p>
-                <p className="text-xs text-muted-foreground mb-3">Start chatting with a club member</p>
-                <Button variant="outline" size="sm" className="mt-1" onClick={handleStartNewChat} data-testid="button-start-chat-empty">
-                  Start a conversation
-                </Button>
-              </div>
-            ) : (
-              filteredConversations.map(convo => (
-                <div
-                  key={convo.contactId}
-                  className={`flex items-center gap-3 px-3 py-3 cursor-pointer chat-list-item hover-elevate ${activeConversation === convo.contactId ? "bg-primary/5 border-l-2 border-l-primary" : "border-l-2 border-l-transparent"}`}
-                  onClick={() => handleOpenConversation(convo)}
-                  data-testid={`conversation-item-${convo.contactId}`}
-                >
-                  <Avatar className="h-11 w-11 flex-shrink-0">
-                    <AvatarFallback className={`text-xs font-semibold ${getRoleColor(convo.contactRole)}`}>
-                      {getInitials(convo.contactName)}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="font-semibold text-sm truncate flex items-center gap-1.5" data-testid={`text-contact-name-${convo.contactId}`}>
-                        {convo.contactName}
-                        {convo.contactRole === "OWNER" && (
-                          <Shield className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
-                        )}
-                      </span>
-                      <span className="text-[11px] text-muted-foreground flex-shrink-0">
-                        {formatMessageTime(convo.lastMessageAt)}
-                      </span>
-                    </div>
-                    <div className="flex items-center justify-between gap-2 mt-0.5">
-                      <div className="flex items-center gap-1 min-w-0 flex-1">
-                        <p className="text-xs text-muted-foreground truncate">{convo.lastMessage}</p>
-                        {convo.hasPaymentMessages && (
-                          <PoundSterling className="h-3 w-3 text-amber-500 flex-shrink-0" />
-                        )}
+            </div>
+
+            <div className="flex-1 min-h-0 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}>
+              {convoLoading ? (
+                <div className="px-5 space-y-4 py-4">
+                  {[1, 2, 3, 4].map(i => (
+                    <div key={i} className="flex items-center gap-3.5 animate-pulse">
+                      <div className="h-12 w-12 rounded-full bg-white/[0.06]" />
+                      <div className="flex-1">
+                        <div className="h-3.5 w-28 bg-white/[0.06] rounded mb-2" />
+                        <div className="h-3 w-44 bg-white/[0.04] rounded" />
                       </div>
-                      {convo.unreadCount > 0 && (
-                        <Badge variant="default" className="text-[10px] min-w-[20px] h-5 flex items-center justify-center rounded-full no-default-hover-elevate no-default-active-elevate unread-badge-pulse" data-testid={`badge-unread-${convo.contactId}`}>
-                          {convo.unreadCount}
-                        </Badge>
-                      )}
                     </div>
-                  </div>
+                  ))}
                 </div>
-              ))
-            )}
+              ) : filteredConversations.length === 0 ? (
+                <div className="px-5 py-16 text-center">
+                  <div className="h-16 w-16 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
+                    <MessageCircle className="h-8 w-8 text-white/20" />
+                  </div>
+                  <p className="text-sm font-medium text-white/50 mb-1">No conversations yet</p>
+                  <p className="text-xs text-white/30 mb-4">Start chatting with a club member</p>
+                  <button
+                    onClick={handleStartNewChat}
+                    className="px-4 py-2 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:opacity-90 transition-opacity"
+                    data-testid="button-start-chat-empty"
+                  >
+                    Start a conversation
+                  </button>
+                </div>
+              ) : (
+                <div className="divide-y divide-white/[0.04]">
+                  {filteredConversations.map(convo => (
+                    <button
+                      key={convo.contactId}
+                      className={cn(
+                        "w-full flex items-center gap-3.5 px-5 py-3.5 transition-colors text-left active:bg-white/[0.04]",
+                        activeConversation === convo.contactId
+                          ? "bg-white/[0.06]"
+                          : "hover:bg-white/[0.03]"
+                      )}
+                      onClick={() => handleOpenConversation(convo)}
+                      data-testid={`conversation-item-${convo.contactId}`}
+                    >
+                      <div className={cn(
+                        "h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm",
+                        getAvatarColor(convo.contactName)
+                      )}>
+                        {getInitials(convo.contactName)}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2 mb-0.5">
+                          <span className="font-semibold text-[15px] text-foreground truncate flex items-center gap-1.5" data-testid={`text-contact-name-${convo.contactId}`}>
+                            {convo.contactName}
+                            {convo.contactRole === "OWNER" && (
+                              <Shield className="h-3.5 w-3.5 text-blue-400 flex-shrink-0" />
+                            )}
+                          </span>
+                          <span className="text-xs text-white/35 flex-shrink-0">
+                            {formatMessageTime(convo.lastMessageAt)}
+                          </span>
+                        </div>
+                        <div className="flex items-center justify-between gap-2">
+                          <p className="text-[13px] text-white/40 truncate">
+                            {convo.lastMessage}
+                          </p>
+                          <div className="flex items-center gap-1.5 flex-shrink-0">
+                            {convo.hasPaymentMessages && (
+                              <PoundSterling className="h-3 w-3 text-amber-500" />
+                            )}
+                            {convo.unreadCount > 0 && (
+                              <div className="min-w-[20px] h-5 px-1.5 bg-primary text-primary-foreground text-[11px] font-bold rounded-full flex items-center justify-center" data-testid={`badge-unread-${convo.contactId}`}>
+                                {convo.unreadCount}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div className="p-4 flex justify-end">
+              <button
+                onClick={handleStartNewChat}
+                className="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg shadow-primary/20 flex items-center justify-center hover:opacity-90 transition-opacity active:scale-95"
+                data-testid="button-new-chat"
+              >
+                <Plus className="h-6 w-6" />
+              </button>
+            </div>
           </div>
-        </div>
 
-        {chatListCollapsed && (
-          <button
-            onClick={() => setChatListCollapsed(false)}
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-10 h-10 w-6 rounded-l-none rounded-r-md bg-muted/80 border border-l-0 shadow-sm hidden md:flex items-center justify-center hover-elevate cursor-pointer"
-            title="Expand chat list"
-            data-testid="button-expand-chat-list"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        )}
-
-        <div className={`flex-1 min-h-0 flex flex-col ${!mobileShowThread ? "hidden md:flex" : "flex"}`}>
-          {activeConversation && activeContact ? (
-            <>
-              <div className="flex items-center gap-3 px-4 py-3 border-b chat-header-gradient">
-                <Button
-                  size="icon"
-                  variant="ghost"
-                  className="md:hidden"
-                  onClick={() => { setMobileShowThread(false); setActiveConversation(null); }}
-                  data-testid="button-back-to-list"
-                >
-                  <ArrowLeft className="h-5 w-5" />
-                </Button>
-                <Avatar className="h-10 w-10">
-                  <AvatarFallback className={`text-xs font-semibold ${getRoleColor(activeContact.role)}`}>
+          <div className={cn(
+            "flex-1 min-h-0 flex flex-col",
+            !mobileShowThread ? "hidden md:flex" : "flex"
+          )}>
+            {activeConversation && activeContact ? (
+              <>
+                <div className="flex items-center gap-3 px-4 py-3 border-b border-white/[0.06] bg-background/95 backdrop-blur-sm">
+                  <button
+                    onClick={() => { setMobileShowThread(false); setActiveConversation(null); }}
+                    className="h-9 w-9 rounded-full flex items-center justify-center text-white/60 hover:text-white hover:bg-white/[0.06] transition-colors md:hidden"
+                    data-testid="button-back-to-list"
+                  >
+                    <ArrowLeft className="h-5 w-5" />
+                  </button>
+                  <div className={cn(
+                    "h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm",
+                    getAvatarColor(activeContact.name)
+                  )}>
                     {getInitials(activeContact.name)}
-                  </AvatarFallback>
-                </Avatar>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <h3 className="font-semibold text-sm truncate" data-testid="text-active-contact-name">{activeContact.name}</h3>
-                    {activeContact.role === "OWNER" && (
-                      <Shield className="h-3.5 w-3.5 text-blue-500 flex-shrink-0" />
-                    )}
                   </div>
-                  <p className="text-[11px] text-muted-foreground">
-                    {activeContact.role === "OWNER" ? "Super Admin" : "Direct Message"}
-                  </p>
-                </div>
-                <div className="flex items-center gap-1">
-                  <Button
-                    size="icon"
-                    variant="ghost"
+                  <div className="flex-1 min-w-0">
+                    <h3 className="font-semibold text-[15px] text-foreground truncate" data-testid="text-active-contact-name">{activeContact.name}</h3>
+                    <p className="text-xs text-white/35">
+                      {activeContact.role === "OWNER" ? "Super Admin" : "Direct Message"}
+                    </p>
+                  </div>
+                  <button
                     onClick={() => {
                       const convo = conversations.find(c => c.contactId === activeConversation);
                       if (convo) setArchiveDialogContact(convo);
                     }}
+                    className="h-9 w-9 rounded-full flex items-center justify-center text-white/40 hover:text-white/60 hover:bg-white/[0.06] transition-colors"
                     data-testid="button-archive-conversation"
                   >
                     <Archive className="h-4 w-4" />
-                  </Button>
+                  </button>
                 </div>
-              </div>
 
-              <div className="flex-1 min-h-0 overflow-y-auto px-4 py-3 chat-bg-default" style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }} data-testid="chat-messages-area">
-                {threadLoading ? (
-                  <div className="flex items-center justify-center h-full">
-                    <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-                  </div>
-                ) : threadMessages.length === 0 ? (
-                  <div className="flex items-center justify-center h-full text-center text-muted-foreground">
-                    <div>
-                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-3">
-                        <MessageCircle className="h-8 w-8 text-primary/40" />
-                      </div>
-                      <p className="text-sm font-medium mb-1">No messages yet</p>
-                      <p className="text-xs text-muted-foreground">Say hello to start the conversation</p>
+                <div
+                  className="flex-1 min-h-0 overflow-y-auto px-4 py-4"
+                  style={{ WebkitOverflowScrolling: "touch", touchAction: "pan-y" }}
+                  data-testid="chat-messages-area"
+                >
+                  {threadLoading ? (
+                    <div className="flex items-center justify-center h-full">
+                      <Loader2 className="h-6 w-6 animate-spin text-white/30" />
                     </div>
-                  </div>
-                ) : (
-                  <>
-                    {hasOlderMessages && (
-                      <div className="flex justify-center mb-3">
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          onClick={handleLoadOlder}
-                          disabled={loadingOlder}
-                          className="text-xs text-muted-foreground gap-1.5"
-                          data-testid="button-load-older"
-                        >
-                          {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
-                          Load older messages
-                        </Button>
+                  ) : threadMessages.length === 0 ? (
+                    <div className="flex items-center justify-center h-full text-center">
+                      <div>
+                        <div className={cn(
+                          "h-16 w-16 rounded-full flex items-center justify-center mx-auto mb-4 text-white font-bold text-xl",
+                          getAvatarColor(activeContact.name)
+                        )}>
+                          {getInitials(activeContact.name)}
+                        </div>
+                        <p className="text-sm font-medium text-white/60 mb-1">{activeContact.name}</p>
+                        <p className="text-xs text-white/30">Start the conversation</p>
                       </div>
-                    )}
-                    {groupedMessages.map((group, gi) => (
-                    <div key={group.date}>
-                      <div className="flex justify-center my-4">
-                        <span className="text-[11px] text-muted-foreground bg-muted/80 px-4 py-1 rounded-full shadow-sm" data-testid={`text-date-separator-${gi}`}>
-                          {formatDateSeparator(group.date)}
-                        </span>
-                      </div>
-                      {group.messages.map((msg) => {
-                        const isMine = msg.senderId === user.id;
-                        const isSystem = msg.messageCategory && msg.messageCategory !== "GENERAL";
-                        const systemIcon = msg.messageCategory === "PAYMENT" ? <CreditCard className="h-3 w-3" /> :
-                                          msg.messageCategory === "SESSION" ? <CalendarCheck className="h-3 w-3" /> :
-                                          isSystem ? <Info className="h-3 w-3" /> : null;
-                        const systemLabel = msg.messageCategory === "PAYMENT" ? "Payment" :
-                                           msg.messageCategory === "SESSION" ? "Session" :
-                                           isSystem ? msg.messageCategory : null;
-                        return (
-                          <div
-                            key={msg.id}
-                            className={`flex mb-3 items-end gap-2 ${isMine ? "justify-end" : "justify-start"}`}
-                            data-testid={`message-bubble-${msg.id}`}
+                    </div>
+                  ) : (
+                    <>
+                      {hasOlderMessages && (
+                        <div className="flex justify-center mb-4">
+                          <button
+                            onClick={handleLoadOlder}
+                            disabled={loadingOlder}
+                            className="text-xs text-white/30 hover:text-white/50 flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/[0.04] hover:bg-white/[0.08] transition-colors"
+                            data-testid="button-load-older"
                           >
-                            {!isMine && activeContact && (
-                              <Avatar className="h-7 w-7 flex-shrink-0 mb-0.5">
-                                <AvatarFallback className={`text-[10px] font-semibold ${getRoleColor(activeContact.role)}`}>
-                                  {getInitials(activeContact.name)}
-                                </AvatarFallback>
-                              </Avatar>
-                            )}
-                            <div
-                              className={`max-w-[75%] px-3.5 py-2.5 text-sm shadow-sm ${
-                                isMine
-                                  ? "bg-primary text-primary-foreground rounded-2xl rounded-br-sm chat-bubble-right"
-                                  : "bg-card border rounded-2xl rounded-bl-sm chat-bubble-left"
-                              } ${isSystem && !isMine ? "border-l-2 border-l-amber-400 dark:border-l-amber-500 bg-amber-50/50 dark:bg-amber-950/20" : ""} ${isSystem && isMine ? "ring-1 ring-amber-400/50" : ""}`}
-                            >
-                              {isSystem && systemIcon && (
-                                <div className={`flex items-center gap-1 mb-1 text-[10px] font-medium ${isMine ? "text-primary-foreground/70" : "text-amber-600 dark:text-amber-400"}`}>
-                                  {systemIcon}
-                                  {systemLabel}
-                                </div>
-                              )}
-                              <p className="whitespace-pre-wrap break-words" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
-                              <div className={`flex items-center gap-1.5 mt-1 ${isMine ? "justify-end" : "justify-start"}`}>
-                                <span className={`text-[10px] ${isMine ? "text-primary-foreground/60" : "text-muted-foreground"}`}>
-                                  {formatChatTime(msg.createdAt)}
-                                </span>
-                                {isMine && (
-                                  msg.readAt ? (
-                                    <CheckCheck className={`h-3.5 w-3.5 text-primary-foreground/70`} />
-                                  ) : (
-                                    <Check className={`h-3 w-3 text-primary-foreground/50`} />
-                                  )
-                                )}
-                              </div>
-                            </div>
+                            {loadingOlder ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Clock className="h-3.5 w-3.5" />}
+                            Load older messages
+                          </button>
+                        </div>
+                      )}
+                      {groupedMessages.map((group, gi) => (
+                        <div key={group.date}>
+                          <div className="flex justify-center my-5">
+                            <span className="text-[11px] text-white/30 px-3 py-1" data-testid={`text-date-separator-${gi}`}>
+                              {formatDateSeparator(group.date)}
+                            </span>
                           </div>
-                        );
-                      })}
-                    </div>
-                  ))}
-                  </>
-                )}
-                <div ref={messagesEndRef} />
-              </div>
-
-              <div className="border-t p-3 pb-4 bg-background relative flex-shrink-0">
-                {emojiPickerOpen && (
-                  <div className="absolute bottom-full left-0 right-0 mb-1 mx-3 bg-popover border rounded-lg shadow-lg p-3 z-20" data-testid="emoji-picker">
-                    <div className="grid grid-cols-8 gap-1">
-                      {BASIC_EMOJIS.map((emoji, idx) => (
-                        <button
-                          key={emoji}
-                          type="button"
-                          className="h-8 w-8 flex items-center justify-center text-lg rounded-md transition-colors cursor-pointer hover-elevate"
-                          onClick={() => {
-                            setMessageInput(prev => prev + emoji);
-                            setEmojiPickerOpen(false);
-                          }}
-                          data-testid={`emoji-btn-${idx}`}
-                        >
-                          {emoji}
-                        </button>
+                          {group.messages.map((msg) => {
+                            const isMine = msg.senderId === user.id;
+                            const isSystem = msg.messageCategory && msg.messageCategory !== "GENERAL";
+                            const systemIcon = msg.messageCategory === "PAYMENT" ? <CreditCard className="h-3 w-3" /> :
+                                              msg.messageCategory === "SESSION" ? <CalendarCheck className="h-3 w-3" /> :
+                                              isSystem ? <Info className="h-3 w-3" /> : null;
+                            const systemLabel = msg.messageCategory === "PAYMENT" ? "Payment" :
+                                               msg.messageCategory === "SESSION" ? "Session" :
+                                               isSystem ? msg.messageCategory : null;
+                            return (
+                              <div
+                                key={msg.id}
+                                className={cn("flex mb-3 items-end gap-2", isMine ? "justify-end" : "justify-start")}
+                                data-testid={`message-bubble-${msg.id}`}
+                              >
+                                {!isMine && (
+                                  <div className={cn(
+                                    "h-7 w-7 rounded-full flex items-center justify-center flex-shrink-0 mb-0.5 text-[9px] font-bold text-white",
+                                    getAvatarColor(activeContact.name)
+                                  )}>
+                                    {getInitials(activeContact.name)}
+                                  </div>
+                                )}
+                                <div
+                                  className={cn(
+                                    "max-w-[75%] px-3.5 py-2.5 text-sm",
+                                    isMine
+                                      ? "bg-white/[0.12] text-white rounded-2xl rounded-br-sm"
+                                      : "bg-white/[0.06] text-white/90 rounded-2xl rounded-bl-sm",
+                                    isSystem && !isMine && "border-l-2 border-l-amber-500/50",
+                                    isSystem && isMine && "ring-1 ring-amber-400/30"
+                                  )}
+                                >
+                                  {isSystem && systemIcon && (
+                                    <div className={cn(
+                                      "flex items-center gap-1 mb-1 text-[10px] font-medium",
+                                      isMine ? "text-white/50" : "text-amber-400/70"
+                                    )}>
+                                      {systemIcon}
+                                      {systemLabel}
+                                    </div>
+                                  )}
+                                  <p className="whitespace-pre-wrap break-words leading-relaxed" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
+                                  <div className={cn("flex items-center gap-1.5 mt-1", isMine ? "justify-end" : "justify-start")}>
+                                    <span className="text-[10px] text-white/30">
+                                      {formatChatTime(msg.createdAt)}
+                                    </span>
+                                    {isMine && (
+                                      msg.readAt ? (
+                                        <CheckCheck className="h-3.5 w-3.5 text-blue-400/70" />
+                                      ) : (
+                                        <Check className="h-3 w-3 text-white/30" />
+                                      )
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
                       ))}
+                    </>
+                  )}
+                  <div ref={messagesEndRef} />
+                </div>
+
+                <div className="border-t border-white/[0.06] p-3 pb-4 bg-background relative flex-shrink-0">
+                  {emojiPickerOpen && (
+                    <div className="absolute bottom-full left-0 right-0 mb-1 mx-3 bg-[#1a1a2e] border border-white/[0.08] rounded-xl shadow-2xl p-3 z-20" data-testid="emoji-picker">
+                      <div className="grid grid-cols-8 gap-1">
+                        {BASIC_EMOJIS.map((emoji, idx) => (
+                          <button
+                            key={emoji}
+                            type="button"
+                            className="h-9 w-9 flex items-center justify-center text-lg rounded-lg transition-colors hover:bg-white/[0.08] active:scale-90"
+                            onClick={() => {
+                              setMessageInput(prev => prev + emoji);
+                              setEmojiPickerOpen(false);
+                            }}
+                            data-testid={`emoji-btn-${idx}`}
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
                     </div>
+                  )}
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
+                      className="h-10 w-10 rounded-full flex items-center justify-center text-white/30 hover:text-white/50 hover:bg-white/[0.06] transition-colors flex-shrink-0"
+                      data-testid="button-emoji-picker"
+                    >
+                      <Plus className="h-5 w-5" />
+                    </button>
+                    <div className="flex-1 relative">
+                      <input
+                        type="text"
+                        placeholder="Type a message..."
+                        value={messageInput}
+                        onChange={(e) => setMessageInput(e.target.value)}
+                        onKeyDown={handleKeyDown}
+                        onFocus={() => setEmojiPickerOpen(false)}
+                        className="w-full h-10 px-4 rounded-full bg-white/[0.06] border border-white/[0.08] text-sm text-white placeholder:text-white/25 outline-none focus:border-white/15 transition-colors"
+                        data-testid="input-message"
+                      />
+                    </div>
+                    <button
+                      onClick={handleSend}
+                      disabled={!messageInput.trim() || sendMutation.isPending}
+                      className={cn(
+                        "h-10 w-10 rounded-full flex items-center justify-center flex-shrink-0 transition-all",
+                        messageInput.trim()
+                          ? "bg-primary text-primary-foreground hover:opacity-90 active:scale-95"
+                          : "text-white/20"
+                      )}
+                      data-testid="button-send-message"
+                    >
+                      {sendMutation.isPending ? (
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                      ) : (
+                        <Send className="h-4 w-4" />
+                      )}
+                    </button>
                   </div>
-                )}
-                <div className="flex items-center gap-2">
-                  <Button
-                    size="icon"
-                    variant="ghost"
-                    className="rounded-full flex-shrink-0"
-                    onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
-                    data-testid="button-emoji-picker"
+                </div>
+              </>
+            ) : (
+              <div className="flex items-center justify-center h-full text-center">
+                <div>
+                  <div className="h-20 w-20 rounded-full bg-white/[0.04] flex items-center justify-center mx-auto mb-4">
+                    <MessageCircle className="h-10 w-10 text-white/15" />
+                  </div>
+                  <h3 className="text-lg font-semibold mb-1 text-foreground">Your Messages</h3>
+                  <p className="text-sm text-white/35 mb-4">Select a conversation or start a new chat</p>
+                  <button
+                    onClick={handleStartNewChat}
+                    className="px-5 py-2.5 bg-primary text-primary-foreground text-sm font-medium rounded-full hover:opacity-90 transition-opacity"
+                    data-testid="button-start-chat-main"
                   >
-                    <Smile className="h-5 w-5 text-muted-foreground" />
-                  </Button>
-                  <Input
-                    placeholder="Type a message..."
-                    value={messageInput}
-                    onChange={(e) => setMessageInput(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    onFocus={() => setEmojiPickerOpen(false)}
-                    className="flex-1 rounded-full"
-                    data-testid="input-message"
-                  />
-                  <Button
-                    size="icon"
-                    className="rounded-full flex-shrink-0"
-                    onClick={handleSend}
-                    disabled={!messageInput.trim() || sendMutation.isPending}
-                    data-testid="button-send-message"
-                  >
-                    {sendMutation.isPending ? (
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                    ) : (
-                      <Send className="h-4 w-4" />
-                    )}
-                  </Button>
+                    <Plus className="h-4 w-4 mr-2 inline" />
+                    New Chat
+                  </button>
                 </div>
               </div>
-            </>
-          ) : (
-            <div className="flex items-center justify-center h-full text-center text-muted-foreground chat-bg-default">
-              <div>
-                <div className="h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                  <MessageCircle className="h-10 w-10 text-primary/30" />
-                </div>
-                <h3 className="text-lg font-semibold mb-1 text-foreground">Your Messages</h3>
-                <p className="text-sm mb-4">Select a conversation or start a new chat</p>
-                <Button onClick={handleStartNewChat} data-testid="button-start-chat-main">
-                  <Plus className="h-4 w-4 mr-2" />
-                  New Chat
-                </Button>
-              </div>
-            </div>
-          )}
+            )}
+          </div>
         </div>
-      </div>
+      )}
 
       <Dialog open={newChatOpen} onOpenChange={setNewChatOpen}>
-        <DialogContent className="sm:max-w-[400px]" data-testid="dialog-new-chat">
+        <DialogContent className="sm:max-w-[400px] bg-[#1a1a2e] border-white/[0.08]" data-testid="dialog-new-chat">
           <DialogHeader>
-            <DialogTitle>New Chat</DialogTitle>
-            <DialogDescription>Select a club member or super admin to start a conversation</DialogDescription>
+            <DialogTitle className="text-white">New Chat</DialogTitle>
+            <DialogDescription className="text-white/40">Select a club member to start a conversation</DialogDescription>
           </DialogHeader>
           <div className="py-2">
-            <Command className="border rounded-md">
+            <Command className="border border-white/[0.08] rounded-xl bg-white/[0.03]">
               <CommandInput placeholder="Search by name..." data-testid="input-search-contacts" />
               <CommandList className="max-h-[300px]">
-                <CommandEmpty>No contacts found</CommandEmpty>
+                <CommandEmpty className="text-white/40">No contacts found</CommandEmpty>
                 <CommandGroup heading="Super Admins">
                   {contacts.filter(c => c.role === "OWNER").map(contact => (
                     <CommandItem
                       key={contact.id}
-                      value={contact.fullName}
                       onSelect={() => handleSelectContact(contact)}
-                      className="cursor-pointer"
+                      className="cursor-pointer gap-3"
                       data-testid={`contact-item-${contact.id}`}
                     >
-                      <Shield className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>{contact.fullName}</span>
-                      <Badge variant="secondary" className="ml-auto text-[10px] no-default-hover-elevate no-default-active-elevate">Admin</Badge>
+                      <div className={cn(
+                        "h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs",
+                        getAvatarColor(contact.fullName)
+                      )}>
+                        {getInitials(contact.fullName)}
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-sm font-medium text-white">{contact.fullName}</span>
+                        <Shield className="h-3.5 w-3.5 text-blue-400" />
+                      </div>
                     </CommandItem>
                   ))}
                 </CommandGroup>
-                <CommandGroup heading="Club Members">
+                <CommandGroup heading="Members">
                   {contacts.filter(c => c.role !== "OWNER").map(contact => (
                     <CommandItem
                       key={contact.id}
-                      value={contact.fullName}
                       onSelect={() => handleSelectContact(contact)}
-                      className="cursor-pointer"
+                      className="cursor-pointer gap-3"
                       data-testid={`contact-item-${contact.id}`}
                     >
-                      <User className="h-4 w-4 mr-2 text-muted-foreground" />
-                      <span>{contact.fullName}</span>
+                      <div className={cn(
+                        "h-9 w-9 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-xs",
+                        getAvatarColor(contact.fullName)
+                      )}>
+                        {getInitials(contact.fullName)}
+                      </div>
+                      <span className="text-sm font-medium text-white">{contact.fullName}</span>
                     </CommandItem>
                   ))}
                 </CommandGroup>
@@ -851,101 +924,58 @@ export default function InboxPage() {
       </Dialog>
 
       <AlertDialog open={!!archiveDialogContact} onOpenChange={(open) => { if (!open) setArchiveDialogContact(null); }}>
-        <AlertDialogContent data-testid="dialog-archive-conversation">
+        <AlertDialogContent className="bg-[#1a1a2e] border-white/[0.08]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Archive Conversation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Archive your conversation with {archiveDialogContact?.contactName}? You can start a new conversation with them anytime.
+            <AlertDialogTitle className="text-white">Archive Conversation?</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/50">
+              This will archive your conversation with {archiveDialogContact?.contactName}. You can find it later in archived messages.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-archive">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-white/[0.06] text-white border-white/[0.08] hover:bg-white/[0.1]">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => archiveDialogContact && archiveMutation.mutate(archiveDialogContact.contactId)}
-              data-testid="button-confirm-archive"
+              className="bg-primary text-primary-foreground"
             >
-              {archiveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Archive"}
+              Archive
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
       <AlertDialog open={!!deleteDialogContact} onOpenChange={(open) => { if (!open) setDeleteDialogContact(null); }}>
-        <AlertDialogContent data-testid="dialog-delete-conversation">
+        <AlertDialogContent className="bg-[#1a1a2e] border-white/[0.08]">
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete Conversation</AlertDialogTitle>
-            <AlertDialogDescription>
-              Permanently delete your conversation with {deleteDialogContact?.contactName}? This cannot be undone.
+            <AlertDialogTitle className="text-white">Delete Conversation?</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/50">
+              This will permanently delete your conversation with {deleteDialogContact?.contactName}. This action cannot be undone.
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
-            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogCancel className="bg-white/[0.06] text-white border-white/[0.08] hover:bg-white/[0.1]">Cancel</AlertDialogCancel>
             <AlertDialogAction
               onClick={() => deleteDialogContact && deleteConversationMutation.mutate(deleteDialogContact.contactId)}
               className="bg-destructive text-destructive-foreground"
-              data-testid="button-confirm-delete"
             >
-              {deleteConversationMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Delete"}
+              Delete
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
 
-      <Dialog open={conversationLimitPrompt} onOpenChange={setConversationLimitPrompt}>
-        <DialogContent className="sm:max-w-[450px]" data-testid="dialog-conversation-limit">
-          <DialogHeader>
-            <DialogTitle>Too Many Conversations</DialogTitle>
-            <DialogDescription>
-              You have {conversations.length} active conversations. Please delete or archive a conversation before starting a new one.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="space-y-2 py-2 max-h-[300px] overflow-y-auto">
-            {conversations.map(convo => (
-              <div key={convo.contactId} className="flex items-center justify-between gap-2 p-2 rounded-md border" data-testid={`limit-convo-${convo.contactId}`}>
-                <div className="flex items-center gap-2 min-w-0">
-                  <Avatar className="h-8 w-8 flex-shrink-0">
-                    <AvatarFallback className="text-xs">{getInitials(convo.contactName)}</AvatarFallback>
-                  </Avatar>
-                  <span className="text-sm font-medium truncate">{convo.contactName}</span>
-                </div>
-                <div className="flex items-center gap-1 flex-shrink-0">
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    onClick={() => {
-                      setConversationLimitPrompt(false);
-                      setArchiveDialogContact(convo);
-                    }}
-                    data-testid={`button-archive-limit-${convo.contactId}`}
-                  >
-                    <Archive className="h-3 w-3 mr-1" />
-                    Archive
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant="destructive"
-                    onClick={() => {
-                      setConversationLimitPrompt(false);
-                      setDeleteDialogContact(convo);
-                    }}
-                    data-testid={`button-delete-limit-${convo.contactId}`}
-                  >
-                    <Trash2 className="h-3 w-3 mr-1" />
-                    Delete
-                  </Button>
-                </div>
-              </div>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setConversationLimitPrompt(false)} data-testid="button-close-limit">
-              Cancel
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-        </TabsContent>
-      </Tabs>
+      <AlertDialog open={conversationLimitPrompt} onOpenChange={setConversationLimitPrompt}>
+        <AlertDialogContent className="bg-[#1a1a2e] border-white/[0.08]">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-white">Conversation Limit</AlertDialogTitle>
+            <AlertDialogDescription className="text-white/50">
+              You have reached the maximum of 5 conversations. Please delete an existing conversation to start a new one.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel className="bg-white/[0.06] text-white border-white/[0.08] hover:bg-white/[0.1]">OK</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
     </PremiumFeatureGate>
   );
