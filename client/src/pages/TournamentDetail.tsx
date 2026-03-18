@@ -1522,59 +1522,80 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
             <EmptyState icon={Swords} title="No Matches" description="Generate fixtures to create matches." />
           ) : (
             (() => {
-              const isKnockout = category.format === "KNOCKOUT";
-              const isGroupKnockout = category.format === "GROUP_KNOCKOUT";
               const displayMatches = matches.filter(m => {
                 if (m.isBye) return false;
                 if (!m.groupNumber && !m.teamAId && !m.teamBId) return false;
                 return true;
               });
-              const roundMap = new Map<number, typeof displayMatches>();
-              displayMatches.forEach(m => {
-                const r = m.round;
-                if (!roundMap.has(r)) roundMap.set(r, []);
-                roundMap.get(r)!.push(m);
-              });
-              const sortedRounds = Array.from(roundMap.entries()).sort(([a], [b]) => a - b);
-              const totalRounds = sortedRounds.length;
+              const grpMatches = displayMatches.filter(m => m.groupNumber && m.groupNumber < 100);
+              const koMatches = displayMatches.filter(m => !m.groupNumber || m.round >= 100);
 
-              const allBracketRounds = new Set(matches.filter(m => !m.groupNumber).map(m => m.round));
-              const allBracketRoundsSorted = Array.from(allBracketRounds).sort((a, b) => a - b);
-              const totalBracketRounds = allBracketRoundsSorted.length;
+              const allKoRounds = new Set(matches.filter(m => !m.groupNumber || m.round >= 100).map(m => m.round));
+              const allKoRoundsSorted = Array.from(allKoRounds).sort((a, b) => a - b);
+              const totalKoRounds = allKoRoundsSorted.length;
 
-              return sortedRounds.map(([round, roundMatches], ri) => {
-                const matchCount = roundMatches.length;
-                let label: string;
-                if (roundMatches[0]?.groupNumber) {
-                  const groups = new Set(roundMatches.map(m => m.groupNumber));
-                  label = groups.size === 1 ? `Group ${String.fromCharCode(64 + roundMatches[0].groupNumber)}` : "Group Stage";
-                } else {
-                  const bracketIdx = allBracketRoundsSorted.indexOf(round);
-                  const bracketFromEnd = totalBracketRounds - bracketIdx;
-                  if (bracketFromEnd === 1) label = "Final";
-                  else if (bracketFromEnd === 2) label = "Semi Finals";
-                  else if (bracketFromEnd === 3) label = "Quarter Finals";
-                  else if (bracketFromEnd === 4) label = "Round of 16";
-                  else if (bracketFromEnd === 5) label = "Round of 32";
-                  else label = `Round ${bracketIdx + 1}`;
+              function getKoLabel(round: number) {
+                const idx = allKoRoundsSorted.indexOf(round);
+                const fromEnd = totalKoRounds - idx;
+                if (fromEnd === 1) return "Final";
+                if (fromEnd === 2) return "Semi Finals";
+                if (fromEnd === 3) return "Quarter Finals";
+                if (fromEnd === 4) return "Round of 16";
+                if (fromEnd === 5) return "Round of 32";
+                return `Round ${idx + 1}`;
+              }
+
+              const sections: { key: string; label: string; color: string; matches: typeof displayMatches }[] = [];
+
+              if (grpMatches.length > 0) {
+                const sgMap = new Map<string, typeof grpMatches>();
+                grpMatches.forEach(m => {
+                  const k = `${m.groupNumber}-${m.subGroupNumber || 1}`;
+                  if (!sgMap.has(k)) sgMap.set(k, []);
+                  sgMap.get(k)!.push(m);
+                });
+                const sgKeys = Array.from(sgMap.keys()).sort();
+                for (const k of sgKeys) {
+                  const [g, sg] = k.split("-").map(Number);
+                  const hasMultipleSg = sgKeys.filter(sk => sk.startsWith(`${g}-`)).length > 1;
+                  const label = hasMultipleSg
+                    ? `Group ${String.fromCharCode(64 + g)} · Subgroup ${sg}`
+                    : `Group ${String.fromCharCode(64 + g)}`;
+                  sections.push({ key: k, label, color: "violet", matches: sgMap.get(k)! });
                 }
+              }
 
-                return (
-                  <div key={round}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <div className="h-px flex-1 bg-gradient-to-r from-violet-500/30 to-transparent" />
-                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-violet-400 px-2">{label}</span>
-                      <span className="text-[9px] font-bold text-muted-foreground">{matchCount} {matchCount === 1 ? "match" : "matches"}</span>
-                      <div className="h-px flex-1 bg-gradient-to-l from-violet-500/30 to-transparent" />
-                    </div>
-                    <div className="space-y-2">
-                      {roundMatches.map(match => (
-                        <MatchCard key={match.id} match={match} canManage={canManage} onScore={() => setScoreDialog(match)} />
-                      ))}
-                    </div>
+              if (koMatches.length > 0) {
+                const koRoundMap = new Map<number, typeof koMatches>();
+                koMatches.forEach(m => {
+                  const r = m.round;
+                  if (!koRoundMap.has(r)) koRoundMap.set(r, []);
+                  koRoundMap.get(r)!.push(m);
+                });
+                Array.from(koRoundMap.entries()).sort(([a], [b]) => a - b).forEach(([round, ms]) => {
+                  sections.push({ key: `ko-${round}`, label: getKoLabel(round), color: "amber", matches: ms });
+                });
+              }
+
+              if (sections.length === 0) {
+                return <EmptyState icon={Swords} title="No Matches" description="Generate fixtures to create matches." />;
+              }
+
+              return sections.map(sec => (
+                <div key={sec.key}>
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className={cn("h-px flex-1 bg-gradient-to-r to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
+                    <span className={cn("text-[10px] font-black uppercase tracking-[0.15em] px-2", sec.color === "amber" ? "text-amber-400" : "text-violet-400")}>{sec.label}</span>
+                    <span className="text-[9px] font-bold text-muted-foreground">{sec.matches.length} {sec.matches.length === 1 ? "match" : "matches"}</span>
+                    <div className={cn("h-px flex-1 bg-gradient-to-l to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
                   </div>
-                );
-              });
+                  <div className="space-y-2">
+                    {sec.matches.map(match => (
+                      <MatchCard key={match.id} match={match} canManage={canManage} onScore={() => setScoreDialog(match)} />
+                    ))}
+                  </div>
+                </div>
+              ));
             })()
           )}
         </div>
@@ -1762,6 +1783,9 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
             <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">L</th>
             <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GW</th>
             <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GL</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">PF</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">PA</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-cyan-500 dark:text-cyan-400 uppercase tracking-wider">+/-</th>
             <th className="text-center px-2 py-2.5 text-[10px] font-black text-violet-500 dark:text-violet-400 uppercase tracking-wider">PTS</th>
           </tr>
         </thead>
@@ -1788,6 +1812,9 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
                 <td className="text-center px-2 py-2.5 text-red-500 dark:text-red-400">{s.matchesLost}</td>
                 <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesWon}</td>
                 <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesLost}</td>
+                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.pointsFor}</td>
+                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.pointsAgainst}</td>
+                <td className={cn("text-center px-2 py-2.5 font-bold", (s.pointsFor - s.pointsAgainst) > 0 ? "text-emerald-500" : (s.pointsFor - s.pointsAgainst) < 0 ? "text-red-400" : "text-muted-foreground")}>{(s.pointsFor - s.pointsAgainst) > 0 ? "+" : ""}{s.pointsFor - s.pointsAgainst}</td>
                 <td className="text-center px-2 py-2.5 font-black text-violet-500 dark:text-violet-400">{s.points}</td>
               </tr>
             );
@@ -1825,7 +1852,14 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
                   {subGroupNumbers.map(sgNum => {
                     const sgStandings = groupStandings
                       .filter(s => (s.subGroupNumber || 1) === sgNum)
-                      .sort((a, b) => b.points - a.points || b.gamesWon - a.gamesWon);
+                      .sort((a, b) => {
+                        if (b.points !== a.points) return b.points - a.points;
+                        const diffA = a.pointsFor - a.pointsAgainst;
+                        const diffB = b.pointsFor - b.pointsAgainst;
+                        if (diffB !== diffA) return diffB - diffA;
+                        if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+                        return a.gamesLost - b.gamesLost;
+                      });
                     return (
                       <div key={sgNum}>
                         <div className="bg-cyan-500/5 px-4 py-2 border-b border-border/20">
@@ -1843,7 +1877,14 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
                 </div>
               ) : (
                 renderStandingsTable(
-                  groupStandings.sort((a, b) => b.points - a.points || b.gamesWon - a.gamesWon),
+                  groupStandings.sort((a, b) => {
+                    if (b.points !== a.points) return b.points - a.points;
+                    const diffA = a.pointsFor - a.pointsAgainst;
+                    const diffB = b.pointsFor - b.pointsAgainst;
+                    if (diffB !== diffA) return diffB - diffA;
+                    if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+                    return a.gamesLost - b.gamesLost;
+                  }),
                   advancePerGroup
                 )
               )}
