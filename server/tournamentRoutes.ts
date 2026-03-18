@@ -74,6 +74,8 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const id = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, id);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
       const updates: any = {};
       const allowed = ["name", "status", "description", "courtsAvailable", "bannerUrl", "maxPlayers",
         "skillLevelMin", "skillLevelMax", "location", "socialLinks", "isLocked",

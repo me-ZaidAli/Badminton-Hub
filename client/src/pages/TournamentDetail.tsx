@@ -1153,6 +1153,12 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
             </div>
             <h3 className="text-lg font-black text-foreground">Join This Tournament</h3>
             <p className="text-sm text-muted-foreground max-w-md mx-auto">Sign up as an individual to join the player pool, or register as a pair if you already have a partner.</p>
+            {tournament.entryFee && parseFloat(tournament.entryFee) > 0 && (
+              <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 mx-auto">
+                <Banknote className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-bold text-foreground">Entry Fee: <span className="text-amber-500">£{parseFloat(tournament.entryFee).toFixed(2)}</span></span>
+              </div>
+            )}
             <div className="flex gap-3 justify-center">
               {[{ type: "INDIVIDUAL", emoji: "🙋", label: "Individual" }, { type: "PAIR", emoji: "👥", label: "As Pair" }].map(opt => (
                 <button key={opt.type} onClick={() => setRegType(opt.type as any)}
@@ -1173,7 +1179,10 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
             <CheckCircle className="h-5 w-5 text-emerald-500 flex-shrink-0" />
             <div>
               <p className="text-sm font-bold text-foreground">You're registered!</p>
-              <p className="text-xs text-muted-foreground">Status: {myRegistration.status} · Type: {myRegistration.registrationType}</p>
+              <p className="text-xs text-muted-foreground">
+                Status: {myRegistration.status} · Type: {myRegistration.registrationType}
+                {tournament.entryFee && parseFloat(tournament.entryFee) > 0 && ` · Fee: £${parseFloat(tournament.entryFee).toFixed(2)}`}
+              </p>
             </div>
           </div>
           <Button size="sm" variant="outline" className="h-8 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
@@ -1873,59 +1882,8 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
       </div>
 
       {adminView === "registrations" && (
-        <div className="space-y-2">
-          {regsLoading ? <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" /> :
-            !registrations?.length ? <EmptyState icon={Users} title="No Registrations" description="No one has registered yet." /> :
-            <div className="rounded-xl border border-border/50 overflow-hidden divide-y divide-border/20">
-              {registrations.map((reg: any) => (
-                <div key={reg.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors flex-wrap" data-testid={`admin-reg-${reg.id}`}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <PlayerAvatar name={reg.user?.fullName || "?"} size="sm" />
-                    <div className="min-w-0">
-                      <p className="text-sm font-bold text-foreground truncate">{reg.user?.fullName}</p>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span className="font-medium">{reg.registrationType}</span>
-                        {reg.partner && <span>+ {reg.partner.fullName}</span>}
-                        {reg.paymentConfirmed && <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1 font-bold">PAID</Badge>}
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {reg.status === "PENDING" && (
-                      <>
-                        <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold" onClick={() => handleApprove(reg.id)}>
-                          <Check className="h-3 w-3 mr-1" />Approve
-                        </Button>
-                        <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive" onClick={() => handleReject(reg.id)}>
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </>
-                    )}
-                    <Button size="sm" variant="outline" className="h-7 text-xs font-medium" onClick={() => handlePayment(reg.id, !reg.paymentConfirmed)}>
-                      {reg.paymentConfirmed ? "Unpay" : "💰 Confirm"}
-                    </Button>
-                    <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
-                      data-testid={`button-remove-player-${reg.id}`}
-                      onClick={async () => {
-                        try {
-                          await updateRegMutation.mutateAsync({ id: reg.id, status: "REJECTED" });
-                          toast({ title: "Player Removed" });
-                        } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                      }}>
-                      <Trash2 className="h-3 w-3 mr-1" />Remove
-                    </Button>
-                    <Badge className={cn("text-[9px] px-1.5 border font-bold",
-                      reg.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
-                      reg.status === "PENDING" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
-                      reg.status === "WAITLISTED" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
-                      "bg-red-500/20 text-red-400 border-red-500/30"
-                    )}>{reg.status}</Badge>
-                  </div>
-                </div>
-              ))}
-            </div>
-          }
-        </div>
+        <AdminRegistrationsView registrations={registrations} regsLoading={regsLoading}
+          tournamentId={tournamentId} onApprove={handleApprove} onReject={handleReject} onPayment={handlePayment} />
       )}
 
       {adminView === "pairs" && (
@@ -2056,6 +2014,8 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
 
       {adminView === "settings" && (
         <div className="space-y-4">
+          <AdminEntryFeeSection tournament={tournament} tournamentId={tournamentId} />
+
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
             <h4 className="font-black text-foreground text-sm uppercase tracking-wider mb-3">Categories</h4>
             {categories.length === 0 ? (
@@ -2170,24 +2130,278 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   );
 }
 
+function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onApprove, onReject, onPayment }: {
+  registrations: any[]; regsLoading: boolean; tournamentId: number;
+  onApprove: (id: number) => void; onReject: (id: number) => void; onPayment: (id: number, confirmed: boolean) => void;
+}) {
+  const updateRegMutation = useUpdateRegistration();
+  const { toast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+
+  if (regsLoading) return <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />;
+  if (!registrations?.length) return <EmptyState icon={Users} title="No Registrations" description="No one has registered yet." />;
+
+  const validRegIds = new Set(registrations.map((r: any) => r.id));
+  const reconciledRegIds = new Set([...selectedIds].filter(id => validRegIds.has(id)));
+  if (reconciledRegIds.size !== selectedIds.size && selectedIds.size > 0) {
+    setTimeout(() => setSelectedIds(reconciledRegIds), 0);
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === registrations.length) setSelectedIds(new Set());
+    else setSelectedIds(new Set(registrations.map((r: any) => r.id)));
+  }
+
+  async function handleBulkAction(action: "APPROVED" | "REJECTED") {
+    if (selectedIds.size === 0) return;
+    let success = 0;
+    for (const id of selectedIds) {
+      try { await updateRegMutation.mutateAsync({ id, status: action }); success++; } catch {}
+    }
+    toast({ title: `${success} player${success !== 1 ? "s" : ""} ${action.toLowerCase()}` });
+    setSelectedIds(new Set());
+  }
+
+  async function handleBulkPayment(confirmed: boolean) {
+    if (selectedIds.size === 0) return;
+    let success = 0;
+    for (const id of selectedIds) {
+      try { await updateRegMutation.mutateAsync({ id, paymentConfirmed: confirmed }); success++; } catch {}
+    }
+    toast({ title: `${success} payment${success !== 1 ? "s" : ""} ${confirmed ? "confirmed" : "unconfirmed"}` });
+    setSelectedIds(new Set());
+  }
+
+  return (
+    <div className="space-y-2">
+      <div className="rounded-xl border border-border/50 overflow-hidden">
+        <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <input type="checkbox" checked={registrations.length > 0 && selectedIds.size === registrations.length}
+              onChange={toggleSelectAll}
+              className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer"
+              data-testid="checkbox-select-all-regs" />
+            <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Registrations</h4>
+            {selectedIds.size > 0 && (
+              <Badge variant="outline" className="text-[10px] font-bold">{selectedIds.size} selected</Badge>
+            )}
+          </div>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                disabled={updateRegMutation.isPending}
+                data-testid="button-bulk-approve"
+                onClick={() => handleBulkAction("APPROVED")}>
+                <Check className="h-3 w-3 mr-1" />Approve ({selectedIds.size})
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive font-bold"
+                disabled={updateRegMutation.isPending}
+                data-testid="button-bulk-reject"
+                onClick={() => handleBulkAction("REJECTED")}>
+                <X className="h-3 w-3 mr-1" />Reject
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs border-amber-500/30 text-amber-500 font-bold"
+                disabled={updateRegMutation.isPending}
+                data-testid="button-bulk-confirm-payment"
+                onClick={() => handleBulkPayment(true)}>
+                <DollarSign className="h-3 w-3 mr-1" />Confirm Pay
+              </Button>
+            </div>
+          )}
+        </div>
+        <div className="divide-y divide-border/20">
+          {registrations.map((reg: any) => (
+            <div key={reg.id} className={cn("flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors flex-wrap", selectedIds.has(reg.id) && "bg-amber-500/5")} data-testid={`admin-reg-${reg.id}`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <input type="checkbox" checked={selectedIds.has(reg.id)}
+                  onChange={() => toggleSelect(reg.id)}
+                  className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer flex-shrink-0"
+                  data-testid={`checkbox-reg-${reg.id}`} />
+                <PlayerAvatar name={reg.user?.fullName || "?"} size="sm" />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-foreground truncate">{reg.user?.fullName}</p>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span className="font-medium">{reg.registrationType}</span>
+                    {reg.partner && <span>+ {reg.partner.fullName}</span>}
+                    {reg.paymentConfirmed && <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1 font-bold">PAID</Badge>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {reg.status === "PENDING" && (
+                  <>
+                    <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold" onClick={() => onApprove(reg.id)}>
+                      <Check className="h-3 w-3 mr-1" />Approve
+                    </Button>
+                    <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive" onClick={() => onReject(reg.id)}>
+                      <X className="h-3 w-3" />
+                    </Button>
+                  </>
+                )}
+                <Button size="sm" variant="outline" className="h-7 text-xs font-medium" onClick={() => onPayment(reg.id, !reg.paymentConfirmed)}>
+                  {reg.paymentConfirmed ? "Unpay" : "💰 Confirm"}
+                </Button>
+                <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
+                  data-testid={`button-remove-player-${reg.id}`}
+                  onClick={async () => {
+                    try {
+                      await updateRegMutation.mutateAsync({ id: reg.id, status: "REJECTED" });
+                      toast({ title: "Player Removed" });
+                    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                  }}>
+                  <Trash2 className="h-3 w-3 mr-1" />Remove
+                </Button>
+                <Badge className={cn("text-[9px] px-1.5 border font-bold",
+                  reg.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                  reg.status === "PENDING" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+                  reg.status === "WAITLISTED" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
+                  "bg-red-500/20 text-red-400 border-red-500/30"
+                )}>{reg.status}</Badge>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminEntryFeeSection({ tournament, tournamentId }: { tournament: any; tournamentId: number }) {
+  const updateTournamentMutation = useUpdateTournament();
+  const { toast } = useToast();
+  const [entryFee, setEntryFee] = useState(tournament.entryFee || "");
+  const [editing, setEditing] = useState(false);
+
+  async function handleSave() {
+    try {
+      await updateTournamentMutation.mutateAsync({ id: tournamentId, entryFee: entryFee || "0" });
+      toast({ title: "Entry Fee Updated", description: entryFee ? `Entry fee set to £${parseFloat(entryFee).toFixed(2)}` : "Entry fee removed" });
+      setEditing(false);
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center">
+            <Banknote className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Entry Fee</h4>
+            <p className="text-[10px] text-muted-foreground">Set the sign-up fee players must pay to enter</p>
+          </div>
+        </div>
+        {!editing && (
+          <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={() => setEditing(true)} data-testid="button-edit-entry-fee">
+            <Edit3 className="h-3 w-3 mr-1" />Edit
+          </Button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="flex items-center gap-3">
+          <div className="relative flex-1">
+            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">£</span>
+            <input
+              type="number"
+              step="0.01"
+              min="0"
+              value={entryFee}
+              onChange={(e) => setEntryFee(e.target.value)}
+              placeholder="0.00"
+              className="w-full rounded-xl bg-card border border-amber-500/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/60 transition-colors p-3 pl-7"
+              data-testid="input-entry-fee"
+            />
+          </div>
+          <Button size="sm" className="h-10 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
+            disabled={updateTournamentMutation.isPending}
+            onClick={handleSave} data-testid="button-save-entry-fee">
+            {updateTournamentMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+            Save
+          </Button>
+          <Button size="sm" variant="outline" className="h-10" onClick={() => { setEntryFee(tournament.entryFee || ""); setEditing(false); }}>
+            Cancel
+          </Button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
+          <DollarSign className="h-5 w-5 text-amber-500" />
+          <div>
+            <p className="text-xs text-muted-foreground">Current Entry Fee</p>
+            <p className="text-lg font-black text-foreground">
+              {tournament.entryFee && parseFloat(tournament.entryFee) > 0 ? `£${parseFloat(tournament.entryFee).toFixed(2)}` : "Free (No fee set)"}
+            </p>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; tournament: any }) {
   const { data: finances, isLoading } = useTournamentFinances(tournamentId);
   const updatePaymentMutation = useUpdateTournamentPayment();
   const { toast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
   if (isLoading) return <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />;
-  if (!finances) return <EmptyState icon={Wallet} title="No Financial Data" description="Set an entry fee to track tournament finances." />;
+  if (!finances) return <EmptyState icon={Wallet} title="No Financial Data" description="Set an entry fee in Settings to track tournament finances." />;
 
   const entryFee = parseFloat(tournament.entryFee || "0");
+  const players = finances.players?.filter((p: any) => p.status !== "REJECTED") || [];
+  const validIds = new Set(players.map((p: any) => p.id));
+  const reconciledIds = new Set([...selectedIds].filter(id => validIds.has(id)));
+  if (reconciledIds.size !== selectedIds.size && selectedIds.size > 0) {
+    setTimeout(() => setSelectedIds(reconciledIds), 0);
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    if (selectedIds.size === players.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(players.map((p: any) => p.id)));
+    }
+  }
+
+  async function handleBulkPayment(status: string) {
+    if (selectedIds.size === 0) return;
+    let success = 0;
+    for (const regId of selectedIds) {
+      try {
+        await updatePaymentMutation.mutateAsync({ tournamentId, regId, paymentStatus: status });
+        success++;
+      } catch {}
+    }
+    toast({ title: `${success} player${success !== 1 ? "s" : ""} updated to ${status}` });
+    setSelectedIds(new Set());
+  }
 
   return (
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: DollarSign, label: "Entry Fee", value: `£${entryFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500", bg: "bg-amber-500/10" },
-          { icon: TrendingUp, label: "Expected Revenue", value: `£${finances.totalExpected.toFixed(2)}`, accent: "from-emerald-500 to-teal-500", bg: "bg-emerald-500/10" },
-          { icon: Wallet, label: "Collected", value: `£${finances.totalCollected.toFixed(2)}`, accent: "from-blue-500 to-indigo-500", bg: "bg-blue-500/10" },
-          { icon: Clock, label: "Pending", value: `£${finances.totalPending.toFixed(2)}`, accent: "from-violet-500 to-purple-500", bg: "bg-violet-500/10" },
+          { icon: DollarSign, label: "Entry Fee", value: `£${entryFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500" },
+          { icon: TrendingUp, label: "Expected Revenue", value: `£${finances.totalExpected.toFixed(2)}`, accent: "from-emerald-500 to-teal-500" },
+          { icon: Wallet, label: "Collected", value: `£${finances.totalCollected.toFixed(2)}`, accent: "from-blue-500 to-indigo-500" },
+          { icon: Clock, label: "Pending", value: `£${finances.totalPending.toFixed(2)}`, accent: "from-violet-500 to-purple-500" },
         ].map((item, i) => (
           <div key={i} className="rounded-xl bg-card border border-border/50 p-4 hover:border-amber-500/20 transition-colors">
             <div className={cn("h-8 w-8 rounded-lg bg-gradient-to-br flex items-center justify-center mb-2", item.accent)}>
@@ -2217,13 +2431,48 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
       </div>
 
       <div className="rounded-xl border border-border/50 overflow-hidden">
-        <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30">
-          <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Player Payments</h4>
+        <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30 flex items-center justify-between gap-3 flex-wrap">
+          <div className="flex items-center gap-3">
+            <input type="checkbox" checked={players.length > 0 && selectedIds.size === players.length}
+              onChange={toggleSelectAll}
+              className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer"
+              data-testid="checkbox-select-all-finance" />
+            <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Player Payments</h4>
+            {selectedIds.size > 0 && (
+              <Badge variant="outline" className="text-[10px] font-bold">{selectedIds.size} selected</Badge>
+            )}
+          </div>
+          {selectedIds.size > 0 && (
+            <div className="flex items-center gap-1.5">
+              <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                disabled={updatePaymentMutation.isPending}
+                data-testid="button-bulk-mark-paid"
+                onClick={() => handleBulkPayment("PAID")}>
+                <Check className="h-3 w-3 mr-1" />Mark Paid ({selectedIds.size})
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs border-amber-500/30 text-amber-500 font-bold"
+                disabled={updatePaymentMutation.isPending}
+                data-testid="button-bulk-mark-pending"
+                onClick={() => handleBulkPayment("PENDING")}>
+                <Clock className="h-3 w-3 mr-1" />Pending
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/30 text-red-500 font-bold"
+                disabled={updatePaymentMutation.isPending}
+                data-testid="button-bulk-mark-unpaid"
+                onClick={() => handleBulkPayment("UNPAID")}>
+                <X className="h-3 w-3 mr-1" />Unpaid
+              </Button>
+            </div>
+          )}
         </div>
         <div className="divide-y divide-border/20">
-          {finances.players?.filter((p: any) => p.status !== "REJECTED").map((player: any) => (
-            <div key={player.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`finance-player-${player.id}`}>
+          {players.map((player: any) => (
+            <div key={player.id} className={cn("flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors", selectedIds.has(player.id) && "bg-amber-500/5")} data-testid={`finance-player-${player.id}`}>
               <div className="flex items-center gap-3 min-w-0">
+                <input type="checkbox" checked={selectedIds.has(player.id)}
+                  onChange={() => toggleSelect(player.id)}
+                  className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer flex-shrink-0"
+                  data-testid={`checkbox-finance-${player.id}`} />
                 <PlayerAvatar name={player.user?.fullName || "?"} size="sm" />
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-foreground truncate">{player.user?.fullName}</p>
@@ -2239,7 +2488,7 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
                   player.paymentStatus === "PENDING" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
                   "bg-red-500/20 text-red-400 border-red-500/30"
                 )}>{player.paymentStatus}</Badge>
-                {player.paymentStatus === "PENDING" && (
+                {player.paymentStatus !== "PAID" && (
                   <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
                     disabled={updatePaymentMutation.isPending}
                     onClick={async () => {
@@ -2248,7 +2497,7 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
                         toast({ title: "Payment Confirmed" });
                       } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                     }}>
-                    <Check className="h-3 w-3 mr-1" />Confirm
+                    <Check className="h-3 w-3 mr-1" />Paid
                   </Button>
                 )}
                 {player.paymentStatus === "PAID" && (
@@ -2261,18 +2510,6 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
                       } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                     }}>
                     <X className="h-3 w-3" />
-                  </Button>
-                )}
-                {player.paymentStatus === "UNPAID" && (
-                  <Button size="sm" variant="outline" className="h-7 text-xs border-amber-500/30 text-amber-500"
-                    disabled={updatePaymentMutation.isPending}
-                    onClick={async () => {
-                      try {
-                        await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "PAID" });
-                        toast({ title: "Payment Confirmed" });
-                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                    }}>
-                    <DollarSign className="h-3 w-3 mr-1" />Mark Paid
                   </Button>
                 )}
               </div>
