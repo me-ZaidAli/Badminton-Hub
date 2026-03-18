@@ -183,6 +183,7 @@ export type DetailedPlayerStats = {
   id: number;
   fullName: string;
   category: string | null;
+  grade?: string | null;
   gender: string | null;
   clubId: number;
   clubName: string;

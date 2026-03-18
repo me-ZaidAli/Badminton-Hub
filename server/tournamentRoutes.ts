@@ -700,6 +700,43 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post("/api/tournaments/:id/admin-create-pair", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      const { player1Id, player2Id, pairName } = req.body;
+      if (!player1Id || !player2Id) return res.status(400).json({ message: "Two players required" });
+      if (player1Id === player2Id) return res.status(400).json({ message: "Cannot pair a player with themselves" });
+      const [reg1] = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, player1Id), eq(tournamentRegistrations.status, "APPROVED")));
+      const [reg2] = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, player2Id), eq(tournamentRegistrations.status, "APPROVED")));
+      if (!reg1 || !reg2) return res.status(400).json({ message: "Both players must be approved registrants in this tournament" });
+      const [pr] = await db.insert(tournamentPairRequests).values({
+        tournamentId,
+        fromUserId: player1Id,
+        toUserId: player2Id,
+        status: "ACCEPTED",
+        message: `Paired by admin`,
+        pairName: pairName || null,
+      }).returning();
+      await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: player2Id })
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, player1Id)));
+      await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: player1Id })
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, player2Id)));
+      const enriched = {
+        ...pr,
+        fromUser: (await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, player1Id)))[0],
+        toUser: (await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, player2Id)))[0],
+      };
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/tournaments/:id/pair-requests", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

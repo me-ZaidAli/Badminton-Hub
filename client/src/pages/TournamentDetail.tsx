@@ -8,7 +8,7 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest,
-  useWithdrawRegistration,
+  useWithdrawRegistration, useAdminCreatePair,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers,
@@ -16,7 +16,7 @@ import {
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
-import { useMyTournamentClubs } from "@/hooks/use-clubs";
+import { useMyTournamentClubs, useDetailedPlayerStats } from "@/hooks/use-clubs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -31,7 +31,7 @@ import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
-  Building2, ExternalLink, Flame, Medal, DollarSign, Gift, Wallet, TrendingUp, CreditCard, Banknote,
+  Building2, ExternalLink, Flame, Medal, DollarSign, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -800,8 +800,12 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
 }
 
 function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: any; rank: number; totalPlayers: number; onClose: () => void }) {
+  const [statsTab, setStatsTab] = useState<"tournament" | "club">("club");
   const name = player.user?.fullName || "Unknown Player";
   const grade = player.profile?.currentGrade || "—";
+  const profileId = player.profile?.id || null;
+  const { data: clubStats, isLoading: clubLoading } = useDetailedPlayerStats(statsTab === "club" ? profileId : null);
+
   const wins = player.matchesWon || 0;
   const losses = player.matchesLost || 0;
   const played = player.matchesPlayed || 0;
@@ -832,29 +836,13 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
   const dominanceRatio = gamesLost > 0 ? (gamesWon / gamesLost).toFixed(1) : gamesWon > 0 ? "MAX" : "0";
   const avgPointsPerMatch = played > 0 ? (pointsScored / played).toFixed(1) : "0";
 
-  const kpiCards = [
-    { label: "Tournament Rank", value: `#${rank}`, sub: `of ${totalPlayers}`, icon: Trophy, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
-    { label: "Win Rate", value: `${winRate}%`, sub: played > 0 ? `${wins}W / ${losses}L` : "No matches", icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
-    { label: "Matches Played", value: `${played}`, sub: played > 0 ? "Active" : "Awaiting", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
-    { label: "Dominance Ratio", value: `${dominanceRatio}`, sub: `${gamesWon}GW / ${gamesLost}GL`, icon: Flame, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
-  ];
-
-  const performanceBars = [
-    { label: "Attack Power", value: winRate, color: "bg-gradient-to-r from-red-500 to-orange-500" },
-    { label: "Consistency", value: consistencyScore, color: "bg-gradient-to-r from-emerald-500 to-teal-500" },
-    { label: "Endurance", value: played > 0 ? Math.min(played * 10, 100) : 0, color: "bg-gradient-to-r from-blue-500 to-indigo-500" },
-    { label: "Clutch Factor", value: Math.min(wins * 15, 100), color: "bg-gradient-to-r from-violet-500 to-purple-500" },
-    { label: "Game Dominance", value: gamesWon + gamesLost > 0 ? Math.round((gamesWon / (gamesWon + gamesLost)) * 100) : 0, color: "bg-gradient-to-r from-amber-500 to-orange-500" },
-  ];
-
   return (
     <Dialog open onOpenChange={() => onClose()}>
-      <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden border-violet-500/30 bg-slate-950">
+      <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden border-violet-500/30 bg-slate-950 max-h-[90vh] overflow-y-auto">
         <div className="relative overflow-hidden">
           <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 via-purple-900/40 to-slate-950" />
           <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full" />
           <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-violet-500/10 to-transparent rounded-tr-full" />
-
           <div className="relative p-6">
             <div className="flex items-start gap-4">
               <div className="relative">
@@ -875,77 +863,195 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
                     "bg-amber-500/20 text-amber-400 border-amber-500/30"
                   )}>{player.status}</Badge>
                 </div>
-                <div className="flex items-center gap-1 mt-2">
-                  {streakData.recentResults.length > 0 && streakData.recentResults.map((r, i) => (
-                    <div key={i} className={cn(
-                      "h-5 w-5 rounded text-[9px] font-black flex items-center justify-center",
-                      r === "W" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
-                    )}>{r}</div>
-                  ))}
-                  {streakData.recentResults.length === 0 && (
-                    <span className="text-[10px] text-slate-500">No match history</span>
-                  )}
-                </div>
               </div>
             </div>
           </div>
         </div>
 
-        <div className="p-4 space-y-4">
-          <div className="grid grid-cols-2 gap-2">
-            {kpiCards.map((kpi, i) => (
-              <div key={i} className="relative rounded-xl overflow-hidden" data-testid={`player-stat-${kpi.label.toLowerCase().replace(/\s/g, "-")}`}>
-                <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
-                <div className="relative p-3 border border-slate-800/60 rounded-xl">
-                  <div className="flex items-center gap-2 mb-1">
-                    <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
-                      <kpi.icon className="h-3 w-3 text-white" />
+        <div className="px-4 pt-2">
+          <div className="flex gap-1 bg-slate-900/80 rounded-xl p-1">
+            {[
+              { key: "club" as const, label: "Club Ranking", icon: Building2 },
+              { key: "tournament" as const, label: "Tournament Stats", icon: Trophy },
+            ].map(t => (
+              <button key={t.key} onClick={() => setStatsTab(t.key)}
+                className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all",
+                  statsTab === t.key ? "bg-violet-600/30 text-violet-300 shadow-sm border border-violet-500/30" : "text-slate-500 hover:text-slate-300")}
+                data-testid={`tab-stats-${t.key}`}>
+                <t.icon className="h-3.5 w-3.5" />
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {statsTab === "club" && (
+          <div className="p-4 space-y-4">
+            {clubLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-violet-500" /></div>
+            ) : clubStats ? (
+              <>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span className="font-bold">{clubStats.clubName}</span>
+                  <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-400">{clubStats.grade || clubStats.category || "C3"}</Badge>
+                  {clubStats.gender && <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-400">{clubStats.gender}</Badge>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Club Matches", value: `${clubStats.matchesPlayed}`, sub: "Total played", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
+                    { label: "Win Rate", value: `${clubStats.winRatio}%`, sub: `${clubStats.matchesWon}W / ${clubStats.matchesLost}L`, icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
+                    { label: "Wins", value: `${clubStats.matchesWon}`, sub: "Club sessions", icon: TrendingUp, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
+                    { label: "Losses", value: `${clubStats.matchesLost}`, sub: "Club sessions", icon: TrendingDown, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
+                  ].map((kpi, i) => (
+                    <div key={i} className="relative rounded-xl overflow-hidden">
+                      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
+                      <div className="relative p-3 border border-slate-800/60 rounded-xl">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
+                            <kpi.icon className="h-3 w-3 text-white" />
+                          </div>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                        </div>
+                        <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
+                      </div>
                     </div>
-                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                  ))}
+                </div>
+
+                {clubStats.recentForm.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Recent Club Form</h4>
+                    <div className="flex items-center gap-1">
+                      {clubStats.recentForm.map((won, i) => (
+                        <div key={i} className={cn("h-6 w-6 rounded text-[9px] font-black flex items-center justify-center",
+                          won ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                        )}>{won ? "W" : "L"}</div>
+                      ))}
+                    </div>
                   </div>
-                  <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
-                  <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
-                </div>
-              </div>
-            ))}
-          </div>
+                )}
 
-          <div className="rounded-xl border border-slate-800/60 p-4 space-y-3">
-            <div className="flex items-center gap-2 mb-1">
-              <div className="h-5 w-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-                <BarChart3 className="h-3 w-3 text-white" />
+                {clubStats.matchHistory.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Club Match History ({clubStats.matchHistory.length})
+                    </h4>
+                    <div className="space-y-1 max-h-[250px] overflow-y-auto">
+                      {clubStats.matchHistory.map((match) => (
+                        <div key={match.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-900/50 border border-slate-800/40" data-testid={`club-match-${match.id}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0",
+                              match.won ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                            )}>{match.won ? "W" : "L"}</div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-mono font-bold text-slate-300">
+                                {match.isTeamA ? `${match.scoreA} - ${match.scoreB}` : `${match.scoreB} - ${match.scoreA}`}
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate">
+                                vs {match.opponent1}{match.opponent2 ? ` & ${match.opponent2}` : ""}
+                                {match.partner && <span className="opacity-60"> (w/ {match.partner})</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-slate-500 shrink-0 text-right">
+                            <div className="truncate max-w-[100px]">{match.sessionTitle}</div>
+                            {match.completedAt && <div>{format(new Date(match.completedAt), "MMM d, yy")}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Building2 className="h-8 w-8 text-slate-700 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">No club ranking data available for this player.</p>
               </div>
-              <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">Performance Breakdown</span>
-            </div>
-            {performanceBars.map((bar, i) => (
-              <div key={i} className="space-y-1">
-                <div className="flex items-center justify-between">
-                  <span className="text-[10px] font-bold text-slate-400">{bar.label}</span>
-                  <span className="text-[10px] font-black text-slate-300">{bar.value}%</span>
-                </div>
-                <div className="h-2 rounded-full bg-slate-800/80 overflow-hidden">
-                  <div className={cn("h-full rounded-full transition-all duration-700", bar.color)}
-                    style={{ width: `${bar.value}%` }} />
-                </div>
-              </div>
-            ))}
+            )}
           </div>
+        )}
 
-          <div className="grid grid-cols-3 gap-2">
-            <div className="rounded-lg border border-slate-800/60 p-3 text-center">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Avg Pts/Match</div>
-              <div className="text-base font-black text-cyan-400">{avgPointsPerMatch}</div>
+        {statsTab === "tournament" && (
+          <div className="p-4 space-y-4">
+            <div className="flex items-center gap-1 mb-1">
+              {streakData.recentResults.length > 0 ? streakData.recentResults.map((r, i) => (
+                <div key={i} className={cn("h-5 w-5 rounded text-[9px] font-black flex items-center justify-center",
+                  r === "W" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                )}>{r}</div>
+              )) : <span className="text-[10px] text-slate-500">No tournament match history</span>}
             </div>
-            <div className="rounded-lg border border-slate-800/60 p-3 text-center">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Best Streak</div>
-              <div className="text-base font-black text-amber-400">{streakData.bestStreak}W</div>
+
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "Tournament Rank", value: `#${rank}`, sub: `of ${totalPlayers}`, icon: Trophy, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
+                { label: "Win Rate", value: `${winRate}%`, sub: played > 0 ? `${wins}W / ${losses}L` : "No matches", icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
+                { label: "Matches Played", value: `${played}`, sub: played > 0 ? "Active" : "Awaiting", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
+                { label: "Dominance Ratio", value: `${dominanceRatio}`, sub: `${gamesWon}GW / ${gamesLost}GL`, icon: Flame, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
+              ].map((kpi, i) => (
+                <div key={i} className="relative rounded-xl overflow-hidden" data-testid={`player-stat-${kpi.label.toLowerCase().replace(/\s/g, "-")}`}>
+                  <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
+                  <div className="relative p-3 border border-slate-800/60 rounded-xl">
+                    <div className="flex items-center gap-2 mb-1">
+                      <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
+                        <kpi.icon className="h-3 w-3 text-white" />
+                      </div>
+                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                    </div>
+                    <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
+                    <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
+                  </div>
+                </div>
+              ))}
             </div>
-            <div className="rounded-lg border border-slate-800/60 p-3 text-center">
-              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Points Scored</div>
-              <div className="text-base font-black text-emerald-400">{pointsScored}</div>
+
+            <div className="rounded-xl border border-slate-800/60 p-4 space-y-3">
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-5 w-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                  <BarChart3 className="h-3 w-3 text-white" />
+                </div>
+                <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">Performance Breakdown</span>
+              </div>
+              {[
+                { label: "Attack Power", value: winRate, color: "bg-gradient-to-r from-red-500 to-orange-500" },
+                { label: "Consistency", value: consistencyScore, color: "bg-gradient-to-r from-emerald-500 to-teal-500" },
+                { label: "Endurance", value: played > 0 ? Math.min(played * 10, 100) : 0, color: "bg-gradient-to-r from-blue-500 to-indigo-500" },
+                { label: "Clutch Factor", value: Math.min(wins * 15, 100), color: "bg-gradient-to-r from-violet-500 to-purple-500" },
+                { label: "Game Dominance", value: gamesWon + gamesLost > 0 ? Math.round((gamesWon / (gamesWon + gamesLost)) * 100) : 0, color: "bg-gradient-to-r from-amber-500 to-orange-500" },
+              ].map((bar, i) => (
+                <div key={i} className="space-y-1">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] font-bold text-slate-400">{bar.label}</span>
+                    <span className="text-[10px] font-black text-slate-300">{bar.value}%</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-slate-800/80 overflow-hidden">
+                    <div className={cn("h-full rounded-full transition-all duration-700", bar.color)}
+                      style={{ width: `${bar.value}%` }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            <div className="grid grid-cols-3 gap-2">
+              <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Avg Pts/Match</div>
+                <div className="text-base font-black text-cyan-400">{avgPointsPerMatch}</div>
+              </div>
+              <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Best Streak</div>
+                <div className="text-base font-black text-amber-400">{streakData.bestStreak}W</div>
+              </div>
+              <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Points Scored</div>
+                <div className="text-base font-black text-emerald-400">{pointsScored}</div>
+              </div>
             </div>
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   );
@@ -1818,13 +1924,19 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const { toast } = useToast();
   const [adminView, setAdminView] = useState<"registrations" | "pairs" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
   const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
+  const { data: playerPool } = useTournamentPlayerPool(tournamentId);
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();
+  const adminCreatePairMutation = useAdminCreatePair();
   const [editingTeam, setEditingTeam] = useState<any>(null);
   const [selectedCatId, setSelectedCatId] = useState<number | null>(null);
   const activeCatId = selectedCatId || (categories.length > 0 ? categories[0].id : null);
   const { data: catTeams } = useTournamentTeams(activeCatId || 0);
   const [addAdminOpen, setAddAdminOpen] = useState(false);
+  const [showCreatePair, setShowCreatePair] = useState(false);
+  const [newPairPlayer1, setNewPairPlayer1] = useState<string>("");
+  const [newPairPlayer2, setNewPairPlayer2] = useState<string>("");
+  const [newPairName, setNewPairName] = useState("");
 
   async function handleApprove(id: number) {
     try { await updateRegMutation.mutateAsync({ id, status: "APPROVED" }); toast({ title: "Approved" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
@@ -1888,6 +2000,87 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
 
       {adminView === "pairs" && (
         <div className="space-y-3">
+          <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
+            {!showCreatePair ? (
+              <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                data-testid="button-open-create-pair"
+                onClick={() => setShowCreatePair(true)}>
+                <Plus className="h-3.5 w-3.5 mr-1" />Create Pair from Player Pool
+              </Button>
+            ) : (
+              <div className="space-y-3">
+                <h4 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+                  <Users className="h-4 w-4 text-emerald-500" />
+                  Create New Pair
+                </h4>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground">Player 1</label>
+                    <Select value={newPairPlayer1} onValueChange={setNewPairPlayer1}>
+                      <SelectTrigger className="h-9" data-testid="select-pair-player1">
+                        <SelectValue placeholder="Select player..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(playerPool || []).filter((p: any) => String(p.userId) !== newPairPlayer2).map((p: any) => (
+                          <SelectItem key={p.userId} value={String(p.userId)}>{p.user?.fullName || `Player ${p.userId}`}</SelectItem>
+                        ))}
+                        {(registrations || []).filter((r: any) => r.status === "APPROVED" && r.registrationType === "INDIVIDUAL" && !playerPool?.some((p: any) => p.userId === r.userId) && String(r.userId) !== newPairPlayer2).map((r: any) => (
+                          <SelectItem key={r.userId} value={String(r.userId)}>{r.user?.fullName || `Player ${r.userId}`}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground">Player 2</label>
+                    <Select value={newPairPlayer2} onValueChange={setNewPairPlayer2}>
+                      <SelectTrigger className="h-9" data-testid="select-pair-player2">
+                        <SelectValue placeholder="Select player..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(playerPool || []).filter((p: any) => String(p.userId) !== newPairPlayer1).map((p: any) => (
+                          <SelectItem key={p.userId} value={String(p.userId)}>{p.user?.fullName || `Player ${p.userId}`}</SelectItem>
+                        ))}
+                        {(registrations || []).filter((r: any) => r.status === "APPROVED" && r.registrationType === "INDIVIDUAL" && !playerPool?.some((p: any) => p.userId === r.userId) && String(r.userId) !== newPairPlayer1).map((r: any) => (
+                          <SelectItem key={r.userId} value={String(r.userId)}>{r.user?.fullName || `Player ${r.userId}`}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-xs font-bold text-muted-foreground">Team Name (optional)</label>
+                  <Input value={newPairName} onChange={e => setNewPairName(e.target.value)}
+                    placeholder="e.g. Thunder Smash" maxLength={50} className="h-9"
+                    data-testid="input-pair-name" />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
+                    disabled={!newPairPlayer1 || !newPairPlayer2 || adminCreatePairMutation.isPending}
+                    data-testid="button-confirm-create-pair"
+                    onClick={async () => {
+                      try {
+                        await adminCreatePairMutation.mutateAsync({
+                          tournamentId,
+                          player1Id: Number(newPairPlayer1),
+                          player2Id: Number(newPairPlayer2),
+                          pairName: newPairName || undefined,
+                        });
+                        toast({ title: "Pair Created" });
+                        setNewPairPlayer1(""); setNewPairPlayer2(""); setNewPairName(""); setShowCreatePair(false);
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    {adminCreatePairMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+                    Create Pair
+                  </Button>
+                  <Button size="sm" variant="outline" className="font-bold text-xs"
+                    onClick={() => { setShowCreatePair(false); setNewPairPlayer1(""); setNewPairPlayer2(""); setNewPairName(""); }}>
+                    Cancel
+                  </Button>
+                </div>
+              </div>
+            )}
+          </div>
+
           {categories.length > 1 && (
             <div className="flex gap-1 bg-muted/30 rounded-lg p-1">
               {categories.map(cat => (

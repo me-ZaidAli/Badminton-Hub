@@ -358,6 +358,21 @@ export function useSendPairRequest() {
   });
 }
 
+export function useAdminCreatePair() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, player1Id, player2Id, pairName }: { tournamentId: number; player1Id: number; player2Id: number; pairName?: string }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/admin-create-pair`, { player1Id, player2Id, pairName });
+      return res.json();
+    },
+    onSuccess: (_data: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "pairs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "pair-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "player-pool"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "registrations"] });
+    },
+  });
+}
+
 export function useRespondPairRequest() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {
