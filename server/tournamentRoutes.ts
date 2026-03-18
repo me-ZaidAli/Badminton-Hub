@@ -220,6 +220,31 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.patch("/api/tournament-teams/bulk-assign-group", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { assignments } = req.body;
+      if (!assignments || !Array.isArray(assignments) || assignments.length === 0) return res.status(400).json({ message: "assignments array required" });
+      const [firstTeam] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, assignments[0].teamId));
+      if (!firstTeam) return res.status(404).json({ message: "Team not found" });
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, firstTeam.categoryId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      const results = [];
+      for (const a of assignments) {
+        const [updated] = await db.update(tournamentTeams)
+          .set({ groupNumber: a.groupNumber, subGroupNumber: a.subGroupNumber })
+          .where(eq(tournamentTeams.id, a.teamId))
+          .returning();
+        results.push(updated);
+      }
+      res.json(results);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.patch("/api/tournament-teams/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
@@ -839,30 +864,7 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
-  app.patch("/api/tournament-teams/bulk-assign-group", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    try {
-      const { assignments } = req.body;
-      if (!assignments || !Array.isArray(assignments) || assignments.length === 0) return res.status(400).json({ message: "assignments array required" });
-      const [firstTeam] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, assignments[0].teamId));
-      if (!firstTeam) return res.status(404).json({ message: "Team not found" });
-      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, firstTeam.categoryId));
-      if (!cat) return res.status(404).json({ message: "Category not found" });
-      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
-      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
-      const results = [];
-      for (const a of assignments) {
-        const [updated] = await db.update(tournamentTeams)
-          .set({ groupNumber: a.groupNumber, subGroupNumber: a.subGroupNumber })
-          .where(eq(tournamentTeams.id, a.teamId))
-          .returning();
-        results.push(updated);
-      }
-      res.json(results);
-    } catch (e: any) {
-      res.status(500).json({ message: e.message });
-    }
-  });
+
 
   app.post("/api/tournaments/:id/admin-create-pair", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
