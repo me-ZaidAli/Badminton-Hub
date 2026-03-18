@@ -12,6 +12,8 @@ import {
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers,
+  useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
+  useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { useMyTournamentClubs } from "@/hooks/use-clubs";
@@ -29,14 +31,14 @@ import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
-  Building2, ExternalLink, Flame, Medal,
+  Building2, ExternalLink, Flame, Medal, DollarSign, Gift, Wallet, TrendingUp, CreditCard, Banknote,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import tournamentHeroImg from "@assets/tournament-hero.png";
 
-type SubPage = "overview" | "players" | "pairs" | "signup" | "matches" | "admin";
+type SubPage = "overview" | "players" | "pairs" | "signup" | "matches" | "prizes" | "admin";
 
 const categorySchema = z.object({
   name: z.string().min(1, "Name required"),
@@ -179,6 +181,7 @@ export default function TournamentDetail() {
     { key: "pairs", label: "Pairs", icon: UserPlus },
     { key: "signup", label: "Sign Up", icon: Zap },
     { key: "matches", label: "Matches", icon: Swords },
+    { key: "prizes", label: "Prizes", icon: Trophy },
     ...(canManage ? [{ key: "admin" as SubPage, label: "Admin", icon: Settings }] : []),
   ];
 
@@ -322,7 +325,8 @@ export default function TournamentDetail() {
       {subPage === "matches" && !activeCategory && (
         <EmptyState icon={Swords} title="No Categories" description="Add a category to create matches." />
       )}
-      {subPage === "admin" && canManage && <AdminTab tournamentId={tournamentId} tournament={tournament} categories={categories} />}
+      {subPage === "prizes" && <PrizesTab tournamentId={tournamentId} tournament={tournament} categories={categories} />}
+      {subPage === "admin" && canManage && <AdminTab tournamentId={tournamentId} tournament={tournament} categories={categories} canManage={canManage} />}
 
       <Dialog open={addCategoryOpen} onOpenChange={setAddCategoryOpen}>
         <DialogContent className="max-w-lg">
@@ -437,9 +441,20 @@ function OverviewTab({ tournament, categories }: { tournament: any; categories: 
       )}
 
       {tournament.entryFee && (
-        <div className="flex items-center gap-2 text-sm px-1">
-          <span className="text-muted-foreground font-medium">Entry Fee:</span>
-          <Badge className="bg-amber-500/20 text-amber-500 border border-amber-500/30 font-bold">{tournament.entryFee}</Badge>
+        <div className="rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
+          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
+            <Banknote className="h-6 w-6 text-white" />
+          </div>
+          <div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Entry Fee</p>
+            <p className="text-xl font-black text-foreground">£{parseFloat(tournament.entryFee || "0").toFixed(2)}</p>
+          </div>
+          {tournament.prizeInfo && (
+            <div className="ml-auto text-right">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Prize Info</p>
+              <p className="text-sm font-bold text-foreground">{tournament.prizeInfo}</p>
+            </div>
+          )}
         </div>
       )}
 
@@ -1554,7 +1569,7 @@ function BracketView({ matches, teams }: { matches: any[]; teams: any[] }) {
   );
 }
 
-function AdminTab({ tournamentId, tournament, categories }: { tournamentId: number; tournament: any; categories: any[] }) {
+function AdminTab({ tournamentId, tournament, categories, canManage }: { tournamentId: number; tournament: any; categories: any[]; canManage: boolean }) {
   const { data: registrations, isLoading: regsLoading } = useTournamentRegistrations(tournamentId);
   const { data: waitlist } = useTournamentWaitlist(tournamentId);
   const { data: tournamentAdminsList } = useTournamentAdmins(tournamentId);
@@ -1568,7 +1583,7 @@ function AdminTab({ tournamentId, tournament, categories }: { tournamentId: numb
   const seedDemoMutation = useSeedDemoPlayers();
   const clearDemoMutation = useClearDemoPlayers();
   const { toast } = useToast();
-  const [adminView, setAdminView] = useState<"registrations" | "pairs" | "waitlist" | "settings">("registrations");
+  const [adminView, setAdminView] = useState<"registrations" | "pairs" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
   const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();
@@ -1623,10 +1638,10 @@ function AdminTab({ tournamentId, tournament, categories }: { tournamentId: numb
         </Button>
       </div>
 
-      <div className="flex gap-1 bg-muted/30 dark:bg-muted/10 rounded-xl p-1">
-        {["registrations", "pairs", "waitlist", "settings"].map(view => (
+      <div className="flex gap-1 bg-muted/30 dark:bg-muted/10 rounded-xl p-1 overflow-x-auto">
+        {["registrations", "pairs", "waitlist", "finance", "prizes", "settings"].map(view => (
           <button key={view} onClick={() => setAdminView(view as any)}
-            className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all capitalize",
+            className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all capitalize whitespace-nowrap",
               adminView === view ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
             {view}
           </button>
@@ -1811,6 +1826,10 @@ function AdminTab({ tournamentId, tournament, categories }: { tournamentId: numb
         </div>
       )}
 
+      {adminView === "finance" && <AdminFinanceView tournamentId={tournamentId} tournament={tournament} />}
+
+      {adminView === "prizes" && <AdminPrizesView tournamentId={tournamentId} tournament={tournament} categories={categories} />}
+
       {adminView === "settings" && (
         <div className="space-y-4">
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -1921,6 +1940,389 @@ function AdminTab({ tournamentId, tournament, categories }: { tournamentId: numb
               </DialogContent>
             </Dialog>
           )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; tournament: any }) {
+  const { data: finances, isLoading } = useTournamentFinances(tournamentId);
+  const updatePaymentMutation = useUpdateTournamentPayment();
+  const { toast } = useToast();
+
+  if (isLoading) return <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />;
+  if (!finances) return <EmptyState icon={Wallet} title="No Financial Data" description="Set an entry fee to track tournament finances." />;
+
+  const entryFee = parseFloat(tournament.entryFee || "0");
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        {[
+          { icon: DollarSign, label: "Entry Fee", value: `£${entryFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500", bg: "bg-amber-500/10" },
+          { icon: TrendingUp, label: "Expected Revenue", value: `£${finances.totalExpected.toFixed(2)}`, accent: "from-emerald-500 to-teal-500", bg: "bg-emerald-500/10" },
+          { icon: Wallet, label: "Collected", value: `£${finances.totalCollected.toFixed(2)}`, accent: "from-blue-500 to-indigo-500", bg: "bg-blue-500/10" },
+          { icon: Clock, label: "Pending", value: `£${finances.totalPending.toFixed(2)}`, accent: "from-violet-500 to-purple-500", bg: "bg-violet-500/10" },
+        ].map((item, i) => (
+          <div key={i} className="rounded-xl bg-card border border-border/50 p-4 hover:border-amber-500/20 transition-colors">
+            <div className={cn("h-8 w-8 rounded-lg bg-gradient-to-br flex items-center justify-center mb-2", item.accent)}>
+              <item.icon className="h-4 w-4 text-white" />
+            </div>
+            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">{item.label}</p>
+            <p className="text-sm font-black text-foreground">{item.value}</p>
+          </div>
+        ))}
+      </div>
+
+      <div className="rounded-xl bg-card border border-border/50 p-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Collection Rate</h4>
+          <span className={cn("text-xl font-black", finances.collectionRate >= 80 ? "text-emerald-500" : finances.collectionRate >= 50 ? "text-amber-500" : "text-red-500")}>
+            {finances.collectionRate}%
+          </span>
+        </div>
+        <div className="h-3 rounded-full bg-muted/50 dark:bg-muted/30 overflow-hidden">
+          <div className="h-full rounded-full transition-all duration-700 shadow-lg"
+            style={{ width: `${finances.collectionRate}%`, background: finances.collectionRate >= 80 ? "linear-gradient(90deg, #10b981, #14b8a6)" : finances.collectionRate >= 50 ? "linear-gradient(90deg, #f59e0b, #f97316)" : "linear-gradient(90deg, #ef4444, #f97316)" }} />
+        </div>
+        <div className="flex items-center gap-4 text-xs text-muted-foreground">
+          <span>{finances.playerCount} approved players</span>
+          <span>{finances.unpaidCount} unpaid</span>
+        </div>
+      </div>
+
+      <div className="rounded-xl border border-border/50 overflow-hidden">
+        <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30">
+          <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Player Payments</h4>
+        </div>
+        <div className="divide-y divide-border/20">
+          {finances.players?.filter((p: any) => p.status !== "REJECTED").map((player: any) => (
+            <div key={player.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`finance-player-${player.id}`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <PlayerAvatar name={player.user?.fullName || "?"} size="sm" />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-foreground truncate">{player.user?.fullName}</p>
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                    <span>£{entryFee.toFixed(2)}</span>
+                    {player.paymentMethod && <span>{player.paymentMethod}</span>}
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Badge className={cn("text-[9px] px-1.5 border font-bold",
+                  player.paymentStatus === "PAID" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                  player.paymentStatus === "PENDING" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+                  "bg-red-500/20 text-red-400 border-red-500/30"
+                )}>{player.paymentStatus}</Badge>
+                {player.paymentStatus === "PENDING" && (
+                  <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                    disabled={updatePaymentMutation.isPending}
+                    onClick={async () => {
+                      try {
+                        await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "PAID" });
+                        toast({ title: "Payment Confirmed" });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <Check className="h-3 w-3 mr-1" />Confirm
+                  </Button>
+                )}
+                {player.paymentStatus === "PAID" && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/30 text-red-500"
+                    disabled={updatePaymentMutation.isPending}
+                    onClick={async () => {
+                      try {
+                        await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "UNPAID" });
+                        toast({ title: "Payment Reverted" });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <X className="h-3 w-3" />
+                  </Button>
+                )}
+                {player.paymentStatus === "UNPAID" && (
+                  <Button size="sm" variant="outline" className="h-7 text-xs border-amber-500/30 text-amber-500"
+                    disabled={updatePaymentMutation.isPending}
+                    onClick={async () => {
+                      try {
+                        await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "PAID" });
+                        toast({ title: "Payment Confirmed" });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <DollarSign className="h-3 w-3 mr-1" />Mark Paid
+                  </Button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AdminPrizesView({ tournamentId, tournament, categories }: { tournamentId: number; tournament: any; categories: any[] }) {
+  const { data: prizes } = useTournamentPrizesQuery(tournamentId);
+  const createPrizeMutation = useCreatePrize();
+  const deletePrizeMutation = useDeletePrize();
+  const { toast } = useToast();
+  const [newPrize, setNewPrize] = useState({ title: "", description: "", placement: 1, prizeValue: "", prizeType: "trophy", iconType: "trophy", categoryId: "" });
+
+  const ICON_OPTIONS = [
+    { value: "trophy", label: "Trophy", icon: Trophy },
+    { value: "medal", label: "Medal", icon: Medal },
+    { value: "star", label: "Star", icon: Star },
+    { value: "crown", label: "Crown", icon: Crown },
+    { value: "award", label: "Award", icon: Award },
+    { value: "gift", label: "Gift", icon: Gift },
+    { value: "flame", label: "Flame", icon: Flame },
+    { value: "dollar", label: "Cash Prize", icon: DollarSign },
+  ];
+
+  async function handleCreate() {
+    if (!newPrize.title.trim()) return toast({ title: "Title is required", variant: "destructive" });
+    try {
+      await createPrizeMutation.mutateAsync({
+        tournamentId,
+        title: newPrize.title,
+        description: newPrize.description || undefined,
+        placement: newPrize.placement,
+        prizeValue: newPrize.prizeValue || undefined,
+        prizeType: newPrize.prizeType,
+        iconType: newPrize.iconType,
+        categoryId: newPrize.categoryId ? Number(newPrize.categoryId) : undefined,
+      });
+      toast({ title: "Prize Created" });
+      setNewPrize({ title: "", description: "", placement: 1, prizeValue: "", prizeType: "trophy", iconType: "trophy", categoryId: "" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl border border-border/50 bg-card p-4 space-y-4">
+        <h4 className="font-black text-foreground text-sm uppercase tracking-wider flex items-center gap-2">
+          <Gift className="h-4 w-4 text-amber-500" />
+          Create Prize
+        </h4>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <input placeholder="Prize Title (e.g., Winner - Men's Doubles)" value={newPrize.title}
+            onChange={(e) => setNewPrize(p => ({ ...p, title: e.target.value }))}
+            className="w-full rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors p-3"
+            data-testid="input-prize-title" />
+          <input placeholder="Prize Value (e.g., £100, Trophy + Medal)" value={newPrize.prizeValue}
+            onChange={(e) => setNewPrize(p => ({ ...p, prizeValue: e.target.value }))}
+            className="w-full rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors p-3"
+            data-testid="input-prize-value" />
+        </div>
+        <textarea placeholder="Description (optional)" value={newPrize.description}
+          onChange={(e) => setNewPrize(p => ({ ...p, description: e.target.value }))}
+          rows={2}
+          className="w-full rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors p-3 resize-none"
+          data-testid="input-prize-description" />
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase">Placement</label>
+            <select value={newPrize.placement} onChange={(e) => setNewPrize(p => ({ ...p, placement: Number(e.target.value) }))}
+              className="w-full rounded-lg bg-card border border-border text-sm text-foreground p-2 outline-none focus:border-amber-500/40">
+              <option value={1}>1st Place</option>
+              <option value={2}>2nd Place</option>
+              <option value={3}>3rd Place</option>
+              <option value={4}>4th Place</option>
+              <option value={5}>Special Prize</option>
+            </select>
+          </div>
+          <div className="space-y-1.5">
+            <label className="text-[10px] font-bold text-muted-foreground uppercase">Icon</label>
+            <select value={newPrize.iconType} onChange={(e) => setNewPrize(p => ({ ...p, iconType: e.target.value }))}
+              className="w-full rounded-lg bg-card border border-border text-sm text-foreground p-2 outline-none focus:border-amber-500/40">
+              {ICON_OPTIONS.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+            </select>
+          </div>
+          {categories.length > 0 && (
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-bold text-muted-foreground uppercase">Category</label>
+              <select value={newPrize.categoryId} onChange={(e) => setNewPrize(p => ({ ...p, categoryId: e.target.value }))}
+                className="w-full rounded-lg bg-card border border-border text-sm text-foreground p-2 outline-none focus:border-amber-500/40">
+                <option value="">All Categories</option>
+                {categories.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+              </select>
+            </div>
+          )}
+        </div>
+        <Button className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
+          disabled={createPrizeMutation.isPending}
+          data-testid="button-create-prize"
+          onClick={handleCreate}>
+          {createPrizeMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+          Add Prize
+        </Button>
+      </div>
+
+      {prizes && prizes.length > 0 && (
+        <div className="rounded-xl border border-border/50 overflow-hidden">
+          <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30">
+            <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Current Prizes ({prizes.length})</h4>
+          </div>
+          <div className="divide-y divide-border/20">
+            {prizes.map((prize: any) => {
+              const PrizeIcon = { trophy: Trophy, medal: Medal, star: Star, crown: Crown, award: Award, gift: Gift, flame: Flame, dollar: DollarSign }[prize.iconType as string] || Trophy;
+              const placementColors = ["from-amber-400 to-yellow-500", "from-slate-300 to-slate-400", "from-amber-600 to-orange-700", "from-blue-400 to-indigo-500"];
+              return (
+                <div key={prize.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`admin-prize-${prize.id}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <div className={cn("h-10 w-10 rounded-xl bg-gradient-to-br flex items-center justify-center shadow-lg", placementColors[Math.min(prize.placement - 1, 3)])}>
+                      <PrizeIcon className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="min-w-0">
+                      <p className="text-sm font-bold text-foreground truncate">{prize.title}</p>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                        <span>{prize.placement === 1 ? "1st" : prize.placement === 2 ? "2nd" : prize.placement === 3 ? "3rd" : `${prize.placement}th`} Place</span>
+                        {prize.prizeValue && <Badge variant="outline" className="text-[9px] font-bold">{prize.prizeValue}</Badge>}
+                      </div>
+                    </div>
+                  </div>
+                  <Button size="sm" variant="ghost" className="h-7 text-destructive"
+                    disabled={deletePrizeMutation.isPending}
+                    onClick={async () => {
+                      try {
+                        await deletePrizeMutation.mutateAsync({ prizeId: prize.id, tournamentId });
+                        toast({ title: "Prize Deleted" });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <Trash2 className="h-3 w-3" />
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PrizesTab({ tournamentId, tournament, categories }: { tournamentId: number; tournament: any; categories: any[] }) {
+  const { data: prizes, isLoading } = useTournamentPrizesQuery(tournamentId);
+
+  const ICON_MAP: Record<string, any> = { trophy: Trophy, medal: Medal, star: Star, crown: Crown, award: Award, gift: Gift, flame: Flame, dollar: DollarSign };
+
+  const entryFee = parseFloat(tournament.entryFee || "0");
+  const regCount = tournament.registrationCount || 0;
+  const prizePool = entryFee * regCount;
+
+  const placementLabels = ["Champion", "Runner-Up", "3rd Place", "4th Place", "Special"];
+  const placementGradients = [
+    "from-amber-400 via-yellow-400 to-amber-500",
+    "from-slate-300 via-slate-200 to-slate-400",
+    "from-amber-600 via-orange-500 to-amber-700",
+    "from-blue-400 via-indigo-400 to-blue-500",
+    "from-violet-400 via-purple-400 to-violet-500",
+  ];
+  const placementShadows = [
+    "shadow-amber-500/30",
+    "shadow-slate-400/30",
+    "shadow-orange-500/30",
+    "shadow-blue-500/30",
+    "shadow-violet-500/30",
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div className="relative overflow-hidden rounded-2xl min-h-[180px]">
+        <div className="absolute inset-0 bg-gradient-to-br from-amber-500/90 via-orange-500/80 to-red-500/70" />
+        <div className="absolute inset-0" style={{ backgroundImage: "radial-gradient(circle at 20% 80%, rgba(255,255,255,0.15) 0%, transparent 50%), radial-gradient(circle at 80% 20%, rgba(255,255,255,0.1) 0%, transparent 40%)" }} />
+        <div className="relative z-10 flex flex-col items-center justify-center min-h-[180px] px-6 py-8 text-center">
+          <div className="h-16 w-16 rounded-2xl bg-white/20 backdrop-blur-sm flex items-center justify-center mb-4 shadow-xl shadow-black/10">
+            <Trophy className="h-8 w-8 text-white" />
+          </div>
+          <h2 className="text-2xl font-black text-white tracking-tight mb-1">Prizes & Rewards</h2>
+          <p className="text-white/80 text-sm font-medium">{tournament.name}</p>
+          {prizePool > 0 && (
+            <div className="mt-3 px-4 py-1.5 rounded-full bg-white/20 backdrop-blur-sm">
+              <span className="text-white font-black text-sm">Prize Pool: £{prizePool.toFixed(2)}</span>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {entryFee > 0 && (
+        <div className="grid grid-cols-3 gap-3">
+          <div className="rounded-xl bg-card border border-border/50 p-4 text-center">
+            <DollarSign className="h-5 w-5 text-amber-500 mx-auto mb-1" />
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">Entry Fee</p>
+            <p className="text-lg font-black text-foreground">£{entryFee.toFixed(2)}</p>
+          </div>
+          <div className="rounded-xl bg-card border border-border/50 p-4 text-center">
+            <Users className="h-5 w-5 text-blue-500 mx-auto mb-1" />
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">Players</p>
+            <p className="text-lg font-black text-foreground">{regCount}</p>
+          </div>
+          <div className="rounded-xl bg-card border border-border/50 p-4 text-center">
+            <Trophy className="h-5 w-5 text-emerald-500 mx-auto mb-1" />
+            <p className="text-[10px] font-bold text-muted-foreground uppercase">Prizes</p>
+            <p className="text-lg font-black text-foreground">{prizes?.length || 0}</p>
+          </div>
+        </div>
+      )}
+
+      {isLoading ? (
+        <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />
+      ) : !prizes || prizes.length === 0 ? (
+        <div className="rounded-2xl border border-border/50 bg-card p-8 text-center">
+          <div className="h-16 w-16 rounded-2xl bg-muted/30 flex items-center justify-center mx-auto mb-4">
+            <Gift className="h-8 w-8 text-muted-foreground/40" />
+          </div>
+          <h3 className="text-lg font-black text-foreground mb-1">Prizes Coming Soon</h3>
+          <p className="text-sm text-muted-foreground">Tournament prizes will be announced shortly. Stay tuned!</p>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {prizes.map((prize: any, i: number) => {
+            const PrizeIcon = ICON_MAP[prize.iconType] || Trophy;
+            const gradientIdx = Math.min(prize.placement - 1, 4);
+            const cat = categories.find(c => c.id === prize.categoryId);
+
+            return (
+              <div key={prize.id}
+                className="group relative rounded-2xl border border-border/50 bg-card overflow-hidden hover:border-amber-500/30 transition-all duration-300"
+                data-testid={`prize-card-${prize.id}`}>
+                <div className={cn("absolute top-0 left-0 w-1.5 h-full rounded-l-2xl bg-gradient-to-b opacity-80", placementGradients[gradientIdx])} />
+                <div className="pl-5 pr-4 py-4 flex items-start gap-4">
+                  <div className={cn("h-14 w-14 rounded-2xl bg-gradient-to-br flex items-center justify-center shadow-xl flex-shrink-0",
+                    placementGradients[gradientIdx], placementShadows[gradientIdx])}>
+                    <PrizeIcon className="h-7 w-7 text-white drop-shadow-md" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2 mb-0.5">
+                      <Badge className={cn("text-[9px] px-1.5 border font-black",
+                        gradientIdx === 0 ? "bg-amber-500/20 text-amber-500 border-amber-500/30" :
+                        gradientIdx === 1 ? "bg-slate-400/20 text-slate-400 border-slate-400/30" :
+                        gradientIdx === 2 ? "bg-orange-500/20 text-orange-500 border-orange-500/30" :
+                        "bg-blue-500/20 text-blue-500 border-blue-500/30"
+                      )}>
+                        {placementLabels[gradientIdx]}
+                      </Badge>
+                      {cat && <Badge variant="outline" className="text-[9px] font-bold">{cat.name}</Badge>}
+                    </div>
+                    <h3 className="text-base font-black text-foreground">{prize.title}</h3>
+                    {prize.description && <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{prize.description}</p>}
+                    {prize.prizeValue && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-500/10 border border-amber-500/20">
+                        <DollarSign className="h-3 w-3 text-amber-500" />
+                        <span className="text-xs font-black text-amber-500">{prize.prizeValue}</span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {tournament.rules && (
+        <div className="rounded-xl bg-card border border-border/50 p-4">
+          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-2">Tournament Rules</h3>
+          <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{tournament.rules}</p>
         </div>
       )}
     </div>

@@ -441,6 +441,7 @@ export const matches = pgTable("matches", {
 export const tournamentRegistrationStatusEnum = pgEnum("tournament_registration_status", ["PENDING", "APPROVED", "REJECTED", "WAITLISTED"]);
 export const tournamentRegistrationTypeEnum = pgEnum("tournament_registration_type", ["PAIR", "INDIVIDUAL"]);
 export const tournamentPairRequestStatusEnum = pgEnum("tournament_pair_request_status", ["PENDING", "ACCEPTED", "DECLINED"]);
+export const tournamentPaymentStatusEnum = pgEnum("tournament_payment_status", ["UNPAID", "PENDING", "PAID"]);
 
 export const tournaments = pgTable("tournaments", {
   id: serial("id").primaryKey(),
@@ -540,6 +541,9 @@ export const tournamentRegistrations = pgTable("tournament_registrations", {
   partnerName: text("partner_name"),
   status: tournamentRegistrationStatusEnum("status").default("PENDING").notNull(),
   paymentConfirmed: boolean("payment_confirmed").default(false).notNull(),
+  paymentStatus: tournamentPaymentStatusEnum("payment_status").default("UNPAID").notNull(),
+  paymentMethod: text("payment_method"),
+  paidAt: timestamp("paid_at"),
   categoryId: integer("category_id").references(() => tournamentCategories.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -559,6 +563,19 @@ export const tournamentWaitlist = pgTable("tournament_waitlist", {
   tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
   position: integer("position").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentPrizes = pgTable("tournament_prizes", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  categoryId: integer("category_id").references(() => tournamentCategories.id),
+  title: text("title").notNull(),
+  description: text("description"),
+  placement: integer("placement").notNull(),
+  prizeValue: text("prize_value"),
+  prizeType: text("prize_type").default("trophy"),
+  iconType: text("icon_type").default("trophy"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -971,6 +988,7 @@ export type TournamentStanding = typeof tournamentStandings.$inferSelect;
 export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect;
 export type TournamentPairRequest = typeof tournamentPairRequests.$inferSelect;
 export type TournamentWaitlistEntry = typeof tournamentWaitlist.$inferSelect;
+export type TournamentPrize = typeof tournamentPrizes.$inferSelect;
 export type Coach = typeof coaches.$inferSelect;
 export type CoachSeekerMembership = typeof coachSeekerMemberships.$inferSelect;
 export type Review = typeof reviews.$inferSelect;

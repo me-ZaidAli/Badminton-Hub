@@ -4,7 +4,8 @@ import { eq, and, or, desc, asc, sql, inArray, ne } from "drizzle-orm";
 import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches,
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
-  tournamentWaitlist, tournamentAdmins, users, clubs, venues, playerProfiles, matches,
+  tournamentWaitlist, tournamentAdmins, tournamentPrizes,
+  users, clubs, venues, playerProfiles, matches,
   notifications, clubMemberships, internalMessages
 } from "@shared/schema";
 
@@ -1085,6 +1086,227 @@ export function registerTournamentRoutes(app: Express) {
       }
 
       res.json({ message: `${demoRegs.length} demo players removed`, removed: demoRegs.length });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/tournaments/:id/finances", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      if (!tournament) return res.status(404).json({ message: "Not found" });
+
+      const regs = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), ne(tournamentRegistrations.status, "REJECTED")));
+
+      const enriched = await Promise.all(regs.map(async (reg) => {
+        const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
+          .from(users).where(eq(users.id, reg.userId));
+        return { ...reg, user };
+      }));
+
+      const entryFee = parseFloat(tournament.entryFee || "0");
+      const totalExpected = enriched.filter(r => r.status === "APPROVED").length * entryFee;
+      const totalCollected = enriched.filter(r => r.paymentStatus === "PAID").length * entryFee;
+      const totalPending = enriched.filter(r => r.paymentStatus === "PENDING").length * entryFee;
+      const unpaidCount = enriched.filter(r => r.paymentStatus === "UNPAID" && r.status === "APPROVED").length;
+      const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
+
+      res.json({
+        entryFee,
+        totalExpected,
+        totalCollected,
+        totalPending,
+        unpaidCount,
+        collectionRate,
+        playerCount: enriched.filter(r => r.status === "APPROVED").length,
+        players: enriched,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/confirm-payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const userId = req.user!.id;
+      const { paymentMethod } = req.body;
+
+      const [reg] = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, userId)));
+      if (!reg) return res.status(404).json({ message: "Registration not found" });
+
+      const [updated] = await db.update(tournamentRegistrations)
+        .set({ paymentStatus: "PENDING", paymentMethod: paymentMethod || "BANK_TRANSFER", paymentConfirmed: true })
+        .where(eq(tournamentRegistrations.id, reg.id)).returning();
+
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      const [player] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, userId));
+
+      const adminUsers = await db.select({ userId: tournamentAdmins.userId }).from(tournamentAdmins)
+        .where(eq(tournamentAdmins.tournamentId, tournamentId));
+      const [creator] = tournament?.createdBy ? await db.select({ id: users.id }).from(users).where(eq(users.id, tournament.createdBy)) : [null];
+      const adminIds = new Set([...adminUsers.map(a => a.userId), ...(creator ? [creator.id] : [])]);
+      const ownerUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "OWNER"));
+      ownerUsers.forEach(u => adminIds.add(u.id));
+
+      for (const adminId of adminIds) {
+        await db.insert(notifications).values({
+          userId: adminId,
+          type: "GENERAL",
+          title: "Tournament Payment Submitted",
+          message: `${player?.fullName} has confirmed payment for "${tournament?.name}". Method: ${paymentMethod || "Bank Transfer"}.`,
+          linkUrl: `/tournaments/${tournamentId}`,
+        });
+        await db.insert(internalMessages).values({
+          senderId: userId,
+          recipientId: adminId,
+          subject: `Tournament Payment - ${tournament?.name}`,
+          body: `${player?.fullName} has confirmed their payment of £${tournament?.entryFee || "0"} for "${tournament?.name}". Payment method: ${paymentMethod || "Bank Transfer"}. Please verify and approve.`,
+          messageCategory: "PAYMENT",
+        });
+      }
+
+      await db.insert(notifications).values({
+        userId,
+        type: "GENERAL",
+        title: "Payment Submitted",
+        message: `Your payment for "${tournament?.name}" has been submitted and is awaiting admin verification.`,
+        linkUrl: `/tournaments/${tournamentId}`,
+      });
+
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournaments/:id/payment/:regId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const regId = Number(req.params.regId);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { paymentStatus } = req.body;
+      const updateData: any = { paymentStatus };
+      if (paymentStatus === "PAID") {
+        updateData.paidAt = new Date();
+        updateData.paymentConfirmed = true;
+      } else if (paymentStatus === "UNPAID") {
+        updateData.paidAt = null;
+        updateData.paymentConfirmed = false;
+      }
+
+      const [updated] = await db.update(tournamentRegistrations)
+        .set(updateData).where(and(eq(tournamentRegistrations.id, regId), eq(tournamentRegistrations.tournamentId, tournamentId))).returning();
+      if (!updated) return res.status(404).json({ message: "Registration not found" });
+
+      if (paymentStatus === "PAID" && updated) {
+        const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+        const [player] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, updated.userId));
+        await db.insert(notifications).values({
+          userId: updated.userId,
+          type: "GENERAL",
+          title: "Payment Confirmed",
+          message: `Your payment of £${tournament?.entryFee || "0"} for "${tournament?.name}" has been confirmed. You're all set!`,
+          linkUrl: `/tournaments/${tournamentId}`,
+        });
+        await db.insert(internalMessages).values({
+          senderId: req.user!.id,
+          recipientId: updated.userId,
+          subject: `Payment Confirmed - ${tournament?.name}`,
+          body: `Hi ${player?.fullName}, your payment for "${tournament?.name}" has been confirmed by the admin. You're all set for the tournament!`,
+          messageCategory: "PAYMENT",
+        });
+      }
+
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/tournaments/:id/prizes", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const prizes = await db.select().from(tournamentPrizes)
+        .where(eq(tournamentPrizes.tournamentId, tournamentId))
+        .orderBy(asc(tournamentPrizes.placement));
+      res.json(prizes);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/prizes", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { title, description, categoryId, placement, prizeValue, prizeType, iconType } = req.body;
+      const [prize] = await db.insert(tournamentPrizes).values({
+        tournamentId,
+        categoryId: categoryId || null,
+        title,
+        description: description || null,
+        placement: placement || 1,
+        prizeValue: prizeValue || null,
+        prizeType: prizeType || "trophy",
+        iconType: iconType || "trophy",
+      }).returning();
+      res.json(prize);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-prizes/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const prizeId = Number(req.params.id);
+      const [existing] = await db.select().from(tournamentPrizes).where(eq(tournamentPrizes.id, prizeId));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, existing.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { title, description, placement, prizeValue, prizeType, iconType, categoryId } = req.body;
+      const [updated] = await db.update(tournamentPrizes).set({
+        ...(title !== undefined && { title }),
+        ...(description !== undefined && { description }),
+        ...(placement !== undefined && { placement }),
+        ...(prizeValue !== undefined && { prizeValue }),
+        ...(prizeType !== undefined && { prizeType }),
+        ...(iconType !== undefined && { iconType }),
+        ...(categoryId !== undefined && { categoryId }),
+      }).where(eq(tournamentPrizes.id, prizeId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/tournament-prizes/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const prizeId = Number(req.params.id);
+      const [existing] = await db.select().from(tournamentPrizes).where(eq(tournamentPrizes.id, prizeId));
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, existing.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      await db.delete(tournamentPrizes).where(eq(tournamentPrizes.id, prizeId));
+      res.json({ message: "Deleted" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

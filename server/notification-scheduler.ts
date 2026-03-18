@@ -4,6 +4,7 @@ import {
   clubMemberships, membershipPlans, referrals,
   notifications, internalMessages, notificationLogs,
   notificationScheduleSettings, creditLedger,
+  tournaments, tournamentRegistrations,
 } from "@shared/schema";
 import { eq, and, lt, gt, gte, lte, inArray, isNull, sql, ne } from "drizzle-orm";
 import { sendEmail } from "./email";
@@ -799,6 +800,72 @@ export async function sendAdminSessionReminder(sessionId: number, adminUserId: n
 // ============================================================
 // MAIN SCHEDULER
 // ============================================================
+async function processTournamentPaymentReminders() {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  if (dayOfWeek !== 1) return;
+
+  const upcomingTournaments = await db.select().from(tournaments)
+    .where(and(
+      gt(tournaments.startDate, now),
+      ne(tournaments.status, "COMPLETED"),
+    ));
+
+  for (const tournament of upcomingTournaments) {
+    if (!tournament.entryFee || parseFloat(tournament.entryFee) === 0) continue;
+
+    const unpaidRegs = await db.select().from(tournamentRegistrations)
+      .where(and(
+        eq(tournamentRegistrations.tournamentId, tournament.id),
+        eq(tournamentRegistrations.status, "APPROVED"),
+        ne(tournamentRegistrations.paymentStatus, "PAID"),
+      ));
+
+    for (const reg of unpaidRegs) {
+      const scheduleKey = `tournament-payment-${tournament.id}-${reg.userId}-${now.toISOString().slice(0, 10)}`;
+      const [existing] = await db.select().from(notificationLogs)
+        .where(eq(notificationLogs.scheduleKey, scheduleKey));
+      if (existing) continue;
+
+      const [player] = await db.select({ fullName: users.fullName, email: users.email })
+        .from(users).where(eq(users.id, reg.userId));
+      if (!player) continue;
+
+      const daysUntil = Math.ceil((new Date(tournament.startDate).getTime() - now.getTime()) / (86400000));
+      const message = `Reminder: Your payment of £${tournament.entryFee} for "${tournament.name}" is still pending. Tournament starts in ${daysUntil} day${daysUntil === 1 ? "" : "s"}. Please confirm your payment.`;
+
+      await db.insert(notifications).values({
+        userId: reg.userId,
+        type: "PAYMENT_REMINDER",
+        title: "Tournament Payment Reminder",
+        message,
+        linkUrl: `/tournaments/${tournament.id}`,
+      });
+
+      await db.insert(internalMessages).values({
+        senderId: SYSTEM_SENDER_ID,
+        recipientId: reg.userId,
+        subject: `Payment Reminder - ${tournament.name}`,
+        body: message,
+        messageCategory: "PAYMENT",
+      });
+
+      await db.insert(notificationLogs).values({
+        recipientUserId: reg.userId,
+        entityType: "tournament",
+        entityId: tournament.id,
+        scheduleKey,
+        channel: "IN_APP",
+        status: "SENT",
+        templateName: "tournament_payment_reminder",
+        messageContent: message,
+      });
+
+      console.log(`[TOURNAMENT REMINDER] Sent payment reminder to ${player.fullName} for ${tournament.name}`);
+    }
+  }
+}
+
 export async function runNotificationScheduler() {
   console.log("[NOTIFICATION SCHEDULER] Starting scheduled notification check...");
   try {
@@ -825,6 +892,11 @@ export async function runNotificationScheduler() {
     await processSessionAvailabilityReminders();
   } catch (err) {
     console.error("[NOTIFICATION SCHEDULER] Session availability reminders failed:", err);
+  }
+  try {
+    await processTournamentPaymentReminders();
+  } catch (err) {
+    console.error("[NOTIFICATION SCHEDULER] Tournament payment reminders failed:", err);
   }
   console.log("[NOTIFICATION SCHEDULER] Scheduled notification check complete.");
 }

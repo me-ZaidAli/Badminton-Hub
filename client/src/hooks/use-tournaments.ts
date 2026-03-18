@@ -462,3 +462,90 @@ export function useClearDemoPlayers() {
     },
   });
 }
+
+export function useTournamentFinances(tournamentId: number) {
+  return useQuery<any>({
+    queryKey: ["/api/tournaments", tournamentId, "finances"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/finances`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useConfirmTournamentPayment() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, paymentMethod }: { tournamentId: number; paymentMethod?: string }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/confirm-payment`, { paymentMethod });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "registrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+    },
+  });
+}
+
+export function useUpdateTournamentPayment() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, regId, paymentStatus }: { tournamentId: number; regId: number; paymentStatus: string }) => {
+      const res = await apiRequest("PATCH", `/api/tournaments/${tournamentId}/payment/${regId}`, { paymentStatus });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "registrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
+    },
+  });
+}
+
+export function useTournamentPrizesQuery(tournamentId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/tournaments", tournamentId, "prizes"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/prizes`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useCreatePrize() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, ...data }: { tournamentId: number; title: string; description?: string; categoryId?: number; placement: number; prizeValue?: string; prizeType?: string; iconType?: string }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/prizes`, data);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "prizes"] });
+    },
+  });
+}
+
+export function useUpdatePrize() {
+  return useMutation({
+    mutationFn: async ({ prizeId, tournamentId, ...data }: { prizeId: number; tournamentId: number; [key: string]: any }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-prizes/${prizeId}`, data);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "prizes"] });
+    },
+  });
+}
+
+export function useDeletePrize() {
+  return useMutation({
+    mutationFn: async ({ prizeId, tournamentId }: { prizeId: number; tournamentId: number }) => {
+      const res = await apiRequest("DELETE", `/api/tournament-prizes/${prizeId}`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "prizes"] });
+    },
+  });
+}
