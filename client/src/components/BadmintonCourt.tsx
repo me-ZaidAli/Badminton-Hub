@@ -4,11 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, Play, Square, Clock, Users, Pencil, Trophy, ArrowRight, RotateCcw, CheckCircle } from "lucide-react";
+import { Play, Square, Clock, Users, Pencil, ArrowRight, RotateCcw, CheckCircle } from "lucide-react";
 import { cn } from "@/lib/utils";
 import courtImage from "@assets/image_1770246183034.png";
+import { PlayerSlotEditable } from "@/components/PlayerSlotEditable";
 
 type Player = {
   id: number;
@@ -103,85 +103,6 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
-function PlayerSlot({
-  player,
-  position,
-  availablePlayers,
-  isOrganiser,
-  onSwap,
-  team,
-}: {
-  player: MatchPlayer | null;
-  position: string;
-  availablePlayers: Player[];
-  isOrganiser: boolean;
-  onSwap: (playerId: number) => void;
-  team: "A" | "B";
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const filteredPlayers = availablePlayers.filter(p =>
-    p.fullName.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (!player) return <div className="h-10 bg-muted/30 rounded flex items-center justify-center text-xs text-muted-foreground">Empty</div>;
-
-  const teamStyles = team === "A"
-    ? "bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100"
-    : "bg-rose-50 dark:bg-rose-950/60 border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-100";
-
-  const hoverStyles = team === "A"
-    ? "hover:border-blue-400 dark:hover:border-blue-600 hover:bg-blue-100/60 dark:hover:bg-blue-900/40"
-    : "hover:border-rose-400 dark:hover:border-rose-600 hover:bg-rose-100/60 dark:hover:bg-rose-900/40";
-
-  return (
-    <>
-      <div
-        onClick={() => isOrganiser && setOpen(true)}
-        className={cn(
-          "px-2 sm:px-3 py-1.5 sm:py-2 rounded-lg border text-center transition-all min-w-0",
-          teamStyles,
-          isOrganiser && cn("cursor-pointer", hoverStyles)
-        )}
-        data-testid={`player-slot-${position}`}
-      >
-        <div className="font-semibold text-xs sm:text-sm truncate">{player.user?.fullName || (player as any)?.fullName || "Unknown"}</div>
-        <Badge variant="outline" className={cn("text-xs mt-1", team === "A" ? "border-blue-300 dark:border-blue-700 text-blue-700 dark:text-blue-300" : "border-rose-300 dark:border-rose-700 text-rose-700 dark:text-rose-300")}>{player.category || "?"}</Badge>
-      </div>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Swap Player</DialogTitle>
-          </DialogHeader>
-          <Command className="rounded-lg border shadow-md">
-            <CommandInput placeholder="Search players..." value={search} onValueChange={setSearch} data-testid="input-search-player" />
-            <CommandList>
-              <CommandEmpty>No players found.</CommandEmpty>
-              <CommandGroup>
-                {filteredPlayers.map((p) => (
-                  <CommandItem
-                    key={p.id}
-                    value={p.fullName}
-                    onSelect={() => {
-                      onSwap(p.id);
-                      setOpen(false);
-                    }}
-                    data-testid={`select-player-${p.id}`}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", player.id === p.id ? "opacity-100" : "opacity-0")} />
-                    {p.fullName} ({p.category || "?"})
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
 
 export function BadmintonCourt({
   courtNumber,
@@ -470,24 +391,26 @@ export function BadmintonCourt({
               >
                 <div className="relative z-10 grid grid-cols-[1fr_auto_1fr] gap-1 sm:gap-2 h-full items-center">
                   <div className="flex flex-col justify-around items-stretch gap-2 min-w-0">
-                    <PlayerSlot
+                    <PlayerSlotEditable
                       player={match.teamAPlayer1}
-                      position="teamAPlayer1"
+                      position="teamAPlayer1Id"
+                      matchId={match.id}
                       availablePlayers={availablePlayers}
-                      isOrganiser={isOrganiser && match.status !== "COMPLETED"}
-                      onSwap={(id) => onSwapPlayer(match.id, "teamAPlayer1Id", id)}
+                      isOrganiser={isOrganiser}
+                      onSwap={onSwapPlayer}
+                      variant="court"
                       team="A"
                     />
-                    {match.teamAPlayer2 && (
-                      <PlayerSlot
-                        player={match.teamAPlayer2}
-                        position="teamAPlayer2"
-                        availablePlayers={availablePlayers}
-                        isOrganiser={isOrganiser && match.status !== "COMPLETED"}
-                        onSwap={(id) => onSwapPlayer(match.id, "teamAPlayer2Id", id)}
-                        team="A"
-                      />
-                    )}
+                    <PlayerSlotEditable
+                      player={match.teamAPlayer2 || null}
+                      position="teamAPlayer2Id"
+                      matchId={match.id}
+                      availablePlayers={availablePlayers}
+                      isOrganiser={isOrganiser}
+                      onSwap={onSwapPlayer}
+                      variant="court"
+                      team="A"
+                    />
                   </div>
 
                   <div className="flex items-center justify-center px-1 sm:px-3">
@@ -523,24 +446,26 @@ export function BadmintonCourt({
                   </div>
 
                   <div className="flex flex-col justify-around items-stretch gap-2 min-w-0">
-                    <PlayerSlot
+                    <PlayerSlotEditable
                       player={match.teamBPlayer1}
-                      position="teamBPlayer1"
+                      position="teamBPlayer1Id"
+                      matchId={match.id}
                       availablePlayers={availablePlayers}
-                      isOrganiser={isOrganiser && match.status !== "COMPLETED"}
-                      onSwap={(id) => onSwapPlayer(match.id, "teamBPlayer1Id", id)}
+                      isOrganiser={isOrganiser}
+                      onSwap={onSwapPlayer}
+                      variant="court"
                       team="B"
                     />
-                    {match.teamBPlayer2 && (
-                      <PlayerSlot
-                        player={match.teamBPlayer2}
-                        position="teamBPlayer2"
-                        availablePlayers={availablePlayers}
-                        isOrganiser={isOrganiser && match.status !== "COMPLETED"}
-                        onSwap={(id) => onSwapPlayer(match.id, "teamBPlayer2Id", id)}
-                        team="B"
-                      />
-                    )}
+                    <PlayerSlotEditable
+                      player={match.teamBPlayer2 || null}
+                      position="teamBPlayer2Id"
+                      matchId={match.id}
+                      availablePlayers={availablePlayers}
+                      isOrganiser={isOrganiser}
+                      onSwap={onSwapPlayer}
+                      variant="court"
+                      team="B"
+                    />
                   </div>
                 </div>
               </div>

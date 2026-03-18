@@ -3,16 +3,16 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Check, GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, Trophy, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Flame, Lightbulb, TrendingDown } from "lucide-react";
+import { GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Lightbulb, TrendingDown } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
 import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget, useCreateEmptyMatch, usePrioritizeLowGames } from "@/hooks/use-matches";
 import { format } from "date-fns";
+import { PlayerSlotEditable } from "@/components/PlayerSlotEditable";
 
 type Player = {
   id: number;
@@ -42,127 +42,6 @@ type MatchQueueProps = {
   achievements?: Record<number, { trophy?: boolean; fire?: boolean }>;
 };
 
-function PlayerBadge({
-  player,
-  position,
-  matchId,
-  availablePlayers,
-  isOrganiser,
-  onSwap,
-  isBusy,
-  sessionMatchCount,
-  achievements,
-}: {
-  player: { id: number; user: { fullName: string }; category: string | null } | null;
-  position: string;
-  matchId: number;
-  availablePlayers: Player[];
-  isOrganiser: boolean;
-  onSwap: (matchId: number, position: string, playerId: number) => void;
-  isBusy?: boolean;
-  sessionMatchCount?: number;
-  achievements?: Record<number, { trophy?: boolean; fire?: boolean }>;
-}) {
-  const [open, setOpen] = useState(false);
-  const [search, setSearch] = useState("");
-
-  const filteredPlayers = availablePlayers.filter(p =>
-    p.fullName.toLowerCase().includes(search.toLowerCase())
-  );
-
-  if (!player) {
-    if (!isOrganiser) return <Badge variant="outline" className="text-xs py-1 border-dashed opacity-50">Empty</Badge>;
-    return (
-      <>
-        <Badge
-          variant="outline"
-          className="text-xs py-1 border-dashed cursor-pointer hover:bg-primary/10"
-          onClick={() => setOpen(true)}
-          data-testid={`queue-player-empty-${matchId}-${position}`}
-        >
-          + Select
-        </Badge>
-        <Dialog open={open} onOpenChange={setOpen}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Select Player</DialogTitle>
-            </DialogHeader>
-            <Command className="rounded-lg border shadow-md">
-              <CommandInput placeholder="Search players..." value={search} onValueChange={setSearch} />
-              <CommandList>
-                <CommandEmpty>No players found.</CommandEmpty>
-                <CommandGroup>
-                  {filteredPlayers.map((p) => (
-                    <CommandItem
-                      key={p.id}
-                      value={p.fullName}
-                      onSelect={() => {
-                        onSwap(matchId, position, p.id);
-                        setOpen(false);
-                      }}
-                    >
-                      {p.fullName} ({p.category || "?"})
-                    </CommandItem>
-                  ))}
-                </CommandGroup>
-              </CommandList>
-            </Command>
-          </DialogContent>
-        </Dialog>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <Badge
-        variant="outline"
-        className={cn(
-          "text-xs py-1 max-w-full truncate inline-flex items-center gap-0.5",
-          isOrganiser && "cursor-pointer hover:bg-primary/10",
-          isBusy && "border-red-500 text-red-600 dark:text-red-400 bg-red-50 dark:bg-red-950/30"
-        )}
-        onClick={() => isOrganiser && setOpen(true)}
-        data-testid={`queue-player-${matchId}-${position}`}
-        title={isBusy ? "This player is already in another live or queued match" : undefined}
-      >
-        <span className="truncate">{player.user?.fullName || player.fullName || "Unknown"}</span>
-        {sessionMatchCount != null && <span className="text-muted-foreground text-[10px] shrink-0">({sessionMatchCount})</span>}
-        {achievements && player.id && achievements[player.id]?.trophy && <Trophy className="w-3 h-3 text-amber-400 shrink-0" />}
-        {achievements && player.id && achievements[player.id]?.fire && <Flame className="w-3 h-3 text-orange-400 shrink-0" />}
-      </Badge>
-
-      <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle>Swap Player</DialogTitle>
-          </DialogHeader>
-          <Command className="rounded-lg border shadow-md">
-            <CommandInput placeholder="Search players..." value={search} onValueChange={setSearch} />
-            <CommandList>
-              <CommandEmpty>No players found.</CommandEmpty>
-              <CommandGroup>
-                {filteredPlayers.map((p) => (
-                  <CommandItem
-                    key={p.id}
-                    value={p.fullName}
-                    onSelect={() => {
-                      onSwap(matchId, position, p.id);
-                      setOpen(false);
-                    }}
-                  >
-                    <Check className={cn("mr-2 h-4 w-4", player.id === p.id ? "opacity-100" : "opacity-0")} />
-                    {p.fullName} ({p.category || "?"})
-                  </CommandItem>
-                ))}
-              </CommandGroup>
-            </CommandList>
-          </Command>
-        </DialogContent>
-      </Dialog>
-    </>
-  );
-}
 
 function EditableTarget({
   matchId,
@@ -459,30 +338,30 @@ export function MatchQueue({
 
                       <div className="flex items-stretch min-h-[70px] px-1.5 sm:px-2 pb-2 overflow-hidden">
                         <div className="flex-1 min-w-0 rounded-xl bg-blue-50/80 dark:bg-blue-950/30 border border-blue-200/60 dark:border-blue-800/40 p-2 sm:p-3 flex flex-col items-center justify-center gap-1">
-                          <PlayerBadge
+                          <PlayerSlotEditable
                             player={match.teamAPlayer1}
                             position="teamAPlayer1Id"
                             matchId={match.id}
                             availablePlayers={availablePlayers}
                             isOrganiser={isOrganiser}
                             onSwap={onSwapPlayer}
+                            variant="queue"
                             isBusy={isPlayerBusy(match.teamAPlayer1?.id)}
                             sessionMatchCount={match.teamAPlayer1?.id ? sessionMatchCounts?.[match.teamAPlayer1.id] : undefined}
                             achievements={achievements}
                           />
-                          {(match.teamAPlayer2 || isOrganiser) && (
-                            <PlayerBadge
-                              player={match.teamAPlayer2 || null}
-                              position="teamAPlayer2Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                              isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
-                              sessionMatchCount={match.teamAPlayer2?.id ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
-                              achievements={achievements}
-                            />
-                          )}
+                          <PlayerSlotEditable
+                            player={match.teamAPlayer2 || null}
+                            position="teamAPlayer2Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                            variant="queue"
+                            isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
+                            sessionMatchCount={match.teamAPlayer2?.id ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
+                            achievements={achievements}
+                          />
                         </div>
 
                         <div className="flex items-center justify-center px-1 sm:px-1.5 shrink-0">
@@ -492,30 +371,30 @@ export function MatchQueue({
                         </div>
 
                         <div className="flex-1 min-w-0 rounded-xl bg-rose-50/80 dark:bg-rose-950/30 border border-rose-200/60 dark:border-rose-800/40 p-2 sm:p-3 flex flex-col items-center justify-center gap-1">
-                          <PlayerBadge
+                          <PlayerSlotEditable
                             player={match.teamBPlayer1}
                             position="teamBPlayer1Id"
                             matchId={match.id}
                             availablePlayers={availablePlayers}
                             isOrganiser={isOrganiser}
                             onSwap={onSwapPlayer}
+                            variant="queue"
                             isBusy={isPlayerBusy(match.teamBPlayer1?.id)}
                             sessionMatchCount={match.teamBPlayer1?.id ? sessionMatchCounts?.[match.teamBPlayer1.id] : undefined}
                             achievements={achievements}
                           />
-                          {(match.teamBPlayer2 || isOrganiser) && (
-                            <PlayerBadge
-                              player={match.teamBPlayer2 || null}
-                              position="teamBPlayer2Id"
-                              matchId={match.id}
-                              availablePlayers={availablePlayers}
-                              isOrganiser={isOrganiser}
-                              onSwap={onSwapPlayer}
-                              isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
-                              sessionMatchCount={match.teamBPlayer2?.id ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
-                              achievements={achievements}
-                            />
-                          )}
+                          <PlayerSlotEditable
+                            player={match.teamBPlayer2 || null}
+                            position="teamBPlayer2Id"
+                            matchId={match.id}
+                            availablePlayers={availablePlayers}
+                            isOrganiser={isOrganiser}
+                            onSwap={onSwapPlayer}
+                            variant="queue"
+                            isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
+                            sessionMatchCount={match.teamBPlayer2?.id ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
+                            achievements={achievements}
+                          />
                         </div>
                       </div>
 

@@ -3,11 +3,10 @@ import { type CourtMatch } from "@/components/BadmintonCourt";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
-import { ChevronDown, Trophy, CheckCircle, XCircle, Swords, Clock, Check, Pencil, Users, Target } from "lucide-react";
+import { ChevronDown, Trophy, CheckCircle, XCircle, Swords, Clock, Pencil, Users, Target } from "lucide-react";
+import { PlayerSlotEditable } from "@/components/PlayerSlotEditable";
 
 type Player = {
   id: number;
@@ -118,118 +117,6 @@ function FuturisticTimer({ startedAt }: { startedAt: string }) {
   );
 }
 
-function SwapPlayerDialog({
-  open,
-  onOpenChange,
-  currentPlayer,
-  availablePlayers,
-  onSwap,
-}: {
-  open: boolean;
-  onOpenChange: (open: boolean) => void;
-  currentPlayer: { id: number; fullName: string; category: string | null } | null;
-  availablePlayers: Player[];
-  onSwap: (playerId: number) => void;
-}) {
-  const [search, setSearch] = useState("");
-
-  const filteredPlayers = availablePlayers.filter(p =>
-    p.fullName.toLowerCase().includes(search.toLowerCase())
-  );
-
-  return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md">
-        <DialogHeader>
-          <DialogTitle>Swap Player</DialogTitle>
-          <DialogDescription>Select a player to replace the current one in this match.</DialogDescription>
-        </DialogHeader>
-        <Command className="rounded-lg border shadow-md">
-          <CommandInput placeholder="Search players..." value={search} onValueChange={setSearch} data-testid="input-search-swap-player" />
-          <CommandList>
-            <CommandEmpty>No players found.</CommandEmpty>
-            <CommandGroup>
-              {filteredPlayers.map((p) => (
-                <CommandItem
-                  key={p.id}
-                  value={p.fullName}
-                  onSelect={() => {
-                    onSwap(p.id);
-                    onOpenChange(false);
-                    setSearch("");
-                  }}
-                  data-testid={`compact-select-player-${p.id}`}
-                >
-                  <Check className={cn("mr-2 h-4 w-4", currentPlayer?.id === p.id ? "opacity-100" : "opacity-0")} />
-                  {p.fullName} ({p.category || "?"})
-                </CommandItem>
-              ))}
-            </CommandGroup>
-          </CommandList>
-        </Command>
-      </DialogContent>
-    </Dialog>
-  );
-}
-
-function ClickablePlayerName({
-  player,
-  matchId,
-  position,
-  availablePlayers,
-  canSwap,
-  onSwapPlayer,
-  showMatchCount,
-  sessionMatchCount,
-  className,
-  isBusy,
-}: {
-  player: { id: number; user?: { fullName?: string } | null; category?: string | null; matchesPlayed?: number | null } | null;
-  matchId: number;
-  position: string;
-  availablePlayers: Player[];
-  canSwap: boolean;
-  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
-  showMatchCount?: boolean;
-  sessionMatchCount?: number;
-  className?: string;
-  isBusy?: boolean;
-}) {
-  const [dialogOpen, setDialogOpen] = useState(false);
-  const name = player?.user?.fullName || "Unknown";
-  const matchCount = sessionMatchCount ?? null;
-  const nameWithCount = showMatchCount && matchCount != null ? (
-    <>{name} <span className="text-gray-400 dark:text-zinc-500 font-normal text-[10px] sm:text-[11px]">({matchCount})</span></>
-  ) : name;
-
-  const busyClass = isBusy ? "text-red-500 dark:text-red-400 animate-pulse" : "";
-
-  if (!canSwap || !onSwapPlayer) {
-    return <span className={cn(className, busyClass)} title={isBusy ? "This player is in multiple live/queued matches" : undefined}>{nameWithCount}</span>;
-  }
-
-  return (
-    <>
-      <span
-        role="button"
-        tabIndex={0}
-        className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-600 dark:hover:text-amber-400 transition-colors")}
-        onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
-        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
-        data-testid={`compact-swap-${position}-${matchId}`}
-      >
-        {nameWithCount}
-      </span>
-      <SwapPlayerDialog
-        open={dialogOpen}
-        onOpenChange={setDialogOpen}
-        currentPlayer={player ? { id: player.id, fullName: name, category: player.category || null } : null}
-        availablePlayers={availablePlayers}
-        onSwap={(newPlayerId) => onSwapPlayer(matchId, position, newPlayerId)}
-      />
-    </>
-  );
-}
 
 function MatchCard({
   match,
@@ -329,7 +216,8 @@ function MatchCard({
   );
 
   const canInteract = isLive && (isOrganiser || (isSignedUp && isPlayerInMatch));
-  const canSwapPlayers = (isLive || isQueued) && isOrganiser;
+  const canSwapPlayers = isOrganiser && !!onSwapPlayer;
+  const safeSwap = onSwapPlayer || (() => {});
   const canEditCompleted = isCompleted && isOrganiser;
   const canExpandQueued = isQueued;
 
@@ -413,70 +301,66 @@ function MatchCard({
   const teamANames = (
     <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
       <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400 shrink-0">A</span>
-      <ClickablePlayerName
+      <PlayerSlotEditable
         player={match.teamAPlayer1}
         matchId={match.id}
         position="teamAPlayer1Id"
         availablePlayers={availablePlayers}
-        canSwap={canSwapPlayers}
-        onSwapPlayer={onSwapPlayer}
+        isOrganiser={canSwapPlayers}
+        onSwap={safeSwap}
+        variant="compact"
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
         className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
       />
-      {match.teamAPlayer2 && (
-        <>
-          <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
-          <ClickablePlayerName
-            player={match.teamAPlayer2}
-            matchId={match.id}
-            position="teamAPlayer2Id"
-            availablePlayers={availablePlayers}
-            canSwap={canSwapPlayers}
-            onSwapPlayer={onSwapPlayer}
-            showMatchCount={showMatchCount}
-            sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
-            className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate max-w-[40%] sm:max-w-none"
-            isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
-          />
-        </>
-      )}
+      <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
+      <PlayerSlotEditable
+        player={match.teamAPlayer2 || null}
+        matchId={match.id}
+        position="teamAPlayer2Id"
+        availablePlayers={availablePlayers}
+        isOrganiser={canSwapPlayers}
+        onSwap={safeSwap}
+        variant="compact"
+        showMatchCount={showMatchCount}
+        sessionMatchCount={match.teamAPlayer2?.id ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
+        className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate max-w-[40%] sm:max-w-none"
+        isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
+      />
     </div>
   );
 
   const teamBNames = (
     <div className="flex items-center gap-1.5 min-w-0 flex-wrap">
       <span className="text-[10px] sm:text-[11px] font-bold uppercase tracking-wider text-orange-500 dark:text-orange-400 shrink-0">B</span>
-      <ClickablePlayerName
+      <PlayerSlotEditable
         player={match.teamBPlayer1}
         matchId={match.id}
         position="teamBPlayer1Id"
         availablePlayers={availablePlayers}
-        canSwap={canSwapPlayers}
-        onSwapPlayer={onSwapPlayer}
+        isOrganiser={canSwapPlayers}
+        onSwap={safeSwap}
+        variant="compact"
         showMatchCount={showMatchCount}
         sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
         className="text-sm sm:text-base font-semibold text-gray-800 dark:text-zinc-200 truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)}
       />
-      {match.teamBPlayer2 && (
-        <>
-          <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
-          <ClickablePlayerName
-            player={match.teamBPlayer2}
-            matchId={match.id}
-            position="teamBPlayer2Id"
-            availablePlayers={availablePlayers}
-            canSwap={canSwapPlayers}
-            onSwapPlayer={onSwapPlayer}
-            showMatchCount={showMatchCount}
-            sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
-            className="text-sm sm:text-base font-semibold text-gray-800 dark:text-zinc-200 truncate max-w-[40%] sm:max-w-none"
-            isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)}
-          />
-        </>
-      )}
+      <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
+      <PlayerSlotEditable
+        player={match.teamBPlayer2 || null}
+        matchId={match.id}
+        position="teamBPlayer2Id"
+        availablePlayers={availablePlayers}
+        isOrganiser={canSwapPlayers}
+        onSwap={safeSwap}
+        variant="compact"
+        showMatchCount={showMatchCount}
+        sessionMatchCount={match.teamBPlayer2?.id ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
+        className="text-sm sm:text-base font-semibold text-gray-800 dark:text-zinc-200 truncate max-w-[40%] sm:max-w-none"
+        isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)}
+      />
     </div>
   );
 

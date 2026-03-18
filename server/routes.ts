@@ -4564,24 +4564,19 @@ export async function registerRoutes(
       }
 
       const allMatches = await storage.getSessionMatches(match.sessionId);
-      const busyCheck = isPlayerBusy(newPlayerId, allMatches, matchId);
-      if (busyCheck.busy) {
-        console.warn(`[SWAP] Player ${newPlayerId} already in match ${busyCheck.matchId}. Removing from old match first.`);
-        const oldMatch = allMatches.find(m => m.id === busyCheck.matchId);
-        if (oldMatch && oldMatch.status === "QUEUED") {
-          const positions = ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"] as const;
-          for (const pos of positions) {
-            if ((oldMatch as any)[pos] === newPlayerId) {
-              await storage.updateMatch(oldMatch.id, { [pos]: null });
-              break;
-            }
+      const positions = ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"] as const;
+
+      for (const existingMatch of allMatches) {
+        if (existingMatch.id === matchId) continue;
+        if (existingMatch.status === "COMPLETED") continue;
+        for (const pos of positions) {
+          if ((existingMatch as any)[pos] === newPlayerId) {
+            await storage.updateMatch(existingMatch.id, { [pos]: null });
+            console.log(`[SWAP] Removed player ${newPlayerId} from match ${existingMatch.id} position ${pos}`);
           }
-        } else if (oldMatch && oldMatch.status === "LIVE") {
-          return res.status(400).json({ message: "Cannot swap: player is currently in a LIVE match" });
         }
       }
 
-      const oldPlayerId = (match as any)[position] as number | null;
       const updated = await storage.updateMatch(matchId, { [position]: newPlayerId });
 
       await validateMatchIntegrity(match.sessionId, "SWAP");
