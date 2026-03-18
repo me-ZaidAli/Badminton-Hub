@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useBulkPause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useRecoverMatches, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
@@ -3215,6 +3215,147 @@ function AISessionDesigner({ sessionId }: { sessionId: number }) {
   );
 }
 
+function CollapsibleSection({ storageKey, title, badge, icon, children, defaultOpen = true }: {
+  storageKey: string;
+  title: string;
+  badge?: number;
+  icon?: React.ReactNode;
+  children: React.ReactNode;
+  defaultOpen?: boolean;
+}) {
+  const [open, setOpen] = useState(() => {
+    try {
+      const stored = localStorage.getItem(`section_${storageKey}`);
+      if (stored !== null) return stored === "true";
+    } catch {}
+    return defaultOpen;
+  });
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  useEffect(() => {
+    if (!contentRef.current) return;
+    const el = contentRef.current;
+    const measure = () => setHeight(el.scrollHeight);
+    measure();
+    if (typeof ResizeObserver !== "undefined") {
+      const ro = new ResizeObserver(measure);
+      ro.observe(el);
+      return () => ro.disconnect();
+    }
+  }, []);
+
+  const toggle = useCallback(() => {
+    setOpen(prev => {
+      const next = !prev;
+      try { localStorage.setItem(`section_${storageKey}`, String(next)); } catch {}
+      return next;
+    });
+  }, [storageKey]);
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-background/80 dark:bg-[#0D1117] overflow-hidden" data-testid={`collapsible-${storageKey}`}>
+      <button
+        onClick={toggle}
+        className="w-full flex items-center justify-between px-4 py-3 bg-muted/30 hover:bg-muted/50 transition-colors"
+        data-testid={`button-toggle-${storageKey}`}
+      >
+        <h3 className="text-base font-semibold flex items-center gap-2">
+          {icon}
+          {title}
+          {badge != null && badge > 0 && <Badge variant="secondary" className="text-xs">{badge}</Badge>}
+        </h3>
+        <ChevronDown className={cn("w-4 h-4 text-muted-foreground transition-transform duration-300", open && "rotate-180")} />
+      </button>
+      <div
+        ref={contentRef}
+        className="transition-all duration-400 overflow-hidden"
+        style={{
+          maxHeight: open ? `${height + 40}px` : "0px",
+          opacity: open ? 1 : 0,
+          transitionDuration: "400ms",
+          transitionTimingFunction: "cubic-bezier(0.4, 0, 0.2, 1)",
+        }}
+        aria-hidden={!open}
+      >
+        {children}
+      </div>
+    </div>
+  );
+}
+
+function IdleMatchPopup({ queuedMatches, fairnessPercent, leaderboard, onDismiss }: {
+  queuedMatches: any[];
+  fairnessPercent: number;
+  leaderboard: any[];
+  onDismiss: () => void;
+}) {
+  const nextMatch = queuedMatches[0];
+  if (!nextMatch) return null;
+
+  const top5 = leaderboard.slice(0, 5);
+  const fairnessColor = fairnessPercent >= 80 ? "text-emerald-500" : fairnessPercent >= 50 ? "text-amber-500" : "text-red-500";
+
+  return (
+    <div
+      className="fixed inset-0 z-[200] flex items-center justify-center bg-black/60 backdrop-blur-sm animate-in fade-in duration-300"
+      onClick={onDismiss}
+      onTouchStart={onDismiss}
+      data-testid="idle-match-popup"
+    >
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-border/50 shadow-2xl max-w-md w-[90vw] p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
+        <div className="text-center">
+          <h3 className="text-lg font-bold mb-1">Next Match</h3>
+          <p className="text-xs text-muted-foreground">Tap anywhere to dismiss</p>
+        </div>
+
+        <div className="rounded-xl border border-border/30 bg-muted/20 p-4 space-y-2">
+          <div className="flex items-center justify-center gap-3 text-sm font-semibold">
+            <div className="text-emerald-600 dark:text-emerald-400">
+              {nextMatch.teamAPlayer1?.user?.fullName || "TBD"}
+              {nextMatch.teamAPlayer2 && ` & ${nextMatch.teamAPlayer2?.user?.fullName || "TBD"}`}
+            </div>
+            <span className="text-muted-foreground text-xs font-bold">VS</span>
+            <div className="text-blue-600 dark:text-blue-400">
+              {nextMatch.teamBPlayer1?.user?.fullName || "TBD"}
+              {nextMatch.teamBPlayer2 && ` & ${nextMatch.teamBPlayer2?.user?.fullName || "TBD"}`}
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center justify-center gap-6">
+          <div className="text-center">
+            <div className={cn("text-2xl font-bold", fairnessColor)}>{fairnessPercent}%</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Fairness</div>
+          </div>
+          <div className="w-px h-10 bg-border/50" />
+          <div className="text-center">
+            <div className="text-2xl font-bold">{queuedMatches.length}</div>
+            <div className="text-[10px] text-muted-foreground uppercase tracking-wider font-medium">Queued</div>
+          </div>
+        </div>
+
+        {top5.length > 0 && (
+          <div className="space-y-1.5">
+            <h4 className="text-xs font-bold text-muted-foreground uppercase tracking-wider text-center">Top 5</h4>
+            <div className="space-y-1">
+              {top5.map((p: any, i: number) => (
+                <div key={p.id} className="flex items-center gap-2 text-sm px-2 py-1 rounded-md bg-muted/30">
+                  <span className={cn("w-5 h-5 rounded-full flex items-center justify-center text-[10px] font-bold",
+                    i === 0 ? "bg-amber-500 text-white" : i === 1 ? "bg-gray-400 text-white" : i === 2 ? "bg-amber-700 text-white" : "bg-muted text-muted-foreground"
+                  )}>{i + 1}</span>
+                  <span className="flex-1 truncate font-medium">{p.fullName}</span>
+                  <span className="text-xs text-muted-foreground">{p.matchesWon}W</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function WaitingPlayersSection({ confirmedSignups, liveMatches, queuedMatches, sessionMatchCounts, isOrganiser, sessionId, updateSession }: {
   confirmedSignups: any[];
   liveMatches: any[];
@@ -3433,6 +3574,25 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [swapDialogOpen, setSwapDialogOpen] = useState(false);
   const [swapTarget, setSwapTarget] = useState<{ roundIdx: number; matchIdx: number; position: string; currentPlayerId: number } | null>(null);
   const [fairnessListOpen, setFairnessListOpen] = useState(false);
+  const [idlePopupVisible, setIdlePopupVisible] = useState(false);
+  const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const { data: sessionLeaderboard } = useSessionLeaderboard(sessionId);
+
+  useEffect(() => {
+    const resetIdle = () => {
+      setIdlePopupVisible(false);
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      idleTimerRef.current = setTimeout(() => setIdlePopupVisible(true), 20000);
+    };
+    resetIdle();
+    const events = ["mousedown", "mousemove", "keydown", "touchstart", "scroll"] as const;
+    events.forEach(e => window.addEventListener(e, resetIdle, { passive: true }));
+    return () => {
+      events.forEach(e => window.removeEventListener(e, resetIdle));
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+    };
+  }, []);
 
   const generateFullScheduleMutation = useMutation({
     mutationFn: async (data: { numberOfRounds?: number; genderType?: string; mode?: string }) => {
@@ -4504,6 +4664,26 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         </div>
       )}
 
+      {(() => {
+        const allPlayerCounts = confirmedSignups.map(s => sessionMatchCounts[s.player?.id || s.playerId] || 0);
+        const maxG = allPlayerCounts.length > 0 ? Math.max(...allPlayerCounts) : 0;
+        const minG = allPlayerCounts.length > 0 ? Math.min(...allPlayerCounts) : 0;
+        const fairnessForPopup = maxG > 0 ? Math.round((minG / maxG) * 100) : 100;
+
+        return (
+          <>
+            {idlePopupVisible && queuedMatches.length > 0 && (
+              <IdleMatchPopup
+                queuedMatches={queuedMatches}
+                fairnessPercent={fairnessForPopup}
+                leaderboard={sessionLeaderboard || []}
+                onDismiss={() => setIdlePopupVisible(false)}
+              />
+            )}
+          </>
+        );
+      })()}
+
       <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
           <div className="space-y-6">
             <ProLiveMatches
@@ -4526,43 +4706,60 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               busyPlayerIds={busyPlayerIds}
             />
 
-            <MatchQueue
-              matches={typedMatches}
-              availablePlayers={availablePlayers}
-              isOrganiser={isOrganiser}
-              onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
-              onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
-              availableCourts={availableCourts}
-              activeMode={activeMode}
-              genderType={generateGenderType}
-              defaultPointsToPlayTo={defaultPointsToPlayTo}
-              onGenerateMatch={handleSmartGenerate}
-              isGenerating={isSmartGenerating}
-              queueTargetSize={queueTargetSize}
-              onQueueTargetSizeChange={handleQueueTargetSizeChange}
-              onClearQueue={handleClearQueue}
-              notEnoughPlayersMessage={notEnoughPlayersMessage}
-              sessionId={sessionId}
-              busyPlayerIds={busyPlayerIds}
-              sessionMatchCounts={sessionMatchCounts}
-              achievements={playerAchievements}
-            />
+            <CollapsibleSection storageKey="match-queue" title="Playing Next" badge={queuedMatches.length} icon={<Clock className="w-4 h-4 text-amber-500" />}>
+              <MatchQueue
+                matches={typedMatches}
+                availablePlayers={availablePlayers}
+                isOrganiser={isOrganiser}
+                onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })}
+                onAssignToCourt={(matchId, courtNumber) => startMatch({ matchId, courtNumber })}
+                availableCourts={availableCourts}
+                activeMode={activeMode}
+                genderType={generateGenderType}
+                defaultPointsToPlayTo={defaultPointsToPlayTo}
+                onGenerateMatch={handleSmartGenerate}
+                isGenerating={isSmartGenerating}
+                queueTargetSize={queueTargetSize}
+                onQueueTargetSizeChange={handleQueueTargetSizeChange}
+                onClearQueue={handleClearQueue}
+                notEnoughPlayersMessage={notEnoughPlayersMessage}
+                sessionId={sessionId}
+                busyPlayerIds={busyPlayerIds}
+                sessionMatchCounts={sessionMatchCounts}
+                achievements={playerAchievements}
+              />
+            </CollapsibleSection>
 
-            <WaitingPlayersSection
-              confirmedSignups={confirmedSignups}
-              liveMatches={liveMatches}
-              queuedMatches={queuedMatches}
-              sessionMatchCounts={sessionMatchCounts}
-              isOrganiser={isOrganiser}
-              sessionId={sessionId}
-              updateSession={updateSession}
-            />
+            <CollapsibleSection storageKey="waiting-players" title="Waiting" badge={confirmedSignups.filter(s => {
+              const pid = s.player?.id || s.playerId;
+              const isPlaying = new Set<number>();
+              for (const m of [...liveMatches, ...queuedMatches]) {
+                for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+                  if (p?.id) isPlaying.add(p.id);
+                }
+              }
+              return !s.isPaused && (!(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING") && !isPlaying.has(pid);
+            }).length} icon={<Users className="w-4 h-4 text-blue-500" />}>
+              <WaitingPlayersSection
+                confirmedSignups={confirmedSignups}
+                liveMatches={liveMatches}
+                queuedMatches={queuedMatches}
+                sessionMatchCounts={sessionMatchCounts}
+                isOrganiser={isOrganiser}
+                sessionId={sessionId}
+                updateSession={updateSession}
+              />
+            </CollapsibleSection>
 
-            <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
+            <CollapsibleSection storageKey="completed-matches" title="Completed" badge={completedCount} icon={<CheckCircle className="w-4 h-4 text-emerald-500" />}>
+              <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
+            </CollapsibleSection>
           </div>
 
-          <div className="xl:sticky xl:top-4 xl:self-start">
-            <SessionLiveLeaderboard sessionId={sessionId} />
+          <div className="xl:sticky xl:top-4 xl:self-start space-y-4">
+            <CollapsibleSection storageKey="live-leaderboard" title="Live Leaderboard" icon={<Trophy className="w-4 h-4 text-amber-500" />}>
+              <SessionLiveLeaderboard sessionId={sessionId} />
+            </CollapsibleSection>
           </div>
         </div>
 

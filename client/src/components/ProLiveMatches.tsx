@@ -489,8 +489,12 @@ function CourtViewPlayerLabel({ name, playerId, sessionMatchCounts, achievements
   );
 }
 
-function CourtView({ match, sessionMatchCounts, achievements }: { match: CourtMatch; sessionMatchCounts?: Record<number, number>; achievements?: PlayerAchievements }) {
+function CourtView({ match, sessionMatchCounts, achievements, isOrganiser, availablePlayers, onSwapPlayer, busyPlayerIds }: {
+  match: CourtMatch; sessionMatchCounts?: Record<number, number>; achievements?: PlayerAchievements;
+  isOrganiser?: boolean; availablePlayers?: Player[]; onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void; busyPlayerIds?: Set<number>;
+}) {
   const courtColor = getCourtColor(match.courtNumber || 1);
+  const canSwap = !!isOrganiser && !!onSwapPlayer;
 
   return (
     <div className="relative w-full aspect-[2/1.2] rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-court-view-${match.id}`}>
@@ -502,29 +506,45 @@ function CourtView({ match, sessionMatchCounts, achievements }: { match: CourtMa
       <div className="absolute left-[6%] right-1/2 top-[30%] bottom-[30%] border border-white/20" />
       <div className="absolute right-[6%] left-1/2 top-[30%] bottom-[30%] border border-white/20" />
 
-      <div className="absolute left-[15%] top-[25%] flex flex-col items-center gap-1 z-10">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[120px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a1-${match.id}`}>
-          <CourtViewPlayerLabel name={match.teamAPlayer1?.user?.fullName || "Player 1"} playerId={match.teamAPlayer1?.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+      <div className="absolute left-[8%] sm:left-[15%] top-[20%] sm:top-[25%] flex flex-col items-center gap-1 z-10">
+        <div className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[12px] sm:text-[13px] font-semibold truncate max-w-[130px] sm:max-w-[150px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a1-${match.id}`}>
+          <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
+            availablePlayers={availablePlayers || []} canSwap={canSwap} onSwapPlayer={onSwapPlayer}
+            showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
+            className="text-[12px] sm:text-[13px] font-semibold" style={{ color: courtColor.ring }}
+            isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} />
         </div>
         <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: courtColor.ring, boxShadow: `0 0 12px ${courtColor.glow}` }} />
       </div>
       {match.teamAPlayer2 && (
-        <div className="absolute left-[15%] bottom-[25%] flex flex-col items-center gap-1 z-10">
-          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[11px] font-semibold truncate max-w-[120px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a2-${match.id}`}>
-            <CourtViewPlayerLabel name={match.teamAPlayer2.user?.fullName || "Player 2"} playerId={match.teamAPlayer2.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+        <div className="absolute left-[8%] sm:left-[15%] bottom-[20%] sm:bottom-[25%] flex flex-col items-center gap-1 z-10">
+          <div className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-slate-900/80 backdrop-blur-sm border text-[12px] sm:text-[13px] font-semibold truncate max-w-[130px] sm:max-w-[150px]" style={{ borderColor: courtColor.ring + '40', color: courtColor.ring }} data-testid={`pro-court-player-a2-${match.id}`}>
+            <ClickablePlayerName player={match.teamAPlayer2} matchId={match.id} position="teamAPlayer2Id"
+              availablePlayers={availablePlayers || []} canSwap={canSwap} onSwapPlayer={onSwapPlayer}
+              showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer2?.id]}
+              className="text-[12px] sm:text-[13px] font-semibold" style={{ color: courtColor.ring }}
+              isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} />
           </div>
         </div>
       )}
 
-      <div className="absolute right-[15%] top-[25%] flex flex-col items-center gap-1 z-10">
-        <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[120px]" data-testid={`pro-court-player-b1-${match.id}`}>
-          <CourtViewPlayerLabel name={match.teamBPlayer1?.user?.fullName || "Player 3"} playerId={match.teamBPlayer1?.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+      <div className="absolute right-[8%] sm:right-[15%] top-[20%] sm:top-[25%] flex flex-col items-center gap-1 z-10">
+        <div className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[12px] sm:text-[13px] font-semibold text-blue-400 truncate max-w-[130px] sm:max-w-[150px]" data-testid={`pro-court-player-b1-${match.id}`}>
+          <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
+            availablePlayers={availablePlayers || []} canSwap={canSwap} onSwapPlayer={onSwapPlayer}
+            showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
+            className="text-[12px] sm:text-[13px] font-semibold text-blue-400"
+            isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} />
         </div>
       </div>
       {match.teamBPlayer2 && (
-        <div className="absolute right-[15%] bottom-[25%] flex flex-col items-center gap-1 z-10">
-          <div className="px-2.5 py-1 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[11px] font-semibold text-blue-400 truncate max-w-[120px]" data-testid={`pro-court-player-b2-${match.id}`}>
-            <CourtViewPlayerLabel name={match.teamBPlayer2.user?.fullName || "Player 4"} playerId={match.teamBPlayer2.id} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+        <div className="absolute right-[8%] sm:right-[15%] bottom-[20%] sm:bottom-[25%] flex flex-col items-center gap-1 z-10">
+          <div className="px-2 sm:px-3 py-1 sm:py-1.5 rounded-lg bg-slate-900/80 backdrop-blur-sm border border-blue-400/30 text-[12px] sm:text-[13px] font-semibold text-blue-400 truncate max-w-[130px] sm:max-w-[150px]" data-testid={`pro-court-player-b2-${match.id}`}>
+            <ClickablePlayerName player={match.teamBPlayer2} matchId={match.id} position="teamBPlayer2Id"
+              availablePlayers={availablePlayers || []} canSwap={canSwap} onSwapPlayer={onSwapPlayer}
+              showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer2?.id]}
+              className="text-[12px] sm:text-[13px] font-semibold text-blue-400"
+              isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} />
           </div>
         </div>
       )}
@@ -592,7 +612,8 @@ function CourtCard({
         {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
       <div className="px-3 pb-1">
-        <CourtView match={match} sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+        <CourtView match={match} sessionMatchCounts={sessionMatchCounts} achievements={achievements}
+          isOrganiser={isOrganiser} availablePlayers={availablePlayers} onSwapPlayer={onSwapPlayer} busyPlayerIds={busyPlayerIds} />
       </div>
       {isOrganiser && (
         <div className="px-4 pb-2">
