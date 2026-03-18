@@ -121,6 +121,9 @@ export default function SessionDetail() {
   const { mutate: restartSession, isPending: isRestarting } = useRestartSession();
   const { mutate: recoverMatches, isPending: isRecovering } = useRecoverMatches();
   const [recoverDialogOpen, setRecoverDialogOpen] = useState(false);
+  const [sessionHeaderOpen, setSessionHeaderOpen] = useState(false);
+  const sessionHeaderRef = useRef<HTMLDivElement>(null);
+  const [sessionHeaderHeight, setSessionHeaderHeight] = useState(0);
   const { mutate: stopAllMatchesParent, isPending: isStoppingAllParent } = useStopAllMatches();
   const { data: parentMatches } = useSessionMatches(id);
   const { data: parentLeaderboard } = useSessionLeaderboard(id);
@@ -470,11 +473,50 @@ export default function SessionDetail() {
     }
   });
 
+  useEffect(() => {
+    if (sessionHeaderRef.current && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setSessionHeaderHeight(entry.contentRect.height);
+        }
+      });
+      ro.observe(sessionHeaderRef.current);
+      return () => ro.disconnect();
+    } else if (sessionHeaderRef.current) {
+      setSessionHeaderHeight(sessionHeaderRef.current.scrollHeight);
+    }
+  }, []);
+
   if (isLoadingSession || isLoadingSignups) return <div className="flex justify-center p-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
   if (!session) return <div>Session not found</div>;
 
   return (
     <div className="space-y-4 sm:space-y-8">
+      <div className="flex justify-center">
+        <button
+          onClick={() => setSessionHeaderOpen(prev => !prev)}
+          className={cn(
+            "group flex items-center gap-2 px-5 py-2 rounded-full border transition-all duration-300",
+            sessionHeaderOpen
+              ? "bg-primary text-white border-primary shadow-lg shadow-primary/20"
+              : "bg-white dark:bg-slate-900 text-gray-600 dark:text-white/70 border-slate-200 dark:border-white/10 hover:border-primary/40 hover:text-primary dark:hover:text-primary shadow-sm"
+          )}
+          data-testid="button-toggle-session-header"
+        >
+          <span className="text-sm font-semibold">{session.title}</span>
+          <span className="text-xs opacity-60 hidden sm:inline">
+            {format(new Date(session.date), "EEE, MMM d")} · {session.startTime}
+          </span>
+          <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", sessionHeaderOpen && "rotate-180")} />
+        </button>
+      </div>
+
+      <div
+        className="overflow-hidden transition-all ease-[cubic-bezier(0.4,0,0.2,1)]"
+        style={{ maxHeight: sessionHeaderOpen ? `${sessionHeaderHeight + 20}px` : '0px', opacity: sessionHeaderOpen ? 1 : 0, transitionDuration: '400ms', pointerEvents: sessionHeaderOpen ? 'auto' : 'none' }}
+        aria-hidden={!sessionHeaderOpen}
+      >
+        <div ref={sessionHeaderRef}>
       <div className="flex flex-col md:flex-row justify-between gap-4 sm:gap-6">
         <div>
           <div className="flex items-center gap-3 mb-2 flex-wrap">
@@ -1488,6 +1530,8 @@ export default function SessionDetail() {
             )}
           </CardContent>
         </Card>
+      </div>
+        </div>
       </div>
 
       <MatchesView 
