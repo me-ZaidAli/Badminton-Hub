@@ -1550,12 +1550,9 @@ export default function SessionDetail() {
         clubId={session.clubId}
       />
 
-      <div className="space-y-4 sm:space-y-6">
-        <div className="flex items-center justify-between flex-wrap gap-3 sm:gap-4">
-          <h2 className="text-xl sm:text-2xl font-display font-bold flex items-center gap-2">
-            <Users className="w-5 h-5 sm:w-6 sm:h-6" />
-            Session Players ({confirmedSignups.length})
-          </h2>
+      <CollapsibleSection storageKey="session-players" title="Session Players" badge={confirmedSignups.length} icon={<Users className="w-4 h-4 text-primary" />}>
+      <div className="space-y-4 sm:space-y-6 px-4 pb-4">
+        <div className="flex items-center justify-end flex-wrap gap-3 sm:gap-4">
           {isOrganiser && (
             <div className="flex items-center gap-2 flex-wrap">
               {confirmedSignups.some(s => (s as any).isPaused) && (
@@ -2165,6 +2162,7 @@ export default function SessionDetail() {
           </div>
         )}
       </div>
+      </CollapsibleSection>
       
       <PlayerStatsPopup 
         profileId={statsPlayerId} 
