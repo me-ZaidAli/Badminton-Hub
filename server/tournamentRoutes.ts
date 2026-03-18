@@ -483,7 +483,6 @@ export function registerTournamentRoutes(app: Express) {
       } else {
         const n = teams.length;
         const totalSlots = Math.pow(2, Math.ceil(Math.log2(n)));
-        const byes = totalSlots - n;
         let round1Matches: any[] = [];
         let matchIdx = 0;
 
@@ -511,8 +510,15 @@ export function registerTournamentRoutes(app: Express) {
         while (currentRoundMatches.length > 1) {
           const nextRound: any[] = [];
           for (let i = 0; i < currentRoundMatches.length; i += 2) {
+            const matchA = currentRoundMatches[i];
+            const matchB = currentRoundMatches[i + 1];
+            const advancedA = matchA?.winnerId || null;
+            const advancedB = matchB?.winnerId || null;
+            const bothByes = advancedA && advancedB;
             const [m] = await db.insert(tournamentMatches).values({
-              categoryId: catId, teamAId: null, teamBId: null,
+              categoryId: catId,
+              teamAId: advancedA,
+              teamBId: advancedB,
               round, matchOrder: i / 2, bracketPosition: i / 2,
             }).returning();
             nextRound.push(m);
@@ -651,8 +657,14 @@ export function registerTournamentRoutes(app: Express) {
         while (currentRound.length > 1) {
           const nextRound: any[] = [];
           for (let i = 0; i < currentRound.length; i += 2) {
+            const matchA = currentRound[i];
+            const matchB = currentRound[i + 1];
+            const advancedA = matchA?.winnerId || null;
+            const advancedB = matchB?.winnerId || null;
             const [m] = await db.insert(tournamentMatches).values({
-              categoryId: catId, teamAId: null, teamBId: null,
+              categoryId: catId,
+              teamAId: advancedA,
+              teamBId: advancedB,
               round: roundNum, matchOrder: i / 2, bracketPosition: i / 2,
             }).returning();
             nextRound.push(m);

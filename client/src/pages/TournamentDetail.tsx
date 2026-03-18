@@ -1517,13 +1517,65 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
       )}
 
       {activeView === "list" && (
-        <div className="space-y-2">
+        <div className="space-y-4">
           {matches.length === 0 ? (
             <EmptyState icon={Swords} title="No Matches" description="Generate fixtures to create matches." />
           ) : (
-            matches.map(match => (
-              <MatchCard key={match.id} match={match} canManage={canManage} onScore={() => setScoreDialog(match)} />
-            ))
+            (() => {
+              const isKnockout = category.format === "KNOCKOUT";
+              const isGroupKnockout = category.format === "GROUP_KNOCKOUT";
+              const displayMatches = matches.filter(m => {
+                if (m.isBye) return false;
+                if (!m.groupNumber && !m.teamAId && !m.teamBId) return false;
+                return true;
+              });
+              const roundMap = new Map<number, typeof displayMatches>();
+              displayMatches.forEach(m => {
+                const r = m.round;
+                if (!roundMap.has(r)) roundMap.set(r, []);
+                roundMap.get(r)!.push(m);
+              });
+              const sortedRounds = Array.from(roundMap.entries()).sort(([a], [b]) => a - b);
+              const totalRounds = sortedRounds.length;
+
+              const allBracketRounds = new Set(matches.filter(m => !m.groupNumber).map(m => m.round));
+              const allBracketRoundsSorted = Array.from(allBracketRounds).sort((a, b) => a - b);
+              const totalBracketRounds = allBracketRoundsSorted.length;
+
+              return sortedRounds.map(([round, roundMatches], ri) => {
+                const matchCount = roundMatches.length;
+                let label: string;
+                if (roundMatches[0]?.groupNumber) {
+                  const groups = new Set(roundMatches.map(m => m.groupNumber));
+                  label = groups.size === 1 ? `Group ${String.fromCharCode(64 + roundMatches[0].groupNumber)}` : "Group Stage";
+                } else {
+                  const bracketIdx = allBracketRoundsSorted.indexOf(round);
+                  const bracketFromEnd = totalBracketRounds - bracketIdx;
+                  if (bracketFromEnd === 1) label = "Final";
+                  else if (bracketFromEnd === 2) label = "Semi Finals";
+                  else if (bracketFromEnd === 3) label = "Quarter Finals";
+                  else if (bracketFromEnd === 4) label = "Round of 16";
+                  else if (bracketFromEnd === 5) label = "Round of 32";
+                  else label = `Round ${bracketIdx + 1}`;
+                }
+
+                return (
+                  <div key={round}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="h-px flex-1 bg-gradient-to-r from-violet-500/30 to-transparent" />
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-violet-400 px-2">{label}</span>
+                      <span className="text-[9px] font-bold text-muted-foreground">{matchCount} {matchCount === 1 ? "match" : "matches"}</span>
+                      <div className="h-px flex-1 bg-gradient-to-l from-violet-500/30 to-transparent" />
+                    </div>
+                    <div className="space-y-2">
+                      {roundMatches.map(match => (
+                        <MatchCard key={match.id} match={match} canManage={canManage} onScore={() => setScoreDialog(match)} />
+                      ))}
+                    </div>
+                  </div>
+                );
+              });
+            })()
           )}
         </div>
       )}
@@ -1570,7 +1622,7 @@ function MatchCard({ match, canManage, onScore }: { match: any; canManage: boole
               G{String.fromCharCode(64 + match.groupNumber)}{match.subGroupNumber ? `-SG${match.subGroupNumber}` : ""}
             </Badge>
           )}
-          <span className="text-[10px] text-muted-foreground font-bold">R{match.round} · Match {match.matchOrder + 1}</span>
+          <span className="text-[10px] text-muted-foreground font-bold">Match {match.matchOrder + 1}</span>
           {match.isBye && <Badge className="bg-muted text-muted-foreground border border-border/30 text-[9px] font-bold ml-auto">BYE</Badge>}
         </div>
 
@@ -1811,12 +1863,24 @@ function BracketView({ matches, teams }: { matches: any[]; teams: any[] }) {
       if (!roundMap.has(r)) roundMap.set(r, []);
       roundMap.get(r)!.push(m);
     });
-    return Array.from(roundMap.entries()).sort(([a], [b]) => a - b).map(([round, ms]) => ({
-      round,
-      label: ms.length === 1 ? "Final" : ms.length === 2 ? "Semi Finals" : ms.length === 4 ? "Quarter Finals" : `Round ${round}`,
-      isFinal: ms.length === 1,
-      matches: ms.sort((a, b) => a.matchOrder - b.matchOrder),
-    }));
+    const sorted = Array.from(roundMap.entries()).sort(([a], [b]) => a - b);
+    const totalRounds = sorted.length;
+    return sorted.map(([round, ms], ri) => {
+      const roundsFromEnd = totalRounds - ri;
+      let label: string;
+      if (roundsFromEnd === 1) label = "Final";
+      else if (roundsFromEnd === 2) label = "Semi Finals";
+      else if (roundsFromEnd === 3) label = "Quarter Finals";
+      else if (roundsFromEnd === 4) label = "Round of 16";
+      else if (roundsFromEnd === 5) label = "Round of 32";
+      else label = `Round ${ri + 1}`;
+      return {
+        round,
+        label,
+        isFinal: roundsFromEnd === 1,
+        matches: ms.sort((a, b) => a.matchOrder - b.matchOrder),
+      };
+    });
   }, [matches]);
 
   if (rounds.length === 0) return <EmptyState icon={GitBranch} title="No Bracket" description="Generate fixtures to see the bracket." />;
