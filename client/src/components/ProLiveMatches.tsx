@@ -499,7 +499,7 @@ function CourtView({ match, sessionMatchCounts, achievements, isOrganiser, avail
   const labelCls = "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md bg-slate-900/80 backdrop-blur-sm border text-xs sm:text-sm font-semibold truncate block";
   const fontCls = "text-xs sm:text-sm font-semibold";
   return (
-    <div className="relative w-full aspect-[2/1.2] rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-court-view-${match.id}`}>
+    <div className="relative w-full aspect-[2/1.2] pro-court-aspect rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-court-view-${match.id}`}>
       <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/40 via-emerald-800/30 to-emerald-900/40" />
       <div className="absolute inset-[6%] border-2 border-white/40 rounded-sm" />
       <div className="absolute left-1/2 top-[6%] bottom-[6%] w-0.5 bg-white/30" style={{ transform: 'translateX(-50%)' }} />
@@ -604,7 +604,7 @@ function CourtCard({
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-white/[0.02] overflow-hidden">
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2">
+      <div className="flex items-center gap-2 px-4 pt-3 pb-2 court-card-header">
         <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: courtColor.ring }} />
         <span className="text-xs font-bold text-gray-500 dark:text-white/60 uppercase tracking-wider">
           {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
@@ -612,12 +612,12 @@ function CourtCard({
         <div className="flex-1" />
         {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
-      <div className="px-3 pb-1">
+      <div className="px-3 pb-1 court-card-court-wrap">
         <CourtView match={match} sessionMatchCounts={sessionMatchCounts} achievements={achievements}
           isOrganiser={isOrganiser} availablePlayers={availablePlayers} onSwapPlayer={onSwapPlayer} busyPlayerIds={busyPlayerIds} />
       </div>
       {isOrganiser && (
-        <div className="px-4 pb-2">
+        <div className="px-4 pb-2 court-card-controls">
           <div className="flex items-center justify-center gap-3">
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
               <Target className="w-3 h-3 text-gray-400 dark:text-white/25" />
@@ -666,7 +666,7 @@ function CourtCard({
         <>
           <button
             onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
+            className="w-full flex items-center justify-center gap-2 py-2.5 court-card-expand border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
             data-testid={`pro-court-expand-${match.id}`}
           >
             <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>

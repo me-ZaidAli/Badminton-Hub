@@ -8181,9 +8181,25 @@ html.theme-transitioning * {
   }
   .landscape-court-grid {
     grid-template-columns: repeat(2, 1fr) !important;
-    gap: 0.5rem !important;
-    max-height: calc(100vh - 6rem);
-    overflow: hidden;
+    gap: 0.25rem !important;
+  }
+  .landscape-court-grid .pro-court-aspect {
+    aspect-ratio: 2.5 / 1 !important;
+  }
+  .landscape-court-grid .court-card-header {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.125rem !important;
+  }
+  .landscape-court-grid .court-card-controls {
+    padding-top: 0.125rem !important;
+    padding-bottom: 0.125rem !important;
+  }
+  .landscape-court-grid .court-card-expand {
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
+  }
+  .landscape-court-grid .court-card-court-wrap {
+    padding: 0 0.25rem 0 0.25rem !important;
   }
 }
 
