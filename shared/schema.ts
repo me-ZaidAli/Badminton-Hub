@@ -555,6 +555,7 @@ export const tournamentPairRequests = pgTable("tournament_pair_requests", {
   toUserId: integer("to_user_id").references(() => users.id).notNull(),
   status: tournamentPairRequestStatusEnum("status").default("PENDING").notNull(),
   message: text("message"),
+  pairName: text("pair_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

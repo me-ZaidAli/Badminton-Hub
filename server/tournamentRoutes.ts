@@ -702,7 +702,7 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const tournamentId = Number(req.params.id);
-      const { toUserId, message: pairMessage } = req.body;
+      const { toUserId, message: pairMessage, pairName } = req.body;
       const existing = await db.select().from(tournamentPairRequests)
         .where(and(
           eq(tournamentPairRequests.tournamentId, tournamentId),
@@ -716,13 +716,13 @@ export function registerTournamentRoutes(app: Express) {
       const tournamentName = tournament?.name || "a tournament";
 
       const [pr] = await db.insert(tournamentPairRequests).values({
-        tournamentId, fromUserId: req.user!.id, toUserId, message: pairMessage,
+        tournamentId, fromUserId: req.user!.id, toUserId, message: pairMessage, pairName: pairName || null,
       }).returning();
 
       await db.insert(notifications).values({
         userId: toUserId, type: "tournament_pair_request",
         title: "🏸 Pair Request Received",
-        message: `${req.user!.fullName} wants to pair up with you for "${tournamentName}"!${pairMessage ? ` Message: "${pairMessage}"` : ""}`,
+        message: `${req.user!.fullName} wants to pair up with you for "${tournamentName}"!${pairName ? ` Team name: "${pairName}"` : ""}${pairMessage ? ` Message: "${pairMessage}"` : ""}`,
         linkUrl: `/tournaments/${tournamentId}`,
       });
 

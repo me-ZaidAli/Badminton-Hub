@@ -1,5 +1,5 @@
 import { useRoute } from "wouter";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   useTournament, useTournamentCategories, useTournamentTeams,
   useTournamentMatches, useTournamentStandings,
@@ -230,6 +230,9 @@ export default function TournamentDetail() {
                     <p className="text-sm font-black text-foreground">
                       {pr.fromUser?.fullName || "Someone"} wants to pair up with you!
                     </p>
+                    {pr.pairName && (
+                      <p className="text-xs text-amber-500 font-bold mt-0.5">Team: "{pr.pairName}"</p>
+                    )}
                     {pr.message && (
                       <p className="text-xs text-muted-foreground mt-0.5 italic truncate max-w-xs">"{pr.message}"</p>
                     )}
@@ -313,7 +316,7 @@ export default function TournamentDetail() {
         </div>
       )}
 
-      {subPage === "overview" && <OverviewTab tournament={tournament} categories={categories} />}
+      {subPage === "overview" && <OverviewTab tournament={tournament} categories={categories} tournamentId={tournamentId} />}
       {subPage === "players" && <PlayersTab tournamentId={tournamentId} />}
       {subPage === "pairs" && <PairsTab tournamentId={tournamentId} />}
       {subPage === "signup" && <SignUpTab tournamentId={tournamentId} tournament={tournament} />}
@@ -396,84 +399,290 @@ function EmptyState({ icon: Icon, title, description }: { icon: any; title: stri
   );
 }
 
-function OverviewTab({ tournament, categories }: { tournament: any; categories: any[] }) {
+function CountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative">
+        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-black/60 border border-white/10 flex items-center justify-center backdrop-blur-sm">
+          <span className="text-xl sm:text-2xl font-black text-white tabular-nums">{String(value).padStart(2, "0")}</span>
+        </div>
+        <div className="absolute inset-x-0 top-1/2 h-px bg-white/5" />
+      </div>
+      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1.5">{label}</span>
+    </div>
+  );
+}
+
+function useCountdown(targetDate: string) {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, mins: 0, secs: 0, expired: false });
+  
+  useEffect(() => {
+    const update = () => {
+      const diff = new Date(targetDate).getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, mins: 0, secs: 0, expired: true });
+        return;
+      }
+      setTimeLeft({
+        days: Math.floor(diff / 86400000),
+        hours: Math.floor((diff % 86400000) / 3600000),
+        mins: Math.floor((diff % 3600000) / 60000),
+        secs: Math.floor((diff % 60000) / 1000),
+        expired: false,
+      });
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+  
+  return timeLeft;
+}
+
+function OverviewTab({ tournament, categories, tournamentId }: { tournament: any; categories: any[]; tournamentId: number }) {
   const regCount = tournament.registrationCount || 0;
   const maxPlayers = tournament.maxPlayers;
   const fillPercent = maxPlayers ? Math.min((regCount / maxPlayers) * 100, 100) : 0;
+  const spotsLeft = maxPlayers ? Math.max(maxPlayers - regCount, 0) : null;
+  const { data: prizes } = useTournamentPrizesQuery(tournamentId);
+  const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
+  const countdown = useCountdown(tournament.startDate);
+  const isUpcoming = !countdown.expired && tournament.status !== "COMPLETED" && tournament.status !== "ONGOING";
+  const isLive = tournament.status === "ONGOING";
+
+  const placementIcons: Record<string, { icon: any; gradient: string; ring: string }> = {
+    "1st": { icon: Crown, gradient: "from-amber-400 via-yellow-500 to-amber-600", ring: "ring-amber-500/30" },
+    "2nd": { icon: Medal, gradient: "from-gray-300 via-slate-400 to-gray-500", ring: "ring-slate-400/30" },
+    "3rd": { icon: Award, gradient: "from-amber-600 via-orange-700 to-amber-800", ring: "ring-orange-600/30" },
+  };
+
+  const recentPlayers = (allPlayers || []).slice(0, 8);
+  const extraPlayerCount = Math.max(regCount - 8, 0);
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        {[
-          { icon: Calendar, label: "Date", value: `${format(new Date(tournament.startDate), "d MMM")} – ${format(new Date(tournament.endDate), "d MMM")}`, accent: "from-violet-500 to-purple-500" },
-          { icon: Building2, label: "Club", value: tournament.club?.name || "—", accent: "from-blue-500 to-indigo-500" },
-          { icon: MapPin, label: "Location", value: tournament.location || tournament.venue?.name || "TBD", accent: "from-emerald-500 to-teal-500" },
-          { icon: Swords, label: "Courts", value: `${tournament.courtsAvailable} courts`, accent: "from-amber-500 to-orange-500" },
-        ].map((item, i) => (
-          <div key={i} className="rounded-xl bg-card border border-border/50 p-4 hover:border-amber-500/20 transition-colors">
-            <div className={cn("h-8 w-8 rounded-lg bg-gradient-to-br flex items-center justify-center mb-2", item.accent)}>
-              <item.icon className="h-4 w-4 text-white" />
+    <div className="space-y-5" data-testid="overview-tab">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/5">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(251,146,60,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(139,92,246,0.06),transparent_50%)]" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
+
+        <div className="relative p-5 sm:p-6 space-y-5">
+          {(isUpcoming || isLive) && (
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                {isLive ? (
+                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 font-black text-xs px-3 py-1 animate-pulse" data-testid="badge-live">
+                    <span className="inline-block h-2 w-2 rounded-full bg-red-400 mr-1.5" />LIVE NOW
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 font-black text-xs px-3 py-1" data-testid="badge-starts-in">
+                    <Clock className="h-3 w-3 mr-1" />STARTS IN
+                  </Badge>
+                )}
+              </div>
+              {isUpcoming && (
+                <div className="flex items-center gap-2">
+                  <CountdownUnit value={countdown.days} label="Days" />
+                  <span className="text-white/30 text-xl font-bold mb-4">:</span>
+                  <CountdownUnit value={countdown.hours} label="Hrs" />
+                  <span className="text-white/30 text-xl font-bold mb-4">:</span>
+                  <CountdownUnit value={countdown.mins} label="Min" />
+                  <span className="text-white/30 text-xl font-bold mb-4">:</span>
+                  <CountdownUnit value={countdown.secs} label="Sec" />
+                </div>
+              )}
             </div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-0.5">{item.label}</p>
-            <p className="text-sm font-bold text-foreground truncate">{item.value}</p>
+          )}
+
+          {maxPlayers && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    {recentPlayers.map((p: any, i: number) => (
+                      <div key={i} className="relative" style={{ zIndex: recentPlayers.length - i }}>
+                        <PlayerAvatar name={p.user?.fullName || `P${i}`} size="sm" />
+                      </div>
+                    ))}
+                    {extraPlayerCount > 0 && (
+                      <div className="h-8 w-8 rounded-full bg-gray-700 border-2 border-gray-800 flex items-center justify-center text-[10px] font-bold text-gray-300 relative" style={{ zIndex: 0 }}>
+                        +{extraPlayerCount}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-300">
+                    <span className="font-black text-white">{regCount}</span> / {maxPlayers} joined
+                  </span>
+                </div>
+                <span className={cn("text-sm font-black", fillPercent >= 100 ? "text-red-400" : fillPercent >= 75 ? "text-amber-400" : "text-emerald-400")}>
+                  {fillPercent >= 100 ? "FULL" : `${Math.round(fillPercent)}%`}
+                </span>
+              </div>
+              <div className="relative h-3 rounded-full bg-gray-700/50 overflow-hidden">
+                <div className="absolute inset-0 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-1000 ease-out relative",
+                      fillPercent >= 100 ? "bg-gradient-to-r from-red-500 to-rose-500" :
+                      fillPercent >= 75 ? "bg-gradient-to-r from-amber-500 to-orange-500" :
+                      "bg-gradient-to-r from-emerald-500 to-teal-500"
+                    )}
+                    style={{ width: `${fillPercent}%` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/20 rounded-full" />
+                    <div className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-white/30 to-transparent rounded-full animate-pulse" />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                {fillPercent >= 100 ? (
+                  <span className="text-red-400 font-bold">🔥 Tournament is full! Join the waitlist.</span>
+                ) : (
+                  <>{spotsLeft} spot{spotsLeft !== 1 ? "s" : ""} remaining — <span className="text-amber-400 font-bold">sign up now!</span></>
+                )}
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <Calendar className="h-4 w-4 text-amber-400" />
+              <span>{format(new Date(tournament.startDate), "d MMM yyyy")} – {format(new Date(tournament.endDate), "d MMM yyyy")}</span>
+            </div>
+            <div className="h-4 w-px bg-gray-600" />
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <MapPin className="h-4 w-4 text-emerald-400" />
+              <span>{tournament.location || tournament.venue?.name || "TBD"}</span>
+            </div>
+            <div className="h-4 w-px bg-gray-600" />
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <Swords className="h-4 w-4 text-violet-400" />
+              <span>{tournament.courtsAvailable} courts</span>
+            </div>
           </div>
-        ))}
+
+          {tournament.entryFee && parseFloat(tournament.entryFee) > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <Banknote className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Entry Fee</p>
+                <p className="text-lg font-black text-white">£{parseFloat(tournament.entryFee).toFixed(2)}</p>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
 
       {tournament.description && (
-        <div className="rounded-xl bg-card border border-border/50 p-4">
-          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider mb-2">About the Tournament</h3>
-          <p className="text-sm text-foreground leading-relaxed">{tournament.description}</p>
-        </div>
-      )}
-
-      {maxPlayers && (
-        <div className="rounded-xl bg-card border border-border/50 p-4 space-y-3">
-          <div className="flex items-center justify-between">
-            <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider">Registration Progress</h3>
-            <span className="text-sm font-black text-foreground">{regCount} / {maxPlayers}</span>
-          </div>
-          <div className="h-3 rounded-full bg-muted/50 dark:bg-muted/30 overflow-hidden">
-            <div className="h-full rounded-full bg-gradient-to-r from-amber-500 to-orange-500 transition-all duration-700 shadow-lg shadow-amber-500/20" style={{ width: `${fillPercent}%` }} />
-          </div>
-          <p className="text-xs text-muted-foreground">{fillPercent >= 100 ? "🔥 Tournament is full!" : `${maxPlayers - regCount} spots remaining`}</p>
-        </div>
-      )}
-
-      {tournament.entryFee && (
-        <div className="rounded-xl bg-gradient-to-r from-amber-500/10 via-orange-500/10 to-red-500/10 border border-amber-500/20 p-4 flex items-center gap-4">
-          <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center shadow-lg shadow-amber-500/20 flex-shrink-0">
-            <Banknote className="h-6 w-6 text-white" />
-          </div>
-          <div>
-            <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Entry Fee</p>
-            <p className="text-xl font-black text-foreground">£{parseFloat(tournament.entryFee || "0").toFixed(2)}</p>
-          </div>
-          {tournament.prizeInfo && (
-            <div className="ml-auto text-right">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Prize Info</p>
-              <p className="text-sm font-bold text-foreground">{tournament.prizeInfo}</p>
+        <div className="rounded-xl bg-card border border-border/50 p-5">
+          <h3 className="text-sm font-black text-foreground mb-2 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-amber-500" />
+            About the Tournament
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">{tournament.description}</p>
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {categories.map(cat => (
+                <Badge key={cat.id} variant="outline" className="text-xs font-bold bg-muted/30" data-testid={`badge-category-${cat.id}`}>
+                  {cat.name}
+                </Badge>
+              ))}
             </div>
           )}
         </div>
       )}
 
+      {tournament.rules && (
+        <div className="rounded-xl bg-card border border-border/50 p-5">
+          <h3 className="text-sm font-black text-foreground mb-2 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-violet-500" />
+            Rules
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{tournament.rules}</p>
+        </div>
+      )}
+
+      {prizes && prizes.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-black text-foreground flex items-center gap-2 px-1">
+            <Trophy className="h-4 w-4 text-amber-500" />
+            Prize Pool
+          </h3>
+          <div className="space-y-2">
+            {prizes.sort((a: any, b: any) => {
+              const order: Record<string, number> = { "1st": 1, "2nd": 2, "3rd": 3 };
+              return (order[a.placement] || 99) - (order[b.placement] || 99);
+            }).map((prize: any) => {
+              const meta = placementIcons[prize.placement];
+              const PrizeIcon = meta?.icon || Gift;
+              return (
+                <div key={prize.id} className="relative overflow-hidden rounded-xl border border-border/50 bg-card group hover:border-amber-500/20 transition-all" data-testid={`prize-card-${prize.id}`}>
+                  {meta && <div className={cn("absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b", meta.gradient)} />}
+                  <div className="flex items-center gap-4 p-4 pl-5">
+                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center ring-2 flex-shrink-0", meta ? `bg-gradient-to-br ${meta.gradient} ${meta.ring}` : "bg-gray-500/20 ring-gray-500/20")}>
+                      <PrizeIcon className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground">{prize.placement} Place</p>
+                      {prize.title && <p className="text-xs text-muted-foreground truncate">{prize.title}</p>}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {prize.prizeValue && (
+                        <p className="text-base font-black text-foreground">£{parseFloat(prize.prizeValue).toFixed(0)}</p>
+                      )}
+                      <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Amount</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {categories.length > 0 && (
         <div className="space-y-3">
-          <h3 className="text-xs font-black text-muted-foreground uppercase tracking-wider px-1">Categories</h3>
+          <h3 className="text-sm font-black text-foreground flex items-center gap-2 px-1">
+            <LayoutGrid className="h-4 w-4 text-violet-500" />
+            Event Categories
+          </h3>
           <div className="grid gap-2 sm:grid-cols-2">
             {categories.map(cat => (
-              <div key={cat.id} className="rounded-xl border border-border/50 bg-card p-4 flex items-center justify-between hover:border-amber-500/20 transition-colors">
+              <div key={cat.id} className="rounded-xl border border-border/50 bg-card p-4 flex items-center justify-between hover:border-amber-500/20 transition-colors group">
                 <div>
                   <h4 className="font-bold text-foreground text-sm">{cat.name}</h4>
                   <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className="text-[10px]">{cat.format?.replace("_", " + ")}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{cat.format?.replace(/_/g, " + ")}</Badge>
                     <Badge variant="outline" className="text-[10px]">{cat.playersPerSide === 1 ? "Singles" : "Doubles"}</Badge>
                   </div>
                 </div>
-                <ChevronRight className="h-4 w-4 text-muted-foreground/40" />
+                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-amber-500/60 transition-colors" />
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {tournament.socialLinks && typeof tournament.socialLinks === "object" && Object.keys(tournament.socialLinks).length > 0 && (
+        <div className="rounded-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3 text-white">
+              <ExternalLink className="h-5 w-5" />
+              <div>
+                <p className="text-sm font-black uppercase tracking-wide">For More Info</p>
+                <p className="text-xs text-white/70">Follow us on social media</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {Object.entries(tournament.socialLinks as Record<string, string>).map(([platform, url]) => (
+                <a key={platform} href={url as string} target="_blank" rel="noopener noreferrer"
+                  className="h-8 w-8 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center text-white text-xs font-bold transition-colors">
+                  {platform.charAt(0).toUpperCase()}
+                </a>
+              ))}
+            </div>
           </div>
         </div>
       )}
@@ -898,6 +1107,7 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
   const [partnerSearch, setPartnerSearch] = useState("");
   const [proposingTo, setProposingTo] = useState<{ userId: number; name: string } | null>(null);
   const [proposalMessage, setProposalMessage] = useState("");
+  const [proposalPairName, setProposalPairName] = useState("");
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
   const myPendingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
@@ -911,12 +1121,13 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
     }
   }
 
-  async function handleSendPairRequest(toUserId: number, message?: string) {
+  async function handleSendPairRequest(toUserId: number, message?: string, pairName?: string) {
     try {
-      await sendPairMutation.mutateAsync({ tournamentId, toUserId, message: message || undefined });
+      await sendPairMutation.mutateAsync({ tournamentId, toUserId, message: message || undefined, pairName: pairName || undefined });
       toast({ title: "Pair Request Sent!", description: "They'll receive a notification and a message." });
       setProposingTo(null);
       setProposalMessage("");
+      setProposalPairName("");
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -1055,7 +1266,7 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
       )}
 
       {proposingTo && (
-        <Dialog open onOpenChange={() => { setProposingTo(null); setProposalMessage(""); }}>
+        <Dialog open onOpenChange={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle className="flex items-center gap-2">
@@ -1073,6 +1284,19 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
                 </div>
               </div>
               <div className="space-y-2">
+                <label className="text-xs font-bold text-foreground">Team Name (optional)</label>
+                <input
+                  type="text"
+                  placeholder='e.g. "The Smashers", "Dynamic Duo"'
+                  value={proposalPairName}
+                  onChange={(e) => setProposalPairName(e.target.value)}
+                  maxLength={50}
+                  className="w-full rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors p-3"
+                  data-testid="input-pair-name"
+                />
+                <p className="text-[10px] text-muted-foreground">Give your pair a fun team name!</p>
+              </div>
+              <div className="space-y-2">
                 <label className="text-xs font-bold text-foreground">Message (optional)</label>
                 <textarea
                   placeholder="Hey! Want to team up for this tournament?"
@@ -1086,13 +1310,13 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
                 <p className="text-[10px] text-muted-foreground text-right">{proposalMessage.length}/200</p>
               </div>
               <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => { setProposingTo(null); setProposalMessage(""); }}>
+                <Button variant="outline" onClick={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>
                   Cancel
                 </Button>
                 <Button className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
                   disabled={sendPairMutation.isPending}
                   data-testid="button-send-pair-request"
-                  onClick={() => handleSendPairRequest(proposingTo.userId, proposalMessage)}>
+                  onClick={() => handleSendPairRequest(proposingTo.userId, proposalMessage, proposalPairName)}>
                   {sendPairMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
                   Send Proposal
                 </Button>
