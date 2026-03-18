@@ -16,7 +16,7 @@ import {
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
-import { useMyTournamentClubs, useDetailedPlayerStats } from "@/hooks/use-clubs";
+import { useMyTournamentClubs, useDetailedPlayerStats, useClubs } from "@/hooks/use-clubs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -31,7 +31,7 @@ import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
-  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle,
+  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -2365,48 +2365,21 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
           </div>
 
           {addAdminOpen && (
-            <Dialog open onOpenChange={() => setAddAdminOpen(false)}>
-              <DialogContent className="max-w-md">
-                <DialogHeader>
-                  <DialogTitle className="flex items-center gap-2">
-                    <Shield className="h-5 w-5 text-violet-500" />
-                    Add Tournament Admin
-                  </DialogTitle>
-                  <DialogDescription>Select a club member to grant tournament admin access.</DialogDescription>
-                </DialogHeader>
-                <div className="space-y-2 max-h-72 overflow-y-auto">
-                  {(!eligibleAdmins || eligibleAdmins.length === 0) ? (
-                    <p className="text-sm text-muted-foreground text-center py-4">No eligible members found.</p>
-                  ) : (
-                    eligibleAdmins.map((member: any) => (
-                      <div key={member.userId} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors"
-                        data-testid={`eligible-admin-${member.userId}`}>
-                        <div className="flex items-center gap-3 min-w-0">
-                          <PlayerAvatar name={member.fullName || "?"} size="sm" />
-                          <div className="min-w-0">
-                            <p className="text-sm font-bold text-foreground truncate">{member.fullName}</p>
-                            <p className="text-[10px] text-muted-foreground truncate">{member.email}</p>
-                          </div>
-                        </div>
-                        <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white font-bold"
-                          disabled={addAdminMutation.isPending}
-                          onClick={async () => {
-                            try {
-                              await addAdminMutation.mutateAsync({ tournamentId, userId: member.userId });
-                              toast({ title: "Admin Added", description: `${member.fullName} is now a tournament admin.` });
-                              setAddAdminOpen(false);
-                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                          }}
-                          data-testid={`button-grant-admin-${member.userId}`}>
-                          <UserPlus className="h-3 w-3 mr-1" />Add
-                        </Button>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </DialogContent>
-            </Dialog>
+            <AdminSearchDialog
+              eligibleAdmins={eligibleAdmins || []}
+              isPending={addAdminMutation.isPending}
+              onAdd={async (member: any) => {
+                try {
+                  await addAdminMutation.mutateAsync({ tournamentId, userId: member.userId });
+                  toast({ title: "Admin Added", description: `${member.fullName} is now a tournament admin.` });
+                  setAddAdminOpen(false);
+                } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+              }}
+              onClose={() => setAddAdminOpen(false)}
+            />
           )}
+
+          <TournamentVisibilitySection tournament={tournament} tournamentId={tournamentId} />
         </div>
       )}
     </div>
@@ -2611,6 +2584,184 @@ function AdminGroupsView({ categoryId, teams, categories, selectedCatId, onSelec
         </div>
       )}
     </div>
+  );
+}
+
+function TournamentVisibilitySection({ tournament, tournamentId }: { tournament: any; tournamentId: number }) {
+  const { data: allClubs } = useClubs();
+  const updateTournament = useUpdateTournament();
+  const { toast } = useToast();
+  const [clubSearch, setClubSearch] = useState("");
+  const currentAllowed: number[] = tournament.allowedClubIds || [];
+  const isOwnerOnly = currentAllowed.length === 0;
+  const isOpen = tournament.type === "OPEN";
+
+  const otherClubs = useMemo(() => {
+    if (!allClubs) return [];
+    const filtered = allClubs.filter(c => c.id !== tournament.clubId);
+    const sorted = filtered.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+    if (!clubSearch.trim()) return sorted;
+    const q = clubSearch.toLowerCase();
+    return sorted.filter(c => (c.name || "").toLowerCase().includes(q));
+  }, [allClubs, clubSearch, tournament.clubId]);
+
+  const toggleClub = async (clubId: number) => {
+    let newAllowed: number[];
+    if (currentAllowed.includes(clubId)) {
+      newAllowed = currentAllowed.filter(id => id !== clubId);
+    } else {
+      newAllowed = [...currentAllowed, clubId];
+      if (!newAllowed.includes(tournament.clubId)) newAllowed = [tournament.clubId, ...newAllowed];
+    }
+    try {
+      await updateTournament.mutateAsync({ id: tournamentId, allowedClubIds: newAllowed });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  };
+
+  const resetToOwnerOnly = async () => {
+    try {
+      await updateTournament.mutateAsync({ id: tournamentId, allowedClubIds: [] });
+      toast({ title: "Visibility Updated", description: "Tournament is now visible to your club members only." });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  };
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+      <div className="flex items-center gap-2">
+        <Eye className="h-4 w-4 text-cyan-400" />
+        <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Visibility</h4>
+      </div>
+
+      {isOpen ? (
+        <div className="flex items-center gap-2 p-3 rounded-lg bg-cyan-500/10 border border-cyan-500/20">
+          <Globe className="h-4 w-4 text-cyan-500 flex-shrink-0" />
+          <p className="text-xs text-foreground">This is an <span className="font-bold">OPEN</span> tournament — visible to all platform users regardless of club membership.</p>
+        </div>
+      ) : (
+        <>
+          <p className="text-[11px] text-muted-foreground">
+            By default, this tournament is visible to members of the organising club. You can extend visibility to additional clubs below.
+          </p>
+
+          <div className="flex gap-2">
+            <Button size="sm" variant={isOwnerOnly ? "default" : "outline"}
+              className={cn("h-8 text-xs font-bold", isOwnerOnly && "bg-cyan-600 hover:bg-cyan-700 text-white")}
+              onClick={resetToOwnerOnly} disabled={updateTournament.isPending || isOwnerOnly} data-testid="button-visibility-owner-only">
+              <Building2 className="h-3 w-3 mr-1" />Own Club Only
+            </Button>
+            <Button size="sm" variant={!isOwnerOnly ? "default" : "outline"}
+              className={cn("h-8 text-xs font-bold", !isOwnerOnly && "bg-violet-600 hover:bg-violet-700 text-white")}
+              onClick={() => {
+                if (isOwnerOnly && tournament.clubId) {
+                  updateTournament.mutateAsync({ id: tournamentId, allowedClubIds: [tournament.clubId] });
+                }
+              }} disabled={updateTournament.isPending || !isOwnerOnly} data-testid="button-visibility-multi-club">
+              <Users className="h-3 w-3 mr-1" />Multiple Clubs
+            </Button>
+          </div>
+
+          {!isOwnerOnly && (
+            <div className="space-y-2 pt-1">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                <Input placeholder="Search clubs..." value={clubSearch} onChange={e => setClubSearch(e.target.value)}
+                  className="pl-9 h-8 text-xs" data-testid="input-search-visibility-clubs" />
+              </div>
+              <div className="space-y-1 max-h-48 overflow-y-auto">
+                {otherClubs.map(club => {
+                  const selected = currentAllowed.includes(club.id);
+                  return (
+                    <div key={club.id} className={cn(
+                      "flex items-center gap-3 p-2 rounded-lg cursor-pointer transition-colors",
+                      selected ? "bg-violet-500/10 border border-violet-500/30" : "hover:bg-muted/30"
+                    )} onClick={() => toggleClub(club.id)} data-testid={`club-visibility-${club.id}`}>
+                      <div className={cn(
+                        "h-4 w-4 rounded border flex items-center justify-center flex-shrink-0",
+                        selected ? "bg-violet-600 border-violet-600" : "border-muted-foreground/40"
+                      )}>
+                        {selected && <Check className="h-3 w-3 text-white" />}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-foreground truncate">{club.name}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+                {otherClubs.length === 0 && (
+                  <p className="text-xs text-muted-foreground text-center py-3">
+                    {clubSearch ? "No clubs match your search." : "No other clubs available."}
+                  </p>
+                )}
+              </div>
+              {currentAllowed.length > 1 && (
+                <p className="text-[10px] text-muted-foreground">
+                  Visible to {currentAllowed.length} club{currentAllowed.length !== 1 ? "s" : ""} (including your own).
+                </p>
+              )}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function AdminSearchDialog({ eligibleAdmins, isPending, onAdd, onClose }: {
+  eligibleAdmins: any[]; isPending: boolean; onAdd: (member: any) => void; onClose: () => void;
+}) {
+  const [search, setSearch] = useState("");
+  const sorted = useMemo(() => {
+    const filtered = eligibleAdmins.filter((m: any) => {
+      if (!search.trim()) return true;
+      const q = search.toLowerCase();
+      return (m.fullName || "").toLowerCase().includes(q) || (m.email || "").toLowerCase().includes(q);
+    });
+    return filtered.sort((a: any, b: any) => (a.fullName || "").localeCompare(b.fullName || ""));
+  }, [eligibleAdmins, search]);
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Shield className="h-5 w-5 text-violet-500" />
+            Add Tournament Admin
+          </DialogTitle>
+          <DialogDescription>Search and select a member to grant tournament admin access.</DialogDescription>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input placeholder="Search by name or email..." value={search} onChange={e => setSearch(e.target.value)}
+            className="pl-9 h-9" data-testid="input-search-admin" />
+        </div>
+        <div className="space-y-1 max-h-72 overflow-y-auto">
+          {sorted.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">
+              {eligibleAdmins.length === 0 ? "No eligible members found." : "No members match your search."}
+            </p>
+          ) : (
+            sorted.map((member: any) => (
+              <div key={member.userId} className="flex items-center justify-between p-2.5 rounded-lg hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors"
+                data-testid={`eligible-admin-${member.userId}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <PlayerAvatar name={member.fullName || "?"} size="sm" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">{member.fullName}</p>
+                    <p className="text-[10px] text-muted-foreground truncate">{member.email}</p>
+                  </div>
+                </div>
+                <Button size="sm" className="h-7 text-xs bg-violet-600 hover:bg-violet-700 text-white font-bold"
+                  disabled={isPending}
+                  onClick={() => onAdd(member)}
+                  data-testid={`button-grant-admin-${member.userId}`}>
+                  <UserPlus className="h-3 w-3 mr-1" />Add
+                </Button>
+              </div>
+            ))
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 

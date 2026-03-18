@@ -469,6 +469,7 @@ export const tournaments = pgTable("tournaments", {
   rules: text("rules"),
   groupsPerSide: integer("groups_per_side").default(2),
   pairsPerGroup: integer("pairs_per_group").default(4),
+  allowedClubIds: integer("allowed_club_ids").array(),
 });
 
 export const tournamentCategories = pgTable("tournament_categories", {

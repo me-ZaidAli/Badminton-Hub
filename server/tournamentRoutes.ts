@@ -14,9 +14,27 @@ export function registerTournamentRoutes(app: Express) {
   app.get("/api/tournaments", async (req, res) => {
     try {
       const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
-      const where = clubId ? eq(tournaments.clubId, clubId) : undefined;
-      const result = await db.select().from(tournaments).where(where).orderBy(desc(tournaments.createdAt));
-      res.json(result);
+      const allTournaments = await db.select().from(tournaments).orderBy(desc(tournaments.createdAt));
+
+      let userClubIds: number[] = [];
+      if (req.isAuthenticated()) {
+        const memberships = await db.select({ clubId: clubMemberships.clubId })
+          .from(clubMemberships).where(
+            and(eq(clubMemberships.userId, req.user!.id), inArray(clubMemberships.status, ["ACTIVE", "EXPIRING"]))
+          );
+        userClubIds = memberships.map(m => m.clubId);
+      }
+
+      const filtered = allTournaments.filter(t => {
+        if (clubId && t.clubId !== clubId) return false;
+        if (t.type === "OPEN") return true;
+        if (!t.allowedClubIds || t.allowedClubIds.length === 0) {
+          return userClubIds.includes(t.clubId);
+        }
+        return userClubIds.some(cid => t.allowedClubIds!.includes(cid));
+      });
+
+      res.json(filtered);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -79,7 +97,7 @@ export function registerTournamentRoutes(app: Express) {
       const updates: any = {};
       const allowed = ["name", "status", "description", "courtsAvailable", "bannerUrl", "maxPlayers",
         "skillLevelMin", "skillLevelMax", "location", "socialLinks", "isLocked",
-        "entryFee", "prizeInfo", "rules", "groupsPerSide", "pairsPerGroup", "type"];
+        "entryFee", "prizeInfo", "rules", "groupsPerSide", "pairsPerGroup", "type", "allowedClubIds"];
       for (const key of allowed) {
         if (req.body[key] !== undefined) updates[key] = req.body[key];
       }
