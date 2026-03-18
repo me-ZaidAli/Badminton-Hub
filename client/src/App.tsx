@@ -133,7 +133,7 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
     <div className="flex flex-col min-h-screen">
       <div className="flex flex-1">
         <Sidebar />
-        <main className={`flex-1 ${hidden ? "" : "md:ml-64"} px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full transition-[margin] duration-300`}>
+        <main className={`flex-1 ${hidden ? "" : "md:ml-64"} px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full transition-[margin] duration-300 landscape-expand`}>
           {children}
         </main>
       </div>

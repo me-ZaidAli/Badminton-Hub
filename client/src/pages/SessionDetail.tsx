@@ -4669,8 +4669,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         );
       })()}
 
-      <div className="grid grid-cols-1 xl:grid-cols-[1fr_320px] gap-6">
-          <div className="space-y-6">
+      <div className="space-y-6">
+            <div className="landscape-full-courts">
             <ProLiveMatches
               liveMatches={liveMatches}
               isOrganiser={isOrganiser}
@@ -4690,6 +4690,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
               busyPlayerIds={busyPlayerIds}
             />
+            </div>
 
             <CollapsibleSection storageKey="match-queue" title="Playing Next" badge={queuedMatches.length} icon={<Clock className="w-4 h-4 text-amber-500" />}>
               <MatchQueue
@@ -4739,13 +4740,10 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
             <CollapsibleSection storageKey="completed-matches" title="Completed" badge={completedCount} icon={<CheckCircle className="w-4 h-4 text-emerald-500" />}>
               <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
             </CollapsibleSection>
-          </div>
 
-          <div className="xl:sticky xl:top-4 xl:self-start space-y-4">
             <CollapsibleSection storageKey="live-leaderboard" title="Live Leaderboard" icon={<Trophy className="w-4 h-4 text-amber-500" />}>
               <SessionLiveLeaderboard sessionId={sessionId} />
             </CollapsibleSection>
-          </div>
         </div>
 
       {isOrganiser && (
