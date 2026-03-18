@@ -310,35 +310,38 @@ export function registerTournamentRoutes(app: Express) {
         if (t.player2Id) existingPlayerIds.add(t.player2Id);
       }
 
-      const pairs = await db.select().from(tournamentPairRequests)
-        .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
-
+      const isDoubles = (cat.playersPerSide || 1) >= 2;
       let added = 0;
-      for (const pair of pairs) {
-        const [p1Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.fromUserId));
-        const [p2Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.toUserId));
-        if (!p1Profile || !p2Profile) continue;
-        if (existingPlayerIds.has(p1Profile.id) || existingPlayerIds.has(p2Profile.id)) continue;
-        await db.insert(tournamentTeams).values({
-          categoryId: catId, player1Id: p1Profile.id, player2Id: p2Profile.id,
-        });
-        existingPlayerIds.add(p1Profile.id);
-        existingPlayerIds.add(p2Profile.id);
-        added++;
-      }
 
-      const regs = await db.select().from(tournamentRegistrations)
-        .where(and(
-          eq(tournamentRegistrations.tournamentId, cat.tournamentId),
-          eq(tournamentRegistrations.status, "APPROVED"),
-          eq(tournamentRegistrations.registrationType, "INDIVIDUAL"),
-        ));
-      for (const reg of regs) {
-        const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
-        if (!profile || existingPlayerIds.has(profile.id)) continue;
-        await db.insert(tournamentTeams).values({ categoryId: catId, player1Id: profile.id });
-        existingPlayerIds.add(profile.id);
-        added++;
+      if (isDoubles) {
+        const pairs = await db.select().from(tournamentPairRequests)
+          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
+
+        for (const pair of pairs) {
+          const [p1Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.fromUserId));
+          const [p2Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.toUserId));
+          if (!p1Profile || !p2Profile) continue;
+          if (existingPlayerIds.has(p1Profile.id) || existingPlayerIds.has(p2Profile.id)) continue;
+          await db.insert(tournamentTeams).values({
+            categoryId: catId, player1Id: p1Profile.id, player2Id: p2Profile.id,
+          });
+          existingPlayerIds.add(p1Profile.id);
+          existingPlayerIds.add(p2Profile.id);
+          added++;
+        }
+      } else {
+        const regs = await db.select().from(tournamentRegistrations)
+          .where(and(
+            eq(tournamentRegistrations.tournamentId, cat.tournamentId),
+            eq(tournamentRegistrations.status, "APPROVED"),
+          ));
+        for (const reg of regs) {
+          const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+          if (!profile || existingPlayerIds.has(profile.id)) continue;
+          await db.insert(tournamentTeams).values({ categoryId: catId, player1Id: profile.id });
+          existingPlayerIds.add(profile.id);
+          added++;
+        }
       }
 
       res.json({ success: true, teamsAdded: added, totalTeams: existingTeams.length + added });
@@ -356,6 +359,14 @@ export function registerTournamentRoutes(app: Express) {
 
       const teams = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId)).orderBy(asc(tournamentTeams.seedNumber));
       if (teams.length < 2) return res.status(400).json({ message: "Need at least 2 teams" });
+
+      const isDoubles = (cat.playersPerSide || 1) >= 2;
+      if (isDoubles) {
+        const incomplete = teams.filter(t => !t.player2Id);
+        if (incomplete.length > 0) {
+          return res.status(400).json({ message: `${incomplete.length} team(s) missing a partner. Doubles requires pairs (2 players per team).` });
+        }
+      }
 
       await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
       await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
