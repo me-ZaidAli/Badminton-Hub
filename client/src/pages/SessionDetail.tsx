@@ -4670,7 +4670,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       })()}
 
       <div className="space-y-6">
-            <div className="landscape-full-courts">
             <ProLiveMatches
               liveMatches={liveMatches}
               isOrganiser={isOrganiser}
@@ -4690,7 +4689,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               onUpdateSets={(matchId, sets) => updateMatchSets({ matchId, numberOfSets: sets })}
               busyPlayerIds={busyPlayerIds}
             />
-            </div>
 
             <CollapsibleSection storageKey="match-queue" title="Playing Next" badge={queuedMatches.length} icon={<Clock className="w-4 h-4 text-amber-500" />}>
               <MatchQueue

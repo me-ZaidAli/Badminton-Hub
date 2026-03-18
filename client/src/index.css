@@ -8174,27 +8174,19 @@ html.theme-transitioning * {
 }
 
 @media (orientation: landscape) {
-  .landscape-full-courts {
-    margin-left: -0.75rem;
-    margin-right: -0.75rem;
-    border-radius: 0;
-  }
-  .landscape-full-courts > div {
-    border-radius: 0;
-  }
   main.landscape-expand {
-    padding-left: 0.5rem;
-    padding-right: 0.5rem;
-    max-width: 100%;
+    padding-left: 0.5rem !important;
+    padding-right: 0.5rem !important;
+    max-width: 100% !important;
   }
 }
 
-@media (orientation: landscape) and (max-height: 500px) {
+@media (orientation: landscape) and (max-height: 600px) {
   main.landscape-expand {
-    padding-left: 0.25rem;
-    padding-right: 0.25rem;
-    padding-top: 0.25rem;
-    padding-bottom: 0.25rem;
+    padding-left: 0.25rem !important;
+    padding-right: 0.25rem !important;
+    padding-top: 0.25rem !important;
+    padding-bottom: 0.25rem !important;
   }
 }
 
