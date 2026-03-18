@@ -510,67 +510,138 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>;
   if (!pairs || pairs.length === 0) return <EmptyState icon={UserPlus} title="No Pairs" description="No confirmed pairs yet." />;
 
+  const pairBorderGradients = [
+    "from-amber-500 via-orange-500 to-rose-500",
+    "from-violet-500 via-purple-500 to-fuchsia-500",
+    "from-cyan-500 via-blue-500 to-indigo-500",
+    "from-emerald-500 via-teal-500 to-cyan-500",
+    "from-rose-500 via-pink-500 to-purple-500",
+    "from-blue-500 via-indigo-500 to-violet-500",
+  ];
+
+  const pairGlowColors = [
+    "shadow-amber-500/20",
+    "shadow-violet-500/20",
+    "shadow-cyan-500/20",
+    "shadow-emerald-500/20",
+    "shadow-rose-500/20",
+    "shadow-blue-500/20",
+  ];
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between gap-3">
-        <div>
-          <h2 className="text-base font-black text-foreground uppercase tracking-wide">Confirmed Pairs</h2>
-          <p className="text-xs text-muted-foreground">Teams ready for tournament action</p>
+    <div className="space-y-6">
+      <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-slate-900/80 via-purple-950/40 to-slate-900/80 dark:from-slate-950 dark:via-purple-950/60 dark:to-slate-950 p-6">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-purple-600/10 via-transparent to-transparent" />
+        <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full" />
+        <div className="relative flex items-center justify-between">
+          <div>
+            <div className="flex items-center gap-2 mb-1">
+              <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
+                <Swords className="h-3.5 w-3.5 text-white" />
+              </div>
+              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-purple-400">Team Roster</span>
+            </div>
+            <h2 className="text-xl font-black text-white uppercase tracking-wide">Confirmed Pairs</h2>
+            <p className="text-xs text-slate-400 mt-0.5">Elite duos ready to compete</p>
+          </div>
+          <div className="flex items-center gap-3">
+            <div className="text-right">
+              <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">{pairs.length}</div>
+              <div className="text-[9px] uppercase tracking-wider text-slate-500 font-bold">Teams</div>
+            </div>
+          </div>
         </div>
-        <Badge variant="outline" className="font-bold">{pairs.length} pairs</Badge>
       </div>
 
-      <div className="rounded-xl border border-border/50 overflow-hidden">
-        <div className="hidden sm:grid grid-cols-[50px_1fr_120px_100px_100px_80px] items-center px-4 py-2.5 bg-muted/30 dark:bg-muted/10 border-b border-border/30">
-          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">#</span>
-          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Team</span>
-          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Roster</span>
-          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Player 1 Tier</span>
-          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Player 2 Tier</span>
-          <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Status</span>
-        </div>
-        <div className="divide-y divide-border/20">
-          {pairs.map((pair: any, idx: number) => {
-            const p1Name = pair.user1?.fullName || "Player 1";
-            const p2Name = pair.user2?.fullName || "Player 2";
-            const isTop3 = idx < 3;
-            const rankColors = ["text-amber-400", "text-gray-400", "text-orange-400"];
-            return (
-              <div
-                key={pair.id}
-                className={cn(
-                  "group grid grid-cols-[auto_1fr_auto] sm:grid-cols-[50px_1fr_120px_100px_100px_80px] items-center px-4 py-3 transition-all hover:bg-muted/30 dark:hover:bg-muted/10",
-                  isTop3 && "bg-amber-500/[0.03] dark:bg-amber-500/[0.05]"
-                )}
-                data-testid={`pair-row-${idx}`}
-              >
-                <div className="flex items-center">
-                  <span className={cn("text-sm font-black w-7 text-center", isTop3 ? rankColors[idx] : "text-muted-foreground")}>
-                    {isTop3 ? <Medal className={cn("h-5 w-5 inline", rankColors[idx])} /> : `${idx + 1}`}
-                  </span>
-                </div>
-                <div className="min-w-0">
-                  <h4 className="font-bold text-sm text-foreground truncate">{p1Name} & {p2Name}</h4>
-                  <div className="sm:hidden flex items-center gap-2 mt-0.5">
-                    <GradeTierBadge grade={pair.profile1?.currentGrade || "—"} />
-                    <GradeTierBadge grade={pair.profile2?.currentGrade || "—"} />
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {pairs.map((pair: any, idx: number) => {
+          const p1Name = pair.user1?.fullName || "Player 1";
+          const p2Name = pair.user2?.fullName || "Player 2";
+          const gradientIdx = idx % pairBorderGradients.length;
+          const isTop3 = idx < 3;
+          const rankMedals = ["🥇", "🥈", "🥉"];
+
+          return (
+            <div
+              key={pair.id}
+              className="group relative"
+              data-testid={`pair-card-${idx}`}
+            >
+              <div className={cn(
+                "absolute -inset-[1px] rounded-2xl bg-gradient-to-br opacity-60 group-hover:opacity-100 transition-opacity duration-300 blur-[0.5px]",
+                pairBorderGradients[gradientIdx]
+              )} />
+
+              <div className={cn(
+                "relative rounded-2xl bg-slate-900/95 dark:bg-slate-950/95 backdrop-blur-sm overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-xl",
+                pairGlowColors[gradientIdx]
+              )}>
+                <div className={cn(
+                  "h-1 w-full bg-gradient-to-r",
+                  pairBorderGradients[gradientIdx]
+                )} />
+
+                <div className="p-4">
+                  <div className="flex items-center justify-between mb-4">
+                    <div className="flex items-center gap-2">
+                      {isTop3 ? (
+                        <span className="text-lg">{rankMedals[idx]}</span>
+                      ) : (
+                        <div className="h-7 w-7 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center">
+                          <span className="text-xs font-black text-slate-400">#{idx + 1}</span>
+                        </div>
+                      )}
+                      <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-slate-500">Team {idx + 1}</span>
+                    </div>
+                    <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black tracking-wider px-2">
+                      <CheckCircle className="h-2.5 w-2.5 mr-1" />READY
+                    </Badge>
                   </div>
-                </div>
-                <div className="hidden sm:flex justify-center">
-                  <div className="flex -space-x-2">
-                    <PlayerAvatar name={p1Name} size="sm" />
-                    <PlayerAvatar name={p2Name} size="sm" />
+
+                  <div className="flex items-center justify-center gap-3 mb-4">
+                    <div className="flex flex-col items-center">
+                      <div className="relative">
+                        <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
+                        <PlayerAvatar name={p1Name} size="lg" />
+                      </div>
+                      <h4 className="text-xs font-bold text-white mt-2 text-center max-w-[80px] truncate">{p1Name.split(" ")[0]}</h4>
+                      <div className="mt-1"><GradeTierBadge grade={pair.profile1?.currentGrade || "—"} /></div>
+                    </div>
+
+                    <div className="flex flex-col items-center gap-1 px-2">
+                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center">
+                        <Zap className="h-4 w-4 text-amber-400" />
+                      </div>
+                      <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/70">&amp;</span>
+                    </div>
+
+                    <div className="flex flex-col items-center">
+                      <div className="relative">
+                        <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
+                        <PlayerAvatar name={p2Name} size="lg" />
+                      </div>
+                      <h4 className="text-xs font-bold text-white mt-2 text-center max-w-[80px] truncate">{p2Name.split(" ")[0]}</h4>
+                      <div className="mt-1"><GradeTierBadge grade={pair.profile2?.currentGrade || "—"} /></div>
+                    </div>
                   </div>
-                </div>
-                <div className="hidden sm:flex justify-center"><GradeTierBadge grade={pair.profile1?.currentGrade || "—"} /></div>
-                <div className="hidden sm:flex justify-center"><GradeTierBadge grade={pair.profile2?.currentGrade || "—"} /></div>
-                <div className="flex justify-end sm:justify-center">
-                  <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] font-bold">CONFIRMED</Badge>
+
+                  <div className="border-t border-slate-800 pt-3">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Shield className="h-3 w-3 text-slate-500" />
+                        <span className="text-[10px] text-slate-500 font-medium">{p1Name.split(" ")[0]} & {p2Name.split(" ")[0]}</span>
+                      </div>
+                      <div className="flex items-center gap-1">
+                        <div className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse")} />
+                        <span className="text-[9px] text-emerald-400 font-bold uppercase">Active</span>
+                      </div>
+                    </div>
+                  </div>
                 </div>
               </div>
-            );
-          })}
-        </div>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
