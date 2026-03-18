@@ -3303,7 +3303,7 @@ function IdleMatchPopup({ queuedMatches, fairnessPercent, leaderboard, onDismiss
       onTouchStart={onDismiss}
       data-testid="idle-match-popup"
     >
-      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-border/50 shadow-2xl max-w-md w-[90vw] p-6 space-y-5" onClick={(e) => e.stopPropagation()}>
+      <div className="bg-white dark:bg-slate-900 rounded-2xl border border-border/50 shadow-2xl max-w-md w-[90vw] p-6 space-y-5" onClick={(e) => e.stopPropagation()} onTouchStart={(e) => e.stopPropagation()}>
         <div className="text-center">
           <h3 className="text-lg font-bold mb-1">Next Match</h3>
           <p className="text-xs text-muted-foreground">Tap anywhere to dismiss</p>
@@ -3408,14 +3408,7 @@ function WaitingPlayersSection({ confirmedSignups, liveMatches, queuedMatches, s
     }));
 
   return (
-    <div className="rounded-xl border border-border/50 bg-background/80 dark:bg-[#0D1117] overflow-hidden" data-testid="waiting-players-section">
-      <div className="flex items-center justify-between px-4 py-3 border-b border-border/30 bg-muted/30">
-        <h3 className="text-base font-semibold flex items-center gap-2">
-          Waiting
-          <Badge variant="secondary" className="text-xs">{waitingPlayers.length}</Badge>
-        </h3>
-      </div>
-
+    <div data-testid="waiting-players-section">
       <div className="p-3 sm:p-4">
         <table className="w-full" data-testid="waiting-players-table">
           <thead>
@@ -3576,8 +3569,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fairnessListOpen, setFairnessListOpen] = useState(false);
   const [idlePopupVisible, setIdlePopupVisible] = useState(false);
   const idleTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const { data: sessionLeaderboard } = useSessionLeaderboard(sessionId);
 
   useEffect(() => {
     const resetIdle = () => {

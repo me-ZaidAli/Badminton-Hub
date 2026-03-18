@@ -136,12 +136,12 @@ function ClickablePlayerName({
   if (!canSwap || !onSwapPlayer) return <span className={cn(className, busyClass)} style={style}>{nameWithCount}</span>;
   return (
     <>
-      <span role="button" tabIndex={0} className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-400 transition-colors")}
+      <span role="button" tabIndex={0} className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-400 active:text-amber-300 transition-colors")}
         style={style}
         onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
         data-testid={`pro-swap-${position}-${matchId}`}
-      >{nameWithCount}</span>
+      >{nameWithCount}<Pencil className="w-2.5 h-2.5 sm:w-2 sm:h-2 opacity-40 inline ml-0.5 align-middle" /></span>
       <SwapPlayerDialog open={dialogOpen} onOpenChange={setDialogOpen}
         currentPlayer={player ? { id: player.id, fullName: name, category: player.category || null } : null}
         availablePlayers={availablePlayers} onSwap={(newPlayerId) => onSwapPlayer(matchId, position, newPlayerId)} />
