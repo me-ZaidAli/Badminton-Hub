@@ -3228,6 +3228,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
   const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
+  const [enginePanelOpen, setEnginePanelOpen] = useState(false);
+  const enginePanelRef = useRef<HTMLDivElement>(null);
+  const [enginePanelHeight, setEnginePanelHeight] = useState(0);
   const [fullScheduleOpen, setFullScheduleOpen] = useState(false);
   const [fullScheduleData, setFullScheduleData] = useState<any>(null);
   const [fullScheduleRounds, setFullScheduleRounds] = useState<string>("");
@@ -3381,6 +3384,20 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       setNotEnoughPlayersMessage(null);
     }
   }, [activePlayerCount, minPlayersNeeded]);
+
+  useEffect(() => {
+    if (enginePanelRef.current && typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver((entries) => {
+        for (const entry of entries) {
+          setEnginePanelHeight(entry.contentRect.height);
+        }
+      });
+      ro.observe(enginePanelRef.current);
+      return () => ro.disconnect();
+    } else if (enginePanelRef.current) {
+      setEnginePanelHeight(enginePanelRef.current.scrollHeight);
+    }
+  }, []);
 
   if (isLoading) return <div className="p-8 text-center">Loading matches...</div>;
 
@@ -3686,284 +3703,321 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   return (
     <div className="space-y-6">
       {(isOrganiser || isSignedUp) && (
-        <div
-          className="relative rounded-[2rem] border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 backdrop-blur-xl p-6 sm:p-8 hover:scale-[1.01] transition-all duration-300 overflow-hidden shadow-sm"
-          style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }}
-        >
-          <div className="absolute inset-0 rounded-[2rem] pointer-events-none bg-[radial-gradient(ellipse_at_center_bottom,rgba(56,189,248,0.06)_0%,transparent_60%)]" />
-          <div className="relative z-10 flex flex-col gap-6">
-
-            <div className="flex justify-between items-start flex-wrap gap-4">
-              {isOrganiser && (
-                <div className="flex flex-col gap-5">
-                  <div className="flex items-center gap-3" data-testid="mode-toggle-container">
-                    <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Mode</span>
-                    <div className="flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(96,165,250,0.15)]">
-                      <button
-                        className={cn(
-                          "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
-                          activeMode === "SOCIAL"
-                            ? "text-white"
-                            : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
-                        )}
-                        onClick={() => {
-                          setActiveMode("SOCIAL");
-                          updateSession({ sessionId, updates: { matchMode: "SOCIAL" } });
-                        }}
-                        data-testid="button-mode-social"
-                      >
-                        <span className={cn(
-                          "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
-                          activeMode === "SOCIAL" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
-                        )} />
-                        Social
-                      </button>
-                      <button
-                        className={cn(
-                          "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
-                          activeMode === "COMPETITIVE"
-                            ? "text-white"
-                            : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
-                        )}
-                        onClick={() => {
-                          setActiveMode("COMPETITIVE");
-                          updateSession({ sessionId, updates: { matchMode: "COMPETITIVE" } });
-                        }}
-                        data-testid="button-mode-competitive"
-                      >
-                        <span className={cn(
-                          "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
-                          activeMode === "COMPETITIVE" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
-                        )} />
-                        Competitive
-                      </button>
-                      <div
-                        className={cn(
-                          "absolute top-0.5 bottom-0.5 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 shadow-[0_0_16px_rgba(96,165,250,0.3)]",
-                          activeMode === "SOCIAL" ? "left-0.5 right-[50%]" : "left-[50%] right-0.5"
-                        )}
-                        style={{ transition: 'all 500ms cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-                      />
-                    </div>
-                    <MatchAlgorithmInfoButton />
-                  </div>
-
-                  <div className="flex items-center gap-3">
-                    <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Courts</span>
-                    <div className="inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
-                      <button
-                        onClick={() => {
-                          const newVal = Math.max(1, courtsToUse - 1);
-                          setCourtsToUse(newVal);
-                          updateSession({ sessionId, updates: { courtsAvailable: newVal } });
-                        }}
-                        disabled={courtsToUse <= 1}
-                        className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                        data-testid="button-decrease-courts"
-                      >
-                        <Minus className="w-3.5 h-3.5" />
-                      </button>
-                      <span className="px-3 py-1.5 text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400 dark:drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] min-w-[2.5rem] text-center" data-testid="badge-courts-count">
-                        {courtsToUse}
-                      </span>
-                      <button
-                        onClick={() => {
-                          const newVal = Math.min(10, courtsToUse + 1);
-                          setCourtsToUse(newVal);
-                          updateSession({ sessionId, updates: { courtsAvailable: newVal } });
-                        }}
-                        disabled={courtsToUse >= 10}
-                        className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
-                        data-testid="button-increase-courts"
-                      >
-                        <Plus className="w-3.5 h-3.5" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
+        <div className="relative rounded-2xl border border-slate-200 dark:border-white/10 bg-white dark:bg-slate-900/80 backdrop-blur-xl shadow-sm overflow-hidden">
+          <button
+            onClick={() => setEnginePanelOpen(prev => !prev)}
+            className="w-full flex items-center justify-between gap-3 px-4 py-3 sm:px-5 sm:py-3.5 hover:bg-slate-50 dark:hover:bg-white/[0.03] transition-colors duration-200"
+            data-testid="button-toggle-engine-panel"
+          >
+            <div className="flex items-center gap-3">
+              <div className={cn(
+                "w-8 h-8 rounded-full flex items-center justify-center transition-all duration-300",
+                enginePanelOpen
+                  ? "bg-blue-500 text-white shadow-[0_0_12px_rgba(59,130,246,0.4)]"
+                  : "bg-slate-100 dark:bg-slate-800 text-gray-500 dark:text-white/60"
+              )}>
+                <Settings2 className={cn("w-4 h-4 transition-transform duration-500", enginePanelOpen && "rotate-90")} />
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-semibold text-gray-800 dark:text-white/90">Match Engine</span>
+                {isOrganiser && (
+                  <span className="text-xs font-medium text-gray-400 dark:text-white/40 hidden sm:inline">
+                    {activeMode} · {courtsToUse} court{courtsToUse !== 1 ? "s" : ""}
+                  </span>
+                )}
+              </div>
             </div>
 
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-live-count">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] px-2.5 py-1 text-xs font-medium" data-testid="badge-live-count">
                 <span className="relative flex h-2 w-2">
                   {liveMatches.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />}
                   <span className={cn("relative inline-flex rounded-full h-2 w-2", liveMatches.length > 0 ? "bg-emerald-400 shadow-[0_0_6px_rgba(52,211,153,0.7)]" : "bg-gray-300 dark:bg-white/20")} />
                 </span>
-                <span className="text-gray-600 dark:text-white/70">{liveMatches.length} Live</span>
+                <span className="text-gray-600 dark:text-white/70">{liveMatches.length}</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-queued-count">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] px-2.5 py-1 text-xs font-medium" data-testid="badge-queued-count">
                 <span className="relative flex h-2 w-2">
                   {queuedMatches.length > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75" />}
                   <span className={cn("relative inline-flex rounded-full h-2 w-2", queuedMatches.length > 0 ? "bg-amber-400 shadow-[0_0_6px_rgba(251,191,36,0.7)]" : "bg-gray-300 dark:bg-white/20")} />
                 </span>
-                <span className="text-gray-600 dark:text-white/70">{queuedMatches.length} Queued</span>
+                <span className="text-gray-600 dark:text-white/70">{queuedMatches.length}</span>
               </span>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium transition-all duration-300" data-testid="badge-completed-count">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] px-2.5 py-1 text-xs font-medium" data-testid="badge-completed-count">
                 <span className="relative flex h-2 w-2">
                   {completedCount > 0 && <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-blue-400 opacity-75" />}
                   <span className={cn("relative inline-flex rounded-full h-2 w-2", completedCount > 0 ? "bg-blue-400 shadow-[0_0_6px_rgba(96,165,250,0.7)]" : "bg-gray-300 dark:bg-white/20")} />
                 </span>
-                <span className="text-gray-600 dark:text-white/70">{completedCount} Done</span>
+                <span className="text-gray-600 dark:text-white/70">{completedCount}</span>
               </span>
-              {!isOrganiser && <MatchAlgorithmInfoButton />}
-              {isOrganiser && (
-                <button
-                  onClick={() => setCrowdControlOpen(true)}
-                  className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all duration-300"
-                  data-testid="button-crowd-control"
-                >
-                  <Users className="w-3.5 h-3.5" />
-                  Crowd
-                </button>
-              )}
+              <ChevronDown className={cn("w-4 h-4 text-gray-400 dark:text-white/40 transition-transform duration-300 ml-1", enginePanelOpen && "rotate-180")} />
             </div>
+          </button>
 
-            {isOrganiser && (() => {
-              const allPlayerCounts = confirmedSignups.map(s => {
-                const pid = s.player?.id || s.playerId;
-                return sessionMatchCounts[pid] || 0;
-              });
-              const maxGames = allPlayerCounts.length > 0 ? Math.max(...allPlayerCounts) : 0;
-              const minGames = allPlayerCounts.length > 0 ? Math.min(...allPlayerCounts) : 0;
-              const fairnessPercent = maxGames > 0 ? Math.round((minGames / maxGames) * 100) : 100;
-              const fairnessColor = fairnessPercent >= 80 ? "text-emerald-500" : fairnessPercent >= 50 ? "text-amber-500" : "text-red-500";
-              const fairnessStroke = fairnessPercent >= 80 ? "stroke-emerald-500" : fairnessPercent >= 50 ? "stroke-amber-500" : "stroke-red-500";
-              const fairnessGlow = fairnessPercent >= 80 ? "drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" : fairnessPercent >= 50 ? "drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]";
-              const playerList = confirmedSignups
-                .map(s => ({ name: s.player?.user?.fullName || "Unknown", count: sessionMatchCounts[s.player?.id || s.playerId] || 0 }))
-                .sort((a, b) => a.count - b.count);
-              if (maxGames === 0) return null;
-              return (
-                <div className="rounded-2xl border border-slate-200 dark:border-white/[0.07] bg-slate-50/50 dark:bg-white/[0.03] p-4" data-testid="fairness-panel">
-                  <div className="flex items-center gap-4">
-                    <div className="relative w-16 h-16 shrink-0">
-                      <svg viewBox="0 0 36 36" className={cn("w-16 h-16 -rotate-90", fairnessGlow)}>
-                        <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="2.5" className="stroke-gray-200 dark:stroke-white/10" />
-                        <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="2.5" strokeDasharray={`${fairnessPercent * 0.975} 100`} strokeLinecap="round" className={fairnessStroke} />
-                      </svg>
-                      <div className={cn("absolute inset-0 flex items-center justify-center text-base font-bold", fairnessColor)} data-testid="text-fairness-percent">
-                        {fairnessPercent}%
-                      </div>
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <span className={cn("text-sm font-bold", fairnessColor)}>Fairness</span>
-                          <span className="text-xs text-gray-400 dark:text-white/40 ml-2">{minGames}–{maxGames} games</span>
+          <div
+            className="overflow-hidden transition-all ease-[cubic-bezier(0.4,0,0.2,1)]"
+            style={{ maxHeight: enginePanelOpen ? `${enginePanelHeight + 40}px` : '0px', opacity: enginePanelOpen ? 1 : 0, transitionDuration: '400ms' }}
+          >
+            <div ref={enginePanelRef} className="border-t border-slate-200 dark:border-white/10 px-4 py-5 sm:px-6 sm:py-6">
+              <div
+                className="relative rounded-[1.5rem] bg-slate-50/50 dark:bg-white/[0.02] p-5 sm:p-6"
+                style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'noise\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23noise)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }}
+              >
+                <div className="flex flex-col gap-5">
+
+                  <div className="flex justify-between items-start flex-wrap gap-4">
+                    {isOrganiser && (
+                      <div className="flex flex-col gap-4">
+                        <div className="flex items-center gap-3" data-testid="mode-toggle-container">
+                          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Mode</span>
+                          <div className="flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(96,165,250,0.15)]">
+                            <button
+                              className={cn(
+                                "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
+                                activeMode === "SOCIAL"
+                                  ? "text-white"
+                                  : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
+                              )}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMode("SOCIAL");
+                                updateSession({ sessionId, updates: { matchMode: "SOCIAL" } });
+                              }}
+                              data-testid="button-mode-social"
+                            >
+                              <span className={cn(
+                                "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
+                                activeMode === "SOCIAL" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
+                              )} />
+                              Social
+                            </button>
+                            <button
+                              className={cn(
+                                "relative z-10 flex-1 px-4 py-1.5 text-sm font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1.5 active:scale-95 whitespace-nowrap",
+                                activeMode === "COMPETITIVE"
+                                  ? "text-white"
+                                  : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
+                              )}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setActiveMode("COMPETITIVE");
+                                updateSession({ sessionId, updates: { matchMode: "COMPETITIVE" } });
+                              }}
+                              data-testid="button-mode-competitive"
+                            >
+                              <span className={cn(
+                                "w-2 h-2 rounded-full shrink-0 transition-all duration-500",
+                                activeMode === "COMPETITIVE" ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
+                              )} />
+                              Competitive
+                            </button>
+                            <div
+                              className={cn(
+                                "absolute top-0.5 bottom-0.5 rounded-full bg-gradient-to-b from-blue-500 to-blue-700 shadow-[0_0_16px_rgba(96,165,250,0.3)]",
+                                activeMode === "SOCIAL" ? "left-0.5 right-[50%]" : "left-[50%] right-0.5"
+                              )}
+                              style={{ transition: 'all 500ms cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                            />
+                          </div>
+                          <MatchAlgorithmInfoButton />
                         </div>
-                        <button
-                          onClick={() => setFairnessListOpen(prev => !prev)}
-                          className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 transition-colors rounded-full border border-slate-200 dark:border-white/10 px-2.5 py-1"
-                          data-testid="button-toggle-fairness-list"
-                        >
-                          {playerList.length} players
-                          {fairnessListOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
-                        </button>
+
+                        <div className="flex items-center gap-3">
+                          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Courts</span>
+                          <div className="inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newVal = Math.max(1, courtsToUse - 1);
+                                setCourtsToUse(newVal);
+                                updateSession({ sessionId, updates: { courtsAvailable: newVal } });
+                              }}
+                              disabled={courtsToUse <= 1}
+                              className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                              data-testid="button-decrease-courts"
+                            >
+                              <Minus className="w-3.5 h-3.5" />
+                            </button>
+                            <span className="px-3 py-1.5 text-lg font-bold tabular-nums text-emerald-600 dark:text-emerald-400 dark:drop-shadow-[0_0_8px_rgba(52,211,153,0.5)] min-w-[2.5rem] text-center" data-testid="badge-courts-count">
+                              {courtsToUse}
+                            </span>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newVal = Math.min(10, courtsToUse + 1);
+                                setCourtsToUse(newVal);
+                                updateSession({ sessionId, updates: { courtsAvailable: newVal } });
+                              }}
+                              disabled={courtsToUse >= 10}
+                              className="px-3 py-1.5 text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-gray-200/50 dark:hover:bg-white/5 active:scale-95 transition-all duration-300 disabled:opacity-30 disabled:cursor-not-allowed"
+                              data-testid="button-increase-courts"
+                            >
+                              <Plus className="w-3.5 h-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </div>
-                      {!fairnessListOpen && (() => {
-                        const needPriority = playerList.filter(p => p.count < maxGames && (maxGames - p.count) >= 2);
-                        if (needPriority.length === 0) return null;
-                        return (
-                          <div className="mt-1 flex items-center gap-1 text-xs text-amber-500 dark:text-amber-400">
-                            <AlertTriangle className="w-3 h-3 shrink-0" />
-                            <span className="truncate">{needPriority.map(p => `${p.name} (${p.count})`).join(", ")}</span>
-                          </div>
-                        );
-                      })()}
-                    </div>
+                    )}
+                    {!isOrganiser && <MatchAlgorithmInfoButton />}
+                    {isOrganiser && (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setCrowdControlOpen(true); }}
+                        className="inline-flex items-center gap-1.5 rounded-full border border-slate-200 dark:border-white/[0.07] bg-slate-50 dark:bg-white/[0.04] backdrop-blur-sm px-3 py-1.5 text-xs font-medium text-gray-500 dark:text-white/60 hover:text-gray-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all duration-300"
+                        data-testid="button-crowd-control"
+                      >
+                        <Users className="w-3.5 h-3.5" />
+                        Crowd
+                      </button>
+                    )}
                   </div>
-                  {fairnessListOpen && (
-                    <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.07] bg-white dark:bg-slate-900/60 divide-y divide-slate-100 dark:divide-white/[0.05]" data-testid="fairness-player-list">
-                      {playerList.map((p, i) => {
-                        const barWidth = maxGames > 0 ? Math.round((p.count / maxGames) * 100) : 0;
-                        const isLow = p.count < maxGames && (maxGames - p.count) >= 2;
-                        return (
-                          <div key={i} className="flex items-center gap-3 px-3 py-2">
-                            <span className={cn("text-xs font-medium flex-1 min-w-0 truncate", isLow ? "text-amber-600 dark:text-amber-400" : "text-gray-700 dark:text-white/70")}>{p.name}</span>
-                            <div className="w-20 h-1.5 rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden shrink-0">
-                              <div className={cn("h-full rounded-full transition-all", isLow ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${barWidth}%` }} />
+
+                  {isOrganiser && (() => {
+                    const allPlayerCounts = confirmedSignups.map(s => {
+                      const pid = s.player?.id || s.playerId;
+                      return sessionMatchCounts[pid] || 0;
+                    });
+                    const maxGames = allPlayerCounts.length > 0 ? Math.max(...allPlayerCounts) : 0;
+                    const minGames = allPlayerCounts.length > 0 ? Math.min(...allPlayerCounts) : 0;
+                    const fairnessPercent = maxGames > 0 ? Math.round((minGames / maxGames) * 100) : 100;
+                    const fairnessColor = fairnessPercent >= 80 ? "text-emerald-500" : fairnessPercent >= 50 ? "text-amber-500" : "text-red-500";
+                    const fairnessStroke = fairnessPercent >= 80 ? "stroke-emerald-500" : fairnessPercent >= 50 ? "stroke-amber-500" : "stroke-red-500";
+                    const fairnessGlow = fairnessPercent >= 80 ? "drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" : fairnessPercent >= 50 ? "drop-shadow-[0_0_8px_rgba(251,191,36,0.5)]" : "drop-shadow-[0_0_8px_rgba(239,68,68,0.5)]";
+                    const playerList = confirmedSignups
+                      .map(s => ({ name: s.player?.user?.fullName || "Unknown", count: sessionMatchCounts[s.player?.id || s.playerId] || 0 }))
+                      .sort((a, b) => a.count - b.count);
+                    if (maxGames === 0) return null;
+                    return (
+                      <div className="rounded-2xl border border-slate-200 dark:border-white/[0.07] bg-slate-50/50 dark:bg-white/[0.03] p-4" data-testid="fairness-panel">
+                        <div className="flex items-center gap-4">
+                          <div className="relative w-16 h-16 shrink-0">
+                            <svg viewBox="0 0 36 36" className={cn("w-16 h-16 -rotate-90", fairnessGlow)}>
+                              <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="2.5" className="stroke-gray-200 dark:stroke-white/10" />
+                              <circle cx="18" cy="18" r="15.5" fill="none" strokeWidth="2.5" strokeDasharray={`${fairnessPercent * 0.975} 100`} strokeLinecap="round" className={fairnessStroke} />
+                            </svg>
+                            <div className={cn("absolute inset-0 flex items-center justify-center text-base font-bold", fairnessColor)} data-testid="text-fairness-percent">
+                              {fairnessPercent}%
                             </div>
-                            <span className={cn("text-xs font-bold tabular-nums w-5 text-right", isLow ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-white/50")}>{p.count}</span>
                           </div>
-                        );
-                      })}
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center justify-between">
+                              <div>
+                                <span className={cn("text-sm font-bold", fairnessColor)}>Fairness</span>
+                                <span className="text-xs text-gray-400 dark:text-white/40 ml-2">{minGames}–{maxGames} games</span>
+                              </div>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setFairnessListOpen(prev => !prev); }}
+                                className="inline-flex items-center gap-1 text-xs font-medium text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 transition-colors rounded-full border border-slate-200 dark:border-white/10 px-2.5 py-1"
+                                data-testid="button-toggle-fairness-list"
+                              >
+                                {playerList.length} players
+                                {fairnessListOpen ? <ChevronUp className="w-3 h-3" /> : <ChevronDown className="w-3 h-3" />}
+                              </button>
+                            </div>
+                            {!fairnessListOpen && (() => {
+                              const needPriority = playerList.filter(p => p.count < maxGames && (maxGames - p.count) >= 2);
+                              if (needPriority.length === 0) return null;
+                              return (
+                                <div className="mt-1 flex items-center gap-1 text-xs text-amber-500 dark:text-amber-400">
+                                  <AlertTriangle className="w-3 h-3 shrink-0" />
+                                  <span className="truncate">{needPriority.map(p => `${p.name} (${p.count})`).join(", ")}</span>
+                                </div>
+                              );
+                            })()}
+                          </div>
+                        </div>
+                        {fairnessListOpen && (
+                          <div className="mt-3 max-h-48 overflow-y-auto rounded-xl border border-slate-200 dark:border-white/[0.07] bg-white dark:bg-slate-900/60 divide-y divide-slate-100 dark:divide-white/[0.05]" data-testid="fairness-player-list">
+                            {playerList.map((p, i) => {
+                              const barWidth = maxGames > 0 ? Math.round((p.count / maxGames) * 100) : 0;
+                              const isLow = p.count < maxGames && (maxGames - p.count) >= 2;
+                              return (
+                                <div key={i} className="flex items-center gap-3 px-3 py-2">
+                                  <span className={cn("text-xs font-medium flex-1 min-w-0 truncate", isLow ? "text-amber-600 dark:text-amber-400" : "text-gray-700 dark:text-white/70")}>{p.name}</span>
+                                  <div className="w-20 h-1.5 rounded-full bg-gray-200 dark:bg-white/10 overflow-hidden shrink-0">
+                                    <div className={cn("h-full rounded-full transition-all", isLow ? "bg-amber-500" : "bg-emerald-500")} style={{ width: `${barWidth}%` }} />
+                                  </div>
+                                  <span className={cn("text-xs font-bold tabular-nums w-5 text-right", isLow ? "text-amber-600 dark:text-amber-400" : "text-gray-500 dark:text-white/50")}>{p.count}</span>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
+
+                  {isOrganiser && (
+                    <div className="flex items-center justify-center gap-6 flex-wrap pt-2">
+                      <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
+                        <SelectTrigger className="w-[120px] rounded-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-700 dark:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all duration-300" data-testid="select-generate-gender-type">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MIXED">Mixed</SelectItem>
+                          <SelectItem value="FEMALE">Female Only</SelectItem>
+                          <SelectItem value="MALE">Male Only</SelectItem>
+                        </SelectContent>
+                      </Select>
+
+                      <div className="relative flex flex-col items-center gap-1.5">
+                        <div className="absolute inset-0 -m-6 rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.08)_0%,transparent_70%)] pointer-events-none" />
+                        <button
+                          onClick={handleSmartGenerate}
+                          disabled={isSmartGenerating}
+                          className={cn(
+                            "neon-power-btn group relative active:scale-95 transition-transform duration-300",
+                            generateSuccess && "ring-2 ring-emerald-400/60"
+                          )}
+                          style={{ width: '80px', height: '80px' }}
+                          data-testid="button-generate-matches"
+                        >
+                          <div className={cn(
+                            "neon-power-outer",
+                            generateSuccess && "!border-emerald-500/50",
+                            isSmartGenerating && "!animate-spin"
+                          )} style={isSmartGenerating ? { animationDuration: '3s' } : undefined} />
+                          <div className="neon-power-ring" />
+                          <div className={cn("neon-power-ring-pulse", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/30")} />
+                          <div className={cn("neon-power-glow", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/20")} />
+                          <div className="neon-power-inner">
+                            {isSmartGenerating ? (
+                              <div className="neon-power-icon neon-vibrate">
+                                <Power className="h-7 w-7 animate-spin text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]" strokeWidth={2.5} style={{ animationDuration: '2s' }} />
+                              </div>
+                            ) : generateSuccess ? (
+                              <div className="neon-power-icon">
+                                <CheckCircle className="h-7 w-7 text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]" strokeWidth={2.5} />
+                              </div>
+                            ) : (
+                              <div className="neon-power-icon">
+                                <Power className="h-7 w-7 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" strokeWidth={2.5} />
+                              </div>
+                            )}
+                          </div>
+                          <div className={cn("neon-power-circuit-ring", isSmartGenerating && "animate-spin")} style={isSmartGenerating ? { animationDuration: '2s' } : undefined} />
+                        </button>
+                        <span className={cn(
+                          "text-[10px] font-semibold tracking-[0.2em] uppercase transition-colors duration-500",
+                          isSmartGenerating ? "text-cyan-400 neon-text-pulse" : generateSuccess ? "text-emerald-400" : "text-gray-400 dark:text-white/40"
+                        )}>
+                          {isSmartGenerating ? "Generating..." : generateSuccess ? "Done!" : "Generate"}
+                        </span>
+                      </div>
+
+                      <button
+                        onClick={() => setFullScheduleOpen(true)}
+                        className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300 border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800"
+                        data-testid="button-full-schedule"
+                      >
+                        <LayoutGrid className="w-4 h-4" />
+                        <span className="hidden sm:inline">Full Schedule</span>
+                      </button>
                     </div>
                   )}
+
                 </div>
-              );
-            })()}
-
-            {isOrganiser && (
-              <div className="flex items-center justify-center gap-6 flex-wrap pt-2">
-                <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
-                  <SelectTrigger className="w-[120px] rounded-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-700 dark:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all duration-300" data-testid="select-generate-gender-type">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="MIXED">Mixed</SelectItem>
-                    <SelectItem value="FEMALE">Female Only</SelectItem>
-                    <SelectItem value="MALE">Male Only</SelectItem>
-                  </SelectContent>
-                </Select>
-
-                <div className="relative flex flex-col items-center gap-1.5">
-                  <div className="absolute inset-0 -m-6 rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.08)_0%,transparent_70%)] pointer-events-none" />
-                  <button
-                    onClick={handleSmartGenerate}
-                    disabled={isSmartGenerating}
-                    className={cn(
-                      "neon-power-btn group relative active:scale-95 transition-transform duration-300",
-                      generateSuccess && "ring-2 ring-emerald-400/60"
-                    )}
-                    style={{ width: '80px', height: '80px' }}
-                    data-testid="button-generate-matches"
-                  >
-                    <div className={cn(
-                      "neon-power-outer",
-                      generateSuccess && "!border-emerald-500/50",
-                      isSmartGenerating && "!animate-spin"
-                    )} style={isSmartGenerating ? { animationDuration: '3s' } : undefined} />
-                    <div className="neon-power-ring" />
-                    <div className={cn("neon-power-ring-pulse", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/30")} />
-                    <div className={cn("neon-power-glow", isSmartGenerating ? "neon-heartbeat animate-pulse" : "", generateSuccess && "!bg-emerald-500/20")} />
-                    <div className="neon-power-inner">
-                      {isSmartGenerating ? (
-                        <div className="neon-power-icon neon-vibrate">
-                          <Power className="h-7 w-7 animate-spin text-cyan-400 drop-shadow-[0_0_10px_rgba(34,211,238,0.8)]" strokeWidth={2.5} style={{ animationDuration: '2s' }} />
-                        </div>
-                      ) : generateSuccess ? (
-                        <div className="neon-power-icon">
-                          <CheckCircle className="h-7 w-7 text-emerald-400 drop-shadow-[0_0_10px_rgba(52,211,153,0.8)]" strokeWidth={2.5} />
-                        </div>
-                      ) : (
-                        <div className="neon-power-icon">
-                          <Power className="h-7 w-7 text-cyan-400 drop-shadow-[0_0_8px_rgba(34,211,238,0.6)]" strokeWidth={2.5} />
-                        </div>
-                      )}
-                    </div>
-                    <div className={cn("neon-power-circuit-ring", isSmartGenerating && "animate-spin")} style={isSmartGenerating ? { animationDuration: '2s' } : undefined} />
-                  </button>
-                  <span className={cn(
-                    "text-[10px] font-semibold tracking-[0.2em] uppercase transition-colors duration-500",
-                    isSmartGenerating ? "text-cyan-400 neon-text-pulse" : generateSuccess ? "text-emerald-400" : "text-gray-400 dark:text-white/40"
-                  )}>
-                    {isSmartGenerating ? "Generating..." : generateSuccess ? "Done!" : "Generate"}
-                  </span>
-                </div>
-
-                <button
-                  onClick={() => setFullScheduleOpen(true)}
-                  className="relative inline-flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium active:scale-95 transition-all duration-300 border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-500 dark:text-white/50 hover:text-gray-800 dark:hover:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800"
-                  data-testid="button-full-schedule"
-                >
-                  <LayoutGrid className="w-4 h-4" />
-                  <span className="hidden sm:inline">Full Schedule</span>
-                </button>
               </div>
-            )}
-
+            </div>
           </div>
         </div>
       )}
