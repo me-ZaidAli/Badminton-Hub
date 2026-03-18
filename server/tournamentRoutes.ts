@@ -659,10 +659,19 @@ export function registerTournamentRoutes(app: Express) {
 
         const directPairings: { teamA: number; teamB: number }[] = [];
         const unpaired: number[] = [];
+        const winners = qualifiersBySubgroup.filter(q => q.rank === 1);
+        const runnersUp = qualifiersBySubgroup.filter(q => q.rank === 2);
+        const numGroups = subGroupKeys.length;
 
-        if (subGroupKeys.length >= 2 && advancePerGroup === 2) {
-          const winners = qualifiersBySubgroup.filter(q => q.rank === 1);
-          const runnersUp = qualifiersBySubgroup.filter(q => q.rank === 2);
+        if (numGroups === 4 && advancePerGroup === 2 && winners.length === 4 && runnersUp.length === 4) {
+          const w = (sgKey: string) => winners.find(q => q.sgKey === sgKey)!;
+          const r = (sgKey: string) => runnersUp.find(q => q.sgKey === sgKey)!;
+          const [gA, gB, gC, gD] = subGroupKeys;
+          directPairings.push({ teamA: w(gA).teamId, teamB: r(gB).teamId });
+          directPairings.push({ teamA: w(gC).teamId, teamB: r(gD).teamId });
+          directPairings.push({ teamA: w(gB).teamId, teamB: r(gA).teamId });
+          directPairings.push({ teamA: w(gD).teamId, teamB: r(gC).teamId });
+        } else if (numGroups >= 2 && advancePerGroup === 2) {
           const usedRunners = new Set<number>();
           for (const w of winners) {
             const crossIdx = runnersUp.findIndex((r, idx) => r.sgKey !== w.sgKey && !usedRunners.has(idx));
