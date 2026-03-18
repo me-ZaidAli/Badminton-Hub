@@ -812,41 +812,47 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const groupMatches = matches.filter(m => m.groupNumber && m.groupNumber < 100);
   const knockoutMatches = matches.filter(m => !m.groupNumber || m.round >= 100);
 
+  const viewTabs = [];
+  if (category.format === "GROUP_KNOCKOUT" || category.format === "ROUND_ROBIN") {
+    viewTabs.push({ key: "standings", label: "Standings", icon: BarChart3 });
+  }
+  viewTabs.push({ key: "list", label: "Matches", icon: Swords });
+  if (category.format === "KNOCKOUT" || (category.format === "GROUP_KNOCKOUT" && knockoutMatches.length > 0)) {
+    viewTabs.push({ key: "bracket", label: "Bracket", icon: GitBranch });
+  }
+
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {canManage && (
-        <div className="flex items-center gap-2 flex-wrap">
-          <Button size="sm" onClick={onGenerateMatches} disabled={isGenerating || !teams || teams.length < 2}
-            className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold">
-            {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Swords className="h-3.5 w-3.5 mr-1" />}
-            Generate Fixtures
-          </Button>
-          {category.format !== "ROUND_ROBIN" && matches.length > 0 && (
-            <Button size="sm" variant="outline" onClick={onAdvanceWinners} disabled={isAdvancing} className="font-bold">
-              {isAdvancing ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <GitBranch className="h-3.5 w-3.5 mr-1" />}
-              {category.format === "GROUP_KNOCKOUT" ? "Generate Knockout" : "Advance Winners"}
+        <div className="relative overflow-hidden rounded-2xl border border-purple-500/20 bg-gradient-to-r from-slate-900/80 via-purple-950/30 to-slate-900/80 dark:from-slate-950 dark:via-purple-950/50 dark:to-slate-950 p-4">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,_var(--tw-gradient-stops))] from-violet-600/5 via-transparent to-transparent" />
+          <div className="relative flex items-center gap-2 flex-wrap">
+            <Button size="sm" onClick={onGenerateMatches} disabled={isGenerating || !teams || teams.length < 2}
+              className="bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-500 hover:to-purple-600 text-white font-black text-xs shadow-lg shadow-violet-500/20 border-0">
+              {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Swords className="h-3.5 w-3.5 mr-1.5" />}
+              Generate Fixtures
             </Button>
-          )}
+            {category.format !== "ROUND_ROBIN" && matches.length > 0 && (
+              <Button size="sm" onClick={onAdvanceWinners} disabled={isAdvancing}
+                className="bg-slate-800 hover:bg-slate-700 text-white font-black text-xs border border-slate-700">
+                {isAdvancing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5 mr-1.5" />}
+                {category.format === "GROUP_KNOCKOUT" ? "Generate Knockout" : "Advance Winners"}
+              </Button>
+            )}
+          </div>
         </div>
       )}
 
-      <div className="flex gap-1 bg-muted/30 dark:bg-muted/10 rounded-xl p-1">
-        {(category.format === "GROUP_KNOCKOUT" || category.format === "ROUND_ROBIN") && (
-          <button onClick={() => setActiveView("standings")} className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all",
-            activeView === "standings" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-            <BarChart3 className="h-3.5 w-3.5 inline mr-1" />Standings
+      <div className="flex gap-1 bg-slate-900/60 dark:bg-slate-950/80 rounded-xl p-1 border border-slate-800/50">
+        {viewTabs.map(tab => (
+          <button key={tab.key} onClick={() => setActiveView(tab.key as any)}
+            className={cn("flex-1 px-3 py-2.5 rounded-lg text-xs font-black uppercase tracking-wider transition-all",
+              activeView === tab.key
+                ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white shadow-lg shadow-violet-500/20"
+                : "text-slate-500 hover:text-slate-300 hover:bg-slate-800/50")}>
+            <tab.icon className="h-3.5 w-3.5 inline mr-1.5" />{tab.label}
           </button>
-        )}
-        <button onClick={() => setActiveView("list")} className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all",
-          activeView === "list" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-          <Swords className="h-3.5 w-3.5 inline mr-1" />Matches
-        </button>
-        {(category.format === "KNOCKOUT" || (category.format === "GROUP_KNOCKOUT" && knockoutMatches.length > 0)) && (
-          <button onClick={() => setActiveView("bracket")} className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all",
-            activeView === "bracket" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-            <GitBranch className="h-3.5 w-3.5 inline mr-1" />Bracket
-          </button>
-        )}
+        ))}
       </div>
 
       {activeView === "standings" && standings && standings.length > 0 && (
@@ -889,38 +895,88 @@ function MatchCard({ match, canManage, onScore }: { match: any; canManage: boole
   const teamBName = match.teamB ? getTeamName(match.teamB) : "TBD";
   const isFinished = match.status === "FINISHED";
   const scores = match.scores || [];
+  const scoreA = scores.reduce((a: number, s: any) => a + (s.scoreA > s.scoreB ? 1 : 0), 0);
+  const scoreB = scores.reduce((a: number, s: any) => a + (s.scoreB > s.scoreA ? 1 : 0), 0);
   const scoreStr = scores.length > 0 ? scores.map((s: any) => `${s.scoreA}-${s.scoreB}`).join(", ") : "";
 
   return (
-    <div className={cn("rounded-xl border bg-card p-3 transition-all",
-      isFinished ? "border-border/30" : "border-border/50 hover:border-amber-500/30"
-    )} data-testid={`match-card-${match.id}`}>
-      <div className="flex items-center justify-between gap-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2 mb-1">
-            {match.groupNumber && <Badge variant="outline" className="text-[10px] font-bold">G{match.groupNumber}</Badge>}
-            <span className="text-[10px] text-muted-foreground font-medium">R{match.round} · M{match.matchOrder + 1}</span>
-          </div>
-          <div className="space-y-1">
-            <div className={cn("text-sm font-bold truncate flex items-center gap-1.5", match.winnerId === match.teamAId ? "text-amber-500" : "text-foreground")}>
-              {match.winnerId === match.teamAId && <Crown className="h-3.5 w-3.5 text-amber-400" />}
-              {teamAName}
-            </div>
-            <div className={cn("text-sm font-bold truncate flex items-center gap-1.5", match.winnerId === match.teamBId ? "text-amber-500" : "text-foreground")}>
-              {match.winnerId === match.teamBId && <Crown className="h-3.5 w-3.5 text-amber-400" />}
-              {teamBName}
-            </div>
-          </div>
-        </div>
-        <div className="text-right flex-shrink-0">
-          {isFinished && scoreStr && <p className="text-sm font-mono font-black text-foreground">{scoreStr}</p>}
-          {!isFinished && canManage && match.teamAId && match.teamBId && (
-            <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={onScore}>
-              <Target className="h-3 w-3 mr-1" />Score
-            </Button>
+    <div className="group relative" data-testid={`match-card-${match.id}`}>
+      <div className={cn(
+        "relative rounded-xl overflow-hidden border transition-all duration-300",
+        isFinished
+          ? "border-slate-700/50 bg-slate-900/80 dark:bg-slate-950/80"
+          : "border-violet-500/20 bg-slate-900/90 dark:bg-slate-950/90 hover:border-violet-500/40 hover:shadow-lg hover:shadow-violet-500/10"
+      )}>
+        <div className="flex items-center gap-2 px-3 py-1.5 bg-slate-800/50 border-b border-slate-700/30">
+          {match.groupNumber && (
+            <Badge className="bg-violet-500/20 text-violet-400 border border-violet-500/30 text-[9px] font-black px-1.5">G{match.groupNumber}</Badge>
           )}
-          {match.isBye && <Badge variant="outline" className="text-[10px] font-bold">BYE</Badge>}
+          <span className="text-[10px] text-slate-500 font-bold">R{match.round} · Match {match.matchOrder + 1}</span>
+          {match.isBye && <Badge className="bg-slate-700/50 text-slate-400 border border-slate-600/30 text-[9px] font-bold ml-auto">BYE</Badge>}
         </div>
+
+        <div className="flex items-stretch">
+          <div className="flex-1 min-w-0">
+            <div className={cn(
+              "flex items-center justify-between px-3 py-2.5 border-b border-slate-800/50 transition-colors",
+              match.winnerId === match.teamAId && "bg-violet-500/10"
+            )}>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className={cn(
+                  "h-6 w-6 rounded flex items-center justify-center text-[10px] font-black flex-shrink-0",
+                  match.winnerId === match.teamAId
+                    ? "bg-gradient-to-br from-violet-500 to-purple-600 text-white"
+                    : "bg-slate-800 text-slate-400 border border-slate-700"
+                )}>
+                  {match.winnerId === match.teamAId ? <Crown className="h-3 w-3" /> : "A"}
+                </div>
+                <span className={cn("text-xs font-bold truncate",
+                  match.winnerId === match.teamAId ? "text-violet-300" : match.teamAId ? "text-slate-200" : "text-slate-600"
+                )}>{teamAName}</span>
+              </div>
+              <span className={cn("text-sm font-mono font-black tabular-nums w-6 text-center flex-shrink-0",
+                match.winnerId === match.teamAId ? "text-violet-400" : "text-slate-400"
+              )}>{isFinished ? scoreA : ""}</span>
+            </div>
+
+            <div className={cn(
+              "flex items-center justify-between px-3 py-2.5 transition-colors",
+              match.winnerId === match.teamBId && "bg-violet-500/10"
+            )}>
+              <div className="flex items-center gap-2 min-w-0 flex-1">
+                <div className={cn(
+                  "h-6 w-6 rounded flex items-center justify-center text-[10px] font-black flex-shrink-0",
+                  match.winnerId === match.teamBId
+                    ? "bg-gradient-to-br from-violet-500 to-purple-600 text-white"
+                    : "bg-slate-800 text-slate-400 border border-slate-700"
+                )}>
+                  {match.winnerId === match.teamBId ? <Crown className="h-3 w-3" /> : "B"}
+                </div>
+                <span className={cn("text-xs font-bold truncate",
+                  match.winnerId === match.teamBId ? "text-violet-300" : match.teamBId ? "text-slate-200" : "text-slate-600"
+                )}>{teamBName}</span>
+              </div>
+              <span className={cn("text-sm font-mono font-black tabular-nums w-6 text-center flex-shrink-0",
+                match.winnerId === match.teamBId ? "text-violet-400" : "text-slate-400"
+              )}>{isFinished ? scoreB : ""}</span>
+            </div>
+          </div>
+
+          {!isFinished && canManage && match.teamAId && match.teamBId && (
+            <div className="flex items-center px-2 border-l border-slate-800/50">
+              <Button size="sm" onClick={onScore}
+                className="h-8 w-8 p-0 bg-violet-600/20 hover:bg-violet-600/40 text-violet-400 border border-violet-500/30 rounded-lg">
+                <Target className="h-3.5 w-3.5" />
+              </Button>
+            </div>
+          )}
+        </div>
+
+        {isFinished && scoreStr && (
+          <div className="px-3 py-1.5 bg-slate-800/30 border-t border-slate-700/30">
+            <span className="text-[10px] text-slate-500 font-mono font-bold">Sets: {scoreStr}</span>
+          </div>
+        )}
       </div>
     </div>
   );
@@ -983,49 +1039,64 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
   const groups = Array.from({ length: groupCount }, (_, i) => standings.filter(s => s.groupNumber === i + 1));
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-5">
       {groups.map((group, gi) => (
-        <div key={gi} className="rounded-xl border border-border/50 overflow-hidden">
-          <div className="bg-gradient-to-r from-amber-600/10 to-orange-600/5 dark:from-amber-500/10 dark:to-orange-500/5 px-4 py-2.5 border-b border-border/30">
-            <h4 className="text-sm font-black text-foreground uppercase tracking-wider">Group {gi + 1}</h4>
-          </div>
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="bg-muted/20 dark:bg-muted/5">
-                  <th className="text-left px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">#</th>
-                  <th className="text-left px-4 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Team</th>
-                  <th className="text-center px-2 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">P</th>
-                  <th className="text-center px-2 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">W</th>
-                  <th className="text-center px-2 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">L</th>
-                  <th className="text-center px-2 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GW</th>
-                  <th className="text-center px-2 py-2 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GL</th>
-                  <th className="text-center px-2 py-2 text-[10px] font-black text-amber-500 uppercase tracking-wider">PTS</th>
-                </tr>
-              </thead>
-              <tbody>
-                {group.map((s: any, si: number) => {
-                  const team = teamMap.get(s.teamId);
-                  const isQualifying = si < (category.advancePerGroup || 2);
-                  return (
-                    <tr key={s.id} className={cn("border-t border-border/20 transition-colors hover:bg-muted/20 dark:hover:bg-muted/5", isQualifying && "bg-emerald-500/[0.03] dark:bg-emerald-500/[0.05]")}>
-                      <td className="px-4 py-2.5">
-                        <span className={cn("text-xs font-black", isQualifying ? "text-emerald-500" : "text-muted-foreground")}>{si + 1}</span>
-                      </td>
-                      <td className="px-4 py-2.5">
-                        <span className="font-bold text-foreground">{team ? getTeamName(team) : `Team #${s.teamId}`}</span>
-                      </td>
-                      <td className="text-center px-2 py-2.5 text-muted-foreground">{s.matchesPlayed}</td>
-                      <td className="text-center px-2 py-2.5 font-bold text-emerald-500">{s.matchesWon}</td>
-                      <td className="text-center px-2 py-2.5 text-red-400">{s.matchesLost}</td>
-                      <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesWon}</td>
-                      <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesLost}</td>
-                      <td className="text-center px-2 py-2.5 font-black text-amber-500">{s.points}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+        <div key={gi} className="relative rounded-2xl overflow-hidden">
+          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
+          <div className="relative rounded-2xl bg-slate-900/95 dark:bg-slate-950/95 overflow-hidden">
+            <div className="bg-gradient-to-r from-violet-600/15 via-purple-600/10 to-slate-900/80 px-4 py-3 border-b border-violet-500/20">
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                  <LayoutGrid className="h-3 w-3 text-white" />
+                </div>
+                <h4 className="text-sm font-black text-white uppercase tracking-wider">Group {String.fromCharCode(65 + gi)}</h4>
+                <Badge className="bg-violet-500/15 text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{group.length} Teams</Badge>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="bg-slate-800/40">
+                    <th className="text-left px-4 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-wider">#</th>
+                    <th className="text-left px-4 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-wider">Team</th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-wider">P</th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-wider">W</th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-wider">L</th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-wider">GW</th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-slate-500 uppercase tracking-wider">GL</th>
+                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-violet-400 uppercase tracking-wider">PTS</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.map((s: any, si: number) => {
+                    const team = teamMap.get(s.teamId);
+                    const isQualifying = si < (category.advancePerGroup || 2);
+                    return (
+                      <tr key={s.id} className={cn(
+                        "border-t border-slate-800/50 transition-colors hover:bg-slate-800/30",
+                        isQualifying && "bg-emerald-500/[0.04]"
+                      )}>
+                        <td className="px-4 py-2.5">
+                          <div className={cn(
+                            "h-5 w-5 rounded flex items-center justify-center text-[10px] font-black",
+                            isQualifying ? "bg-emerald-500/20 text-emerald-400" : "bg-slate-800 text-slate-500"
+                          )}>{si + 1}</div>
+                        </td>
+                        <td className="px-4 py-2.5">
+                          <span className="font-bold text-slate-200">{team ? getTeamName(team) : `Team #${s.teamId}`}</span>
+                        </td>
+                        <td className="text-center px-2 py-2.5 text-slate-400 font-medium">{s.matchesPlayed}</td>
+                        <td className="text-center px-2 py-2.5 font-bold text-emerald-400">{s.matchesWon}</td>
+                        <td className="text-center px-2 py-2.5 text-red-400">{s.matchesLost}</td>
+                        <td className="text-center px-2 py-2.5 text-slate-400">{s.gamesWon}</td>
+                        <td className="text-center px-2 py-2.5 text-slate-400">{s.gamesLost}</td>
+                        <td className="text-center px-2 py-2.5 font-black text-violet-400">{s.points}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
           </div>
         </div>
       ))}
@@ -1043,7 +1114,8 @@ function BracketView({ matches, teams }: { matches: any[]; teams: any[] }) {
     });
     return Array.from(roundMap.entries()).sort(([a], [b]) => a - b).map(([round, ms]) => ({
       round,
-      label: ms.length === 1 ? "🏆 Final" : ms.length === 2 ? "Semi Finals" : ms.length === 4 ? "Quarter Finals" : `Round ${round}`,
+      label: ms.length === 1 ? "Final" : ms.length === 2 ? "Semi Finals" : ms.length === 4 ? "Quarter Finals" : `Round ${round}`,
+      isFinal: ms.length === 1,
       matches: ms.sort((a, b) => a.matchOrder - b.matchOrder),
     }));
   }, [matches]);
@@ -1051,62 +1123,140 @@ function BracketView({ matches, teams }: { matches: any[]; teams: any[] }) {
   if (rounds.length === 0) return <EmptyState icon={GitBranch} title="No Bracket" description="Generate fixtures to see the bracket." />;
 
   return (
-    <div className="overflow-x-auto pb-4">
-      <div className="flex gap-6 min-w-max">
+    <div className="space-y-4">
+      <div className="flex items-center gap-2 overflow-x-auto pb-2">
         {rounds.map((round, ri) => (
-          <div key={round.round} className="flex flex-col">
-            <div className="text-xs font-black text-amber-500 uppercase tracking-wider mb-3 text-center">{round.label}</div>
-            <div className="flex flex-col justify-around flex-1 gap-3" style={{ minHeight: rounds[0]?.matches?.length * 80 }}>
-              {round.matches.map(match => {
-                const teamAName = match.teamA ? getTeamName(match.teamA) : match.teamAId ? `Team #${match.teamAId}` : "TBD";
-                const teamBName = match.teamB ? getTeamName(match.teamB) : match.teamBId ? `Team #${match.teamBId}` : "TBD";
-                const isFinished = match.status === "FINISHED";
-                return (
-                  <div key={match.id} className={cn(
-                    "w-56 rounded-xl border overflow-hidden transition-all",
-                    isFinished ? "border-border/30 bg-card" : "border-amber-500/20 bg-card hover:border-amber-500/40 hover:shadow-lg hover:shadow-amber-500/5"
-                  )}>
-                    <div className={cn("flex items-center justify-between px-3 py-2.5 border-b border-border/20",
-                      match.winnerId === match.teamAId && "bg-amber-500/10"
-                    )}>
-                      <span className={cn("text-xs font-bold truncate flex-1 flex items-center gap-1",
-                        match.winnerId === match.teamAId ? "text-amber-500" : match.teamAId ? "text-foreground" : "text-muted-foreground"
-                      )}>
-                        {match.winnerId === match.teamAId && <Crown className="h-3 w-3 flex-shrink-0" />}
-                        {teamAName}
-                      </span>
-                      {match.scores && match.scores.length > 0 && (
-                        <span className="text-xs font-mono font-black text-foreground ml-2">
-                          {match.scores.reduce((a: number, s: any) => a + s.scoreA, 0)}
-                        </span>
-                      )}
-                    </div>
-                    <div className={cn("flex items-center justify-between px-3 py-2.5",
-                      match.winnerId === match.teamBId && "bg-amber-500/10"
-                    )}>
-                      <span className={cn("text-xs font-bold truncate flex-1 flex items-center gap-1",
-                        match.winnerId === match.teamBId ? "text-amber-500" : match.teamBId ? "text-foreground" : "text-muted-foreground"
-                      )}>
-                        {match.winnerId === match.teamBId && <Crown className="h-3 w-3 flex-shrink-0" />}
-                        {teamBName}
-                      </span>
-                      {match.scores && match.scores.length > 0 && (
-                        <span className="text-xs font-mono font-black text-foreground ml-2">
-                          {match.scores.reduce((a: number, s: any) => a + s.scoreB, 0)}
-                        </span>
-                      )}
-                    </div>
-                    {match.isBye && (
-                      <div className="px-3 py-1 text-center border-t border-border/20">
-                        <span className="text-[10px] text-muted-foreground font-bold">BYE</span>
-                      </div>
-                    )}
-                  </div>
-                );
-              })}
+          <div key={round.round} className={cn(
+            "flex-shrink-0 px-4 py-2 rounded-lg text-xs font-black uppercase tracking-wider border transition-all",
+            round.isFinal
+              ? "bg-gradient-to-r from-violet-600 to-purple-600 text-white border-violet-500/50 shadow-lg shadow-violet-500/20"
+              : "bg-slate-800/60 text-slate-400 border-slate-700/50 hover:border-violet-500/30"
+          )}>
+            <div className="text-center">
+              <div>{round.label}</div>
             </div>
           </div>
         ))}
+      </div>
+
+      <div className="relative overflow-x-auto pb-4">
+        <div className="flex min-w-max">
+          {rounds.map((round, ri) => (
+            <div key={round.round} className="flex flex-col relative" style={{ width: 240 }}>
+              <div className={cn(
+                "text-center mb-4 pb-2 border-b mx-4",
+                round.isFinal ? "border-violet-500/40" : "border-slate-800/60"
+              )}>
+                <span className={cn(
+                  "text-[10px] font-black uppercase tracking-[0.15em]",
+                  round.isFinal ? "text-violet-400" : "text-slate-600"
+                )}>{round.label}</span>
+              </div>
+
+              <div className="flex flex-col justify-around flex-1 gap-2 px-2" style={{ minHeight: rounds[0]?.matches?.length * 88 }}>
+                {round.matches.map((match, mi) => {
+                  const teamAName = match.teamA ? getTeamName(match.teamA) : match.teamAId ? `Team #${match.teamAId}` : "TBD";
+                  const teamBName = match.teamB ? getTeamName(match.teamB) : match.teamBId ? `Team #${match.teamBId}` : "TBD";
+                  const isFinished = match.status === "FINISHED";
+                  const scoreA = match.scores?.reduce((a: number, s: any) => a + (s.scoreA > s.scoreB ? 1 : 0), 0) ?? 0;
+                  const scoreB = match.scores?.reduce((a: number, s: any) => a + (s.scoreB > s.scoreA ? 1 : 0), 0) ?? 0;
+
+                  return (
+                    <div key={match.id} className="group" data-testid={`bracket-match-${match.id}`}>
+                      <div className={cn(
+                        "rounded-lg overflow-hidden border transition-all duration-300",
+                        round.isFinal
+                          ? "border-violet-500/40 shadow-lg shadow-violet-500/10"
+                          : isFinished
+                            ? "border-slate-700/40"
+                            : "border-slate-700/40 hover:border-violet-500/30 hover:shadow-md hover:shadow-violet-500/5"
+                      )}>
+                        <div className={cn(
+                          "flex items-center justify-between px-3 py-2 border-b border-slate-800/60",
+                          match.winnerId === match.teamAId
+                            ? "bg-violet-500/15"
+                            : "bg-slate-900/90 dark:bg-slate-950/90"
+                        )}>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div className={cn(
+                              "h-5 w-1 rounded-full flex-shrink-0",
+                              match.winnerId === match.teamAId ? "bg-violet-500" : match.teamAId ? "bg-slate-700" : "bg-slate-800"
+                            )} />
+                            <span className={cn("text-xs font-bold truncate",
+                              match.winnerId === match.teamAId ? "text-violet-300" : match.teamAId ? "text-slate-300" : "text-slate-600"
+                            )}>{teamAName}</span>
+                          </div>
+                          <span className={cn(
+                            "text-sm font-mono font-black tabular-nums w-6 text-center flex-shrink-0",
+                            match.winnerId === match.teamAId ? "text-violet-400" : "text-slate-500"
+                          )}>
+                            {isFinished ? scoreA : match.teamAId ? "0" : ""}
+                          </span>
+                        </div>
+
+                        <div className={cn(
+                          "flex items-center justify-between px-3 py-2",
+                          match.winnerId === match.teamBId
+                            ? "bg-violet-500/15"
+                            : "bg-slate-900/90 dark:bg-slate-950/90"
+                        )}>
+                          <div className="flex items-center gap-2 min-w-0 flex-1">
+                            <div className={cn(
+                              "h-5 w-1 rounded-full flex-shrink-0",
+                              match.winnerId === match.teamBId ? "bg-violet-500" : match.teamBId ? "bg-slate-700" : "bg-slate-800"
+                            )} />
+                            <span className={cn("text-xs font-bold truncate",
+                              match.winnerId === match.teamBId ? "text-violet-300" : match.teamBId ? "text-slate-300" : "text-slate-600"
+                            )}>{teamBName}</span>
+                          </div>
+                          <span className={cn(
+                            "text-sm font-mono font-black tabular-nums w-6 text-center flex-shrink-0",
+                            match.winnerId === match.teamBId ? "text-violet-400" : "text-slate-500"
+                          )}>
+                            {isFinished ? scoreB : match.teamBId ? "0" : ""}
+                          </span>
+                        </div>
+
+                        {match.isBye && (
+                          <div className="px-3 py-1 text-center bg-slate-800/40 border-t border-slate-800/60">
+                            <span className="text-[9px] text-slate-600 font-bold uppercase tracking-wider">BYE</span>
+                          </div>
+                        )}
+                      </div>
+
+                      {ri < rounds.length - 1 && (
+                        <div className="absolute right-0 top-0 bottom-0 w-4 pointer-events-none" style={{ transform: "translateX(50%)" }}>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))}
+
+          {rounds.length > 0 && rounds[rounds.length - 1].isFinal && rounds[rounds.length - 1].matches[0]?.winnerId && (
+            <div className="flex flex-col justify-center px-4" style={{ width: 200 }}>
+              <div className="text-center mb-4 pb-2 border-b border-amber-500/30 mx-2">
+                <span className="text-[10px] font-black uppercase tracking-[0.15em] text-amber-400">Champion</span>
+              </div>
+              <div className="relative">
+                <div className="absolute -inset-[1px] rounded-xl bg-gradient-to-br from-amber-500 via-orange-500 to-rose-500 opacity-60 blur-[0.5px]" />
+                <div className="relative rounded-xl bg-slate-900/95 p-4 text-center">
+                  <Trophy className="h-8 w-8 text-amber-400 mx-auto mb-2" />
+                  <p className="text-sm font-black text-amber-300">
+                    {(() => {
+                      const finalMatch = rounds[rounds.length - 1].matches[0];
+                      if (finalMatch.winnerId === finalMatch.teamAId && finalMatch.teamA) return getTeamName(finalMatch.teamA);
+                      if (finalMatch.winnerId === finalMatch.teamBId && finalMatch.teamB) return getTeamName(finalMatch.teamB);
+                      return "Winner";
+                    })()}
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
     </div>
   );
