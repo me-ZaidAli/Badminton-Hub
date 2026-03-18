@@ -474,16 +474,14 @@ export default function SessionDetail() {
   });
 
   useEffect(() => {
-    if (sessionHeaderRef.current && typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          setSessionHeaderHeight(entry.contentRect.height);
-        }
-      });
-      ro.observe(sessionHeaderRef.current);
+    const el = sessionHeaderRef.current;
+    if (!el) return;
+    const measure = () => setSessionHeaderHeight(el.scrollHeight);
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure);
+      ro.observe(el);
       return () => ro.disconnect();
-    } else if (sessionHeaderRef.current) {
-      setSessionHeaderHeight(sessionHeaderRef.current.scrollHeight);
     }
   }, []);
 
@@ -3733,16 +3731,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   }, [activePlayerCount, minPlayersNeeded]);
 
   useEffect(() => {
-    if (enginePanelRef.current && typeof ResizeObserver !== 'undefined') {
-      const ro = new ResizeObserver((entries) => {
-        for (const entry of entries) {
-          setEnginePanelHeight(entry.contentRect.height);
-        }
-      });
-      ro.observe(enginePanelRef.current);
+    const el = enginePanelRef.current;
+    if (!el) return;
+    const measure = () => setEnginePanelHeight(el.scrollHeight);
+    measure();
+    if (typeof ResizeObserver !== 'undefined') {
+      const ro = new ResizeObserver(measure);
+      ro.observe(el);
       return () => ro.disconnect();
-    } else if (enginePanelRef.current) {
-      setEnginePanelHeight(enginePanelRef.current.scrollHeight);
     }
   }, []);
 
