@@ -1474,20 +1474,58 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   return (
     <div className="space-y-5">
       {canManage && (
-        <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card p-4">
-          <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 via-purple-500/5 to-violet-500/5" />
-          <div className="relative flex items-center gap-2 flex-wrap">
-            <Button size="sm" onClick={onGenerateMatches} disabled={isGenerating || !teams || teams.length < 2}
-              className="bg-gradient-to-r from-violet-600 to-purple-700 hover:from-violet-500 hover:to-purple-600 text-white font-black text-xs shadow-lg shadow-violet-500/20 border-0">
-              {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Swords className="h-3.5 w-3.5 mr-1.5" />}
-              Generate Fixtures
-            </Button>
+        <div className="relative overflow-hidden rounded-2xl border border-cyan-500/30 bg-slate-950/80 p-5">
+          <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,_rgba(6,182,212,0.08)_0%,_transparent_70%)]" />
+          <div className="absolute top-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-cyan-400/50 to-transparent" />
+          <div className="absolute bottom-0 left-0 w-full h-px bg-gradient-to-r from-transparent via-violet-400/50 to-transparent" />
+          <div className="relative flex items-center gap-3 flex-wrap">
+            <button
+              onClick={onGenerateMatches}
+              disabled={isGenerating || !teams || teams.length < 2}
+              className={cn(
+                "group relative px-6 py-3 rounded-xl font-black text-sm uppercase tracking-[0.15em] transition-all duration-300",
+                "bg-gradient-to-r from-cyan-500 via-violet-500 to-fuchsia-500",
+                "shadow-[0_0_20px_rgba(6,182,212,0.3),_0_0_40px_rgba(139,92,246,0.15)]",
+                "hover:shadow-[0_0_30px_rgba(6,182,212,0.5),_0_0_60px_rgba(139,92,246,0.25),_0_0_80px_rgba(217,70,239,0.15)]",
+                "hover:scale-[1.03] active:scale-[0.98]",
+                "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none",
+                "text-white border border-white/10",
+              )}
+              data-testid="button-start-tournament"
+            >
+              <div className="absolute inset-0 rounded-xl bg-gradient-to-r from-cyan-400/20 via-transparent to-fuchsia-400/20 opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+              <div className="absolute -inset-px rounded-xl bg-gradient-to-r from-cyan-400 via-violet-400 to-fuchsia-400 opacity-0 group-hover:opacity-20 blur-sm transition-opacity duration-500" />
+              <span className="relative flex items-center gap-2">
+                {isGenerating ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 drop-shadow-[0_0_6px_rgba(6,182,212,0.8)] group-hover:animate-pulse" />
+                )}
+                {matches.length > 0 ? "Regenerate Fixtures" : "Start Tournament"}
+              </span>
+            </button>
             {category.format !== "ROUND_ROBIN" && matches.length > 0 && (
-              <Button size="sm" variant="outline" onClick={onAdvanceWinners} disabled={isAdvancing}
-                className="font-black text-xs">
-                {isAdvancing ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5 mr-1.5" />}
-                {category.format === "GROUP_KNOCKOUT" ? "Generate Knockout" : "Advance Winners"}
-              </Button>
+              <button
+                onClick={onAdvanceWinners}
+                disabled={isAdvancing}
+                className={cn(
+                  "group relative px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300",
+                  "bg-slate-900/80 border border-amber-500/30 text-amber-400",
+                  "shadow-[0_0_15px_rgba(245,158,11,0.1)]",
+                  "hover:shadow-[0_0_25px_rgba(245,158,11,0.25)] hover:border-amber-400/50",
+                  "hover:scale-[1.02] active:scale-[0.98]",
+                  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100",
+                )}
+                data-testid="button-advance-winners"
+              >
+                <span className="relative flex items-center gap-2">
+                  {isAdvancing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5 drop-shadow-[0_0_4px_rgba(245,158,11,0.6)]" />}
+                  {category.format === "GROUP_KNOCKOUT" ? "Generate Knockout" : "Advance Winners"}
+                </span>
+              </button>
+            )}
+            {teams && teams.length > 0 && (
+              <span className="text-[10px] font-bold text-slate-500 ml-auto">{teams.length} teams ready</span>
             )}
           </div>
         </div>
