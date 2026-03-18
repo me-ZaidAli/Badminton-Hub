@@ -495,6 +495,7 @@ export const tournamentTeams = pgTable("tournament_teams", {
   player2Id: integer("player2_id").references(() => playerProfiles.id),
   seedNumber: integer("seed_number"),
   groupNumber: integer("group_number"),
+  subGroupNumber: integer("sub_group_number"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -511,6 +512,7 @@ export const tournamentMatches = pgTable("tournament_matches", {
   round: integer("round").default(1).notNull(),
   matchOrder: integer("match_order").default(0).notNull(),
   groupNumber: integer("group_number"),
+  subGroupNumber: integer("sub_group_number"),
   bracketPosition: integer("bracket_position"),
   isWalkover: boolean("is_walkover").default(false).notNull(),
   isBye: boolean("is_bye").default(false).notNull(),
@@ -522,6 +524,7 @@ export const tournamentStandings = pgTable("tournament_standings", {
   categoryId: integer("category_id").references(() => tournamentCategories.id).notNull(),
   teamId: integer("team_id").references(() => tournamentTeams.id).notNull(),
   groupNumber: integer("group_number").default(1).notNull(),
+  subGroupNumber: integer("sub_group_number").default(1).notNull(),
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),
   matchesLost: integer("matches_lost").default(0).notNull(),

@@ -8,7 +8,7 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest,
-  useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams,
+  useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers,
@@ -31,7 +31,7 @@ import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
-  Building2, ExternalLink, Flame, Medal, DollarSign, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote,
+  Building2, ExternalLink, Flame, Medal, DollarSign, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -1602,7 +1602,9 @@ function MatchCard({ match, canManage, onScore }: { match: any; canManage: boole
       )}>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b border-border/30">
           {match.groupNumber && (
-            <Badge className="bg-violet-500/20 text-violet-400 border border-violet-500/30 text-[9px] font-black px-1.5">G{match.groupNumber}</Badge>
+            <Badge className="bg-violet-500/20 text-violet-400 border border-violet-500/30 text-[9px] font-black px-1.5">
+              G{String.fromCharCode(64 + match.groupNumber)}{match.subGroupNumber ? `-SG${match.subGroupNumber}` : ""}
+            </Badge>
           )}
           <span className="text-[10px] text-muted-foreground font-bold">R{match.round} · Match {match.matchOrder + 1}</span>
           {match.isBye && <Badge className="bg-muted text-muted-foreground border border-border/30 text-[9px] font-bold ml-auto">BYE</Badge>}
@@ -1728,71 +1730,111 @@ function ScoreDialog({ match, onClose, onSubmit, isPending }: { match: any; onCl
 
 function StandingsView({ standings, teams, category }: { standings: any[]; teams: any[]; category: any }) {
   const teamMap = new Map(teams.map(t => [t.id, t]));
-  const groupCount = category.groupCount || 1;
-  const groups = Array.from({ length: groupCount }, (_, i) => standings.filter(s => s.groupNumber === i + 1));
+
+  const hasSubGroups = standings.some(s => s.subGroupNumber && s.subGroupNumber > 0);
+  const groupNumbers = Array.from(new Set(standings.map(s => s.groupNumber))).sort((a, b) => a - b);
+
+  const renderStandingsTable = (rows: any[], advanceCount: number) => (
+    <div className="overflow-x-auto">
+      <table className="w-full text-sm">
+        <thead>
+          <tr className="bg-muted/40">
+            <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">#</th>
+            <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Team</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">P</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">W</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">L</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GW</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GL</th>
+            <th className="text-center px-2 py-2.5 text-[10px] font-black text-violet-500 dark:text-violet-400 uppercase tracking-wider">PTS</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map((s: any, si: number) => {
+            const team = teamMap.get(s.teamId);
+            const isQualifying = si < advanceCount;
+            return (
+              <tr key={s.id} className={cn(
+                "border-t border-border/30 transition-colors hover:bg-muted/30",
+                isQualifying && "bg-emerald-500/[0.04]"
+              )}>
+                <td className="px-4 py-2.5">
+                  <div className={cn(
+                    "h-5 w-5 rounded flex items-center justify-center text-[10px] font-black",
+                    isQualifying ? "bg-emerald-500/20 text-emerald-500 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+                  )}>{si + 1}</div>
+                </td>
+                <td className="px-4 py-2.5">
+                  <span className="font-bold text-foreground">{team ? getTeamName(team) : `Team #${s.teamId}`}</span>
+                </td>
+                <td className="text-center px-2 py-2.5 text-muted-foreground font-medium">{s.matchesPlayed}</td>
+                <td className="text-center px-2 py-2.5 font-bold text-emerald-500 dark:text-emerald-400">{s.matchesWon}</td>
+                <td className="text-center px-2 py-2.5 text-red-500 dark:text-red-400">{s.matchesLost}</td>
+                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesWon}</td>
+                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesLost}</td>
+                <td className="text-center px-2 py-2.5 font-black text-violet-500 dark:text-violet-400">{s.points}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
+  );
+
+  const advancePerGroup = category.advancePerGroup || 1;
 
   return (
     <div className="space-y-5">
-      {groups.map((group, gi) => (
-        <div key={gi} className="relative rounded-2xl overflow-hidden">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
-          <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
-            <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                  <LayoutGrid className="h-3 w-3 text-white" />
+      {groupNumbers.map(gNum => {
+        const groupStandings = standings.filter(s => s.groupNumber === gNum);
+        const subGroupNumbers = Array.from(new Set(groupStandings.map(s => s.subGroupNumber || 1))).sort((a, b) => a - b);
+        const hasMultipleSubGroups = subGroupNumbers.length > 1 || (subGroupNumbers.length === 1 && subGroupNumbers[0] > 1);
+
+        return (
+          <div key={gNum} className="relative rounded-2xl overflow-hidden">
+            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
+            <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
+              <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                    <LayoutGrid className="h-3 w-3 text-white" />
+                  </div>
+                  <h4 className="text-sm font-black text-foreground uppercase tracking-wider">Group {String.fromCharCode(64 + gNum)}</h4>
+                  <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{groupStandings.length} Teams</Badge>
                 </div>
-                <h4 className="text-sm font-black text-foreground uppercase tracking-wider">Group {String.fromCharCode(65 + gi)}</h4>
-                <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{group.length} Teams</Badge>
               </div>
-            </div>
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead>
-                  <tr className="bg-muted/40">
-                    <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">#</th>
-                    <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Team</th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">P</th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">W</th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">L</th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GW</th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GL</th>
-                    <th className="text-center px-2 py-2.5 text-[10px] font-black text-violet-500 dark:text-violet-400 uppercase tracking-wider">PTS</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {group.map((s: any, si: number) => {
-                    const team = teamMap.get(s.teamId);
-                    const isQualifying = si < (category.advancePerGroup || 2);
+
+              {hasMultipleSubGroups ? (
+                <div className="divide-y divide-border/20">
+                  {subGroupNumbers.map(sgNum => {
+                    const sgStandings = groupStandings
+                      .filter(s => (s.subGroupNumber || 1) === sgNum)
+                      .sort((a, b) => b.points - a.points || b.gamesWon - a.gamesWon);
                     return (
-                      <tr key={s.id} className={cn(
-                        "border-t border-border/30 transition-colors hover:bg-muted/30",
-                        isQualifying && "bg-emerald-500/[0.04]"
-                      )}>
-                        <td className="px-4 py-2.5">
-                          <div className={cn(
-                            "h-5 w-5 rounded flex items-center justify-center text-[10px] font-black",
-                            isQualifying ? "bg-emerald-500/20 text-emerald-500 dark:text-emerald-400" : "bg-muted text-muted-foreground"
-                          )}>{si + 1}</div>
-                        </td>
-                        <td className="px-4 py-2.5">
-                          <span className="font-bold text-foreground">{team ? getTeamName(team) : `Team #${s.teamId}`}</span>
-                        </td>
-                        <td className="text-center px-2 py-2.5 text-muted-foreground font-medium">{s.matchesPlayed}</td>
-                        <td className="text-center px-2 py-2.5 font-bold text-emerald-500 dark:text-emerald-400">{s.matchesWon}</td>
-                        <td className="text-center px-2 py-2.5 text-red-500 dark:text-red-400">{s.matchesLost}</td>
-                        <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesWon}</td>
-                        <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesLost}</td>
-                        <td className="text-center px-2 py-2.5 font-black text-violet-500 dark:text-violet-400">{s.points}</td>
-                      </tr>
+                      <div key={sgNum}>
+                        <div className="bg-cyan-500/5 px-4 py-2 border-b border-border/20">
+                          <div className="flex items-center gap-2">
+                            <Badge className="bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 text-[9px] font-black">
+                              Subgroup {sgNum}
+                            </Badge>
+                            <span className="text-[10px] text-muted-foreground font-bold">{sgStandings.length} teams</span>
+                          </div>
+                        </div>
+                        {renderStandingsTable(sgStandings, advancePerGroup)}
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
+                </div>
+              ) : (
+                renderStandingsTable(
+                  groupStandings.sort((a, b) => b.points - a.points || b.gamesWon - a.gamesWon),
+                  advancePerGroup
+                )
+              )}
             </div>
           </div>
-        </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
@@ -1965,7 +2007,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const seedDemoMutation = useSeedDemoPlayers();
   const clearDemoMutation = useClearDemoPlayers();
   const { toast } = useToast();
-  const [adminView, setAdminView] = useState<"registrations" | "pairs" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
+  const [adminView, setAdminView] = useState<"registrations" | "pairs" | "groups" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
   const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
   const { data: playerPool } = useTournamentPlayerPool(tournamentId);
   const updateTeamMutation = useUpdateTeam();
@@ -2027,7 +2069,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
       </div>
 
       <div className="flex gap-1 bg-muted/30 dark:bg-muted/10 rounded-xl p-1 overflow-x-auto">
-        {["registrations", "pairs", "waitlist", "finance", "prizes", "settings"].map(view => (
+        {["registrations", "pairs", "groups", "waitlist", "finance", "prizes", "settings"].map(view => (
           <button key={view} onClick={() => setAdminView(view as any)}
             className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all capitalize whitespace-nowrap",
               adminView === view ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
@@ -2228,6 +2270,11 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
         </div>
       )}
 
+      {adminView === "groups" && activeCatId && (
+        <AdminGroupsView categoryId={activeCatId} teams={catTeams || []} categories={categories}
+          selectedCatId={activeCatId} onSelectCat={setSelectedCatId} toast={toast} />
+      )}
+
       {adminView === "waitlist" && (
         <div className="space-y-2">
           {!waitlist?.length ? <EmptyState icon={Clock} title="Waitlist Empty" description="No players on the waitlist." /> :
@@ -2359,6 +2406,207 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
                 </div>
               </DialogContent>
             </Dialog>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdminGroupsView({ categoryId, teams, categories, selectedCatId, onSelectCat, toast }: {
+  categoryId: number; teams: any[]; categories: any[];
+  selectedCatId: number | null; onSelectCat: (id: number) => void; toast: any;
+}) {
+  const bulkAssignMutation = useBulkAssignGroups();
+  const assignMutation = useAssignTeamGroup();
+  const [assignments, setAssignments] = useState<Record<number, { group: number; subGroup: number }>>({});
+
+  useEffect(() => {
+    const initial: Record<number, { group: number; subGroup: number }> = {};
+    teams.forEach(t => {
+      initial[t.id] = { group: t.groupNumber || 0, subGroup: t.subGroupNumber || 0 };
+    });
+    setAssignments(initial);
+  }, [teams]);
+
+  const setTeamAssignment = (teamId: number, field: "group" | "subGroup", value: number) => {
+    setAssignments(prev => ({
+      ...prev,
+      [teamId]: { ...prev[teamId], [field]: value },
+    }));
+  };
+
+  const handleSaveAll = async () => {
+    const validAssignments = Object.entries(assignments)
+      .filter(([_, a]) => a.group > 0 && a.subGroup > 0)
+      .map(([teamId, a]) => ({ teamId: Number(teamId), groupNumber: a.group, subGroupNumber: a.subGroup }));
+    if (validAssignments.length === 0) {
+      toast({ title: "No Assignments", description: "Set group and subgroup for at least one team.", variant: "destructive" });
+      return;
+    }
+    try {
+      await bulkAssignMutation.mutateAsync({ assignments: validAssignments });
+      toast({ title: "Groups Saved", description: `${validAssignments.length} teams assigned to groups.` });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
+  const groupedTeams = useMemo(() => {
+    const map = new Map<string, any[]>();
+    teams.forEach(t => {
+      const a = assignments[t.id];
+      if (a && a.group > 0 && a.subGroup > 0) {
+        const key = `${a.group}-${a.subGroup}`;
+        if (!map.has(key)) map.set(key, []);
+        map.get(key)!.push(t);
+      }
+    });
+    return map;
+  }, [teams, assignments]);
+
+  const maxGroup = Math.max(1, ...Object.values(assignments).map(a => a.group));
+  const maxSubGroup = Math.max(1, ...Object.values(assignments).map(a => a.subGroup));
+  const unassignedTeams = teams.filter(t => {
+    const a = assignments[t.id];
+    return !a || a.group === 0 || a.subGroup === 0;
+  });
+
+  return (
+    <div className="space-y-4">
+      {categories.length > 1 && (
+        <div className="flex gap-1 flex-wrap">
+          {categories.map((c: any) => (
+            <button key={c.id} onClick={() => onSelectCat(c.id)}
+              data-testid={`button-select-cat-group-${c.id}`}
+              className={cn("px-3 py-1.5 rounded-lg text-xs font-bold transition-all",
+                selectedCatId === c.id ? "bg-violet-500 text-white" : "bg-muted text-muted-foreground hover:text-foreground")}>
+              {c.name}
+            </button>
+          ))}
+        </div>
+      )}
+
+      <div className="flex items-center justify-between">
+        <h4 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+          <LayoutGrid className="h-4 w-4 text-violet-500" />
+          Group & Subgroup Assignment
+        </h4>
+        <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
+          data-testid="button-save-group-assignments"
+          disabled={bulkAssignMutation.isPending}
+          onClick={handleSaveAll}>
+          {bulkAssignMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Check className="h-3.5 w-3.5 mr-1" />}
+          Save All Assignments
+        </Button>
+      </div>
+
+      <div className="rounded-xl border border-border/50 overflow-hidden">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted/40">
+              <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Team</th>
+              <th className="text-center px-3 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider w-24">Group</th>
+              <th className="text-center px-3 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider w-28">Subgroup</th>
+            </tr>
+          </thead>
+          <tbody>
+            {teams.map((t: any) => {
+              const a = assignments[t.id] || { group: 0, subGroup: 0 };
+              return (
+                <tr key={t.id} className="border-t border-border/30 hover:bg-muted/20 transition-colors">
+                  <td className="px-4 py-2.5">
+                    <span className="font-bold text-foreground">{getTeamName(t)}</span>
+                  </td>
+                  <td className="text-center px-3 py-2.5">
+                    <Select value={String(a.group)} onValueChange={(v) => setTeamAssignment(t.id, "group", Number(v))}>
+                      <SelectTrigger className="h-8 w-20 mx-auto text-xs" data-testid={`select-group-${t.id}`}>
+                        <SelectValue placeholder="-" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">-</SelectItem>
+                        {Array.from({ length: Math.max(2, maxGroup + 1) }, (_, i) => (
+                          <SelectItem key={i + 1} value={String(i + 1)}>{String.fromCharCode(65 + i)}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                  <td className="text-center px-3 py-2.5">
+                    <Select value={String(a.subGroup)} onValueChange={(v) => setTeamAssignment(t.id, "subGroup", Number(v))}>
+                      <SelectTrigger className="h-8 w-24 mx-auto text-xs" data-testid={`select-subgroup-${t.id}`}>
+                        <SelectValue placeholder="-" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="0">-</SelectItem>
+                        {Array.from({ length: Math.max(4, maxSubGroup + 1) }, (_, i) => (
+                          <SelectItem key={i + 1} value={String(i + 1)}>SG {i + 1}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+
+      {groupedTeams.size > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+            <Eye className="h-4 w-4 text-cyan-500" />
+            Assignment Preview
+          </h4>
+          {Array.from(new Set(Object.values(assignments).map(a => a.group))).filter(g => g > 0).sort().map(gNum => {
+            const subGroups = Array.from(new Set(
+              Object.entries(assignments).filter(([_, a]) => a.group === gNum && a.subGroup > 0).map(([_, a]) => a.subGroup)
+            )).sort();
+            return (
+              <div key={gNum} className="rounded-xl border border-violet-500/30 bg-violet-500/5 overflow-hidden">
+                <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-2.5 border-b border-violet-500/20">
+                  <h5 className="text-xs font-black text-violet-500 uppercase tracking-wider">Group {String.fromCharCode(64 + gNum)}</h5>
+                </div>
+                <div className="p-3 space-y-2">
+                  {subGroups.map(sgNum => {
+                    const sgTeams = teams.filter(t => {
+                      const a = assignments[t.id];
+                      return a && a.group === gNum && a.subGroup === sgNum;
+                    });
+                    return (
+                      <div key={sgNum} className="rounded-lg border border-border/30 bg-card/50 p-3">
+                        <div className="flex items-center gap-2 mb-2">
+                          <Badge className="bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 text-[9px] font-black">
+                            Subgroup {sgNum}
+                          </Badge>
+                          <span className="text-[10px] text-muted-foreground font-bold">{sgTeams.length} teams</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5">
+                          {sgTeams.map(t => (
+                            <span key={t.id} className="px-2 py-1 rounded-md bg-muted/50 text-xs font-bold text-foreground">
+                              {getTeamName(t)}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+
+          {unassignedTeams.length > 0 && (
+            <div className="rounded-xl border border-orange-500/30 bg-orange-500/5 p-3">
+              <div className="flex items-center gap-2 mb-2">
+                <AlertTriangle className="h-4 w-4 text-orange-500" />
+                <span className="text-xs font-black text-orange-500 uppercase tracking-wider">{unassignedTeams.length} Unassigned Teams</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {unassignedTeams.map(t => (
+                  <span key={t.id} className="px-2 py-1 rounded-md bg-orange-500/10 text-xs font-bold text-orange-500">{getTeamName(t)}</span>
+                ))}
+              </div>
+            </div>
           )}
         </div>
       )}

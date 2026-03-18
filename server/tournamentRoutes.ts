@@ -374,28 +374,56 @@ export function registerTournamentRoutes(app: Express) {
           await db.insert(tournamentStandings).values({ categoryId: catId, teamId: team.id, groupNumber: 1 });
         }
       } else if (cat.format === "GROUP_KNOCKOUT") {
-        const groupCount = cat.groupCount || 2;
-        const teamsPerGroup = Math.ceil(teams.length / groupCount);
-        const groups: typeof teams[] = Array.from({ length: groupCount }, () => []);
-        teams.forEach((t, i) => groups[i % groupCount].push(t));
+        const assignedTeams = teams.filter(t => t.groupNumber && t.subGroupNumber);
+        const unassignedTeams = teams.filter(t => !t.groupNumber || !t.subGroupNumber);
 
-        let order = 0;
-        for (let g = 0; g < groups.length; g++) {
-          const groupTeams = groups[g];
-          const gNum = g + 1;
-          for (const t of groupTeams) {
-            await db.update(tournamentTeams).set({ groupNumber: gNum }).where(eq(tournamentTeams.id, t.id));
-          }
-          for (let i = 0; i < groupTeams.length; i++) {
-            for (let j = i + 1; j < groupTeams.length; j++) {
-              await db.insert(tournamentMatches).values({
-                categoryId: catId, teamAId: groupTeams[i].id, teamBId: groupTeams[j].id,
-                round: 1, matchOrder: order++, groupNumber: gNum,
-              });
+        if (assignedTeams.length > 0 && unassignedTeams.length > 0) {
+          return res.status(400).json({ message: `${unassignedTeams.length} team(s) not assigned to a group/subgroup. Please assign all teams before generating matches.` });
+        }
+
+        if (unassignedTeams.length > 0 && assignedTeams.length === 0) {
+          const groupCount = cat.groupCount || 2;
+          const groups: typeof teams[] = Array.from({ length: groupCount }, () => []);
+          teams.forEach((t, i) => groups[i % groupCount].push(t));
+          let order = 0;
+          for (let g = 0; g < groups.length; g++) {
+            const gNum = g + 1;
+            for (const t of groups[g]) {
+              await db.update(tournamentTeams).set({ groupNumber: gNum, subGroupNumber: 1 }).where(eq(tournamentTeams.id, t.id));
+            }
+            for (let i = 0; i < groups[g].length; i++) {
+              for (let j = i + 1; j < groups[g].length; j++) {
+                await db.insert(tournamentMatches).values({
+                  categoryId: catId, teamAId: groups[g][i].id, teamBId: groups[g][j].id,
+                  round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
+                });
+              }
+            }
+            for (const t of groups[g]) {
+              await db.insert(tournamentStandings).values({ categoryId: catId, teamId: t.id, groupNumber: gNum, subGroupNumber: 1 });
             }
           }
-          for (const t of groupTeams) {
-            await db.insert(tournamentStandings).values({ categoryId: catId, teamId: t.id, groupNumber: gNum });
+        } else {
+          const subGroupMap = new Map<string, typeof teams>();
+          for (const t of assignedTeams) {
+            const key = `${t.groupNumber}-${t.subGroupNumber}`;
+            if (!subGroupMap.has(key)) subGroupMap.set(key, []);
+            subGroupMap.get(key)!.push(t);
+          }
+          let order = 0;
+          for (const [key, sgTeams] of subGroupMap) {
+            const [gNum, sgNum] = key.split("-").map(Number);
+            for (let i = 0; i < sgTeams.length; i++) {
+              for (let j = i + 1; j < sgTeams.length; j++) {
+                await db.insert(tournamentMatches).values({
+                  categoryId: catId, teamAId: sgTeams[i].id, teamBId: sgTeams[j].id,
+                  round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: sgNum,
+                });
+              }
+            }
+            for (const t of sgTeams) {
+              await db.insert(tournamentStandings).values({ categoryId: catId, teamId: t.id, groupNumber: gNum, subGroupNumber: sgNum });
+            }
           }
         }
       } else {
@@ -527,13 +555,14 @@ export function registerTournamentRoutes(app: Express) {
 
       if (cat.format === "GROUP_KNOCKOUT") {
         const standingsList = await db.select().from(tournamentStandings).where(eq(tournamentStandings.categoryId, catId))
-          .orderBy(asc(tournamentStandings.groupNumber), desc(tournamentStandings.points), desc(tournamentStandings.gamesWon));
-        const groupCount = cat.groupCount || 2;
-        const advancePerGroup = cat.advancePerGroup || 2;
+          .orderBy(asc(tournamentStandings.groupNumber), asc(tournamentStandings.subGroupNumber), desc(tournamentStandings.points), desc(tournamentStandings.gamesWon));
+        const advancePerGroup = cat.advancePerGroup || 1;
+        const subGroupKeys = new Set(standingsList.map(s => `${s.groupNumber}-${s.subGroupNumber}`));
         const qualifiers: number[] = [];
-        for (let g = 1; g <= groupCount; g++) {
-          const groupStandings = standingsList.filter(s => s.groupNumber === g);
-          qualifiers.push(...groupStandings.slice(0, advancePerGroup).map(s => s.teamId));
+        for (const key of subGroupKeys) {
+          const [gNum, sgNum] = key.split("-").map(Number);
+          const sgStandings = standingsList.filter(s => s.groupNumber === gNum && s.subGroupNumber === sgNum);
+          qualifiers.push(...sgStandings.slice(0, advancePerGroup).map(s => s.teamId));
         }
         if (qualifiers.length < 2) return res.status(400).json({ message: "Not enough qualifiers" });
 
@@ -748,6 +777,53 @@ export function registerTournamentRoutes(app: Express) {
         };
       }));
       res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-teams/:id/assign-group", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const teamId = Number(req.params.id);
+      const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, team.categoryId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      const { groupNumber, subGroupNumber } = req.body;
+      if (!groupNumber || !subGroupNumber) return res.status(400).json({ message: "groupNumber and subGroupNumber required" });
+      const [updated] = await db.update(tournamentTeams)
+        .set({ groupNumber, subGroupNumber })
+        .where(eq(tournamentTeams.id, teamId))
+        .returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-teams/bulk-assign-group", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { assignments } = req.body;
+      if (!assignments || !Array.isArray(assignments) || assignments.length === 0) return res.status(400).json({ message: "assignments array required" });
+      const [firstTeam] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, assignments[0].teamId));
+      if (!firstTeam) return res.status(404).json({ message: "Team not found" });
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, firstTeam.categoryId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      const results = [];
+      for (const a of assignments) {
+        const [updated] = await db.update(tournamentTeams)
+          .set({ groupNumber: a.groupNumber, subGroupNumber: a.subGroupNumber })
+          .where(eq(tournamentTeams.id, a.teamId))
+          .returning();
+        results.push(updated);
+      }
+      res.json(results);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

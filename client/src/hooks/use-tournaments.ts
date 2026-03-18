@@ -268,6 +268,32 @@ export function useUpdateTeam() {
   });
 }
 
+export function useBulkAssignGroups() {
+  return useMutation({
+    mutationFn: async ({ assignments }: { assignments: { teamId: number; groupNumber: number; subGroupNumber: number }[] }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-teams/bulk-assign-group`, { assignments });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+    },
+  });
+}
+
+export function useAssignTeamGroup() {
+  return useMutation({
+    mutationFn: async ({ teamId, groupNumber, subGroupNumber }: { teamId: number; groupNumber: number; subGroupNumber: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-teams/${teamId}/assign-group`, { groupNumber, subGroupNumber });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+    },
+  });
+}
+
 export function useWithdrawRegistration() {
   return useMutation({
     mutationFn: async ({ id, tournamentId }: { id: number; tournamentId: number }) => {
