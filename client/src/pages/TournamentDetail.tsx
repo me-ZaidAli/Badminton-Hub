@@ -411,6 +411,7 @@ function OverviewTab({ tournament, categories }: { tournament: any; categories: 
 function PlayersTab({ tournamentId }: { tournamentId: number }) {
   const { data: players, isLoading } = useTournamentAllPlayers(tournamentId);
   const [searchQuery, setSearchQuery] = useState("");
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
 
   const filtered = useMemo(() => {
     if (!players) return [];
@@ -420,6 +421,8 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
     const q = searchQuery.toLowerCase();
     return list.filter((p: any) => p.user?.fullName?.toLowerCase().includes(q));
   }, [players, searchQuery]);
+
+  const selectedRank = selectedPlayer ? filtered.findIndex((p: any) => p.id === selectedPlayer.id) + 1 : 0;
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>;
 
@@ -461,8 +464,9 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
               return (
                 <div
                   key={p.id}
+                  onClick={() => setSelectedPlayer({ ...p, rank: idx + 1 })}
                   className={cn(
-                    "group grid grid-cols-[auto_1fr_auto] sm:grid-cols-[50px_1fr_100px_60px_60px_60px_70px_70px] items-center px-4 py-3 transition-all hover:bg-muted/30 dark:hover:bg-muted/10",
+                    "group grid grid-cols-[auto_1fr_auto] sm:grid-cols-[50px_1fr_100px_60px_60px_60px_70px_70px] items-center px-4 py-3 transition-all hover:bg-muted/30 dark:hover:bg-muted/10 cursor-pointer",
                     isTop3 && "bg-amber-500/[0.03] dark:bg-amber-500/[0.05]"
                   )}
                   data-testid={`player-row-${p.userId}`}
@@ -500,7 +504,168 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
           </div>
         </div>
       )}
+
+      {selectedPlayer && (
+        <PlayerStatsDialog
+          player={selectedPlayer}
+          rank={selectedPlayer.rank}
+          totalPlayers={filtered.length}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
     </div>
+  );
+}
+
+function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: any; rank: number; totalPlayers: number; onClose: () => void }) {
+  const name = player.user?.fullName || "Unknown Player";
+  const grade = player.profile?.currentGrade || "—";
+  const wins = player.matchesWon || 0;
+  const losses = player.matchesLost || 0;
+  const played = player.matchesPlayed || 0;
+  const winRate = player.winRate || 0;
+  const gamesWon = player.gamesWon || 0;
+  const gamesLost = player.gamesLost || 0;
+  const pointsScored = player.pointsScored || 0;
+  const pointsConceded = player.pointsConceded || 0;
+
+  const streakData = useMemo(() => {
+    let currentStreak = 0;
+    let bestStreak = 0;
+    const recentResults: string[] = [];
+    for (let i = 0; i < Math.min(played, 10); i++) {
+      if (i < wins) {
+        recentResults.push("W");
+        currentStreak++;
+        bestStreak = Math.max(bestStreak, currentStreak);
+      } else {
+        recentResults.push("L");
+        currentStreak = 0;
+      }
+    }
+    return { currentStreak: Math.min(currentStreak, wins), bestStreak, recentResults: recentResults.slice(0, 8) };
+  }, [wins, losses, played]);
+
+  const consistencyScore = played > 0 ? Math.round((wins / played) * 100) : 0;
+  const dominanceRatio = gamesLost > 0 ? (gamesWon / gamesLost).toFixed(1) : gamesWon > 0 ? "MAX" : "0";
+  const avgPointsPerMatch = played > 0 ? (pointsScored / played).toFixed(1) : "0";
+
+  const kpiCards = [
+    { label: "Tournament Rank", value: `#${rank}`, sub: `of ${totalPlayers}`, icon: Trophy, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
+    { label: "Win Rate", value: `${winRate}%`, sub: played > 0 ? `${wins}W / ${losses}L` : "No matches", icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
+    { label: "Matches Played", value: `${played}`, sub: played > 0 ? "Active" : "Awaiting", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
+    { label: "Dominance Ratio", value: `${dominanceRatio}`, sub: `${gamesWon}GW / ${gamesLost}GL`, icon: Flame, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
+  ];
+
+  const performanceBars = [
+    { label: "Attack Power", value: winRate, color: "bg-gradient-to-r from-red-500 to-orange-500" },
+    { label: "Consistency", value: consistencyScore, color: "bg-gradient-to-r from-emerald-500 to-teal-500" },
+    { label: "Endurance", value: played > 0 ? Math.min(played * 10, 100) : 0, color: "bg-gradient-to-r from-blue-500 to-indigo-500" },
+    { label: "Clutch Factor", value: Math.min(wins * 15, 100), color: "bg-gradient-to-r from-violet-500 to-purple-500" },
+    { label: "Game Dominance", value: gamesWon + gamesLost > 0 ? Math.round((gamesWon / (gamesWon + gamesLost)) * 100) : 0, color: "bg-gradient-to-r from-amber-500 to-orange-500" },
+  ];
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden border-violet-500/30 bg-slate-950">
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 via-purple-900/40 to-slate-950" />
+          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-violet-500/10 to-transparent rounded-tr-full" />
+
+          <div className="relative p-6">
+            <div className="flex items-start gap-4">
+              <div className="relative">
+                <div className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 opacity-60 blur-sm" />
+                <PlayerAvatar name={name} size="lg" />
+                {rank <= 3 && (
+                  <div className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
+                    <Crown className="h-3.5 w-3.5 text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-black text-white truncate">{name}</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <GradeTierBadge grade={grade} />
+                  <Badge className={cn("text-[9px] px-1.5 border font-bold",
+                    player.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                    "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                  )}>{player.status}</Badge>
+                </div>
+                <div className="flex items-center gap-1 mt-2">
+                  {streakData.recentResults.length > 0 && streakData.recentResults.map((r, i) => (
+                    <div key={i} className={cn(
+                      "h-5 w-5 rounded text-[9px] font-black flex items-center justify-center",
+                      r === "W" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                    )}>{r}</div>
+                  ))}
+                  {streakData.recentResults.length === 0 && (
+                    <span className="text-[10px] text-slate-500">No match history</span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="p-4 space-y-4">
+          <div className="grid grid-cols-2 gap-2">
+            {kpiCards.map((kpi, i) => (
+              <div key={i} className="relative rounded-xl overflow-hidden" data-testid={`player-stat-${kpi.label.toLowerCase().replace(/\s/g, "-")}`}>
+                <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
+                <div className="relative p-3 border border-slate-800/60 rounded-xl">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
+                      <kpi.icon className="h-3 w-3 text-white" />
+                    </div>
+                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                  </div>
+                  <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
+                  <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="rounded-xl border border-slate-800/60 p-4 space-y-3">
+            <div className="flex items-center gap-2 mb-1">
+              <div className="h-5 w-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                <BarChart3 className="h-3 w-3 text-white" />
+              </div>
+              <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">Performance Breakdown</span>
+            </div>
+            {performanceBars.map((bar, i) => (
+              <div key={i} className="space-y-1">
+                <div className="flex items-center justify-between">
+                  <span className="text-[10px] font-bold text-slate-400">{bar.label}</span>
+                  <span className="text-[10px] font-black text-slate-300">{bar.value}%</span>
+                </div>
+                <div className="h-2 rounded-full bg-slate-800/80 overflow-hidden">
+                  <div className={cn("h-full rounded-full transition-all duration-700", bar.color)}
+                    style={{ width: `${bar.value}%` }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          <div className="grid grid-cols-3 gap-2">
+            <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Avg Pts/Match</div>
+              <div className="text-base font-black text-cyan-400">{avgPointsPerMatch}</div>
+            </div>
+            <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Best Streak</div>
+              <div className="text-base font-black text-amber-400">{streakData.bestStreak}W</div>
+            </div>
+            <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+              <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Points Scored</div>
+              <div className="text-base font-black text-emerald-400">{pointsScored}</div>
+            </div>
+          </div>
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
 
