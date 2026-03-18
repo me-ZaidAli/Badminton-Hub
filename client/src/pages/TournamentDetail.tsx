@@ -11,6 +11,7 @@ import {
   useWithdrawRegistration,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
+  useSeedDemoPlayers, useClearDemoPlayers,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { useMyTournamentClubs } from "@/hooks/use-clubs";
@@ -1564,6 +1565,8 @@ function AdminTab({ tournamentId, tournament, categories }: { tournamentId: numb
   const deleteCatMutation = useDeleteCategory();
   const addAdminMutation = useAddTournamentAdmin();
   const removeAdminMutation = useRemoveTournamentAdmin();
+  const seedDemoMutation = useSeedDemoPlayers();
+  const clearDemoMutation = useClearDemoPlayers();
   const { toast } = useToast();
   const [adminView, setAdminView] = useState<"registrations" | "pairs" | "waitlist" | "settings">("registrations");
   const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
@@ -1593,6 +1596,30 @@ function AdminTab({ tournamentId, tournament, categories }: { tournamentId: numb
       <div className="flex items-center gap-2 flex-wrap">
         <Button size="sm" variant={tournament.isLocked ? "destructive" : "outline"} onClick={handleLock} className="font-bold">
           <Lock className="h-3.5 w-3.5 mr-1" />{tournament.isLocked ? "Unlock" : "Lock"} Tournament
+        </Button>
+        <Button size="sm" variant="outline" className="font-bold border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
+          data-testid="button-seed-demo-players"
+          disabled={seedDemoMutation.isPending}
+          onClick={async () => {
+            try {
+              const result = await seedDemoMutation.mutateAsync({ tournamentId, count: 20 });
+              toast({ title: "Demo Players Added", description: result.message });
+            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+          }}>
+          {seedDemoMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <UserPlus className="h-3.5 w-3.5 mr-1" />}
+          Add 20 Demo Players
+        </Button>
+        <Button size="sm" variant="outline" className="font-bold border-red-500/30 text-red-500 hover:bg-red-500/10"
+          data-testid="button-clear-demo-players"
+          disabled={clearDemoMutation.isPending}
+          onClick={async () => {
+            try {
+              const result = await clearDemoMutation.mutateAsync({ tournamentId });
+              toast({ title: "Demo Players Removed", description: result.message });
+            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+          }}>
+          {clearDemoMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
+          Clear Demo Players
         </Button>
       </div>
 

@@ -996,4 +996,97 @@ export function registerTournamentRoutes(app: Express) {
       res.status(500).json({ message: e.message });
     }
   });
+
+  const DEMO_FIRST = ["Alex","Jordan","Sam","Morgan","Taylor","Casey","Riley","Avery","Quinn","Jamie","Blake","Drew","Skyler","Reese","Kai","Phoenix","Rowan","Finley","Harper","Sage"];
+  const DEMO_LAST = ["Chen","Patel","Kim","Garcia","Tanaka","Nguyen","Singh","Muller","Santos","Ali","Okafor","Johansson","Rivera","Park","Ivanov","Petrov","Williams","Brown","Dubois","Fischer"];
+  const DEMO_GRADES = ["A1","A2","A3","B1","B2","B3","C1","C2","C3"];
+
+  app.post("/api/tournaments/:id/seed-demo-players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+
+      const count = Math.min(Math.max(Number(req.body.count) || 20, 1), 50);
+      const created: any[] = [];
+
+      for (let i = 0; i < count; i++) {
+        const firstName = DEMO_FIRST[i % DEMO_FIRST.length];
+        const lastName = DEMO_LAST[i % DEMO_LAST.length];
+        const suffix = Date.now().toString(36) + i;
+        const fullName = `${firstName} ${lastName}`;
+        const email = `demo.${firstName.toLowerCase()}.${suffix}@demo.tournament`;
+
+        const [demoUser] = await db.insert(users).values({
+          fullName,
+          email,
+          password: "DEMO_ACCOUNT_NO_LOGIN",
+          role: "PLAYER",
+          accountStatus: "APPROVED",
+        }).returning();
+
+        const grade = DEMO_GRADES[Math.floor(Math.random() * DEMO_GRADES.length)];
+        await db.insert(playerProfiles).values({
+          userId: demoUser.id,
+          clubId: tournament.clubId,
+          membershipStatus: "APPROVED",
+          clubRole: "PLAYER",
+          currentGrade: grade,
+        });
+
+        const [reg] = await db.insert(tournamentRegistrations).values({
+          tournamentId,
+          userId: demoUser.id,
+          registrationType: "INDIVIDUAL",
+          status: "APPROVED",
+        }).returning();
+
+        created.push({ id: reg.id, userId: demoUser.id, fullName, grade });
+      }
+
+      res.json({ message: `${created.length} demo players added`, players: created });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/tournaments/:id/demo-players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const demoRegs = await db.select({
+        regId: tournamentRegistrations.id,
+        userId: tournamentRegistrations.userId,
+        email: users.email,
+      })
+        .from(tournamentRegistrations)
+        .innerJoin(users, eq(users.id, tournamentRegistrations.userId))
+        .where(and(
+          eq(tournamentRegistrations.tournamentId, tournamentId),
+          sql`${users.email} LIKE '%@demo.tournament'`,
+        ));
+
+      if (demoRegs.length === 0) return res.json({ message: "No demo players to remove", removed: 0 });
+
+      const regIds = demoRegs.map(r => r.regId);
+      const userIds = demoRegs.map(r => r.userId);
+
+      await db.delete(tournamentRegistrations).where(inArray(tournamentRegistrations.id, regIds));
+      if (userIds.length > 0) {
+        await db.delete(playerProfiles).where(inArray(playerProfiles.userId, userIds));
+        await db.delete(users).where(inArray(users.id, userIds));
+      }
+
+      res.json({ message: `${demoRegs.length} demo players removed`, removed: demoRegs.length });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
 }
