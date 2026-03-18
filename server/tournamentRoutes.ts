@@ -788,21 +788,27 @@ export function registerTournamentRoutes(app: Express) {
         const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
           .from(users).where(eq(users.id, reg.userId));
         const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
-        const totalMatches = profile ? await db.select({ count: sql<number>`count(*)::int` }).from(matches)
-          .where(and(eq(matches.isCompleted, true), or(
-            eq(matches.teamAPlayer1Id, profile.id), eq(matches.teamAPlayer2Id, profile.id),
-            eq(matches.teamBPlayer1Id, profile.id), eq(matches.teamBPlayer2Id, profile.id),
-          ))) : [{ count: 0 }];
-        const wonMatches = profile ? await db.select({ count: sql<number>`count(*)::int` }).from(matches)
-          .where(and(eq(matches.isCompleted, true), or(
-            and(or(eq(matches.teamAPlayer1Id, profile.id), eq(matches.teamAPlayer2Id, profile.id)), sql`${matches.scoreA} > ${matches.scoreB}`),
-            and(or(eq(matches.teamBPlayer1Id, profile.id), eq(matches.teamBPlayer2Id, profile.id)), sql`${matches.scoreB} > ${matches.scoreA}`),
-          ))) : [{ count: 0 }];
+        let matchesPlayed = 0, matchesWon = 0;
+        if (profile) {
+          const playerTeams = await db.select().from(tournamentTeams)
+            .where(or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id)));
+          const teamIds = playerTeams.map(t => t.id);
+          if (teamIds.length > 0) {
+            const tMatches = await db.select().from(tournamentMatches)
+              .where(and(
+                eq(tournamentMatches.status, "COMPLETED"),
+                or(inArray(tournamentMatches.teamAId, teamIds), inArray(tournamentMatches.teamBId, teamIds))
+              ));
+            for (const m of tMatches) {
+              if (m.isBye || m.isWalkover) continue;
+              matchesPlayed++;
+              if (m.winnerId && teamIds.includes(m.winnerId)) matchesWon++;
+            }
+          }
+        }
         return {
-          ...reg, user, profile,
-          matchesPlayed: totalMatches[0]?.count || 0,
-          matchesWon: wonMatches[0]?.count || 0,
-          winRate: (totalMatches[0]?.count || 0) > 0 ? Math.round(((wonMatches[0]?.count || 0) / (totalMatches[0]?.count || 1)) * 100) : 0,
+          ...reg, user, profile, matchesPlayed, matchesWon,
+          winRate: matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0,
         };
       }));
       res.json(enriched);
@@ -1056,27 +1062,54 @@ export function registerTournamentRoutes(app: Express) {
       const regs = await db.select().from(tournamentRegistrations)
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), ne(tournamentRegistrations.status, "REJECTED")));
 
+      const cats = await db.select().from(tournamentCategories)
+        .where(eq(tournamentCategories.tournamentId, tournamentId));
+      const catIds = cats.map(c => c.id);
+
       const enriched = await Promise.all(regs.map(async (reg) => {
         const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
           .from(users).where(eq(users.id, reg.userId));
         const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
-        let matchesPlayed = 0, matchesWon = 0;
-        if (profile) {
-          const [total] = await db.select({ count: sql<number>`count(*)::int` }).from(matches)
-            .where(and(eq(matches.isCompleted, true), or(
-              eq(matches.teamAPlayer1Id, profile.id), eq(matches.teamAPlayer2Id, profile.id),
-              eq(matches.teamBPlayer1Id, profile.id), eq(matches.teamBPlayer2Id, profile.id),
-            )));
-          matchesPlayed = total?.count || 0;
-          const [won] = await db.select({ count: sql<number>`count(*)::int` }).from(matches)
-            .where(and(eq(matches.isCompleted, true), or(
-              and(or(eq(matches.teamAPlayer1Id, profile.id), eq(matches.teamAPlayer2Id, profile.id)), sql`${matches.scoreA} > ${matches.scoreB}`),
-              and(or(eq(matches.teamBPlayer1Id, profile.id), eq(matches.teamBPlayer2Id, profile.id)), sql`${matches.scoreB} > ${matches.scoreA}`),
-            )));
-          matchesWon = won?.count || 0;
+        let matchesPlayed = 0, matchesWon = 0, gamesWon = 0, gamesLost = 0, pointsScored = 0, pointsConceded = 0;
+        if (profile && catIds.length > 0) {
+          const playerTeams = await db.select().from(tournamentTeams)
+            .where(and(
+              inArray(tournamentTeams.categoryId, catIds),
+              or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id))
+            ));
+          const teamIds = playerTeams.map(t => t.id);
+          if (teamIds.length > 0) {
+            const tMatches = await db.select().from(tournamentMatches)
+              .where(and(
+                eq(tournamentMatches.status, "COMPLETED"),
+                or(inArray(tournamentMatches.teamAId, teamIds), inArray(tournamentMatches.teamBId, teamIds))
+              ));
+            for (const m of tMatches) {
+              if (m.isBye || m.isWalkover) continue;
+              matchesPlayed++;
+              const isTeamA = teamIds.includes(m.teamAId!);
+              if (m.winnerId && teamIds.includes(m.winnerId)) matchesWon++;
+              if (m.scores && Array.isArray(m.scores)) {
+                for (const set of m.scores as Array<{scoreA: number; scoreB: number}>) {
+                  if (isTeamA) {
+                    pointsScored += set.scoreA || 0;
+                    pointsConceded += set.scoreB || 0;
+                    if (set.scoreA > set.scoreB) gamesWon++;
+                    else if (set.scoreB > set.scoreA) gamesLost++;
+                  } else {
+                    pointsScored += set.scoreB || 0;
+                    pointsConceded += set.scoreA || 0;
+                    if (set.scoreB > set.scoreA) gamesWon++;
+                    else if (set.scoreA > set.scoreB) gamesLost++;
+                  }
+                }
+              }
+            }
+          }
         }
         return {
-          ...reg, user, profile, matchesPlayed, matchesWon,
+          ...reg, user, profile, matchesPlayed, matchesWon, gamesWon, gamesLost, pointsScored, pointsConceded,
+          matchesLost: matchesPlayed - matchesWon,
           winRate: matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0,
         };
       }));

@@ -705,7 +705,14 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
   const filtered = useMemo(() => {
     if (!players) return [];
     const list = [...players];
-    list.sort((a: any, b: any) => (b.winRate || 0) - (a.winRate || 0));
+    list.sort((a: any, b: any) => {
+      const aPlayed = a.matchesPlayed || 0;
+      const bPlayed = b.matchesPlayed || 0;
+      if (aPlayed === 0 && bPlayed === 0) return (a.user?.fullName || "").localeCompare(b.user?.fullName || "");
+      if (aPlayed === 0) return 1;
+      if (bPlayed === 0) return -1;
+      return (b.winRate || 0) - (a.winRate || 0) || bPlayed - aPlayed;
+    });
     if (!searchQuery) return list;
     const q = searchQuery.toLowerCase();
     return list.filter((p: any) => p.user?.fullName?.toLowerCase().includes(q));
@@ -761,8 +768,8 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
                   data-testid={`player-row-${p.userId}`}
                 >
                   <div className="flex items-center gap-2 sm:gap-0">
-                    <span className={cn("text-sm font-black w-7 text-center", isTop3 ? rankColors[idx] : "text-muted-foreground")}>
-                      {isTop3 ? <Medal className={cn("h-5 w-5 inline", rankColors[idx])} /> : `${idx + 1}`}
+                    <span className={cn("text-sm font-black w-7 text-center", isTop3 && (p.matchesPlayed || 0) > 0 ? rankColors[idx] : "text-muted-foreground")}>
+                      {(p.matchesPlayed || 0) === 0 ? "—" : isTop3 ? <Medal className={cn("h-5 w-5 inline", rankColors[idx])} /> : `${idx + 1}`}
                     </span>
                   </div>
                   <div className="flex items-center gap-3 min-w-0">
@@ -820,26 +827,6 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
   const gamesWon = player.gamesWon || 0;
   const gamesLost = player.gamesLost || 0;
   const pointsScored = player.pointsScored || 0;
-  const pointsConceded = player.pointsConceded || 0;
-
-  const streakData = useMemo(() => {
-    let currentStreak = 0;
-    let bestStreak = 0;
-    const recentResults: string[] = [];
-    for (let i = 0; i < Math.min(played, 10); i++) {
-      if (i < wins) {
-        recentResults.push("W");
-        currentStreak++;
-        bestStreak = Math.max(bestStreak, currentStreak);
-      } else {
-        recentResults.push("L");
-        currentStreak = 0;
-      }
-    }
-    return { currentStreak: Math.min(currentStreak, wins), bestStreak, recentResults: recentResults.slice(0, 8) };
-  }, [wins, losses, played]);
-
-  const consistencyScore = played > 0 ? Math.round((wins / played) * 100) : 0;
   const dominanceRatio = gamesLost > 0 ? (gamesWon / gamesLost).toFixed(1) : gamesWon > 0 ? "MAX" : "0";
   const avgPointsPerMatch = played > 0 ? (pointsScored / played).toFixed(1) : "0";
 
@@ -985,78 +972,53 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
 
         {statsTab === "tournament" && (
           <div className="p-4 space-y-4">
-            <div className="flex items-center gap-1 mb-1">
-              {streakData.recentResults.length > 0 ? streakData.recentResults.map((r, i) => (
-                <div key={i} className={cn("h-5 w-5 rounded text-[9px] font-black flex items-center justify-center",
-                  r === "W" ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
-                )}>{r}</div>
-              )) : <span className="text-[10px] text-slate-500">No tournament match history</span>}
-            </div>
-
-            <div className="grid grid-cols-2 gap-2">
-              {[
-                { label: "Tournament Rank", value: `#${rank}`, sub: `of ${totalPlayers}`, icon: Trophy, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
-                { label: "Win Rate", value: `${winRate}%`, sub: played > 0 ? `${wins}W / ${losses}L` : "No matches", icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
-                { label: "Matches Played", value: `${played}`, sub: played > 0 ? "Active" : "Awaiting", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
-                { label: "Dominance Ratio", value: `${dominanceRatio}`, sub: `${gamesWon}GW / ${gamesLost}GL`, icon: Flame, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
-              ].map((kpi, i) => (
-                <div key={i} className="relative rounded-xl overflow-hidden" data-testid={`player-stat-${kpi.label.toLowerCase().replace(/\s/g, "-")}`}>
-                  <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
-                  <div className="relative p-3 border border-slate-800/60 rounded-xl">
-                    <div className="flex items-center gap-2 mb-1">
-                      <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
-                        <kpi.icon className="h-3 w-3 text-white" />
+            {played === 0 ? (
+              <div className="text-center py-8">
+                <Trophy className="h-8 w-8 text-slate-700 mx-auto mb-2" />
+                <p className="text-sm font-bold text-slate-400">No Tournament Matches Yet</p>
+                <p className="text-xs text-slate-600 mt-1">Stats will appear once this player completes tournament matches.</p>
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Tournament Rank", value: played > 0 ? `#${rank}` : "—", sub: played > 0 ? `of ${totalPlayers}` : "Unranked", icon: Trophy, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
+                    { label: "Win Rate", value: `${winRate}%`, sub: `${wins}W / ${losses}L`, icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
+                    { label: "Matches Played", value: `${played}`, sub: "Tournament", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
+                    { label: "Dominance Ratio", value: `${dominanceRatio}`, sub: `${gamesWon}GW / ${gamesLost}GL`, icon: Flame, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
+                  ].map((kpi, i) => (
+                    <div key={i} className="relative rounded-xl overflow-hidden" data-testid={`player-stat-${kpi.label.toLowerCase().replace(/\s/g, "-")}`}>
+                      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
+                      <div className="relative p-3 border border-slate-800/60 rounded-xl">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
+                            <kpi.icon className="h-3 w-3 text-white" />
+                          </div>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                        </div>
+                        <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
                       </div>
-                      <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
                     </div>
-                    <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
-                    <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
-                  </div>
+                  ))}
                 </div>
-              ))}
-            </div>
 
-            <div className="rounded-xl border border-slate-800/60 p-4 space-y-3">
-              <div className="flex items-center gap-2 mb-1">
-                <div className="h-5 w-5 rounded bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-                  <BarChart3 className="h-3 w-3 text-white" />
-                </div>
-                <span className="text-[10px] font-black uppercase tracking-[0.15em] text-slate-500">Performance Breakdown</span>
-              </div>
-              {[
-                { label: "Attack Power", value: winRate, color: "bg-gradient-to-r from-red-500 to-orange-500" },
-                { label: "Consistency", value: consistencyScore, color: "bg-gradient-to-r from-emerald-500 to-teal-500" },
-                { label: "Endurance", value: played > 0 ? Math.min(played * 10, 100) : 0, color: "bg-gradient-to-r from-blue-500 to-indigo-500" },
-                { label: "Clutch Factor", value: Math.min(wins * 15, 100), color: "bg-gradient-to-r from-violet-500 to-purple-500" },
-                { label: "Game Dominance", value: gamesWon + gamesLost > 0 ? Math.round((gamesWon / (gamesWon + gamesLost)) * 100) : 0, color: "bg-gradient-to-r from-amber-500 to-orange-500" },
-              ].map((bar, i) => (
-                <div key={i} className="space-y-1">
-                  <div className="flex items-center justify-between">
-                    <span className="text-[10px] font-bold text-slate-400">{bar.label}</span>
-                    <span className="text-[10px] font-black text-slate-300">{bar.value}%</span>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Avg Pts/Match</div>
+                    <div className="text-base font-black text-cyan-400">{avgPointsPerMatch}</div>
                   </div>
-                  <div className="h-2 rounded-full bg-slate-800/80 overflow-hidden">
-                    <div className={cn("h-full rounded-full transition-all duration-700", bar.color)}
-                      style={{ width: `${bar.value}%` }} />
+                  <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Games Won</div>
+                    <div className="text-base font-black text-amber-400">{gamesWon}</div>
+                  </div>
+                  <div className="rounded-lg border border-slate-800/60 p-3 text-center">
+                    <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Points Scored</div>
+                    <div className="text-base font-black text-emerald-400">{pointsScored}</div>
                   </div>
                 </div>
-              ))}
-            </div>
-
-            <div className="grid grid-cols-3 gap-2">
-              <div className="rounded-lg border border-slate-800/60 p-3 text-center">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Avg Pts/Match</div>
-                <div className="text-base font-black text-cyan-400">{avgPointsPerMatch}</div>
-              </div>
-              <div className="rounded-lg border border-slate-800/60 p-3 text-center">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Best Streak</div>
-                <div className="text-base font-black text-amber-400">{streakData.bestStreak}W</div>
-              </div>
-              <div className="rounded-lg border border-slate-800/60 p-3 text-center">
-                <div className="text-[9px] font-bold uppercase tracking-wider text-slate-600 mb-1">Points Scored</div>
-                <div className="text-base font-black text-emerald-400">{pointsScored}</div>
-              </div>
-            </div>
+              </>
+            )}
           </div>
         )}
       </DialogContent>
