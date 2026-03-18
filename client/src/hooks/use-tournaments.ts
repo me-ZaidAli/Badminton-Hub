@@ -255,6 +255,34 @@ export function useDeleteTeam() {
   });
 }
 
+export function useUpdateTeam() {
+  return useMutation({
+    mutationFn: async ({ teamId, ...data }: { teamId: number; player1Id?: number; player2Id?: number; seedNumber?: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-teams/${teamId}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+    },
+  });
+}
+
+export function useWithdrawRegistration() {
+  return useMutation({
+    mutationFn: async ({ id, tournamentId }: { id: number; tournamentId: number }) => {
+      await apiRequest("DELETE", `/api/tournament-registrations/${id}`);
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "registrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "player-pool"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "pair-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "all-players"] });
+    },
+  });
+}
+
 export function useGenerateMatches() {
   return useMutation({
     mutationFn: async (categoryId: number) => {

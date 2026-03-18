@@ -199,10 +199,40 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.patch("/api/tournament-teams/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const teamId = Number(req.params.id);
+      if (isNaN(teamId)) return res.status(400).json({ message: "Invalid team ID" });
+      const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, team.categoryId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
+      const { player1Id, player2Id, seedNumber } = req.body;
+      const updates: any = {};
+      if (player1Id !== undefined) updates.player1Id = player1Id;
+      if (player2Id !== undefined) updates.player2Id = player2Id;
+      if (seedNumber !== undefined) updates.seedNumber = seedNumber;
+      const [updated] = await db.update(tournamentTeams).set(updates).where(eq(tournamentTeams.id, teamId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.delete("/api/tournament-teams/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const teamId = Number(req.params.id);
+      if (isNaN(teamId)) return res.status(400).json({ message: "Invalid team ID" });
+      const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, team.categoryId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
       await db.delete(tournamentStandings).where(eq(tournamentStandings.teamId, teamId));
       await db.delete(tournamentMatches).where(or(eq(tournamentMatches.teamAId, teamId), eq(tournamentMatches.teamBId, teamId)));
       await db.delete(tournamentTeams).where(eq(tournamentTeams.id, teamId));
@@ -616,7 +646,15 @@ export function registerTournamentRoutes(app: Express) {
   app.delete("/api/tournament-registrations/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      await db.delete(tournamentRegistrations).where(eq(tournamentRegistrations.id, Number(req.params.id)));
+      const regId = Number(req.params.id);
+      if (isNaN(regId)) return res.status(400).json({ message: "Invalid registration ID" });
+      const [reg] = await db.select().from(tournamentRegistrations).where(eq(tournamentRegistrations.id, regId));
+      if (!reg) return res.status(404).json({ message: "Registration not found" });
+      const userId = (req.user as any).id;
+      const isOwner = reg.userId === userId;
+      const canManage = await isTournamentAdmin(userId, reg.tournamentId);
+      if (!isOwner && !canManage) return res.status(403).json({ message: "Not authorized" });
+      await db.delete(tournamentRegistrations).where(eq(tournamentRegistrations.id, regId));
       res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
