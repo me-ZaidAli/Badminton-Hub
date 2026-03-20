@@ -222,7 +222,7 @@ export default function CoachPlayerSkillsDashboard() {
           </div>
         )}
 
-        {analyticsType !== "MANAGE" && (<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {analyticsType !== "MANAGE" && (<><div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-xl p-5 border border-white/5" style={{ background: CARD_BG }}>
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
               <Target size={18} style={{ color: GOLD }} />
@@ -338,7 +338,7 @@ export default function CoachPlayerSkillsDashboard() {
               <div className="text-gray-500 text-sm text-center py-4">No data</div>
             )}
           </div>
-        </div>)}
+        </div></>)}
 
         {analyticsType !== "MANAGE" && (<div className="rounded-xl p-5 border border-white/5" style={{ background: CARD_BG }}>
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
