@@ -121,6 +121,15 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     },
   });
 
+  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
+  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
+
+  const { data: myEnrollments } = useQuery<any[]>({
+    queryKey: ["/api/my/player-analytics-enrollment"],
+    enabled: !!user && !isAdminOrOwner,
+  });
+  const isEnrolledInSkills = isAdminOrOwner || (myEnrollments && myEnrollments.length > 0);
+
   const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
 
   if (isActiveTrial) {
@@ -137,9 +146,6 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     return { groups, isPremium: false, planStatus: "FREE" };
   }
 
-  const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
-  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
-
   const items: NavItem[] = [
     { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard, group: "main" },
     { href: "/my-insights", label: "My Insights", icon: Lightbulb, group: "main" },
@@ -150,7 +156,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/tournaments", label: "Tournaments", icon: Award, group: "activity" },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
-    { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity", premiumOnly: true },
+    { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity", premiumOnly: true, hidden: !isEnrolledInSkills },
     { href: "/coach/player-skills", label: "Player Skills", icon: BarChart3, group: "activity", hidden: !isAdminOrOwner, premiumOnly: true },
     // { href: "/find-coach", label: "Find a Coach", icon: GraduationCap, group: "activity", premiumOnly: true },
     // { href: "/my-lessons", label: "My Lessons", icon: GraduationCap, group: "activity", premiumOnly: true },

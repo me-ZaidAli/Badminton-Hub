@@ -29556,9 +29556,12 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   app.get("/api/player-skills/progress/:playerId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+    const playerId = parseInt(req.params.playerId);
+    const isAdmin = await isAnyClubAdmin(user.id, user.role);
+    const ownProfiles = await db.select({ id: playerProfiles.id }).from(playerProfiles).where(eq(playerProfiles.userId, user.id));
+    const isOwnProfile = ownProfiles.some(p => p.id === playerId);
+    if (!isAdmin && !isOwnProfile) return res.sendStatus(403);
     try {
-      const playerId = parseInt(req.params.playerId);
       const progress = await db.select({
         id: playerSkillProgress.id,
         playerId: playerSkillProgress.playerId,

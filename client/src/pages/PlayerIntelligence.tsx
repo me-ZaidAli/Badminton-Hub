@@ -1619,6 +1619,19 @@ export default function PlayerIntelligence() {
   const [compareMode, setCompareMode] = useState(false);
   const [mobileListOpen, setMobileListOpen] = useState(false);
 
+  const { data: myEnrollments, isLoading: enrollLoading } = useQuery<any[]>({
+    queryKey: ["/api/my/player-analytics-enrollment"],
+    enabled: !!user && !isAdmin,
+  });
+  const isEnrolled = isAdmin || (myEnrollments && myEnrollments.length > 0);
+
+  useEffect(() => {
+    if (!isAdmin && isEnrolled && players && user && !selectedPlayer) {
+      const me = (players as PlayerData[]).find(p => p.id === user.id);
+      if (me) setSelectedPlayer(me);
+    }
+  }, [isAdmin, isEnrolled, players, user, selectedPlayer]);
+
   const filteredPlayers = useMemo(() => {
     if (!players) return [];
     return (players as PlayerData[]).filter((p) => {
@@ -1728,9 +1741,32 @@ export default function PlayerIntelligence() {
     return <PremiumFeatureGate featureName="Player Intelligence" description="Access advanced player analytics, skill tracking, AI-powered comparisons, and more. Upgrade to Premium to unlock this feature."><DemoPlayerIntelligence /></PremiumFeatureGate>;
   }
 
+  if (!isAdmin && enrollLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!isAdmin && !isEnrolled) {
+    return (
+      <div className="flex items-center justify-center min-h-[50vh]">
+        <div className="text-center text-muted-foreground max-w-md">
+          <div className="w-20 h-20 mx-auto mb-4 rounded-full bg-muted/30 flex items-center justify-center border border-border">
+            <Lock className="h-8 w-8 opacity-40" />
+          </div>
+          <h2 className="text-lg font-bold mb-2 text-foreground">Skills Dashboard Not Available</h2>
+          <p className="text-sm">You haven't been added to the Player Skills programme yet. Please contact your club admin to be enrolled.</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <PremiumFeatureGate featureName="Player Intelligence" description="Access advanced player analytics, skill tracking, AI-powered comparisons, and more. Upgrade to Premium to unlock this feature.">
     <div className="flex gap-0 min-h-[calc(100vh-140px)]">
+      {isAdmin && (
       <div className="hidden lg:block w-72 shrink-0 border-r border-border pr-4">
         <div className="sticky top-4">
           <div className="flex items-center gap-2 mb-5">
@@ -1742,8 +1778,10 @@ export default function PlayerIntelligence() {
           {playerList}
         </div>
       </div>
+      )}
 
       <div className="flex-1 min-w-0 lg:pl-6">
+        {isAdmin && (
         <div className="lg:hidden flex items-center gap-2 mb-4">
           <Sheet open={mobileListOpen} onOpenChange={setMobileListOpen}>
             <SheetTrigger asChild>
@@ -1763,7 +1801,18 @@ export default function PlayerIntelligence() {
             Player Intelligence
           </h1>
         </div>
+        )}
 
+        {!isAdmin && (
+          <div className="flex items-center gap-2 mb-5">
+            <div className="w-8 h-8 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+              <Activity className="h-4 w-4 text-cyan-400" />
+            </div>
+            <h1 className="text-lg font-bold text-foreground">My Skills Dashboard</h1>
+          </div>
+        )}
+
+        {isAdmin && (
         <div className="flex items-center gap-2 mb-5">
           <Button
             variant={compareMode ? "default" : "outline"}
@@ -1782,6 +1831,7 @@ export default function PlayerIntelligence() {
             <span className="text-sm text-muted-foreground animate-pulse">Select a second player to compare</span>
           )}
         </div>
+        )}
 
         {compareMode && selectedPlayer && comparePlayer ? (
           <RivalryArenaView
@@ -1799,6 +1849,13 @@ export default function PlayerIntelligence() {
             isAdmin={isAdmin}
             currentUserId={user?.id || 0}
           />
+        ) : !isAdmin ? (
+          <div className="flex items-center justify-center min-h-[50vh]">
+            <div className="text-center text-muted-foreground">
+              <Loader2 className="h-8 w-8 animate-spin mx-auto mb-2" />
+              <p className="text-sm">Loading your skills dashboard...</p>
+            </div>
+          </div>
         ) : (
           <div className="flex items-center justify-center min-h-[50vh]">
             <div className="text-center text-muted-foreground">

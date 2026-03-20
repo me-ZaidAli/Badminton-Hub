@@ -224,10 +224,17 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
     },
   });
 
+  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
+
+  const { data: myEnrollments } = useQuery<any[]>({
+    queryKey: ["/api/my/player-analytics-enrollment"],
+    enabled: !!user && !isAdminOrOwner,
+  });
+  const isEnrolledInSkills = isAdminOrOwner || (myEnrollments && myEnrollments.length > 0);
+
   if (!user) return null;
 
   const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
-  const isAdminOrOwner = user.role === "OWNER" || user.role === "ADMIN";
 
   if (isActiveTrial) {
     const trialSections = [
@@ -297,7 +304,7 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
         { href: "/tournaments", label: "Tournaments", icon: Award },
         { href: "/league", label: "League", icon: Swords },
         { href: "/rankings", label: "Rankings", icon: Trophy },
-        { href: "/player-intelligence", label: "Player Intel", icon: Activity },
+        ...(isEnrolledInSkills ? [{ href: "/player-intelligence", label: "Player Intel", icon: Activity }] : []),
       ],
     },
     {
