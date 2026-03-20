@@ -2,6 +2,7 @@ import express, { type Request, Response, NextFunction } from "express";
 import { registerRoutes } from "./routes";
 import { seedJuniorSkills } from "./juniorSkillsSeed";
 import { seedExercises } from "./exerciseSeed";
+import { seedPlayerSkillCategories } from "./playerSkillsSeed";
 import { seedRecognitionCards } from "./cardsSeed";
 import { serveStatic } from "./static";
 import { createServer } from "http";
@@ -113,6 +114,7 @@ app.use((req, res, next) => {
 
       seedJuniorSkills().catch(err => console.error("Seed junior skills failed:", err));
       seedExercises().catch(err => console.error("Seed exercises failed:", err));
+      seedPlayerSkillCategories().catch(err => console.error("Seed player skills failed:", err));
       seedRecognitionCards().catch(err => console.error("Seed recognition cards failed:", err));
       syncParentChildLinks().catch(err => console.error("Sync parent links failed:", err));
 

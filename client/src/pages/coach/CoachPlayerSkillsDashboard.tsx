@@ -13,8 +13,9 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
   ArrowLeft, BarChart3, TrendingUp, TrendingDown, AlertTriangle, Users, Target,
-  ChevronDown, ChevronUp, Loader2, UserPlus, Trash2, Shield, Trophy, Pencil
+  ChevronDown, ChevronUp, Loader2, UserPlus, Trash2, Shield, Trophy, Pencil, Settings
 } from "lucide-react";
+import { PlayerSkillCategoryManager } from "@/components/PlayerSkillCategoryManager";
 import {
   RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, Tooltip, CartesianGrid, Cell
@@ -46,7 +47,7 @@ export default function CoachPlayerSkillsDashboard() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
   const [selectedClubId, setSelectedClubId] = useState<number | null>(null);
-  const [analyticsType, setAnalyticsType] = useState<"LEAGUE" | "PREMIUM">("LEAGUE");
+  const [analyticsType, setAnalyticsType] = useState<"LEAGUE" | "PREMIUM" | "MANAGE">("LEAGUE");
   const [enrollDialogOpen, setEnrollDialogOpen] = useState(false);
   const [enrollSearch, setEnrollSearch] = useState("");
 
@@ -93,16 +94,19 @@ export default function CoachPlayerSkillsDashboard() {
     enabled: !!clubId && enrollDialogOpen,
   });
 
+  const enrollmentType = analyticsType === "MANAGE" ? "LEAGUE" : analyticsType;
+
   const enrollMutation = useMutation({
     mutationFn: async (data: { playerId: number; clubId: number; type: string }) => {
       const res = await apiRequest("POST", "/api/admin/player-analytics/enroll", data);
+      if (!res.ok) throw new Error((await res.json()).message || "Enrollment failed");
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/player-analytics/enrollments"] });
       queryClient.invalidateQueries({ queryKey: ["/api/coach/players/skills/overview"] });
       queryClient.invalidateQueries({ queryKey: ["/api/coach/players/skills/weak-strong"] });
-      toast({ title: "Player Enrolled", description: `Player added to ${analyticsType === "LEAGUE" ? "League" : "Premium"} Analytics` });
+      toast({ title: "Player Enrolled", description: `Player added to ${enrollmentType === "LEAGUE" ? "League" : "Premium"} Analytics` });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
@@ -176,7 +180,7 @@ export default function CoachPlayerSkillsDashboard() {
           </div>
         </div>
 
-        <Tabs value={analyticsType} onValueChange={(v) => setAnalyticsType(v as "LEAGUE" | "PREMIUM")}>
+        <Tabs value={analyticsType} onValueChange={(v) => setAnalyticsType(v as "LEAGUE" | "PREMIUM" | "MANAGE")}>
           <TabsList className="border border-white/10" style={{ background: CARD_BG }}>
             <TabsTrigger value="LEAGUE" data-testid="tab-league" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400">
               <Shield size={14} className="mr-1.5" /> League Players
@@ -184,10 +188,15 @@ export default function CoachPlayerSkillsDashboard() {
             <TabsTrigger value="PREMIUM" data-testid="tab-premium" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400">
               <Trophy size={14} className="mr-1.5" /> Premium Analytics
             </TabsTrigger>
+            <TabsTrigger value="MANAGE" data-testid="tab-manage-skills" className="data-[state=active]:bg-white/10 data-[state=active]:text-white text-gray-400">
+              <Settings size={14} className="mr-1.5" /> Manage Skills
+            </TabsTrigger>
           </TabsList>
         </Tabs>
 
-        {overviewLoading ? (
+        {analyticsType === "MANAGE" ? (
+          <PlayerSkillCategoryManager clubId={clubId} />
+        ) : overviewLoading ? (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             {[1,2,3,4].map(i => (
               <div key={i} className="rounded-xl animate-pulse border border-white/5" style={{ background: CARD_BG }}>
@@ -213,7 +222,7 @@ export default function CoachPlayerSkillsDashboard() {
           </div>
         )}
 
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {analyticsType !== "MANAGE" && (<div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           <div className="rounded-xl p-5 border border-white/5" style={{ background: CARD_BG }}>
             <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
               <Target size={18} style={{ color: GOLD }} />
@@ -329,9 +338,9 @@ export default function CoachPlayerSkillsDashboard() {
               <div className="text-gray-500 text-sm text-center py-4">No data</div>
             )}
           </div>
-        </div>
+        </div>)}
 
-        <div className="rounded-xl p-5 border border-white/5" style={{ background: CARD_BG }}>
+        {analyticsType !== "MANAGE" && (<div className="rounded-xl p-5 border border-white/5" style={{ background: CARD_BG }}>
           <h3 className="text-white font-semibold mb-4 flex items-center gap-2">
             <Users size={18} style={{ color: GOLD }} />
             Enrolled Players
@@ -382,19 +391,19 @@ export default function CoachPlayerSkillsDashboard() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-gray-500 text-sm mb-3">No players enrolled in {analyticsType === "LEAGUE" ? "League" : "Premium"} Analytics</p>
+              <p className="text-gray-500 text-sm mb-3">No players enrolled in {enrollmentType === "LEAGUE" ? "League" : "Premium"} Analytics</p>
               <Button onClick={() => setEnrollDialogOpen(true)} className="text-black font-semibold" style={{ background: GOLD }}>
                 <UserPlus size={16} className="mr-2" /> Add Players
               </Button>
             </div>
           )}
-        </div>
+        </div>)}
       </div>
 
       <Dialog open={enrollDialogOpen} onOpenChange={setEnrollDialogOpen}>
         <DialogContent className="max-w-lg max-h-[80vh] overflow-hidden flex flex-col">
           <DialogHeader>
-            <DialogTitle>Add Players to {analyticsType === "LEAGUE" ? "League" : "Premium"} Analytics</DialogTitle>
+            <DialogTitle>Add Players to {enrollmentType === "LEAGUE" ? "League" : "Premium"} Analytics</DialogTitle>
           </DialogHeader>
           <div className="space-y-3 flex-1 overflow-hidden flex flex-col">
             <Input
@@ -420,7 +429,7 @@ export default function CoachPlayerSkillsDashboard() {
                     variant="outline"
                     className="h-7 text-xs"
                     disabled={enrollMutation.isPending}
-                    onClick={() => enrollMutation.mutate({ playerId: m.id, clubId: clubId!, type: analyticsType })}
+                    onClick={() => enrollMutation.mutate({ playerId: m.id, clubId: clubId!, type: enrollmentType })}
                     data-testid={`button-enroll-${m.id}`}
                   >
                     <UserPlus size={12} className="mr-1" /> Add

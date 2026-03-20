@@ -25283,6 +25283,12 @@ Keep it to about 300 words. Be encouraging but honest.`;
           db.select({ id: playerSkills.id }).from(playerSkills).where(eq(playerSkills.categoryId, id))
         )
       );
+      const skillIds = await db.select({ id: playerSkills.id }).from(playerSkills).where(eq(playerSkills.categoryId, id));
+      const sIds = skillIds.map(s => s.id);
+      if (sIds.length > 0) {
+        await db.delete(playerSkillProgressHistory).where(inArray(playerSkillProgressHistory.skillId, sIds));
+        await db.delete(playerSkillProgress).where(inArray(playerSkillProgress.skillId, sIds));
+      }
       await db.delete(playerSkills).where(eq(playerSkills.categoryId, id));
       await db.delete(playerSkillCategories).where(eq(playerSkillCategories.id, id));
       res.json({ message: "Category deleted" });
@@ -25385,6 +25391,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         return res.status(403).json({ message: "Only super admins can delete default skills" });
       }
       await db.delete(playerSkillEvaluations).where(eq(playerSkillEvaluations.skillId, id));
+      await db.delete(playerSkillProgressHistory).where(eq(playerSkillProgressHistory.skillId, id));
+      await db.delete(playerSkillProgress).where(eq(playerSkillProgress.skillId, id));
       await db.delete(playerSkills).where(eq(playerSkills.id, id));
       res.json({ message: "Skill deleted" });
     } catch (err: any) {
