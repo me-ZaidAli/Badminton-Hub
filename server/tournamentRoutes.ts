@@ -1239,8 +1239,8 @@ export function registerTournamentRoutes(app: Express) {
     }
 
     return {
-      player1: { user: user1, grade: profile1?.grade || "—", matchesPlayed: profile1?.matchesPlayed || 0, matchesWon: profile1?.matchesWon || 0, rankingPoints: profile1?.rankingPoints || 0, stats: stats1 },
-      player2: { user: user2, grade: profile2?.grade || "—", matchesPlayed: profile2?.matchesPlayed || 0, matchesWon: profile2?.matchesWon || 0, rankingPoints: profile2?.rankingPoints || 0, stats: stats2 },
+      player1: { user: user1, grade: profile1?.grade || "—", matchesPlayed: stats1.played, matchesWon: stats1.won, rankingPoints: profile1?.rankingPoints || 0, stats: stats1 },
+      player2: { user: user2, grade: profile2?.grade || "—", matchesPlayed: stats2.played, matchesWon: stats2.won, rankingPoints: profile2?.rankingPoints || 0, stats: stats2 },
       pairStats: { played: pairPlayed, won: pairWon, winRate: pairPlayed > 0 ? Math.round(pairWon / pairPlayed * 100) : 0 },
     };
   }
