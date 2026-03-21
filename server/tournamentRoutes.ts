@@ -1131,6 +1131,43 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post("/api/tournaments/:id/unpair", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const tournamentId = Number(req.params.id);
+      const myRegs = await db.select().from(tournamentRegistrations)
+        .where(and(
+          eq(tournamentRegistrations.tournamentId, tournamentId),
+          eq(tournamentRegistrations.userId, userId),
+          eq(tournamentRegistrations.registrationType, "PAIR"),
+          eq(tournamentRegistrations.status, "APPROVED"),
+        ));
+      if (myRegs.length === 0) return res.status(404).json({ message: "You are not in an approved pair for this tournament" });
+      const myReg = myRegs[0];
+      const partnerId = myReg.partnerId;
+      if (!partnerId) return res.status(400).json({ message: "No partner found" });
+
+      await db.update(tournamentRegistrations)
+        .set({ registrationType: "INDIVIDUAL", partnerId: null, partnerName: null })
+        .where(and(
+          eq(tournamentRegistrations.tournamentId, tournamentId),
+          eq(tournamentRegistrations.userId, userId),
+        ));
+
+      await db.update(tournamentRegistrations)
+        .set({ registrationType: "INDIVIDUAL", partnerId: null, partnerName: null })
+        .where(and(
+          eq(tournamentRegistrations.tournamentId, tournamentId),
+          eq(tournamentRegistrations.userId, partnerId),
+        ));
+
+      res.json({ message: "Pair has been dissolved. Both players are now registered as individuals." });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/tournaments/:id/waitlist", async (req, res) => {
     try {
       const tournamentId = Number(req.params.id);

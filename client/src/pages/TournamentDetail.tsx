@@ -16,6 +16,8 @@ import {
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation } from "@tanstack/react-query";
 import { useMyTournamentClubs, useDetailedPlayerStats, useClubs } from "@/hooks/use-clubs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -30,7 +32,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
-  UserPlus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
+  UserPlus, UserMinus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe,
 } from "lucide-react";
 import { Link } from "wouter";
@@ -1039,6 +1041,24 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
   const [proposalMessage, setProposalMessage] = useState("");
   const [proposalPairName, setProposalPairName] = useState("");
   const [poolSearch, setPoolSearch] = useState("");
+  const [unpairConfirm, setUnpairConfirm] = useState<{ pairId: number; partnerName: string } | null>(null);
+
+  const unpairMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/unpair`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "pairs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "registrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "player-pool"] });
+      toast({ title: "Pair dissolved", description: data.message });
+      setUnpairConfirm(null);
+    },
+    onError: (err: Error) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
   const myIncomingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
@@ -1265,6 +1285,10 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
               const p2Name = pair.user2?.fullName || "Player 2";
               const gradientIdx = idx % pairBorderGradients.length;
               const pairedDate = pair.createdAt ? format(new Date(pair.createdAt), "d MMM yyyy") : null;
+              const isMyPair = user && (pair.user1?.id === user.id || pair.user2?.id === user.id);
+              const partnerInPair = isMyPair
+                ? (pair.user1?.id === user.id ? pair.user2?.fullName : pair.user1?.fullName)
+                : null;
 
               return (
                 <div
@@ -1294,9 +1318,21 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                           </div>
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Team {idx + 1}</span>
                         </div>
-                        <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black tracking-wider px-2">
-                          <CheckCircle className="h-2.5 w-2.5 mr-1" />READY
-                        </Badge>
+                        <div className="flex items-center gap-2">
+                          {isMyPair && (
+                            <button
+                              onClick={() => setUnpairConfirm({ pairId: pair.id, partnerName: partnerInPair || "your partner" })}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-500/10 text-red-500 dark:text-red-400 text-[9px] font-bold hover:bg-red-500/20 transition-colors"
+                              data-testid={`button-unpair-${idx}`}
+                            >
+                              <UserMinus className="h-3 w-3" />
+                              Unpair
+                            </button>
+                          )}
+                          <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black tracking-wider px-2">
+                            <CheckCircle className="h-2.5 w-2.5 mr-1" />READY
+                          </Badge>
+                        </div>
                       </div>
 
                       <div className="flex items-center justify-center gap-3 mb-4">
@@ -1357,6 +1393,31 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
       {(!pairs || pairs.length === 0) && myIncomingRequests.length === 0 && mySentRequests.length === 0 && (!isIndividual || !playerPool || playerPool.length === 0) && (
         <EmptyState icon={UserPlus} title="No Pairs Yet" description={myRegistration ? "No confirmed pairs yet. Other players will appear here once they register." : "No confirmed pairs yet. Register as an individual in the Sign-Up tab to find a partner."} />
       )}
+
+      <Dialog open={!!unpairConfirm} onOpenChange={(open) => { if (!open) setUnpairConfirm(null); }}>
+        <DialogContent className="sm:max-w-[400px]" data-testid="dialog-unpair-confirm">
+          <DialogHeader>
+            <DialogTitle>Break Pair?</DialogTitle>
+            <DialogDescription>
+              Are you sure you want to unpair from {unpairConfirm?.partnerName}? Both of you will be moved back to individual registrations and will appear in the player pool again.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button variant="outline" onClick={() => setUnpairConfirm(null)} data-testid="button-cancel-unpair">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => unpairMutation.mutate()}
+              disabled={unpairMutation.isPending}
+              data-testid="button-confirm-unpair"
+            >
+              {unpairMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <UserMinus className="h-4 w-4 mr-1" />}
+              Unpair
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
