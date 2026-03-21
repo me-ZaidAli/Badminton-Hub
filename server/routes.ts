@@ -14980,6 +14980,73 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/messages/bulk-mark-read", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const { contactIds } = req.body;
+      if (!Array.isArray(contactIds) || contactIds.length === 0) return res.status(400).json({ message: "No conversations specified" });
+      const validIds = [...new Set(contactIds.map(Number).filter(id => Number.isInteger(id) && id > 0))];
+      if (validIds.length === 0) return res.status(400).json({ message: "No valid conversations specified" });
+      let updated = 0;
+      for (const contactId of validIds) {
+        const result = await db.update(internalMessages)
+          .set({ readAt: new Date() })
+          .where(and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId), sql`${internalMessages.readAt} IS NULL`))
+          .returning({ id: internalMessages.id });
+        if (result.length > 0) updated++;
+      }
+      res.json({ message: `${updated} conversation(s) marked as read`, count: updated });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to bulk mark as read" });
+    }
+  });
+
+  app.post("/api/messages/bulk-archive", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const { contactIds } = req.body;
+      if (!Array.isArray(contactIds) || contactIds.length === 0) return res.status(400).json({ message: "No conversations specified" });
+      const validIds = [...new Set(contactIds.map(Number).filter(id => Number.isInteger(id) && id > 0))];
+      if (validIds.length === 0) return res.status(400).json({ message: "No valid conversations specified" });
+      for (const contactId of validIds) {
+        await db.update(internalMessages)
+          .set({ archivedBySender: true })
+          .where(and(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, contactId)));
+        await db.update(internalMessages)
+          .set({ archivedByRecipient: true })
+          .where(and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId)));
+      }
+      res.json({ message: `${validIds.length} conversation(s) archived`, count: validIds.length });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to bulk archive conversations" });
+    }
+  });
+
+  app.post("/api/messages/bulk-delete", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const { contactIds } = req.body;
+      if (!Array.isArray(contactIds) || contactIds.length === 0) return res.status(400).json({ message: "No conversations specified" });
+      const validIds = [...new Set(contactIds.map(Number).filter(id => Number.isInteger(id) && id > 0))];
+      if (validIds.length === 0) return res.status(400).json({ message: "No valid conversations specified" });
+      for (const contactId of validIds) {
+        await db.delete(internalMessages)
+          .where(
+            or(
+              and(eq(internalMessages.senderId, userId), eq(internalMessages.recipientId, contactId)),
+              and(eq(internalMessages.senderId, contactId), eq(internalMessages.recipientId, userId))
+            )
+          );
+      }
+      res.json({ message: `${validIds.length} conversation(s) deleted`, count: validIds.length });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to bulk delete conversations" });
+    }
+  });
+
   // Club member comprehensive data for management
   app.get("/api/clubs/:clubId/members-comprehensive", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

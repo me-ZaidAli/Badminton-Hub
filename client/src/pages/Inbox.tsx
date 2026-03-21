@@ -50,6 +50,10 @@ import {
   CalendarCheck,
   Info,
   X,
+  Trash2,
+  CheckSquare,
+  Square,
+  MailCheck,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -137,6 +141,9 @@ export default function InboxPage() {
   const [categoryFilter, setCategoryFilter] = useState<string>("ALL");
   const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [view, setView] = useState<"list" | "thread">("list");
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set());
+  const [bulkConfirmAction, setBulkConfirmAction] = useState<"archive" | "delete" | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], isLoading: convoLoading } = useQuery<Conversation[]>({
@@ -323,6 +330,81 @@ export default function InboxPage() {
     },
   });
 
+  const bulkMarkReadMutation = useMutation({
+    mutationFn: async (contactIds: number[]) => {
+      const res = await apiRequest("POST", "/api/messages/bulk-mark-read", { contactIds });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      setSelectedContactIds(new Set());
+      setSelectMode(false);
+      toast({ title: "Marked as Read", description: data.message });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const bulkArchiveMutation = useMutation({
+    mutationFn: async (contactIds: number[]) => {
+      const res = await apiRequest("POST", "/api/messages/bulk-archive", { contactIds });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      setSelectedContactIds(new Set());
+      setSelectMode(false);
+      toast({ title: "Conversations Archived", description: data.message });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (contactIds: number[]) => {
+      const res = await apiRequest("POST", "/api/messages/bulk-delete", { contactIds });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/conversations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/messages/unread-count"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      setSelectedContactIds(new Set());
+      setSelectMode(false);
+      if (activeConversation && selectedContactIds.has(activeConversation)) {
+        setActiveConversation(null);
+        setView("list");
+      }
+      toast({ title: "Conversations Deleted", description: data.message });
+    },
+    onError: (err: Error) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const isBulkLoading = bulkMarkReadMutation.isPending || bulkArchiveMutation.isPending || bulkDeleteMutation.isPending;
+
+  function toggleSelectContact(contactId: number) {
+    setSelectedContactIds(prev => {
+      const next = new Set(prev);
+      if (next.has(contactId)) next.delete(contactId); else next.add(contactId);
+      return next;
+    });
+  }
+
+  function toggleSelectAll() {
+    const allIds = filteredConversations.map(c => c.contactId);
+    const allSelected = allIds.length > 0 && allIds.every(id => selectedContactIds.has(id));
+    setSelectedContactIds(allSelected ? new Set() : new Set(allIds));
+  }
+
+  function handleBulkAction() {
+    const ids = Array.from(selectedContactIds);
+    if (bulkConfirmAction === "archive") bulkArchiveMutation.mutate(ids);
+    else if (bulkConfirmAction === "delete") bulkDeleteMutation.mutate(ids);
+    setBulkConfirmAction(null);
+  }
+
   const handleSend = () => {
     if (!messageInput.trim() || !activeConversation) return;
     sendMutation.mutate({ recipientId: activeConversation, body: messageInput.trim() });
@@ -366,6 +448,21 @@ export default function InboxPage() {
     }
     return result;
   }, [conversations, searchQuery, categoryFilter]);
+
+  useEffect(() => {
+    if (selectMode) {
+      const visibleIds = new Set(filteredConversations.map(c => c.contactId));
+      setSelectedContactIds(prev => {
+        const pruned = new Set([...prev].filter(id => visibleIds.has(id)));
+        return pruned.size === prev.size ? prev : pruned;
+      });
+    }
+  }, [filteredConversations, selectMode]);
+
+  useEffect(() => {
+    setSelectMode(false);
+    setSelectedContactIds(new Set());
+  }, [activeTab]);
 
   const groupedMessages = useMemo(() => {
     const groups: { date: string; messages: ThreadMessage[] }[] = [];
@@ -457,6 +554,20 @@ export default function InboxPage() {
               <div className="flex items-center justify-between mb-4">
                 <h1 className="text-3xl font-black text-foreground tracking-tight" data-testid="text-chats-title">Messages</h1>
                 <div className="flex items-center gap-2">
+                  {filteredConversations.length > 0 && (
+                    <button
+                      onClick={() => { setSelectMode(!selectMode); setSelectedContactIds(new Set()); }}
+                      className={cn(
+                        "px-3 py-1.5 rounded-full text-xs font-semibold transition-all",
+                        selectMode
+                          ? "bg-primary text-primary-foreground"
+                          : "bg-muted/50 dark:bg-white/[0.06] text-muted-foreground hover:bg-muted dark:hover:bg-white/[0.1]"
+                      )}
+                      data-testid="button-toggle-select-mode"
+                    >
+                      {selectMode ? "Cancel" : "Select"}
+                    </button>
+                  )}
                   <button
                     onClick={() => setSearchOpen(!searchOpen)}
                     className="h-9 w-9 rounded-full flex items-center justify-center text-muted-foreground hover:text-foreground hover:bg-muted transition-colors"
@@ -539,25 +650,53 @@ export default function InboxPage() {
                 </div>
               ) : (
                 <div className="space-y-2 py-1">
+                  {selectMode && filteredConversations.length > 0 && (
+                    <div className="flex items-center gap-2 px-4 py-2">
+                      <button
+                        onClick={toggleSelectAll}
+                        className="flex items-center gap-2 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors"
+                        data-testid="button-select-all"
+                      >
+                        {filteredConversations.length > 0 && filteredConversations.every(c => selectedContactIds.has(c.contactId)) ? (
+                          <CheckSquare className="h-4 w-4 text-primary" />
+                        ) : (
+                          <Square className="h-4 w-4" />
+                        )}
+                        Select All ({filteredConversations.length})
+                      </button>
+                    </div>
+                  )}
                   {filteredConversations.map(convo => {
                     const hasUnread = convo.unreadCount > 0;
                     const neonColor = hasUnread ? "rgb(239,68,68)" : "rgb(34,197,94)";
                     const neonGlow = hasUnread ? "0 0 8px rgba(239,68,68,0.4), 0 0 20px rgba(239,68,68,0.15)" : "0 0 8px rgba(34,197,94,0.3), 0 0 20px rgba(34,197,94,0.1)";
+                    const isSelected = selectedContactIds.has(convo.contactId);
                     return (
                       <button
                         key={convo.contactId}
                         className={cn(
                           "w-full flex items-center gap-3.5 px-4 py-3 rounded-xl transition-all text-left relative overflow-hidden",
                           "bg-muted/30 dark:bg-white/[0.03] hover:bg-muted/60 dark:hover:bg-white/[0.06] active:bg-muted dark:active:bg-white/[0.08] active:scale-[0.99]",
-                          activeConversation === convo.contactId && "bg-muted/70 dark:bg-white/[0.07]"
+                          activeConversation === convo.contactId && "bg-muted/70 dark:bg-white/[0.07]",
+                          isSelected && "ring-2 ring-primary/50 bg-primary/5 dark:bg-primary/10"
                         )}
-                        onClick={() => handleOpenConversation(convo)}
+                        onClick={() => selectMode ? toggleSelectContact(convo.contactId) : handleOpenConversation(convo)}
                         data-testid={`conversation-item-${convo.contactId}`}
                       >
                         <div
                           className="absolute left-0 top-[10%] bottom-[10%] w-[3px] rounded-full"
                           style={{ backgroundColor: neonColor, boxShadow: neonGlow }}
                         />
+
+                        {selectMode && (
+                          <div className="flex-shrink-0 ml-1" data-testid={`checkbox-conversation-${convo.contactId}`}>
+                            {isSelected ? (
+                              <CheckSquare className="h-5 w-5 text-primary" />
+                            ) : (
+                              <Square className="h-5 w-5 text-muted-foreground" />
+                            )}
+                          </div>
+                        )}
 
                         <div className={cn(
                           "h-12 w-12 rounded-full flex items-center justify-center flex-shrink-0 text-white font-bold text-sm",
@@ -607,15 +746,56 @@ export default function InboxPage() {
               )}
             </div>
 
-            <div className="p-4 flex justify-end flex-shrink-0">
-              <button
-                onClick={handleStartNewChat}
-                className="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
-                data-testid="button-new-chat"
-              >
-                <Plus className="h-6 w-6" />
-              </button>
-            </div>
+            {selectMode && selectedContactIds.size > 0 && (
+              <div className="px-4 py-3 border-t border-border bg-background/95 backdrop-blur-sm flex-shrink-0" data-testid="bulk-action-bar">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="text-xs font-semibold text-muted-foreground" data-testid="text-selected-count">
+                    {selectedContactIds.size} selected
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => bulkMarkReadMutation.mutate(Array.from(selectedContactIds))}
+                      disabled={isBulkLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-blue-500/10 text-blue-600 dark:text-blue-400 text-xs font-semibold hover:bg-blue-500/20 transition-colors disabled:opacity-50"
+                      data-testid="button-bulk-mark-read"
+                    >
+                      {bulkMarkReadMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <MailCheck className="h-3.5 w-3.5" />}
+                      Mark Read
+                    </button>
+                    <button
+                      onClick={() => setBulkConfirmAction("archive")}
+                      disabled={isBulkLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-semibold hover:bg-amber-500/20 transition-colors disabled:opacity-50"
+                      data-testid="button-bulk-archive"
+                    >
+                      <Archive className="h-3.5 w-3.5" />
+                      Archive
+                    </button>
+                    <button
+                      onClick={() => setBulkConfirmAction("delete")}
+                      disabled={isBulkLoading}
+                      className="flex items-center gap-1.5 px-3 py-2 rounded-lg bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-semibold hover:bg-red-500/20 transition-colors disabled:opacity-50"
+                      data-testid="button-bulk-delete"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {!selectMode && (
+              <div className="p-4 flex justify-end flex-shrink-0">
+                <button
+                  onClick={handleStartNewChat}
+                  className="h-14 w-14 rounded-full bg-primary text-primary-foreground shadow-lg flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
+                  data-testid="button-new-chat"
+                >
+                  <Plus className="h-6 w-6" />
+                </button>
+              </div>
+            )}
           </>
         ) : view === "thread" && activeContact ? (
           <>
@@ -892,6 +1072,31 @@ export default function InboxPage() {
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>OK</AlertDialogCancel>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!bulkConfirmAction} onOpenChange={(open) => { if (!open) setBulkConfirmAction(null); }}>
+        <AlertDialogContent data-testid="dialog-bulk-confirm">
+          <AlertDialogHeader>
+            <AlertDialogTitle>
+              {bulkConfirmAction === "archive" ? "Archive Conversations?" : "Delete Conversations?"}
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              {bulkConfirmAction === "archive"
+                ? `This will archive ${selectedContactIds.size} conversation(s).`
+                : `This will permanently delete ${selectedContactIds.size} conversation(s). This cannot be undone.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleBulkAction}
+              className={bulkConfirmAction === "delete" ? "bg-destructive text-destructive-foreground hover:bg-destructive/90" : ""}
+              data-testid="button-confirm-bulk-action"
+            >
+              {bulkConfirmAction === "archive" ? "Archive All" : "Delete All"}
+            </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
