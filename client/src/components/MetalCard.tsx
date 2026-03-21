@@ -3,6 +3,10 @@ import cardImage1 from "@assets/image_1774128967740.png";
 import cardImage2 from "@assets/image_1774128516227.png";
 import cardImage3 from "@assets/image_1774126975964.png";
 import cardImage4 from "@assets/image_1774129239146.png";
+import cardImage5 from "@assets/image_1774129348008.png";
+import cardImage6 from "@assets/image_1774129441410.png";
+import cardImage7 from "@assets/image_1774129507680.png";
+import cardImage8 from "@assets/image_1774129635779.png";
 import cardImage12 from "@assets/image_1774128390166.png";
 
 type CardDesignConfig = {
@@ -361,6 +365,10 @@ const CARD_DESIGN_IMAGES: Record<number, string> = {
   2: cardImage2,
   3: cardImage3,
   4: cardImage4,
+  5: cardImage5,
+  6: cardImage6,
+  7: cardImage7,
+  8: cardImage8,
   12: cardImage12,
 };
 
