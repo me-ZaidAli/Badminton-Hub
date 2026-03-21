@@ -144,6 +144,10 @@ export default function InboxPage() {
   const [selectMode, setSelectMode] = useState(false);
   const [selectedContactIds, setSelectedContactIds] = useState<Set<number>>(new Set());
   const [bulkConfirmAction, setBulkConfirmAction] = useState<"archive" | "delete" | null>(null);
+  const [activeTab, setActiveTab] = useState(() => {
+    const params = new URLSearchParams(window.location.search);
+    return params.get("chat") ? "group" : "direct";
+  });
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const { data: conversations = [], isLoading: convoLoading } = useQuery<Conversation[]>({
@@ -497,11 +501,6 @@ export default function InboxPage() {
       </div>
     );
   }
-
-  const [activeTab, setActiveTab] = useState(() => {
-    const params = new URLSearchParams(window.location.search);
-    return params.get("chat") ? "group" : "direct";
-  });
 
   return (
     <PremiumFeatureGate featureName="In-App Messaging" description="Send direct messages and group chats with your club members. Upgrade to Premium to unlock messaging.">
