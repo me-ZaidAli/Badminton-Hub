@@ -1042,6 +1042,20 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
   const [proposalPairName, setProposalPairName] = useState("");
   const [poolSearch, setPoolSearch] = useState("");
   const [unpairConfirm, setUnpairConfirm] = useState<{ pairId: number; partnerName: string } | null>(null);
+  const [comparisonPairId, setComparisonPairId] = useState<number | null>(null);
+  const [comparisonPairNames, setComparisonPairNames] = useState<{ p1: string; p2: string }>({ p1: "", p2: "" });
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const { data: comparisonData, isLoading: compLoading } = useQuery<any>({
+    queryKey: ["/api/tournaments", tournamentId, "pair-comparison", comparisonPairId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/pair-comparison/${comparisonPairId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load pair data");
+      return res.json();
+    },
+    enabled: !!comparisonPairId,
+  });
 
   const unpairMutation = useMutation({
     mutationFn: async () => {
@@ -1084,22 +1098,6 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
     "shadow-rose-500/20",
     "shadow-blue-500/20",
   ];
-
-  const [comparisonPairId, setComparisonPairId] = useState<number | null>(null);
-  const [comparisonPairNames, setComparisonPairNames] = useState<{ p1: string; p2: string }>({ p1: "", p2: "" });
-
-  const { data: comparisonData, isLoading: compLoading } = useQuery<any>({
-    queryKey: ["/api/tournaments", tournamentId, "pair-comparison", comparisonPairId],
-    queryFn: async () => {
-      const res = await fetch(`/api/tournaments/${tournamentId}/pair-comparison/${comparisonPairId}`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to load pair data");
-      return res.json();
-    },
-    enabled: !!comparisonPairId,
-  });
-
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [aiLoading, setAiLoading] = useState(false);
 
   const loadAiAnalysis = async () => {
     if (!comparisonPairId) return;
