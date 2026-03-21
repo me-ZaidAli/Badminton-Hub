@@ -25411,13 +25411,27 @@ Keep it to about 300 words. Be encouraging but honest.`;
           amount: card.weeklyCreditValue,
           cardName: card.cardName,
           issuedById: (req.user as any).id,
+          claimed: true,
+          claimedAt: new Date(),
         }).returning();
+
+        const playerClub = await tx.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles).where(eq(playerProfiles.userId, card.userId)).limit(1);
+        if (playerClub.length > 0 && playerClub[0].clubId) {
+          await tx.insert(creditLedger).values({
+            userId: card.userId,
+            clubId: playerClub[0].clubId,
+            amount: card.weeklyCreditValue,
+            reason: `Card credit: ${card.cardName}`,
+            createdById: (req.user as any).id,
+          });
+        }
 
         await tx.insert(notifications).values({
           userId: card.userId,
           type: "GENERAL",
           title: "Card Credit Received!",
-          message: `You received £${(card.weeklyCreditValue / 100).toFixed(2)} credit from your "${card.cardName}" recognition card.`,
+          message: `You received £${(card.weeklyCreditValue / 100).toFixed(2)} credit from your "${card.cardName}" recognition card. It has been added to your credit wallet.`,
         });
 
         return transaction;
