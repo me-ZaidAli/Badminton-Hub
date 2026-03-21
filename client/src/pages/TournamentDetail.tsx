@@ -33,7 +33,7 @@ import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, UserMinus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
-  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles,
+  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -2811,6 +2811,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
 
       {adminView === "settings" && (
         <div className="space-y-4">
+          <AdminDescriptionSection tournament={tournament} tournamentId={tournamentId} />
           <AdminEntryFeeSection tournament={tournament} tournamentId={tournamentId} />
 
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -3419,6 +3420,74 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+function AdminDescriptionSection({ tournament, tournamentId }: { tournament: any; tournamentId: number }) {
+  const updateTournamentMutation = useUpdateTournament();
+  const { toast } = useToast();
+  const [description, setDescription] = useState(tournament.description || "");
+  const [editing, setEditing] = useState(false);
+
+  async function handleSave() {
+    try {
+      await updateTournamentMutation.mutateAsync({ id: tournamentId, description: description.trim() || null });
+      toast({ title: "Description Updated" });
+      setEditing(false);
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
+            <FileText className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Description</h4>
+            <p className="text-[10px] text-muted-foreground">Describe the tournament details, rules, and format</p>
+          </div>
+        </div>
+        {!editing && (
+          <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={() => setEditing(true)} data-testid="button-edit-description">
+            <Edit3 className="h-3 w-3 mr-1" />Edit
+          </Button>
+        )}
+      </div>
+
+      {editing ? (
+        <div className="space-y-3">
+          <textarea
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            placeholder="Enter tournament description, rules, format details..."
+            rows={5}
+            className="w-full rounded-xl bg-card border border-blue-500/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-blue-500/60 transition-colors p-3 resize-y min-h-[100px]"
+            data-testid="input-tournament-description"
+          />
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="h-8 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold border-0"
+              disabled={updateTournamentMutation.isPending}
+              onClick={handleSave} data-testid="button-save-description">
+              {updateTournamentMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+              Save
+            </Button>
+            <Button size="sm" variant="outline" className="h-8" onClick={() => { setDescription(tournament.description || ""); setEditing(false); }}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      ) : (
+        <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
+          {tournament.description ? (
+            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{tournament.description}</p>
+          ) : (
+            <p className="text-sm text-muted-foreground italic">No description set</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }
