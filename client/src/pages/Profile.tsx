@@ -770,12 +770,13 @@ function CreditsModal({ open, onClose, creditBalances, memberships, userName }: 
             {clubs.length === 0 ? (
               <p className="text-sm text-muted-foreground text-center py-4">No credit data available</p>
             ) : clubs.map((cb) => {
-              const bal = Math.max(0, Number(cb.balance));
+              const bal = Number(cb.balance);
+              const isNeg = bal < 0;
               return (
                 <div key={cb.clubId} className="flex items-center justify-between py-3 px-4 rounded-md bg-muted/50" data-testid={`credit-balance-${cb.clubId}`}>
                   <span className="font-medium">{cb.clubName}</span>
-                  <span className={`text-lg font-bold ${bal > 0 ? "text-green-600" : "text-muted-foreground"}`}>
-                    £{(bal / 100).toFixed(2)}
+                  <span className={`text-lg font-bold ${isNeg ? "text-red-600" : bal > 0 ? "text-green-600" : "text-muted-foreground"}`}>
+                    {isNeg ? "-" : ""}£{(Math.abs(bal) / 100).toFixed(2)}
                   </span>
                 </div>
               );
@@ -1781,7 +1782,7 @@ function CreditHistoryModal({ open, onClose, history, creditBalances }: {
   open: boolean; onClose: () => void; history: any[] | undefined;
   creditBalances?: { clubId: number; clubName: string; balance: number }[];
 }) {
-  const totalBalance = (creditBalances || []).reduce((sum, cb) => sum + Math.max(0, Number(cb.balance)), 0);
+  const totalBalance = (creditBalances || []).reduce((sum, cb) => sum + Number(cb.balance), 0);
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -1800,18 +1801,19 @@ function CreditHistoryModal({ open, onClose, history, creditBalances }: {
             </div>
             <div>
               <p className="text-xs text-muted-foreground">Total Credit Balance</p>
-              <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-total-credit-balance">
-                {"\u00A3"}{(totalBalance / 100).toFixed(2)}
+              <p className={`text-2xl font-bold ${totalBalance >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`} data-testid="text-total-credit-balance">
+                {totalBalance < 0 ? "-" : ""}{"\u00A3"}{(Math.abs(totalBalance) / 100).toFixed(2)}
               </p>
             </div>
           </div>
           {creditBalances && creditBalances.length > 1 && (
             <div className="mt-3 flex flex-wrap gap-2">
               {creditBalances.map(cb => {
-                const bal = Math.max(0, Number(cb.balance));
+                const bal = Number(cb.balance);
+                const isNeg = bal < 0;
                 return (
-                  <Badge key={cb.clubId} variant="outline" className="text-xs no-default-hover-elevate" data-testid={`badge-credit-club-${cb.clubId}`}>
-                    {cb.clubName}: {"\u00A3"}{(bal / 100).toFixed(2)}
+                  <Badge key={cb.clubId} variant="outline" className={`text-xs no-default-hover-elevate ${isNeg ? "border-red-300 dark:border-red-700 text-red-600 dark:text-red-400" : ""}`} data-testid={`badge-credit-club-${cb.clubId}`}>
+                    {cb.clubName}: {isNeg ? "-" : ""}{"\u00A3"}{(Math.abs(bal) / 100).toFixed(2)}
                   </Badge>
                 );
               })}
@@ -2040,10 +2042,7 @@ export default function Profile() {
 
   const totalCredits = useMemo(() => {
     if (!creditBalances) return 0;
-    return creditBalances.reduce((sum, cb) => {
-      const bal = Number(cb.balance);
-      return sum + (bal > 0 ? bal : 0);
-    }, 0);
+    return creditBalances.reduce((sum, cb) => sum + Number(cb.balance), 0);
   }, [creditBalances]);
 
   const totalOutstanding = useMemo(() => {
@@ -2596,7 +2595,7 @@ export default function Profile() {
 
       {/* STATS BAR */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <MetricCard icon={Wallet} label="Credit Balance" value={`£${(totalCredits / 100).toFixed(2)}`}
+        <MetricCard icon={Wallet} label="Credit Balance" value={`${totalCredits < 0 ? "-" : ""}£${(Math.abs(totalCredits) / 100).toFixed(2)}`}
           subtext={creditBalances && creditBalances.length > 0 ? `Across ${creditBalances.length} club${creditBalances.length > 1 ? "s" : ""}` : "No credits yet"}
           onClick={() => setCreditsModalOpen(true)} />
         <MetricCard icon={AlertCircle} label="Outstanding" value={`£${(totalOutstanding / 100).toFixed(2)}`}
@@ -2759,8 +2758,8 @@ export default function Profile() {
         title="Credit Wallet"
         icon={Wallet}
         iconColor="text-emerald-500"
-        badge={totalCredits > 0 ? `\u00A3${(totalCredits / 100).toFixed(2)}` : undefined}
-        defaultOpen={totalCredits > 0 || (creditHistory && creditHistory.length > 0)}
+        badge={totalCredits !== 0 ? `\u00A3${(totalCredits / 100).toFixed(2)}` : undefined}
+        defaultOpen={totalCredits !== 0 || (creditHistory && creditHistory.length > 0)}
         testId="card-credit-wallet"
       >
         <div className="space-y-4">
@@ -2771,18 +2770,19 @@ export default function Profile() {
               </div>
               <div>
                 <p className="text-xs text-muted-foreground">Total Credit Balance</p>
-                <p className="text-2xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-credit-balance-prominent">
-                  {"\u00A3"}{(totalCredits / 100).toFixed(2)}
+                <p className={`text-2xl font-bold ${totalCredits >= 0 ? "text-emerald-600 dark:text-emerald-400" : "text-red-600 dark:text-red-400"}`} data-testid="text-credit-balance-prominent">
+                  {totalCredits < 0 ? "-" : ""}{"\u00A3"}{(Math.abs(totalCredits) / 100).toFixed(2)}
                 </p>
               </div>
             </div>
             {creditBalances && creditBalances.length > 1 && (
               <div className="mt-3 flex flex-wrap gap-2">
                 {creditBalances.map(cb => {
-                  const bal = Math.max(0, Number(cb.balance));
+                  const bal = Number(cb.balance);
+                  const isNeg = bal < 0;
                   return (
-                    <Badge key={cb.clubId} variant="outline" className="text-xs no-default-hover-elevate" data-testid={`badge-club-credit-${cb.clubId}`}>
-                      {cb.clubName}: {"\u00A3"}{(bal / 100).toFixed(2)}
+                    <Badge key={cb.clubId} variant="outline" className={`text-xs no-default-hover-elevate ${isNeg ? "border-red-300 dark:border-red-700 text-red-600 dark:text-red-400" : ""}`} data-testid={`badge-club-credit-${cb.clubId}`}>
+                      {cb.clubName}: {isNeg ? "-" : ""}{"\u00A3"}{(Math.abs(bal) / 100).toFixed(2)}
                     </Badge>
                   );
                 })}
