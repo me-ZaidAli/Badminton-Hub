@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -25144,6 +25144,17 @@ Keep it to about 300 words. Be encouraging but honest.`;
     try {
       if (!req.isAuthenticated()) return res.sendStatus(401);
       const userId = (req.user as any).id;
+      const now = new Date();
+      await db.update(userCards)
+        .set({ cardIsActive: false })
+        .where(and(
+          eq(userCards.userId, userId),
+          sql`${userCards.expiresAt} IS NOT NULL`,
+          sql`${userCards.expiresAt} < ${now}`,
+          eq(userCards.cardIsActive, true),
+          sql`${userCards.revokedAt} IS NULL`
+        ));
+
       const myCards = await db
         .select({
           id: userCards.id,
@@ -25153,6 +25164,9 @@ Keep it to about 300 words. Be encouraging but honest.`;
           serialNumber: userCards.serialNumber,
           issuedAt: userCards.issuedAt,
           revokedAt: userCards.revokedAt,
+          expiresAt: userCards.expiresAt,
+          cardIsActive: userCards.cardIsActive,
+          weeklyCreditValue: userCards.weeklyCreditValue,
           cardName: cards.name,
           cardDescription: cards.description,
           cardCategory: cards.cardCategory,
@@ -25314,6 +25328,147 @@ Keep it to about 300 words. Be encouraging but honest.`;
 
       if (!updated) return res.status(404).json({ message: "Active card not found" });
       res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/user-cards/:id/weekly-credit", requirePremium(clubIdFromSession), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid card ID" });
+      const { weeklyCreditValue } = req.body;
+      if (typeof weeklyCreditValue !== "number" || weeklyCreditValue < 0) {
+        return res.status(400).json({ message: "Invalid weekly credit value" });
+      }
+      const [updated] = await db.update(userCards)
+        .set({ weeklyCreditValue })
+        .where(eq(userCards.id, id))
+        .returning();
+      if (!updated) return res.status(404).json({ message: "Card not found" });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/user-cards/:id/issue-credit", requirePremium(clubIdFromSession), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ message: "Invalid card ID" });
+
+      const cardRecords = await db.select({
+        id: userCards.id,
+        userId: userCards.userId,
+        cardIsActive: userCards.cardIsActive,
+        expiresAt: userCards.expiresAt,
+        revokedAt: userCards.revokedAt,
+        weeklyCreditValue: userCards.weeklyCreditValue,
+        cardName: cards.name,
+      })
+        .from(userCards)
+        .innerJoin(cards, eq(userCards.cardId, cards.id))
+        .where(eq(userCards.id, id));
+
+      if (cardRecords.length === 0) return res.status(404).json({ message: "Card not found" });
+      const card = cardRecords[0];
+
+      if (card.revokedAt) return res.status(400).json({ message: "Card has been revoked" });
+
+      const now = new Date();
+      if (card.expiresAt && new Date(card.expiresAt) < now) {
+        await db.update(userCards).set({ cardIsActive: false }).where(eq(userCards.id, id));
+        return res.status(400).json({ message: "Card has expired" });
+      }
+
+      if (!card.cardIsActive) return res.status(400).json({ message: "Card is not active" });
+
+      if (!card.weeklyCreditValue || card.weeklyCreditValue <= 0) {
+        return res.status(400).json({ message: "No weekly credit value set for this card" });
+      }
+
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+
+      const result = await db.transaction(async (tx) => {
+        const existingThisWeek = await tx.select({ id: cardCreditTransactions.id })
+          .from(cardCreditTransactions)
+          .where(and(
+            eq(cardCreditTransactions.userCardId, id),
+            sql`${cardCreditTransactions.createdAt} >= ${startOfWeek}`
+          ));
+
+        if (existingThisWeek.length > 0) {
+          throw new Error("Credit already issued for this card this week");
+        }
+
+        const [transaction] = await tx.insert(cardCreditTransactions).values({
+          userCardId: id,
+          userId: card.userId,
+          amount: card.weeklyCreditValue,
+          cardName: card.cardName,
+          issuedById: (req.user as any).id,
+        }).returning();
+
+        await tx.insert(notifications).values({
+          userId: card.userId,
+          type: "GENERAL",
+          title: "Card Credit Received!",
+          message: `You received £${(card.weeklyCreditValue / 100).toFixed(2)} credit from your "${card.cardName}" recognition card.`,
+        });
+
+        return transaction;
+      });
+
+      res.json({ transaction: result, message: `£${(card.weeklyCreditValue / 100).toFixed(2)} credit issued successfully` });
+    } catch (err: any) {
+      const status = err.message?.includes("already issued") ? 400 : 500;
+      res.status(status).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/card-credit-transactions", requirePremium(clubIdFromSession), async (req, res) => {
+    try {
+      if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
+      const recipientUsers = aliasedTable(users, "recipientUsers");
+      const issuerUsers = aliasedTable(users, "issuerUsers");
+      const result = await db.select({
+        id: cardCreditTransactions.id,
+        userCardId: cardCreditTransactions.userCardId,
+        userId: cardCreditTransactions.userId,
+        amount: cardCreditTransactions.amount,
+        cardName: cardCreditTransactions.cardName,
+        createdAt: cardCreditTransactions.createdAt,
+        recipientName: recipientUsers.fullName,
+        issuerName: issuerUsers.fullName,
+      })
+        .from(cardCreditTransactions)
+        .innerJoin(recipientUsers, eq(cardCreditTransactions.userId, recipientUsers.id))
+        .innerJoin(issuerUsers, eq(cardCreditTransactions.issuedById, issuerUsers.id))
+        .orderBy(desc(cardCreditTransactions.createdAt));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/my-card-credits", requirePremium(clubIdFromSession), async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).id;
+      const result = await db.select({
+        id: cardCreditTransactions.id,
+        amount: cardCreditTransactions.amount,
+        cardName: cardCreditTransactions.cardName,
+        createdAt: cardCreditTransactions.createdAt,
+      })
+        .from(cardCreditTransactions)
+        .where(eq(cardCreditTransactions.userId, userId))
+        .orderBy(desc(cardCreditTransactions.createdAt));
+      res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

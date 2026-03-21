@@ -4,9 +4,9 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Loader2, CreditCard, Award, ChevronLeft, ChevronRight, X } from "lucide-react";
+import { Loader2, CreditCard, Award, ChevronLeft, ChevronRight, X, Clock, PoundSterling } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
-import { format } from "date-fns";
+import { format, formatDistanceToNow, isPast } from "date-fns";
 import { MetalCardFront, MetalCardBack } from "@/components/MetalCard";
 
 type UserCard = {
@@ -17,6 +17,9 @@ type UserCard = {
   serialNumber: string;
   issuedAt: string;
   revokedAt: string | null;
+  expiresAt: string | null;
+  cardIsActive: boolean;
+  weeklyCreditValue: number;
   cardName: string;
   cardDescription: string;
   cardCategory: string;
@@ -188,6 +191,7 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
 
 export default function PremiumWallet() {
   const { data: myCards, isLoading } = useQuery<UserCard[]>({ queryKey: ["/api/my-cards"] });
+  const { data: myCardCredits } = useQuery<any[]>({ queryKey: ["/api/my-card-credits"] });
   const [carouselOpen, setCarouselOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
 
@@ -228,12 +232,54 @@ export default function PremiumWallet() {
         </div>
         <CardContent className="pt-4 pb-5 px-4">
           {hasCards ? (
-            <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-thin">
-              {sorted.map((card, index) => (
-                <div key={card.id} className="shrink-0">
-                  <RecognitionCard3D card={card} compact onClick={() => openCarousel(index)} />
+            <div className="space-y-3">
+              <div className="flex gap-4 overflow-x-auto pb-3 scrollbar-thin">
+                {sorted.map((card, index) => {
+                  const isExpired = card.expiresAt ? isPast(new Date(card.expiresAt)) : false;
+                  const isActive = card.cardIsActive && !isExpired;
+                  return (
+                    <div key={card.id} className="shrink-0 space-y-1">
+                      <div className="relative">
+                        <RecognitionCard3D card={card} compact onClick={() => openCarousel(index)} />
+                        {!isActive && (
+                          <div className="absolute inset-0 bg-black/40 rounded-xl flex items-center justify-center pointer-events-none">
+                            <Badge className="text-[9px] bg-amber-500/90 text-white border-0">Expired</Badge>
+                          </div>
+                        )}
+                      </div>
+                      <div className="text-center">
+                        {isActive && card.expiresAt && (
+                          <p className="text-[9px] text-muted-foreground flex items-center justify-center gap-0.5">
+                            <Clock className="h-2.5 w-2.5" />
+                            {formatDistanceToNow(new Date(card.expiresAt), { addSuffix: false })} left
+                          </p>
+                        )}
+                        {isActive && card.weeklyCreditValue > 0 && (
+                          <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
+                            £{(card.weeklyCreditValue / 100).toFixed(2)}/wk
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              {myCardCredits && myCardCredits.length > 0 && (
+                <div className="border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
+                    <PoundSterling className="h-3 w-3 text-emerald-500" />
+                    Recent Card Rewards
+                  </p>
+                  <div className="space-y-1">
+                    {myCardCredits.slice(0, 3).map((t: any) => (
+                      <div key={t.id} className="flex items-center justify-between text-xs" data-testid={`card-credit-${t.id}`}>
+                        <span className="text-muted-foreground">{t.cardName}</span>
+                        <span className="font-bold text-emerald-600 dark:text-emerald-400">+£{(t.amount / 100).toFixed(2)}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
-              ))}
+              )}
             </div>
           ) : (
             <div className="text-center py-6 space-y-2" data-testid="text-no-cards">
