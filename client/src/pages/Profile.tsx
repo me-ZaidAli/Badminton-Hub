@@ -1750,6 +1750,9 @@ function getTransactionTypeLabel(entry: any): { label: string; color: string; bg
   const reason = (entry.reason || "").toLowerCase();
   const isCredit = entry.amount >= 0;
 
+  if (reason.includes("card credit:")) {
+    return { label: "Card Reward", color: "text-amber-600 dark:text-amber-400", bgColor: "bg-amber-500/10" };
+  }
   if (reason.includes("session cancellation") || reason.includes("cancelled session")) {
     return { label: "Session Cancellation Credit", color: "text-amber-600 dark:text-amber-400", bgColor: "bg-amber-500/10" };
   }
