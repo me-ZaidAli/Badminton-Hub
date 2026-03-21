@@ -7,7 +7,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
-import logoPath from "@assets/image_1770381062912_optimized.png";
+import logoPath from "@assets/image_1774130898146.png";
 import { PwaInstallBanner, PwaInstallButton } from "@/components/PwaInstallPrompt";
 import { useState, useEffect, useCallback } from "react";
 import { 
