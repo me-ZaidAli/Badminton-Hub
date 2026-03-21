@@ -109,6 +109,9 @@ import {
   Layers,
 } from "lucide-react";
 import { TimelineView, CalendarView, GroupedView } from "@/components/SessionViews";
+import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
+import { CrowdControlPanel } from "@/components/CrowdControlPanel";
+import { useIsOrganiserOnly } from "@/hooks/use-clubs";
 
 const ICON_MAP: Record<string, any> = {
   BookOpen, Flame, Dumbbell, Footprints, Crosshair, Send, Swords, Shield, Target, Brain, Users,
@@ -2080,6 +2083,103 @@ function JuniorRankingsSection({ parentClubs }: { parentClubs: { clubId: number;
   );
 }
 
+function JuniorCrowdControl({ sessionId, open, onOpenChange }: { sessionId: number; open: boolean; onOpenChange: (v: boolean) => void }) {
+  const { data: matches = [] } = useQuery<any[]>({
+    queryKey: ["/api/sessions", sessionId, "matches"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/matches`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && !!sessionId,
+    refetchInterval: open ? 5000 : false,
+  });
+
+  const { data: signups = [] } = useQuery<any[]>({
+    queryKey: ["/api/sessions", sessionId, "signups"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/signups`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: open && !!sessionId,
+  });
+
+  const { data: sessionData } = useQuery<any>({
+    queryKey: ["/api/sessions", sessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}`, { credentials: "include" });
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: open && !!sessionId,
+  });
+
+  const confirmedSignups = signups.filter((s: any) => s.signupStatus === "CONFIRMED" || !s.signupStatus);
+
+  const sessionMatchCounts = useMemo(() => {
+    const counts: Record<number, number> = {};
+    for (const m of matches) {
+      for (const pid of [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id]) {
+        if (pid) counts[pid] = (counts[pid] || 0) + 1;
+      }
+    }
+    return counts;
+  }, [matches]);
+
+  const players = useMemo(() => {
+    const signupPlayers = confirmedSignups.map((s: any) => ({
+      id: s.player?.id || s.playerId,
+      fullName: s.player?.user?.fullName || "",
+      category: s.player?.category || null,
+      isPaused: s.isPaused || false,
+    }));
+    const knownIds = new Set(signupPlayers.map((p: any) => p.id));
+    const matchOnlyPlayers: typeof signupPlayers = [];
+    for (const m of matches) {
+      for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
+        if (p && p.id && !knownIds.has(p.id)) {
+          knownIds.add(p.id);
+          matchOnlyPlayers.push({
+            id: p.id,
+            fullName: p.user?.fullName || `Player ${p.id}`,
+            category: p.category || null,
+            isPaused: false,
+          });
+        }
+      }
+    }
+    return [...signupPlayers, ...matchOnlyPlayers];
+  }, [confirmedSignups, matches]);
+
+  const liveCount = matches.filter((m: any) => m.status === "LIVE").length;
+  const queuedCount = matches.filter((m: any) => m.status === "QUEUED").length;
+  const completedCount = matches.filter((m: any) => m.status === "COMPLETED").length;
+
+  return (
+    <CrowdControlPanel
+      open={open}
+      onOpenChange={onOpenChange}
+      sessionMatchCounts={sessionMatchCounts}
+      players={players}
+      liveCount={liveCount}
+      queuedCount={queuedCount}
+      completedCount={completedCount}
+      matches={matches}
+      sessionId={sessionId}
+    />
+  );
+}
+
+function JuniorEditSessionDialog({ session, clubs, adminClubs, isPlatformAdmin, onClose }: { session: any; clubs: any[]; adminClubs: any[]; isPlatformAdmin: boolean; onClose: () => void }) {
+  const [, navigate] = useLocation();
+  useEffect(() => {
+    navigate(`/sessions/${session.id}`);
+    onClose();
+  }, [session.id]);
+  return null;
+}
+
 function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: { juniors: any[] | undefined; selectedChildId: number | null; setSelectedChildId: (id: number | null) => void }) {
   const [, navigate] = useLocation();
   const { data: sessions, isLoading } = useQuery<any[]>({ queryKey: ["/api/sessions"] });
@@ -2089,12 +2189,17 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
   const [sessionsTab, setSessionsTab] = useState<"upcoming" | "past" | "scheduled">("upcoming");
   const [viewMode, setViewMode] = useState<"timeline" | "cards" | "calendar" | "grouped">(() => {
     const saved = localStorage.getItem("juniorSessionsViewMode");
-    return (saved === "timeline" || saved === "cards" || saved === "calendar" || saved === "grouped") ? saved : "cards";
+    return (saved === "timeline" || saved === "cards" || saved === "calendar" || saved === "grouped") ? saved : "timeline";
   });
   const [deleteSession, setDeleteSession] = useState<{ id: number; recurringEventId: number | null; date: string | null } | null>(null);
   const [togglingSessionId, setTogglingSessionId] = useState<number | null>(null);
+  const [detailsSession, setDetailsSession] = useState<any>(null);
+  const [financeSession, setFinanceSession] = useState<any>(null);
+  const [crowdSessionId, setCrowdSessionId] = useState<number | null>(null);
+  const [editSessionFromView, setEditSessionFromView] = useState<any>(null);
   const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/clubs"] });
   const { mutate: toggleSessionTypeMut } = useUpdateSession();
+  const isOrganiserOnly = useIsOrganiserOnly(!!user);
   const handleMoveToSessions = async (session: any) => {
     setTogglingSessionId(session.id);
     try {
@@ -2124,6 +2229,37 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
   const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const managedClubIds = useMemo(() => new Set(adminClubs?.map((c: any) => c.id) || []), [adminClubs]);
   const isAdmin = isPlatformAdmin || managedClubIds.size > 0;
+  const editableClubIds = useMemo(() => new Set(isPlatformAdmin ? (clubs?.map((c: any) => c.id) || []) : (adminClubs?.map((c: any) => c.id) || [])), [isPlatformAdmin, clubs, adminClubs]);
+  const canManageSessions = isPlatformAdmin || managedClubIds.size > 0;
+
+  const remindInviteesMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/remind-invitees`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Reminder Sent", description: data.message || "Reminders sent to members." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message || "Failed to send reminders", variant: "destructive" });
+    },
+  });
+
+  const viewAdminActions = useMemo(() => {
+    if (!canManageSessions) return undefined;
+    return {
+      editableClubIds,
+      isOrganiserOnly,
+      onCrowdControl: (id: number) => { setCrowdSessionId(id); },
+      onFinances: (s: any) => setFinanceSession(s),
+      onEdit: (s: any) => setEditSessionFromView(s),
+      onDuplicate: (s: any) => {},
+      onToggleJunior: (s: any) => handleMoveToSessions(s),
+      onDelete: (s: any) => setDeleteSession({ id: s.id, recurringEventId: s.recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
+      onDetails: (s: any) => setDetailsSession(s),
+      onRemindMembers: (id: number) => remindInviteesMutation.mutate(id),
+    };
+  }, [canManageSessions, editableClubIds, isOrganiserOnly]);
 
   const activeChildId = selectedChildId || (juniors && juniors.length === 1 ? juniors[0].id : null);
 
@@ -2372,6 +2508,7 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                   sessions={upcomingSessions}
                   clubs={clubs || []}
                   onSessionClick={(session) => navigate(`/sessions/${session.id}`)}
+                  adminActions={viewAdminActions}
                 />
               )}
               {viewMode === "calendar" && (
@@ -2379,6 +2516,7 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                   sessions={upcomingSessions}
                   clubs={clubs || []}
                   onSessionClick={(session) => navigate(`/sessions/${session.id}`)}
+                  adminActions={viewAdminActions}
                 />
               )}
               {viewMode === "grouped" && (
@@ -2386,6 +2524,7 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                   sessions={upcomingSessions}
                   clubs={clubs || []}
                   onSessionClick={(session) => navigate(`/sessions/${session.id}`)}
+                  adminActions={viewAdminActions}
                 />
               )}
               {viewMode === "cards" && (
@@ -2438,6 +2577,23 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
                               </Link>
                               {isAdmin && (isPlatformAdmin || managedClubIds.has(session.clubId)) && (
                                 <>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setDetailsSession(session)} title="RSVP" data-testid={`button-rsvp-junior-${session.id}`}>
+                                    <Users className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setCrowdSessionId(session.id)} title="Crowd" data-testid={`button-crowd-junior-${session.id}`}>
+                                    <BarChart3 className="h-3.5 w-3.5" />
+                                  </Button>
+                                  {!isOrganiserOnly && (
+                                    <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => setFinanceSession(session)} title="Finances" data-testid={`button-finances-junior-${session.id}`}>
+                                      <PoundSterling className="h-3.5 w-3.5" />
+                                    </Button>
+                                  )}
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => remindInviteesMutation.mutate(session.id)} title="Remind" data-testid={`button-remind-junior-${session.id}`}>
+                                    <Bell className="h-3.5 w-3.5" />
+                                  </Button>
+                                  <Button size="sm" variant="ghost" className="h-8 w-8 p-0" onClick={() => navigate(`/sessions/${session.id}`)} title="Edit" data-testid={`button-edit-junior-session-${session.id}`}>
+                                    <Pencil className="h-3.5 w-3.5" />
+                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
@@ -2586,6 +2742,41 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
             </div>
           )}
         </div>
+      )}
+
+      {detailsSession && (
+        <SessionDetailsModal
+          session={detailsSession}
+          open={!!detailsSession}
+          onOpenChange={(open) => { if (!open) setDetailsSession(null); }}
+          isAdmin={editableClubIds.has(detailsSession.clubId)}
+        />
+      )}
+
+      {financeSession && (
+        <SessionFinanceModal
+          session={financeSession}
+          open={!!financeSession}
+          onOpenChange={(open) => { if (!open) setFinanceSession(null); }}
+        />
+      )}
+
+      {crowdSessionId && (
+        <JuniorCrowdControl
+          sessionId={crowdSessionId}
+          open={!!crowdSessionId}
+          onOpenChange={(open) => { if (!open) setCrowdSessionId(null); }}
+        />
+      )}
+
+      {editSessionFromView && (
+        <JuniorEditSessionDialog
+          session={editSessionFromView}
+          clubs={clubs || []}
+          adminClubs={adminClubs || []}
+          isPlatformAdmin={isPlatformAdmin}
+          onClose={() => setEditSessionFromView(null)}
+        />
       )}
 
       <Dialog open={!!deleteSession} onOpenChange={(open) => { if (!open) setDeleteSession(null); }}>
