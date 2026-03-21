@@ -20,7 +20,7 @@ import {
   type TrialPlayer, type InsertTrialPlayer,
   type TrialEvaluation, type InsertTrialEvaluation
 } from "@shared/schema";
-import { eq, and, or, desc, asc, sql, inArray, isNull } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray, isNull, gte, lte } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 
@@ -491,7 +491,13 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; matchCount: number; venue?: Venue })[]> {
-    const allSessions = await db.select().from(sessions).orderBy(desc(sessions.date));
+    const conditions: any[] = [];
+    if (from) conditions.push(gte(sessions.date, from));
+    if (to) conditions.push(lte(sessions.date, to));
+
+    const allSessions = await db.select().from(sessions)
+      .where(conditions.length > 0 ? and(...conditions) : undefined)
+      .orderBy(desc(sessions.date));
     
     const sessionIds = allSessions.map(s => s.id);
 
@@ -540,21 +546,27 @@ export class DatabaseStorage implements IStorage {
       .where(eq(sessions.clubId, clubId))
       .orderBy(desc(sessions.date));
     
-    const sessionsWithData = await Promise.all(clubSessions.map(async (s) => {
-      const countResult = await db.select({ count: sql<number>`count(*)` })
-        .from(sessionSignups)
-        .where(and(eq(sessionSignups.sessionId, s.id), eq(sessionSignups.signupStatus, "CONFIRMED")));
-      
-      let venue: Venue | undefined;
-      if (s.venueId) {
-        const [v] = await db.select().from(venues).where(eq(venues.id, s.venueId));
-        venue = v;
-      }
-      
-      return { ...s, signupCount: Number(countResult[0]?.count || 0), venue };
-    }));
+    const sessionIds = clubSessions.map(s => s.id);
 
-    return sessionsWithData;
+    const signupRows = sessionIds.length > 0 ? await db.select({
+      sessionId: sessionSignups.sessionId,
+      count: sql<number>`count(*)::int`,
+    })
+      .from(sessionSignups)
+      .where(and(inArray(sessionSignups.sessionId, sessionIds), eq(sessionSignups.signupStatus, "CONFIRMED")))
+      .groupBy(sessionSignups.sessionId) : [];
+
+    const countsBySession = new Map(signupRows.map(r => [r.sessionId, r.count]));
+
+    const venueIds = [...new Set(clubSessions.map(s => s.venueId).filter(Boolean))] as number[];
+    const venueRows = venueIds.length > 0 ? await db.select().from(venues).where(inArray(venues.id, venueIds)) : [];
+    const venueMap = new Map(venueRows.map(v => [v.id, v]));
+
+    return clubSessions.map(s => ({
+      ...s,
+      signupCount: countsBySession.get(s.id) || 0,
+      venue: s.venueId ? venueMap.get(s.venueId) : undefined,
+    }));
   }
 
   async getSession(id: number): Promise<(Session & { venue?: Venue }) | undefined> {

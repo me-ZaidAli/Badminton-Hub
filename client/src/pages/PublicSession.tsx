@@ -39,8 +39,8 @@ export default function PublicSession() {
       return res.json();
     },
     enabled: !!sessionId,
-    refetchInterval: 5000,
-    staleTime: 0,
+    refetchInterval: 10000,
+    staleTime: 5000,
   });
 
 

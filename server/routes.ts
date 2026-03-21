@@ -2082,7 +2082,9 @@ export async function registerRoutes(
 
   // === Sessions ===
   app.get(api.sessions.list.path, async (req, res) => {
-    const sessions = await storage.getSessions();
+    const sixMonthsAgo = new Date();
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const sessions = await storage.getSessions(sixMonthsAgo);
     res.json(sessions);
   });
 

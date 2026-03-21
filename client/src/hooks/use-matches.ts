@@ -12,8 +12,8 @@ export function useSessionMatches(sessionId: number) {
       return api.matches.list.responses[200].parse(await res.json());
     },
     enabled: !!sessionId,
-    refetchInterval: 3000,
-    staleTime: 0,
+    refetchInterval: 5000,
+    staleTime: 2000,
   });
 }
 
