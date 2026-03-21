@@ -22,7 +22,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import {
   Plus, Ticket, Loader2, ShieldAlert, Clock, ArrowRight, Filter,
   AlertCircle, MessageSquare, RotateCcw, Archive, ChevronDown, ChevronUp,
-  Search, User, CreditCard, CalendarDays, CheckCircle2, XCircle,
+  Search, User, CreditCard, CalendarDays, CheckCircle2, XCircle, Trash2, CheckSquare, Square,
 } from "lucide-react";
 
 const STATUS_COLORS: Record<string, string> = {
@@ -240,6 +240,9 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
   const [categoryFilter, setCategoryFilter] = useState("");
   const [searchQuery, setSearchQuery] = useState("");
   const [adminViewFilter, setAdminViewFilter] = useState("PENDING");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [confirmAction, setConfirmAction] = useState<"archive" | "unarchive" | "delete" | null>(null);
+  const { toast } = useToast();
 
   const queryParams = new URLSearchParams();
   if (clubFilter && clubFilter !== "all") queryParams.set("clubId", clubFilter);
@@ -258,6 +261,36 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
 
   const { data: clubs } = useQuery<any[]>({
     queryKey: ["/api/clubs"],
+  });
+
+  const bulkArchiveMutation = useMutation({
+    mutationFn: async ({ ticketIds, isArchived }: { ticketIds: number[]; isArchived: boolean }) => {
+      const res = await apiRequest("POST", "/api/tickets/bulk-archive", { ticketIds, isArchived });
+      return res.json();
+    },
+    onSuccess: (data, variables) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      setSelectedIds(new Set());
+      toast({ title: variables.isArchived ? "Tickets Archived" : "Tickets Unarchived", description: data.message });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ticketIds: number[]) => {
+      const res = await apiRequest("POST", "/api/tickets/bulk-delete", { ticketIds });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
+      setSelectedIds(new Set());
+      toast({ title: "Tickets Deleted", description: data.message });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
   });
 
   const filteredTickets = (tickets || []).filter((t: any) => {
@@ -289,6 +322,40 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
     return new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
   });
 
+  const allVisibleIds = sortedTickets.map((t: any) => t.id);
+  const allSelected = allVisibleIds.length > 0 && allVisibleIds.every((id: number) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allVisibleIds));
+    }
+  }
+
+  function toggleSelect(id: number) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function handleBulkAction() {
+    const ids = Array.from(selectedIds);
+    if (confirmAction === "archive") {
+      bulkArchiveMutation.mutate({ ticketIds: ids, isArchived: true });
+    } else if (confirmAction === "unarchive") {
+      bulkArchiveMutation.mutate({ ticketIds: ids, isArchived: false });
+    } else if (confirmAction === "delete") {
+      bulkDeleteMutation.mutate(ids);
+    }
+    setConfirmAction(null);
+  }
+
+  const isBulkLoading = bulkArchiveMutation.isPending || bulkDeleteMutation.isPending;
+
   return (
     <div className="space-y-4 mt-4">
       <div className="flex items-center gap-2 flex-wrap" data-testid="admin-ticket-view-filters">
@@ -297,7 +364,7 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
             key={opt.value}
             variant={adminViewFilter === opt.value ? "default" : "outline"}
             size="sm"
-            onClick={() => setAdminViewFilter(opt.value)}
+            onClick={() => { setAdminViewFilter(opt.value); setSelectedIds(new Set()); }}
             data-testid={`button-filter-${opt.value.toLowerCase()}`}
           >
             {opt.value === "PENDING" && <Clock className="h-3.5 w-3.5 mr-1.5" />}
@@ -321,7 +388,7 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
           />
         </div>
         <Filter className="h-4 w-4 text-muted-foreground" />
-        <Select value={clubFilter} onValueChange={setClubFilter}>
+        <Select value={clubFilter} onValueChange={(v) => { setClubFilter(v); setSelectedIds(new Set()); }}>
           <SelectTrigger className="w-[180px]" data-testid="filter-club">
             <SelectValue placeholder="All Clubs" />
           </SelectTrigger>
@@ -332,7 +399,7 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
             ))}
           </SelectContent>
         </Select>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
+        <Select value={statusFilter} onValueChange={(v) => { setStatusFilter(v); setSelectedIds(new Set()); }}>
           <SelectTrigger className="w-[180px]" data-testid="filter-status">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
@@ -343,7 +410,7 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
             ))}
           </SelectContent>
         </Select>
-        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+        <Select value={categoryFilter} onValueChange={(v) => { setCategoryFilter(v); setSelectedIds(new Set()); }}>
           <SelectTrigger className="w-[180px]" data-testid="filter-category">
             <SelectValue placeholder="All Categories" />
           </SelectTrigger>
@@ -358,7 +425,7 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
           <Button
             variant="ghost"
             size="sm"
-            onClick={() => { setClubFilter(""); setStatusFilter(""); setCategoryFilter(""); setSearchQuery(""); }}
+            onClick={() => { setClubFilter(""); setStatusFilter(""); setCategoryFilter(""); setSearchQuery(""); setSelectedIds(new Set()); }}
             data-testid="button-clear-filters"
           >
             Clear
@@ -379,11 +446,96 @@ function AdminTicketsList({ onRowClick }: { onRowClick: (id: number) => void }) 
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2" data-testid="ticket-list-admin">
-          {sortedTickets.map((ticket: any) => (
-            <TicketRow key={ticket.id} ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential showMemberName />
-          ))}
+        <>
+          <div className="flex items-center gap-3">
+            <button
+              onClick={toggleSelectAll}
+              className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              data-testid="button-select-all-tickets"
+            >
+              {allSelected ? <CheckSquare className="h-4 w-4 text-primary" /> : <Square className="h-4 w-4" />}
+              <span className="font-medium">{allSelected ? "Deselect all" : "Select all"}</span>
+            </button>
+            {someSelected && (
+              <span className="text-xs text-muted-foreground">{selectedIds.size} selected</span>
+            )}
+          </div>
+
+          <div className="space-y-2" data-testid="ticket-list-admin">
+            {sortedTickets.map((ticket: any) => (
+              <div key={ticket.id} className="flex items-start gap-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); toggleSelect(ticket.id); }}
+                  className="mt-4 flex-shrink-0 p-0.5 rounded hover:bg-muted/50 transition-colors"
+                  data-testid={`checkbox-ticket-${ticket.id}`}
+                >
+                  {selectedIds.has(ticket.id) ? (
+                    <CheckSquare className="h-4.5 w-4.5 text-primary" />
+                  ) : (
+                    <Square className="h-4.5 w-4.5 text-muted-foreground" />
+                  )}
+                </button>
+                <div className="flex-1 min-w-0">
+                  <TicketRow ticket={ticket} onClick={() => onRowClick(ticket.id)} showConfidential showMemberName />
+                </div>
+              </div>
+            ))}
+          </div>
+        </>
+      )}
+
+      {someSelected && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 bg-card border border-border rounded-xl shadow-2xl px-4 py-3 flex items-center gap-3 animate-in slide-in-from-bottom-4" data-testid="bulk-action-bar">
+          <span className="text-sm font-bold text-foreground">{selectedIds.size} ticket{selectedIds.size !== 1 ? "s" : ""} selected</span>
+          <div className="h-5 w-px bg-border" />
+          {adminViewFilter === "ARCHIVED" ? (
+            <Button size="sm" variant="outline" disabled={isBulkLoading} onClick={() => setConfirmAction("unarchive")} data-testid="button-bulk-unarchive">
+              <Archive className="h-3.5 w-3.5 mr-1.5" />Unarchive
+            </Button>
+          ) : (
+            <Button size="sm" variant="outline" disabled={isBulkLoading} onClick={() => setConfirmAction("archive")} data-testid="button-bulk-archive">
+              <Archive className="h-3.5 w-3.5 mr-1.5" />Archive
+            </Button>
+          )}
+          <Button size="sm" variant="outline" className="border-destructive/30 text-destructive hover:bg-destructive/10" disabled={isBulkLoading} onClick={() => setConfirmAction("delete")} data-testid="button-bulk-delete">
+            <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
+          </Button>
+          <Button size="sm" variant="ghost" onClick={() => setSelectedIds(new Set())} data-testid="button-bulk-cancel">
+            Cancel
+          </Button>
         </div>
+      )}
+
+      {confirmAction && (
+        <Dialog open onOpenChange={() => setConfirmAction(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>
+                {confirmAction === "delete" ? "Delete Tickets?" : confirmAction === "archive" ? "Archive Tickets?" : "Unarchive Tickets?"}
+              </DialogTitle>
+            </DialogHeader>
+            <p className="text-sm text-muted-foreground">
+              {confirmAction === "delete"
+                ? `Are you sure you want to delete ${selectedIds.size} ticket${selectedIds.size !== 1 ? "s" : ""}? This cannot be undone.`
+                : confirmAction === "archive"
+                  ? `Archive ${selectedIds.size} ticket${selectedIds.size !== 1 ? "s" : ""}? They can be restored later.`
+                  : `Unarchive ${selectedIds.size} ticket${selectedIds.size !== 1 ? "s" : ""}?`}
+            </p>
+            <div className="flex justify-end gap-2 mt-2">
+              <Button variant="outline" size="sm" onClick={() => setConfirmAction(null)}>Cancel</Button>
+              <Button
+                size="sm"
+                variant={confirmAction === "delete" ? "destructive" : "default"}
+                onClick={handleBulkAction}
+                disabled={isBulkLoading}
+                data-testid="button-confirm-bulk-action"
+              >
+                {isBulkLoading && <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />}
+                {confirmAction === "delete" ? "Delete" : confirmAction === "archive" ? "Archive" : "Unarchive"}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

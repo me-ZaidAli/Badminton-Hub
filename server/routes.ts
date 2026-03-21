@@ -16608,6 +16608,52 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/tickets/bulk-archive", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { ticketIds, isArchived } = req.body;
+      if (!Array.isArray(ticketIds) || ticketIds.length === 0) return res.status(400).json({ message: "No tickets specified" });
+      const isOwner = req.user!.role === "OWNER";
+      let count = 0;
+      for (const id of ticketIds) {
+        const [ticket] = await db.select().from(tickets).where(eq(tickets.id, id));
+        if (!ticket || ticket.deletedAt) continue;
+        const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+        if (!isStaff) continue;
+        await db.update(tickets).set({ isArchived: !!isArchived, lastActivityAt: new Date() }).where(eq(tickets.id, id));
+        await db.insert(ticketAuditLogs).values({ ticketId: id, actorUserId: req.user!.id, action: isArchived ? "ARCHIVED" : "UNARCHIVED" });
+        count++;
+      }
+      res.json({ message: `${count} ticket(s) ${isArchived ? "archived" : "unarchived"}`, count });
+    } catch (err: any) {
+      console.error("Error bulk archiving tickets:", err);
+      res.status(500).json({ message: "Failed to bulk archive tickets" });
+    }
+  });
+
+  app.post("/api/tickets/bulk-delete", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { ticketIds } = req.body;
+      if (!Array.isArray(ticketIds) || ticketIds.length === 0) return res.status(400).json({ message: "No tickets specified" });
+      const isOwner = req.user!.role === "OWNER";
+      let count = 0;
+      for (const id of ticketIds) {
+        const [ticket] = await db.select().from(tickets).where(eq(tickets.id, id));
+        if (!ticket || ticket.deletedAt) continue;
+        const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
+        if (!isStaff) continue;
+        await db.update(tickets).set({ deletedAt: new Date() }).where(eq(tickets.id, id));
+        await db.insert(ticketAuditLogs).values({ ticketId: id, actorUserId: req.user!.id, action: "DELETED" });
+        count++;
+      }
+      res.json({ message: `${count} ticket(s) deleted`, count });
+    } catch (err: any) {
+      console.error("Error bulk deleting tickets:", err);
+      res.status(500).json({ message: "Failed to bulk delete tickets" });
+    }
+  });
+
   app.post("/api/tickets/:id/approve-credit", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
