@@ -1027,10 +1027,25 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
 }
 
 function PairsTab({ tournamentId }: { tournamentId: number }) {
+  const { data: user } = useUser();
   const { data: pairs, isLoading } = useTournamentPairs(tournamentId);
+  const { data: pairRequests } = useTournamentPairRequests(tournamentId);
+  const { data: playerPool } = useTournamentPlayerPool(tournamentId);
+  const { data: registrations } = useTournamentRegistrations(tournamentId);
+  const respondPairMutation = useRespondPairRequest();
+  const sendPairMutation = useSendPairRequest();
+  const { toast } = useToast();
+  const [proposingTo, setProposingTo] = useState<{ userId: number; name: string } | null>(null);
+  const [proposalMessage, setProposalMessage] = useState("");
+  const [proposalPairName, setProposalPairName] = useState("");
+  const [poolSearch, setPoolSearch] = useState("");
+
+  const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
+  const myIncomingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
+  const mySentRequests = pairRequests?.filter((pr: any) => pr.fromUserId === user?.id && pr.status === "PENDING") || [];
+  const isIndividual = myRegistration && myRegistration.registrationType === "INDIVIDUAL" && !myRegistration.partnerId;
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>;
-  if (!pairs || pairs.length === 0) return <EmptyState icon={UserPlus} title="No Pairs" description="No confirmed pairs yet." />;
 
   const pairBorderGradients = [
     "from-amber-500 via-orange-500 to-rose-500",
@@ -1052,118 +1067,294 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
 
   return (
     <div className="space-y-6">
-      <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card p-6">
-        <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 via-purple-500/5 to-violet-500/5" />
-        <div className="relative flex items-center justify-between">
-          <div>
-            <div className="flex items-center gap-2 mb-1">
-              <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
-                <Swords className="h-3.5 w-3.5 text-white" />
-              </div>
-              <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-500 dark:text-purple-400">Team Roster</span>
+      {myIncomingRequests.length > 0 && (
+        <div className="space-y-3" data-testid="pairs-incoming-requests">
+          <div className="flex items-center gap-2">
+            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+              <UserPlus className="h-3.5 w-3.5 text-white" />
             </div>
-            <h2 className="text-xl font-black text-foreground uppercase tracking-wide">Confirmed Pairs</h2>
-            <p className="text-xs text-muted-foreground mt-0.5">Elite duos ready to compete</p>
+            <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Incoming Pair Requests</h3>
+            <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/30 text-[10px] font-bold">{myIncomingRequests.length}</Badge>
           </div>
-          <div className="flex items-center gap-3">
-            <div className="text-right">
-              <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">{pairs.length}</div>
-              <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Teams</div>
+          {myIncomingRequests.map((pr: any) => (
+            <div key={pr.id} className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/5 dark:from-amber-500/10 dark:to-orange-500/10 p-4" data-testid={`pairs-incoming-${pr.id}`}>
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <PlayerAvatar name={pr.fromUser?.fullName || "?"} size="sm" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground">{pr.fromUser?.fullName}</p>
+                    <p className="text-xs text-muted-foreground">wants to pair with you</p>
+                    {pr.pairName && <p className="text-xs text-amber-500 font-bold mt-0.5">Team: "{pr.pairName}"</p>}
+                    {pr.message && <p className="text-xs text-muted-foreground mt-0.5 italic">"{pr.message}"</p>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white h-9 font-bold shadow-lg shadow-emerald-500/20 border-0"
+                    disabled={respondPairMutation.isPending}
+                    data-testid={`button-pairs-accept-${pr.id}`}
+                    onClick={async () => {
+                      try {
+                        await respondPairMutation.mutateAsync({ id: pr.id, status: "ACCEPTED" });
+                        toast({ title: "Pair Confirmed!", description: `You're now paired with ${pr.fromUser?.fullName}.` });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <Check className="h-4 w-4 mr-1" />Accept
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
+                    disabled={respondPairMutation.isPending}
+                    data-testid={`button-pairs-decline-${pr.id}`}
+                    onClick={async () => {
+                      try {
+                        await respondPairMutation.mutateAsync({ id: pr.id, status: "DECLINED" });
+                        toast({ title: "Request Declined" });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <X className="h-4 w-4 mr-1" />Decline
+                  </Button>
+                </div>
+              </div>
             </div>
+          ))}
+        </div>
+      )}
+
+      {mySentRequests.length > 0 && (
+        <div className="space-y-3" data-testid="pairs-sent-requests">
+          <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Your Sent Requests</h3>
+          {mySentRequests.map((pr: any) => (
+            <div key={pr.id} className="rounded-xl border border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10 p-4 flex items-center justify-between gap-3" data-testid={`pairs-sent-${pr.id}`}>
+              <div className="flex items-center gap-3 min-w-0">
+                <PlayerAvatar name={pr.toUser?.fullName || "?"} size="sm" />
+                <div className="min-w-0">
+                  <p className="text-sm font-bold text-foreground">{pr.toUser?.fullName}</p>
+                  <p className="text-xs text-muted-foreground">Waiting for their response</p>
+                </div>
+              </div>
+              <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold flex-shrink-0">
+                <Clock className="h-3 w-3 mr-1" />Pending
+              </Badge>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {isIndividual && playerPool && playerPool.length > 0 && (
+        <div className="space-y-3" data-testid="pairs-player-pool">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
+                  <Users className="h-3.5 w-3.5 text-white" />
+                </div>
+                <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Find a Partner</h3>
+              </div>
+              <p className="text-[10px] text-muted-foreground ml-8">Send a pair request to any available player</p>
+            </div>
+            <Badge variant="outline" className="font-bold">{playerPool.filter((p: any) => p.userId !== user?.id).length} available</Badge>
+          </div>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <input type="text" placeholder="Search players..." value={poolSearch} onChange={e => setPoolSearch(e.target.value)}
+              className="w-full h-9 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors"
+              data-testid="input-pairs-pool-search" />
+          </div>
+          <div className="rounded-xl border border-border/50 overflow-hidden divide-y divide-border/20">
+            {playerPool.filter((p: any) => {
+              if (p.userId === user?.id) return false;
+              if (poolSearch) return p.user?.fullName?.toLowerCase().includes(poolSearch.toLowerCase());
+              return true;
+            }).map((p: any) => (
+              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`pairs-pool-player-${p.userId}`}>
+                <div className="flex items-center gap-3 min-w-0">
+                  <PlayerAvatar name={p.user?.fullName || "?"} size="sm" />
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">{p.user?.fullName}</p>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <GradeTierBadge grade={p.profile?.currentGrade || "—"} />
+                    </div>
+                  </div>
+                </div>
+                {pairRequests?.some((pr: any) => pr.fromUserId === user?.id && pr.toUserId === p.userId && pr.status === "PENDING") ? (
+                  <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold">
+                    <Clock className="h-3 w-3 mr-1" />Pending
+                  </Badge>
+                ) : (
+                  <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 font-bold"
+                    data-testid={`button-pairs-propose-${p.userId}`}
+                    onClick={() => setProposingTo({ userId: p.userId, name: p.user?.fullName || "Player" })}>
+                    <UserPlus className="h-3 w-3 mr-1" />Propose
+                  </Button>
+                )}
+              </div>
+            ))}
           </div>
         </div>
-      </div>
+      )}
 
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        {pairs.map((pair: any, idx: number) => {
-          const p1Name = pair.user1?.fullName || "Player 1";
-          const p2Name = pair.user2?.fullName || "Player 2";
-          const gradientIdx = idx % pairBorderGradients.length;
-          const isTop3 = idx < 3;
-          const rankMedals = ["🥇", "🥈", "🥉"];
+      {proposingTo && (
+        <Dialog open onOpenChange={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-amber-500" />
+                Propose Partner
+              </DialogTitle>
+              <DialogDescription>Send a pair request to {proposingTo.name}</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div>
+                <label className="text-xs font-bold text-foreground mb-1 block">Team Name (optional)</label>
+                <input type="text" value={proposalPairName} onChange={e => setProposalPairName(e.target.value)} placeholder="e.g. Thunder Smash"
+                  className="w-full h-9 px-3 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40"
+                  data-testid="input-pairs-team-name" />
+              </div>
+              <div>
+                <label className="text-xs font-bold text-foreground mb-1 block">Message (optional)</label>
+                <textarea value={proposalMessage} onChange={e => setProposalMessage(e.target.value)} placeholder="Hey, want to team up?"
+                  className="w-full h-20 px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 resize-none"
+                  data-testid="input-pairs-message" />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>Cancel</Button>
+              <Button className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
+                disabled={sendPairMutation.isPending}
+                data-testid="button-pairs-send-request"
+                onClick={async () => {
+                  try {
+                    await sendPairMutation.mutateAsync({ tournamentId, toUserId: proposingTo.userId, message: proposalMessage || undefined, pairName: proposalPairName || undefined });
+                    toast({ title: "Pair Request Sent!", description: "They'll receive a notification." });
+                    setProposingTo(null); setProposalMessage(""); setProposalPairName("");
+                  } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                }}>
+                {sendPairMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
+                Send Request
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      )}
 
-          return (
-            <div
-              key={pair.id}
-              className="group relative"
-              data-testid={`pair-card-${idx}`}
-            >
-              <div className={cn(
-                "absolute -inset-[1px] rounded-2xl bg-gradient-to-br opacity-60 group-hover:opacity-100 transition-opacity duration-300 blur-[0.5px]",
-                pairBorderGradients[gradientIdx]
-              )} />
+      {pairs && pairs.length > 0 && (
+        <>
+          <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card p-6">
+            <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 via-purple-500/5 to-violet-500/5" />
+            <div className="relative flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2 mb-1">
+                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
+                    <Swords className="h-3.5 w-3.5 text-white" />
+                  </div>
+                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-500 dark:text-purple-400">Team Roster</span>
+                </div>
+                <h2 className="text-xl font-black text-foreground uppercase tracking-wide">Confirmed Pairs</h2>
+                <p className="text-xs text-muted-foreground mt-0.5">Elite duos ready to compete</p>
+              </div>
+              <div className="flex items-center gap-3">
+                <div className="text-right">
+                  <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">{pairs.length}</div>
+                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Teams</div>
+                </div>
+              </div>
+            </div>
+          </div>
 
-              <div className={cn(
-                "relative rounded-2xl bg-card backdrop-blur-sm overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-xl border border-border/30",
-                pairGlowColors[gradientIdx]
-              )}>
-                <div className={cn(
-                  "h-1 w-full bg-gradient-to-r",
-                  pairBorderGradients[gradientIdx]
-                )} />
+          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {pairs.map((pair: any, idx: number) => {
+              const p1Name = pair.user1?.fullName || "Player 1";
+              const p2Name = pair.user2?.fullName || "Player 2";
+              const gradientIdx = idx % pairBorderGradients.length;
+              const isTop3 = idx < 3;
+              const rankMedals = ["🥇", "🥈", "🥉"];
 
-                <div className="p-4">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="flex items-center gap-2">
-                      {isTop3 ? (
-                        <span className="text-lg">{rankMedals[idx]}</span>
-                      ) : (
-                        <div className="h-7 w-7 rounded-full bg-muted border border-border/50 flex items-center justify-center">
-                          <span className="text-xs font-black text-muted-foreground">#{idx + 1}</span>
+              return (
+                <div
+                  key={pair.id}
+                  className="group relative"
+                  data-testid={`pair-card-${idx}`}
+                >
+                  <div className={cn(
+                    "absolute -inset-[1px] rounded-2xl bg-gradient-to-br opacity-60 group-hover:opacity-100 transition-opacity duration-300 blur-[0.5px]",
+                    pairBorderGradients[gradientIdx]
+                  )} />
+
+                  <div className={cn(
+                    "relative rounded-2xl bg-card backdrop-blur-sm overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-xl border border-border/30",
+                    pairGlowColors[gradientIdx]
+                  )}>
+                    <div className={cn(
+                      "h-1 w-full bg-gradient-to-r",
+                      pairBorderGradients[gradientIdx]
+                    )} />
+
+                    <div className="p-4">
+                      <div className="flex items-center justify-between mb-4">
+                        <div className="flex items-center gap-2">
+                          {isTop3 ? (
+                            <span className="text-lg">{rankMedals[idx]}</span>
+                          ) : (
+                            <div className="h-7 w-7 rounded-full bg-muted border border-border/50 flex items-center justify-center">
+                              <span className="text-xs font-black text-muted-foreground">#{idx + 1}</span>
+                            </div>
+                          )}
+                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Team {idx + 1}</span>
                         </div>
-                      )}
-                      <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Team {idx + 1}</span>
-                    </div>
-                    <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black tracking-wider px-2">
-                      <CheckCircle className="h-2.5 w-2.5 mr-1" />READY
-                    </Badge>
-                  </div>
-
-                  <div className="flex items-center justify-center gap-3 mb-4">
-                    <div className="flex flex-col items-center">
-                      <div className="relative">
-                        <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
-                        <PlayerAvatar name={p1Name} size="lg" />
+                        <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black tracking-wider px-2">
+                          <CheckCircle className="h-2.5 w-2.5 mr-1" />READY
+                        </Badge>
                       </div>
-                      <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{p1Name.split(" ")[0]}</h4>
-                      <div className="mt-1"><GradeTierBadge grade={pair.profile1?.currentGrade || "—"} /></div>
-                    </div>
 
-                    <div className="flex flex-col items-center gap-1 px-2">
-                      <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center">
-                        <Zap className="h-4 w-4 text-amber-400" />
-                      </div>
-                      <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/70">&amp;</span>
-                    </div>
+                      <div className="flex items-center justify-center gap-3 mb-4">
+                        <div className="flex flex-col items-center">
+                          <div className="relative">
+                            <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
+                            <PlayerAvatar name={p1Name} size="lg" />
+                          </div>
+                          <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{p1Name.split(" ")[0]}</h4>
+                          <div className="mt-1"><GradeTierBadge grade={pair.profile1?.currentGrade || "—"} /></div>
+                        </div>
 
-                    <div className="flex flex-col items-center">
-                      <div className="relative">
-                        <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
-                        <PlayerAvatar name={p2Name} size="lg" />
-                      </div>
-                      <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{p2Name.split(" ")[0]}</h4>
-                      <div className="mt-1"><GradeTierBadge grade={pair.profile2?.currentGrade || "—"} /></div>
-                    </div>
-                  </div>
+                        <div className="flex flex-col items-center gap-1 px-2">
+                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center">
+                            <Zap className="h-4 w-4 text-amber-400" />
+                          </div>
+                          <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/70">&amp;</span>
+                        </div>
 
-                  <div className="border-t border-border/30 pt-3">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-1.5">
-                        <Shield className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-[10px] text-muted-foreground font-medium">{p1Name.split(" ")[0]} & {p2Name.split(" ")[0]}</span>
+                        <div className="flex flex-col items-center">
+                          <div className="relative">
+                            <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
+                            <PlayerAvatar name={p2Name} size="lg" />
+                          </div>
+                          <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{p2Name.split(" ")[0]}</h4>
+                          <div className="mt-1"><GradeTierBadge grade={pair.profile2?.currentGrade || "—"} /></div>
+                        </div>
                       </div>
-                      <div className="flex items-center gap-1">
-                        <div className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse")} />
-                        <span className="text-[9px] text-emerald-400 font-bold uppercase">Active</span>
+
+                      <div className="border-t border-border/30 pt-3">
+                        <div className="flex items-center justify-between">
+                          <div className="flex items-center gap-1.5">
+                            <Shield className="h-3 w-3 text-muted-foreground" />
+                            <span className="text-[10px] text-muted-foreground font-medium">{p1Name.split(" ")[0]} & {p2Name.split(" ")[0]}</span>
+                          </div>
+                          <div className="flex items-center gap-1">
+                            <div className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse")} />
+                            <span className="text-[9px] text-emerald-400 font-bold uppercase">Active</span>
+                          </div>
+                        </div>
                       </div>
                     </div>
                   </div>
                 </div>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+              );
+            })}
+          </div>
+        </>
+      )}
+
+      {(!pairs || pairs.length === 0) && myIncomingRequests.length === 0 && mySentRequests.length === 0 && (!isIndividual || !playerPool || playerPool.length === 0) && (
+        <EmptyState icon={UserPlus} title="No Pairs Yet" description={myRegistration ? "No confirmed pairs yet. Other players will appear here once they register." : "No confirmed pairs yet. Register as an individual in the Sign-Up tab to find a partner."} />
+      )}
     </div>
   );
 }
