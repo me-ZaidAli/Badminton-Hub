@@ -1,12 +1,15 @@
 import { Award, Heart, Shield, Scale, Star, Network, Anvil, Compass, Zap, EyeOff, Crown, Sparkles } from "lucide-react";
 import cardImage1 from "@assets/image_1774128967740.png";
 import cardImage2 from "@assets/image_1774128516227.png";
-import cardImage3 from "@assets/image_1774126975964.png";
+import cardImage3 from "@assets/image_1774130209629.png";
 import cardImage4 from "@assets/image_1774129239146.png";
 import cardImage5 from "@assets/image_1774129348008.png";
 import cardImage6 from "@assets/image_1774129441410.png";
 import cardImage7 from "@assets/image_1774129507680.png";
 import cardImage8 from "@assets/image_1774129635779.png";
+import cardImage9 from "@assets/image_1774129953783.png";
+import cardImage10 from "@assets/image_1774130066142.png";
+import cardImage11 from "@assets/image_1774130125874.png";
 import cardImage12 from "@assets/image_1774128390166.png";
 
 type CardDesignConfig = {
@@ -369,6 +372,9 @@ const CARD_DESIGN_IMAGES: Record<number, string> = {
   6: cardImage6,
   7: cardImage7,
   8: cardImage8,
+  9: cardImage9,
+  10: cardImage10,
+  11: cardImage11,
   12: cardImage12,
 };
 
