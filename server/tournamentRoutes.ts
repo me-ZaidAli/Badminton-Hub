@@ -1123,7 +1123,7 @@ export function registerTournamentRoutes(app: Express) {
         const [user2] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, reg.partnerId));
         const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
         const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.partnerId));
-        uniquePairs.push({ id: reg.id, user1, user2, profile1: p1, profile2: p2 });
+        uniquePairs.push({ id: reg.id, user1, user2, profile1: p1, profile2: p2, createdAt: reg.createdAt });
       }
       res.json(uniquePairs);
     } catch (e: any) {

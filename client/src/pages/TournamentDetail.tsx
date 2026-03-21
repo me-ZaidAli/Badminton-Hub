@@ -1264,8 +1264,7 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
               const p1Name = pair.user1?.fullName || "Player 1";
               const p2Name = pair.user2?.fullName || "Player 2";
               const gradientIdx = idx % pairBorderGradients.length;
-              const isTop3 = idx < 3;
-              const rankMedals = ["🥇", "🥈", "🥉"];
+              const pairedDate = pair.createdAt ? format(new Date(pair.createdAt), "d MMM yyyy") : null;
 
               return (
                 <div
@@ -1290,13 +1289,9 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                     <div className="p-4">
                       <div className="flex items-center justify-between mb-4">
                         <div className="flex items-center gap-2">
-                          {isTop3 ? (
-                            <span className="text-lg">{rankMedals[idx]}</span>
-                          ) : (
-                            <div className="h-7 w-7 rounded-full bg-muted border border-border/50 flex items-center justify-center">
-                              <span className="text-xs font-black text-muted-foreground">#{idx + 1}</span>
-                            </div>
-                          )}
+                          <div className="h-7 w-7 rounded-full bg-muted border border-border/50 flex items-center justify-center">
+                            <span className="text-xs font-black text-muted-foreground">#{idx + 1}</span>
+                          </div>
                           <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Team {idx + 1}</span>
                         </div>
                         <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black tracking-wider px-2">
@@ -1337,10 +1332,17 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                             <Shield className="h-3 w-3 text-muted-foreground" />
                             <span className="text-[10px] text-muted-foreground font-medium">{p1Name.split(" ")[0]} & {p2Name.split(" ")[0]}</span>
                           </div>
-                          <div className="flex items-center gap-1">
-                            <div className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse")} />
-                            <span className="text-[9px] text-emerald-400 font-bold uppercase">Active</span>
-                          </div>
+                          {pairedDate ? (
+                            <div className="flex items-center gap-1">
+                              <Calendar className="h-3 w-3 text-muted-foreground" />
+                              <span className="text-[9px] text-muted-foreground font-medium">{pairedDate}</span>
+                            </div>
+                          ) : (
+                            <div className="flex items-center gap-1">
+                              <div className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse")} />
+                              <span className="text-[9px] text-emerald-400 font-bold uppercase">Active</span>
+                            </div>
+                          )}
                         </div>
                       </div>
                     </div>
