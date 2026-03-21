@@ -341,7 +341,7 @@ function PlayerStatsRadar({ stats }: { stats: any }) {
   return (
     <div className="relative overflow-hidden rounded-2xl bg-card border border-cyan-500/20 p-4" data-testid="player-stats-radar">
       <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-cyan-400/5 pointer-events-none" />
-      <h4 className="text-sm font-semibold text-cyan-300/90 mb-2 flex items-center gap-2 relative z-10">
+      <h4 className="text-sm font-semibold text-cyan-700 dark:text-cyan-300/90 mb-2 flex items-center gap-2 relative z-10">
         <Activity className="h-4 w-4" />
         Performance Radar
       </h4>
@@ -488,7 +488,7 @@ function SkillReviewTab({ playerId, clubId, isAdmin, isOwnProfile }: {
                     <Icon className="h-4 w-4 text-cyan-400" />
                     {cat.name}
                   </span>
-                  <Badge variant="outline" className="rounded-lg border-border text-cyan-300">{avg}%</Badge>
+                  <Badge variant="outline" className="rounded-lg border-border text-cyan-700 dark:text-cyan-300">{avg}%</Badge>
                 </div>
                 <div className="space-y-2">
                   {catEvals.map((e: any) => (
@@ -870,19 +870,19 @@ function PlayerDashboard({ player, clubId, clubs, isAdmin, currentUserId }: {
 
       <Tabs value={dashTab} onValueChange={setDashTab}>
         <TabsList className="w-full bg-muted/30 dark:bg-muted/10 border border-border rounded-xl p-1">
-          <TabsTrigger value="overview" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-overview">
+          <TabsTrigger value="overview" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-overview">
             <Activity className="h-4 w-4 mr-1" /> Overview
           </TabsTrigger>
-          <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-achievements">
+          <TabsTrigger value="achievements" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-achievements">
             <Award className="h-4 w-4 mr-1" /> Badges
           </TabsTrigger>
-          <TabsTrigger value="matches" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-matches">
+          <TabsTrigger value="matches" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-matches">
             <ClipboardList className="h-4 w-4 mr-1" /> Matches
           </TabsTrigger>
-          <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-skills">
+          <TabsTrigger value="skills" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-skills">
             <Target className="h-4 w-4 mr-1" /> Skills
           </TabsTrigger>
-          <TabsTrigger value="development" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-development">
+          <TabsTrigger value="development" className="flex-1 rounded-lg data-[state=active]:bg-cyan-500/20 data-[state=active]:text-cyan-700 dark:data-[state=active]:text-cyan-300 text-muted-foreground" data-testid="tab-development">
             <TrendingUp className="h-4 w-4 mr-1" /> Development
           </TabsTrigger>
         </TabsList>
