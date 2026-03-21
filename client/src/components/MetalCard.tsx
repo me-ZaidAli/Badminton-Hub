@@ -1,8 +1,9 @@
 import { Award, Heart, Shield, Scale, Star, Network, Anvil, Compass, Zap, EyeOff, Crown, Sparkles } from "lucide-react";
 import cardImage1 from "@assets/image_1774126934752.png";
-import cardImage2 from "@assets/image_1774126955479.png";
+import cardImage2 from "@assets/image_1774128516227.png";
 import cardImage3 from "@assets/image_1774126975964.png";
 import cardImage4 from "@assets/image_1774126991612.png";
+import cardImage12 from "@assets/image_1774128390166.png";
 
 type CardDesignConfig = {
   gradient: string;
@@ -360,6 +361,7 @@ const CARD_DESIGN_IMAGES: Record<number, string> = {
   2: cardImage2,
   3: cardImage3,
   4: cardImage4,
+  12: cardImage12,
 };
 
 export function MetalCardFront({
@@ -385,7 +387,7 @@ export function MetalCardFront({
         style={{
           borderRadius: "16px",
           backgroundImage: `url(${cardImage})`,
-          backgroundSize: "cover",
+          backgroundSize: "100% 100%",
           backgroundPosition: "center",
           backgroundRepeat: "no-repeat",
           boxShadow: `0 8px 24px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2)`,
