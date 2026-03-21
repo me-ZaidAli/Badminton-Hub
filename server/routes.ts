@@ -25415,12 +25415,16 @@ Keep it to about 300 words. Be encouraging but honest.`;
           claimedAt: new Date(),
         }).returning();
 
-        const playerClub = await tx.select({ clubId: playerProfiles.clubId })
-          .from(playerProfiles).where(eq(playerProfiles.userId, card.userId)).limit(1);
-        if (playerClub.length > 0 && playerClub[0].clubId) {
+        const adminClubId = await clubIdFromSession(req);
+        const playerClubs = await tx.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles).where(eq(playerProfiles.userId, card.userId));
+        const targetClubId = adminClubId && playerClubs.some(p => p.clubId === adminClubId)
+          ? adminClubId
+          : playerClubs[0]?.clubId;
+        if (targetClubId) {
           await tx.insert(creditLedger).values({
             userId: card.userId,
-            clubId: playerClub[0].clubId,
+            clubId: targetClubId,
             amount: card.weeklyCreditValue,
             reason: `Card credit: ${card.cardName}`,
             createdById: (req.user as any).id,
