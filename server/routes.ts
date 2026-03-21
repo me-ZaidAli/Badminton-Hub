@@ -25441,6 +25441,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         userId: cardCreditTransactions.userId,
         amount: cardCreditTransactions.amount,
         cardName: cardCreditTransactions.cardName,
+        claimed: cardCreditTransactions.claimed,
+        claimedAt: cardCreditTransactions.claimedAt,
         createdAt: cardCreditTransactions.createdAt,
         recipientName: recipientUsers.fullName,
         issuerName: issuerUsers.fullName,
@@ -25463,6 +25465,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         id: cardCreditTransactions.id,
         amount: cardCreditTransactions.amount,
         cardName: cardCreditTransactions.cardName,
+        claimed: cardCreditTransactions.claimed,
+        claimedAt: cardCreditTransactions.claimedAt,
         createdAt: cardCreditTransactions.createdAt,
       })
         .from(cardCreditTransactions)
@@ -25470,6 +25474,87 @@ Keep it to about 300 words. Be encouraging but honest.`;
         .orderBy(desc(cardCreditTransactions.createdAt));
       res.json(result);
     } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/my-card-credits/:id/claim", requirePremium(clubIdFromSession), async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).id;
+      const txnId = parseInt(req.params.id);
+      if (isNaN(txnId)) return res.status(400).json({ message: "Invalid transaction ID" });
+
+      const [txn] = await db.select().from(cardCreditTransactions)
+        .where(and(eq(cardCreditTransactions.id, txnId), eq(cardCreditTransactions.userId, userId)));
+
+      if (!txn) return res.status(404).json({ message: "Credit transaction not found" });
+      if (txn.claimed) return res.status(400).json({ message: "Credit already claimed" });
+
+      const profiles = await db.select({ clubId: playerProfiles.clubId })
+        .from(playerProfiles).where(eq(playerProfiles.userId, userId)).limit(1);
+      const clubId = profiles[0]?.clubId;
+      if (!clubId) return res.status(400).json({ message: "No club membership found" });
+
+      await db.transaction(async (tx) => {
+        await tx.update(cardCreditTransactions).set({
+          claimed: true,
+          claimedAt: new Date(),
+        }).where(eq(cardCreditTransactions.id, txnId));
+
+        await tx.insert(creditLedger).values({
+          userId,
+          clubId,
+          amount: txn.amount,
+          reason: `Card credit: ${txn.cardName}`,
+          createdById: userId,
+        });
+      });
+
+      res.json({ success: true, message: `£${(txn.amount / 100).toFixed(2)} credit claimed to your wallet` });
+    } catch (err: any) {
+      console.error("Error claiming card credit:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/my-card-credits/claim-all", requirePremium(clubIdFromSession), async (req, res) => {
+    try {
+      if (!req.isAuthenticated()) return res.sendStatus(401);
+      const userId = (req.user as any).id;
+
+      const unclaimed = await db.select().from(cardCreditTransactions)
+        .where(and(eq(cardCreditTransactions.userId, userId), eq(cardCreditTransactions.claimed, false)));
+
+      if (unclaimed.length === 0) return res.status(400).json({ message: "No unclaimed credits" });
+
+      const profiles = await db.select({ clubId: playerProfiles.clubId })
+        .from(playerProfiles).where(eq(playerProfiles.userId, userId)).limit(1);
+      const clubId = profiles[0]?.clubId;
+      if (!clubId) return res.status(400).json({ message: "No club membership found" });
+
+      let totalClaimed = 0;
+      await db.transaction(async (tx) => {
+        for (const txn of unclaimed) {
+          await tx.update(cardCreditTransactions).set({
+            claimed: true,
+            claimedAt: new Date(),
+          }).where(eq(cardCreditTransactions.id, txn.id));
+
+          await tx.insert(creditLedger).values({
+            userId,
+            clubId,
+            amount: txn.amount,
+            reason: `Card credit: ${txn.cardName}`,
+            createdById: userId,
+          });
+          totalClaimed += txn.amount;
+        }
+      });
+
+      res.json({ success: true, count: unclaimed.length, total: totalClaimed, message: `£${(totalClaimed / 100).toFixed(2)} total credit claimed` });
+    } catch (err: any) {
+      console.error("Error claiming all card credits:", err);
       res.status(500).json({ message: err.message });
     }
   });

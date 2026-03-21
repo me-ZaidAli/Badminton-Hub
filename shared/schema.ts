@@ -2193,6 +2193,8 @@ export const cardCreditTransactions = pgTable("card_credit_transactions", {
   amount: integer("amount").notNull(),
   cardName: text("card_name").notNull(),
   issuedById: integer("issued_by_id").references(() => users.id).notNull(),
+  claimed: boolean("claimed").default(false).notNull(),
+  claimedAt: timestamp("claimed_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

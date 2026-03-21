@@ -1,13 +1,15 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Loader2, CreditCard, Award, ChevronLeft, ChevronRight, X, Clock, PoundSterling } from "lucide-react";
+import { Loader2, CreditCard, Award, ChevronLeft, ChevronRight, X, Clock, PoundSterling, Check, Gift } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, formatDistanceToNow, isPast } from "date-fns";
 import { MetalCardFront, MetalCardBack } from "@/components/MetalCard";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 type UserCard = {
   id: number;
@@ -190,10 +192,43 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
 }
 
 export default function PremiumWallet() {
+  const { toast } = useToast();
   const { data: myCards, isLoading } = useQuery<UserCard[]>({ queryKey: ["/api/my-cards"] });
   const { data: myCardCredits } = useQuery<any[]>({ queryKey: ["/api/my-card-credits"] });
   const [carouselOpen, setCarouselOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
+
+  const claimMutation = useMutation({
+    mutationFn: async (txnId: number) => {
+      const res = await apiRequest("POST", `/api/my-card-credits/${txnId}/claim`);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Credit Claimed!", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-card-credits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/credits/balance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-credits"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const claimAllMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/my-card-credits/claim-all");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "All Credits Claimed!", description: data.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-card-credits"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/credits/balance"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-credits"] });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
 
   if (isLoading) {
     return (
@@ -264,22 +299,57 @@ export default function PremiumWallet() {
                   );
                 })}
               </div>
-              {myCardCredits && myCardCredits.length > 0 && (
-                <div className="border-t pt-3">
-                  <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-                    <PoundSterling className="h-3 w-3 text-emerald-500" />
-                    Recent Card Rewards
-                  </p>
-                  <div className="space-y-1">
-                    {myCardCredits.slice(0, 3).map((t: any) => (
-                      <div key={t.id} className="flex items-center justify-between text-xs" data-testid={`card-credit-${t.id}`}>
-                        <span className="text-muted-foreground">{t.cardName}</span>
-                        <span className="font-bold text-emerald-600 dark:text-emerald-400">+£{(t.amount / 100).toFixed(2)}</span>
-                      </div>
-                    ))}
+              {myCardCredits && myCardCredits.length > 0 && (() => {
+                const unclaimed = myCardCredits.filter((t: any) => !t.claimed);
+                const unclaimedTotal = unclaimed.reduce((sum: number, t: any) => sum + t.amount, 0);
+                return (
+                  <div className="border-t pt-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+                        <PoundSterling className="h-3 w-3 text-emerald-500" />
+                        Card Rewards
+                      </p>
+                      {unclaimed.length > 1 && (
+                        <Button
+                          variant="default"
+                          size="sm"
+                          className="h-6 text-[10px] px-2 bg-emerald-600 hover:bg-emerald-700 text-white"
+                          onClick={() => claimAllMutation.mutate()}
+                          disabled={claimAllMutation.isPending}
+                          data-testid="button-claim-all-credits"
+                        >
+                          {claimAllMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Gift className="h-3 w-3 mr-1" />}
+                          Claim All (£{(unclaimedTotal / 100).toFixed(2)})
+                        </Button>
+                      )}
+                    </div>
+                    <div className="space-y-1.5">
+                      {myCardCredits.slice(0, 5).map((t: any) => (
+                        <div key={t.id} className="flex items-center justify-between text-xs" data-testid={`card-credit-${t.id}`}>
+                          <span className="text-muted-foreground truncate mr-2">{t.cardName}</span>
+                          {t.claimed ? (
+                            <span className="flex items-center gap-1 text-muted-foreground/60 shrink-0">
+                              <Check className="h-3 w-3" />
+                              <span>£{(t.amount / 100).toFixed(2)}</span>
+                            </span>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-5 text-[10px] px-2 border-emerald-500/50 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950 shrink-0"
+                              onClick={() => claimMutation.mutate(t.id)}
+                              disabled={claimMutation.isPending}
+                              data-testid={`button-claim-credit-${t.id}`}
+                            >
+                              {claimMutation.isPending ? <Loader2 className="h-2.5 w-2.5 animate-spin" /> : <>Claim £{(t.amount / 100).toFixed(2)}</>}
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
             </div>
           ) : (
             <div className="text-center py-6 space-y-2" data-testid="text-no-cards">

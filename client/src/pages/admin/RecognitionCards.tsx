@@ -1036,6 +1036,7 @@ function CreditsDashboard({
                   <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Player</th>
                   <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Card</th>
                   <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Amount</th>
+                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Status</th>
                   <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Issued By</th>
                   <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Date</th>
                 </tr>
@@ -1046,6 +1047,13 @@ function CreditsDashboard({
                     <td className="p-3 font-medium">{t.recipientName}</td>
                     <td className="p-3 text-muted-foreground">{t.cardName}</td>
                     <td className="p-3 font-bold text-emerald-600 dark:text-emerald-400">£{(t.amount / 100).toFixed(2)}</td>
+                    <td className="p-3">
+                      {t.claimed ? (
+                        <Badge className="bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300 text-[10px]" data-testid={`badge-claimed-${t.id}`}>Claimed</Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-700 text-[10px]" data-testid={`badge-unclaimed-${t.id}`}>Unclaimed</Badge>
+                      )}
+                    </td>
                     <td className="p-3 text-muted-foreground">{t.issuerName}</td>
                     <td className="p-3 text-xs text-muted-foreground">{format(new Date(t.createdAt), "dd MMM yyyy HH:mm")}</td>
                   </tr>
