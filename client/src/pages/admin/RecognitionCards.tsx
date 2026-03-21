@@ -292,7 +292,7 @@ export default function RecognitionCards() {
               {Object.entries(RARITY_LABELS).map(([key, val]) => (
                 <div key={key} className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background border">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${val.color}`}>{val.label}</span>
-                  <span className="text-sm font-bold text-foreground">£{(val.defaultCredit / 100).toFixed(2)}</span>
+                  <span className="text-sm font-bold text-foreground">£{val.defaultCredit.toFixed(2)}</span>
                   <span className="text-[9px] text-muted-foreground">per week</span>
                 </div>
               ))}
@@ -480,7 +480,7 @@ export default function RecognitionCards() {
                 <SelectContent>
                   {Object.entries(RARITY_LABELS).map(([key, val]) => (
                     <SelectItem key={key} value={key}>
-                      {val.label} (default £{(val.defaultCredit / 100).toFixed(2)}/wk)
+                      {val.label} (default £{val.defaultCredit.toFixed(2)}/wk)
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -488,19 +488,19 @@ export default function RecognitionCards() {
             </div>
 
             <div>
-              <Label>Weekly Credit Value (pence)</Label>
+              <Label>Weekly Credit Value (£)</Label>
               <Input
                 type="number"
                 min="0"
-                step="50"
-                placeholder="e.g. 200 = £2.00"
+                step="0.50"
+                placeholder="e.g. 2.00"
                 value={weeklyCreditInput}
                 onChange={(e) => setWeeklyCreditInput(e.target.value)}
                 data-testid="input-weekly-credit"
               />
               <p className="text-[10px] text-muted-foreground mt-1">
-                {weeklyCreditInput && parseInt(weeklyCreditInput) > 0
-                  ? `= £${(parseInt(weeklyCreditInput) / 100).toFixed(2)} per week while card is active`
+                {weeklyCreditInput && parseFloat(weeklyCreditInput) > 0
+                  ? `£${parseFloat(weeklyCreditInput).toFixed(2)} per week while card is active`
                   : "Leave empty for no credit reward"}
               </p>
             </div>
@@ -530,7 +530,7 @@ export default function RecognitionCards() {
                   cardId: parseInt(selectedCardId),
                   customReason,
                   rarityLevel: selectedRarity,
-                  weeklyCreditValue: weeklyCreditInput ? parseInt(weeklyCreditInput) : 0,
+                  weeklyCreditValue: weeklyCreditInput ? poundsToDb(weeklyCreditInput) : 0,
                 });
               }}
               disabled={!selectedUserId || !selectedCardId || issueMutation.isPending}
@@ -931,11 +931,11 @@ function CreditsDashboard({
                             <Input
                               type="number"
                               min="0"
-                              step="50"
+                              step="0.50"
                               value={editCreditValue}
                               onChange={(e) => setEditCreditValue(e.target.value)}
                               className="h-7 w-20 text-xs"
-                              placeholder="pence"
+                              placeholder="e.g. 2.00"
                               data-testid={`input-edit-credit-${uc.id}`}
                             />
                             <Button
@@ -943,7 +943,7 @@ function CreditsDashboard({
                               className="h-7 text-xs px-2"
                               disabled={updateCreditMutation.isPending}
                               onClick={() => {
-                                const val = parseInt(editCreditValue) || 0;
+                                const val = Math.round((parseFloat(editCreditValue) || 0) * 100);
                                 updateCreditMutation.mutate({ id: uc.id, weeklyCreditValue: val });
                                 setEditingCreditId(null);
                               }}
@@ -960,7 +960,7 @@ function CreditsDashboard({
                             className="text-sm font-bold bg-transparent hover:underline cursor-pointer text-emerald-600 dark:text-emerald-400"
                             onClick={() => {
                               setEditingCreditId(uc.id);
-                              setEditCreditValue(String(uc.weeklyCreditValue || 0));
+                              setEditCreditValue(String((uc.weeklyCreditValue || 0) / 100));
                             }}
                             data-testid={`button-edit-credit-${uc.id}`}
                           >
