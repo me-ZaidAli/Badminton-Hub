@@ -50,11 +50,11 @@ type IssuedCardRecord = {
 };
 
 const RARITY_LABELS: Record<string, { label: string; color: string; defaultCredit: number }> = {
-  standard: { label: "Standard", color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300", defaultCredit: 100 },
-  rare: { label: "Rare", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300", defaultCredit: 200 },
-  epic: { label: "Epic", color: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300", defaultCredit: 350 },
-  legendary: { label: "Legendary", color: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300", defaultCredit: 500 },
-  mythic: { label: "Mythic", color: "bg-gradient-to-r from-rose-500 to-purple-500 text-white", defaultCredit: 750 },
+  standard: { label: "Standard", color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300", defaultCredit: 1 },
+  rare: { label: "Rare", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300", defaultCredit: 2 },
+  epic: { label: "Epic", color: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300", defaultCredit: 3.5 },
+  legendary: { label: "Legendary", color: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300", defaultCredit: 5 },
+  mythic: { label: "Mythic", color: "bg-gradient-to-r from-rose-500 to-purple-500 text-white", defaultCredit: 7.5 },
 };
 
 function getCardStatus(card: IssuedCardRecord): "active" | "expired" | "revoked" {
@@ -156,6 +156,9 @@ export default function RecognitionCards() {
     setPreIssueUserId(null);
     setWeeklyCreditInput(String(RARITY_LABELS.standard.defaultCredit));
   };
+
+  const poundsToDb = (pounds: string) => Math.round(parseFloat(pounds || "0") * 100);
+  const dbToPounds = (pence: number) => (pence / 100).toFixed(2);
 
   const openIssueForUser = (userId: number) => {
     const user = allUsers?.find((u: any) => u.id === userId);
