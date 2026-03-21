@@ -390,7 +390,13 @@ export default function DashboardAnalyticsView({ sessions, mySessions, clubs, ef
               <div className="h-[200px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
-                    <Pie data={clubDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none" label={({ name, percent }: any) => `${name} ${(percent * 100).toFixed(0)}%`}>
+                    <Pie data={clubDistribution} cx="50%" cy="50%" innerRadius={50} outerRadius={75} paddingAngle={3} dataKey="value" stroke="none"
+                      label={({ x, y, name, percent, textAnchor }: any) => (
+                        <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central" fill="rgba(255,255,255,0.9)" fontSize={11} fontWeight={600}>
+                          {`${name} ${(percent * 100).toFixed(0)}%`}
+                        </text>
+                      )}
+                    >
                       {clubDistribution.map((_, i) => (
                         <Cell key={i} fill={NEON_COLORS[i % NEON_COLORS.length]} />
                       ))}

@@ -732,7 +732,11 @@ export default function MatchEngineLab() {
                           outerRadius={100}
                           paddingAngle={4}
                           dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ x, y, name, percent, textAnchor }: any) => (
+                            <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central" fill="rgba(255,255,255,0.9)" fontSize={11} fontWeight={600}>
+                              {`${name} ${(percent * 100).toFixed(0)}%`}
+                            </text>
+                          )}
                         >
                           {challengeData.map((entry, i) => (
                             <Cell key={i} fill={entry.fill} />
@@ -889,7 +893,11 @@ export default function MatchEngineLab() {
                           outerRadius={100}
                           paddingAngle={4}
                           dataKey="value"
-                          label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
+                          label={({ x, y, name, percent, textAnchor }: any) => (
+                            <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central" fill="rgba(255,255,255,0.9)" fontSize={11} fontWeight={600}>
+                              {`${name} ${(percent * 100).toFixed(0)}%`}
+                            </text>
+                          )}
                         >
                           {genderData.map((entry, i) => (
                             <Cell key={i} fill={entry.fill} />

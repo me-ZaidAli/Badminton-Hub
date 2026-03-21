@@ -1061,8 +1061,12 @@ export default function CommandCenterDashboard({ data }: CommandCenterProps) {
                   <PieChart>
                     <Pie data={revenueBySource} cx="50%" cy="50%" innerRadius={55} outerRadius={85} paddingAngle={3} dataKey="value"
                       onClick={(entry: any) => { if (entry?.name) toggleItem("session", entry.name); }}
-                      label={({ name, percent }: any) => `${name?.slice(0, 10)} ${(percent * 100).toFixed(0)}%`}
-                      labelLine={{ stroke: "rgba(255,255,255,0.2)" }}
+                      label={({ x, y, name, percent, textAnchor }: any) => (
+                        <text x={x} y={y} textAnchor={textAnchor} dominantBaseline="central" fill="rgba(255,255,255,0.9)" fontSize={11} fontWeight={600}>
+                          {`${name?.slice(0, 10)} ${(percent * 100).toFixed(0)}%`}
+                        </text>
+                      )}
+                      labelLine={{ stroke: "rgba(255,255,255,0.3)" }}
                       style={{ cursor: "pointer" }}
                     >
                       {revenueBySource.map((entry: any, i: number) => (
