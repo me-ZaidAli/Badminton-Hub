@@ -28770,7 +28770,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           if (level === "ADVANCED" && mode === "COMPETITIVE") score += 2;
           if (level === "COMPETITIVE" && mode === "COMPETITIVE") score += 2;
         }
-        if (s.clubId === trial.clubId) score += 1;
+        if (s.clubId === trial.clubId) score += 10;
         return {
           sessionId: s.id,
           title: s.title,
