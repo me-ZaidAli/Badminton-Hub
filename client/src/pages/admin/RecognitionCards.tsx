@@ -2,6 +2,7 @@ import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useUser } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -66,6 +67,13 @@ function getCardStatus(card: IssuedCardRecord): "active" | "expired" | "revoked"
 
 export default function RecognitionCards() {
   const { toast } = useToast();
+  const { data: authUser } = useUser();
+  const adminClubs: { clubId: number; clubName: string }[] = useMemo(() => {
+    const profiles = authUser?.playerProfiles || [];
+    return profiles.filter((p: any) => p.clubId).map((p: any) => ({ clubId: p.clubId, clubName: p.club?.name || p.clubName || `Club ${p.clubId}` }));
+  }, [authUser]);
+  const [selectedIssueClubId, setSelectedIssueClubId] = useState<number | null>(null);
+  const adminClubId = selectedIssueClubId || adminClubs[0]?.clubId || null;
   const [activeTab, setActiveTab] = useState<"gallery" | "active" | "expired" | "dashboard">("gallery");
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
@@ -89,7 +97,7 @@ export default function RecognitionCards() {
   });
 
   const issueMutation = useMutation({
-    mutationFn: async (data: { userId: number; cardId: number; customReason: string; rarityLevel: string; weeklyCreditValue?: number }) => {
+    mutationFn: async (data: { userId: number; cardId: number; customReason: string; rarityLevel: string; weeklyCreditValue?: number; clubId?: number | null }) => {
       await apiRequest("POST", "/api/admin/user-cards", data);
     },
     onSuccess: () => {
@@ -133,8 +141,8 @@ export default function RecognitionCards() {
   });
 
   const issueCreditMutation = useMutation({
-    mutationFn: async (id: number) => {
-      const res = await apiRequest("POST", `/api/admin/user-cards/${id}/issue-credit`);
+    mutationFn: async ({ id, clubId }: { id: number; clubId?: number | null }) => {
+      const res = await apiRequest("POST", `/api/admin/user-cards/${id}/issue-credit`, { clubId });
       return res.json();
     },
     onSuccess: (data: any) => {
@@ -371,6 +379,7 @@ export default function RecognitionCards() {
           isLoading={issuedLoading}
           updateCreditMutation={updateCreditMutation}
           issueCreditMutation={issueCreditMutation}
+          adminClubId={adminClubId}
           creditTransactions={creditTransactions || []}
           totalCreditsIssued={totalCreditsIssued}
           weeklyLiability={weeklyLiability}
@@ -387,6 +396,26 @@ export default function RecognitionCards() {
             </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
+            {adminClubs.length > 1 && (
+              <div>
+                <Label>Issuing Club</Label>
+                <Select
+                  value={String(adminClubId || "")}
+                  onValueChange={(v) => setSelectedIssueClubId(Number(v))}
+                >
+                  <SelectTrigger data-testid="trigger-issue-club">
+                    <SelectValue placeholder="Select club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {adminClubs.map((c) => (
+                      <SelectItem key={c.clubId} value={String(c.clubId)}>
+                        {c.clubName}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
             <div>
               <Label>Search Player</Label>
               <div className="relative">
@@ -528,6 +557,7 @@ export default function RecognitionCards() {
                 issueMutation.mutate({
                   userId: selectedUserId,
                   cardId: parseInt(selectedCardId),
+                  clubId: adminClubId,
                   customReason,
                   rarityLevel: selectedRarity,
                   weeklyCreditValue: weeklyCreditInput ? poundsToDb(weeklyCreditInput) : 0,
@@ -718,13 +748,14 @@ function CardListView({
 
 function CreditsDashboard({
   activeCards, allIssuedCards, isLoading, updateCreditMutation, issueCreditMutation,
-  creditTransactions, totalCreditsIssued, weeklyLiability, toast,
+  adminClubId, creditTransactions, totalCreditsIssued, weeklyLiability, toast,
 }: {
   activeCards: IssuedCardRecord[];
   allIssuedCards: IssuedCardRecord[];
   isLoading: boolean;
   updateCreditMutation: any;
   issueCreditMutation: any;
+  adminClubId: number | null;
   creditTransactions: any[];
   totalCreditsIssued: number;
   weeklyLiability: number;
@@ -794,7 +825,7 @@ function CreditsDashboard({
 
     for (const cardId of toProcess) {
       try {
-        await apiRequest("POST", `/api/admin/user-cards/${cardId}/issue-credit`);
+        await apiRequest("POST", `/api/admin/user-cards/${cardId}/issue-credit`, { clubId: adminClubId });
         success++;
       } catch (err: any) {
         failed++;

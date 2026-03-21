@@ -2175,6 +2175,7 @@ export const userCards = pgTable("user_cards", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id).notNull(),
   cardId: integer("card_id").references(() => cards.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
   issuedBy: integer("issued_by").references(() => users.id),
   customReason: text("custom_reason"),
   rarityLevel: cardRarityEnum("rarity_level").default("standard").notNull(),

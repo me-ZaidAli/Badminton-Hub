@@ -25268,13 +25268,16 @@ Keep it to about 300 words. Be encouraging but honest.`;
       const issueSchema = z.object({
         userId: z.number().int().positive(),
         cardId: z.number().int().positive(),
+        clubId: z.number().int().positive().optional(),
         customReason: z.string().max(500).optional(),
         rarityLevel: z.enum(["standard", "rare", "epic", "legendary", "mythic"]).optional(),
         weeklyCreditValue: z.number().int().min(0).optional(),
       });
       const parsed = issueSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
-      const { userId, cardId, customReason, rarityLevel, weeklyCreditValue } = parsed.data;
+      const { userId, cardId, clubId: bodyClubId, customReason, rarityLevel, weeklyCreditValue } = parsed.data;
+
+      const resolvedClubId = bodyClubId || (await clubIdFromSession(req));
 
       const targetUser = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, userId)).limit(1);
       if (targetUser.length === 0) return res.status(404).json({ message: "User not found" });
@@ -25292,6 +25295,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       const [issued] = await db.insert(userCards).values({
         userId,
         cardId,
+        clubId: resolvedClubId,
         issuedBy: issuerId,
         customReason: customReason || null,
         rarityLevel: rarityLevel || "standard",
@@ -25358,6 +25362,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ message: "Invalid card ID" });
+      const requestedClubId = req.body?.clubId ? Number(req.body.clubId) : null;
 
       const cardRecords = await db.select({
         id: userCards.id,
@@ -25366,6 +25371,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
         expiresAt: userCards.expiresAt,
         revokedAt: userCards.revokedAt,
         weeklyCreditValue: userCards.weeklyCreditValue,
+        cardClubId: userCards.clubId,
         cardName: cards.name,
       })
         .from(userCards)
@@ -25415,12 +25421,11 @@ Keep it to about 300 words. Be encouraging but honest.`;
           claimedAt: new Date(),
         }).returning();
 
-        const adminClubId = await clubIdFromSession(req);
         const playerClubs = await tx.select({ clubId: playerProfiles.clubId })
           .from(playerProfiles).where(eq(playerProfiles.userId, card.userId));
-        const targetClubId = adminClubId && playerClubs.some(p => p.clubId === adminClubId)
-          ? adminClubId
-          : playerClubs[0]?.clubId;
+        const targetClubId = card.cardClubId
+          || (requestedClubId && playerClubs.some(p => p.clubId === requestedClubId) ? requestedClubId : null)
+          || playerClubs[0]?.clubId;
         if (targetClubId) {
           await tx.insert(creditLedger).values({
             userId: card.userId,
