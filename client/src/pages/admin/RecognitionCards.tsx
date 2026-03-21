@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -8,9 +8,14 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Loader2, Award, Search, Gift, XCircle, ChevronDown, ChevronRight, CreditCard, LayoutGrid, List, User, Clock, PoundSterling, ArrowUpDown, AlertTriangle, CheckCircle, Timer } from "lucide-react";
+import {
+  Loader2, Award, Search, Gift, XCircle, ChevronDown, ChevronRight, CreditCard,
+  LayoutGrid, User, Clock, PoundSterling, ArrowUpDown, AlertTriangle, CheckCircle,
+  Timer, Zap, ShieldCheck, History
+} from "lucide-react";
 import { format, formatDistanceToNow, isPast } from "date-fns";
 import { MetalCardFront, getMetalMaterial, CARD_ICONS } from "@/components/MetalCard";
 
@@ -44,12 +49,12 @@ type IssuedCardRecord = {
   issuerName: string | null;
 };
 
-const RARITY_LABELS: Record<string, { label: string; color: string }> = {
-  standard: { label: "Standard", color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" },
-  rare: { label: "Rare", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" },
-  epic: { label: "Epic", color: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" },
-  legendary: { label: "Legendary", color: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
-  mythic: { label: "Mythic", color: "bg-gradient-to-r from-rose-500 to-purple-500 text-white" },
+const RARITY_LABELS: Record<string, { label: string; color: string; defaultCredit: number }> = {
+  standard: { label: "Standard", color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300", defaultCredit: 100 },
+  rare: { label: "Rare", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300", defaultCredit: 200 },
+  epic: { label: "Epic", color: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300", defaultCredit: 350 },
+  legendary: { label: "Legendary", color: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300", defaultCredit: 500 },
+  mythic: { label: "Mythic", color: "bg-gradient-to-r from-rose-500 to-purple-500 text-white", defaultCredit: 750 },
 };
 
 function getCardStatus(card: IssuedCardRecord): "active" | "expired" | "revoked" {
@@ -61,7 +66,7 @@ function getCardStatus(card: IssuedCardRecord): "active" | "expired" | "revoked"
 
 export default function RecognitionCards() {
   const { toast } = useToast();
-  const [activeTab, setActiveTab] = useState<"gallery" | "issued" | "dashboard">("gallery");
+  const [activeTab, setActiveTab] = useState<"gallery" | "active" | "expired" | "dashboard">("gallery");
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
@@ -78,7 +83,9 @@ export default function RecognitionCards() {
   const { data: allUsers } = useQuery<any[]>({ queryKey: ["/api/admin/users"] });
   const { data: allIssuedCards, isLoading: issuedLoading, isError: issuedError } = useQuery<IssuedCardRecord[]>({
     queryKey: ["/api/admin/all-issued-cards"],
-    enabled: activeTab === "issued" || activeTab === "dashboard",
+  });
+  const { data: creditTransactions } = useQuery<any[]>({
+    queryKey: ["/api/admin/card-credit-transactions"],
   });
 
   const issueMutation = useMutation({
@@ -147,7 +154,7 @@ export default function RecognitionCards() {
     setCustomReason("");
     setSearchQuery("");
     setPreIssueUserId(null);
-    setWeeklyCreditInput("");
+    setWeeklyCreditInput(String(RARITY_LABELS.standard.defaultCredit));
   };
 
   const openIssueForUser = (userId: number) => {
@@ -172,27 +179,29 @@ export default function RecognitionCards() {
     });
   };
 
-  const groupedByPlayer = (() => {
-    if (!allIssuedCards) return [];
+  const nonRevokedCards = useMemo(() => (allIssuedCards || []).filter(c => !c.revokedAt), [allIssuedCards]);
+  const activeCards = useMemo(() => nonRevokedCards.filter(c => getCardStatus(c) === "active"), [nonRevokedCards]);
+  const expiredCards = useMemo(() => nonRevokedCards.filter(c => getCardStatus(c) === "expired"), [nonRevokedCards]);
+
+  const totalCreditsIssued = useMemo(() => creditTransactions?.reduce((sum: number, t: any) => sum + t.amount, 0) || 0, [creditTransactions]);
+  const weeklyLiability = useMemo(() => activeCards.filter(c => c.weeklyCreditValue > 0).reduce((sum, c) => sum + c.weeklyCreditValue, 0), [activeCards]);
+
+  const groupCards = (cards: IssuedCardRecord[], search: string) => {
     const map = new Map<number, { userId: number; name: string; email: string; cards: IssuedCardRecord[] }>();
-    for (const card of allIssuedCards) {
+    for (const card of cards) {
       if (!map.has(card.userId)) {
         map.set(card.userId, { userId: card.userId, name: card.recipientName, email: card.recipientEmail, cards: [] });
       }
       map.get(card.userId)!.cards.push(card);
     }
     let groups = Array.from(map.values());
-    if (issuedSearchQuery) {
-      const q = issuedSearchQuery.toLowerCase();
+    if (search) {
+      const q = search.toLowerCase();
       groups = groups.filter(g => g.name.toLowerCase().includes(q) || g.email.toLowerCase().includes(q));
     }
     groups.sort((a, b) => a.name.localeCompare(b.name));
     return groups;
-  })();
-
-  const totalIssued = allIssuedCards?.length || 0;
-  const totalActive = allIssuedCards?.filter(c => getCardStatus(c) === "active").length || 0;
-  const totalExpired = allIssuedCards?.filter(c => getCardStatus(c) === "expired").length || 0;
+  };
 
   if (cardsLoading) {
     return (
@@ -218,92 +227,150 @@ export default function RecognitionCards() {
         </Button>
       </div>
 
-      <div className="flex gap-1 border-b" data-testid="tabs-recognition">
-        <button
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors bg-transparent ${activeTab === "gallery" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          onClick={() => setActiveTab("gallery")}
-          data-testid="tab-gallery"
-        >
-          <LayoutGrid className="h-4 w-4" />
-          Card Gallery
-        </button>
-        <button
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors bg-transparent ${activeTab === "issued" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          onClick={() => setActiveTab("issued")}
-          data-testid="tab-issued"
-        >
-          <List className="h-4 w-4" />
-          Issued Cards
-          {totalIssued > 0 && (
-            <Badge variant="secondary" className="text-[10px] ml-1" data-testid="badge-issued-count">{totalIssued}</Badge>
-          )}
-        </button>
-        <button
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors bg-transparent ${activeTab === "dashboard" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
-          onClick={() => setActiveTab("dashboard")}
-          data-testid="tab-dashboard"
-        >
-          <PoundSterling className="h-4 w-4" />
-          Credits Dashboard
-        </button>
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+        <Card className="p-3 border-green-200 dark:border-green-800/40">
+          <div className="flex items-center gap-2 mb-1">
+            <CheckCircle className="h-4 w-4 text-green-500" />
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Active Cards</span>
+          </div>
+          <p className="text-xl font-black text-green-600 dark:text-green-400" data-testid="text-header-active">{activeCards.length}</p>
+        </Card>
+        <Card className="p-3 border-amber-200 dark:border-amber-800/40">
+          <div className="flex items-center gap-2 mb-1">
+            <History className="h-4 w-4 text-amber-500" />
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Expired Cards</span>
+          </div>
+          <p className="text-xl font-black text-amber-600 dark:text-amber-400" data-testid="text-header-expired">{expiredCards.length}</p>
+        </Card>
+        <Card className="p-3 border-emerald-200 dark:border-emerald-800/40">
+          <div className="flex items-center gap-2 mb-1">
+            <PoundSterling className="h-4 w-4 text-emerald-500" />
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Issued</span>
+          </div>
+          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400" data-testid="text-header-credits-issued">£{(totalCreditsIssued / 100).toFixed(2)}</p>
+        </Card>
+        <Card className="p-3 border-violet-200 dark:border-violet-800/40">
+          <div className="flex items-center gap-2 mb-1">
+            <Timer className="h-4 w-4 text-violet-500" />
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Weekly Owed</span>
+          </div>
+          <p className="text-xl font-black text-violet-600 dark:text-violet-400" data-testid="text-header-weekly-owed">£{(weeklyLiability / 100).toFixed(2)}</p>
+        </Card>
+      </div>
+
+      <div className="flex gap-1 border-b overflow-x-auto" data-testid="tabs-recognition">
+        {[
+          { key: "gallery" as const, label: "Card Gallery", icon: LayoutGrid, count: 0 },
+          { key: "active" as const, label: "Active Cards", icon: CheckCircle, count: activeCards.length },
+          { key: "expired" as const, label: "Expired Cards", icon: History, count: expiredCards.length },
+          { key: "dashboard" as const, label: "Credits & Weekly Run", icon: PoundSterling, count: 0 },
+        ].map(tab => (
+          <button
+            key={tab.key}
+            className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors bg-transparent whitespace-nowrap ${activeTab === tab.key ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+            onClick={() => setActiveTab(tab.key)}
+            data-testid={`tab-${tab.key}`}
+          >
+            <tab.icon className="h-4 w-4" />
+            {tab.label}
+            {tab.count > 0 && (
+              <Badge variant="secondary" className="text-[10px] ml-1">{tab.count}</Badge>
+            )}
+          </button>
+        ))}
       </div>
 
       {activeTab === "gallery" && (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
-          {cardTypes?.map((card) => (
-            <div key={card.id} className="space-y-2">
-              <button
-                className="w-full bg-transparent border-0 p-0 cursor-pointer"
-                onClick={() => setExpandedCardId(expandedCardId === card.id ? null : card.id)}
-                data-testid={`button-card-preview-${card.id}`}
-              >
-                <div className="relative" style={{ aspectRatio: "1.586", borderRadius: "20px" }} data-testid={`card-visual-${card.id}`}>
-                  <MetalCardFront
-                    cardId={card.id}
-                    cardName={card.name}
-                    pattern={card.designConfig?.pattern}
-                    size="compact"
-                  />
+        <div className="space-y-4">
+          <div className="bg-muted/50 rounded-xl p-4 border">
+            <h3 className="font-semibold text-sm mb-2">Default Credit Values by Rarity</h3>
+            <p className="text-xs text-muted-foreground mb-3">These values are automatically suggested when issuing a new card based on its rarity level.</p>
+            <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+              {Object.entries(RARITY_LABELS).map(([key, val]) => (
+                <div key={key} className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background border">
+                  <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${val.color}`}>{val.label}</span>
+                  <span className="text-sm font-bold text-foreground">£{(val.defaultCredit / 100).toFixed(2)}</span>
+                  <span className="text-[9px] text-muted-foreground">per week</span>
                 </div>
-              </button>
-              {expandedCardId === card.id && (
-                <div className="p-2 bg-muted/50 rounded-lg text-xs space-y-1" data-testid={`card-details-${card.id}`}>
-                  <p className="text-muted-foreground leading-relaxed">{card.description}</p>
-                  <div className="flex items-center justify-between pt-1">
-                    <Badge variant="outline" className="text-[9px]">{card.cardCategory === "admin_gifted" ? "Admin Gifted" : card.cardCategory}</Badge>
-                    <Badge variant={card.isActive ? "default" : "secondary"} className="text-[9px]">{card.isActive ? "Active" : "Inactive"}</Badge>
-                  </div>
-                </div>
-              )}
+              ))}
             </div>
-          ))}
+          </div>
+          <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
+            {cardTypes?.map((card) => (
+              <div key={card.id} className="space-y-2">
+                <button
+                  className="w-full bg-transparent border-0 p-0 cursor-pointer"
+                  onClick={() => setExpandedCardId(expandedCardId === card.id ? null : card.id)}
+                  data-testid={`button-card-preview-${card.id}`}
+                >
+                  <div className="relative" style={{ aspectRatio: "1.586", borderRadius: "20px" }} data-testid={`card-visual-${card.id}`}>
+                    <MetalCardFront
+                      cardId={card.id}
+                      cardName={card.name}
+                      pattern={card.designConfig?.pattern}
+                      size="compact"
+                    />
+                  </div>
+                </button>
+                {expandedCardId === card.id && (
+                  <div className="p-2 bg-muted/50 rounded-lg text-xs space-y-1" data-testid={`card-details-${card.id}`}>
+                    <p className="text-muted-foreground leading-relaxed">{card.description}</p>
+                    <div className="flex items-center justify-between pt-1">
+                      <Badge variant="outline" className="text-[9px]">{card.cardCategory === "admin_gifted" ? "Admin Gifted" : card.cardCategory}</Badge>
+                      <Badge variant={card.isActive ? "default" : "secondary"} className="text-[9px]">{card.isActive ? "Active" : "Inactive"}</Badge>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
-      {activeTab === "issued" && (
-        <IssuedCardsView
-          allIssuedCards={allIssuedCards || []}
-          issuedLoading={issuedLoading}
-          issuedError={issuedError}
-          issuedSearchQuery={issuedSearchQuery}
-          setIssuedSearchQuery={setIssuedSearchQuery}
-          groupedByPlayer={groupedByPlayer}
+      {activeTab === "active" && (
+        <CardListView
+          cards={activeCards}
+          statusLabel="active"
+          isLoading={issuedLoading}
+          isError={issuedError}
+          searchQuery={issuedSearchQuery}
+          setSearchQuery={setIssuedSearchQuery}
           expandedPlayers={expandedPlayers}
           togglePlayer={togglePlayer}
           openIssueForUser={openIssueForUser}
           revokeMutation={revokeMutation}
-          totalIssued={totalIssued}
-          totalActive={totalActive}
-          totalExpired={totalExpired}
+          groupCards={groupCards}
+          showRevoke
+        />
+      )}
+
+      {activeTab === "expired" && (
+        <CardListView
+          cards={expiredCards}
+          statusLabel="expired"
+          isLoading={issuedLoading}
+          isError={issuedError}
+          searchQuery={issuedSearchQuery}
+          setSearchQuery={setIssuedSearchQuery}
+          expandedPlayers={expandedPlayers}
+          togglePlayer={togglePlayer}
+          openIssueForUser={openIssueForUser}
+          revokeMutation={revokeMutation}
+          groupCards={groupCards}
+          showRevoke={false}
         />
       )}
 
       {activeTab === "dashboard" && (
         <CreditsDashboard
-          allIssuedCards={allIssuedCards || []}
+          activeCards={activeCards}
+          allIssuedCards={nonRevokedCards}
           isLoading={issuedLoading}
           updateCreditMutation={updateCreditMutation}
           issueCreditMutation={issueCreditMutation}
+          creditTransactions={creditTransactions || []}
+          totalCreditsIssued={totalCreditsIssued}
+          weeklyLiability={weeklyLiability}
           toast={toast}
         />
       )}
@@ -394,13 +461,24 @@ export default function RecognitionCards() {
 
             <div>
               <Label>Rarity Level</Label>
-              <Select value={selectedRarity} onValueChange={setSelectedRarity}>
+              <Select
+                value={selectedRarity}
+                onValueChange={(val) => {
+                  setSelectedRarity(val);
+                  const rarityConfig = RARITY_LABELS[val];
+                  if (rarityConfig) {
+                    setWeeklyCreditInput(String(rarityConfig.defaultCredit));
+                  }
+                }}
+              >
                 <SelectTrigger data-testid="trigger-rarity">
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
                   {Object.entries(RARITY_LABELS).map(([key, val]) => (
-                    <SelectItem key={key} value={key}>{val.label}</SelectItem>
+                    <SelectItem key={key} value={key}>
+                      {val.label} (default £{(val.defaultCredit / 100).toFixed(2)}/wk)
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -465,11 +543,25 @@ export default function RecognitionCards() {
   );
 }
 
-function IssuedCardsView({
-  allIssuedCards, issuedLoading, issuedError, issuedSearchQuery, setIssuedSearchQuery,
-  groupedByPlayer, expandedPlayers, togglePlayer, openIssueForUser, revokeMutation,
-  totalIssued, totalActive, totalExpired,
-}: any) {
+function CardListView({
+  cards, statusLabel, isLoading, isError, searchQuery, setSearchQuery,
+  expandedPlayers, togglePlayer, openIssueForUser, revokeMutation, groupCards, showRevoke,
+}: {
+  cards: IssuedCardRecord[];
+  statusLabel: string;
+  isLoading: boolean;
+  isError: boolean;
+  searchQuery: string;
+  setSearchQuery: (v: string) => void;
+  expandedPlayers: Set<number>;
+  togglePlayer: (id: number) => void;
+  openIssueForUser: (id: number) => void;
+  revokeMutation: any;
+  groupCards: (cards: IssuedCardRecord[], search: string) => any[];
+  showRevoke: boolean;
+}) {
+  const grouped = groupCards(cards, searchQuery);
+
   return (
     <div className="space-y-4">
       <div className="flex flex-col sm:flex-row sm:items-center gap-3">
@@ -477,47 +569,39 @@ function IssuedCardsView({
           <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
           <Input
             placeholder="Search players by name or email..."
-            value={issuedSearchQuery}
-            onChange={(e: any) => setIssuedSearchQuery(e.target.value)}
+            value={searchQuery}
+            onChange={(e: any) => setSearchQuery(e.target.value)}
             className="pl-9"
-            data-testid="input-search-issued"
+            data-testid={`input-search-${statusLabel}`}
           />
         </div>
-        <div className="flex items-center gap-3 text-sm text-muted-foreground shrink-0">
-          <span data-testid="text-total-issued">{totalIssued} total</span>
-          <span className="text-green-600 dark:text-green-400" data-testid="text-total-active">{totalActive} active</span>
-          <span className="text-amber-600 dark:text-amber-400">{totalExpired} expired</span>
-        </div>
+        <span className="text-sm text-muted-foreground shrink-0">{cards.length} {statusLabel} cards</span>
       </div>
 
-      {issuedLoading ? (
+      {isLoading ? (
         <div className="flex items-center justify-center py-12">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : issuedError ? (
+      ) : isError ? (
         <Card>
           <CardContent className="py-12 text-center">
             <XCircle className="h-10 w-10 mx-auto text-destructive/50 mb-3" />
-            <p className="text-sm text-muted-foreground">Failed to load issued cards. Please try again.</p>
+            <p className="text-sm text-muted-foreground">Failed to load cards. Please try again.</p>
           </CardContent>
         </Card>
-      ) : groupedByPlayer.length === 0 ? (
+      ) : grouped.length === 0 ? (
         <Card>
           <CardContent className="py-12 text-center">
             <CreditCard className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
             <p className="text-sm text-muted-foreground">
-              {issuedSearchQuery ? "No players match your search" : "No cards have been issued yet"}
+              {searchQuery ? "No players match your search" : `No ${statusLabel} cards`}
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-2" data-testid="list-issued-players">
-          {groupedByPlayer.map((group: any) => {
+        <div className="space-y-2" data-testid={`list-${statusLabel}-players`}>
+          {grouped.map((group: any) => {
             const isExpanded = expandedPlayers.has(group.userId);
-            const activeCards = group.cards.filter((c: any) => getCardStatus(c) === "active");
-            const expiredCards = group.cards.filter((c: any) => getCardStatus(c) === "expired");
-            const revokedCards = group.cards.filter((c: any) => c.revokedAt);
-
             return (
               <Card key={group.userId} className="overflow-hidden" data-testid={`player-group-${group.userId}`}>
                 <button
@@ -533,29 +617,19 @@ function IssuedCardsView({
                     <p className="text-xs text-muted-foreground truncate">{group.email}</p>
                   </div>
                   <div className="flex items-center gap-2 shrink-0">
-                    <Badge variant="secondary" className="text-[10px]" data-testid={`badge-player-cards-${group.userId}`}>
-                      {activeCards.length} active
-                    </Badge>
-                    {expiredCards.length > 0 && (
-                      <Badge variant="outline" className="text-[10px] text-amber-600 dark:text-amber-400 border-amber-300">
-                        {expiredCards.length} expired
-                      </Badge>
+                    <Badge variant="secondary" className="text-[10px]">{group.cards.length} cards</Badge>
+                    {showRevoke && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={(e: any) => { e.stopPropagation(); openIssueForUser(group.userId); }}
+                        data-testid={`button-issue-to-${group.userId}`}
+                      >
+                        <Gift className="h-3 w-3 mr-1" />
+                        Issue
+                      </Button>
                     )}
-                    {revokedCards.length > 0 && (
-                      <Badge variant="outline" className="text-[10px] text-muted-foreground">
-                        {revokedCards.length} revoked
-                      </Badge>
-                    )}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="h-7 px-2 text-xs"
-                      onClick={(e: any) => { e.stopPropagation(); openIssueForUser(group.userId); }}
-                      data-testid={`button-issue-to-${group.userId}`}
-                    >
-                      <Gift className="h-3 w-3 mr-1" />
-                      Issue
-                    </Button>
                     {isExpanded ? <ChevronDown className="h-4 w-4 text-muted-foreground" /> : <ChevronRight className="h-4 w-4 text-muted-foreground" />}
                   </div>
                 </button>
@@ -612,7 +686,7 @@ function IssuedCardsView({
                             )}
                             {uc.customReason && <p className="text-xs text-muted-foreground italic mt-0.5">{uc.customReason}</p>}
                           </div>
-                          {status === "active" && (
+                          {showRevoke && status === "active" && (
                             <Button
                               variant="ghost"
                               size="sm"
@@ -640,51 +714,102 @@ function IssuedCardsView({
 }
 
 function CreditsDashboard({
-  allIssuedCards, isLoading, updateCreditMutation, issueCreditMutation, toast,
+  activeCards, allIssuedCards, isLoading, updateCreditMutation, issueCreditMutation,
+  creditTransactions, totalCreditsIssued, weeklyLiability, toast,
 }: {
+  activeCards: IssuedCardRecord[];
   allIssuedCards: IssuedCardRecord[];
   isLoading: boolean;
   updateCreditMutation: any;
   issueCreditMutation: any;
+  creditTransactions: any[];
+  totalCreditsIssued: number;
+  weeklyLiability: number;
   toast: any;
 }) {
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired">("all");
-  const [rarityFilter, setRarityFilter] = useState<string>("all");
-  const [userFilter, setUserFilter] = useState("");
-  const [sortBy, setSortBy] = useState<"expiry" | "issued" | "credit">("expiry");
+  const [selectedForWeekly, setSelectedForWeekly] = useState<Set<number>>(new Set());
   const [editingCreditId, setEditingCreditId] = useState<number | null>(null);
   const [editCreditValue, setEditCreditValue] = useState("");
+  const [rarityFilter, setRarityFilter] = useState<string>("all");
+  const [userFilter, setUserFilter] = useState("");
+  const [isRunningBatch, setIsRunningBatch] = useState(false);
+  const [batchResults, setBatchResults] = useState<{ success: number; failed: number; errors: string[] } | null>(null);
 
-  const { data: creditTransactions } = useQuery<any[]>({
-    queryKey: ["/api/admin/card-credit-transactions"],
-  });
+  const eligibleCards = useMemo(() => {
+    return activeCards
+      .filter(c => c.weeklyCreditValue > 0)
+      .filter(c => {
+        if (rarityFilter !== "all" && c.rarityLevel !== rarityFilter) return false;
+        if (userFilter) {
+          const q = userFilter.toLowerCase();
+          if (!c.recipientName.toLowerCase().includes(q) && !c.recipientEmail.toLowerCase().includes(q)) return false;
+        }
+        return true;
+      })
+      .sort((a, b) => (b.weeklyCreditValue || 0) - (a.weeklyCreditValue || 0));
+  }, [activeCards, rarityFilter, userFilter]);
 
-  const filteredCards = allIssuedCards
-    .filter(c => {
-      if (c.revokedAt) return false;
-      const status = getCardStatus(c);
-      if (statusFilter !== "all" && status !== statusFilter) return false;
-      if (rarityFilter !== "all" && c.rarityLevel !== rarityFilter) return false;
-      if (userFilter) {
-        const q = userFilter.toLowerCase();
-        if (!c.recipientName.toLowerCase().includes(q) && !c.recipientEmail.toLowerCase().includes(q)) return false;
+  const selectedTotal = useMemo(() => {
+    let total = 0;
+    for (const card of eligibleCards) {
+      if (selectedForWeekly.has(card.id)) {
+        total += card.weeklyCreditValue;
       }
-      return true;
-    })
-    .sort((a, b) => {
-      if (sortBy === "expiry") {
-        const aExp = a.expiresAt ? new Date(a.expiresAt).getTime() : Infinity;
-        const bExp = b.expiresAt ? new Date(b.expiresAt).getTime() : Infinity;
-        return aExp - bExp;
-      }
-      if (sortBy === "issued") return new Date(b.issuedAt).getTime() - new Date(a.issuedAt).getTime();
-      if (sortBy === "credit") return (b.weeklyCreditValue || 0) - (a.weeklyCreditValue || 0);
-      return 0;
+    }
+    return total;
+  }, [eligibleCards, selectedForWeekly]);
+
+  const toggleCardSelection = (id: number) => {
+    setSelectedForWeekly(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
     });
+  };
 
-  const totalCreditsIssued = creditTransactions?.reduce((sum: number, t: any) => sum + t.amount, 0) || 0;
-  const activeWithCredit = allIssuedCards.filter(c => getCardStatus(c) === "active" && c.weeklyCreditValue > 0);
-  const weeklyLiability = activeWithCredit.reduce((sum, c) => sum + c.weeklyCreditValue, 0);
+  const selectAll = () => {
+    setSelectedForWeekly(new Set(eligibleCards.map(c => c.id)));
+  };
+
+  const deselectAll = () => {
+    setSelectedForWeekly(new Set());
+  };
+
+  const runWeeklyCredits = async () => {
+    if (selectedForWeekly.size === 0) {
+      toast({ title: "No Cards Selected", description: "Please select at least one card to issue credits.", variant: "destructive" });
+      return;
+    }
+    setIsRunningBatch(true);
+    setBatchResults(null);
+    let success = 0;
+    let failed = 0;
+    const errors: string[] = [];
+    const eligibleIds = new Set(eligibleCards.map(c => c.id));
+    const toProcess = Array.from(selectedForWeekly).filter(id => eligibleIds.has(id));
+
+    for (const cardId of toProcess) {
+      try {
+        await apiRequest("POST", `/api/admin/user-cards/${cardId}/issue-credit`);
+        success++;
+      } catch (err: any) {
+        failed++;
+        const card = eligibleCards.find(c => c.id === cardId);
+        errors.push(`${card?.recipientName || "Unknown"} (${card?.cardName || ""}): ${err.message}`);
+      }
+    }
+
+    setBatchResults({ success, failed, errors });
+    setIsRunningBatch(false);
+    setSelectedForWeekly(new Set());
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/all-issued-cards"] });
+    queryClient.invalidateQueries({ queryKey: ["/api/admin/card-credit-transactions"] });
+
+    if (success > 0) {
+      toast({ title: "Weekly Credits Issued", description: `${success} credit(s) issued successfully${failed > 0 ? `, ${failed} failed` : ""}` });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -695,151 +820,109 @@ function CreditsDashboard({
   }
 
   return (
-    <div className="space-y-4">
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <CreditCard className="h-4 w-4 text-blue-500" />
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Cards</span>
-          </div>
-          <p className="text-xl font-black text-foreground" data-testid="text-dashboard-total">{allIssuedCards.filter(c => !c.revokedAt).length}</p>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <CheckCircle className="h-4 w-4 text-green-500" />
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Active</span>
-          </div>
-          <p className="text-xl font-black text-green-600 dark:text-green-400" data-testid="text-dashboard-active">{allIssuedCards.filter(c => getCardStatus(c) === "active").length}</p>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <PoundSterling className="h-4 w-4 text-amber-500" />
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Credits Issued</span>
-          </div>
-          <p className="text-xl font-black text-amber-600 dark:text-amber-400">£{(totalCreditsIssued / 100).toFixed(2)}</p>
-        </Card>
-        <Card className="p-3">
-          <div className="flex items-center gap-2 mb-1">
-            <Timer className="h-4 w-4 text-violet-500" />
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Weekly Liability</span>
-          </div>
-          <p className="text-xl font-black text-violet-600 dark:text-violet-400">£{(weeklyLiability / 100).toFixed(2)}</p>
-        </Card>
-      </div>
-
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
-          <Input
-            placeholder="Filter by player name or email..."
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
-            className="pl-9"
-            data-testid="input-dashboard-search"
-          />
+    <div className="space-y-6">
+      <div className="bg-gradient-to-r from-emerald-500/10 via-green-500/5 to-teal-500/10 dark:from-emerald-500/5 dark:via-green-500/3 dark:to-teal-500/5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <Zap className="h-5 w-5 text-emerald-500" />
+          <h3 className="font-bold text-sm">Weekly Credit Run</h3>
+          <Badge variant="outline" className="text-[10px] ml-auto">
+            {eligibleCards.length} eligible cards
+          </Badge>
         </div>
-        <Select value={statusFilter} onValueChange={(v: any) => setStatusFilter(v)}>
-          <SelectTrigger className="w-[130px]" data-testid="trigger-status-filter">
-            <SelectValue placeholder="Status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Status</SelectItem>
-            <SelectItem value="active">Active</SelectItem>
-            <SelectItem value="expired">Expired</SelectItem>
-          </SelectContent>
-        </Select>
-        <Select value={rarityFilter} onValueChange={setRarityFilter}>
-          <SelectTrigger className="w-[130px]" data-testid="trigger-rarity-filter">
-            <SelectValue placeholder="Rarity" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Rarity</SelectItem>
-            {Object.entries(RARITY_LABELS).map(([key, val]) => (
-              <SelectItem key={key} value={key}>{val.label}</SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-        <Select value={sortBy} onValueChange={(v: any) => setSortBy(v)}>
-          <SelectTrigger className="w-[140px]" data-testid="trigger-sort">
-            <ArrowUpDown className="h-3 w-3 mr-1" />
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="expiry">Sort by Expiry</SelectItem>
-            <SelectItem value="issued">Sort by Issued</SelectItem>
-            <SelectItem value="credit">Sort by Credit</SelectItem>
-          </SelectContent>
-        </Select>
-      </div>
+        <p className="text-xs text-muted-foreground mb-4">
+          Select which active cards should receive their weekly credit this week. Each card can only be credited once per week.
+        </p>
 
-      {filteredCards.length === 0 ? (
-        <Card>
-          <CardContent className="py-12 text-center">
-            <CreditCard className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
-            <p className="text-sm text-muted-foreground">No cards match your filters</p>
-          </CardContent>
-        </Card>
-      ) : (
-        <div className="rounded-xl border overflow-hidden">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm" data-testid="table-credits-dashboard">
-              <thead>
-                <tr className="border-b bg-muted/50">
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Player</th>
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Card</th>
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Rarity</th>
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Issued</th>
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Expires</th>
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Status</th>
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Weekly Credit</th>
-                  <th className="text-left p-3 font-bold text-xs uppercase text-muted-foreground">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {filteredCards.map((uc) => {
+        <div className="flex flex-col sm:flex-row gap-3 mb-4">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Filter by player..."
+              value={userFilter}
+              onChange={(e) => setUserFilter(e.target.value)}
+              className="pl-9"
+              data-testid="input-weekly-filter"
+            />
+          </div>
+          <Select value={rarityFilter} onValueChange={setRarityFilter}>
+            <SelectTrigger className="w-[140px]" data-testid="trigger-weekly-rarity">
+              <SelectValue placeholder="Rarity" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Rarity</SelectItem>
+              {Object.entries(RARITY_LABELS).map(([key, val]) => (
+                <SelectItem key={key} value={key}>{val.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+
+        {eligibleCards.length === 0 ? (
+          <Card>
+            <CardContent className="py-8 text-center">
+              <PoundSterling className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground">No active cards with credit values set</p>
+              <p className="text-xs text-muted-foreground mt-1">Issue cards with weekly credit values to use this feature</p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="flex items-center gap-2 mb-3">
+              <Button variant="outline" size="sm" className="text-xs h-7" onClick={selectAll} data-testid="button-select-all">
+                Select All
+              </Button>
+              <Button variant="outline" size="sm" className="text-xs h-7" onClick={deselectAll} data-testid="button-deselect-all">
+                Deselect All
+              </Button>
+              <span className="text-xs text-muted-foreground ml-auto">
+                {selectedForWeekly.size} selected · Total: <span className="font-bold text-emerald-600 dark:text-emerald-400">£{(selectedTotal / 100).toFixed(2)}</span>
+              </span>
+            </div>
+
+            <div className="rounded-xl border overflow-hidden bg-background">
+              <div className="max-h-[400px] overflow-y-auto">
+                {eligibleCards.map((uc) => {
                   const rarity = RARITY_LABELS[uc.rarityLevel] || RARITY_LABELS.standard;
-                  const status = getCardStatus(uc);
+                  const mat = getMetalMaterial(uc.cardId);
+                  const pattern = uc.designConfig?.pattern || "";
+                  const IconComp = CARD_ICONS[pattern] || Award;
+                  const isSelected = selectedForWeekly.has(uc.id);
                   const isEditing = editingCreditId === uc.id;
 
                   return (
-                    <tr key={uc.id} className="border-b last:border-0 hover:bg-muted/30 transition-colors" data-testid={`dashboard-row-${uc.id}`}>
-                      <td className="p-3">
-                        <div>
-                          <p className="font-medium text-foreground text-sm">{uc.recipientName}</p>
-                          <p className="text-[10px] text-muted-foreground">{uc.recipientEmail}</p>
+                    <div
+                      key={uc.id}
+                      className={`flex items-center gap-3 p-3 border-b last:border-0 transition-colors ${isSelected ? "bg-emerald-50 dark:bg-emerald-950/30" : "hover:bg-muted/30"}`}
+                      data-testid={`weekly-card-${uc.id}`}
+                    >
+                      <Checkbox
+                        checked={isSelected}
+                        onCheckedChange={() => toggleCardSelection(uc.id)}
+                        data-testid={`checkbox-${uc.id}`}
+                      />
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0"
+                        style={{
+                          background: mat.base,
+                          boxShadow: `${mat.edgeHighlight}, 0 2px 4px rgba(0,0,0,0.2)`,
+                        }}
+                      >
+                        <IconComp className="h-4 w-4" style={{ color: mat.textMain }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="font-medium text-sm">{uc.recipientName}</span>
+                          <span className="text-xs text-muted-foreground">· {uc.cardName}</span>
+                          <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rarity.color}`}>{rarity.label}</span>
                         </div>
-                      </td>
-                      <td className="p-3">
-                        <span className="font-medium">{uc.cardName}</span>
-                      </td>
-                      <td className="p-3">
-                        <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${rarity.color}`}>{rarity.label}</span>
-                      </td>
-                      <td className="p-3 text-xs text-muted-foreground whitespace-nowrap">
-                        {format(new Date(uc.issuedAt), "dd MMM yyyy")}
-                      </td>
-                      <td className="p-3 text-xs whitespace-nowrap">
-                        {uc.expiresAt ? (
-                          <span className={status === "expired" ? "text-amber-600 dark:text-amber-400" : "text-muted-foreground"}>
-                            {format(new Date(uc.expiresAt), "dd MMM yyyy")}
-                            {status === "active" && (
-                              <span className="block text-[10px]">
-                                {formatDistanceToNow(new Date(uc.expiresAt), { addSuffix: true })}
-                              </span>
-                            )}
-                          </span>
-                        ) : (
-                          <span className="text-muted-foreground">No expiry</span>
+                        {uc.expiresAt && (
+                          <p className="text-[10px] text-muted-foreground mt-0.5">
+                            <Clock className="h-2.5 w-2.5 inline mr-0.5" />
+                            Expires {formatDistanceToNow(new Date(uc.expiresAt), { addSuffix: true })}
+                          </p>
                         )}
-                      </td>
-                      <td className="p-3">
-                        {status === "active" ? (
-                          <Badge className="text-[10px] bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300">Active</Badge>
-                        ) : (
-                          <Badge className="text-[10px] bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300">Expired</Badge>
-                        )}
-                      </td>
-                      <td className="p-3">
+                      </div>
+                      <div className="shrink-0 text-right">
                         {isEditing ? (
                           <div className="flex items-center gap-1">
                             <Input
@@ -865,58 +948,83 @@ function CreditsDashboard({
                             >
                               Save
                             </Button>
-                            <Button size="sm" variant="ghost" className="h-7 text-xs px-2" onClick={() => setEditingCreditId(null)}>
-                              X
+                            <Button size="sm" variant="ghost" className="h-7 text-xs px-1" onClick={() => setEditingCreditId(null)}>
+                              ✕
                             </Button>
                           </div>
                         ) : (
                           <button
-                            className="text-xs font-medium bg-transparent hover:underline cursor-pointer text-foreground"
+                            className="text-sm font-bold bg-transparent hover:underline cursor-pointer text-emerald-600 dark:text-emerald-400"
                             onClick={() => {
                               setEditingCreditId(uc.id);
                               setEditCreditValue(String(uc.weeklyCreditValue || 0));
                             }}
                             data-testid={`button-edit-credit-${uc.id}`}
                           >
-                            {uc.weeklyCreditValue > 0 ? `£${(uc.weeklyCreditValue / 100).toFixed(2)}` : "Set credit"}
+                            £{(uc.weeklyCreditValue / 100).toFixed(2)}
                           </button>
                         )}
-                      </td>
-                      <td className="p-3">
-                        {status === "active" && uc.weeklyCreditValue > 0 ? (
-                          <Button
-                            size="sm"
-                            className="h-7 text-xs bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold border-0"
-                            disabled={issueCreditMutation.isPending}
-                            onClick={() => issueCreditMutation.mutate(uc.id)}
-                            data-testid={`button-issue-credit-${uc.id}`}
-                          >
-                            {issueCreditMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <PoundSterling className="h-3 w-3 mr-1" />}
-                            Issue Credit
-                          </Button>
-                        ) : status === "expired" ? (
-                          <span className="text-[10px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-                            <AlertTriangle className="h-3 w-3" />
-                            Expired
-                          </span>
-                        ) : (
-                          <span className="text-[10px] text-muted-foreground">No credit set</span>
-                        )}
-                      </td>
-                    </tr>
+                      </div>
+                    </div>
                   );
                 })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      )}
+              </div>
+            </div>
 
-      {creditTransactions && creditTransactions.length > 0 && (
+            <div className="flex items-center justify-between mt-4">
+              <div className="text-sm">
+                <span className="text-muted-foreground">Selected: </span>
+                <span className="font-bold">{selectedForWeekly.size} cards</span>
+                <span className="text-muted-foreground"> · Total: </span>
+                <span className="font-bold text-emerald-600 dark:text-emerald-400">£{(selectedTotal / 100).toFixed(2)}</span>
+              </div>
+              <Button
+                className="bg-gradient-to-r from-emerald-500 to-green-600 text-white font-bold border-0"
+                disabled={selectedForWeekly.size === 0 || isRunningBatch}
+                onClick={runWeeklyCredits}
+                data-testid="button-run-weekly-credits"
+              >
+                {isRunningBatch ? (
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                ) : (
+                  <Zap className="h-4 w-4 mr-2" />
+                )}
+                Issue Weekly Credits
+              </Button>
+            </div>
+
+            {batchResults && (
+              <Card className={`mt-3 ${batchResults.failed > 0 ? "border-amber-300 dark:border-amber-700" : "border-green-300 dark:border-green-700"}`}>
+                <CardContent className="p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    {batchResults.failed === 0 ? (
+                      <ShieldCheck className="h-4 w-4 text-green-500" />
+                    ) : (
+                      <AlertTriangle className="h-4 w-4 text-amber-500" />
+                    )}
+                    <span className="text-sm font-bold">
+                      {batchResults.success} issued, {batchResults.failed} failed
+                    </span>
+                  </div>
+                  {batchResults.errors.length > 0 && (
+                    <div className="mt-2 space-y-1">
+                      {batchResults.errors.map((err, i) => (
+                        <p key={i} className="text-xs text-amber-600 dark:text-amber-400">{err}</p>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </>
+        )}
+      </div>
+
+      {creditTransactions.length > 0 && (
         <div className="space-y-3">
           <h3 className="font-bold text-sm flex items-center gap-2">
             <PoundSterling className="h-4 w-4 text-amber-500" />
-            Recent Credit Transactions
+            Credit Transaction History
           </h3>
           <div className="rounded-xl border overflow-hidden">
             <table className="w-full text-sm" data-testid="table-credit-transactions">
@@ -930,7 +1038,7 @@ function CreditsDashboard({
                 </tr>
               </thead>
               <tbody>
-                {creditTransactions.slice(0, 20).map((t: any) => (
+                {creditTransactions.slice(0, 30).map((t: any) => (
                   <tr key={t.id} className="border-b last:border-0" data-testid={`transaction-row-${t.id}`}>
                     <td className="p-3 font-medium">{t.recipientName}</td>
                     <td className="p-3 text-muted-foreground">{t.cardName}</td>
