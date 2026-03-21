@@ -17,7 +17,7 @@ import {
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useMutation } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useMyTournamentClubs, useDetailedPlayerStats, useClubs } from "@/hooks/use-clubs";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -33,7 +33,7 @@ import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, UserMinus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
-  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe,
+  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -1085,6 +1085,51 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
     "shadow-blue-500/20",
   ];
 
+  const [comparisonPairId, setComparisonPairId] = useState<number | null>(null);
+  const [comparisonPairNames, setComparisonPairNames] = useState<{ p1: string; p2: string }>({ p1: "", p2: "" });
+
+  const { data: comparisonData, isLoading: compLoading } = useQuery<any>({
+    queryKey: ["/api/tournaments", tournamentId, "pair-comparison", comparisonPairId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/pair-comparison/${comparisonPairId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load pair data");
+      return res.json();
+    },
+    enabled: !!comparisonPairId,
+  });
+
+  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
+
+  const loadAiAnalysis = async () => {
+    if (!comparisonPairId) return;
+    setAiLoading(true);
+    try {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/pair-analysis/${comparisonPairId}`);
+      const data = await res.json();
+      setAiAnalysis(data.analysis);
+    } catch {
+      setAiAnalysis("Unable to generate AI analysis at this time.");
+    }
+    setAiLoading(false);
+  };
+
+  function getPlayerPowerLevel(grade: string, matchesPlayed: number, matchesWon: number) {
+    const gradeScores: Record<string, number> = { "A1": 95, "A2": 88, "A3": 82, "B1": 75, "B2": 68, "B3": 62, "C1": 55, "C2": 48, "C3": 40, "D": 25 };
+    const gradeScore = gradeScores[grade] || 30;
+    const winRate = matchesPlayed > 0 ? (matchesWon / matchesPlayed) * 100 : 0;
+    const expBonus = Math.min(matchesPlayed * 0.3, 10);
+    const power = Math.min(Math.round(gradeScore * 0.6 + winRate * 0.3 + expBonus), 100);
+
+    let label: string, color: string, bgColor: string;
+    if (power >= 85) { label = "Elite"; color = "text-amber-400"; bgColor = "bg-amber-400"; }
+    else if (power >= 70) { label = "Advanced"; color = "text-emerald-400"; bgColor = "bg-emerald-400"; }
+    else if (power >= 55) { label = "Skilled"; color = "text-blue-400"; bgColor = "bg-blue-400"; }
+    else if (power >= 40) { label = "Developing"; color = "text-violet-400"; bgColor = "bg-violet-400"; }
+    else { label = "Rising Star"; color = "text-cyan-400"; bgColor = "bg-cyan-400"; }
+    return { power, label, color, bgColor };
+  }
+
   return (
     <div className="space-y-6">
       {myIncomingRequests.length > 0 && (
@@ -1335,31 +1380,47 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                         </div>
                       </div>
 
-                      <div className="flex items-center justify-center gap-3 mb-4">
-                        <div className="flex flex-col items-center">
-                          <div className="relative">
-                            <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
-                            <PlayerAvatar name={p1Name} size="lg" />
+                      <div
+                        className="flex items-center justify-center gap-3 mb-4 cursor-pointer hover:opacity-90 transition-opacity"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setComparisonPairId(pair.id);
+                          setComparisonPairNames({ p1: p1Name, p2: p2Name });
+                          setAiAnalysis(null);
+                        }}
+                        data-testid={`pair-compare-trigger-${idx}`}
+                      >
+                        {[{ name: p1Name, profile: pair.profile1 }, { name: p2Name, profile: pair.profile2 }].map((player, pi) => {
+                          const pLevel = getPlayerPowerLevel(
+                            player.profile?.grade || player.profile?.currentGrade || "C3",
+                            player.profile?.matchesPlayed || 0,
+                            player.profile?.matchesWon || 0
+                          );
+                          return (
+                            <div key={pi} className="flex flex-col items-center">
+                              <div className="relative">
+                                <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
+                                <PlayerAvatar name={player.name} size="lg" />
+                              </div>
+                              <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{player.name.split(" ")[0]}</h4>
+                              <div className="mt-1"><GradeTierBadge grade={player.profile?.currentGrade || "—"} /></div>
+                              <div className="mt-1.5 flex items-center gap-1" data-testid={`power-bar-${idx}-${pi}`}>
+                                <Zap className={cn("h-3 w-3", pLevel.color)} />
+                                <div className="w-14 h-2 rounded-full bg-muted/50 dark:bg-white/[0.08] overflow-hidden">
+                                  <div className={cn("h-full rounded-full transition-all", pLevel.bgColor)} style={{ width: `${pLevel.power}%`, opacity: 0.8 }} />
+                                </div>
+                              </div>
+                              <span className={cn("text-[8px] font-bold uppercase tracking-wider mt-0.5", pLevel.color)}>{pLevel.label}</span>
+                            </div>
+                          );
+                        }).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, (
+                          <div key="sep" className="flex flex-col items-center gap-1 px-2">
+                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center">
+                              <Zap className="h-4 w-4 text-amber-400" />
+                            </div>
+                            <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/70">&amp;</span>
                           </div>
-                          <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{p1Name.split(" ")[0]}</h4>
-                          <div className="mt-1"><GradeTierBadge grade={pair.profile1?.currentGrade || "—"} /></div>
-                        </div>
-
-                        <div className="flex flex-col items-center gap-1 px-2">
-                          <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center">
-                            <Zap className="h-4 w-4 text-amber-400" />
-                          </div>
-                          <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/70">&amp;</span>
-                        </div>
-
-                        <div className="flex flex-col items-center">
-                          <div className="relative">
-                            <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
-                            <PlayerAvatar name={p2Name} size="lg" />
-                          </div>
-                          <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{p2Name.split(" ")[0]}</h4>
-                          <div className="mt-1"><GradeTierBadge grade={pair.profile2?.currentGrade || "—"} /></div>
-                        </div>
+                        ), curr], [] as any[])}
                       </div>
 
                       <div className="border-t border-border/30 pt-3">
@@ -1416,6 +1477,138 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
               Unpair
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!comparisonPairId} onOpenChange={(open) => { if (!open) { setComparisonPairId(null); setAiAnalysis(null); } }}>
+        <DialogContent className="sm:max-w-[600px] max-h-[90vh] overflow-y-auto" data-testid="dialog-pair-comparison">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Zap className="h-5 w-5 text-amber-400" />
+              Pair Comparison
+            </DialogTitle>
+            <DialogDescription>
+              Side-by-side stats for {comparisonPairNames.p1} &amp; {comparisonPairNames.p2}
+            </DialogDescription>
+          </DialogHeader>
+
+          {compLoading ? (
+            <div className="flex items-center justify-center py-12">
+              <Loader2 className="h-8 w-8 animate-spin text-primary" />
+            </div>
+          ) : comparisonData ? (
+            <div className="space-y-5">
+              <div className="grid grid-cols-2 gap-4">
+                {[comparisonData.player1, comparisonData.player2].map((p: any, pi: number) => {
+                  const pLevel = getPlayerPowerLevel(p.grade, p.matchesPlayed, p.matchesWon);
+                  const winRate = p.matchesPlayed > 0 ? Math.round(p.matchesWon / p.matchesPlayed * 100) : 0;
+                  return (
+                    <div key={pi} className="rounded-xl border border-border/50 bg-card/50 p-4 space-y-3" data-testid={`comparison-player-${pi}`}>
+                      <div className="flex flex-col items-center text-center">
+                        <PlayerAvatar name={p.user.fullName} size="lg" />
+                        <h4 className="text-sm font-bold text-foreground mt-2">{p.user.fullName}</h4>
+                        <div className="mt-1"><GradeTierBadge grade={p.grade} /></div>
+                        <div className="mt-2 flex items-center gap-1">
+                          <Zap className={cn("h-3.5 w-3.5", pLevel.color)} />
+                          <div className="w-16 h-2.5 rounded-full bg-muted/50 dark:bg-white/[0.08] overflow-hidden">
+                            <div className={cn("h-full rounded-full", pLevel.bgColor)} style={{ width: `${pLevel.power}%`, opacity: 0.85 }} />
+                          </div>
+                          <span className={cn("text-[9px] font-bold", pLevel.color)}>{pLevel.power}%</span>
+                        </div>
+                        <span className={cn("text-[9px] font-bold uppercase tracking-wider", pLevel.color)}>{pLevel.label}</span>
+                      </div>
+
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Matches</span>
+                          <span className="font-semibold">{p.matchesPlayed}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Wins</span>
+                          <span className="font-semibold text-green-500">{p.matchesWon}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Win Rate</span>
+                          <span className="font-semibold">{winRate}%</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Ranking Pts</span>
+                          <span className="font-semibold">{p.rankingPoints}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Avg Score For</span>
+                          <span className="font-semibold">{p.stats.avgScoreFor}</span>
+                        </div>
+                        <div className="flex justify-between items-center">
+                          <span className="text-muted-foreground">Avg Score Against</span>
+                          <span className="font-semibold">{p.stats.avgScoreAgainst}</span>
+                        </div>
+                        {p.stats.recentForm && p.stats.recentForm.length > 0 && (
+                          <div>
+                            <span className="text-muted-foreground text-[10px]">Recent Form</span>
+                            <div className="flex gap-0.5 mt-0.5">
+                              {p.stats.recentForm.map((r: string, ri: number) => (
+                                <span key={ri} className={cn("text-[9px] font-bold w-4 h-4 rounded flex items-center justify-center", r === "W" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400")}>{r}</span>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              {comparisonData.pairStats.played > 0 && (
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3" data-testid="pair-together-stats">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Users className="h-4 w-4 text-amber-400" />
+                    <span className="text-sm font-bold text-foreground">Together as a Pair</span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-3 text-center text-xs">
+                    <div>
+                      <div className="text-lg font-bold text-foreground">{comparisonData.pairStats.played}</div>
+                      <div className="text-muted-foreground">Played</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-green-500">{comparisonData.pairStats.won}</div>
+                      <div className="text-muted-foreground">Won</div>
+                    </div>
+                    <div>
+                      <div className="text-lg font-bold text-amber-400">{comparisonData.pairStats.winRate}%</div>
+                      <div className="text-muted-foreground">Win Rate</div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              <div className="border-t border-border/30 pt-4" data-testid="pair-ai-section">
+                {aiAnalysis ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles className="h-4 w-4 text-violet-400" />
+                      <span className="text-sm font-bold text-foreground">AI Partnership Analysis</span>
+                    </div>
+                    <p className="text-xs text-muted-foreground leading-relaxed whitespace-pre-line">{aiAnalysis}</p>
+                  </div>
+                ) : (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="w-full border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+                    onClick={loadAiAnalysis}
+                    disabled={aiLoading}
+                    data-testid="button-ai-analysis"
+                  >
+                    {aiLoading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Sparkles className="h-4 w-4 mr-2" />}
+                    {aiLoading ? "Analysing Partnership..." : "Generate AI Analysis"}
+                  </Button>
+                )}
+              </div>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-8">No comparison data available.</p>
+          )}
         </DialogContent>
       </Dialog>
     </div>

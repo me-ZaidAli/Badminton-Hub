@@ -1168,6 +1168,138 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  async function getPairComparisonData(tournamentId: number, pairId: number) {
+    const [reg] = await db.select().from(tournamentRegistrations)
+      .where(and(
+        eq(tournamentRegistrations.id, pairId),
+        eq(tournamentRegistrations.tournamentId, tournamentId),
+        eq(tournamentRegistrations.registrationType, "PAIR"),
+      ));
+    if (!reg || !reg.partnerId) return null;
+
+    const [user1] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, reg.userId));
+    const [user2] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, reg.partnerId));
+    const [profile1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+    const [profile2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.partnerId));
+
+    async function getPlayerMatchStats(profileId: number) {
+      if (!profileId) return { played: 0, won: 0, lost: 0, avgScoreFor: 0, avgScoreAgainst: 0, recentForm: [] as string[] };
+      const allMatches = await db.select().from(matches)
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            eq(matches.teamAPlayer1Id, profileId),
+            eq(matches.teamAPlayer2Id, profileId),
+            eq(matches.teamBPlayer1Id, profileId),
+            eq(matches.teamBPlayer2Id, profileId),
+          )
+        ));
+
+      let won = 0, lost = 0, totalScoreFor = 0, totalScoreAgainst = 0;
+      const recentForm: string[] = [];
+      const sorted = allMatches.sort((a, b) => (b.completedAt?.getTime() || 0) - (a.completedAt?.getTime() || 0));
+      for (const m of sorted) {
+        const onTeamA = m.teamAPlayer1Id === profileId || m.teamAPlayer2Id === profileId;
+        const scoreFor = onTeamA ? (m.scoreA || 0) : (m.scoreB || 0);
+        const scoreAgainst = onTeamA ? (m.scoreB || 0) : (m.scoreA || 0);
+        totalScoreFor += scoreFor;
+        totalScoreAgainst += scoreAgainst;
+        if (scoreFor > scoreAgainst) { won++; if (recentForm.length < 10) recentForm.push("W"); }
+        else { lost++; if (recentForm.length < 10) recentForm.push("L"); }
+      }
+      const played = won + lost;
+      return {
+        played, won, lost,
+        avgScoreFor: played > 0 ? Math.round(totalScoreFor / played * 10) / 10 : 0,
+        avgScoreAgainst: played > 0 ? Math.round(totalScoreAgainst / played * 10) / 10 : 0,
+        recentForm,
+      };
+    }
+
+    const stats1 = await getPlayerMatchStats(profile1?.id);
+    const stats2 = await getPlayerMatchStats(profile2?.id);
+
+    let pairPlayed = 0, pairWon = 0;
+    if (profile1?.id && profile2?.id) {
+      const pairMatches = await db.select().from(matches)
+        .where(and(
+          eq(matches.isCompleted, true),
+          or(
+            and(eq(matches.teamAPlayer1Id, profile1.id), eq(matches.teamAPlayer2Id, profile2.id)),
+            and(eq(matches.teamAPlayer1Id, profile2.id), eq(matches.teamAPlayer2Id, profile1.id)),
+            and(eq(matches.teamBPlayer1Id, profile1.id), eq(matches.teamBPlayer2Id, profile2.id)),
+            and(eq(matches.teamBPlayer1Id, profile2.id), eq(matches.teamBPlayer2Id, profile1.id)),
+          )
+        ));
+      for (const m of pairMatches) {
+        pairPlayed++;
+        const onTeamA = (m.teamAPlayer1Id === profile1.id || m.teamAPlayer1Id === profile2.id) && (m.teamAPlayer2Id === profile1.id || m.teamAPlayer2Id === profile2.id);
+        if ((onTeamA && (m.scoreA || 0) > (m.scoreB || 0)) || (!onTeamA && (m.scoreB || 0) > (m.scoreA || 0))) pairWon++;
+      }
+    }
+
+    return {
+      player1: { user: user1, grade: profile1?.grade || "—", matchesPlayed: profile1?.matchesPlayed || 0, matchesWon: profile1?.matchesWon || 0, rankingPoints: profile1?.rankingPoints || 0, stats: stats1 },
+      player2: { user: user2, grade: profile2?.grade || "—", matchesPlayed: profile2?.matchesPlayed || 0, matchesWon: profile2?.matchesWon || 0, rankingPoints: profile2?.rankingPoints || 0, stats: stats2 },
+      pairStats: { played: pairPlayed, won: pairWon, winRate: pairPlayed > 0 ? Math.round(pairWon / pairPlayed * 100) : 0 },
+    };
+  }
+
+  app.get("/api/tournaments/:id/pair-comparison/:pairId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const data = await getPairComparisonData(Number(req.params.id), Number(req.params.pairId));
+      if (!data) return res.status(404).json({ message: "Pair not found" });
+      res.json(data);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/pair-analysis/:pairId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const data = await getPairComparisonData(Number(req.params.id), Number(req.params.pairId));
+      if (!data) return res.status(404).json({ message: "Pair not found" });
+
+      const p1 = data.player1;
+      const p2 = data.player2;
+      const ps = data.pairStats;
+
+      const prompt = `You are a professional racket sports analyst. Analyse this doubles pair and provide a brief, insightful report (4-5 sentences) about their partnership strengths and potential weaknesses. Be respectful and constructive. Use the real data below.
+
+Player 1: ${p1.user.fullName}
+- Grade: ${p1.grade}, Ranking Points: ${p1.rankingPoints}
+- Overall: ${p1.matchesPlayed} matches played, ${p1.matchesWon} won (${p1.matchesPlayed > 0 ? Math.round(p1.matchesWon / p1.matchesPlayed * 100) : 0}% win rate)
+- Recent match stats: Avg score for ${p1.stats.avgScoreFor}, Avg score against ${p1.stats.avgScoreAgainst}
+- Recent form (last 10): ${p1.stats.recentForm.join(", ") || "No recent matches"}
+
+Player 2: ${p2.user.fullName}
+- Grade: ${p2.grade}, Ranking Points: ${p2.rankingPoints}
+- Overall: ${p2.matchesPlayed} matches played, ${p2.matchesWon} won (${p2.matchesPlayed > 0 ? Math.round(p2.matchesWon / p2.matchesPlayed * 100) : 0}% win rate)
+- Recent match stats: Avg score for ${p2.stats.avgScoreFor}, Avg score against ${p2.stats.avgScoreAgainst}
+- Recent form (last 10): ${p2.stats.recentForm.join(", ") || "No recent matches"}
+
+As a pair:
+- Matches played together: ${ps.played}, Won: ${ps.won} (${ps.winRate}% win rate)
+
+Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths of the pairing, 3) Areas to watch or improve. Keep it encouraging and constructive.`;
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({ apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY, baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL });
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o-mini",
+        messages: [{ role: "user", content: prompt }],
+        max_tokens: 400,
+      });
+      const analysis = completion.choices[0]?.message?.content || "Unable to generate analysis.";
+      res.json({ analysis, ...data });
+    } catch (e: any) {
+      console.error("AI pair analysis error:", e);
+      res.status(500).json({ message: "Failed to generate pair analysis" });
+    }
+  });
+
   app.get("/api/tournaments/:id/waitlist", async (req, res) => {
     try {
       const tournamentId = Number(req.params.id);
