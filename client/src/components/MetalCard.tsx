@@ -1,6 +1,8 @@
 import { Award, Heart, Shield, Scale, Star, Network, Anvil, Compass, Zap, EyeOff, Crown, Sparkles } from "lucide-react";
-import { useState, useEffect } from "react";
-import cardDesignsSprite from "@assets/image_1774126314086.png";
+import cardImage1 from "@assets/image_1774126934752.png";
+import cardImage2 from "@assets/image_1774126955479.png";
+import cardImage3 from "@assets/image_1774126975964.png";
+import cardImage4 from "@assets/image_1774126991612.png";
 
 type CardDesignConfig = {
   gradient: string;
@@ -353,67 +355,12 @@ function EmblemOverlay({ cardId, side = "front" }: { cardId: number; side?: "fro
   );
 }
 
-const CARD_CROP_RECTS: Record<number, { x: number; y: number; w: number; h: number }> = {
-  1:  { x: 20,   y: 60,  w: 370, h: 260 },
-  2:  { x: 410,  y: 60,  w: 370, h: 260 },
-  3:  { x: 800,  y: 60,  w: 370, h: 260 },
-  4:  { x: 1190, y: 60,  w: 370, h: 260 },
-  5:  { x: 1580, y: 60,  w: 370, h: 260 },
-  6:  { x: 20,   y: 365, w: 370, h: 260 },
-  7:  { x: 410,  y: 365, w: 370, h: 260 },
-  8:  { x: 800,  y: 365, w: 370, h: 260 },
-  9:  { x: 1190, y: 365, w: 370, h: 260 },
-  10: { x: 1580, y: 365, w: 370, h: 260 },
-  11: { x: 20,   y: 670, w: 370, h: 260 },
-  12: { x: 1580, y: 670, w: 370, h: 260 },
+const CARD_DESIGN_IMAGES: Record<number, string> = {
+  1: cardImage1,
+  2: cardImage2,
+  3: cardImage3,
+  4: cardImage4,
 };
-
-const cardImageCache: Record<number, string> = {};
-let spriteLoadPromise: Promise<HTMLImageElement> | null = null;
-
-function loadSprite(): Promise<HTMLImageElement> {
-  if (!spriteLoadPromise) {
-    spriteLoadPromise = new Promise((resolve, reject) => {
-      const img = new Image();
-      img.crossOrigin = "anonymous";
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = cardDesignsSprite;
-    });
-  }
-  return spriteLoadPromise;
-}
-
-function useCardImage(cardId: number): string | null {
-  const [url, setUrl] = useState<string | null>(cardImageCache[cardId] || null);
-
-  useEffect(() => {
-    if (cardImageCache[cardId]) {
-      setUrl(cardImageCache[cardId]);
-      return;
-    }
-    const rect = CARD_CROP_RECTS[cardId];
-    if (!rect) return;
-
-    let cancelled = false;
-    loadSprite().then((img) => {
-      if (cancelled) return;
-      const canvas = document.createElement("canvas");
-      canvas.width = rect.w;
-      canvas.height = rect.h;
-      const ctx = canvas.getContext("2d");
-      if (!ctx) return;
-      ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
-      const dataUrl = canvas.toDataURL("image/png");
-      cardImageCache[cardId] = dataUrl;
-      setUrl(dataUrl);
-    });
-
-    return () => { cancelled = true; };
-  }, [cardId]);
-
-  return url;
-}
 
 export function MetalCardFront({
   cardId,
@@ -428,7 +375,7 @@ export function MetalCardFront({
   pattern?: string;
   size?: "compact" | "normal" | "large";
 }) {
-  const cardImage = useCardImage(cardId);
+  const cardImage = CARD_DESIGN_IMAGES[cardId];
   const mat = METAL_MATERIALS[cardId] || DEFAULT_MATERIAL;
 
   if (cardImage) {
