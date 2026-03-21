@@ -1,4 +1,6 @@
 import { Award, Heart, Shield, Scale, Star, Network, Anvil, Compass, Zap, EyeOff, Crown, Sparkles } from "lucide-react";
+import { useState, useEffect } from "react";
+import cardDesignsSprite from "@assets/image_1774126314086.png";
 
 type CardDesignConfig = {
   gradient: string;
@@ -351,6 +353,68 @@ function EmblemOverlay({ cardId, side = "front" }: { cardId: number; side?: "fro
   );
 }
 
+const CARD_CROP_RECTS: Record<number, { x: number; y: number; w: number; h: number }> = {
+  1:  { x: 20,   y: 60,  w: 370, h: 260 },
+  2:  { x: 410,  y: 60,  w: 370, h: 260 },
+  3:  { x: 800,  y: 60,  w: 370, h: 260 },
+  4:  { x: 1190, y: 60,  w: 370, h: 260 },
+  5:  { x: 1580, y: 60,  w: 370, h: 260 },
+  6:  { x: 20,   y: 365, w: 370, h: 260 },
+  7:  { x: 410,  y: 365, w: 370, h: 260 },
+  8:  { x: 800,  y: 365, w: 370, h: 260 },
+  9:  { x: 1190, y: 365, w: 370, h: 260 },
+  10: { x: 1580, y: 365, w: 370, h: 260 },
+  11: { x: 20,   y: 670, w: 370, h: 260 },
+  12: { x: 1580, y: 670, w: 370, h: 260 },
+};
+
+const cardImageCache: Record<number, string> = {};
+let spriteLoadPromise: Promise<HTMLImageElement> | null = null;
+
+function loadSprite(): Promise<HTMLImageElement> {
+  if (!spriteLoadPromise) {
+    spriteLoadPromise = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = "anonymous";
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = cardDesignsSprite;
+    });
+  }
+  return spriteLoadPromise;
+}
+
+function useCardImage(cardId: number): string | null {
+  const [url, setUrl] = useState<string | null>(cardImageCache[cardId] || null);
+
+  useEffect(() => {
+    if (cardImageCache[cardId]) {
+      setUrl(cardImageCache[cardId]);
+      return;
+    }
+    const rect = CARD_CROP_RECTS[cardId];
+    if (!rect) return;
+
+    let cancelled = false;
+    loadSprite().then((img) => {
+      if (cancelled) return;
+      const canvas = document.createElement("canvas");
+      canvas.width = rect.w;
+      canvas.height = rect.h;
+      const ctx = canvas.getContext("2d");
+      if (!ctx) return;
+      ctx.drawImage(img, rect.x, rect.y, rect.w, rect.h, 0, 0, rect.w, rect.h);
+      const dataUrl = canvas.toDataURL("image/png");
+      cardImageCache[cardId] = dataUrl;
+      setUrl(dataUrl);
+    });
+
+    return () => { cancelled = true; };
+  }, [cardId]);
+
+  return url;
+}
+
 export function MetalCardFront({
   cardId,
   cardName,
@@ -364,9 +428,42 @@ export function MetalCardFront({
   pattern?: string;
   size?: "compact" | "normal" | "large";
 }) {
+  const cardImage = useCardImage(cardId);
   const mat = METAL_MATERIALS[cardId] || DEFAULT_MATERIAL;
-  const IconComponent = CARD_ICONS[pattern || ""] || Award;
 
+  if (cardImage) {
+    return (
+      <div
+        className="absolute inset-0"
+        style={{
+          borderRadius: "16px",
+          backgroundImage: `url(${cardImage})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+          boxShadow: `0 8px 24px rgba(0,0,0,0.35), 0 2px 8px rgba(0,0,0,0.2)`,
+          backfaceVisibility: "hidden",
+          overflow: "hidden",
+        }}
+      >
+        <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ borderRadius: "16px" }}>
+          <div
+            className="metal-card-shimmer"
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              width: "50%",
+              height: "100%",
+              background: `linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.08) 50%, transparent 100%)`,
+            }}
+          />
+        </div>
+      </div>
+    );
+  }
+
+  const IconComponent = CARD_ICONS[pattern || ""] || Award;
   const sizeConfig = {
     compact: { headerText: "text-[8px]", title: "text-[9px]", serial: "text-[5px]", icon: "h-8 w-8", pad: "p-2", headerPad: "px-2 py-1", emblemSize: 0.5 },
     normal: { headerText: "text-[10px]", title: "text-xs", serial: "text-[6px]", icon: "h-12 w-12", pad: "p-2.5", headerPad: "px-3 py-1.5", emblemSize: 0.65 },
@@ -387,92 +484,35 @@ export function MetalCardFront({
     >
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.texture }} />
       <div className="absolute inset-0 pointer-events-none" style={{ borderRadius: "14px", background: mat.lighting }} />
-
       <div className="absolute inset-0 overflow-hidden pointer-events-none" style={{ borderRadius: "14px" }}>
         <div
           className="metal-card-shimmer"
           style={{
-            position: "absolute",
-            top: 0,
-            left: 0,
-            width: "50%",
-            height: "100%",
+            position: "absolute", top: 0, left: 0, width: "50%", height: "100%",
             background: `linear-gradient(90deg, transparent 0%, ${mat.shimmerColor} 50%, transparent 100%)`,
           }}
         />
       </div>
-
       <div
         className={`relative z-10 ${sizeConfig.headerPad} flex items-center justify-between mx-2 mt-2 rounded-lg`}
-        style={{
-          background: "rgba(0,0,0,0.35)",
-          boxShadow: "inset 0 1px 2px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05)",
-          border: `1px solid rgba(255,255,255,0.08)`,
-        }}
+        style={{ background: "rgba(0,0,0,0.35)", boxShadow: "inset 0 1px 2px rgba(0,0,0,0.4), 0 1px 0 rgba(255,255,255,0.05)", border: "1px solid rgba(255,255,255,0.08)" }}
       >
-        <h3
-          className={`${sizeConfig.headerText} font-bold uppercase tracking-wider truncate`}
-          style={{
-            color: mat.textMain,
-            textShadow: "0 1px 2px rgba(0,0,0,0.5)",
-          }}
-        >
-          {cardName}
-        </h3>
-        <IconComponent
-          className="h-3.5 w-3.5 shrink-0 ml-1"
-          style={{ color: mat.textMain, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.4))" }}
-        />
+        <h3 className={`${sizeConfig.headerText} font-bold uppercase tracking-wider truncate`} style={{ color: mat.textMain, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{cardName}</h3>
+        <IconComponent className="h-3.5 w-3.5 shrink-0 ml-1" style={{ color: mat.textMain, filter: "drop-shadow(0 1px 1px rgba(0,0,0,0.4))" }} />
       </div>
-
       <div className="relative z-10 flex-1 flex items-center justify-center">
         <div className="relative">
-          <div
-            className="absolute inset-0 rounded-full"
-            style={{
-              background: `radial-gradient(circle, ${mat.shimmerColor} 0%, transparent 70%)`,
-              transform: "scale(2.5)",
-            }}
-          />
+          <div className="absolute inset-0 rounded-full" style={{ background: `radial-gradient(circle, ${mat.shimmerColor} 0%, transparent 70%)`, transform: "scale(2.5)" }} />
           <EmblemOverlay cardId={cardId} />
-          <IconComponent
-            className={sizeConfig.icon}
-            style={{
-              color: mat.textMain,
-              filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.5)) drop-shadow(0 0 8px ${mat.shimmerColor})`,
-              position: "relative",
-              zIndex: 10,
-            }}
-          />
+          <IconComponent className={sizeConfig.icon} style={{ color: mat.textMain, filter: `drop-shadow(0 2px 4px rgba(0,0,0,0.5)) drop-shadow(0 0 8px ${mat.shimmerColor})`, position: "relative", zIndex: 10 }} />
         </div>
       </div>
-
-      <div
-        className={`relative z-10 ${sizeConfig.pad} flex justify-between items-end`}
-      >
-        <p
-          className={`${sizeConfig.serial} font-mono uppercase tracking-wider`}
-          style={{ color: mat.textSub, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
-        >
-          {serialNumber || `CM-${String(cardId).padStart(3, "0")}`}
-        </p>
-        <p
-          className={`${sizeConfig.serial} font-bold uppercase tracking-[0.15em]`}
-          style={{ color: mat.textSub, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}
-        >
-          Club Master
-        </p>
+      <div className={`relative z-10 ${sizeConfig.pad} flex justify-between items-end`}>
+        <p className={`${sizeConfig.serial} font-mono uppercase tracking-wider`} style={{ color: mat.textSub, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>{serialNumber || `CM-${String(cardId).padStart(3, "0")}`}</p>
+        <p className={`${sizeConfig.serial} font-bold uppercase tracking-[0.15em]`} style={{ color: mat.textSub, textShadow: "0 1px 2px rgba(0,0,0,0.5)" }}>Club Master</p>
       </div>
-
       {mat.hasGlow && (
-        <div
-          className="absolute -inset-2 pointer-events-none metal-glow-aura"
-          style={{
-            borderRadius: "20px",
-            background: `radial-gradient(ellipse at center, ${mat.shimmerColor}, transparent 70%)`,
-            zIndex: -1,
-          }}
-        />
+        <div className="absolute -inset-2 pointer-events-none metal-glow-aura" style={{ borderRadius: "20px", background: `radial-gradient(ellipse at center, ${mat.shimmerColor}, transparent 70%)`, zIndex: -1 }} />
       )}
     </div>
   );
