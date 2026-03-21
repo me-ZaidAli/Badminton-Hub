@@ -1,8 +1,8 @@
 import { Award, Heart, Shield, Scale, Star, Network, Anvil, Compass, Zap, EyeOff, Crown, Sparkles } from "lucide-react";
-import cardImage1 from "@assets/image_1774126934752.png";
+import cardImage1 from "@assets/image_1774128967740.png";
 import cardImage2 from "@assets/image_1774128516227.png";
 import cardImage3 from "@assets/image_1774126975964.png";
-import cardImage4 from "@assets/image_1774126991612.png";
+import cardImage4 from "@assets/image_1774129239146.png";
 import cardImage12 from "@assets/image_1774128390166.png";
 
 type CardDesignConfig = {
