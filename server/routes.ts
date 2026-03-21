@@ -25175,6 +25175,16 @@ Keep it to about 300 words. Be encouraging but honest.`;
       if (!req.isAuthenticated() || !["OWNER", "ADMIN"].includes(req.user!.role)) return res.sendStatus(403);
       const recipientUsers = aliasedTable(users, "recipientUsers");
       const issuerUsers = aliasedTable(users, "issuerUsers");
+      const now = new Date();
+      await db.update(userCards)
+        .set({ cardIsActive: false })
+        .where(and(
+          sql`${userCards.expiresAt} IS NOT NULL`,
+          sql`${userCards.expiresAt} < ${now}`,
+          eq(userCards.cardIsActive, true),
+          sql`${userCards.revokedAt} IS NULL`
+        ));
+
       const result = await db
         .select({
           id: userCards.id,
@@ -25185,6 +25195,9 @@ Keep it to about 300 words. Be encouraging but honest.`;
           serialNumber: userCards.serialNumber,
           issuedAt: userCards.issuedAt,
           revokedAt: userCards.revokedAt,
+          expiresAt: userCards.expiresAt,
+          cardIsActive: userCards.cardIsActive,
+          weeklyCreditValue: userCards.weeklyCreditValue,
           cardName: cards.name,
           cardDescription: cards.description,
           cardCategory: cards.cardCategory,
@@ -25243,10 +25256,11 @@ Keep it to about 300 words. Be encouraging but honest.`;
         cardId: z.number().int().positive(),
         customReason: z.string().max(500).optional(),
         rarityLevel: z.enum(["standard", "rare", "epic", "legendary", "mythic"]).optional(),
+        weeklyCreditValue: z.number().int().min(0).optional(),
       });
       const parsed = issueSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
-      const { userId, cardId, customReason, rarityLevel } = parsed.data;
+      const { userId, cardId, customReason, rarityLevel, weeklyCreditValue } = parsed.data;
 
       const targetUser = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, userId)).limit(1);
       if (targetUser.length === 0) return res.status(404).json({ message: "User not found" });
@@ -25258,6 +25272,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
       const nextSerial = (existingCount[0]?.count || 0) + 1;
       const serialNumber = `CM-${String(cardId).padStart(3, "0")}-${String(nextSerial).padStart(5, "0")}`;
 
+      const now = new Date();
+      const expiresAt = new Date(now.getTime() + 14 * 24 * 60 * 60 * 1000);
       const issuerId = (req.user as any).id;
       const [issued] = await db.insert(userCards).values({
         userId,
@@ -25266,6 +25282,9 @@ Keep it to about 300 words. Be encouraging but honest.`;
         customReason: customReason || null,
         rarityLevel: rarityLevel || "standard",
         serialNumber,
+        expiresAt,
+        cardIsActive: true,
+        weeklyCreditValue: weeklyCreditValue || 0,
       }).returning();
 
       await db.insert(notifications).values({

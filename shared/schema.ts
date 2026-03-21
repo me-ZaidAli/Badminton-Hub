@@ -2181,6 +2181,19 @@ export const userCards = pgTable("user_cards", {
   serialNumber: text("serial_number").notNull(),
   revokedAt: timestamp("revoked_at"),
   issuedAt: timestamp("issued_at").defaultNow().notNull(),
+  expiresAt: timestamp("expires_at"),
+  cardIsActive: boolean("card_is_active").default(true).notNull(),
+  weeklyCreditValue: integer("weekly_credit_value").default(0).notNull(),
+});
+
+export const cardCreditTransactions = pgTable("card_credit_transactions", {
+  id: serial("id").primaryKey(),
+  userCardId: integer("user_card_id").references(() => userCards.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  amount: integer("amount").notNull(),
+  cardName: text("card_name").notNull(),
+  issuedById: integer("issued_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 export const cardsRelations = relations(cards, ({ many }) => ({
