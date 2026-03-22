@@ -14,6 +14,9 @@ import {
   useSeedDemoPlayers, useClearDemoPlayers,
   useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
+  useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
+  useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames,
+  useTournamentPlayerStats, useRecalculateStats,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -24,6 +27,7 @@ import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
@@ -34,13 +38,14 @@ import {
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, UserMinus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
+  Monitor, Square, CircleDot, ArrowUpDown, BarChart,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import tournamentHeroImg from "@assets/tournament-hero.png";
 
-type SubPage = "overview" | "players" | "pairs" | "signup" | "matches" | "prizes" | "admin";
+type SubPage = "overview" | "players" | "pairs" | "signup" | "matches" | "courts" | "stats" | "prizes" | "admin";
 
 const categorySchema = z.object({
   name: z.string().min(1, "Name required"),
@@ -184,6 +189,8 @@ export default function TournamentDetail() {
     { key: "pairs", label: "Pairs", icon: UserPlus },
     { key: "signup", label: "Sign Up", icon: Zap },
     { key: "matches", label: "Matches", icon: Swords },
+    { key: "courts", label: "Courts", icon: Monitor },
+    { key: "stats", label: "Stats", icon: BarChart },
     { key: "prizes", label: "Prizes", icon: Trophy },
     ...(canManage ? [{ key: "admin" as SubPage, label: "Admin", icon: Settings }] : []),
   ];
@@ -293,9 +300,11 @@ export default function TournamentDetail() {
         })}
       </div>
 
-      {categories.length > 0 && subPage !== "overview" && subPage !== "signup" && subPage !== "admin" && (
+      {subPage !== "overview" && subPage !== "signup" && subPage !== "admin" && (
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Category:</span>
+          {categories.length > 0 && (
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Category:</span>
+          )}
           {categories.map(cat => (
             <button
               key={cat.id}
@@ -335,6 +344,8 @@ export default function TournamentDetail() {
       {subPage === "matches" && !activeCategory && (
         <EmptyState icon={Swords} title="No Categories" description="Add a category to create matches." />
       )}
+      {subPage === "courts" && <CourtsTab tournamentId={tournamentId} canManage={canManage} />}
+      {subPage === "stats" && <PlayerStatsTab tournamentId={tournamentId} categories={categories} canManage={canManage} />}
       {subPage === "prizes" && <PrizesTab tournamentId={tournamentId} tournament={tournament} categories={categories} />}
       {subPage === "admin" && canManage && <AdminTab tournamentId={tournamentId} tournament={tournament} categories={categories} canManage={canManage} />}
 
@@ -1865,12 +1876,33 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const { data: teams } = useTournamentTeams(category.id);
   const { data: matchList } = useTournamentMatches(category.id);
   const { data: standings } = useTournamentStandings(category.id);
+  const { data: courts } = useTournamentCourts(tournamentId);
+  const assignCourtMutation = useAssignMatchCourt();
+  const updateStatusMutation = useUpdateMatchStatus();
   const [activeView, setActiveView] = useState<"bracket" | "standings" | "list">(
     category.format === "KNOCKOUT" ? "bracket" : category.format === "GROUP_KNOCKOUT" ? "standings" : "list"
   );
   const scoreMutation = useScoreMatch();
   const { toast } = useToast();
   const [scoreDialog, setScoreDialog] = useState<any>(null);
+
+  const handleAssignCourt = (matchId: number, courtId: number | null) => {
+    assignCourtMutation.mutate({ matchId, courtId }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+        toast({ title: courtId ? "Court assigned" : "Court removed" });
+      },
+    });
+  };
+
+  const handleUpdateStatus = (matchId: number, status: string) => {
+    updateStatusMutation.mutate({ matchId, status }, {
+      onSuccess: () => {
+        queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+        toast({ title: status === "LIVE" ? "Match started" : "Match paused" });
+      },
+    });
+  };
 
   const matches = matchList || [];
   const groupMatches = matches.filter(m => m.groupNumber && m.groupNumber < 100);
@@ -2036,7 +2068,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   </div>
                   <div className="space-y-2">
                     {sec.matches.map(match => (
-                      <MatchCard key={match.id} match={match} canManage={canManage} onScore={() => setScoreDialog(match)} />
+                      <MatchCard key={match.id} match={match} canManage={canManage} onScore={() => setScoreDialog(match)} courts={courts || []} onAssignCourt={handleAssignCourt} onUpdateStatus={handleUpdateStatus} />
                     ))}
                   </div>
                 </div>
@@ -2065,10 +2097,15 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   );
 }
 
-function MatchCard({ match, canManage, onScore }: { match: any; canManage: boolean; onScore: () => void }) {
+function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateStatus }: {
+  match: any; canManage: boolean; onScore: () => void;
+  courts?: any[]; onAssignCourt?: (matchId: number, courtId: number | null) => void;
+  onUpdateStatus?: (matchId: number, status: string) => void;
+}) {
   const teamAName = match.teamA ? getTeamName(match.teamA) : "TBD";
   const teamBName = match.teamB ? getTeamName(match.teamB) : "TBD";
   const isFinished = match.status === "FINISHED";
+  const isLive = match.status === "LIVE";
   const scores = match.scores || [];
   const scoreA = scores.reduce((a: number, s: any) => a + (s.scoreA > s.scoreB ? 1 : 0), 0);
   const scoreB = scores.reduce((a: number, s: any) => a + (s.scoreB > s.scoreA ? 1 : 0), 0);
@@ -2078,9 +2115,11 @@ function MatchCard({ match, canManage, onScore }: { match: any; canManage: boole
     <div className="group relative" data-testid={`match-card-${match.id}`}>
       <div className={cn(
         "relative rounded-xl overflow-hidden border transition-all duration-300",
-        isFinished
-          ? "border-border/50 bg-card"
-          : "border-violet-500/20 bg-card hover:border-violet-500/40 hover:shadow-lg hover:shadow-violet-500/10"
+        isLive
+          ? "border-red-500/40 bg-card shadow-lg shadow-red-500/5"
+          : isFinished
+            ? "border-border/50 bg-card"
+            : "border-violet-500/20 bg-card hover:border-violet-500/40 hover:shadow-lg hover:shadow-violet-500/10"
       )}>
         <div className="flex items-center gap-2 px-3 py-1.5 bg-muted/50 border-b border-border/30">
           {match.groupNumber && (
@@ -2089,6 +2128,16 @@ function MatchCard({ match, canManage, onScore }: { match: any; canManage: boole
             </Badge>
           )}
           <span className="text-[10px] text-muted-foreground font-bold">Match {match.matchOrder + 1}</span>
+          {match.courtId && match.court && (
+            <Badge className="bg-amber-500/15 text-amber-500 border border-amber-500/30 text-[9px] font-bold">
+              <Monitor className="h-2.5 w-2.5 mr-0.5" />{match.court.name}
+            </Badge>
+          )}
+          {isLive && (
+            <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 text-[9px] font-bold animate-pulse">
+              <CircleDot className="h-2.5 w-2.5 mr-0.5" />LIVE
+            </Badge>
+          )}
           {match.isBye && <Badge className="bg-muted text-muted-foreground border border-border/30 text-[9px] font-bold ml-auto">BYE</Badge>}
         </div>
 
@@ -2140,14 +2189,49 @@ function MatchCard({ match, canManage, onScore }: { match: any; canManage: boole
           </div>
 
           {!isFinished && canManage && match.teamAId && match.teamBId && (
-            <div className="flex items-center px-2 border-l border-border/30">
+            <div className="flex items-center gap-1 px-2 border-l border-border/30">
+              {!isLive && (
+                <Button size="sm" onClick={() => onUpdateStatus?.(match.id, "LIVE")}
+                  data-testid={`match-start-${match.id}`}
+                  className="h-8 w-8 p-0 bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30 rounded-lg"
+                  title="Start Match">
+                  <Play className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {isLive && (
+                <Button size="sm" onClick={() => onUpdateStatus?.(match.id, "PENDING")}
+                  data-testid={`match-stop-${match.id}`}
+                  className="h-8 w-8 p-0 bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 border border-orange-500/30 rounded-lg"
+                  title="Pause Match">
+                  <Square className="h-3.5 w-3.5" />
+                </Button>
+              )}
               <Button size="sm" onClick={onScore}
-                className="h-8 w-8 p-0 bg-violet-600/20 hover:bg-violet-600/40 text-violet-400 border border-violet-500/30 rounded-lg">
+                data-testid={`match-score-${match.id}`}
+                className="h-8 w-8 p-0 bg-violet-600/20 hover:bg-violet-600/40 text-violet-400 border border-violet-500/30 rounded-lg"
+                title="Submit Score">
                 <Target className="h-3.5 w-3.5" />
               </Button>
             </div>
           )}
         </div>
+
+        {canManage && !isFinished && !match.isBye && courts && courts.length > 0 && (
+          <div className="px-3 py-1.5 bg-muted/30 border-t border-border/30 flex items-center gap-2">
+            <Monitor className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+            <select
+              data-testid={`match-court-select-${match.id}`}
+              className="text-[11px] bg-transparent border border-border/50 rounded px-1.5 py-0.5 text-foreground flex-1"
+              value={match.courtId || ""}
+              onChange={(e) => onAssignCourt?.(match.id, e.target.value ? Number(e.target.value) : null)}
+            >
+              <option value="">No Court</option>
+              {courts.map((c: any) => (
+                <option key={c.id} value={c.id}>{c.name}</option>
+              ))}
+            </select>
+          </div>
+        )}
 
         {isFinished && scoreStr && (
           <div className="px-3 py-1.5 bg-muted/30 border-t border-border/30">
@@ -2503,6 +2587,225 @@ function BracketView({ matches, teams }: { matches: any[]; teams: any[] }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+function CourtsTab({ tournamentId, canManage }: { tournamentId: number; canManage: boolean }) {
+  const { data: courts, isLoading } = useTournamentCourts(tournamentId);
+  const createCourtMutation = useCreateCourt();
+  const updateCourtMutation = useUpdateCourt();
+  const deleteCourtMutation = useDeleteCourt();
+  const { toast } = useToast();
+  const [editingCourt, setEditingCourt] = useState<{ id: number; name: string } | null>(null);
+  const [newCourtName, setNewCourtName] = useState("");
+
+  const activeCourts = courts?.filter(c => c.isActive) || [];
+
+  if (isLoading) {
+    return <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-amber-500" /></div>;
+  }
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          <Monitor className="h-5 w-5 text-amber-500" /> Court Management
+        </h3>
+        <div className="flex items-center gap-2">
+          <Link href={`/tournaments/${tournamentId}/court-view`}>
+            <Button size="sm" variant="outline" className="font-bold text-xs border-violet-500/30 text-violet-500 hover:bg-violet-500/10" data-testid="button-open-court-view">
+              <Monitor className="h-3.5 w-3.5 mr-1" /> Live Court View
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {canManage && (
+        <div className="flex items-center gap-2">
+          <Input
+            placeholder="Court name (optional)"
+            value={newCourtName}
+            onChange={(e) => setNewCourtName(e.target.value)}
+            className="max-w-xs"
+            data-testid="input-new-court-name"
+          />
+          <Button size="sm" onClick={async () => {
+            try {
+              await createCourtMutation.mutateAsync({ tournamentId, name: newCourtName || undefined });
+              setNewCourtName("");
+              toast({ title: "Court Added" });
+            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+          }} disabled={createCourtMutation.isPending} data-testid="button-add-court">
+            {createCourtMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4 mr-1" />}
+            Add Court
+          </Button>
+        </div>
+      )}
+
+      {(!courts || courts.length === 0) ? (
+        <EmptyState icon={Monitor} title="No Courts" description="Add courts to manage match locations during the tournament." />
+      ) : (
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          {courts.map(court => (
+            <Card key={court.id} className={cn("border transition-all", court.isActive ? "border-amber-500/30 bg-amber-500/5" : "border-gray-700/30 bg-gray-800/20 opacity-60")}>
+              <CardContent className="p-4">
+                <div className="flex items-center justify-between">
+                  {editingCourt?.id === court.id ? (
+                    <div className="flex items-center gap-2 flex-1">
+                      <Input
+                        value={editingCourt.name}
+                        onChange={(e) => setEditingCourt({ ...editingCourt, name: e.target.value })}
+                        className="h-8 text-sm"
+                        data-testid={`input-edit-court-${court.id}`}
+                      />
+                      <Button size="sm" variant="ghost" onClick={async () => {
+                        try {
+                          await updateCourtMutation.mutateAsync({ courtId: court.id, tournamentId, name: editingCourt.name });
+                          setEditingCourt(null);
+                          toast({ title: "Court Updated" });
+                        } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                      }} data-testid={`button-save-court-${court.id}`}>
+                        <Check className="h-4 w-4 text-green-500" />
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => setEditingCourt(null)}>
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ) : (
+                    <>
+                      <div className="flex items-center gap-2">
+                        <Square className="h-5 w-5 text-amber-500" />
+                        <span className="font-bold" data-testid={`text-court-name-${court.id}`}>{court.name}</span>
+                        {!court.isActive && <Badge variant="outline" className="text-[10px] border-gray-600 text-gray-400">Inactive</Badge>}
+                      </div>
+                      {canManage && (
+                        <div className="flex items-center gap-1">
+                          <Button size="sm" variant="ghost" onClick={() => setEditingCourt({ id: court.id, name: court.name })} data-testid={`button-edit-court-${court.id}`}>
+                            <Edit3 className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={async () => {
+                            try {
+                              await updateCourtMutation.mutateAsync({ courtId: court.id, tournamentId, isActive: !court.isActive });
+                              toast({ title: court.isActive ? "Court Deactivated" : "Court Activated" });
+                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                          }} data-testid={`button-toggle-court-${court.id}`}>
+                            {court.isActive ? <X className="h-3.5 w-3.5 text-red-400" /> : <Check className="h-3.5 w-3.5 text-green-400" />}
+                          </Button>
+                          <Button size="sm" variant="ghost" onClick={async () => {
+                            try {
+                              await deleteCourtMutation.mutateAsync({ courtId: court.id, tournamentId });
+                              toast({ title: "Court Deleted" });
+                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                          }} data-testid={`button-delete-court-${court.id}`}>
+                            <Trash2 className="h-3.5 w-3.5 text-red-400" />
+                          </Button>
+                        </div>
+                      )}
+                    </>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          ))}
+        </div>
+      )}
+
+      {activeCourts.length > 0 && (
+        <div className="rounded-xl border border-violet-500/20 bg-violet-500/5 p-4">
+          <p className="text-sm text-muted-foreground">
+            <Monitor className="h-4 w-4 inline mr-1 text-violet-500" />
+            Open the <Link href={`/tournaments/${tournamentId}/court-view`} className="text-violet-500 font-bold hover:underline">Live Court View</Link> for a fullscreen, tablet-friendly display of match progress on each court.
+          </p>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PlayerStatsTab({ tournamentId, categories, canManage }: { tournamentId: number; categories: any[]; canManage: boolean }) {
+  const [selectedCatId, setSelectedCatId] = useState<number | undefined>(undefined);
+  const { data: stats, isLoading } = useTournamentPlayerStats(tournamentId, selectedCatId);
+  const recalcMutation = useRecalculateStats();
+  const { toast } = useToast();
+
+  const sorted = useMemo(() => {
+    if (!stats) return [];
+    return [...stats].sort((a, b) => b.matchesWon - a.matchesWon || b.pointDifference - a.pointDifference || b.pointsScored - a.pointsScored);
+  }, [stats]);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-2">
+        <h3 className="text-lg font-bold flex items-center gap-2">
+          <BarChart className="h-5 w-5 text-amber-500" /> Player Tournament Stats
+        </h3>
+        <div className="flex items-center gap-2">
+          {categories.length > 0 && (
+            <Select value={selectedCatId?.toString() || "all"} onValueChange={(v) => setSelectedCatId(v === "all" ? undefined : Number(v))}>
+              <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-stats-category">
+                <SelectValue placeholder="All Categories" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Categories</SelectItem>
+                {categories.map(c => (
+                  <SelectItem key={c.id} value={c.id.toString()}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+          {canManage && (
+            <Button size="sm" variant="outline" className="text-xs font-bold" onClick={async () => {
+              try {
+                await recalcMutation.mutateAsync({ tournamentId });
+                toast({ title: "Stats Recalculated" });
+              } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+            }} disabled={recalcMutation.isPending} data-testid="button-recalculate-stats">
+              {recalcMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <ArrowUpDown className="h-3.5 w-3.5 mr-1" />}
+              Recalculate
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-amber-500" /></div>
+      ) : sorted.length === 0 ? (
+        <EmptyState icon={BarChart} title="No Stats Yet" description="Player stats will appear after matches are completed." />
+      ) : (
+        <div className="rounded-xl border border-border/50 overflow-hidden">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="bg-muted/30 dark:bg-muted/10 text-muted-foreground text-xs uppercase">
+                <th className="text-left py-3 px-4">#</th>
+                <th className="text-left py-3 px-4">Player</th>
+                <th className="text-center py-3 px-4">Played</th>
+                <th className="text-center py-3 px-4">Won</th>
+                <th className="text-center py-3 px-4">Lost</th>
+                <th className="text-center py-3 px-4">PF</th>
+                <th className="text-center py-3 px-4">PA</th>
+                <th className="text-center py-3 px-4">PD</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((s, idx) => (
+                <tr key={s.id} className="border-t border-border/30 hover:bg-muted/10">
+                  <td className="py-2.5 px-4 text-muted-foreground font-bold">{idx + 1}</td>
+                  <td className="py-2.5 px-4 font-bold" data-testid={`text-stat-player-${s.userId}`}>{s.playerName}</td>
+                  <td className="py-2.5 px-4 text-center">{s.matchesPlayed}</td>
+                  <td className="py-2.5 px-4 text-center text-green-500 font-bold">{s.matchesWon}</td>
+                  <td className="py-2.5 px-4 text-center text-red-400">{s.matchesLost}</td>
+                  <td className="py-2.5 px-4 text-center">{s.pointsScored}</td>
+                  <td className="py-2.5 px-4 text-center">{s.pointsConceded}</td>
+                  <td className={cn("py-2.5 px-4 text-center font-bold", s.pointDifference > 0 ? "text-green-500" : s.pointDifference < 0 ? "text-red-400" : "text-muted-foreground")}>
+                    {s.pointDifference > 0 ? "+" : ""}{s.pointDifference}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </div>
   );
 }

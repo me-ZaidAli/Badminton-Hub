@@ -1,5 +1,5 @@
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Tournament, TournamentCategory, TournamentTeam, TournamentMatch, TournamentStanding } from "@shared/schema";
+import { Tournament, TournamentCategory, TournamentTeam, TournamentMatch, TournamentStanding, TournamentCourt, TournamentPlayerStat } from "@shared/schema";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
 export function useTournaments(clubId?: number) {
@@ -599,6 +599,144 @@ export function useDeletePrize() {
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "prizes"] });
+    },
+  });
+}
+
+export function useTournamentCourts(tournamentId: number) {
+  return useQuery<TournamentCourt[]>({
+    queryKey: ["/api/tournaments", tournamentId, "courts"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/courts`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch courts");
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useCreateCourt() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, name }: { tournamentId: number; name?: string }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/courts`, { name });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "courts"] });
+    },
+  });
+}
+
+export function useUpdateCourt() {
+  return useMutation({
+    mutationFn: async ({ courtId, tournamentId, ...data }: { courtId: number; tournamentId: number; name?: string; isActive?: boolean }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-courts/${courtId}`, data);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "courts"] });
+    },
+  });
+}
+
+export function useDeleteCourt() {
+  return useMutation({
+    mutationFn: async ({ courtId, tournamentId }: { courtId: number; tournamentId: number }) => {
+      const res = await apiRequest("DELETE", `/api/tournament-courts/${courtId}`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "courts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+    },
+  });
+}
+
+export function useAssignMatchCourt() {
+  return useMutation({
+    mutationFn: async ({ matchId, courtId, tournamentId }: { matchId: number; courtId: number | null; tournamentId: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-matches/${matchId}/assign-court`, { courtId });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "courts"] });
+    },
+  });
+}
+
+export function useUpdateMatchStatus() {
+  return useMutation({
+    mutationFn: async ({ matchId, status, tournamentId }: { matchId: number; status: string; tournamentId: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-matches/${matchId}/status`, { status });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+    },
+  });
+}
+
+export function useUpdateMatchTeamNames() {
+  return useMutation({
+    mutationFn: async ({ matchId, teamAName, teamBName, tournamentId }: { matchId: number; teamAName?: string; teamBName?: string; tournamentId: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-matches/${matchId}/team-names`, { teamAName, teamBName });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+    },
+  });
+}
+
+export function useSwapMatchPlayers() {
+  return useMutation({
+    mutationFn: async ({ matchId, teamAId, teamBId, tournamentId }: { matchId: number; teamAId?: number; teamBId?: number; tournamentId: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-matches/${matchId}/swap-players`, { teamAId, teamBId });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+    },
+  });
+}
+
+export function useCourtView(tournamentId: number, courtId: number) {
+  return useQuery<any>({
+    queryKey: ["/api/tournaments", tournamentId, "court-view", courtId],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/court-view/${courtId}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch court view");
+      return res.json();
+    },
+    enabled: !!tournamentId && !!courtId,
+    refetchInterval: 10000,
+  });
+}
+
+export function useTournamentPlayerStats(tournamentId: number, categoryId?: number) {
+  return useQuery<(TournamentPlayerStat & { playerName: string })[]>({
+    queryKey: ["/api/tournaments", tournamentId, "player-stats", categoryId],
+    queryFn: async () => {
+      const url = categoryId
+        ? `/api/tournaments/${tournamentId}/player-stats?categoryId=${categoryId}`
+        : `/api/tournaments/${tournamentId}/player-stats`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch player stats");
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useRecalculateStats() {
+  return useMutation({
+    mutationFn: async ({ tournamentId }: { tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/recalculate-stats`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "player-stats"] });
     },
   });
 }

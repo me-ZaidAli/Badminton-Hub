@@ -1,0 +1,139 @@
+Extend the existing Tournament module by implementing a fully integrated Court Management + Live Court View system, ensuring all match activity feeds into player tournament stats, and is automatically available within every created tournament.
+
+🧩 CORE REQUIREMENTS
+
+This system must:
+
+Exist inside each Tournament
+Not be a standalone module
+Automatically activate when a tournament is created
+Sync with:
+Matches
+Groups
+Players
+Stats
+Standings
+🏟️ 1. COURT MANAGEMENT SYSTEM
+Add dynamic court configuration per tournament:
+Field: number_of_courts
+Auto-generate courts:
+Court 1, Court 2, Court 3…
+Allow admin to:
+Add/remove courts at any time
+Rename courts (optional)
+👥 2. FLEXIBLE TEAM / PAIR MANAGEMENT
+Each match must support:
+Pair 1 (2 players)
+Pair 2 (2 players)
+Custom Team Name (editable per pair)
+Admin capabilities:
+Assign players to pairs manually
+Edit/swap players at any time
+Override pair names (e.g. “Smash Brothers”)
+Save pair as reusable (optional future feature)
+🔄 3. MATCH CONTROL + COURT ASSIGNMENT
+
+Each match must include:
+
+court_id
+group_id
+match_order
+status (pending, live, completed)
+Admin controls:
+Assign any match to any court
+Drag & drop or manual reassignment
+Override match order
+Start / End match manually
+📺 4. LIVE COURT VIEW (TABLET MODE)
+
+Create a fullscreen Court View per court, accessible inside each tournament:
+
+Tournament → Court View → Select Court
+
+Display:
+Court name (e.g. Court 1)
+Group name
+Current match (large)
+Next match (preview)
+Match timer (15 mins)
+Live score
+Group standings (auto-updated)
+Behavior:
+Auto-load matches assigned to that court
+Auto-progress when match is completed
+Refresh every 5–10 seconds (no heavy realtime required)
+📊 5. PLAYER TOURNAMENT STATS (CRITICAL)
+
+Every match result must update player-level stats:
+
+Track per player:
+
+Matches played
+Matches won
+Matches lost
+Points scored
+Points conceded
+Point difference
+Store in:
+
+tournament_player_stats
+
+Rules:
+Stats update immediately when match is completed
+If match is edited → stats recalculate
+🏆 6. GROUP STANDINGS (AUTO)
+
+Per group:
+
+Rank teams based on:
+Matches won
+Point difference
+Points scored
+
+Auto-update after every match
+
+⚙️ 7. ADMIN CONTROL PANEL (WITHIN TOURNAMENT)
+
+Add a Tournament Control Panel:
+
+Features:
+Manage courts
+Manage matches
+Assign pairs
+Edit scores
+Reorder matches
+Override anything manually
+🔁 8. DATA FLOW (IMPORTANT)
+Match Completion triggers:
+Update match status → completed
+Update group standings
+Update player stats
+Update Court View
+Log match result
+🔒 9. EDGE CASE HANDLING
+Prevent duplicate players in same match
+Handle player swaps mid-tournament
+Allow score edits → force stat recalculation
+Court reassignment should not break match order
+🎨 10. UI REQUIREMENTS
+Match existing glass / premium UI style
+Tablet-friendly (large text, high contrast)
+Fast interactions (no lag)
+Clean separation:
+Admin controls vs display mode
+🚀 11. SCALABILITY
+
+Design system to support:
+
+More than 3 courts
+Different tournament formats (future)
+Knockout stage integration later
+🎯 END RESULT
+
+A fully controlled tournament engine where:
+
+Admin can manage everything live
+Courts run independently but synced
+Players see clear structure
+All data feeds into player stats + rankings
+System scales as your club grows

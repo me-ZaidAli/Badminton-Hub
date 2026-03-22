@@ -472,6 +472,15 @@ export const tournaments = pgTable("tournaments", {
   allowedClubIds: integer("allowed_club_ids").array(),
 });
 
+export const tournamentCourts = pgTable("tournament_courts", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  name: text("name").notNull(),
+  courtOrder: integer("court_order").default(1).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const tournamentCategories = pgTable("tournament_categories", {
   id: serial("id").primaryKey(),
   tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
@@ -506,6 +515,9 @@ export const tournamentMatches = pgTable("tournament_matches", {
   teamAId: integer("team_a_id").references(() => tournamentTeams.id),
   teamBId: integer("team_b_id").references(() => tournamentTeams.id),
   courtNumber: integer("court_number"),
+  courtId: integer("court_id").references(() => tournamentCourts.id),
+  teamAName: text("team_a_name"),
+  teamBName: text("team_b_name"),
   scheduledTime: timestamp("scheduled_time"),
   status: tournamentMatchStatusEnum("status").default("UPCOMING").notNull(),
   scores: jsonb("scores").$type<Array<{scoreA: number; scoreB: number}>>().default([]),
@@ -534,6 +546,19 @@ export const tournamentStandings = pgTable("tournament_standings", {
   pointsFor: integer("points_for").default(0).notNull(),
   pointsAgainst: integer("points_against").default(0).notNull(),
   points: integer("points").default(0).notNull(),
+});
+
+export const tournamentPlayerStats = pgTable("tournament_player_stats", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  categoryId: integer("category_id").references(() => tournamentCategories.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  matchesPlayed: integer("matches_played").default(0).notNull(),
+  matchesWon: integer("matches_won").default(0).notNull(),
+  matchesLost: integer("matches_lost").default(0).notNull(),
+  pointsScored: integer("points_scored").default(0).notNull(),
+  pointsConceded: integer("points_conceded").default(0).notNull(),
+  pointDifference: integer("point_difference").default(0).notNull(),
 });
 
 export const tournamentRegistrations = pgTable("tournament_registrations", {
@@ -891,6 +916,10 @@ export const tournamentWaitlistRelations = relations(tournamentWaitlist, ({ one 
   user: one(users, { fields: [tournamentWaitlist.userId], references: [users.id] }),
 }));
 
+export const tournamentCourtsRelations = relations(tournamentCourts, ({ one }) => ({
+  tournament: one(tournaments, { fields: [tournamentCourts.tournamentId], references: [tournaments.id] }),
+}));
+
 export const tournamentCategoriesRelations = relations(tournamentCategories, ({ one, many }) => ({
   tournament: one(tournaments, { fields: [tournamentCategories.tournamentId], references: [tournaments.id] }),
   teams: many(tournamentTeams),
@@ -907,6 +936,13 @@ export const tournamentMatchesRelations = relations(tournamentMatches, ({ one })
   category: one(tournamentCategories, { fields: [tournamentMatches.categoryId], references: [tournamentCategories.id] }),
   teamA: one(tournamentTeams, { fields: [tournamentMatches.teamAId], references: [tournamentTeams.id] }),
   teamB: one(tournamentTeams, { fields: [tournamentMatches.teamBId], references: [tournamentTeams.id] }),
+  court: one(tournamentCourts, { fields: [tournamentMatches.courtId], references: [tournamentCourts.id] }),
+}));
+
+export const tournamentPlayerStatsRelations = relations(tournamentPlayerStats, ({ one }) => ({
+  tournament: one(tournaments, { fields: [tournamentPlayerStats.tournamentId], references: [tournaments.id] }),
+  category: one(tournamentCategories, { fields: [tournamentPlayerStats.categoryId], references: [tournamentCategories.id] }),
+  user: one(users, { fields: [tournamentPlayerStats.userId], references: [users.id] }),
 }));
 
 export const tournamentStandingsRelations = relations(tournamentStandings, ({ one }) => ({
@@ -953,9 +989,11 @@ export const insertTournamentSchema = createInsertSchema(tournaments).omit({ id:
   startDate: z.coerce.date(),
   endDate: z.coerce.date(),
 });
+export const insertTournamentCourtSchema = createInsertSchema(tournamentCourts).omit({ id: true, createdAt: true });
 export const insertTournamentCategorySchema = createInsertSchema(tournamentCategories).omit({ id: true, createdAt: true });
 export const insertTournamentTeamSchema = createInsertSchema(tournamentTeams).omit({ id: true, createdAt: true });
 export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches).omit({ id: true, createdAt: true });
+export const insertTournamentPlayerStatSchema = createInsertSchema(tournamentPlayerStats).omit({ id: true });
 
 export const insertInternalMessageSchema = createInsertSchema(internalMessages).omit({ id: true, createdAt: true, readAt: true });
 export const insertPolicyAcceptanceSchema = createInsertSchema(policyAcceptances).omit({ id: true, acceptedAt: true });
@@ -986,10 +1024,12 @@ export type AnnouncementReaction = typeof announcementReactions.$inferSelect;
 export type AnnouncementComment = typeof announcementComments.$inferSelect;
 export type Membership = typeof memberships.$inferSelect;
 export type Tournament = typeof tournaments.$inferSelect;
+export type TournamentCourt = typeof tournamentCourts.$inferSelect;
 export type TournamentCategory = typeof tournamentCategories.$inferSelect;
 export type TournamentTeam = typeof tournamentTeams.$inferSelect;
 export type TournamentMatch = typeof tournamentMatches.$inferSelect;
 export type TournamentStanding = typeof tournamentStandings.$inferSelect;
+export type TournamentPlayerStat = typeof tournamentPlayerStats.$inferSelect;
 export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect;
 export type TournamentPairRequest = typeof tournamentPairRequests.$inferSelect;
 export type TournamentWaitlistEntry = typeof tournamentWaitlist.$inferSelect;

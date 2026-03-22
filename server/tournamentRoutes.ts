@@ -5,6 +5,7 @@ import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches,
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
   tournamentWaitlist, tournamentAdmins, tournamentPrizes,
+  tournamentCourts, tournamentPlayerStats,
   users, clubs, venues, playerProfiles, matches,
   notifications, clubMemberships, internalMessages
 } from "@shared/schema";
@@ -315,10 +316,18 @@ export function registerTournamentRoutes(app: Express) {
         teamMap.set(team.id, { ...team, player1: p1 ? { ...p1, user: p1User } : null, player2: p2 ? { ...p2, user: p2User } : null });
       }
 
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      let courtMap = new Map<number, any>();
+      if (cat) {
+        const courts = await db.select().from(tournamentCourts).where(eq(tournamentCourts.tournamentId, cat.tournamentId));
+        for (const c of courts) courtMap.set(c.id, c);
+      }
+
       const enriched = matchList.map(m => ({
         ...m,
         teamA: m.teamAId ? teamMap.get(m.teamAId) || null : null,
         teamB: m.teamBId ? teamMap.get(m.teamBId) || null : null,
+        court: m.courtId ? courtMap.get(m.courtId) || null : null,
       }));
       res.json(enriched);
     } catch (e: any) {
@@ -548,6 +557,13 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const matchId = Number(req.params.id);
+      const [existingMatch] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!existingMatch) return res.status(404).json({ message: "Match not found" });
+      const [scoreCat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, existingMatch.categoryId));
+      if (!scoreCat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, scoreCat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
       const { scores, winnerId } = req.body;
       const updates: any = { scores, status: "FINISHED" as const };
       if (winnerId) updates.winnerId = winnerId;
@@ -608,6 +624,11 @@ export function registerTournamentRoutes(app: Express) {
           const upd: any = isFirst ? { teamAId: match.winnerId } : { teamBId: match.winnerId };
           await db.update(tournamentMatches).set(upd).where(eq(tournamentMatches.id, nextMatch.id));
         }
+      }
+
+      const [matchCat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, match.categoryId));
+      if (matchCat) {
+        try { await recalculatePlayerStats(matchCat.tournamentId, match.categoryId); } catch {}
       }
 
       res.json(match);
@@ -1797,6 +1818,401 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
 
       await db.delete(tournamentPrizes).where(eq(tournamentPrizes.id, prizeId));
       res.json({ message: "Deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // === COURT MANAGEMENT ===
+
+  app.get("/api/tournaments/:id/courts", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const courts = await db.select().from(tournamentCourts)
+        .where(eq(tournamentCourts.tournamentId, tournamentId))
+        .orderBy(asc(tournamentCourts.courtOrder));
+      res.json(courts);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/courts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { name } = req.body;
+      const existing = await db.select().from(tournamentCourts)
+        .where(eq(tournamentCourts.tournamentId, tournamentId));
+      const courtOrder = existing.length + 1;
+
+      const [court] = await db.insert(tournamentCourts).values({
+        tournamentId,
+        name: name || `Court ${courtOrder}`,
+        courtOrder,
+      }).returning();
+      res.json(court);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-courts/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const courtId = Number(req.params.id);
+      const [court] = await db.select().from(tournamentCourts).where(eq(tournamentCourts.id, courtId));
+      if (!court) return res.status(404).json({ message: "Court not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, court.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { name, isActive } = req.body;
+      const [updated] = await db.update(tournamentCourts).set({
+        ...(name !== undefined && { name }),
+        ...(isActive !== undefined && { isActive }),
+      }).where(eq(tournamentCourts.id, courtId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/tournament-courts/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const courtId = Number(req.params.id);
+      const [court] = await db.select().from(tournamentCourts).where(eq(tournamentCourts.id, courtId));
+      if (!court) return res.status(404).json({ message: "Court not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, court.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      await db.update(tournamentMatches).set({ courtId: null }).where(eq(tournamentMatches.courtId, courtId));
+      await db.delete(tournamentCourts).where(eq(tournamentCourts.id, courtId));
+      res.json({ message: "Deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // === MATCH COURT ASSIGNMENT & CONTROLS ===
+
+  app.patch("/api/tournament-matches/:id/assign-court", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const matchId = Number(req.params.id);
+      const [match] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, match.categoryId));
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournament.id);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { courtId } = req.body;
+      if (courtId) {
+        const [court] = await db.select().from(tournamentCourts)
+          .where(and(eq(tournamentCourts.id, courtId), eq(tournamentCourts.tournamentId, tournament.id)));
+        if (!court) return res.status(400).json({ message: "Court does not belong to this tournament" });
+      }
+      const [updated] = await db.update(tournamentMatches).set({
+        courtId: courtId || null,
+      }).where(eq(tournamentMatches.id, matchId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-matches/:id/team-names", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const matchId = Number(req.params.id);
+      const [match] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, match.categoryId));
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournament.id);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { teamAName, teamBName } = req.body;
+      const [updated] = await db.update(tournamentMatches).set({
+        ...(teamAName !== undefined && { teamAName }),
+        ...(teamBName !== undefined && { teamBName }),
+      }).where(eq(tournamentMatches.id, matchId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-matches/:id/status", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const matchId = Number(req.params.id);
+      const [match] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, match.categoryId));
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournament.id);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { status } = req.body;
+      if (!["UPCOMING", "LIVE", "FINISHED"].includes(status)) {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      const [updated] = await db.update(tournamentMatches).set({ status })
+        .where(eq(tournamentMatches.id, matchId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-matches/:id/swap-players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const matchId = Number(req.params.id);
+      const [match] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, match.categoryId));
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournament.id);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { teamAId, teamBId } = req.body;
+      const [updated] = await db.update(tournamentMatches).set({
+        ...(teamAId !== undefined && { teamAId }),
+        ...(teamBId !== undefined && { teamBId }),
+      }).where(eq(tournamentMatches.id, matchId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // === LIVE COURT VIEW ===
+
+  app.get("/api/tournaments/:id/court-view/:courtId", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const courtId = Number(req.params.courtId);
+
+      const [court] = await db.select().from(tournamentCourts)
+        .where(and(eq(tournamentCourts.id, courtId), eq(tournamentCourts.tournamentId, tournamentId)));
+      if (!court) return res.status(404).json({ message: "Court not found" });
+
+      const courtMatches = await db.select().from(tournamentMatches)
+        .where(eq(tournamentMatches.courtId, courtId))
+        .orderBy(asc(tournamentMatches.matchOrder));
+
+      const enrichedMatches = await Promise.all(courtMatches.map(async (m) => {
+        const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, m.categoryId));
+        let teamAPlayers: any[] = [];
+        let teamBPlayers: any[] = [];
+        if (m.teamAId) {
+          const [teamA] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, m.teamAId));
+          if (teamA) {
+            const p1 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, teamA.player1Id));
+            if (p1[0]) {
+              const [u1] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, p1[0].userId));
+              teamAPlayers.push(u1?.fullName || "Unknown");
+            }
+            if (teamA.player2Id) {
+              const p2 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, teamA.player2Id));
+              if (p2[0]) {
+                const [u2] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, p2[0].userId));
+                teamAPlayers.push(u2?.fullName || "Unknown");
+              }
+            }
+          }
+        }
+        if (m.teamBId) {
+          const [teamB] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, m.teamBId));
+          if (teamB) {
+            const p1 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, teamB.player1Id));
+            if (p1[0]) {
+              const [u1] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, p1[0].userId));
+              teamBPlayers.push(u1?.fullName || "Unknown");
+            }
+            if (teamB.player2Id) {
+              const p2 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, teamB.player2Id));
+              if (p2[0]) {
+                const [u2] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, p2[0].userId));
+                teamBPlayers.push(u2?.fullName || "Unknown");
+              }
+            }
+          }
+        }
+        return {
+          ...m,
+          categoryName: cat?.name || "Unknown",
+          teamAPlayers,
+          teamBPlayers,
+        };
+      }));
+
+      const liveMatch = enrichedMatches.find(m => m.status === "LIVE");
+      const nextMatch = enrichedMatches.find(m => m.status === "UPCOMING");
+
+      const standingsMap: Record<number, any[]> = {};
+      for (const m of courtMatches) {
+        if (m.groupNumber && !standingsMap[m.groupNumber]) {
+          const groupStandings = await db.select().from(tournamentStandings)
+            .where(and(
+              eq(tournamentStandings.categoryId, m.categoryId),
+              eq(tournamentStandings.groupNumber, m.groupNumber)
+            ));
+
+          const enrichedStandings = await Promise.all(groupStandings.map(async (s) => {
+            const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, s.teamId));
+            let playerNames: string[] = [];
+            if (team) {
+              const p1 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player1Id));
+              if (p1[0]) {
+                const [u] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, p1[0].userId));
+                playerNames.push(u?.fullName || "Unknown");
+              }
+              if (team.player2Id) {
+                const p2 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player2Id));
+                if (p2[0]) {
+                  const [u] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, p2[0].userId));
+                  playerNames.push(u?.fullName || "Unknown");
+                }
+              }
+            }
+            return { ...s, playerNames };
+          }));
+
+          standingsMap[m.groupNumber] = enrichedStandings.sort((a, b) =>
+            b.points - a.points || (b.pointsFor - b.pointsAgainst) - (a.pointsFor - a.pointsAgainst) || b.pointsFor - a.pointsFor
+          );
+        }
+      }
+
+      res.json({
+        court,
+        liveMatch,
+        nextMatch,
+        allMatches: enrichedMatches,
+        standings: standingsMap,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // === PLAYER TOURNAMENT STATS ===
+
+  async function recalculatePlayerStats(tournamentId: number, categoryId: number) {
+    const categoryMatches = await db.select().from(tournamentMatches)
+      .where(and(eq(tournamentMatches.categoryId, categoryId), eq(tournamentMatches.status, "FINISHED")));
+
+    await db.delete(tournamentPlayerStats).where(
+      and(eq(tournamentPlayerStats.tournamentId, tournamentId), eq(tournamentPlayerStats.categoryId, categoryId))
+    );
+
+    const statsMap: Record<number, { played: number; won: number; lost: number; scored: number; conceded: number }> = {};
+
+    const getPlayerUserIds = async (teamId: number): Promise<number[]> => {
+      const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+      if (!team) return [];
+      const userIds: number[] = [];
+      const p1 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player1Id));
+      if (p1[0]) userIds.push(p1[0].userId);
+      if (team.player2Id) {
+        const p2 = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player2Id));
+        if (p2[0]) userIds.push(p2[0].userId);
+      }
+      return userIds;
+    };
+
+    for (const m of categoryMatches) {
+      if (!m.teamAId || !m.teamBId || m.isBye || m.isWalkover) continue;
+      const teamAUsers = await getPlayerUserIds(m.teamAId);
+      const teamBUsers = await getPlayerUserIds(m.teamBId);
+      const scores = m.scores || [];
+      const totalScoreA = scores.reduce((s, g) => s + g.scoreA, 0);
+      const totalScoreB = scores.reduce((s, g) => s + g.scoreB, 0);
+      const isTeamAWinner = m.winnerId === m.teamAId;
+
+      for (const uid of teamAUsers) {
+        if (!statsMap[uid]) statsMap[uid] = { played: 0, won: 0, lost: 0, scored: 0, conceded: 0 };
+        statsMap[uid].played++;
+        statsMap[uid].scored += totalScoreA;
+        statsMap[uid].conceded += totalScoreB;
+        if (isTeamAWinner) statsMap[uid].won++; else statsMap[uid].lost++;
+      }
+      for (const uid of teamBUsers) {
+        if (!statsMap[uid]) statsMap[uid] = { played: 0, won: 0, lost: 0, scored: 0, conceded: 0 };
+        statsMap[uid].played++;
+        statsMap[uid].scored += totalScoreB;
+        statsMap[uid].conceded += totalScoreA;
+        if (!isTeamAWinner) statsMap[uid].won++; else statsMap[uid].lost++;
+      }
+    }
+
+    const inserts = Object.entries(statsMap).map(([userId, s]) => ({
+      tournamentId,
+      categoryId,
+      userId: Number(userId),
+      matchesPlayed: s.played,
+      matchesWon: s.won,
+      matchesLost: s.lost,
+      pointsScored: s.scored,
+      pointsConceded: s.conceded,
+      pointDifference: s.scored - s.conceded,
+    }));
+
+    if (inserts.length > 0) {
+      await db.insert(tournamentPlayerStats).values(inserts);
+    }
+  }
+
+  app.get("/api/tournaments/:id/player-stats", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const categoryId = req.query.categoryId ? Number(req.query.categoryId) : undefined;
+
+      let statsQuery = db.select().from(tournamentPlayerStats)
+        .where(eq(tournamentPlayerStats.tournamentId, tournamentId));
+
+      const allStats = categoryId
+        ? await db.select().from(tournamentPlayerStats).where(
+            and(eq(tournamentPlayerStats.tournamentId, tournamentId), eq(tournamentPlayerStats.categoryId, categoryId))
+          )
+        : await db.select().from(tournamentPlayerStats).where(eq(tournamentPlayerStats.tournamentId, tournamentId));
+
+      const enriched = await Promise.all(allStats.map(async (s) => {
+        const [user] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, s.userId));
+        return { ...s, playerName: user?.fullName || "Unknown" };
+      }));
+
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/recalculate-stats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const categories = await db.select().from(tournamentCategories)
+        .where(eq(tournamentCategories.tournamentId, tournamentId));
+
+      for (const cat of categories) {
+        await recalculatePlayerStats(tournamentId, cat.id);
+      }
+      res.json({ message: "Stats recalculated" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
