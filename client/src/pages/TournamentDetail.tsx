@@ -586,7 +586,21 @@ function OverviewTab({ tournament, categories, tournamentId }: { tournament: any
               </div>
               <div>
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Entry Fee</p>
-                <p className="text-lg font-black text-white">£{parseFloat(tournament.entryFee).toFixed(2)}</p>
+                {tournament.externalEntryFee && parseFloat(tournament.externalEntryFee) > 0 && parseFloat(tournament.externalEntryFee) !== parseFloat(tournament.entryFee) ? (
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <p className="text-lg font-black text-white">£{parseFloat(tournament.entryFee).toFixed(2)}</p>
+                      <p className="text-[9px] font-bold text-gray-500 uppercase">Members</p>
+                    </div>
+                    <span className="text-gray-600">/</span>
+                    <div>
+                      <p className="text-lg font-black text-white">£{parseFloat(tournament.externalEntryFee).toFixed(2)}</p>
+                      <p className="text-[9px] font-bold text-gray-500 uppercase">External</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-lg font-black text-white">£{parseFloat(tournament.entryFee).toFixed(2)}</p>
+                )}
               </div>
             </div>
           )}
@@ -1687,7 +1701,15 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
             {tournament.entryFee && parseFloat(tournament.entryFee) > 0 && (
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 mx-auto">
                 <Banknote className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-bold text-foreground">Entry Fee: <span className="text-amber-500">£{parseFloat(tournament.entryFee).toFixed(2)}</span></span>
+                {tournament.externalEntryFee && parseFloat(tournament.externalEntryFee) > 0 && parseFloat(tournament.externalEntryFee) !== parseFloat(tournament.entryFee) ? (
+                  <span className="text-sm font-bold text-foreground">
+                    Members: <span className="text-amber-500">£{parseFloat(tournament.entryFee).toFixed(2)}</span>
+                    <span className="text-muted-foreground mx-1">·</span>
+                    External: <span className="text-amber-500">£{parseFloat(tournament.externalEntryFee).toFixed(2)}</span>
+                  </span>
+                ) : (
+                  <span className="text-sm font-bold text-foreground">Entry Fee: <span className="text-amber-500">£{parseFloat(tournament.entryFee).toFixed(2)}</span></span>
+                )}
               </div>
             )}
             <div className="flex gap-3 justify-center">
@@ -3799,15 +3821,25 @@ function AdminEntryFeeSection({ tournament, tournamentId }: { tournament: any; t
   const updateTournamentMutation = useUpdateTournament();
   const { toast } = useToast();
   const [entryFee, setEntryFee] = useState(tournament.entryFee || "");
+  const [externalEntryFee, setExternalEntryFee] = useState(tournament.externalEntryFee || "");
   const [editing, setEditing] = useState(false);
 
   async function handleSave() {
     try {
-      await updateTournamentMutation.mutateAsync({ id: tournamentId, entryFee: entryFee || "0" });
-      toast({ title: "Entry Fee Updated", description: entryFee ? `Entry fee set to £${parseFloat(entryFee).toFixed(2)}` : "Entry fee removed" });
+      await updateTournamentMutation.mutateAsync({
+        id: tournamentId,
+        entryFee: entryFee || "0",
+        externalEntryFee: externalEntryFee || "0",
+      });
+      const desc = [];
+      if (entryFee) desc.push(`Members: £${parseFloat(entryFee).toFixed(2)}`);
+      if (externalEntryFee && externalEntryFee !== entryFee) desc.push(`External: £${parseFloat(externalEntryFee).toFixed(2)}`);
+      toast({ title: "Entry Fees Updated", description: desc.join(" · ") || "Fees removed" });
       setEditing(false);
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
+
+  const hasExternalFee = tournament.externalEntryFee && parseFloat(tournament.externalEntryFee) > 0 && parseFloat(tournament.externalEntryFee) !== parseFloat(tournament.entryFee || "0");
 
   return (
     <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
@@ -3817,8 +3849,8 @@ function AdminEntryFeeSection({ tournament, tournamentId }: { tournament: any; t
             <Banknote className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Entry Fee</h4>
-            <p className="text-[10px] text-muted-foreground">Set the sign-up fee players must pay to enter</p>
+            <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Entry Fees</h4>
+            <p className="text-[10px] text-muted-foreground">Set fees for club members and external players</p>
           </div>
         </div>
         {!editing && (
@@ -3829,39 +3861,77 @@ function AdminEntryFeeSection({ tournament, tournamentId }: { tournament: any; t
       </div>
 
       {editing ? (
-        <div className="flex items-center gap-3">
-          <div className="relative flex-1">
-            <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">£</span>
-            <input
-              type="number"
-              step="0.01"
-              min="0"
-              value={entryFee}
-              onChange={(e) => setEntryFee(e.target.value)}
-              placeholder="0.00"
-              className="w-full rounded-xl bg-card border border-amber-500/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/60 transition-colors p-3 pl-7"
-              data-testid="input-entry-fee"
-            />
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Member Fee</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">£</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={entryFee}
+                  onChange={(e) => setEntryFee(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-xl bg-card border border-amber-500/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/60 transition-colors p-3 pl-7"
+                  data-testid="input-entry-fee"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">External Fee</label>
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm font-bold text-muted-foreground">£</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  min="0"
+                  value={externalEntryFee}
+                  onChange={(e) => setExternalEntryFee(e.target.value)}
+                  placeholder="0.00"
+                  className="w-full rounded-xl bg-card border border-violet-500/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-violet-500/60 transition-colors p-3 pl-7"
+                  data-testid="input-external-entry-fee"
+                />
+              </div>
+              <p className="text-[9px] text-muted-foreground mt-1">Leave at 0 or same as member fee for single pricing</p>
+            </div>
           </div>
-          <Button size="sm" className="h-10 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
-            disabled={updateTournamentMutation.isPending}
-            onClick={handleSave} data-testid="button-save-entry-fee">
-            {updateTournamentMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-            Save
-          </Button>
-          <Button size="sm" variant="outline" className="h-10" onClick={() => { setEntryFee(tournament.entryFee || ""); setEditing(false); }}>
-            Cancel
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="h-10 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
+              disabled={updateTournamentMutation.isPending}
+              onClick={handleSave} data-testid="button-save-entry-fee">
+              {updateTournamentMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
+              Save
+            </Button>
+            <Button size="sm" variant="outline" className="h-10" onClick={() => { setEntryFee(tournament.entryFee || ""); setExternalEntryFee(tournament.externalEntryFee || ""); setEditing(false); }}>
+              Cancel
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
-          <PoundSterling className="h-5 w-5 text-amber-500" />
-          <div>
-            <p className="text-xs text-muted-foreground">Current Entry Fee</p>
-            <p className="text-lg font-black text-foreground">
-              {tournament.entryFee && parseFloat(tournament.entryFee) > 0 ? `£${parseFloat(tournament.entryFee).toFixed(2)}` : "Free (No fee set)"}
-            </p>
+        <div className="flex items-center gap-4 p-3 rounded-xl bg-muted/30 border border-border/30">
+          <div className="flex items-center gap-2">
+            <PoundSterling className="h-5 w-5 text-amber-500" />
+            <div>
+              <p className="text-xs text-muted-foreground">Member Fee</p>
+              <p className="text-lg font-black text-foreground">
+                {tournament.entryFee && parseFloat(tournament.entryFee) > 0 ? `£${parseFloat(tournament.entryFee).toFixed(2)}` : "Free"}
+              </p>
+            </div>
           </div>
+          {hasExternalFee && (
+            <>
+              <div className="h-8 w-px bg-border/50" />
+              <div className="flex items-center gap-2">
+                <Globe className="h-5 w-5 text-violet-500" />
+                <div>
+                  <p className="text-xs text-muted-foreground">External Fee</p>
+                  <p className="text-lg font-black text-foreground">£{parseFloat(tournament.externalEntryFee).toFixed(2)}</p>
+                </div>
+              </div>
+            </>
+          )}
         </div>
       )}
     </div>
@@ -3877,7 +3947,9 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
   if (isLoading) return <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />;
   if (!finances) return <EmptyState icon={Wallet} title="No Financial Data" description="Set an entry fee in Settings to track tournament finances." />;
 
-  const entryFee = parseFloat(tournament.entryFee || "0");
+  const internalFee = parseFloat(tournament.entryFee || "0");
+  const externalFee = parseFloat(tournament.externalEntryFee || tournament.entryFee || "0");
+  const hasDualFees = externalFee > 0 && externalFee !== internalFee;
   const players = finances.players?.filter((p: any) => p.status !== "REJECTED") || [];
   const validIds = new Set(players.map((p: any) => p.id));
   const reconciledIds = new Set([...selectedIds].filter(id => validIds.has(id)));
@@ -3919,7 +3991,7 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
     <div className="space-y-4">
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
-          { icon: PoundSterling, label: "Entry Fee", value: `£${entryFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500" },
+          { icon: PoundSterling, label: hasDualFees ? "Member / External" : "Entry Fee", value: hasDualFees ? `£${internalFee.toFixed(2)} / £${externalFee.toFixed(2)}` : `£${internalFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500" },
           { icon: TrendingUp, label: "Expected Revenue", value: `£${finances.totalExpected.toFixed(2)}`, accent: "from-emerald-500 to-teal-500" },
           { icon: Wallet, label: "Collected", value: `£${finances.totalCollected.toFixed(2)}`, accent: "from-blue-500 to-indigo-500" },
           { icon: Clock, label: "Pending", value: `£${finances.totalPending.toFixed(2)}`, accent: "from-violet-500 to-purple-500" },
@@ -3998,7 +4070,12 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-foreground truncate">{player.user?.fullName}</p>
                   <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>£{entryFee.toFixed(2)}</span>
+                    <span>£{(player.playerFee ?? internalFee).toFixed(2)}</span>
+                    {hasDualFees && (
+                      <Badge className={cn("text-[8px] px-1 py-0 border font-bold", player.isInternal ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30" : "bg-violet-500/10 text-violet-500 border-violet-500/30")}>
+                        {player.isInternal ? "Member" : "External"}
+                      </Badge>
+                    )}
                     {player.paymentMethod && <span>{player.paymentMethod}</span>}
                   </div>
                 </div>
@@ -4187,9 +4264,11 @@ function PrizesTab({ tournamentId, tournament, categories }: { tournamentId: num
 
   const ICON_MAP: Record<string, any> = { trophy: Trophy, medal: Medal, star: Star, crown: Crown, award: Award, gift: Gift, flame: Flame, dollar: PoundSterling };
 
-  const entryFee = parseFloat(tournament.entryFee || "0");
+  const internalFee = parseFloat(tournament.entryFee || "0");
+  const externalFee = parseFloat(tournament.externalEntryFee || tournament.entryFee || "0");
+  const avgFee = (internalFee + externalFee) / 2;
   const regCount = tournament.registrationCount || 0;
-  const prizePool = entryFee * regCount;
+  const prizePool = avgFee * regCount;
 
   const placementLabels = ["Champion", "Runner-Up", "3rd Place", "4th Place", "Special"];
   const placementGradients = [
@@ -4226,12 +4305,15 @@ function PrizesTab({ tournamentId, tournament, categories }: { tournamentId: num
         </div>
       </div>
 
-      {entryFee > 0 && (
+      {internalFee > 0 && (
         <div className="grid grid-cols-3 gap-3">
           <div className="rounded-xl bg-card border border-border/50 p-4 text-center">
             <PoundSterling className="h-5 w-5 text-amber-500 mx-auto mb-1" />
             <p className="text-[10px] font-bold text-muted-foreground uppercase">Entry Fee</p>
-            <p className="text-lg font-black text-foreground">£{entryFee.toFixed(2)}</p>
+            <p className="text-lg font-black text-foreground">
+              {externalFee !== internalFee ? `£${internalFee.toFixed(2)} / £${externalFee.toFixed(2)}` : `£${internalFee.toFixed(2)}`}
+            </p>
+            {externalFee !== internalFee && <p className="text-[8px] text-muted-foreground">Member / External</p>}
           </div>
           <div className="rounded-xl bg-card border border-border/50 p-4 text-center">
             <Users className="h-5 w-5 text-blue-500 mx-auto mb-1" />

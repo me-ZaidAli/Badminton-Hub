@@ -75,13 +75,13 @@ export function registerTournamentRoutes(app: Express) {
     try {
       const { name, clubId, type, startDate, endDate, description, courtsAvailable,
         bannerUrl, maxPlayers, skillLevelMin, skillLevelMax, registrationDeadline,
-        location, socialLinks, entryFee, prizeInfo, rules, groupsPerSide, pairsPerGroup } = req.body;
+        location, socialLinks, entryFee, externalEntryFee, prizeInfo, rules, groupsPerSide, pairsPerGroup } = req.body;
       const [t] = await db.insert(tournaments).values({
         name, clubId, type, startDate: new Date(startDate), endDate: new Date(endDate),
         description, courtsAvailable: courtsAvailable || 4, createdBy: req.user!.id,
         bannerUrl, maxPlayers, skillLevelMin, skillLevelMax,
         registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
-        location, socialLinks, entryFee, prizeInfo, rules, groupsPerSide, pairsPerGroup,
+        location, socialLinks, entryFee, externalEntryFee, prizeInfo, rules, groupsPerSide, pairsPerGroup,
       }).returning();
       res.json(t);
     } catch (e: any) {
@@ -98,7 +98,7 @@ export function registerTournamentRoutes(app: Express) {
       const updates: any = {};
       const allowed = ["name", "status", "description", "courtsAvailable", "bannerUrl", "maxPlayers",
         "skillLevelMin", "skillLevelMax", "location", "socialLinks", "isLocked",
-        "entryFee", "prizeInfo", "rules", "groupsPerSide", "pairsPerGroup", "type", "allowedClubIds"];
+        "entryFee", "externalEntryFee", "prizeInfo", "rules", "groupsPerSide", "pairsPerGroup", "type", "allowedClubIds"];
       for (const key of allowed) {
         if (req.body[key] !== undefined) updates[key] = req.body[key];
       }
@@ -1615,27 +1615,40 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const regs = await db.select().from(tournamentRegistrations)
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), ne(tournamentRegistrations.status, "REJECTED")));
 
+      const internalFee = parseFloat(tournament.entryFee || "0");
+      const externalFee = parseFloat(tournament.externalEntryFee || tournament.entryFee || "0");
+
+      const clubMemberIds = new Set<number>();
+      if (tournament.clubId) {
+        const members = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
+          .where(eq(playerProfiles.clubId, tournament.clubId));
+        members.forEach(m => clubMemberIds.add(m.userId));
+      }
+
       const enriched = await Promise.all(regs.map(async (reg) => {
         const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
           .from(users).where(eq(users.id, reg.userId));
-        return { ...reg, user };
+        const isInternal = clubMemberIds.has(reg.userId);
+        const playerFee = isInternal ? internalFee : externalFee;
+        return { ...reg, user, isInternal, playerFee };
       }));
 
-      const entryFee = parseFloat(tournament.entryFee || "0");
-      const totalExpected = enriched.filter(r => r.status === "APPROVED").length * entryFee;
-      const totalCollected = enriched.filter(r => r.paymentStatus === "PAID").length * entryFee;
-      const totalPending = enriched.filter(r => r.paymentStatus === "PENDING").length * entryFee;
+      const approvedPlayers = enriched.filter(r => r.status === "APPROVED");
+      const totalExpected = approvedPlayers.reduce((sum, r) => sum + r.playerFee, 0);
+      const totalCollected = enriched.filter(r => r.paymentStatus === "PAID").reduce((sum, r) => sum + r.playerFee, 0);
+      const totalPending = enriched.filter(r => r.paymentStatus === "PENDING").reduce((sum, r) => sum + r.playerFee, 0);
       const unpaidCount = enriched.filter(r => r.paymentStatus === "UNPAID" && r.status === "APPROVED").length;
       const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 
       res.json({
-        entryFee,
+        entryFee: internalFee,
+        externalEntryFee: externalFee,
         totalExpected,
         totalCollected,
         totalPending,
         unpaidCount,
         collectionRate,
-        playerCount: enriched.filter(r => r.status === "APPROVED").length,
+        playerCount: approvedPlayers.length,
         players: enriched,
       });
     } catch (e: any) {
@@ -1680,7 +1693,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           senderId: userId,
           recipientId: adminId,
           subject: `Tournament Payment - ${tournament?.name}`,
-          body: `${player?.fullName} has confirmed their payment of £${tournament?.entryFee || "0"} for "${tournament?.name}". Payment method: ${paymentMethod || "Bank Transfer"}. Please verify and approve.`,
+          body: `${player?.fullName} has confirmed their payment for "${tournament?.name}". Payment method: ${paymentMethod || "Bank Transfer"}. Please verify and approve.`,
           messageCategory: "PAYMENT",
         });
       }
@@ -1728,7 +1741,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           userId: updated.userId,
           type: "GENERAL",
           title: "Payment Confirmed",
-          message: `Your payment of £${tournament?.entryFee || "0"} for "${tournament?.name}" has been confirmed. You're all set!`,
+          message: `Your payment for "${tournament?.name}" has been confirmed. You're all set!`,
           linkUrl: `/tournaments/${tournamentId}`,
         });
         await db.insert(internalMessages).values({

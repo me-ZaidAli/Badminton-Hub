@@ -465,6 +465,7 @@ export const tournaments = pgTable("tournaments", {
   socialLinks: jsonb("social_links").$type<Record<string, string>>(),
   isLocked: boolean("is_locked").default(false).notNull(),
   entryFee: text("entry_fee"),
+  externalEntryFee: text("external_entry_fee"),
   prizeInfo: text("prize_info"),
   rules: text("rules"),
   groupsPerSide: integer("groups_per_side").default(2),
