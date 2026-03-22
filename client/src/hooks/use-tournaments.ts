@@ -714,6 +714,19 @@ export function useCourtView(tournamentId: number, courtId: number) {
   });
 }
 
+export function useAllCourtsView(tournamentId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/tournaments", tournamentId, "court-view-all"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/court-view-all`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch all courts view");
+      return res.json();
+    },
+    enabled: !!tournamentId,
+    refetchInterval: 10000,
+  });
+}
+
 export function useTournamentPlayerStats(tournamentId: number, categoryId?: number) {
   return useQuery<(TournamentPlayerStat & { playerName: string })[]>({
     queryKey: ["/api/tournaments", tournamentId, "player-stats", categoryId],

@@ -2011,6 +2011,75 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
 
   // === LIVE COURT VIEW ===
 
+  app.get("/api/tournaments/:id/court-view-all", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const allCourts = await db.select().from(tournamentCourts)
+        .where(and(eq(tournamentCourts.tournamentId, tournamentId), eq(tournamentCourts.isActive, true)))
+        .orderBy(asc(tournamentCourts.courtOrder));
+      if (allCourts.length === 0) return res.json([]);
+
+      const courtIds = allCourts.map(c => c.id);
+      const allCourtMatches = courtIds.length > 0 ? await db.select().from(tournamentMatches)
+        .where(inArray(tournamentMatches.courtId, courtIds))
+        .orderBy(asc(tournamentMatches.matchOrder)) : [];
+
+      const teamIds = new Set<number>();
+      allCourtMatches.forEach(m => { if (m.teamAId) teamIds.add(m.teamAId); if (m.teamBId) teamIds.add(m.teamBId); });
+      const teamIdArr = Array.from(teamIds);
+      const teamsRaw = teamIdArr.length > 0 ? await db.select().from(tournamentTeams).where(inArray(tournamentTeams.id, teamIdArr)) : [];
+
+      const profileIds = new Set<number>();
+      teamsRaw.forEach(t => { profileIds.add(t.player1Id); if (t.player2Id) profileIds.add(t.player2Id); });
+      const profileIdArr = Array.from(profileIds);
+      const profiles = profileIdArr.length > 0 ? await db.select().from(playerProfiles).where(inArray(playerProfiles.id, profileIdArr)) : [];
+      const profileMap = new Map(profiles.map(p => [p.id, p]));
+
+      const userIds = new Set<number>();
+      profiles.forEach(p => userIds.add(p.userId));
+      const userIdArr = Array.from(userIds);
+      const usersList = userIdArr.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIdArr)) : [];
+      const userMap = new Map(usersList.map(u => [u.id, u]));
+
+      function getPlayerName(profileId: number): string {
+        const p = profileMap.get(profileId);
+        if (!p) return "Unknown";
+        const u = userMap.get(p.userId);
+        return u?.fullName || "Unknown";
+      }
+
+      const teamNameMap = new Map<number, string[]>();
+      teamsRaw.forEach(t => {
+        const names: string[] = [getPlayerName(t.player1Id)];
+        if (t.player2Id) names.push(getPlayerName(t.player2Id));
+        teamNameMap.set(t.id, names);
+      });
+
+      const catIds = new Set<number>();
+      allCourtMatches.forEach(m => catIds.add(m.categoryId));
+      const catIdArr = Array.from(catIds);
+      const cats = catIdArr.length > 0 ? await db.select().from(tournamentCategories).where(inArray(tournamentCategories.id, catIdArr)) : [];
+      const catMap = new Map(cats.map(c => [c.id, c.name]));
+
+      const result = allCourts.map(court => {
+        const matches = allCourtMatches.filter(m => m.courtId === court.id);
+        const enriched = matches.map(m => ({
+          ...m,
+          categoryName: catMap.get(m.categoryId) || "Unknown",
+          teamAPlayers: m.teamAId ? teamNameMap.get(m.teamAId) || [] : [],
+          teamBPlayers: m.teamBId ? teamNameMap.get(m.teamBId) || [] : [],
+        }));
+        const liveMatch = enriched.find(m => m.status === "LIVE") || null;
+        const nextMatch = enriched.find(m => m.status === "UPCOMING" || m.status === "PENDING") || null;
+        return { court, liveMatch, nextMatch, allMatches: enriched };
+      });
+
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/tournaments/:id/court-view/:courtId", async (req, res) => {
     try {
       const tournamentId = Number(req.params.id);
