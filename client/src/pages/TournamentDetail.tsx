@@ -3136,7 +3136,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
 
       {adminView === "settings" && (
         <div className="space-y-4">
-          <AdminDescriptionSection tournament={tournament} tournamentId={tournamentId} />
+          <AdminTournamentDetailsSection tournament={tournament} tournamentId={tournamentId} />
           <AdminEntryFeeSection tournament={tournament} tournamentId={tournamentId} />
 
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
@@ -3749,67 +3749,222 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   );
 }
 
-function AdminDescriptionSection({ tournament, tournamentId }: { tournament: any; tournamentId: number }) {
+function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournament: any; tournamentId: number }) {
   const updateTournamentMutation = useUpdateTournament();
   const { toast } = useToast();
-  const [description, setDescription] = useState(tournament.description || "");
   const [editing, setEditing] = useState(false);
 
+  const [name, setName] = useState(tournament.name || "");
+  const [type, setType] = useState(tournament.type || "CLUB");
+  const [status, setStatus] = useState(tournament.status || "DRAFT");
+  const [startDate, setStartDate] = useState(tournament.startDate ? new Date(tournament.startDate).toISOString().slice(0, 16) : "");
+  const [endDate, setEndDate] = useState(tournament.endDate ? new Date(tournament.endDate).toISOString().slice(0, 16) : "");
+  const [registrationDeadline, setRegistrationDeadline] = useState(tournament.registrationDeadline ? new Date(tournament.registrationDeadline).toISOString().slice(0, 16) : "");
+  const [location, setLocation] = useState(tournament.location || "");
+  const [description, setDescription] = useState(tournament.description || "");
+  const [rules, setRules] = useState(tournament.rules || "");
+  const [bannerUrl, setBannerUrl] = useState(tournament.bannerUrl || "");
+  const [maxPlayers, setMaxPlayers] = useState(tournament.maxPlayers?.toString() || "");
+  const [courtsAvailable, setCourtsAvailable] = useState(tournament.courtsAvailable?.toString() || "4");
+  const [skillLevelMin, setSkillLevelMin] = useState(tournament.skillLevelMin || "");
+  const [skillLevelMax, setSkillLevelMax] = useState(tournament.skillLevelMax || "");
+
+  function resetForm() {
+    setName(tournament.name || "");
+    setType(tournament.type || "CLUB");
+    setStatus(tournament.status || "DRAFT");
+    setStartDate(tournament.startDate ? new Date(tournament.startDate).toISOString().slice(0, 16) : "");
+    setEndDate(tournament.endDate ? new Date(tournament.endDate).toISOString().slice(0, 16) : "");
+    setRegistrationDeadline(tournament.registrationDeadline ? new Date(tournament.registrationDeadline).toISOString().slice(0, 16) : "");
+    setLocation(tournament.location || "");
+    setDescription(tournament.description || "");
+    setRules(tournament.rules || "");
+    setBannerUrl(tournament.bannerUrl || "");
+    setMaxPlayers(tournament.maxPlayers?.toString() || "");
+    setCourtsAvailable(tournament.courtsAvailable?.toString() || "4");
+    setSkillLevelMin(tournament.skillLevelMin || "");
+    setSkillLevelMax(tournament.skillLevelMax || "");
+    setEditing(false);
+  }
+
   async function handleSave() {
+    if (!name.trim()) { toast({ title: "Error", description: "Tournament name is required", variant: "destructive" }); return; }
+    if (!startDate || !endDate) { toast({ title: "Error", description: "Start and end dates are required", variant: "destructive" }); return; }
     try {
-      await updateTournamentMutation.mutateAsync({ id: tournamentId, description: description.trim() || null });
-      toast({ title: "Description Updated" });
+      await updateTournamentMutation.mutateAsync({
+        id: tournamentId,
+        name: name.trim(),
+        type,
+        status,
+        startDate: new Date(startDate).toISOString(),
+        endDate: new Date(endDate).toISOString(),
+        registrationDeadline: registrationDeadline ? new Date(registrationDeadline).toISOString() : null,
+        location: location.trim() || null,
+        description: description.trim() || null,
+        rules: rules.trim() || null,
+        bannerUrl: bannerUrl.trim() || null,
+        maxPlayers: maxPlayers ? parseInt(maxPlayers) : null,
+        courtsAvailable: parseInt(courtsAvailable) || 4,
+        skillLevelMin: skillLevelMin || null,
+        skillLevelMax: skillLevelMax || null,
+      });
+      toast({ title: "Tournament Updated" });
       setEditing(false);
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
+
+  const inputCls = "w-full rounded-lg bg-card border border-border/60 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-violet-500/60 transition-colors p-2.5";
+  const labelCls = "text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block";
 
   return (
     <div className="rounded-xl border border-border/50 bg-card p-4 space-y-3">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-blue-500 to-indigo-500 flex items-center justify-center">
-            <FileText className="h-4 w-4 text-white" />
+          <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+            <Settings className="h-4 w-4 text-white" />
           </div>
           <div>
-            <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Description</h4>
-            <p className="text-[10px] text-muted-foreground">Describe the tournament details, rules, and format</p>
+            <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Tournament Details</h4>
+            <p className="text-[10px] text-muted-foreground">Edit name, dates, location, and all tournament info</p>
           </div>
         </div>
         {!editing && (
-          <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={() => setEditing(true)} data-testid="button-edit-description">
-            <Edit3 className="h-3 w-3 mr-1" />Edit
+          <Button size="sm" variant="outline" className="h-7 text-xs font-bold" onClick={() => setEditing(true)} data-testid="button-edit-details">
+            <Edit3 className="h-3 w-3 mr-1" />Edit All
           </Button>
         )}
       </div>
 
       {editing ? (
-        <div className="space-y-3">
-          <textarea
-            value={description}
-            onChange={(e) => setDescription(e.target.value)}
-            placeholder="Enter tournament description, rules, format details..."
-            rows={5}
-            className="w-full rounded-xl bg-card border border-blue-500/40 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-blue-500/60 transition-colors p-3 resize-y min-h-[100px]"
-            data-testid="input-tournament-description"
-          />
-          <div className="flex items-center gap-2">
-            <Button size="sm" className="h-8 bg-gradient-to-r from-blue-500 to-indigo-600 text-white font-bold border-0"
+        <div className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="md:col-span-2">
+              <label className={labelCls}>Tournament Name *</label>
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="Tournament name" className={inputCls} data-testid="input-tournament-name" />
+            </div>
+            <div>
+              <label className={labelCls}>Type</label>
+              <select value={type} onChange={(e) => setType(e.target.value)} className={inputCls} data-testid="select-tournament-type">
+                <option value="CLUB">Club</option>
+                <option value="OPEN">Open</option>
+                <option value="LEAGUE">League</option>
+                <option value="FRIENDLY">Friendly</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Status</label>
+              <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls} data-testid="select-tournament-status">
+                <option value="DRAFT">Draft</option>
+                <option value="REGISTRATION">Registration Open</option>
+                <option value="IN_PROGRESS">In Progress</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
+              </select>
+            </div>
+            <div>
+              <label className={labelCls}>Start Date & Time *</label>
+              <input type="datetime-local" value={startDate} onChange={(e) => setStartDate(e.target.value)} className={inputCls} data-testid="input-start-date" />
+            </div>
+            <div>
+              <label className={labelCls}>End Date & Time *</label>
+              <input type="datetime-local" value={endDate} onChange={(e) => setEndDate(e.target.value)} className={inputCls} data-testid="input-end-date" />
+            </div>
+            <div>
+              <label className={labelCls}>Registration Deadline</label>
+              <input type="datetime-local" value={registrationDeadline} onChange={(e) => setRegistrationDeadline(e.target.value)} className={inputCls} data-testid="input-reg-deadline" />
+            </div>
+            <div>
+              <label className={labelCls}>Max Players</label>
+              <input type="number" min="0" value={maxPlayers} onChange={(e) => setMaxPlayers(e.target.value)} placeholder="Unlimited" className={inputCls} data-testid="input-max-players" />
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Location / Address</label>
+              <input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="Venue address" className={inputCls} data-testid="input-location" />
+            </div>
+            <div>
+              <label className={labelCls}>Courts Available</label>
+              <input type="number" min="1" value={courtsAvailable} onChange={(e) => setCourtsAvailable(e.target.value)} className={inputCls} data-testid="input-courts-available" />
+            </div>
+            <div className="flex gap-3">
+              <div className="flex-1">
+                <label className={labelCls}>Min Skill Level</label>
+                <select value={skillLevelMin} onChange={(e) => setSkillLevelMin(e.target.value)} className={inputCls} data-testid="select-skill-min">
+                  <option value="">Any</option>
+                  {["Beginner", "Beginner+", "Intermediate-", "Intermediate", "Intermediate+", "Advanced-", "Advanced", "Advanced+", "Elite"].map(l => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+              <div className="flex-1">
+                <label className={labelCls}>Max Skill Level</label>
+                <select value={skillLevelMax} onChange={(e) => setSkillLevelMax(e.target.value)} className={inputCls} data-testid="select-skill-max">
+                  <option value="">Any</option>
+                  {["Beginner", "Beginner+", "Intermediate-", "Intermediate", "Intermediate+", "Advanced-", "Advanced", "Advanced+", "Elite"].map(l => (
+                    <option key={l} value={l}>{l}</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Banner Image URL</label>
+              <input value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} placeholder="https://..." className={inputCls} data-testid="input-banner-url" />
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Description</label>
+              <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Tournament description, format details..." rows={3}
+                className={cn(inputCls, "resize-y min-h-[80px]")} data-testid="input-tournament-description" />
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Rules</label>
+              <textarea value={rules} onChange={(e) => setRules(e.target.value)} placeholder="Tournament rules and regulations..." rows={3}
+                className={cn(inputCls, "resize-y min-h-[80px]")} data-testid="input-tournament-rules" />
+            </div>
+          </div>
+          <div className="flex items-center gap-2 pt-1">
+            <Button size="sm" className="h-9 bg-gradient-to-r from-violet-500 to-purple-600 text-white font-bold border-0 px-6"
               disabled={updateTournamentMutation.isPending}
-              onClick={handleSave} data-testid="button-save-description">
+              onClick={handleSave} data-testid="button-save-details">
               {updateTournamentMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
-              Save
+              Save Changes
             </Button>
-            <Button size="sm" variant="outline" className="h-8" onClick={() => { setDescription(tournament.description || ""); setEditing(false); }}>
+            <Button size="sm" variant="outline" className="h-9" onClick={resetForm}>
               Cancel
             </Button>
           </div>
         </div>
       ) : (
-        <div className="p-3 rounded-xl bg-muted/30 border border-border/30">
-          {tournament.description ? (
-            <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{tournament.description}</p>
-          ) : (
-            <p className="text-sm text-muted-foreground italic">No description set</p>
+        <div className="space-y-2">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {[
+              { label: "Name", value: tournament.name, icon: Trophy },
+              { label: "Type", value: tournament.type, icon: Globe },
+              { label: "Status", value: tournament.status?.replace("_", " "), icon: Sparkles },
+              { label: "Start", value: tournament.startDate ? format(new Date(tournament.startDate), "PPp") : "Not set", icon: Calendar },
+              { label: "End", value: tournament.endDate ? format(new Date(tournament.endDate), "PPp") : "Not set", icon: Calendar },
+              { label: "Reg Deadline", value: tournament.registrationDeadline ? format(new Date(tournament.registrationDeadline), "PPp") : "None", icon: Clock },
+              { label: "Location", value: tournament.location || "Not set", icon: MapPin },
+              { label: "Max Players", value: tournament.maxPlayers || "Unlimited", icon: Users },
+              { label: "Courts", value: tournament.courtsAvailable || "4", icon: Monitor },
+              { label: "Skill Range", value: (tournament.skillLevelMin || tournament.skillLevelMax) ? `${tournament.skillLevelMin || "Any"} - ${tournament.skillLevelMax || "Any"}` : "All levels", icon: BarChart3 },
+            ].map((item, i) => (
+              <div key={i} className="flex items-center gap-2 p-2.5 rounded-lg bg-muted/30 border border-border/20">
+                <item.icon className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                <span className="text-[10px] font-bold text-muted-foreground uppercase w-20 flex-shrink-0">{item.label}</span>
+                <span className="text-sm font-medium text-foreground truncate">{item.value}</span>
+              </div>
+            ))}
+          </div>
+          {tournament.description && (
+            <div className="p-2.5 rounded-lg bg-muted/30 border border-border/20">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Description</span>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{tournament.description}</p>
+            </div>
+          )}
+          {tournament.rules && (
+            <div className="p-2.5 rounded-lg bg-muted/30 border border-border/20">
+              <span className="text-[10px] font-bold text-muted-foreground uppercase block mb-1">Rules</span>
+              <p className="text-sm text-foreground leading-relaxed whitespace-pre-wrap">{tournament.rules}</p>
+            </div>
           )}
         </div>
       )}

@@ -104,7 +104,9 @@ export function registerTournamentRoutes(app: Express) {
       }
       if (req.body.startDate) updates.startDate = new Date(req.body.startDate);
       if (req.body.endDate) updates.endDate = new Date(req.body.endDate);
-      if (req.body.registrationDeadline) updates.registrationDeadline = new Date(req.body.registrationDeadline);
+      if (req.body.registrationDeadline !== undefined) {
+        updates.registrationDeadline = req.body.registrationDeadline ? new Date(req.body.registrationDeadline) : null;
+      }
       const [t] = await db.update(tournaments).set(updates).where(eq(tournaments.id, id)).returning();
       res.json(t);
     } catch (e: any) {
