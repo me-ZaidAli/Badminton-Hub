@@ -351,7 +351,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
                   </span>
                   <span className="flex items-center gap-0.5">
                     <CreditCard className="w-2.5 h-2.5" />
-                    £{formatPounds(p.credits)}
+                    £{formatPounds(p.credits)} rewards
                   </span>
                   {p.sessions !== undefined && <span>Sessions: {p.sessions}</span>}
                   {p.matches !== undefined && <span>Matches: {p.matches}</span>}
@@ -518,7 +518,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
         {step === "compare" && preview && (
           <div className="space-y-4">
             <p className="text-sm text-muted-foreground">
-              Compare both accounts across all clubs. The system recommends keeping the account with more match history and credits.
+              Compare both accounts across all clubs. The system recommends keeping the account with more match history and rewards.
             </p>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {renderUserDetailCard(preview.keepUser, "Account A", preview.recommendation === "keep")}
@@ -531,7 +531,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
                 <div>
                   <p className="text-xs font-medium">Overlapping club profiles detected</p>
                   <p className="text-xs text-muted-foreground">
-                    Both accounts have profiles in {preview.overlappingClubs.length} club(s). These will be merged (match history, sessions, credits combined into the kept profile).
+                    Both accounts have profiles in {preview.overlappingClubs.length} club(s). These will be merged (match history, sessions, rewards combined into the kept profile).
                   </p>
                 </div>
               </div>
@@ -684,7 +684,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
               {[
                 { label: "Session signups", count: preview.transferCounts.sessions },
                 { label: "Match records", count: preview.transferCounts.matches },
-                { label: "Credit entries", count: `£${formatPounds(preview.transferCounts.creditEntries)}` },
+                { label: "Reward entries", count: `£${formatPounds(preview.transferCounts.creditEntries)}` },
                 { label: "Club memberships", count: preview.transferCounts.memberships },
                 { label: "Messages", count: preview.transferCounts.messages },
                 { label: "Donations", count: preview.transferCounts.donations },
@@ -707,8 +707,8 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
                     <div key={oc.clubId} className="bg-muted/30 rounded p-2">
                       <span className="font-medium">{keepP?.clubName || removeP?.clubName || `Club #${oc.clubId}`}</span>
                       <div className="grid grid-cols-2 gap-1 mt-1 text-muted-foreground">
-                        <span>Keep: {keepP?.matchesPlayed || 0} matches, £{formatPounds(keepP?.credits || 0)}</span>
-                        <span>Absorb: {removeP?.matchesPlayed || 0} matches, £{formatPounds(removeP?.credits || 0)}</span>
+                        <span>Keep: {keepP?.matchesPlayed || 0} matches, £{formatPounds(keepP?.credits || 0)} rewards</span>
+                        <span>Absorb: {removeP?.matchesPlayed || 0} matches, £{formatPounds(removeP?.credits || 0)} rewards</span>
                       </div>
                     </div>
                   );
@@ -736,7 +736,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
                   "{getFinalKeep()?.fullName}" ({getFinalKeep()?.email}).
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  All match history, session signups, credits, memberships, messages, donations, and tickets will be transferred.
+                  All match history, session signups, rewards, memberships, messages, donations, and tickets will be transferred.
                   The removed account will be deactivated. A full audit log will be created.
                 </p>
                 {(fieldSelections.email === "remove" || fieldSelections.password === "remove") && (

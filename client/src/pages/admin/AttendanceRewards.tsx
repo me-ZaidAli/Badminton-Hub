@@ -250,7 +250,7 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
                 <div className="space-y-1.5 text-sm">
                   {reward.rewardConfig.credits > 0 && (
                     <div className="flex items-center justify-between gap-2" data-testid={`text-credits-${reward.id}`}>
-                      <span className="text-muted-foreground">Credits</span>
+                      <span className="text-muted-foreground">Rewards</span>
                       <span className="font-medium">{formatGBP(reward.rewardConfig.credits)}</span>
                     </div>
                   )}
@@ -321,7 +321,7 @@ export function AttendanceRewardsPanel({ clubId }: { clubId: number }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="credits">Credits (£)</Label>
+              <Label htmlFor="credits">Rewards (£)</Label>
               <Input
                 id="credits"
                 type="number"

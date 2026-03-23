@@ -66,7 +66,7 @@ export default function RewardsDashboard() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rewards-dashboard"] });
-      toast({ title: "Approved", description: "Reward approved and credits added to player account." });
+      toast({ title: "Approved", description: "Reward approved and added to player account." });
       setDetailReward(null);
     },
     onError: (error: any) => {
@@ -84,7 +84,7 @@ export default function RewardsDashboard() {
       setSelectedIds(new Set());
       const msg = data.errors?.length > 0
         ? `${data.approved} approved. ${data.errors.length} error(s).`
-        : `${data.approved} reward(s) approved and credits added.`;
+        : `${data.approved} reward(s) approved and added.`;
       toast({ title: "Bulk Approval Complete", description: msg });
     },
     onError: (error: any) => {
@@ -257,7 +257,7 @@ export default function RewardsDashboard() {
         </Card>
         <Card className="border-border/50" data-testid="card-total-credits">
           <CardHeader className="flex flex-row items-center justify-between pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Credits Issued</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Rewards Issued</CardTitle>
             <CreditCard className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
@@ -492,7 +492,7 @@ export default function RewardsDashboard() {
                 </div>
                 {detailReward.credits > 0 && (
                   <div>
-                    <p className="text-muted-foreground text-xs">Credits</p>
+                    <p className="text-muted-foreground text-xs">Rewards</p>
                     <p className="font-medium text-emerald-600">{formatGBP(detailReward.credits)}</p>
                   </div>
                 )}
@@ -518,7 +518,7 @@ export default function RewardsDashboard() {
                 <div className="pt-3 border-t">
                   <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-500/10 border border-amber-500/20 mb-3">
                     <AlertCircle className="h-4 w-4 text-amber-500 shrink-0" />
-                    <p className="text-xs text-amber-700 dark:text-amber-400">This reward is awaiting your approval. Approving will credit the player's account.</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400">This reward is awaiting your approval. Approving will add the reward to the player's account.</p>
                   </div>
                   <Button
                     className="w-full bg-emerald-600 hover:bg-emerald-700 text-white"
@@ -531,7 +531,7 @@ export default function RewardsDashboard() {
                     ) : (
                       <Check className="h-4 w-4 mr-2" />
                     )}
-                    Approve & Credit Player
+                    Approve & Reward Player
                   </Button>
                 </div>
               )}

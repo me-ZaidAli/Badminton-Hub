@@ -194,7 +194,7 @@ export default function SessionDetail() {
       setCancelCreditDialogOpen(false);
       toast({
         title: "Session Cancelled",
-        description: `${data.creditsIssued} credit(s) issued totalling £${(data.totalCreditAmount / 100).toFixed(2)}. Ticket ${data.ticketNumber} created.`,
+        description: `${data.creditsIssued} reward(s) issued totalling £${(data.totalCreditAmount / 100).toFixed(2)}. Ticket ${data.ticketNumber} created.`,
       });
     },
     onError: (err: any) => {
@@ -979,20 +979,20 @@ export default function SessionDetail() {
                   onClick={() => setCancelCreditDialogOpen(true)}
                   data-testid="button-cancel-session-credit"
                 >
-                  <CreditCard className="w-4 h-4" /> Cancel & Issue Credits
+                  <CreditCard className="w-4 h-4" /> Cancel & Issue Rewards
                 </Button>
                 <AlertDialogContent>
                   <AlertDialogHeader>
                     <AlertDialogTitle className="flex items-center gap-2">
                       <AlertTriangle className="w-5 h-5 text-destructive" />
-                      Cancel Session & Issue Credits
+                      Cancel Session & Issue Rewards
                     </AlertDialogTitle>
                     <AlertDialogDescription className="space-y-3">
                       <span className="block">
-                        This will cancel "{session.title}" and issue credits to all {confirmedSignups.length} confirmed player(s).
+                        This will cancel "{session.title}" and issue rewards to all {confirmedSignups.length} confirmed player(s).
                       </span>
                       <span className="block text-sm">
-                        Default credit amount: £{((session.sessionFee || 0) / 100).toFixed(2)} per player (session fee).
+                        Default reward amount: £{((session.sessionFee || 0) / 100).toFixed(2)} per player (session fee).
                       </span>
                       <span className="block">
                         <label className="flex items-center gap-2 cursor-pointer">
@@ -1001,7 +1001,7 @@ export default function SessionDetail() {
                             onCheckedChange={(checked) => setCancelCreditUseCustom(!!checked)}
                             data-testid="checkbox-custom-credit-amount"
                           />
-                          <span className="text-sm text-foreground">Use custom credit amount</span>
+                          <span className="text-sm text-foreground">Use custom reward amount</span>
                         </label>
                       </span>
                       {cancelCreditUseCustom && (
@@ -1034,7 +1034,7 @@ export default function SessionDetail() {
                       data-testid="button-confirm-cancel-credit"
                     >
                       {cancelAndCreditMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                      Cancel & Issue Credits
+                      Cancel & Issue Rewards
                     </AlertDialogAction>
                   </AlertDialogFooter>
                 </AlertDialogContent>
@@ -2426,7 +2426,7 @@ function PaymentVerificationDashboard({ sessionId, session, signups }: { session
           </CardContent></Card>
           <Card><CardContent className="p-3 text-center">
             <p className="text-2xl font-bold text-blue-600 dark:text-blue-400" data-testid="text-credit-count">{creditSignups.length}</p>
-            <p className="text-xs text-muted-foreground">Using Credit</p>
+            <p className="text-xs text-muted-foreground">Using Reward</p>
           </CardContent></Card>
           <Card><CardContent className="p-3 text-center">
             <p className="text-2xl font-bold text-red-600 dark:text-red-400" data-testid="text-unpaid-count">{unpaidSignups.length}</p>
@@ -2578,10 +2578,10 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
       setCreditDialogOpen(false);
       setCreditTarget(null);
       setCreditAmount("");
-      toast({ title: "Credit issued" });
+      toast({ title: "Reward issued" });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to issue credit", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to issue reward", description: err.message, variant: "destructive" });
     },
   });
 
@@ -2603,7 +2603,7 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
     BANK_TRANSFER: "Bank Transfer",
     CASH: "Cash",
     ONLINE: "Online",
-    MEMBERSHIP_CREDIT: "Credit",
+    MEMBERSHIP_CREDIT: "Reward",
     NONE: "None",
   };
 
@@ -2646,7 +2646,7 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
             </div>
             <div className="text-center p-3 rounded-md bg-blue-50 dark:bg-blue-950/30">
               <p className="text-xl font-bold text-blue-600 dark:text-blue-400" data-testid="text-credit-applied">{fmt(summary.creditAppliedRevenue)}</p>
-              <p className="text-xs text-muted-foreground">Credit ({summary.creditCount})</p>
+              <p className="text-xs text-muted-foreground">Reward ({summary.creditCount})</p>
             </div>
             <div className="text-center p-3 rounded-md bg-red-50 dark:bg-red-950/30">
               <p className="text-xl font-bold text-red-600 dark:text-red-400" data-testid="text-unpaid-balance">{fmt(summary.unpaidRevenue)}</p>
@@ -2716,9 +2716,9 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
                           <Badge variant="outline" className="text-xs">{methodLabels[p.paymentMethod] || p.paymentMethod}</Badge>
                         )}
                         <span className="text-xs font-medium">{fmt(p.fee)}</span>
-                        {p.creditUsed > 0 && (
+                        {(p as any).creditUsed > 0 && (
                           <Badge variant="outline" className="text-xs text-blue-600 dark:text-blue-400">
-                            Credit: {fmt(p.creditUsed)}
+                            Reward: {fmt((p as any).creditUsed)}
                           </Badge>
                         )}
                         {p.verifiedByAdmin && (
@@ -2761,7 +2761,7 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
                           setCreditAmount(String(p.fee));
                           setCreditDialogOpen(true);
                         }}
-                        title="Issue Credit"
+                        title="Issue Reward"
                         data-testid={`button-issue-credit-${p.playerId}`}
                       >
                         <CreditCard className="w-4 h-4 text-blue-600" />
@@ -2778,9 +2778,9 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
       <Dialog open={creditDialogOpen} onOpenChange={setCreditDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Issue Credit</DialogTitle>
+            <DialogTitle>Issue Reward</DialogTitle>
             <DialogDescription>
-              Issue a credit to {creditTarget?.fullName}
+              Issue a reward to {creditTarget?.fullName}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
@@ -2807,7 +2807,7 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
                   issueCreditMutation.mutate({
                     playerId: creditTarget.playerId,
                     amount: Number(creditAmount),
-                    reason: `Manual credit for session`,
+                    reason: `Manual reward for session`,
                   });
                 }
               }}
@@ -2815,7 +2815,7 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
               data-testid="button-confirm-credit"
             >
               {issueCreditMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
-              Issue {creditAmount && Number(creditAmount) > 0 ? fmt(Number(creditAmount)) : "Credit"}
+              Issue {creditAmount && Number(creditAmount) > 0 ? fmt(Number(creditAmount)) : "Reward"}
             </Button>
           </DialogFooter>
         </DialogContent>

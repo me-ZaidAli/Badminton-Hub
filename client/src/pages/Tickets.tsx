@@ -56,7 +56,7 @@ const CATEGORY_LABELS: Record<string, string> = {
   GENERAL: "General",
   SAFEGUARDING: "Safeguarding",
   BAN_APPEAL: "Ban Appeal",
-  CREDIT_CLAIM: "Credit Claim",
+  CREDIT_CLAIM: "Reward Claim",
 };
 
 const PRIORITY_LABELS: Record<string, string> = {

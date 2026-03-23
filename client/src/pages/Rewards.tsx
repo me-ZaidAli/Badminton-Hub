@@ -563,7 +563,7 @@ export default function Rewards() {
           milestones.splice(1, 0, { barIndex: Math.round(barCount * 0.50), label: `${Math.ceil(sr * 0.5)}`, reached: currentInCycle >= Math.ceil(sr * 0.5) });
           milestones.splice(2, 0, { barIndex: Math.round(barCount * 0.75), label: `${Math.ceil(sr * 0.75)}`, reached: currentInCycle >= Math.ceil(sr * 0.75) });
         }
-        return { pct, milestones, value: `${currentInCycle}`, unit: `of ${sr}`, stage: best.milestonesCompleted > 0 ? `${best.milestonesCompleted}x Earned` : "Progress Active", remaining: best.sessionsUntilNext, nextLabel: "next credit", clubName: best.clubName, ...theme };
+        return { pct, milestones, value: `${currentInCycle}`, unit: `of ${sr}`, stage: best.milestonesCompleted > 0 ? `${best.milestonesCompleted}x Earned` : "Progress Active", remaining: best.sessionsUntilNext, nextLabel: "next reward", clubName: best.clubName, ...theme };
       }
 
       const firstMs = clubData.milestones?.[0];
@@ -577,7 +577,7 @@ export default function Rewards() {
         milestones.splice(1, 0, { barIndex: Math.round(barCount * 0.50), label: `${Math.ceil(sr * 0.5)}`, reached: currentInCycle >= Math.ceil(sr * 0.5) });
         milestones.splice(2, 0, { barIndex: Math.round(barCount * 0.75), label: `${Math.ceil(sr * 0.75)}`, reached: currentInCycle >= Math.ceil(sr * 0.75) });
       }
-      return { pct, milestones, value: `${currentInCycle}`, unit: `of ${sr}`, stage: firstMs.milestonesCompleted > 0 ? `${firstMs.milestonesCompleted}x Earned` : "Progress Active", remaining: firstMs.sessionsUntilNext, nextLabel: "next credit", clubName: clubData.clubName, ...theme };
+      return { pct, milestones, value: `${currentInCycle}`, unit: `of ${sr}`, stage: firstMs.milestonesCompleted > 0 ? `${firstMs.milestonesCompleted}x Earned` : "Progress Active", remaining: firstMs.sessionsUntilNext, nextLabel: "next reward", clubName: clubData.clubName, ...theme };
     }
 
     if (activeTab === "anniversary") {
@@ -1023,9 +1023,9 @@ export default function Rewards() {
                 return (
                   <div className="space-y-2">
                     {[
-                      { target: 1, label: "1st Referral", desc: "Credit reward per referral", icon: Gift, badgeText: "Earned" },
+                      { target: 1, label: "1st Referral", desc: "Reward per referral", icon: Gift, badgeText: "Earned" },
                       { target: 2, label: "2 Referrals — Premium", desc: "Premium rate for 2 months", icon: Star, badgeText: "Unlocked" },
-                      { target: 4, label: "4 Referrals — Champion", desc: "1 free session credit", icon: Trophy, badgeText: "Champion" },
+                      { target: 4, label: "4 Referrals — Champion", desc: "1 free session reward", icon: Trophy, badgeText: "Champion" },
                     ].map(ms => {
                       const reached = approved >= ms.target;
                       return (
@@ -1145,7 +1145,7 @@ export default function Rewards() {
                     );
                   })()}
                   <div className="flex items-center justify-between">
-                    <p className="text-xs font-medium" style={{ color: isStd ? 'hsl(var(--foreground))' : `${gaugeConfig.accent}cc` }}>Attend sessions to earn credits</p>
+                    <p className="text-xs font-medium" style={{ color: isStd ? 'hsl(var(--foreground))' : `${gaugeConfig.accent}cc` }}>Attend sessions to earn rewards</p>
                     <button onClick={() => setShowAttendanceInfo(true)} className="text-[10px] font-medium underline underline-offset-2 transition-colors" style={{ color: `${gaugeConfig.accent}` }} data-testid="button-how-attendance-works">
                       How?
                     </button>
@@ -1210,7 +1210,7 @@ export default function Rewards() {
                   ) : (
                     <div className="text-center py-3">
                       <Target className="h-6 w-6 mx-auto mb-1.5" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(180,195,210,0.5)' }} />
-                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Start attending to earn credits</p>
+                      <p className="text-[11px]" style={{ color: isStd ? 'hsl(var(--muted-foreground))' : 'rgba(200,215,230,0.75)' }}>Start attending to earn rewards</p>
                     </div>
                   )}
                 </div>
@@ -1696,7 +1696,7 @@ export default function Rewards() {
         <Card data-testid="card-rewards-summary">
           <CardContent className="p-4">
             <h2 className="text-sm font-bold mb-3">Rewards Summary</h2>
-            <InfoRow icon={PoundSterling} label="Available credits" value={`£${(totalAvailableCredits / 100).toFixed(2)}`} hint="info" />
+            <InfoRow icon={PoundSterling} label="Available rewards" value={`£${(totalAvailableCredits / 100).toFixed(2)}`} hint="info" />
             <InfoRow icon={CalendarDays} label="Free sessions" value={`${totalFreeSessions}`} hint="info" />
             <InfoRow icon={Users} label="Approved referrals" value={`${stats?.approvedReferrals || 0}`} onClick={() => setActiveTab("referrals")} />
             <InfoRow icon={Gift} label="Total rewards earned" value={`${totalRewards}`} />
@@ -1832,7 +1832,7 @@ export default function Rewards() {
                 <div className="p-4 rounded-lg bg-muted/30 space-y-2">
                   <p className="font-medium">{selectedReward.description || typeLabels[selectedReward.rewardType] || "Reward"}</p>
                   <div className="text-sm text-muted-foreground space-y-1">
-                    {selectedReward.credits > 0 && <p>Credit: £{(selectedReward.credits / 100).toFixed(2)}</p>}
+                    {selectedReward.credits > 0 && <p>Reward: £{(selectedReward.credits / 100).toFixed(2)}</p>}
                     {selectedReward.freeSessions > 0 && <p>Free sessions: {selectedReward.freeSessions}</p>}
                     {selectedReward.gifts && <p>Gift: {selectedReward.gifts}</p>}
                     {selectedReward.clubName && <p>Club: {selectedReward.clubName}</p>}
@@ -1866,7 +1866,7 @@ export default function Rewards() {
                     <div className="mt-2 space-y-1.5">
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">1st</span>
-                        <p className="text-[11px] text-muted-foreground">Your first approved referral earns you a credit reward. Share your unique referral code from the "Refer & Earn" page.</p>
+                        <p className="text-[11px] text-muted-foreground">Your first approved referral earns you a reward. Share your unique referral code from the "Refer & Earn" page.</p>
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">2nd</span>
@@ -1874,7 +1874,7 @@ export default function Rewards() {
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] font-bold text-blue-500 bg-blue-500/10 px-1.5 py-0.5 rounded shrink-0">4th</span>
-                        <p className="text-[11px] text-muted-foreground">Achieve Champion status with 4 referrals and receive a free session credit as a bonus.</p>
+                        <p className="text-[11px] text-muted-foreground">Achieve Champion status with 4 referrals and receive a free session reward as a bonus.</p>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-1">Each club has its own independent referral programme. Your referral code is tied to a specific club, so progress is tracked separately per club.</p>
                     </div>
@@ -1901,7 +1901,7 @@ export default function Rewards() {
                       </div>
                       <div className="flex items-start gap-2">
                         <span className="text-[10px] font-bold text-emerald-500 bg-emerald-500/10 px-1.5 py-0.5 rounded shrink-0">Step 3</span>
-                        <p className="text-[11px] text-muted-foreground">The milestone resets after each reward, so you keep earning the more you play. Rewards can include credits, free sessions, or gifts.</p>
+                        <p className="text-[11px] text-muted-foreground">The milestone resets after each reward, so you keep earning the more you play. Rewards can include monetary rewards, free sessions, or gifts.</p>
                       </div>
                       <p className="text-[11px] text-muted-foreground mt-1">The gauge shows your current cycle progress. Each club may have different targets and rewards configured by the club admin.</p>
                     </div>
@@ -1918,7 +1918,7 @@ export default function Rewards() {
                     <p className="text-sm font-bold text-purple-600 dark:text-purple-400">Anniversary Rewards</p>
                     <p className="text-xs text-muted-foreground mt-1">Celebrate your club membership milestones and get rewarded for loyalty.</p>
                     <div className="mt-2 space-y-1.5">
-                      <p className="text-[11px] text-muted-foreground">Every year on the anniversary of when you joined a club, you automatically receive a reward. This could include credits, gifts, or a special message from the club.</p>
+                      <p className="text-[11px] text-muted-foreground">Every year on the anniversary of when you joined a club, you automatically receive a reward. This could include monetary rewards, gifts, or a special message from the club.</p>
                       <p className="text-[11px] text-muted-foreground">The gauge tracks your progress towards your next anniversary. Q1, Q2, Q3 markers show quarter-year milestones, with the final marker showing your upcoming anniversary year.</p>
                       <p className="text-[11px] text-muted-foreground">The countdown shows exactly how long until your next anniversary. When the day arrives, rewards are issued automatically and you'll receive a notification.</p>
                       <p className="text-[11px] text-muted-foreground">Each club independently tracks your joining date and may offer different anniversary rewards.</p>
@@ -1936,7 +1936,7 @@ export default function Rewards() {
                     <p className="text-sm font-bold text-pink-600 dark:text-pink-400">Birthday Rewards</p>
                     <p className="text-xs text-muted-foreground mt-1">Receive a special reward from your club on your birthday each year.</p>
                     <div className="mt-2 space-y-1.5">
-                      <p className="text-[11px] text-muted-foreground">Clubs can choose to celebrate your birthday with credits, gifts, or a special message. This reward is given once per year on your birthday.</p>
+                      <p className="text-[11px] text-muted-foreground">Clubs can choose to celebrate your birthday with rewards, gifts, or a special message. This reward is given once per year on your birthday.</p>
                       <p className="text-[11px] text-muted-foreground"><strong>Important:</strong> You must have your date of birth set in your profile to receive birthday rewards. Once set, your date of birth is locked and can only be changed by an admin.</p>
                       <p className="text-[11px] text-muted-foreground">The birthday tab only appears if at least one of your clubs offers birthday rewards. If you don't see a birthday tab, your clubs haven't set up this reward type.</p>
                     </div>
@@ -1956,7 +1956,7 @@ export default function Rewards() {
                       <p className="text-[11px] text-muted-foreground"><strong>Repeating milestones:</strong> Set at regular intervals (e.g. every 50 points). Each time you cross the threshold, you earn a reward and the cycle continues. These are marked with an "x" suffix on the gauge.</p>
                       <p className="text-[11px] text-muted-foreground"><strong>Special milestones:</strong> One-time rewards at specific point thresholds (e.g. reaching 200 points). These are highlighted separately and can only be earned once.</p>
                       <p className="text-[11px] text-muted-foreground">Your ranking points increase as you win matches. The gauge shows your progress towards the next milestone, with a progress bar for each active target.</p>
-                      <p className="text-[11px] text-muted-foreground">Rewards can include credits, free sessions, or gifts depending on what the club admin has configured.</p>
+                      <p className="text-[11px] text-muted-foreground">Rewards can include monetary rewards, free sessions, or gifts depending on what the club admin has configured.</p>
                     </div>
                   </div>
                 </div>
@@ -1992,7 +1992,7 @@ export default function Rewards() {
                           </div>
                         ))}
                       </div>
-                      <p className="text-[11px] text-muted-foreground mt-1">The speedometer visualisation shows your badge progress with a racket pointer indicating your highest achieved badge. Club admins can attach rewards (credits, gifts, free sessions) to each badge.</p>
+                      <p className="text-[11px] text-muted-foreground mt-1">The speedometer visualisation shows your badge progress with a racket pointer indicating your highest achieved badge. Club admins can attach rewards (monetary rewards, gifts, free sessions) to each badge.</p>
                       <p className="text-[11px] text-muted-foreground">Badges are tracked per club based on your match statistics within that club.</p>
                     </div>
                   </div>
@@ -2006,7 +2006,7 @@ export default function Rewards() {
                   <p className="text-[11px] text-muted-foreground">2. Tap on any reward marked "Available" to see its details.</p>
                   <p className="text-[11px] text-muted-foreground">3. Click "Request Redemption" to submit a redemption request to your club admin.</p>
                   <p className="text-[11px] text-muted-foreground">4. Your admin will review and approve the request. Once approved, the status changes to "Used".</p>
-                  <p className="text-[11px] text-muted-foreground">Credits are automatically applied to your account balance and can offset session fees.</p>
+                  <p className="text-[11px] text-muted-foreground">Rewards are automatically applied to your account balance and can offset session fees.</p>
                 </div>
               </div>
 
@@ -2028,7 +2028,7 @@ export default function Rewards() {
         <Dialog open={showAttendanceInfo} onOpenChange={setShowAttendanceInfo}>
           <DialogContent className="bg-background max-w-sm">
             <DialogHeader>
-              <DialogTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-amber-500" />How Session Credits Work</DialogTitle>
+              <DialogTitle className="flex items-center gap-2"><Target className="h-5 w-5 text-amber-500" />How Session Rewards Work</DialogTitle>
               <DialogDescription>Earn rewards just by playing</DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
@@ -2036,7 +2036,7 @@ export default function Rewards() {
                 {[
                   { num: "1", title: "Attend sessions", desc: "Every time you attend a session and your attendance is marked, it counts towards your progress." },
                   { num: "2", title: "Reach a milestone", desc: "Each club sets a target number of sessions. When you hit the target, you automatically earn a reward." },
-                  { num: "3", title: "Get credited", desc: "Credits are added to your account automatically. Use them to pay for future sessions, or receive gifts and free sessions." },
+                  { num: "3", title: "Get rewarded", desc: "Rewards are added to your account automatically. Use them to pay for future sessions, or receive gifts and free sessions." },
                 ].map(step => (
                   <div key={step.num} className="flex gap-3 items-start">
                     <div className="w-7 h-7 rounded-full bg-amber-500/10 flex items-center justify-center shrink-0 mt-0.5">

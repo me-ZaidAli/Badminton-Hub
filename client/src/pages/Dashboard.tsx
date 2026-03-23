@@ -359,7 +359,7 @@ function DashboardContent({
             </div>
             <div className="flex-1 min-w-0">
               <h3 className="font-bold text-sm">Refer & Earn</h3>
-              <p className="text-xs text-muted-foreground">Invite friends and earn {"\u00A3"}4 credit for each approved referral</p>
+              <p className="text-xs text-muted-foreground">Invite friends and earn {"\u00A3"}4 reward for each approved referral</p>
             </div>
           </div>
           <Link href="/referrals">

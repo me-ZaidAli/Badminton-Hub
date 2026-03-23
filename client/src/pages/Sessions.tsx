@@ -2296,7 +2296,7 @@ function JoinSessionModal({
                   >
                     <Checkbox checked={paymentOption === "credit"} onCheckedChange={() => { setPaymentOption("credit"); setCreditMode("full"); }} />
                     <div>
-                      <p className="text-sm font-medium">Credit Used</p>
+                      <p className="text-sm font-medium">Reward Used</p>
                       <p className="text-[10px] text-muted-foreground">£{(creditBalance / 100).toFixed(2)} available in wallet</p>
                     </div>
                   </div>

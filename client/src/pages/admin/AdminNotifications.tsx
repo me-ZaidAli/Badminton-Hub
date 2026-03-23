@@ -469,7 +469,7 @@ function CreditSettingsPanel({ clubId, clubName }: { clubId: number; clubName: s
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/clubs", clubId, "credit-settings"] });
-      toast({ title: "Credit settings saved" });
+      toast({ title: "Reward settings saved" });
       setAutoApprove(null);
       setCancelWindow("");
     },
@@ -521,10 +521,10 @@ function CreditSettingsPanel({ clubId, clubName }: { clubId: number; clubName: s
         <div className="bg-muted/50 rounded-lg p-3 text-xs text-muted-foreground space-y-1">
           <p className="font-medium text-foreground">How it works:</p>
           <ul className="list-disc pl-4 space-y-1">
-            <li>When enabled, credit claims from cancellations within the window are auto-approved</li>
-            <li>Credits are automatically added to the member's wallet</li>
+            <li>When enabled, reward claims from cancellations within the window are auto-approved</li>
+            <li>Rewards are automatically added to the member's wallet</li>
             <li>A ticket is created for audit purposes with resolution "APPROVED"</li>
-            <li>Members receive a notification with their updated credit balance</li>
+            <li>Members receive a notification with their updated reward balance</li>
             <li>All automated actions are logged in the ticket timeline</li>
           </ul>
         </div>
@@ -590,7 +590,7 @@ export default function AdminNotifications() {
             <TabsTrigger value="bank" data-testid="tab-bank"><Building2 className="h-4 w-4 mr-1" /> Bank Details</TabsTrigger>
             <TabsTrigger value="logs" data-testid="tab-logs"><Clock className="h-4 w-4 mr-1" /> Delivery Logs</TabsTrigger>
             <TabsTrigger value="stats" data-testid="tab-stats"><Send className="h-4 w-4 mr-1" /> Stats</TabsTrigger>
-            <TabsTrigger value="credits" data-testid="tab-credits"><Coins className="h-4 w-4 mr-1" /> Credits</TabsTrigger>
+            <TabsTrigger value="credits" data-testid="tab-credits"><Coins className="h-4 w-4 mr-1" /> Rewards</TabsTrigger>
           </TabsList>
 
           <TabsContent value="settings">

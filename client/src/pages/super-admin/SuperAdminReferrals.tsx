@@ -416,7 +416,7 @@ export default function SuperAdminReferrals() {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Credits ({"\u00A3"})</Label>
+                      <Label className="text-xs">Rewards ({"\u00A3"})</Label>
                       <Input
                         type="number"
                         min="0"

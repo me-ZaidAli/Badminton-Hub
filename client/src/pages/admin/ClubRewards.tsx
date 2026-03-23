@@ -137,7 +137,7 @@ function AnniversaryRewardsTab({ clubId }: { clubId: number }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="anniversary-credits">Credits (GBP)</Label>
+              <Label htmlFor="anniversary-credits">Rewards (GBP)</Label>
               <Input
                 id="anniversary-credits"
                 type="number"
@@ -231,7 +231,7 @@ function AnniversaryRewardsTab({ clubId }: { clubId: number }) {
         <CardContent className="pt-6 space-y-3">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1" data-testid="text-anniversary-credits">
-              <p className="text-sm text-muted-foreground">Credits</p>
+              <p className="text-sm text-muted-foreground">Rewards</p>
               <p className="font-medium">{`\u00A3${(settings!.credits / 100).toFixed(2)}`}</p>
             </div>
             {settings!.gifts && (
@@ -355,7 +355,7 @@ function BirthdayRewardsTab({ clubId }: { clubId: number }) {
               />
             </div>
             <div className="space-y-2">
-              <Label htmlFor="birthday-credits">Credits (GBP)</Label>
+              <Label htmlFor="birthday-credits">Rewards (GBP)</Label>
               <Input
                 id="birthday-credits"
                 type="number"
@@ -449,7 +449,7 @@ function BirthdayRewardsTab({ clubId }: { clubId: number }) {
         <CardContent className="pt-6 space-y-3">
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-1" data-testid="text-birthday-credits">
-              <p className="text-sm text-muted-foreground">Credits</p>
+              <p className="text-sm text-muted-foreground">Rewards</p>
               <p className="font-medium">{`\u00A3${(settings!.credits / 100).toFixed(2)}`}</p>
             </div>
             {settings!.gifts && (

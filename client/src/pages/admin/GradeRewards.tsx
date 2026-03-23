@@ -324,7 +324,7 @@ export function GradeRewardsPanel({ clubId }: { clubId: number }) {
               })()}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="badge-credits">Credits (GBP)</Label>
+              <Label htmlFor="badge-credits">Rewards (GBP)</Label>
               <Input id="badge-credits" type="number" min={0} step={0.01} value={formData.credits} onChange={(e) => setFormData({ ...formData, credits: Number(e.target.value) })} data-testid="input-badge-credits" />
             </div>
             <div className="space-y-2">

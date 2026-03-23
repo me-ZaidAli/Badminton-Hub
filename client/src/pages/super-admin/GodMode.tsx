@@ -64,7 +64,7 @@ const controlSections = [
     items: [
       { href: "/admin/rewards", label: "Club Rewards", desc: "Anniversary and milestone rewards", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
       { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", desc: "View all claimed rewards", icon: Award, color: "text-pink-500", bg: "bg-pink-500/10" },
-      { href: "/admin/referrals", label: "Referral Management", desc: "Approve referrals and award credits", icon: Share2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/admin/referrals", label: "Referral Management", desc: "Approve referrals and award rewards", icon: Share2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
       { href: "/super-admin/referrals", label: "Referral Programs", desc: "Configure multi-level reward tiers", icon: Gift, color: "text-violet-500", bg: "bg-violet-500/10" },
     ],
   },

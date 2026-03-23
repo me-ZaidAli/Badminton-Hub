@@ -416,7 +416,7 @@ export function MergeProfilesModal({ open, onClose, clubId, preselectedProfileId
                 <Badge variant="secondary" data-testid="text-merge-matches-count">{preview.counts.matchesToReassign}</Badge>
               </div>
               <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
-                <span>Credit entries to reassign</span>
+                <span>Reward entries to reassign</span>
                 <Badge variant="secondary">{preview.counts.creditEntriesToReassign}</Badge>
               </div>
               <div className="flex items-center justify-between p-2 bg-muted/50 rounded-md">
@@ -451,7 +451,7 @@ export function MergeProfilesModal({ open, onClose, clubId, preselectedProfileId
                 <p className="text-sm font-medium">This action cannot be undone.</p>
                 <p className="text-xs text-muted-foreground">
                   "{preview.secondary.fullName}" will be permanently absorbed into "{preview.primary.fullName}".
-                  All match history, session signups, credits, and tournament data will be transferred.
+                  All match history, session signups, rewards, and tournament data will be transferred.
                   A full audit log will be created.
                 </p>
               </div>
@@ -531,7 +531,7 @@ export function MergeLogsPanel() {
                 <span>By: {log.mergedByName || `User #${log.mergedByUserId}`}</span>
                 <span>Sessions: {details.sessionsReassigned || 0}</span>
                 <span>Matches: {details.matchesReassigned || 0}</span>
-                <span>Credits: {details.creditEntriesReassigned || 0}</span>
+                <span>Rewards: {details.creditEntriesReassigned || 0}</span>
                 <span>Duplicates removed: {details.duplicateSignupsRemoved || 0}</span>
               </div>
               <div className="text-xs text-muted-foreground">

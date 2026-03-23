@@ -129,7 +129,7 @@ export default function TermsConditions() {
             <li>Non-payment or late payment may result in suspension of access, loss of booking privileges, and the commencement of debt recovery proceedings.</li>
             <li>The Company reserves the right to engage third-party debt collection agencies and to pursue legal action to recover outstanding debts, including all reasonable costs and expenses incurred.</li>
             <li>Membership plans, fees, and pricing may change at any time. Users will be notified of changes via the Platform. Continued use constitutes acceptance of revised pricing.</li>
-            <li>Credits earned through referrals, milestones, or rewards are non-transferable, have no cash value, and may only be redeemed against Platform services at the Company&apos;s discretion.</li>
+            <li>Rewards earned through referrals, milestones, or other programmes are non-transferable, have no cash value, and may only be redeemed against Platform services at the Company&apos;s discretion.</li>
             <li>The Company is not liable for any errors in payment processing by third-party payment providers.</li>
           </ul>
         </CardContent>

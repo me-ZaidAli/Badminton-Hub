@@ -140,7 +140,7 @@ export default function NotificationsPage() {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/rewards/pending-tasks"] });
       queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
-      toast({ title: "Reward Approved", description: "The reward has been approved and credits issued." });
+      toast({ title: "Reward Approved", description: "The reward has been approved and issued." });
     },
     onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
   });

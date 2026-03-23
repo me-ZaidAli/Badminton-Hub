@@ -174,7 +174,7 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
             </div>
             <Progress value={championProgress} className="h-2" data-testid={`progress-champion-${clubStats.clubId}`} />
             <p className="text-xs text-muted-foreground">
-              Get 4 approved referrals to earn 1 free session credit
+              Get 4 approved referrals to earn 1 free session reward
             </p>
           </CardContent>
         </Card>
@@ -365,8 +365,8 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
                     <span className="text-xs font-bold">4</span>
                   </div>
                   <div>
-                    <p className="text-sm font-medium">Earn {creditDisplay} Credit</p>
-                    <p className="text-xs text-muted-foreground">When approved, {creditDisplay} is added to your credit wallet for {clubStats.clubName}.</p>
+                    <p className="text-sm font-medium">Earn {creditDisplay} Reward</p>
+                    <p className="text-xs text-muted-foreground">When approved, {creditDisplay} is added to your reward balance for {clubStats.clubName}.</p>
                   </div>
                 </div>
               </div>
@@ -408,7 +408,7 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
             <div className="p-4 rounded-md bg-muted/50 space-y-3">
               <h4 className="font-semibold text-sm">What is Referral Champion?</h4>
               <p className="text-sm text-muted-foreground">
-                Referral Champion is the highest referral status at {clubStats.clubName}. It's awarded when you get 4 approved referrals. You'll earn 1 free session credit added directly to your account.
+                Referral Champion is the highest referral status at {clubStats.clubName}. It's awarded when you get 4 approved referrals. You'll earn 1 free session reward added directly to your account.
               </p>
             </div>
             <div className="p-4 rounded-md bg-purple-500/10 space-y-3">
@@ -419,7 +419,7 @@ function ClubReferralSection({ clubStats, referrals: clubReferrals, onCopyCode, 
                     <div className={`w-3 h-3 rounded-full ${clubStats.approvedReferrals >= 1 ? 'bg-green-500' : 'bg-muted-foreground/30'}`} />
                     <span>1st Referral</span>
                   </div>
-                  <span className="text-muted-foreground">{creditDisplay} credit</span>
+                  <span className="text-muted-foreground">{creditDisplay} reward</span>
                 </div>
                 <div className="flex items-center justify-between gap-2 text-sm">
                   <div className="flex items-center gap-2">
@@ -555,7 +555,7 @@ export default function Referrals() {
         <Card data-testid="card-stat-credits">
           <CardContent className="p-4 flex items-center justify-between gap-2">
             <div>
-              <div className="text-xs text-muted-foreground">Total Credits</div>
+              <div className="text-xs text-muted-foreground">Total Rewards</div>
               <div className="text-2xl font-bold">{"\u00A3"}{(stats.totalCreditsEarned / 100).toFixed(2)}</div>
             </div>
             <TrendingUp className="h-5 w-5 text-primary" />
@@ -696,7 +696,7 @@ export default function Referrals() {
                 <li>1. Select a club and share the generated code or link</li>
                 <li>2. Your friend enters the code when signing up</li>
                 <li>3. A club admin approves the referral</li>
-                <li>4. You receive credit in your wallet for that club</li>
+                <li>4. You receive a reward in your account for that club</li>
               </ul>
             </div>
           </div>

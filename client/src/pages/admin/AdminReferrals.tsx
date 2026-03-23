@@ -111,7 +111,7 @@ function ClubSettingsPanel({ clubId, clubName }: { clubId: number; clubName: str
       const premium = parseFloat(effectivePremium);
       const champion = parseFloat(effectiveChampion);
       const expiry = parseInt(effectiveExpiry);
-      if (isNaN(credit) || credit < 0) throw new Error("Credit amount must be a valid positive number");
+      if (isNaN(credit) || credit < 0) throw new Error("Reward amount must be a valid positive number");
       if (isNaN(premium) || premium < 0) throw new Error("Premium threshold must be a valid positive number");
       if (isNaN(champion) || champion < 0) throw new Error("Champion threshold must be a valid positive number");
       if (isNaN(expiry) || expiry < 1 || expiry > 365) throw new Error("Expiry days must be between 1 and 365");
@@ -171,7 +171,7 @@ function ClubSettingsPanel({ clubId, clubName }: { clubId: number; clubName: str
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="space-y-1.5">
-            <Label className="text-sm">Credit Per Referral</Label>
+            <Label className="text-sm">Reward Per Referral</Label>
             <div className="flex items-center gap-1">
               <span className="text-sm text-muted-foreground">{"\u00A3"}</span>
               <Input
@@ -648,7 +648,7 @@ function ReferralProgramsPanel({ adminClubs }: { adminClubs: any[] }) {
                       />
                     </div>
                     <div className="space-y-1">
-                      <Label className="text-xs">Credits ({"\u00A3"})</Label>
+                      <Label className="text-xs">Rewards ({"\u00A3"})</Label>
                       <Input
                         type="number"
                         min="0"
@@ -781,7 +781,7 @@ export default function AdminReferrals() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/referrals"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/referrals/analytics"] });
-      toast({ title: "Referral Approved", description: "The referrer has been awarded credit." });
+      toast({ title: "Referral Approved", description: "The referrer has been awarded their reward." });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to approve referral.", variant: "destructive" });
@@ -1091,7 +1091,7 @@ export default function AdminReferrals() {
                         <div className="text-lg font-bold">{a.stats.approvalRate}%</div>
                       </div>
                       <div className="text-center p-2 rounded-md bg-muted/30">
-                        <div className="text-xs text-muted-foreground">Credits Issued</div>
+                        <div className="text-xs text-muted-foreground">Rewards Issued</div>
                         <div className="text-lg font-bold">{"\u00A3"}{(a.stats.totalCreditsIssued / 100).toFixed(2)}</div>
                       </div>
                     </div>

@@ -404,7 +404,7 @@ export function PointsRewardsPanel({ clubId }: { clubId: number }) {
               )}
             </div>
             <div className="space-y-2">
-              <Label htmlFor="points-credits">Credits (GBP)</Label>
+              <Label htmlFor="points-credits">Rewards (GBP)</Label>
               <Input id="points-credits" type="number" min={0} step={0.01} value={formData.credits} onChange={(e) => setFormData({ ...formData, credits: Number(e.target.value) })} data-testid="input-points-credits" />
             </div>
             <div className="space-y-2">

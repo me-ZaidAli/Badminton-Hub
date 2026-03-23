@@ -184,7 +184,7 @@ function AnniversaryCountdown() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Gift className="h-3 w-3 text-emerald-500" />
                     <span>
-                      {info.rewardCredits > 0 && `Reward: \u00A3${(info.rewardCredits / 100).toFixed(2)} credit`}
+                      {info.rewardCredits > 0 && `Reward: \u00A3${(info.rewardCredits / 100).toFixed(2)}`}
                       {info.rewardCredits > 0 && info.rewardGifts ? " + " : ""}
                       {info.rewardGifts ? info.rewardGifts : ""}
                       {!info.rewardCredits && !info.rewardGifts && info.rewardMessage ? info.rewardMessage : ""}
@@ -308,7 +308,7 @@ function BirthdayCountdown() {
                   <div className="flex items-center gap-2 text-xs text-muted-foreground">
                     <Gift className="h-3 w-3 text-emerald-500" />
                     <span>
-                      {info.credits > 0 && `Reward: £${(info.credits / 100).toFixed(2)} credit`}
+                      {info.credits > 0 && `Reward: £${(info.credits / 100).toFixed(2)}`}
                       {info.credits > 0 && info.gifts ? " + " : ""}
                       {info.gifts || ""}
                     </span>
@@ -375,7 +375,7 @@ function ProfileRewardsSection() {
               <div className="text-lg font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-reward-credits">
                 {"\u00A3"}{((summary.totalCredits || 0) / 100).toFixed(2)}
               </div>
-              <div className="text-[10px] text-muted-foreground">Available Credits</div>
+              <div className="text-[10px] text-muted-foreground">Available Rewards</div>
             </div>
             <div className="bg-blue-500/5 rounded-lg p-3 text-center">
               <div className="text-lg font-bold text-blue-600 dark:text-blue-400" data-testid="text-reward-free-sessions">
@@ -402,7 +402,7 @@ function ProfileRewardsSection() {
                     <Badge variant="outline" className="text-[10px] px-1.5 py-0">{typeIcons[reward.rewardType]}</Badge>
                   </div>
                   <div className="text-xs text-muted-foreground mt-0.5 flex items-center gap-2 flex-wrap">
-                    {reward.credits > 0 && <span>{"\u00A3"}{(reward.credits / 100).toFixed(2)} credit</span>}
+                    {reward.credits > 0 && <span>{"\u00A3"}{(reward.credits / 100).toFixed(2)} reward</span>}
                     {reward.freeSessions > 0 && <span>{reward.freeSessions} free session{reward.freeSessions > 1 ? "s" : ""}</span>}
                     {reward.gifts && <span>{reward.gifts}</span>}
                     {reward.clubName && <span className="text-muted-foreground/60">- {reward.clubName}</span>}
@@ -880,10 +880,10 @@ function CreditsModal({ open, onClose, creditBalances, memberships, userName }: 
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-green-600">
               <CheckCircle className="h-5 w-5" />
-              Credit Request Submitted
+              Reward Request Submitted
             </DialogTitle>
             <DialogDescription>
-              Your credit has been applied and admins have been notified.
+              Your reward has been applied and admins have been notified.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -3068,7 +3068,7 @@ export default function Profile() {
                     </div>
                     <div className="flex items-center gap-2 text-xs">
                       <Badge variant="outline" className="text-[10px] px-1.5 border-emerald-300 text-emerald-700 dark:text-emerald-400">4 Referrals</Badge>
-                      <span className="text-emerald-700 dark:text-emerald-400 font-medium">1 free session credit</span>
+                      <span className="text-emerald-700 dark:text-emerald-400 font-medium">1 free session reward</span>
                     </div>
                     <p className="text-[11px] text-muted-foreground mt-1.5">After 2 months at Premium rate, you can revert to standard or upgrade to a 1-year Premium membership.</p>
                   </div>

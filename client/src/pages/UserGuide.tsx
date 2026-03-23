@@ -100,7 +100,7 @@ const playerSections: GuideSection[] = [
     description: "Set up your account and join a club",
     steps: [
       "Register an account using the sign-up page with your name, email, and password.",
-      "Once logged in, you'll land on your Dashboard showing your credits, stats, and upcoming sessions.",
+      "Once logged in, you'll land on your Dashboard showing your rewards, stats, and upcoming sessions.",
       "Head to 'Clubs' in the sidebar to browse available clubs and request to join one.",
       "After your request is approved by a club admin, you'll have full access to that club's sessions and features.",
     ],
@@ -144,17 +144,17 @@ const playerSections: GuideSection[] = [
   },
   {
     icon: CreditCard,
-    title: "Credits & Payments",
-    description: "Understand your credit balance and outstanding payments",
+    title: "Rewards & Payments",
+    description: "Understand your reward balance and outstanding payments",
     steps: [
-      "Your credit balance is shown at the top of your Dashboard.",
-      "Credits can be earned through referrals, attendance milestones, and club anniversary rewards.",
+      "Your reward balance is shown at the top of your Dashboard.",
+      "Rewards can be earned through referrals, attendance milestones, and club anniversary rewards.",
       "Outstanding payments for sessions you've attended are visible on your Dashboard.",
       "Contact your club admin if you need to make a payment or have questions about your balance.",
     ],
     tips: [
       "Keep an eye on payment reminders - your admin may send automated reminders for unpaid sessions.",
-      "Credits are automatically applied when earned and tracked in your credit ledger.",
+      "Rewards are automatically applied when earned and tracked in your account.",
     ],
   },
   {
@@ -345,11 +345,11 @@ const adminSections: GuideSection[] = [
   {
     icon: CreditCard,
     title: "Financial Dashboard",
-    description: "Track revenue, payments, credits, and expenses",
+    description: "Track revenue, payments, rewards, and expenses",
     steps: [
       "Go to 'Admin Panel' then 'Financials' to open the Financial Dashboard.",
       "The Overview tab shows total revenue, attendance figures, and financial KPIs.",
-      "The Credits tab shows the credit ledger with all credit transactions and policy validation.",
+      "The Rewards tab shows the reward ledger with all reward transactions and policy validation.",
       "The Memberships tab displays membership revenue summaries, active plans, and overdue payment alerts.",
       "The Outstanding tab shows past sessions with unpaid or pending payments.",
       "Click on any outstanding session to see individual player payment details.",
@@ -384,9 +384,9 @@ const adminSections: GuideSection[] = [
     description: "Configure referral, attendance, and anniversary rewards",
     steps: [
       "Go to 'Admin Panel' then 'Rewards' to manage all reward programmes.",
-      "The Anniversary tab lets you configure credits and gifts members receive on their club anniversary.",
+      "The Anniversary tab lets you configure rewards and gifts members receive on their club anniversary.",
       "The Attendance tab lets you set milestone rewards (e.g. free session after 10 attendances).",
-      "The Referrals tab shows referral programme settings including credit amounts and thresholds.",
+      "The Referrals tab shows referral programme settings including reward amounts and thresholds.",
       "All reward issuances are logged and can be viewed in each player's profile.",
     ],
     tips: [
@@ -630,9 +630,9 @@ const ownerSections: GuideSection[] = [
     steps: [
       "Go to 'Referral Programs' in the Super Admin section of the sidebar.",
       "Create multi-level referral programmes with configurable rewards at each level.",
-      "Set the number of referrals required, credits (in £), gifts, free sessions, and unlock descriptions for each level.",
-      "Each club has independent referral settings - configure credit amounts, premium/champion thresholds, code expiry, and active/inactive toggle.",
-      "View referral analytics including approval rates and total credits issued.",
+      "Set the number of referrals required, rewards (in £), gifts, free sessions, and unlock descriptions for each level.",
+      "Each club has independent referral settings - configure reward amounts, premium/champion thresholds, code expiry, and active/inactive toggle.",
+      "View referral analytics including approval rates and total rewards issued.",
     ],
   },
   {
@@ -704,8 +704,8 @@ const faqItems: FAQItem[] = [
     roles: ["player"],
   },
   {
-    question: "How do I earn credits?",
-    answer: "Credits can be earned in several ways: successful referrals (when your referred friend joins and is approved), reaching attendance milestones (e.g. attending 10 sessions), and on your club joining anniversary. Credits are automatically added to your balance.",
+    question: "How do I earn rewards?",
+    answer: "Rewards can be earned in several ways: successful referrals (when your referred friend joins and is approved), reaching attendance milestones (e.g. attending 10 sessions), and on your club joining anniversary. Rewards are automatically added to your balance.",
     roles: ["player"],
   },
   {
@@ -755,7 +755,7 @@ const faqItems: FAQItem[] = [
   },
   {
     question: "How do I set up multi-level referral rewards?",
-    answer: "Go to Referral Programs in the Super Admin section. Create a programme with multiple levels, each requiring a certain number of referrals. For each level, set the credit reward (in £), gifts, free sessions, and a description of what the player unlocks.",
+    answer: "Go to Referral Programs in the Super Admin section. Create a programme with multiple levels, each requiring a certain number of referrals. For each level, set the reward amount (in £), gifts, free sessions, and a description of what the player unlocks.",
     roles: ["owner"],
   },
   {
@@ -815,7 +815,7 @@ const faqItems: FAQItem[] = [
   },
   {
     question: "How do club anniversary rewards work?",
-    answer: "Each club can configure anniversary rewards (credits, gifts, and a custom message) in the Rewards section. On the anniversary of a member joining the club, the system automatically issues the configured rewards, creates a credit ledger entry, sends a notification, and sends an internal message.",
+    answer: "Each club can configure anniversary rewards (reward amount, gifts, and a custom message) in the Rewards section. On the anniversary of a member joining the club, the system automatically issues the configured rewards, sends a notification, and sends an internal message.",
     roles: ["admin", "owner"],
   },
   {

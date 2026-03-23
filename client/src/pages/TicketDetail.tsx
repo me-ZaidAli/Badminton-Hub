@@ -259,11 +259,11 @@ function CreditActionPanel({ ticket, ticketId }: { ticket: any; ticketId: number
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
-      toast({ title: "Credit Approved", description: `£${approveAmount} credit has been issued to the member.` });
+      toast({ title: "Reward Approved", description: `£${approveAmount} reward has been issued to the member.` });
       setShowApproveDialog(false);
     },
     onError: (err: any) => {
-      toast({ title: "Error", description: err.message || "Failed to approve credit", variant: "destructive" });
+      toast({ title: "Error", description: err.message || "Failed to approve reward", variant: "destructive" });
     },
   });
 
@@ -276,7 +276,7 @@ function CreditActionPanel({ ticket, ticketId }: { ticket: any; ticketId: number
       queryClient.invalidateQueries({ queryKey: ["/api/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tickets"] });
       queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
-      toast({ title: "Request Declined", description: "The credit request has been declined." });
+      toast({ title: "Request Declined", description: "The reward request has been declined." });
       setShowDeclineDialog(false);
     },
     onError: (err: any) => {
@@ -290,7 +290,7 @@ function CreditActionPanel({ ticket, ticketId }: { ticket: any; ticketId: number
         <CardContent className="p-4">
           <div className="flex items-center gap-2 mb-3 flex-wrap">
             <CreditCard className="h-5 w-5 text-muted-foreground" />
-            <span className="font-semibold text-sm">Credit Claim Actions</span>
+            <span className="font-semibold text-sm">Reward Claim Actions</span>
             {ticket.creditAmount > 0 && (
               <Badge variant="secondary" className="text-xs">
                 Requested: £{(ticket.creditAmount / 100).toFixed(2)}
@@ -322,11 +322,11 @@ function CreditActionPanel({ ticket, ticketId }: { ticket: any; ticketId: number
       <Dialog open={showApproveDialog} onOpenChange={setShowApproveDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Approve Credit</DialogTitle>
+            <DialogTitle>Approve Reward</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
-              <label className="text-sm font-medium">Credit Amount (£)</label>
+              <label className="text-sm font-medium">Reward Amount (£)</label>
               <Input
                 type="number"
                 step="0.01"
@@ -361,7 +361,7 @@ function CreditActionPanel({ ticket, ticketId }: { ticket: any; ticketId: number
       <Dialog open={showDeclineDialog} onOpenChange={setShowDeclineDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Decline Credit Request</DialogTitle>
+            <DialogTitle>Decline Reward Request</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -375,7 +375,7 @@ function CreditActionPanel({ ticket, ticketId }: { ticket: any; ticketId: number
               />
             </div>
             <p className="text-sm text-muted-foreground">
-              The member will be notified that their credit request was not approved.
+              The member will be notified that their reward request was not approved.
             </p>
           </div>
           <DialogFooter>
@@ -904,10 +904,10 @@ function formatTimelineAction(action: string): string {
     ASSIGNED: "assigned the ticket",
     UNASSIGNED: "unassigned the ticket",
     REPLY_ADDED: "added a reply",
-    CREDIT_APPROVED: "approved the credit request",
-    CREDIT_DECLINED: "declined the credit request",
-    CREDIT_USED: "credit was applied",
-    CREDIT_ISSUED: "credit was issued",
+    CREDIT_APPROVED: "approved the reward request",
+    CREDIT_DECLINED: "declined the reward request",
+    CREDIT_USED: "reward was applied",
+    CREDIT_ISSUED: "reward was issued",
     ARCHIVED: "archived the ticket",
     UNARCHIVED: "unarchived the ticket",
   };
