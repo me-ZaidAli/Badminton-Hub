@@ -58,6 +58,9 @@ import {
   Hash,
   Check,
   List,
+  Gift,
+  Award,
+  Star,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -746,6 +749,12 @@ export default function Financials() {
     totalIssued: number;
     totalRedeemed: number;
     totalHeld: number;
+    rewardsUnclaimed?: number;
+    rewardsUnclaimedCount?: number;
+    rewardsRequested?: number;
+    rewardsRequestedCount?: number;
+    rewardsIssued?: number;
+    rewardsUsed?: number;
   }>({ queryKey: [creditSummaryUrl] });
 
   interface CreditHistoryEntry {
@@ -818,6 +827,44 @@ export default function Financials() {
 
   const { data: pendingCreditRequests = [], isLoading: pendingCreditLoading } = useQuery<PendingCreditRequest[]>({
     queryKey: [pendingCreditUrl],
+  });
+
+  interface PendingReward {
+    id: number;
+    playerId: number;
+    clubId: number;
+    rewardType: string;
+    description: string;
+    credits: number;
+    gifts: string | null;
+    freeSessions: number;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    playerName: string;
+    clubName: string;
+    type: string;
+  }
+
+  const { data: pendingRewardsData, isLoading: pendingRewardsLoading } = useQuery<{ rewards: PendingReward[] }>({
+    queryKey: ["/api/admin/rewards/pending-tasks"],
+  });
+  const pendingRewards = pendingRewardsData?.rewards || [];
+
+  const approveRewardMutation = useMutation({
+    mutationFn: async ({ rewardId, action }: { rewardId: number; action: "approve" | "decline" }) => {
+      const res = await apiRequest("POST", `/api/admin/rewards/${rewardId}/${action}`);
+      return res.json();
+    },
+    onSuccess: (_data, variables) => {
+      qc.invalidateQueries({ queryKey: ["/api/admin/rewards/pending-tasks"] });
+      qc.invalidateQueries({ queryKey: [creditSummaryUrl] });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/credit-history") });
+      toast({ title: variables.action === "approve" ? "Reward approved" : "Reward declined", description: variables.action === "approve" ? "The reward has been approved." : "The reward request has been declined." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to process reward", variant: "destructive" });
+    },
   });
 
   const approveCreditMutation = useMutation({
@@ -2356,8 +2403,8 @@ export default function Financials() {
               </Button>
               <Button size="sm" variant={creditSubTab === "pending" ? "default" : "outline"} onClick={() => setCreditSubTab("pending")} className="relative" data-testid="button-credit-tab-pending-main">
                 <Clock className="h-3.5 w-3.5 mr-1" /> Pending Requests
-                {pendingCreditRequests.length > 0 && (
-                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">{pendingCreditRequests.length}</span>
+                {(pendingCreditRequests.length + pendingRewards.length) > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">{pendingCreditRequests.length + pendingRewards.length}</span>
                 )}
               </Button>
               <Button size="sm" variant={creditSubTab === "analytics" ? "default" : "outline"} onClick={() => setCreditSubTab("analytics")} data-testid="button-credit-tab-analytics-main">
@@ -2379,36 +2426,56 @@ export default function Financials() {
             </Select>
           </div>
 
-          {creditSummary && (creditSummary.totalIssued > 0 || creditSummary.totalRedeemed > 0) && (
-            <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
-              <Card className="min-w-0" data-testid="card-credit-held-main">
-                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
-                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Held</CardTitle>
-                  <CreditCard className="h-3 w-3 shrink-0 text-blue-500" />
-                </CardHeader>
-                <CardContent className="px-3 pb-3">
-                  <div className="text-sm sm:text-xl font-bold text-blue-600">{"\u00A3"}{formatPounds(creditSummary.totalHeld)}</div>
-                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Currently outstanding</p>
-                </CardContent>
-              </Card>
+          {creditSummary && (creditSummary.totalIssued > 0 || creditSummary.totalRedeemed > 0 || (creditSummary.rewardsUnclaimed || 0) > 0) && (
+            <div className="grid gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
               <Card className="min-w-0" data-testid="card-credit-issued-main">
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
-                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Issued</CardTitle>
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Issued</CardTitle>
                   <TrendingUp className="h-3 w-3 shrink-0 text-green-500" />
                 </CardHeader>
                 <CardContent className="px-3 pb-3">
                   <div className="text-sm sm:text-xl font-bold text-green-600">{"\u00A3"}{formatPounds(creditSummary.totalIssued)}</div>
-                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">All time issued</p>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Credits + Rewards</p>
                 </CardContent>
               </Card>
               <Card className="min-w-0" data-testid="card-credit-redeemed-main">
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
-                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Redeemed</CardTitle>
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redeemed</CardTitle>
                   <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />
                 </CardHeader>
                 <CardContent className="px-3 pb-3">
                   <div className="text-sm sm:text-xl font-bold">{"\u00A3"}{formatPounds(creditSummary.totalRedeemed)}</div>
                   <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Used by members</p>
+                </CardContent>
+              </Card>
+              <Card className="min-w-0" data-testid="card-credit-held-main">
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Outstanding</CardTitle>
+                  <CreditCard className="h-3 w-3 shrink-0 text-blue-500" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold text-blue-600">{"\u00A3"}{formatPounds(creditSummary.totalHeld)}</div>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Currently held</p>
+                </CardContent>
+              </Card>
+              <Card className="min-w-0 border-amber-200 dark:border-amber-800" data-testid="card-rewards-unclaimed-main">
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-amber-600 dark:text-amber-400">Rewards Unclaimed</CardTitle>
+                  <Gift className="h-3 w-3 shrink-0 text-amber-500" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold text-amber-600">{"\u00A3"}{formatPounds(creditSummary.rewardsUnclaimed || 0)}</div>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditSummary.rewardsUnclaimedCount || 0} pending collection</p>
+                </CardContent>
+              </Card>
+              <Card className="min-w-0 border-purple-200 dark:border-purple-800" data-testid="card-rewards-pending-main">
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-purple-600 dark:text-purple-400">Awaiting Approval</CardTitle>
+                  <Clock className="h-3 w-3 shrink-0 text-purple-500" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold text-purple-600">{"\u00A3"}{formatPounds(creditSummary.rewardsRequested || 0)}</div>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditSummary.rewardsRequestedCount || 0} request(s)</p>
                 </CardContent>
               </Card>
               <Card className="min-w-0" data-testid="card-credit-rate-main">
@@ -2425,100 +2492,176 @@ export default function Financials() {
           )}
 
           {creditSubTab === "pending" && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium">
-                  {pendingCreditRequests.length} pending credit request{pendingCreditRequests.length !== 1 ? "s" : ""}
-                </span>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium">
+                    {pendingCreditRequests.length} credit request{pendingCreditRequests.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium">
+                    {pendingRewards.length} reward{pendingRewards.length !== 1 ? "s" : ""} awaiting approval
+                  </span>
+                </div>
               </div>
 
-              {pendingCreditLoading ? (
+              {(pendingCreditLoading || pendingRewardsLoading) ? (
                 <Card>
                   <CardContent className="py-8 text-center">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                     <p className="text-sm text-muted-foreground mt-2">Loading pending requests...</p>
                   </CardContent>
                 </Card>
-              ) : pendingCreditRequests.length === 0 ? (
+              ) : (pendingCreditRequests.length === 0 && pendingRewards.length === 0) ? (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-pending-credits-main">
                     <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-500" />
-                    No pending credit requests. All caught up!
+                    No pending requests. All caught up!
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-2">
-                  {pendingCreditRequests.map((pcr) => (
-                    <Card key={pcr.id} data-testid={`card-pending-credit-main-${pcr.id}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4 flex-wrap">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <span className="font-semibold text-sm" data-testid={`text-pending-player-main-${pcr.id}`}>{pcr.playerName}</span>
-                              <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">{pcr.ticketNumber}</Badge>
-                              <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
-                                <Clock className="h-3 w-3 mr-1" /> Pending
-                              </Badge>
+                <div className="space-y-4">
+                  {pendingRewards.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <Gift className="h-4 w-4 text-amber-500" />
+                        Pending Reward Approvals
+                      </h4>
+                      {pendingRewards.map((pr) => (
+                        <Card key={`reward-${pr.id}`} className="border-amber-200 dark:border-amber-800" data-testid={`card-pending-reward-main-${pr.id}`}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <span className="font-semibold text-sm">{pr.playerName}</span>
+                                  <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                    <Award className="h-3 w-3 mr-1" /> {pr.rewardType?.replace(/_/g, " ")}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-purple-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                    <Clock className="h-3 w-3 mr-1" /> Requested
+                                  </Badge>
+                                </div>
+                                <p className="text-sm mt-1">{pr.description}</p>
+                                <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
+                                  {pr.credits > 0 && (
+                                    <span className="font-medium text-amber-600">
+                                      Value: {"\u00A3"}{formatPounds(pr.credits)}
+                                    </span>
+                                  )}
+                                  {pr.freeSessions > 0 && (
+                                    <span className="font-medium text-blue-600">
+                                      {pr.freeSessions} free session{pr.freeSessions !== 1 ? "s" : ""}
+                                    </span>
+                                  )}
+                                  {pr.gifts && (
+                                    <span className="font-medium text-green-600">
+                                      <Gift className="h-3 w-3 inline mr-1" />{pr.gifts}
+                                    </span>
+                                  )}
+                                  <span>{pr.clubName}</span>
+                                  <span>Requested: {pr.updatedAt ? format(new Date(pr.updatedAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => approveRewardMutation.mutate({ rewardId: pr.id, action: "approve" })}
+                                  disabled={approveRewardMutation.isPending}
+                                  data-testid={`button-approve-reward-main-${pr.id}`}
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                                </Button>
+                              </div>
                             </div>
-                            <p className="text-sm text-muted-foreground">{pcr.playerEmail}</p>
-                            <p className="text-sm mt-1 font-medium" data-testid={`text-pending-subject-main-${pcr.id}`}>{pcr.subject}</p>
-                            {pcr.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5 max-w-[500px] line-clamp-2">{pcr.description}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
-                              {pcr.creditAmount && pcr.creditAmount > 0 && (
-                                <span className="font-medium text-blue-600" data-testid={`text-pending-amount-main-${pcr.id}`}>
-                                  Requested: {"\u00A3"}{formatPounds(pcr.creditAmount)}
-                                </span>
-                              )}
-                              <span>{pcr.clubName}</span>
-                              {pcr.sessionTitle && <span>Session: {pcr.sessionTitle}</span>}
-                              {pcr.sessionDate && <span>{format(new Date(pcr.sessionDate), "MMM d, yyyy")}</span>}
-                              <span>Submitted: {pcr.createdAt ? format(new Date(pcr.createdAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {pendingCreditRequests.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-blue-500" />
+                        Pending Credit Requests
+                      </h4>
+                      {pendingCreditRequests.map((pcr) => (
+                        <Card key={pcr.id} data-testid={`card-pending-credit-main-${pcr.id}`}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <span className="font-semibold text-sm" data-testid={`text-pending-player-main-${pcr.id}`}>{pcr.playerName}</span>
+                                  <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">{pcr.ticketNumber}</Badge>
+                                  <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                    <Clock className="h-3 w-3 mr-1" /> Pending
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{pcr.playerEmail}</p>
+                                <p className="text-sm mt-1 font-medium" data-testid={`text-pending-subject-main-${pcr.id}`}>{pcr.subject}</p>
+                                {pcr.description && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 max-w-[500px] line-clamp-2">{pcr.description}</p>
+                                )}
+                                <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
+                                  {pcr.creditAmount && pcr.creditAmount > 0 && (
+                                    <span className="font-medium text-blue-600" data-testid={`text-pending-amount-main-${pcr.id}`}>
+                                      Requested: {"\u00A3"}{formatPounds(pcr.creditAmount)}
+                                    </span>
+                                  )}
+                                  <span>{pcr.clubName}</span>
+                                  {pcr.sessionTitle && <span>Session: {pcr.sessionTitle}</span>}
+                                  {pcr.sessionDate && <span>{format(new Date(pcr.sessionDate), "MMM d, yyyy")}</span>}
+                                  <span>Submitted: {pcr.createdAt ? format(new Date(pcr.createdAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => {
+                                    setApproveDialog({
+                                      ticketId: pcr.id,
+                                      playerName: pcr.playerName,
+                                      amount: pcr.creditAmount || 0,
+                                      subject: pcr.subject,
+                                      description: pcr.description,
+                                    });
+                                    setApproveAmount(pcr.creditAmount ? (pcr.creditAmount / 100).toFixed(2) : "");
+                                    setApproveReason("");
+                                  }}
+                                  data-testid={`button-approve-credit-main-${pcr.id}`}
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+                                  onClick={() => {
+                                    setDeclineDialog({
+                                      ticketId: pcr.id,
+                                      playerName: pcr.playerName,
+                                      subject: pcr.subject,
+                                    });
+                                    setDeclineReason("");
+                                  }}
+                                  data-testid={`button-decline-credit-main-${pcr.id}`}
+                                >
+                                  <X className="h-3.5 w-3.5 mr-1" /> Decline
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() => {
-                                setApproveDialog({
-                                  ticketId: pcr.id,
-                                  playerName: pcr.playerName,
-                                  amount: pcr.creditAmount || 0,
-                                  subject: pcr.subject,
-                                  description: pcr.description,
-                                });
-                                setApproveAmount(pcr.creditAmount ? (pcr.creditAmount / 100).toFixed(2) : "");
-                                setApproveReason("");
-                              }}
-                              data-testid={`button-approve-credit-main-${pcr.id}`}
-                            >
-                              <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
-                              onClick={() => {
-                                setDeclineDialog({
-                                  ticketId: pcr.id,
-                                  playerName: pcr.playerName,
-                                  subject: pcr.subject,
-                                });
-                                setDeclineReason("");
-                              }}
-                              data-testid={`button-decline-credit-main-${pcr.id}`}
-                            >
-                              <X className="h-3.5 w-3.5 mr-1" /> Decline
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -3459,8 +3602,8 @@ export default function Financials() {
             </Button>
             <Button size="sm" variant={creditSubTab === "pending" ? "default" : "outline"} onClick={() => setCreditSubTab("pending")} className="relative" data-testid="button-credit-tab-pending">
               <Clock className="h-3.5 w-3.5 mr-1" /> Pending Requests
-              {pendingCreditRequests.length > 0 && (
-                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">{pendingCreditRequests.length}</span>
+              {(pendingCreditRequests.length + pendingRewards.length) > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">{pendingCreditRequests.length + pendingRewards.length}</span>
               )}
             </Button>
             <Button size="sm" variant={creditSubTab === "analytics" ? "default" : "outline"} onClick={() => setCreditSubTab("analytics")} data-testid="button-credit-tab-analytics">
@@ -3469,100 +3612,176 @@ export default function Financials() {
           </div>
 
           {creditSubTab === "pending" && (
-            <div className="space-y-3">
-              <div className="flex items-center gap-2">
-                <AlertCircle className="h-4 w-4 text-amber-500" />
-                <span className="text-sm font-medium">
-                  {pendingCreditRequests.length} pending credit request{pendingCreditRequests.length !== 1 ? "s" : ""}
-                </span>
+            <div className="space-y-4">
+              <div className="flex items-center gap-4 flex-wrap">
+                <div className="flex items-center gap-2">
+                  <CreditCard className="h-4 w-4 text-blue-500" />
+                  <span className="text-sm font-medium">
+                    {pendingCreditRequests.length} credit request{pendingCreditRequests.length !== 1 ? "s" : ""}
+                  </span>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Gift className="h-4 w-4 text-amber-500" />
+                  <span className="text-sm font-medium">
+                    {pendingRewards.length} reward{pendingRewards.length !== 1 ? "s" : ""} awaiting approval
+                  </span>
+                </div>
               </div>
 
-              {pendingCreditLoading ? (
+              {(pendingCreditLoading || pendingRewardsLoading) ? (
                 <Card>
                   <CardContent className="py-8 text-center">
                     <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
                     <p className="text-sm text-muted-foreground mt-2">Loading pending requests...</p>
                   </CardContent>
                 </Card>
-              ) : pendingCreditRequests.length === 0 ? (
+              ) : (pendingCreditRequests.length === 0 && pendingRewards.length === 0) ? (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-pending-credits">
                     <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-500" />
-                    No pending credit requests. All caught up!
+                    No pending requests. All caught up!
                   </CardContent>
                 </Card>
               ) : (
-                <div className="space-y-2">
-                  {pendingCreditRequests.map((req) => (
-                    <Card key={req.id} data-testid={`card-pending-credit-${req.id}`}>
-                      <CardContent className="p-4">
-                        <div className="flex items-start justify-between gap-4 flex-wrap">
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-2 flex-wrap mb-1">
-                              <span className="font-semibold text-sm" data-testid={`text-pending-player-${req.id}`}>{req.playerName}</span>
-                              <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">{req.ticketNumber}</Badge>
-                              <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
-                                <Clock className="h-3 w-3 mr-1" /> Pending
-                              </Badge>
+                <div className="space-y-4">
+                  {pendingRewards.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <Gift className="h-4 w-4 text-amber-500" />
+                        Pending Reward Approvals
+                      </h4>
+                      {pendingRewards.map((pr) => (
+                        <Card key={`reward-${pr.id}`} className="border-amber-200 dark:border-amber-800" data-testid={`card-pending-reward-${pr.id}`}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <span className="font-semibold text-sm">{pr.playerName}</span>
+                                  <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                    <Award className="h-3 w-3 mr-1" /> {pr.rewardType?.replace(/_/g, " ")}
+                                  </Badge>
+                                  <Badge variant="outline" className="text-purple-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                    <Clock className="h-3 w-3 mr-1" /> Requested
+                                  </Badge>
+                                </div>
+                                <p className="text-sm mt-1">{pr.description}</p>
+                                <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
+                                  {pr.credits > 0 && (
+                                    <span className="font-medium text-amber-600">
+                                      Value: {"\u00A3"}{formatPounds(pr.credits)}
+                                    </span>
+                                  )}
+                                  {pr.freeSessions > 0 && (
+                                    <span className="font-medium text-blue-600">
+                                      {pr.freeSessions} free session{pr.freeSessions !== 1 ? "s" : ""}
+                                    </span>
+                                  )}
+                                  {pr.gifts && (
+                                    <span className="font-medium text-green-600">
+                                      <Gift className="h-3 w-3 inline mr-1" />{pr.gifts}
+                                    </span>
+                                  )}
+                                  <span>{pr.clubName}</span>
+                                  <span>Requested: {pr.updatedAt ? format(new Date(pr.updatedAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => approveRewardMutation.mutate({ rewardId: pr.id, action: "approve" })}
+                                  disabled={approveRewardMutation.isPending}
+                                  data-testid={`button-approve-reward-${pr.id}`}
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                                </Button>
+                              </div>
                             </div>
-                            <p className="text-sm text-muted-foreground">{req.playerEmail}</p>
-                            <p className="text-sm mt-1 font-medium" data-testid={`text-pending-subject-${req.id}`}>{req.subject}</p>
-                            {req.description && (
-                              <p className="text-xs text-muted-foreground mt-0.5 max-w-[500px] line-clamp-2">{req.description}</p>
-                            )}
-                            <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
-                              {req.creditAmount && req.creditAmount > 0 && (
-                                <span className="font-medium text-blue-600" data-testid={`text-pending-amount-${req.id}`}>
-                                  Requested: {"\u00A3"}{formatPounds(req.creditAmount)}
-                                </span>
-                              )}
-                              <span>{req.clubName}</span>
-                              {req.sessionTitle && <span>Session: {req.sessionTitle}</span>}
-                              {req.sessionDate && <span>{format(new Date(req.sessionDate), "MMM d, yyyy")}</span>}
-                              <span>Submitted: {req.createdAt ? format(new Date(req.createdAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
+
+                  {pendingCreditRequests.length > 0 && (
+                    <div className="space-y-2">
+                      <h4 className="text-sm font-semibold flex items-center gap-2">
+                        <CreditCard className="h-4 w-4 text-blue-500" />
+                        Pending Credit Requests
+                      </h4>
+                      {pendingCreditRequests.map((req) => (
+                        <Card key={req.id} data-testid={`card-pending-credit-${req.id}`}>
+                          <CardContent className="p-4">
+                            <div className="flex items-start justify-between gap-4 flex-wrap">
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap mb-1">
+                                  <span className="font-semibold text-sm" data-testid={`text-pending-player-${req.id}`}>{req.playerName}</span>
+                                  <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">{req.ticketNumber}</Badge>
+                                  <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                    <Clock className="h-3 w-3 mr-1" /> Pending
+                                  </Badge>
+                                </div>
+                                <p className="text-sm text-muted-foreground">{req.playerEmail}</p>
+                                <p className="text-sm mt-1 font-medium" data-testid={`text-pending-subject-${req.id}`}>{req.subject}</p>
+                                {req.description && (
+                                  <p className="text-xs text-muted-foreground mt-0.5 max-w-[500px] line-clamp-2">{req.description}</p>
+                                )}
+                                <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
+                                  {req.creditAmount && req.creditAmount > 0 && (
+                                    <span className="font-medium text-blue-600" data-testid={`text-pending-amount-${req.id}`}>
+                                      Requested: {"\u00A3"}{formatPounds(req.creditAmount)}
+                                    </span>
+                                  )}
+                                  <span>{req.clubName}</span>
+                                  {req.sessionTitle && <span>Session: {req.sessionTitle}</span>}
+                                  {req.sessionDate && <span>{format(new Date(req.sessionDate), "MMM d, yyyy")}</span>}
+                                  <span>Submitted: {req.createdAt ? format(new Date(req.createdAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                                </div>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <Button
+                                  size="sm"
+                                  variant="default"
+                                  className="bg-green-600 hover:bg-green-700 text-white"
+                                  onClick={() => {
+                                    setApproveDialog({
+                                      ticketId: req.id,
+                                      playerName: req.playerName,
+                                      amount: req.creditAmount || 0,
+                                      subject: req.subject,
+                                      description: req.description,
+                                    });
+                                    setApproveAmount(req.creditAmount ? (req.creditAmount / 100).toFixed(2) : "");
+                                    setApproveReason("");
+                                  }}
+                                  data-testid={`button-approve-credit-${req.id}`}
+                                >
+                                  <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+                                  onClick={() => {
+                                    setDeclineDialog({
+                                      ticketId: req.id,
+                                      playerName: req.playerName,
+                                      subject: req.subject,
+                                    });
+                                    setDeclineReason("");
+                                  }}
+                                  data-testid={`button-decline-credit-${req.id}`}
+                                >
+                                  <X className="h-3.5 w-3.5 mr-1" /> Decline
+                                </Button>
+                              </div>
                             </div>
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <Button
-                              size="sm"
-                              variant="default"
-                              className="bg-green-600 hover:bg-green-700 text-white"
-                              onClick={() => {
-                                setApproveDialog({
-                                  ticketId: req.id,
-                                  playerName: req.playerName,
-                                  amount: req.creditAmount || 0,
-                                  subject: req.subject,
-                                  description: req.description,
-                                });
-                                setApproveAmount(req.creditAmount ? (req.creditAmount / 100).toFixed(2) : "");
-                                setApproveReason("");
-                              }}
-                              data-testid={`button-approve-credit-${req.id}`}
-                            >
-                              <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
-                            </Button>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
-                              onClick={() => {
-                                setDeclineDialog({
-                                  ticketId: req.id,
-                                  playerName: req.playerName,
-                                  subject: req.subject,
-                                });
-                                setDeclineReason("");
-                              }}
-                              data-testid={`button-decline-credit-${req.id}`}
-                            >
-                              <X className="h-3.5 w-3.5 mr-1" /> Decline
-                            </Button>
-                          </div>
-                        </div>
-                      </CardContent>
-                    </Card>
-                  ))}
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

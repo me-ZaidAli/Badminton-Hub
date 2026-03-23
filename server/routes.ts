@@ -16971,21 +16971,41 @@ export async function registerRoutes(
         else totalRedeemed += Math.abs(e.amount);
       });
 
-      const rewardQuery = clubFilter && clubFilter.length > 0
-        ? sql`SELECT COALESCE(SUM(credits), 0)::int AS total FROM player_reward_ledger WHERE credits > 0 AND club_id IN (${sql.join(clubFilter.map(id => sql`${id}`), sql`, `)})`
-        : sql`SELECT COALESCE(SUM(credits), 0)::int AS total FROM player_reward_ledger WHERE credits > 0`;
-      const [rewardResult] = (await db.execute(rewardQuery)).rows as any[];
-      totalIssued += Number(rewardResult?.total || 0);
+      const rewardClause = clubFilter && clubFilter.length > 0
+        ? sql`AND club_id IN (${sql.join(clubFilter.map(id => sql`${id}`), sql`, `)})`
+        : sql``;
+      const rewardBreakdown = (await db.execute(sql`
+        SELECT status, COALESCE(SUM(credits), 0)::int AS total, COUNT(*)::int AS cnt
+        FROM player_reward_ledger WHERE credits > 0 ${rewardClause}
+        GROUP BY status`)).rows as any[];
+      let rewardsIssued = 0, rewardsUnclaimed = 0, rewardsUnclaimedCount = 0, rewardsUsed = 0, rewardsRequested = 0, rewardsRequestedCount = 0;
+      rewardBreakdown.forEach((r: any) => {
+        const total = Number(r.total || 0);
+        const cnt = Number(r.cnt || 0);
+        rewardsIssued += total;
+        if (r.status === "AVAILABLE") { rewardsUnclaimed = total; rewardsUnclaimedCount = cnt; }
+        if (r.status === "USED") { rewardsUsed = total; }
+        if (r.status === "REQUESTED") { rewardsRequested = total; rewardsRequestedCount = cnt; }
+      });
+      totalIssued += rewardsIssued;
 
-      const cardQuery = clubFilter && clubFilter.length > 0
-        ? sql`SELECT COALESCE(SUM(cct.amount), 0)::int AS total FROM card_credit_transactions cct LEFT JOIN user_cards uc ON cct.user_card_id = uc.id WHERE cct.amount > 0 AND uc.club_id IN (${sql.join(clubFilter.map(id => sql`${id}`), sql`, `)})`
-        : sql`SELECT COALESCE(SUM(amount), 0)::int AS total FROM card_credit_transactions WHERE amount > 0`;
-      const [cardResult] = (await db.execute(cardQuery)).rows as any[];
+      const cardClause = clubFilter && clubFilter.length > 0
+        ? sql`AND uc.club_id IN (${sql.join(clubFilter.map(id => sql`${id}`), sql`, `)})`
+        : sql``;
+      const [cardResult] = (await db.execute(sql`
+        SELECT COALESCE(SUM(cct.amount), 0)::int AS total
+        FROM card_credit_transactions cct LEFT JOIN user_cards uc ON cct.user_card_id = uc.id
+        WHERE cct.amount > 0 ${cardClause}`)).rows as any[];
       totalIssued += Number(cardResult?.total || 0);
 
       const totalHeld = totalIssued - totalRedeemed;
 
-      res.json({ totalOutstanding: totalHeld, totalIssued, totalRedeemed, totalHeld });
+      res.json({
+        totalOutstanding: totalHeld, totalIssued, totalRedeemed, totalHeld,
+        rewardsUnclaimed, rewardsUnclaimedCount,
+        rewardsRequested, rewardsRequestedCount,
+        rewardsIssued, rewardsUsed,
+      });
     } catch (err: any) {
       console.error("Error fetching credit summary:", err);
       res.status(500).json({ message: "Failed to fetch credit summary" });
