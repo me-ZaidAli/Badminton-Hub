@@ -10046,9 +10046,10 @@ export async function registerRoutes(
         ORDER BY "createdAt" DESC`;
 
       const entries = await db.execute(query);
+      console.log(`[CREDIT-HISTORY] Returned ${entries.rows.length} entries (clubId=${clubId}, userId=${userId})`);
       res.json(entries.rows);
     } catch (err: any) {
-      console.error("Error fetching admin credit history:", err);
+      console.error("Error fetching admin credit history:", err?.message || err);
       res.status(500).json({ message: "Failed to fetch credit history" });
     }
   });

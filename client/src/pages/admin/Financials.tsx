@@ -776,8 +776,19 @@ export default function Financials() {
   }, [selectedClubId]);
 
   const { data: creditHistory = [], isLoading: creditLoading } = useQuery<CreditHistoryEntry[]>({
-    queryKey: [creditHistoryUrl],
-    enabled: viewMode === "credits" || dashboardView === "credits",
+    queryKey: ["/api/admin/credit-history", selectedClubId],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (selectedClubId !== "all") params.append("clubId", selectedClubId);
+      const qs = params.toString();
+      const url = `/api/admin/credit-history${qs ? `?${qs}` : ""}`;
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        if (res.status === 403 || res.status === 401) return [];
+        throw new Error("Failed to fetch credit history");
+      }
+      return res.json();
+    },
   });
 
   interface PendingCreditRequest {
@@ -807,7 +818,6 @@ export default function Financials() {
 
   const { data: pendingCreditRequests = [], isLoading: pendingCreditLoading } = useQuery<PendingCreditRequest[]>({
     queryKey: [pendingCreditUrl],
-    enabled: viewMode === "credits" || dashboardView === "credits",
   });
 
   const approveCreditMutation = useMutation({
