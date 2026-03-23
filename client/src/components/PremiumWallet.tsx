@@ -4,7 +4,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent } from "@/components/ui/dialog";
-import { Loader2, CreditCard, Award, ChevronLeft, ChevronRight, X, Clock, PoundSterling, Check } from "lucide-react";
+import { Loader2, CreditCard, Award, ChevronLeft, ChevronRight, X, Clock, Info, Check } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format, formatDistanceToNow, isPast } from "date-fns";
 import { MetalCardFront, MetalCardBack } from "@/components/MetalCard";
@@ -40,9 +40,32 @@ const RARITY_CONFIG: Record<string, { label: string }> = {
   mythic: { label: "Mythic" },
 };
 
+const CARD_INFO_TEXT = "This card is a discretionary appreciation token issued by club coordinators to recognise positive contribution, support, or sportsmanship. It does not represent payment, wages, or monetary value. It cannot be exchanged for cash, transferred, or accumulated for financial benefit. Any associated session discount is optional, irregular, and may be withdrawn at any time.";
+
+function CardInfoPopup({ open, onClose }: { open: boolean; onClose: () => void }) {
+  return (
+    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+      <DialogContent className="max-w-sm p-5 bg-background" data-testid="dialog-card-info">
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <div className="h-8 w-8 rounded-full bg-amber-100 dark:bg-amber-900/50 flex items-center justify-center">
+              <Info className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            </div>
+            <div>
+              <h3 className="font-bold text-sm">Recognition Card</h3>
+              <p className="text-[10px] text-muted-foreground">Club Appreciation Token</p>
+            </div>
+          </div>
+          <p className="text-xs text-muted-foreground leading-relaxed">{CARD_INFO_TEXT}</p>
+          <Badge variant="outline" className="text-[10px]">Non-transferable</Badge>
+        </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 function RecognitionCard3D({ card, onClick, compact = false }: { card: UserCard; onClick?: () => void; compact?: boolean }) {
   const [isFlipped, setIsFlipped] = useState(false);
-  const rarity = RARITY_CONFIG[card.rarityLevel] || RARITY_CONFIG.standard;
 
   const handleClick = () => {
     if (onClick) onClick();
@@ -79,7 +102,7 @@ function RecognitionCard3D({ card, onClick, compact = false }: { card: UserCard;
           customReason={card.customReason}
           issuerName={card.issuerName}
           issuedAt={format(new Date(card.issuedAt), "dd MMM yyyy")}
-          rarityLabel={rarity.label}
+          rarityLabel={RARITY_CONFIG[card.rarityLevel]?.label || "Standard"}
           cardCategory={card.cardCategory}
           size={size}
         />
@@ -91,6 +114,7 @@ function RecognitionCard3D({ card, onClick, compact = false }: { card: UserCard;
 function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }: { cards: UserCard[]; initialIndex: number; open: boolean; onClose: () => void }) {
   const [currentIndex, setCurrentIndex] = useState(initialIndex);
   const [isFlipped, setIsFlipped] = useState(false);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   const currentCard = cardList[currentIndex];
   if (!currentCard) return null;
@@ -101,91 +125,100 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
   const goPrev = () => { setIsFlipped(false); setCurrentIndex((i) => (i - 1 + cardList.length) % cardList.length); };
 
   return (
-    <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
-      <DialogContent className="max-w-sm sm:max-w-md p-0 bg-black/95 border-none overflow-hidden max-h-[95vh]" data-testid="dialog-card-carousel">
-        <div className="relative flex flex-col items-center justify-center min-h-[520px] p-4 sm:p-6 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
-          <Button variant="ghost" size="icon" className="absolute top-3 right-3 text-white/70 z-50" onClick={onClose} data-testid="button-close-carousel">
-            <X className="h-5 w-5" />
-          </Button>
-
-          <div className="text-center mb-3">
-            <p className="text-white/50 text-xs">{currentIndex + 1} of {cardList.length}</p>
-          </div>
-
-          <div className="relative flex items-center gap-2 sm:gap-4 w-full justify-center">
-            {cardList.length > 1 && (
-              <Button variant="ghost" size="icon" className="text-white/60 shrink-0" onClick={goPrev} data-testid="button-carousel-prev">
-                <ChevronLeft className="h-6 w-6" />
+    <>
+      <Dialog open={open} onOpenChange={(o) => { if (!o) onClose(); }}>
+        <DialogContent className="max-w-sm sm:max-w-md p-0 bg-black/95 border-none overflow-hidden max-h-[95vh]" data-testid="dialog-card-carousel">
+          <div className="relative flex flex-col items-center justify-center min-h-[520px] p-4 sm:p-6 overflow-y-auto" style={{ WebkitOverflowScrolling: "touch" }}>
+            <div className="absolute top-3 right-3 flex items-center gap-1 z-50">
+              <Button variant="ghost" size="icon" className="text-white/70 h-8 w-8" onClick={(e) => { e.stopPropagation(); setInfoOpen(true); }} data-testid="button-card-info-carousel">
+                <Info className="h-4 w-4" />
               </Button>
-            )}
-
-            <motion.div
-              className="cursor-pointer"
-              style={{ perspective: "1200px" }}
-              onClick={() => setIsFlipped(!isFlipped)}
-              animate={{
-                width: "280px",
-                height: isFlipped ? "440px" : "176px",
-              }}
-              transition={{ duration: 0.5, ease: "easeInOut" }}
-            >
-              <AnimatePresence mode="wait">
-                <motion.div
-                  key={currentCard.id}
-                  initial={{ opacity: 0, scale: 0.8 }}
-                  animate={{ opacity: 1, scale: 1, rotateX: isFlipped ? 180 : 0 }}
-                  exit={{ opacity: 0, scale: 0.8 }}
-                  transition={{ duration: 0.6, ease: "easeInOut" }}
-                  className="relative w-full h-full"
-                  style={{ transformStyle: "preserve-3d" }}
-                >
-                  <MetalCardFront
-                    cardId={currentCard.cardId}
-                    cardName={currentCard.cardName}
-                    serialNumber={currentCard.serialNumber}
-                    pattern={currentCard.designConfig?.pattern}
-                    size="large"
-                  />
-                  <MetalCardBack
-                    cardId={currentCard.cardId}
-                    cardName={currentCard.cardName}
-                    description={currentCard.cardDescription}
-                    customReason={currentCard.customReason}
-                    issuerName={currentCard.issuerName}
-                    issuedAt={format(new Date(currentCard.issuedAt), "dd MMMM yyyy")}
-                    rarityLabel={rarity.label}
-                    cardCategory={currentCard.cardCategory}
-                    size="large"
-                    vertical
-                  />
-                </motion.div>
-              </AnimatePresence>
-            </motion.div>
-
-            {cardList.length > 1 && (
-              <Button variant="ghost" size="icon" className="text-white/60 shrink-0" onClick={goNext} data-testid="button-carousel-next">
-                <ChevronRight className="h-6 w-6" />
+              <Button variant="ghost" size="icon" className="text-white/70 h-8 w-8" onClick={onClose} data-testid="button-close-carousel">
+                <X className="h-5 w-5" />
               </Button>
-            )}
-          </div>
-
-          <p className="text-white/30 text-[10px] mt-3">Tap card to flip</p>
-
-          {cardList.length > 1 && (
-            <div className="flex gap-1.5 mt-4">
-              {cardList.map((_, i) => (
-                <button
-                  key={i}
-                  className={`w-2 h-2 rounded-full transition-all ${i === currentIndex ? "bg-white scale-125" : "bg-white/30"}`}
-                  onClick={() => { setIsFlipped(false); setCurrentIndex(i); }}
-                  data-testid={`button-carousel-dot-${i}`}
-                />
-              ))}
             </div>
-          )}
-        </div>
-      </DialogContent>
-    </Dialog>
+
+            <div className="text-center mb-3">
+              <p className="text-white/50 text-xs">{currentIndex + 1} of {cardList.length}</p>
+              <Badge variant="outline" className="text-[9px] text-white/50 border-white/20 mt-1">Non-transferable</Badge>
+            </div>
+
+            <div className="relative flex items-center gap-2 sm:gap-4 w-full justify-center">
+              {cardList.length > 1 && (
+                <Button variant="ghost" size="icon" className="text-white/60 shrink-0" onClick={goPrev} data-testid="button-carousel-prev">
+                  <ChevronLeft className="h-6 w-6" />
+                </Button>
+              )}
+
+              <motion.div
+                className="cursor-pointer"
+                style={{ perspective: "1200px" }}
+                onClick={() => setIsFlipped(!isFlipped)}
+                animate={{
+                  width: "280px",
+                  height: isFlipped ? "440px" : "176px",
+                }}
+                transition={{ duration: 0.5, ease: "easeInOut" }}
+              >
+                <AnimatePresence mode="wait">
+                  <motion.div
+                    key={currentCard.id}
+                    initial={{ opacity: 0, scale: 0.8 }}
+                    animate={{ opacity: 1, scale: 1, rotateX: isFlipped ? 180 : 0 }}
+                    exit={{ opacity: 0, scale: 0.8 }}
+                    transition={{ duration: 0.6, ease: "easeInOut" }}
+                    className="relative w-full h-full"
+                    style={{ transformStyle: "preserve-3d" }}
+                  >
+                    <MetalCardFront
+                      cardId={currentCard.cardId}
+                      cardName={currentCard.cardName}
+                      serialNumber={currentCard.serialNumber}
+                      pattern={currentCard.designConfig?.pattern}
+                      size="large"
+                    />
+                    <MetalCardBack
+                      cardId={currentCard.cardId}
+                      cardName={currentCard.cardName}
+                      description={currentCard.cardDescription}
+                      customReason={currentCard.customReason}
+                      issuerName={currentCard.issuerName}
+                      issuedAt={format(new Date(currentCard.issuedAt), "dd MMMM yyyy")}
+                      rarityLabel={rarity.label}
+                      cardCategory={currentCard.cardCategory}
+                      size="large"
+                      vertical
+                    />
+                  </motion.div>
+                </AnimatePresence>
+              </motion.div>
+
+              {cardList.length > 1 && (
+                <Button variant="ghost" size="icon" className="text-white/60 shrink-0" onClick={goNext} data-testid="button-carousel-next">
+                  <ChevronRight className="h-6 w-6" />
+                </Button>
+              )}
+            </div>
+
+            <p className="text-white/30 text-[10px] mt-3">Tap card to flip</p>
+
+            {cardList.length > 1 && (
+              <div className="flex gap-1.5 mt-4">
+                {cardList.map((_, i) => (
+                  <button
+                    key={i}
+                    className={`w-2 h-2 rounded-full transition-all ${i === currentIndex ? "bg-white scale-125" : "bg-white/30"}`}
+                    onClick={() => { setIsFlipped(false); setCurrentIndex(i); }}
+                    data-testid={`button-carousel-dot-${i}`}
+                  />
+                ))}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
+      <CardInfoPopup open={infoOpen} onClose={() => setInfoOpen(false)} />
+    </>
   );
 }
 
@@ -194,6 +227,7 @@ export default function PremiumWallet() {
   const { data: myCardCredits } = useQuery<any[]>({ queryKey: ["/api/my-card-credits"] });
   const [carouselOpen, setCarouselOpen] = useState(false);
   const [carouselIndex, setCarouselIndex] = useState(0);
+  const [infoOpen, setInfoOpen] = useState(false);
 
   if (isLoading) {
     return (
@@ -221,14 +255,22 @@ export default function PremiumWallet() {
         <div className="bg-gradient-to-r from-amber-500/10 via-yellow-500/5 to-amber-500/10 dark:from-amber-500/5 dark:via-yellow-500/3 dark:to-amber-500/5 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <CreditCard className="h-5 w-5 text-amber-600 dark:text-amber-400" />
-            <h3 className="font-semibold text-sm">Recognition Cards</h3>
+            <div>
+              <h3 className="font-semibold text-sm">Recognition Cards</h3>
+              <p className="text-[9px] text-muted-foreground">Club Appreciation Tokens</p>
+            </div>
             {hasCards && <Badge variant="secondary" className="text-[10px]" data-testid="badge-card-count">{myCards.length}</Badge>}
           </div>
-          {hasCards && (
-            <Button variant="ghost" size="sm" className="text-xs text-amber-600 dark:text-amber-400" onClick={() => openCarousel(0)} data-testid="button-view-all-cards">
-              View All
+          <div className="flex items-center gap-1">
+            <Button variant="ghost" size="icon" className="h-7 w-7 text-amber-600 dark:text-amber-400" onClick={() => setInfoOpen(true)} data-testid="button-card-info">
+              <Info className="h-3.5 w-3.5" />
             </Button>
-          )}
+            {hasCards && (
+              <Button variant="ghost" size="sm" className="text-xs text-amber-600 dark:text-amber-400" onClick={() => openCarousel(0)} data-testid="button-view-all-cards">
+                View All
+              </Button>
+            )}
+          </div>
         </div>
         <CardContent className="pt-4 pb-5 px-4">
           {hasCards ? (
@@ -248,15 +290,11 @@ export default function PremiumWallet() {
                         )}
                       </div>
                       <div className="text-center">
+                        <Badge variant="outline" className="text-[8px] px-1 py-0">Non-transferable</Badge>
                         {isActive && card.expiresAt && (
-                          <p className="text-[9px] text-muted-foreground flex items-center justify-center gap-0.5">
+                          <p className="text-[9px] text-muted-foreground flex items-center justify-center gap-0.5 mt-0.5">
                             <Clock className="h-2.5 w-2.5" />
                             {formatDistanceToNow(new Date(card.expiresAt), { addSuffix: false })} left
-                          </p>
-                        )}
-                        {isActive && card.weeklyCreditValue > 0 && (
-                          <p className="text-[9px] text-emerald-600 dark:text-emerald-400 font-medium">
-                            £{(card.weeklyCreditValue / 100).toFixed(2)}/wk
                           </p>
                         )}
                       </div>
@@ -267,8 +305,8 @@ export default function PremiumWallet() {
               {myCardCredits && myCardCredits.length > 0 && (
                 <div className="border-t pt-3">
                   <p className="text-xs font-semibold text-muted-foreground mb-2 flex items-center gap-1">
-                    <PoundSterling className="h-3 w-3 text-emerald-500" />
-                    Recent Card Rewards
+                    <Award className="h-3 w-3 text-amber-500" />
+                    Recent Appreciation Benefits
                   </p>
                   <div className="space-y-1">
                     {myCardCredits.slice(0, 5).map((t: any) => (
@@ -276,7 +314,7 @@ export default function PremiumWallet() {
                         <span className="text-muted-foreground truncate mr-2">{t.cardName}</span>
                         <span className="flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-bold shrink-0">
                           <Check className="h-3 w-3" />
-                          +£{(t.amount / 100).toFixed(2)}
+                          Benefit applied
                         </span>
                       </div>
                     ))}
@@ -288,7 +326,7 @@ export default function PremiumWallet() {
             <div className="text-center py-6 space-y-2" data-testid="text-no-cards">
               <Award className="h-10 w-10 mx-auto text-amber-400/40" />
               <p className="text-sm text-muted-foreground">No recognition cards yet</p>
-              <p className="text-xs text-muted-foreground/70">Cards are awarded by admins to recognise character, leadership, and contribution</p>
+              <p className="text-xs text-muted-foreground/70">Cards are discretionary appreciation tokens awarded by club coordinators to recognise positive contribution, support, and sportsmanship</p>
             </div>
           )}
         </CardContent>
@@ -302,6 +340,8 @@ export default function PremiumWallet() {
           onClose={() => setCarouselOpen(false)}
         />
       )}
+
+      <CardInfoPopup open={infoOpen} onClose={() => setInfoOpen(false)} />
     </>
   );
 }

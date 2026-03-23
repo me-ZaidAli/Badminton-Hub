@@ -478,7 +478,27 @@ export default function TermsConditions() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">21. Acknowledgment &amp; Consent</CardTitle>
+          <CardTitle className="text-base">21. Recognition Cards &amp; Appreciation Benefits</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
+          <p>The Platform includes a Recognition Cards feature that allows club coordinators to issue digital tokens of appreciation to members. By using this feature, you acknowledge and agree to the following:</p>
+          <ul className="list-disc pl-6 space-y-1">
+            <li><strong>Not Wages or Compensation:</strong> Recognition Cards and any associated benefits (including session fee discounts) are voluntary, discretionary appreciation tokens. They do not constitute wages, salary, commission, guaranteed rewards, employee benefits, or any form of contractual compensation. No employment, worker, or contractor relationship is created or implied by receiving a Recognition Card.</li>
+            <li><strong>No Cash Value:</strong> Recognition Cards and associated benefits have no monetary or cash-equivalent value. They cannot be exchanged for cash, redeemed for currency, or converted to any financial instrument.</li>
+            <li><strong>Non-Transferable:</strong> Recognition Cards are personal to the individual to whom they are issued. They cannot be sold, traded, gifted, transferred, or assigned to any other person or account.</li>
+            <li><strong>Discretionary &amp; Revocable:</strong> The issuance of Recognition Cards and any associated benefits is entirely at the discretion of club coordinators and platform administrators. Benefits may be modified, suspended, or withdrawn at any time without prior notice and without obligation to provide a reason.</li>
+            <li><strong>No Accumulation or Entitlement:</strong> Receipt of a Recognition Card does not create any entitlement to future cards, benefits, or rewards. Past issuance does not establish a pattern, precedent, or expectation of continued benefits.</li>
+            <li><strong>Expiration:</strong> Recognition Cards may be subject to expiration dates set at the time of issuance. Expired cards and their associated benefits are automatically deactivated and cannot be renewed or reinstated unless a new card is issued.</li>
+            <li><strong>Administrator Discretion:</strong> All benefit issuance requires manual approval by an authorised club coordinator. There are no automated payouts. The decision to issue, withhold, or revoke benefits is final and not subject to appeal.</li>
+            <li><strong>Tax Responsibility:</strong> In the unlikely event that any tax authority deems any benefit associated with a Recognition Card to be taxable, the recipient is solely responsible for any applicable tax obligations. The Company provides no tax advice and accepts no liability in respect of tax treatment of any benefits.</li>
+            <li><strong>Terminology:</strong> Terms such as &ldquo;benefit,&rdquo; &ldquo;appreciation token,&rdquo; or &ldquo;recognition&rdquo; used in connection with this feature are descriptive only and shall not be interpreted as implying any financial, contractual, or employment-related meaning beyond their ordinary descriptive sense within the context of this Platform.</li>
+          </ul>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">22. Acknowledgment &amp; Consent</CardTitle>
         </CardHeader>
         <CardContent className="space-y-3 text-sm text-muted-foreground leading-relaxed">
           <p>By registering for an account and using the Platform, you acknowledge and confirm that:</p>

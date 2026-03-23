@@ -39,7 +39,7 @@ The UI features a modern design with privacy-enhanced public views and comprehen
 - **Enhanced Badge Count System**: Sidebar badges for notifications and pending items.
 - **Social Media Links System**: Clubs can add social media links for 11 platforms.
 - **Sidebar Hide/Lock System**: Collapsible sidebar with optional PIN protection.
-- **Premium Recognition Cards System**: Admin-gifted recognition cards with 3D flippable RPG-style display, unlocking exclusive theme tiers.
+- **Premium Recognition Cards System**: Admin-gifted recognition cards with 3D flippable RPG-style display, unlocking exclusive theme tiers. Legal compliance redesign: all "credit/reward/earnings" terminology replaced with "discretionary appreciation token/benefit" language; info popups with legal disclaimers; non-transferable badges; T&C Section 21 covering non-wage/non-cash/non-transferable/revocable nature; User Guide sections for players and admins; backend notifications reworded to avoid implying compensation.
 - **Mobile Bottom Navigation System**: Mobile-only fixed bottom bar with customizable shortcut icons.
 - **Announcement Reactions & Comments**: Users can react to announcements with emoji reactions and threaded comments.
 - **Player Intelligence & Analytics System**: Comprehensive player analytics dashboard, interactive charts, AI Comparison Review, achievement badges, skill review system, coach notes timeline, AI-powered player style analysis, and Match Log/Development tabs for players with active annual club memberships.

@@ -25431,7 +25431,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
             userId: card.userId,
             clubId: targetClubId,
             amount: card.weeklyCreditValue,
-            reason: `Card credit: ${card.cardName}`,
+            reason: `Recognition card benefit: ${card.cardName}`,
             createdById: (req.user as any).id,
           });
         }
@@ -25439,14 +25439,14 @@ Keep it to about 300 words. Be encouraging but honest.`;
         await tx.insert(notifications).values({
           userId: card.userId,
           type: "GENERAL",
-          title: "Card Credit Received!",
-          message: `You received £${(card.weeklyCreditValue / 100).toFixed(2)} credit from your "${card.cardName}" recognition card. It has been added to your credit wallet.`,
+          title: "Recognition Card Benefit Applied!",
+          message: `A discretionary appreciation benefit of £${(card.weeklyCreditValue / 100).toFixed(2)} from your "${card.cardName}" recognition card has been applied to your account.`,
         });
 
         return transaction;
       });
 
-      res.json({ transaction: result, message: `£${(card.weeklyCreditValue / 100).toFixed(2)} credit issued successfully` });
+      res.json({ transaction: result, message: `£${(card.weeklyCreditValue / 100).toFixed(2)} benefit issued successfully` });
     } catch (err: any) {
       const status = err.message?.includes("already issued") ? 400 : 500;
       res.status(status).json({ message: err.message });
@@ -25529,14 +25529,14 @@ Keep it to about 300 words. Be encouraging but honest.`;
           userId,
           clubId,
           amount: txn.amount,
-          reason: `Card credit: ${txn.cardName}`,
+          reason: `Recognition card benefit: ${txn.cardName}`,
           createdById: userId,
         });
       });
 
-      res.json({ success: true, message: `£${(txn.amount / 100).toFixed(2)} credit claimed to your wallet` });
+      res.json({ success: true, message: `£${(txn.amount / 100).toFixed(2)} benefit applied to your account` });
     } catch (err: any) {
-      console.error("Error claiming card credit:", err);
+      console.error("Error claiming card benefit:", err);
       res.status(500).json({ message: err.message });
     }
   });
@@ -25568,14 +25568,14 @@ Keep it to about 300 words. Be encouraging but honest.`;
             userId,
             clubId,
             amount: txn.amount,
-            reason: `Card credit: ${txn.cardName}`,
+            reason: `Recognition card benefit: ${txn.cardName}`,
             createdById: userId,
           });
           totalClaimed += txn.amount;
         }
       });
 
-      res.json({ success: true, count: unclaimed.length, total: totalClaimed, message: `£${(totalClaimed / 100).toFixed(2)} total credit claimed` });
+      res.json({ success: true, count: unclaimed.length, total: totalClaimed, message: `£${(totalClaimed / 100).toFixed(2)} total benefits applied` });
     } catch (err: any) {
       console.error("Error claiming all card credits:", err);
       res.status(500).json({ message: err.message });

@@ -58,6 +58,8 @@ const RARITY_LABELS: Record<string, { label: string; color: string; defaultCredi
   mythic: { label: "Mythic", color: "bg-gradient-to-r from-rose-500 to-purple-500 text-white", defaultCredit: 7.5 },
 };
 
+const CARD_INFO_TEXT = "Recognition Cards are discretionary appreciation tokens issued by club coordinators. They do not represent payment, wages, or monetary value. They cannot be exchanged for cash, transferred, or accumulated for financial benefit. Any associated benefits are optional, irregular, and may be withdrawn at any time.";
+
 function getCardStatus(card: IssuedCardRecord): "active" | "expired" | "revoked" {
   if (card.revokedAt) return "revoked";
   if (card.expiresAt && isPast(new Date(card.expiresAt))) return "expired";
@@ -132,7 +134,7 @@ export default function RecognitionCards() {
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Credit Value Updated" });
+      toast({ title: "Benefit Value Updated" });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/all-issued-cards"] });
     },
     onError: (err: any) => {
@@ -146,12 +148,12 @@ export default function RecognitionCards() {
       return res.json();
     },
     onSuccess: (data: any) => {
-      toast({ title: "Credit Issued", description: data.message });
+      toast({ title: "Benefit Issued", description: data.message });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/all-issued-cards"] });
       queryClient.invalidateQueries({ queryKey: ["/api/admin/card-credit-transactions"] });
     },
     onError: (err: any) => {
-      toast({ title: "Cannot Issue Credit", description: err.message, variant: "destructive" });
+      toast({ title: "Cannot Issue Benefit", description: err.message, variant: "destructive" });
     },
   });
 
@@ -230,7 +232,7 @@ export default function RecognitionCards() {
             <Award className="h-6 w-6 text-amber-500" />
             Recognition Cards
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">Award recognition cards to players for character, leadership, and contribution</p>
+          <p className="text-muted-foreground text-sm mt-1">Discretionary appreciation tokens for positive contribution, support, and sportsmanship</p>
         </div>
         <Button onClick={() => { resetIssueForm(); setIssueDialogOpen(true); }} data-testid="button-issue-card">
           <Gift className="h-4 w-4 mr-2" />
@@ -255,17 +257,17 @@ export default function RecognitionCards() {
         </Card>
         <Card className="p-3 border-emerald-200 dark:border-emerald-800/40">
           <div className="flex items-center gap-2 mb-1">
-            <PoundSterling className="h-4 w-4 text-emerald-500" />
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Total Issued</span>
+            <Gift className="h-4 w-4 text-emerald-500" />
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Benefits Given</span>
           </div>
-          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400" data-testid="text-header-credits-issued">£{(totalCreditsIssued / 100).toFixed(2)}</p>
+          <p className="text-xl font-black text-emerald-600 dark:text-emerald-400" data-testid="text-header-credits-issued">{creditTransactions?.length || 0}</p>
         </Card>
         <Card className="p-3 border-violet-200 dark:border-violet-800/40">
           <div className="flex items-center gap-2 mb-1">
             <Timer className="h-4 w-4 text-violet-500" />
-            <span className="text-[10px] font-bold uppercase text-muted-foreground">Weekly Owed</span>
+            <span className="text-[10px] font-bold uppercase text-muted-foreground">Eligible Cards</span>
           </div>
-          <p className="text-xl font-black text-violet-600 dark:text-violet-400" data-testid="text-header-weekly-owed">£{(weeklyLiability / 100).toFixed(2)}</p>
+          <p className="text-xl font-black text-violet-600 dark:text-violet-400" data-testid="text-header-weekly-owed">{activeCards.filter(c => c.weeklyCreditValue > 0).length}</p>
         </Card>
       </div>
 
@@ -274,7 +276,7 @@ export default function RecognitionCards() {
           { key: "gallery" as const, label: "Card Gallery", icon: LayoutGrid, count: 0 },
           { key: "active" as const, label: "Active Cards", icon: CheckCircle, count: activeCards.length },
           { key: "expired" as const, label: "Expired Cards", icon: History, count: expiredCards.length },
-          { key: "dashboard" as const, label: "Credits & Weekly Run", icon: PoundSterling, count: 0 },
+          { key: "dashboard" as const, label: "Appreciation Benefits", icon: Gift, count: 0 },
         ].map(tab => (
           <button
             key={tab.key}
@@ -294,17 +296,16 @@ export default function RecognitionCards() {
       {activeTab === "gallery" && (
         <div className="space-y-4">
           <div className="bg-muted/50 rounded-xl p-4 border">
-            <h3 className="font-semibold text-sm mb-2">Default Credit Values by Rarity</h3>
-            <p className="text-xs text-muted-foreground mb-3">These values are automatically suggested when issuing a new card based on its rarity level.</p>
+            <h3 className="font-semibold text-sm mb-2">Card Rarity Tiers</h3>
+            <p className="text-xs text-muted-foreground mb-3">Recognition cards come in different rarity tiers. Admins may optionally assign a discretionary benefit value when issuing a card.</p>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {Object.entries(RARITY_LABELS).map(([key, val]) => (
                 <div key={key} className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background border">
                   <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${val.color}`}>{val.label}</span>
-                  <span className="text-sm font-bold text-foreground">£{val.defaultCredit.toFixed(2)}</span>
-                  <span className="text-[9px] text-muted-foreground">per week</span>
                 </div>
               ))}
             </div>
+            <p className="text-[10px] text-muted-foreground mt-3 italic">{CARD_INFO_TEXT}</p>
           </div>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5">
             {cardTypes?.map((card) => (
@@ -509,7 +510,7 @@ export default function RecognitionCards() {
                 <SelectContent>
                   {Object.entries(RARITY_LABELS).map(([key, val]) => (
                     <SelectItem key={key} value={key}>
-                      {val.label} (default £{val.defaultCredit.toFixed(2)}/wk)
+                      {val.label}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -517,7 +518,7 @@ export default function RecognitionCards() {
             </div>
 
             <div>
-              <Label>Weekly Credit Value (£)</Label>
+              <Label>Discretionary Benefit Value (£)</Label>
               <Input
                 type="number"
                 min="0"
@@ -529,8 +530,8 @@ export default function RecognitionCards() {
               />
               <p className="text-[10px] text-muted-foreground mt-1">
                 {weeklyCreditInput && parseFloat(weeklyCreditInput) > 0
-                  ? `£${parseFloat(weeklyCreditInput).toFixed(2)} per week while card is active`
-                  : "Leave empty for no credit reward"}
+                  ? `£${parseFloat(weeklyCreditInput).toFixed(2)} discretionary benefit while card is active`
+                  : "Leave empty for no associated benefit"}
               </p>
             </div>
 
@@ -714,7 +715,7 @@ function CardListView({
                             {uc.weeklyCreditValue > 0 && (
                               <p className="text-xs text-emerald-600 dark:text-emerald-400 mt-0.5">
                                 <PoundSterling className="h-3 w-3 inline mr-1" />
-                                £{(uc.weeklyCreditValue / 100).toFixed(2)}/week credit
+                                £{(uc.weeklyCreditValue / 100).toFixed(2)}/week benefit
                               </p>
                             )}
                             {uc.customReason && <p className="text-xs text-muted-foreground italic mt-0.5">{uc.customReason}</p>}
@@ -812,7 +813,7 @@ function CreditsDashboard({
 
   const runWeeklyCredits = async () => {
     if (selectedForWeekly.size === 0) {
-      toast({ title: "No Cards Selected", description: "Please select at least one card to issue credits.", variant: "destructive" });
+      toast({ title: "No Cards Selected", description: "Please select at least one card to issue benefits.", variant: "destructive" });
       return;
     }
     setIsRunningBatch(true);
@@ -841,7 +842,7 @@ function CreditsDashboard({
     queryClient.invalidateQueries({ queryKey: ["/api/admin/card-credit-transactions"] });
 
     if (success > 0) {
-      toast({ title: "Weekly Credits Issued", description: `${success} credit(s) issued successfully${failed > 0 ? `, ${failed} failed` : ""}` });
+      toast({ title: "Appreciation Benefits Issued", description: `${success} benefit(s) issued successfully${failed > 0 ? `, ${failed} failed` : ""}` });
     }
   };
 
@@ -858,13 +859,13 @@ function CreditsDashboard({
       <div className="bg-gradient-to-r from-emerald-500/10 via-green-500/5 to-teal-500/10 dark:from-emerald-500/5 dark:via-green-500/3 dark:to-teal-500/5 rounded-xl border border-emerald-200 dark:border-emerald-800/40 p-4">
         <div className="flex items-center gap-2 mb-3">
           <Zap className="h-5 w-5 text-emerald-500" />
-          <h3 className="font-bold text-sm">Weekly Credit Run</h3>
+          <h3 className="font-bold text-sm">Appreciation Benefits Run</h3>
           <Badge variant="outline" className="text-[10px] ml-auto">
             {eligibleCards.length} eligible cards
           </Badge>
         </div>
         <p className="text-xs text-muted-foreground mb-4">
-          Select which active cards should receive their weekly credit this week. Each card can only be credited once per week.
+          Select which active cards should receive their discretionary appreciation benefit this week. Each card can only receive one benefit per week.
         </p>
 
         <div className="flex flex-col sm:flex-row gap-3 mb-4">
@@ -894,9 +895,9 @@ function CreditsDashboard({
         {eligibleCards.length === 0 ? (
           <Card>
             <CardContent className="py-8 text-center">
-              <PoundSterling className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
-              <p className="text-sm text-muted-foreground">No active cards with credit values set</p>
-              <p className="text-xs text-muted-foreground mt-1">Issue cards with weekly credit values to use this feature</p>
+              <Gift className="h-8 w-8 mx-auto text-muted-foreground/30 mb-2" />
+              <p className="text-sm text-muted-foreground">No active cards with benefit values set</p>
+              <p className="text-xs text-muted-foreground mt-1">Issue cards with discretionary benefit values to use this feature</p>
             </CardContent>
           </Card>
         ) : (
@@ -1023,7 +1024,7 @@ function CreditsDashboard({
                 ) : (
                   <Zap className="h-4 w-4 mr-2" />
                 )}
-                Issue Weekly Credits
+                Issue Appreciation Benefits
               </Button>
             </div>
 
@@ -1057,8 +1058,8 @@ function CreditsDashboard({
       {creditTransactions.length > 0 && (
         <div className="space-y-3">
           <h3 className="font-bold text-sm flex items-center gap-2">
-            <PoundSterling className="h-4 w-4 text-amber-500" />
-            Credit Transaction History
+            <Award className="h-4 w-4 text-amber-500" />
+            Benefit History
           </h3>
           <div className="rounded-xl border overflow-hidden">
             <table className="w-full text-sm" data-testid="table-credit-transactions">
