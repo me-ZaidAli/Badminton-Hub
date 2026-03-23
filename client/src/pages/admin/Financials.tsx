@@ -2491,7 +2491,11 @@ export default function Financials() {
                   <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Credits + Rewards</p>
                 </CardContent>
               </Card>
-              <Card className="min-w-0" data-testid="card-credit-redeemed-main">
+              <Card
+                className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "USED" ? "ring-2 ring-green-500" : ""}`}
+                data-testid="card-credit-redeemed-main"
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "USED" ? null : "USED"); setExpandedPlayerId(null); }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redeemed</CardTitle>
                   <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />
@@ -2501,7 +2505,11 @@ export default function Financials() {
                   <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Used by members</p>
                 </CardContent>
               </Card>
-              <Card className="min-w-0" data-testid="card-credit-held-main">
+              <Card
+                className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "AVAILABLE" ? "ring-2 ring-amber-500" : ""}`}
+                data-testid="card-credit-held-main"
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "AVAILABLE" ? null : "AVAILABLE"); setExpandedPlayerId(null); }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Outstanding</CardTitle>
                   <CreditCard className="h-3 w-3 shrink-0 text-blue-500" />
