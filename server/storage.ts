@@ -61,7 +61,7 @@ export interface IStorage {
   deleteVenue(id: number): Promise<void>;
 
   // Sessions
-  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; matchCount: number; venue?: Venue })[]>;
+  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; waitingCount: number; matchCount: number; venue?: Venue })[]>;
   getSession(id: number): Promise<(Session & { venue?: Venue }) | undefined>;
   createSession(session: InsertSession & { createdBy: number }): Promise<Session>;
   updateSession(id: number, updates: Partial<Session>): Promise<Session>;
@@ -490,7 +490,7 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
-  async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; matchCount: number; venue?: Venue })[]> {
+  async getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; waitingCount: number; matchCount: number; venue?: Venue })[]> {
     const conditions: any[] = [];
     if (from) conditions.push(gte(sessions.date, from));
     if (to) conditions.push(lte(sessions.date, to));
@@ -509,7 +509,11 @@ export class DatabaseStorage implements IStorage {
       .where(inArray(sessionSignups.sessionId, sessionIds)) : [];
 
     const countsBySession = new Map<number, number>();
+    const waitingBySession = new Map<number, number>();
     for (const row of allSignupRows) {
+      if (row.signupStatus === "WAITING") {
+        waitingBySession.set(row.sessionId, (waitingBySession.get(row.sessionId) || 0) + 1);
+      }
       if (row.signupStatus !== "CONFIRMED" && row.signupStatus !== null && row.signupStatus !== undefined) continue;
       countsBySession.set(row.sessionId, (countsBySession.get(row.sessionId) || 0) + 1);
     }
@@ -534,6 +538,7 @@ export class DatabaseStorage implements IStorage {
     const sessionsWithData = allSessions.map((s) => ({
       ...s,
       signupCount: countsBySession.get(s.id) || 0,
+      waitingCount: waitingBySession.get(s.id) || 0,
       matchCount: matchCountsBySession.get(s.id) || 0,
       venue: s.venueId ? venueMap.get(s.venueId) : undefined,
     }));
