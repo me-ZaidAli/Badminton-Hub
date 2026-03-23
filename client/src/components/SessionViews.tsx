@@ -288,6 +288,13 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
               </div>
             )}
           </div>
+
+          {(session as any).waitingCount > 0 && (
+            <div className="flex items-center gap-2 rounded-lg px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40" data-testid={`expanded-waiting-list-${session.id}`}>
+              <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{(session as any).waitingCount} on Waiting List</span>
+            </div>
+          )}
         </div>
 
         {isLoading ? (
@@ -623,6 +630,13 @@ function TimelineSessionCard({
 
         {clubName && (
           <div className="mt-2 text-[10px] font-medium text-foreground/70 dark:text-white/60">{clubName}</div>
+        )}
+
+        {(session as any).waitingCount > 0 && (
+          <div className="mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40" data-testid={`timeline-waiting-list-${session.id}`}>
+            <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">{(session as any).waitingCount} on Waiting List</span>
+          </div>
         )}
 
         {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} />}
