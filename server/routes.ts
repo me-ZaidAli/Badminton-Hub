@@ -9977,25 +9977,73 @@ export async function registerRoutes(
         }
       }
 
-      const conditions = [sql`1=1`];
-      if (clubId) conditions.push(sql`cl.club_id = ${clubId}`);
-      if (userId) conditions.push(sql`cl.user_id = ${userId}`);
+      const clConditions = [sql`1=1`];
+      const rlConditions = [sql`1=1`];
+      const ccConditions = [sql`1=1`];
+      if (clubId) {
+        clConditions.push(sql`cl.club_id = ${clubId}`);
+        rlConditions.push(sql`rl.club_id = ${clubId}`);
+        ccConditions.push(sql`uc.club_id = ${clubId}`);
+      }
+      if (userId) {
+        clConditions.push(sql`cl.user_id = ${userId}`);
+        rlConditions.push(sql`rl.player_id = ${userId}`);
+        ccConditions.push(sql`cct.user_id = ${userId}`);
+      }
 
-      const query = sql`SELECT cl.id, cl.user_id AS "userId", cl.club_id AS "clubId", cl.amount, cl.reason,
-              cl.linked_session_id AS "linkedSessionId", cl.linked_signup_id AS "linkedSignupId",
-              cl.attendance_status AS "attendanceStatus",
-              cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
-              s.date AS "sessionDate", COALESCE(ss.fee, s.fee) AS "sessionFee",
-              pu.full_name AS "playerName", pu.email AS "playerEmail",
-              cu.full_name AS "createdByName"
-              FROM credit_ledger cl
-              INNER JOIN clubs c ON cl.club_id = c.id
-              LEFT JOIN sessions s ON cl.linked_session_id = s.id
-              LEFT JOIN session_signups ss ON cl.linked_signup_id = ss.id
-              INNER JOIN users pu ON cl.user_id = pu.id
-              INNER JOIN users cu ON cl.created_by_id = cu.id
-              WHERE ${sql.join(conditions, sql` AND `)}
-              ORDER BY cl.created_at DESC`;
+      const query = sql`
+        SELECT * FROM (
+          SELECT cl.id, 'credit_ledger' AS source, cl.user_id AS "userId", cl.club_id AS "clubId",
+            cl.amount, cl.reason,
+            cl.linked_session_id AS "linkedSessionId", cl.linked_signup_id AS "linkedSignupId",
+            cl.attendance_status AS "attendanceStatus",
+            cl.created_at AS "createdAt", c.name AS "clubName", s.title AS "sessionTitle",
+            s.date AS "sessionDate", COALESCE(ss.fee, s.fee) AS "sessionFee",
+            pu.full_name AS "playerName", pu.email AS "playerEmail",
+            cu.full_name AS "createdByName"
+          FROM credit_ledger cl
+          INNER JOIN clubs c ON cl.club_id = c.id
+          LEFT JOIN sessions s ON cl.linked_session_id = s.id
+          LEFT JOIN session_signups ss ON cl.linked_signup_id = ss.id
+          INNER JOIN users pu ON cl.user_id = pu.id
+          INNER JOIN users cu ON cl.created_by_id = cu.id
+          WHERE ${sql.join(clConditions, sql` AND `)}
+
+          UNION ALL
+
+          SELECT rl.id + 1000000, 'reward_ledger' AS source, rl.player_id AS "userId", rl.club_id AS "clubId",
+            rl.credits AS amount, rl.description AS reason,
+            NULL::int AS "linkedSessionId", NULL::int AS "linkedSignupId",
+            NULL::text AS "attendanceStatus",
+            rl.created_at AS "createdAt", c.name AS "clubName", NULL::text AS "sessionTitle",
+            NULL::timestamp AS "sessionDate", NULL::int AS "sessionFee",
+            pu.full_name AS "playerName", pu.email AS "playerEmail",
+            'System' AS "createdByName"
+          FROM player_reward_ledger rl
+          INNER JOIN clubs c ON rl.club_id = c.id
+          INNER JOIN users pu ON rl.player_id = pu.id
+          WHERE rl.credits > 0 AND ${sql.join(rlConditions, sql` AND `)}
+
+          UNION ALL
+
+          SELECT cct.id + 2000000, 'card_credit' AS source, cct.user_id AS "userId",
+            COALESCE(uc.club_id, 0) AS "clubId",
+            cct.amount, CONCAT('Card: ', cct.card_name) AS reason,
+            NULL::int AS "linkedSessionId", NULL::int AS "linkedSignupId",
+            NULL::text AS "attendanceStatus",
+            cct.created_at AS "createdAt",
+            COALESCE(cb.name, 'N/A') AS "clubName", NULL::text AS "sessionTitle",
+            NULL::timestamp AS "sessionDate", NULL::int AS "sessionFee",
+            pu.full_name AS "playerName", pu.email AS "playerEmail",
+            COALESCE(iu.full_name, 'System') AS "createdByName"
+          FROM card_credit_transactions cct
+          INNER JOIN users pu ON cct.user_id = pu.id
+          LEFT JOIN users iu ON cct.issued_by_id = iu.id
+          LEFT JOIN user_cards uc ON cct.user_card_id = uc.id
+          LEFT JOIN clubs cb ON uc.club_id = cb.id
+          WHERE ${sql.join(ccConditions, sql` AND `)}
+        ) combined
+        ORDER BY "createdAt" DESC`;
 
       const entries = await db.execute(query);
       res.json(entries.rows);
@@ -16881,7 +16929,10 @@ export async function registerRoutes(
       const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
         .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
       const adminClubs = isOwner ? [] : adminProfiles.map(p => p.clubId);
-      const clubFilter = req.query.clubId ? [Number(req.query.clubId)] : (isOwner ? undefined : adminClubs);
+      const requestedClubId = req.query.clubId ? Number(req.query.clubId) : null;
+      if (requestedClubId !== null && isNaN(requestedClubId)) return res.status(400).json({ message: "Invalid clubId" });
+      if (!isOwner && requestedClubId !== null && !adminClubs.includes(requestedClubId)) return res.sendStatus(403);
+      const clubFilter = requestedClubId ? [requestedClubId] : (isOwner ? undefined : adminClubs);
       if (!isOwner && (!clubFilter || clubFilter.length === 0)) return res.json({ totalOutstanding: 0, totalIssued: 0, totalRedeemed: 0, totalHeld: 0 });
 
       const whereClause = clubFilter ? inArray(creditLedger.clubId, clubFilter) : undefined;
@@ -16892,6 +16943,19 @@ export async function registerRoutes(
         if (e.amount > 0) totalIssued += e.amount;
         else totalRedeemed += Math.abs(e.amount);
       });
+
+      const rewardQuery = clubFilter && clubFilter.length > 0
+        ? sql`SELECT COALESCE(SUM(credits), 0)::int AS total FROM player_reward_ledger WHERE credits > 0 AND club_id IN (${sql.join(clubFilter.map(id => sql`${id}`), sql`, `)})`
+        : sql`SELECT COALESCE(SUM(credits), 0)::int AS total FROM player_reward_ledger WHERE credits > 0`;
+      const [rewardResult] = (await db.execute(rewardQuery)).rows as any[];
+      totalIssued += Number(rewardResult?.total || 0);
+
+      const cardQuery = clubFilter && clubFilter.length > 0
+        ? sql`SELECT COALESCE(SUM(cct.amount), 0)::int AS total FROM card_credit_transactions cct LEFT JOIN user_cards uc ON cct.user_card_id = uc.id WHERE cct.amount > 0 AND uc.club_id IN (${sql.join(clubFilter.map(id => sql`${id}`), sql`, `)})`
+        : sql`SELECT COALESCE(SUM(amount), 0)::int AS total FROM card_credit_transactions WHERE amount > 0`;
+      const [cardResult] = (await db.execute(cardQuery)).rows as any[];
+      totalIssued += Number(cardResult?.total || 0);
+
       const totalHeld = totalIssued - totalRedeemed;
 
       res.json({ totalOutstanding: totalHeld, totalIssued, totalRedeemed, totalHeld });

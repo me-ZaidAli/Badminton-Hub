@@ -750,6 +750,7 @@ export default function Financials() {
 
   interface CreditHistoryEntry {
     id: number;
+    source?: string;
     userId: number;
     clubId: number;
     amount: number;
@@ -2180,7 +2181,7 @@ export default function Financials() {
           <Button
             size="sm"
             variant={dashboardView === "credits" ? "default" : "ghost"}
-            onClick={() => setDashboardView("credits")}
+            onClick={() => { setDashboardView("credits"); if (user?.role === "OWNER") setSelectedClubId("all"); }}
             className="gap-1.5 relative"
             data-testid="button-credits-view"
           >
@@ -2782,15 +2783,23 @@ export default function Financials() {
                                       {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy HH:mm") : "N/A"}
                                     </TableCell>
                                     <TableCell>
-                                      {entry.amount > 0 ? (
-                                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
-                                          <Plus className="h-3 w-3 mr-1" /> Added
-                                        </Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
-                                          <TrendingDown className="h-3 w-3 mr-1" /> Used
-                                        </Badge>
-                                      )}
+                                      <div className="flex flex-col gap-1">
+                                        {entry.amount > 0 ? (
+                                          <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate w-fit">
+                                            <Plus className="h-3 w-3 mr-1" /> Added
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate w-fit">
+                                            <TrendingDown className="h-3 w-3 mr-1" /> Used
+                                          </Badge>
+                                        )}
+                                        {entry.source === "reward_ledger" && (
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate w-fit">Reward</Badge>
+                                        )}
+                                        {entry.source === "card_credit" && (
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate w-fit">Card</Badge>
+                                        )}
+                                      </div>
                                     </TableCell>
                                     <TableCell className={`font-medium ${entry.amount > 0 ? "text-green-600" : "text-orange-600"}`}>
                                       {entry.amount > 0 ? "+" : "-"}{"\u00A3"}{formatPounds(Math.abs(entry.amount))}
@@ -2824,41 +2833,45 @@ export default function Financials() {
                                     <TableCell className="text-sm text-muted-foreground">{entry.clubName}</TableCell>
                                     <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
                                     <TableCell>
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={() => {
-                                            setEditCreditDialog({
+                                      {(!entry.source || entry.source === "credit_ledger") ? (
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              setEditCreditDialog({
+                                                id: entry.id,
+                                                amount: entry.amount,
+                                                reason: entry.reason,
+                                                linkedSignupId: entry.linkedSignupId,
+                                                sessionFee: entry.sessionFee,
+                                                playerName: group.playerName,
+                                              });
+                                              setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
+                                              setEditCreditReason(entry.reason);
+                                            }}
+                                            data-testid={`button-edit-credit-main-${entry.id}`}
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="text-red-500 hover:text-red-700"
+                                            onClick={() => setDeleteCreditDialog({
                                               id: entry.id,
                                               amount: entry.amount,
-                                              reason: entry.reason,
-                                              linkedSignupId: entry.linkedSignupId,
-                                              sessionFee: entry.sessionFee,
                                               playerName: group.playerName,
-                                            });
-                                            setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
-                                            setEditCreditReason(entry.reason);
-                                          }}
-                                          data-testid={`button-edit-credit-main-${entry.id}`}
-                                        >
-                                          <Pencil className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="text-red-500 hover:text-red-700"
-                                          onClick={() => setDeleteCreditDialog({
-                                            id: entry.id,
-                                            amount: entry.amount,
-                                            playerName: group.playerName,
-                                            reason: entry.reason,
-                                          })}
-                                          data-testid={`button-delete-credit-main-${entry.id}`}
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                      </div>
+                                              reason: entry.reason,
+                                            })}
+                                            data-testid={`button-delete-credit-main-${entry.id}`}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">—</span>
+                                      )}
                                     </TableCell>
                                   </TableRow>
                                 ))}
@@ -3814,15 +3827,23 @@ export default function Financials() {
                                       {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy HH:mm") : "N/A"}
                                     </TableCell>
                                     <TableCell>
-                                      {entry.amount > 0 ? (
-                                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
-                                          <Plus className="h-3 w-3 mr-1" /> Added
-                                        </Badge>
-                                      ) : (
-                                        <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
-                                          <TrendingDown className="h-3 w-3 mr-1" /> Used
-                                        </Badge>
-                                      )}
+                                      <div className="flex flex-col gap-1">
+                                        {entry.amount > 0 ? (
+                                          <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate w-fit">
+                                            <Plus className="h-3 w-3 mr-1" /> Added
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate w-fit">
+                                            <TrendingDown className="h-3 w-3 mr-1" /> Used
+                                          </Badge>
+                                        )}
+                                        {entry.source === "reward_ledger" && (
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate w-fit">Reward</Badge>
+                                        )}
+                                        {entry.source === "card_credit" && (
+                                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 no-default-hover-elevate no-default-active-elevate w-fit">Card</Badge>
+                                        )}
+                                      </div>
                                     </TableCell>
                                     <TableCell className={`font-medium ${entry.amount > 0 ? "text-green-600" : "text-orange-600"}`}>
                                       {entry.amount > 0 ? "+" : "-"}{"\u00A3"}{formatPounds(Math.abs(entry.amount))}
@@ -3856,41 +3877,45 @@ export default function Financials() {
                                     <TableCell className="text-sm text-muted-foreground">{entry.clubName}</TableCell>
                                     <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
                                     <TableCell>
-                                      <div className="flex items-center gap-1">
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          onClick={() => {
-                                            setEditCreditDialog({
+                                      {(!entry.source || entry.source === "credit_ledger") ? (
+                                        <div className="flex items-center gap-1">
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            onClick={() => {
+                                              setEditCreditDialog({
+                                                id: entry.id,
+                                                amount: entry.amount,
+                                                reason: entry.reason,
+                                                linkedSignupId: entry.linkedSignupId,
+                                                sessionFee: entry.sessionFee,
+                                                playerName: group.playerName,
+                                              });
+                                              setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
+                                              setEditCreditReason(entry.reason);
+                                            }}
+                                            data-testid={`button-edit-credit-${entry.id}`}
+                                          >
+                                            <Pencil className="h-3 w-3" />
+                                          </Button>
+                                          <Button
+                                            size="icon"
+                                            variant="ghost"
+                                            className="text-red-500 hover:text-red-700"
+                                            onClick={() => setDeleteCreditDialog({
                                               id: entry.id,
                                               amount: entry.amount,
-                                              reason: entry.reason,
-                                              linkedSignupId: entry.linkedSignupId,
-                                              sessionFee: entry.sessionFee,
                                               playerName: group.playerName,
-                                            });
-                                            setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
-                                            setEditCreditReason(entry.reason);
-                                          }}
-                                          data-testid={`button-edit-credit-${entry.id}`}
-                                        >
-                                          <Pencil className="h-3 w-3" />
-                                        </Button>
-                                        <Button
-                                          size="icon"
-                                          variant="ghost"
-                                          className="text-red-500 hover:text-red-700"
-                                          onClick={() => setDeleteCreditDialog({
-                                            id: entry.id,
-                                            amount: entry.amount,
-                                            playerName: group.playerName,
-                                            reason: entry.reason,
-                                          })}
-                                          data-testid={`button-delete-credit-${entry.id}`}
-                                        >
-                                          <Trash2 className="h-3 w-3" />
-                                        </Button>
-                                      </div>
+                                              reason: entry.reason,
+                                            })}
+                                            data-testid={`button-delete-credit-${entry.id}`}
+                                          >
+                                            <Trash2 className="h-3 w-3" />
+                                          </Button>
+                                        </div>
+                                      ) : (
+                                        <span className="text-xs text-muted-foreground">—</span>
+                                      )}
                                     </TableCell>
                                   </TableRow>
                                 ))}
