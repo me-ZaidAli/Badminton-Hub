@@ -597,6 +597,23 @@ export default function Financials() {
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
 
+  const [creditSubTab, setCreditSubTab] = useState<"history" | "pending" | "analytics">("history");
+  const [approveDialog, setApproveDialog] = useState<{
+    ticketId: number;
+    playerName: string;
+    amount: number;
+    subject: string;
+    description: string | null;
+  } | null>(null);
+  const [approveAmount, setApproveAmount] = useState("");
+  const [approveReason, setApproveReason] = useState("");
+  const [declineDialog, setDeclineDialog] = useState<{
+    ticketId: number;
+    playerName: string;
+    subject: string;
+  } | null>(null);
+  const [declineReason, setDeclineReason] = useState("");
+
   const [editCreditDialog, setEditCreditDialog] = useState<{
     id: number;
     amount: number;
@@ -761,6 +778,131 @@ export default function Financials() {
     queryKey: [creditHistoryUrl],
     enabled: viewMode === "credits",
   });
+
+  interface PendingCreditRequest {
+    id: number;
+    ticketNumber: string;
+    subject: string;
+    description: string | null;
+    status: string;
+    creditAmount: number | null;
+    clubId: number;
+    createdByUserId: number;
+    linkedSessionId: number | null;
+    createdAt: string;
+    playerName: string;
+    playerEmail: string;
+    clubName: string;
+    sessionTitle: string | null;
+    sessionDate: string | null;
+  }
+
+  const pendingCreditUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedClubId !== "all") params.append("clubId", selectedClubId);
+    const qs = params.toString();
+    return `/api/admin/pending-credit-requests${qs ? `?${qs}` : ""}`;
+  }, [selectedClubId]);
+
+  const { data: pendingCreditRequests = [], isLoading: pendingCreditLoading } = useQuery<PendingCreditRequest[]>({
+    queryKey: [pendingCreditUrl],
+    enabled: viewMode === "credits",
+  });
+
+  const approveCreditMutation = useMutation({
+    mutationFn: async ({ ticketId, amount, reason }: { ticketId: number; amount: number; reason: string }) => {
+      const res = await apiRequest("POST", `/api/tickets/${ticketId}/approve-credit`, { amount, reason });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [pendingCreditUrl] });
+      qc.invalidateQueries({ queryKey: [creditHistoryUrl] });
+      qc.invalidateQueries({ queryKey: [creditSummaryUrl] });
+      toast({ title: "Credit approved", description: "The credit has been added to the player's wallet." });
+      setApproveDialog(null);
+      setApproveAmount("");
+      setApproveReason("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to approve credit", variant: "destructive" });
+    },
+  });
+
+  const declineCreditMutation = useMutation({
+    mutationFn: async ({ ticketId, reason }: { ticketId: number; reason: string }) => {
+      const res = await apiRequest("POST", `/api/tickets/${ticketId}/decline-credit`, { reason });
+      return res.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: [pendingCreditUrl] });
+      toast({ title: "Request declined", description: "The credit request has been declined." });
+      setDeclineDialog(null);
+      setDeclineReason("");
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to decline credit", variant: "destructive" });
+    },
+  });
+
+  const creditAnalytics = useMemo(() => {
+    if (creditHistory.length === 0) return null;
+    let totalAdded = 0;
+    let totalUsed = 0;
+    let addedCount = 0;
+    let usedCount = 0;
+    const playerBalances: Record<string, { name: string; balance: number; userId: number }> = {};
+    const monthlyData: Record<string, { month: string; added: number; used: number }> = {};
+    const reasonCounts: Record<string, number> = {};
+
+    creditHistory.forEach((e) => {
+      if (e.amount > 0) { totalAdded += e.amount; addedCount++; }
+      else { totalUsed += Math.abs(e.amount); usedCount++; }
+
+      const pKey = `${e.userId}`;
+      if (!playerBalances[pKey]) playerBalances[pKey] = { name: e.playerName, balance: 0, userId: e.userId };
+      playerBalances[pKey].balance += e.amount;
+
+      if (e.createdAt) {
+        const m = format(new Date(e.createdAt), "yyyy-MM");
+        if (!monthlyData[m]) monthlyData[m] = { month: m, added: 0, used: 0 };
+        if (e.amount > 0) monthlyData[m].added += e.amount;
+        else monthlyData[m].used += Math.abs(e.amount);
+      }
+
+      const r = e.reason || "Unknown";
+      reasonCounts[r] = (reasonCounts[r] || 0) + 1;
+    });
+
+    const topHolders = Object.values(playerBalances)
+      .filter(p => p.balance > 0)
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 10);
+
+    const topReasons = Object.entries(reasonCounts)
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
+
+    const recentMonths = Object.values(monthlyData)
+      .sort((a, b) => b.month.localeCompare(a.month))
+      .slice(0, 6)
+      .reverse();
+
+    return {
+      totalAdded,
+      totalUsed,
+      netOutstanding: totalAdded - totalUsed,
+      addedCount,
+      usedCount,
+      totalTransactions: creditHistory.length,
+      avgCreditIssued: addedCount > 0 ? Math.round(totalAdded / addedCount) : 0,
+      avgCreditUsed: usedCount > 0 ? Math.round(totalUsed / usedCount) : 0,
+      redemptionRate: totalAdded > 0 ? ((totalUsed / totalAdded) * 100).toFixed(1) : "0.0",
+      topHolders,
+      topReasons,
+      recentMonths,
+      uniquePlayers: Object.keys(playerBalances).length,
+    };
+  }, [creditHistory]);
 
   const creditPlayerGroups = useMemo(() => {
     const filtered = creditSearchQuery
@@ -2737,200 +2879,480 @@ export default function Financials() {
         </div>
       ) : viewMode === "credits" ? (
         <div className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="relative flex-1 min-w-[200px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input
-                placeholder="Search by player name or email..."
-                value={creditSearchQuery}
-                onChange={(e) => setCreditSearchQuery(e.target.value)}
-                className="pl-9"
-                data-testid="input-credit-search"
-              />
-            </div>
-            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
-              {Object.keys(creditPlayerGroups).length} player(s)
-            </Badge>
-            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
-              {creditHistory.length} transaction(s)
-            </Badge>
+          <div className="flex items-center gap-2 flex-wrap">
+            <Button size="sm" variant={creditSubTab === "history" ? "default" : "outline"} onClick={() => setCreditSubTab("history")} data-testid="button-credit-tab-history">
+              <History className="h-3.5 w-3.5 mr-1" /> Transaction History
+            </Button>
+            <Button size="sm" variant={creditSubTab === "pending" ? "default" : "outline"} onClick={() => setCreditSubTab("pending")} className="relative" data-testid="button-credit-tab-pending">
+              <Clock className="h-3.5 w-3.5 mr-1" /> Pending Requests
+              {pendingCreditRequests.length > 0 && (
+                <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">{pendingCreditRequests.length}</span>
+              )}
+            </Button>
+            <Button size="sm" variant={creditSubTab === "analytics" ? "default" : "outline"} onClick={() => setCreditSubTab("analytics")} data-testid="button-credit-tab-analytics">
+              <TrendingUp className="h-3.5 w-3.5 mr-1" /> Analytics
+            </Button>
           </div>
 
-          {creditLoading ? (
-            <Card>
-              <CardContent className="py-8 text-center">
-                <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mt-2">Loading credit history...</p>
-              </CardContent>
-            </Card>
-          ) : Object.keys(creditPlayerGroups).length === 0 ? (
-            <Card>
-              <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-credits">
-                No credit history found.
-              </CardContent>
-            </Card>
-          ) : (
-            Object.entries(creditPlayerGroups).map(([key, group]) => {
-              const isExpanded = expandedCreditPlayers.has(key);
-              return (
-                <Card key={key} data-testid={`card-credit-player-${key}`}>
-                  <CardHeader
-                    className="cursor-pointer"
-                    onClick={() => {
-                      setExpandedCreditPlayers((prev) => {
-                        const next = new Set(prev);
-                        if (next.has(key)) next.delete(key);
-                        else next.add(key);
-                        return next;
-                      });
-                    }}
-                    data-testid={`button-expand-credit-${key}`}
-                  >
-                    <div className="flex items-center justify-between gap-4 flex-wrap">
-                      <div className="flex items-center gap-3 flex-wrap">
-                        {isExpanded ? (
-                          <ChevronDown className="h-5 w-5 text-muted-foreground" />
-                        ) : (
-                          <ChevronRight className="h-5 w-5 text-muted-foreground" />
-                        )}
-                        <div>
-                          <CardTitle className="text-base" data-testid={`text-credit-player-name-${key}`}>
-                            {group.playerName}
-                          </CardTitle>
-                          <p className="text-sm text-muted-foreground">{group.playerEmail}</p>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-3 flex-wrap">
-                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-added-${key}`}>
-                          <TrendingUp className="h-3 w-3 mr-1" />
-                          Added: {"\u00A3"}{formatPounds(group.totalAdded)}
-                        </Badge>
-                        <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-used-${key}`}>
-                          <TrendingDown className="h-3 w-3 mr-1" />
-                          Used: {"\u00A3"}{formatPounds(group.totalUsed)}
-                        </Badge>
-                        <Badge variant={group.balance > 0 ? "default" : "secondary"} className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-balance-${key}`}>
-                          <CreditCard className="h-3 w-3 mr-1" />
-                          Balance: {"\u00A3"}{formatPounds(group.balance)}
-                        </Badge>
-                        <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
-                          {group.entries.length} txn(s)
-                        </Badge>
-                      </div>
-                    </div>
-                  </CardHeader>
-                  {isExpanded && (
-                    <CardContent>
-                      <div className="overflow-x-auto">
-                        <Table>
-                          <TableHeader>
-                            <TableRow>
-                              <TableHead>Date</TableHead>
-                              <TableHead>Type</TableHead>
-                              <TableHead>Amount</TableHead>
-                              <TableHead>Reason</TableHead>
-                              <TableHead>Status</TableHead>
-                              <TableHead>Session</TableHead>
-                              <TableHead>Club</TableHead>
-                              <TableHead>By</TableHead>
-                              <TableHead>Actions</TableHead>
-                            </TableRow>
-                          </TableHeader>
-                          <TableBody>
-                            {group.entries.map((entry) => (
-                              <TableRow key={entry.id} data-testid={`row-credit-${entry.id}`}>
-                                <TableCell className="whitespace-nowrap text-sm">
-                                  {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy HH:mm") : "N/A"}
-                                </TableCell>
-                                <TableCell>
-                                  {entry.amount > 0 ? (
-                                    <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
-                                      <Plus className="h-3 w-3 mr-1" /> Added
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
-                                      <TrendingDown className="h-3 w-3 mr-1" /> Used
-                                    </Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className={`font-medium ${entry.amount > 0 ? "text-green-600" : "text-orange-600"}`}>
-                                  {entry.amount > 0 ? "+" : "-"}{"\u00A3"}{formatPounds(Math.abs(entry.amount))}
-                                </TableCell>
-                                <TableCell className="text-sm max-w-[200px] truncate" title={entry.reason}>
-                                  {entry.reason}
-                                </TableCell>
-                                <TableCell>
-                                  {entry.amount > 0 ? (
-                                    group.balance <= 0 ? (
-                                      <Badge variant="outline" className="text-blue-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
-                                        <CheckCircle className="h-3 w-3 mr-1" /> Claimed
-                                      </Badge>
-                                    ) : (
-                                      <Badge variant="outline" className="text-amber-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
-                                        <Clock className="h-3 w-3 mr-1" /> Unclaimed
-                                      </Badge>
-                                    )
-                                  ) : (
-                                    <Badge variant="outline" className="text-muted-foreground no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
-                                      <CheckCircle className="h-3 w-3 mr-1" /> Applied
-                                    </Badge>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">
-                                  {entry.sessionTitle || "-"}
-                                  {entry.sessionDate && (
-                                    <span className="block text-xs">{format(new Date(entry.sessionDate), "MMM d, yyyy")}</span>
-                                  )}
-                                </TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{entry.clubName}</TableCell>
-                                <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
-                                <TableCell>
-                                  <div className="flex items-center gap-1">
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      onClick={() => {
-                                        setEditCreditDialog({
-                                          id: entry.id,
-                                          amount: entry.amount,
-                                          reason: entry.reason,
-                                          linkedSignupId: entry.linkedSignupId,
-                                          sessionFee: entry.sessionFee,
-                                          playerName: group.playerName,
-                                        });
-                                        setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
-                                        setEditCreditReason(entry.reason);
-                                      }}
-                                      data-testid={`button-edit-credit-${entry.id}`}
-                                    >
-                                      <Pencil className="h-3 w-3" />
-                                    </Button>
-                                    <Button
-                                      size="icon"
-                                      variant="ghost"
-                                      className="text-red-500 hover:text-red-700"
-                                      onClick={() => setDeleteCreditDialog({
-                                        id: entry.id,
-                                        amount: entry.amount,
-                                        playerName: group.playerName,
-                                        reason: entry.reason,
-                                      })}
-                                      data-testid={`button-delete-credit-${entry.id}`}
-                                    >
-                                      <Trash2 className="h-3 w-3" />
-                                    </Button>
-                                  </div>
-                                </TableCell>
-                              </TableRow>
-                            ))}
-                          </TableBody>
-                        </Table>
-                      </div>
-                    </CardContent>
-                  )}
+          {creditSubTab === "pending" && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium">
+                  {pendingCreditRequests.length} pending credit request{pendingCreditRequests.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {pendingCreditLoading ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading pending requests...</p>
+                  </CardContent>
                 </Card>
-              );
-            })
+              ) : pendingCreditRequests.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-pending-credits">
+                    <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                    No pending credit requests. All caught up!
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {pendingCreditRequests.map((req) => (
+                    <Card key={req.id} data-testid={`card-pending-credit-${req.id}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="font-semibold text-sm" data-testid={`text-pending-player-${req.id}`}>{req.playerName}</span>
+                              <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">{req.ticketNumber}</Badge>
+                              <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                <Clock className="h-3 w-3 mr-1" /> Pending
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{req.playerEmail}</p>
+                            <p className="text-sm mt-1 font-medium" data-testid={`text-pending-subject-${req.id}`}>{req.subject}</p>
+                            {req.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5 max-w-[500px] line-clamp-2">{req.description}</p>
+                            )}
+                            <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
+                              {req.creditAmount && req.creditAmount > 0 && (
+                                <span className="font-medium text-blue-600" data-testid={`text-pending-amount-${req.id}`}>
+                                  Requested: {"\u00A3"}{formatPounds(req.creditAmount)}
+                                </span>
+                              )}
+                              <span>{req.clubName}</span>
+                              {req.sessionTitle && <span>Session: {req.sessionTitle}</span>}
+                              {req.sessionDate && <span>{format(new Date(req.sessionDate), "MMM d, yyyy")}</span>}
+                              <span>Submitted: {req.createdAt ? format(new Date(req.createdAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => {
+                                setApproveDialog({
+                                  ticketId: req.id,
+                                  playerName: req.playerName,
+                                  amount: req.creditAmount || 0,
+                                  subject: req.subject,
+                                  description: req.description,
+                                });
+                                setApproveAmount(req.creditAmount ? (req.creditAmount / 100).toFixed(2) : "");
+                                setApproveReason("");
+                              }}
+                              data-testid={`button-approve-credit-${req.id}`}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+                              onClick={() => {
+                                setDeclineDialog({
+                                  ticketId: req.id,
+                                  playerName: req.playerName,
+                                  subject: req.subject,
+                                });
+                                setDeclineReason("");
+                              }}
+                              data-testid={`button-decline-credit-${req.id}`}
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" /> Decline
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {creditSubTab === "analytics" && (
+            <div className="space-y-4">
+              {!creditAnalytics ? (
+                creditLoading ? (
+                  <Card>
+                    <CardContent className="py-8 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mt-2">Loading analytics...</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-credit-analytics">
+                      No credit data available for analytics.
+                    </CardContent>
+                  </Card>
+                )
+              ) : (
+                <>
+                  <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+                    <Card className="min-w-0" data-testid="card-analytics-total-issued">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Issued</CardTitle>
+                        <TrendingUp className="h-3 w-3 shrink-0 text-green-500" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold text-green-600">{"\u00A3"}{formatPounds(creditAnalytics.totalAdded)}</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditAnalytics.addedCount} transactions</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="min-w-0" data-testid="card-analytics-total-redeemed">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Redeemed</CardTitle>
+                        <TrendingDown className="h-3 w-3 shrink-0 text-orange-500" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold text-orange-600">{"\u00A3"}{formatPounds(creditAnalytics.totalUsed)}</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditAnalytics.usedCount} transactions</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="min-w-0" data-testid="card-analytics-outstanding">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Outstanding</CardTitle>
+                        <CreditCard className="h-3 w-3 shrink-0 text-blue-500" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold text-blue-600">{"\u00A3"}{formatPounds(creditAnalytics.netOutstanding)}</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditAnalytics.uniquePlayers} player(s)</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="min-w-0" data-testid="card-analytics-redemption-rate">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redemption Rate</CardTitle>
+                        <Percent className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold">{creditAnalytics.redemptionRate}%</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Redeemed vs issued</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Card className="min-w-0" data-testid="card-analytics-avg">
+                      <CardHeader className="px-3 pt-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Average Transaction</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg Credit Issued</p>
+                            <p className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(creditAnalytics.avgCreditIssued)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg Credit Redeemed</p>
+                            <p className="text-lg font-bold text-orange-600">{"\u00A3"}{formatPounds(creditAnalytics.avgCreditUsed)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t">
+                          <p className="text-xs text-muted-foreground">Total Transactions</p>
+                          <p className="text-lg font-bold">{creditAnalytics.totalTransactions}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {creditAnalytics.topHolders.length > 0 && (
+                      <Card className="min-w-0" data-testid="card-analytics-top-holders">
+                        <CardHeader className="px-3 pt-3 pb-2">
+                          <CardTitle className="text-sm font-medium">Top Credit Holders</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3">
+                          <div className="space-y-1.5">
+                            {creditAnalytics.topHolders.map((p, i) => (
+                              <div key={p.userId} className="flex items-center justify-between text-sm" data-testid={`row-top-holder-${p.userId}`}>
+                                <span className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground w-4">{i + 1}.</span>
+                                  <span className="truncate max-w-[180px]">{p.name}</span>
+                                </span>
+                                <span className="font-medium text-blue-600">{"\u00A3"}{formatPounds(p.balance)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {creditAnalytics.recentMonths.length > 0 && (
+                    <Card className="min-w-0" data-testid="card-analytics-monthly">
+                      <CardHeader className="px-3 pt-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Monthly Breakdown</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Month</TableHead>
+                                <TableHead>Issued</TableHead>
+                                <TableHead>Redeemed</TableHead>
+                                <TableHead>Net</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {creditAnalytics.recentMonths.map((m) => (
+                                <TableRow key={m.month} data-testid={`row-month-${m.month}`}>
+                                  <TableCell className="font-medium">{format(new Date(m.month + "-01"), "MMM yyyy")}</TableCell>
+                                  <TableCell className="text-green-600">{"\u00A3"}{formatPounds(m.added)}</TableCell>
+                                  <TableCell className="text-orange-600">{"\u00A3"}{formatPounds(m.used)}</TableCell>
+                                  <TableCell className={m.added - m.used > 0 ? "text-blue-600 font-medium" : "text-muted-foreground"}>{"\u00A3"}{formatPounds(m.added - m.used)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {creditAnalytics.topReasons.length > 0 && (
+                    <Card className="min-w-0" data-testid="card-analytics-reasons">
+                      <CardHeader className="px-3 pt-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Top Credit Reasons</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="space-y-1.5">
+                          {creditAnalytics.topReasons.map(([reason, count]) => (
+                            <div key={reason} className="flex items-center justify-between text-sm">
+                              <span className="truncate max-w-[300px] text-muted-foreground">{reason}</span>
+                              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">{count}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {creditSubTab === "history" && (
+            <>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by player name or email..."
+                    value={creditSearchQuery}
+                    onChange={(e) => setCreditSearchQuery(e.target.value)}
+                    className="pl-9"
+                    data-testid="input-credit-search"
+                  />
+                </div>
+                <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+                  {Object.keys(creditPlayerGroups).length} player(s)
+                </Badge>
+                <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+                  {creditHistory.length} transaction(s)
+                </Badge>
+              </div>
+
+              {creditLoading ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading credit history...</p>
+                  </CardContent>
+                </Card>
+              ) : Object.keys(creditPlayerGroups).length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-credits">
+                    No credit history found.
+                  </CardContent>
+                </Card>
+              ) : (
+                Object.entries(creditPlayerGroups).map(([key, group]) => {
+                  const isExpanded = expandedCreditPlayers.has(key);
+                  return (
+                    <Card key={key} data-testid={`card-credit-player-${key}`}>
+                      <CardHeader
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setExpandedCreditPlayers((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(key)) next.delete(key);
+                            else next.add(key);
+                            return next;
+                          });
+                        }}
+                        data-testid={`button-expand-credit-${key}`}
+                      >
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                            )}
+                            <div>
+                              <CardTitle className="text-base" data-testid={`text-credit-player-name-${key}`}>
+                                {group.playerName}
+                              </CardTitle>
+                              <p className="text-sm text-muted-foreground">{group.playerEmail}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-added-${key}`}>
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                              Added: {"\u00A3"}{formatPounds(group.totalAdded)}
+                            </Badge>
+                            <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-used-${key}`}>
+                              <TrendingDown className="h-3 w-3 mr-1" />
+                              Used: {"\u00A3"}{formatPounds(group.totalUsed)}
+                            </Badge>
+                            <Badge variant={group.balance > 0 ? "default" : "secondary"} className="no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-balance-${key}`}>
+                              <CreditCard className="h-3 w-3 mr-1" />
+                              Balance: {"\u00A3"}{formatPounds(group.balance)}
+                            </Badge>
+                            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+                              {group.entries.length} txn(s)
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      {isExpanded && (
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead>Amount</TableHead>
+                                  <TableHead>Reason</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Session</TableHead>
+                                  <TableHead>Club</TableHead>
+                                  <TableHead>By</TableHead>
+                                  <TableHead>Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {group.entries.map((entry) => (
+                                  <TableRow key={entry.id} data-testid={`row-credit-${entry.id}`}>
+                                    <TableCell className="whitespace-nowrap text-sm">
+                                      {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy HH:mm") : "N/A"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {entry.amount > 0 ? (
+                                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                                          <Plus className="h-3 w-3 mr-1" /> Added
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                                          <TrendingDown className="h-3 w-3 mr-1" /> Used
+                                        </Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className={`font-medium ${entry.amount > 0 ? "text-green-600" : "text-orange-600"}`}>
+                                      {entry.amount > 0 ? "+" : "-"}{"\u00A3"}{formatPounds(Math.abs(entry.amount))}
+                                    </TableCell>
+                                    <TableCell className="text-sm max-w-[200px] truncate" title={entry.reason}>
+                                      {entry.reason}
+                                    </TableCell>
+                                    <TableCell>
+                                      {entry.amount > 0 ? (
+                                        group.balance <= 0 ? (
+                                          <Badge variant="outline" className="text-blue-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
+                                            <CheckCircle className="h-3 w-3 mr-1" /> Claimed
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-amber-600 no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
+                                            <Clock className="h-3 w-3 mr-1" /> Unclaimed
+                                          </Badge>
+                                        )
+                                      ) : (
+                                        <Badge variant="outline" className="text-muted-foreground no-default-hover-elevate no-default-active-elevate" data-testid={`badge-credit-status-${entry.id}`}>
+                                          <CheckCircle className="h-3 w-3 mr-1" /> Applied
+                                        </Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {entry.sessionTitle || "-"}
+                                      {entry.sessionDate && (
+                                        <span className="block text-xs">{format(new Date(entry.sessionDate), "MMM d, yyyy")}</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">{entry.clubName}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setEditCreditDialog({
+                                              id: entry.id,
+                                              amount: entry.amount,
+                                              reason: entry.reason,
+                                              linkedSignupId: entry.linkedSignupId,
+                                              sessionFee: entry.sessionFee,
+                                              playerName: group.playerName,
+                                            });
+                                            setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
+                                            setEditCreditReason(entry.reason);
+                                          }}
+                                          data-testid={`button-edit-credit-${entry.id}`}
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="text-red-500 hover:text-red-700"
+                                          onClick={() => setDeleteCreditDialog({
+                                            id: entry.id,
+                                            amount: entry.amount,
+                                            playerName: group.playerName,
+                                            reason: entry.reason,
+                                          })}
+                                          data-testid={`button-delete-credit-${entry.id}`}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </CardContent>
+                      )}
+                    </Card>
+                  );
+                })
+              )}
+            </>
           )}
         </div>
       ) : viewMode === "manage-credits" ? (
@@ -4413,6 +4835,107 @@ export default function Financials() {
                     Apply Credit
                   </Button>
                 )}
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!approveDialog} onOpenChange={(open) => { if (!open) setApproveDialog(null); }}>
+        <DialogContent data-testid="dialog-approve-credit">
+          <DialogHeader>
+            <DialogTitle data-testid="text-approve-credit-title">Approve Credit Request</DialogTitle>
+            <DialogDescription>
+              {approveDialog ? `Player: ${approveDialog.playerName}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {approveDialog && (
+            <div className="space-y-4">
+              <div className="bg-muted/50 p-3 rounded-lg text-sm space-y-1">
+                <p className="font-medium">{approveDialog.subject}</p>
+                {approveDialog.description && <p className="text-muted-foreground text-xs">{approveDialog.description}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Credit Amount (£)</Label>
+                <Input
+                  type="number"
+                  step="0.01"
+                  min="0.01"
+                  value={approveAmount}
+                  onChange={(e) => setApproveAmount(e.target.value)}
+                  placeholder="e.g. 5.00"
+                  data-testid="input-approve-amount"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label>Reason (optional)</Label>
+                <Textarea
+                  value={approveReason}
+                  onChange={(e) => setApproveReason(e.target.value)}
+                  placeholder="Add a note about this approval..."
+                  rows={2}
+                  data-testid="input-approve-reason"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setApproveDialog(null)} data-testid="button-approve-cancel">Cancel</Button>
+                <Button
+                  className="bg-green-600 hover:bg-green-700 text-white"
+                  disabled={!approveAmount || parseFloat(approveAmount) <= 0 || approveCreditMutation.isPending}
+                  onClick={() => {
+                    approveCreditMutation.mutate({
+                      ticketId: approveDialog.ticketId,
+                      amount: Math.round(parseFloat(approveAmount) * 100),
+                      reason: approveReason || "Admin Approved Credit",
+                    });
+                  }}
+                  data-testid="button-approve-confirm"
+                >
+                  {approveCreditMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+                  Approve Credit
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!declineDialog} onOpenChange={(open) => { if (!open) setDeclineDialog(null); }}>
+        <DialogContent data-testid="dialog-decline-credit">
+          <DialogHeader>
+            <DialogTitle data-testid="text-decline-credit-title">Decline Credit Request</DialogTitle>
+            <DialogDescription>
+              {declineDialog ? `Player: ${declineDialog.playerName} — ${declineDialog.subject}` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {declineDialog && (
+            <div className="space-y-4">
+              <div className="space-y-2">
+                <Label>Reason (optional)</Label>
+                <Textarea
+                  value={declineReason}
+                  onChange={(e) => setDeclineReason(e.target.value)}
+                  placeholder="Explain why this request is being declined..."
+                  rows={3}
+                  data-testid="input-decline-reason"
+                />
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDeclineDialog(null)} data-testid="button-decline-cancel">Cancel</Button>
+                <Button
+                  variant="destructive"
+                  disabled={declineCreditMutation.isPending}
+                  onClick={() => {
+                    declineCreditMutation.mutate({
+                      ticketId: declineDialog.ticketId,
+                      reason: declineReason,
+                    });
+                  }}
+                  data-testid="button-decline-confirm"
+                >
+                  {declineCreditMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <X className="h-4 w-4 mr-1" />}
+                  Decline Request
+                </Button>
               </DialogFooter>
             </div>
           )}

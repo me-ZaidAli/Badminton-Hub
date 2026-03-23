@@ -10576,9 +10576,11 @@ export async function registerRoutes(
         createdByUserId: user.id,
         subject: `Credit Request - £${amountDisplay} - ${sessionTitle || "Next Session"}`,
         description: `${user.fullName} has requested £${amountDisplay} credit to be applied to ${sessionTitle || "their next session"}.\n\nClub: ${clubName}\nSession: ${sessionTitle || sessionDescription}\nDate: ${sessionDateStr || "TBC"}\nPayment Reference: ${paymentRef}\n\nPlease deduct this credit from their session fee payment.`,
-        category: "GENERAL",
+        category: "CREDIT_CLAIM",
         priority: "MEDIUM",
         status: "SUBMITTED",
+        creditAmount: amount,
+        linkedSessionId: sessionId || null,
         autoCloseAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
       });
 
@@ -16730,6 +16732,7 @@ export async function registerRoutes(
       const { amount, reason } = req.body;
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+      if (ticket.status === "CLOSED" || ticket.status === "RESOLVED") return res.status(400).json({ message: "This ticket has already been resolved" });
       const isOwner = req.user!.role === "OWNER";
       const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
       if (!isStaff) return res.status(403).json({ message: "Not authorized" });
@@ -16784,6 +16787,7 @@ export async function registerRoutes(
       const { reason } = req.body;
       const [ticket] = await db.select().from(tickets).where(eq(tickets.id, ticketId));
       if (!ticket || ticket.deletedAt) return res.status(404).json({ message: "Ticket not found" });
+      if (ticket.status === "CLOSED" || ticket.status === "RESOLVED") return res.status(400).json({ message: "This ticket has already been resolved" });
       const isOwner = req.user!.role === "OWNER";
       const isStaff = isOwner || await hasAdminAccess(req.user!.id, req.user!.role, ticket.clubId);
       if (!isStaff) return res.status(403).json({ message: "Not authorized" });
@@ -16810,6 +16814,63 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error declining credit:", err);
       res.status(500).json({ message: "Failed to decline credit" });
+    }
+  });
+
+  app.get("/api/admin/pending-credit-requests", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const isOwner = req.user!.role === "OWNER";
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+
+      const creditFilter = or(
+        eq(tickets.category, "CREDIT_CLAIM"),
+        like(tickets.subject, "Credit Request -%")
+      );
+      let conditions = [
+        creditFilter!,
+        eq(tickets.status, "SUBMITTED"),
+        isNull(tickets.deletedAt),
+      ];
+      if (clubId) conditions.push(eq(tickets.clubId, clubId));
+
+      const pendingTickets = await db
+        .select({
+          id: tickets.id,
+          ticketNumber: tickets.ticketNumber,
+          subject: tickets.subject,
+          description: tickets.description,
+          status: tickets.status,
+          creditAmount: tickets.creditAmount,
+          clubId: tickets.clubId,
+          createdByUserId: tickets.createdByUserId,
+          linkedSessionId: tickets.linkedSessionId,
+          createdAt: tickets.createdAt,
+          playerName: sql<string>`COALESCE(${users.displayName}, ${users.username}, 'Unknown')`,
+          playerEmail: sql<string>`COALESCE(${users.email}, '')`,
+          clubName: sql<string>`COALESCE(${clubs.name}, 'Unknown')`,
+          sessionTitle: sql<string>`${sessions.title}`,
+          sessionDate: sql<string>`${sessions.date}`,
+        })
+        .from(tickets)
+        .leftJoin(users, eq(users.id, tickets.createdByUserId))
+        .leftJoin(clubs, eq(clubs.id, tickets.clubId))
+        .leftJoin(sessions, eq(sessions.id, tickets.linkedSessionId))
+        .where(and(...conditions))
+        .orderBy(desc(tickets.createdAt));
+
+      if (!isOwner) {
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        const adminClubIds = adminProfiles.map(p => p.clubId);
+        const filtered = pendingTickets.filter(t => adminClubIds.includes(t.clubId));
+        return res.json(filtered);
+      }
+
+      res.json(pendingTickets);
+    } catch (err: any) {
+      console.error("Error fetching pending credit requests:", err);
+      res.status(500).json({ message: "Failed to fetch pending credit requests" });
     }
   });
 
