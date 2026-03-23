@@ -1,6 +1,6 @@
 import { Express } from "express";
 import { db } from "./db";
-import { eq, and, or, desc, asc, sql, inArray, ne } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray, ne, isNull } from "drizzle-orm";
 import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches,
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
@@ -918,8 +918,11 @@ export function registerTournamentRoutes(app: Express) {
       const individuals = await db.select().from(tournamentRegistrations)
         .where(and(
           eq(tournamentRegistrations.tournamentId, tournamentId),
-          eq(tournamentRegistrations.registrationType, "INDIVIDUAL"),
           eq(tournamentRegistrations.status, "APPROVED"),
+          or(
+            eq(tournamentRegistrations.registrationType, "INDIVIDUAL"),
+            and(eq(tournamentRegistrations.registrationType, "PAIR"), isNull(tournamentRegistrations.partnerId))
+          ),
         ));
       const enriched = await Promise.all(individuals.map(async (reg) => {
         const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
