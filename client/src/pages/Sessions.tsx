@@ -802,7 +802,13 @@ export default function Sessions() {
   );
 
   const juniorAllVisible = useMemo(() => {
-    const combined = [...juniorLive, ...juniorUpcoming];
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    const combined = [...juniorLive, ...juniorUpcoming].filter(s => {
+      const d = new Date(s.date);
+      d.setHours(0, 0, 0, 0);
+      return d >= todayStart;
+    });
     const seen = new Set<number>();
     return combined.filter(s => { if (seen.has(s.id)) return false; seen.add(s.id); return true; });
   }, [juniorLive, juniorUpcoming]);
@@ -854,7 +860,13 @@ export default function Sessions() {
     else if (statusFilter === "live") result = liveSessions;
     else if (statusFilter === "past") result = pastSessions;
     else {
-      const combined = [...liveSessions, ...upcomingSessions];
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
+      const combined = [...liveSessions, ...upcomingSessions].filter(s => {
+        const d = new Date(s.date);
+        d.setHours(0, 0, 0, 0);
+        return d >= todayStart;
+      });
       const seen = new Set<number>();
       result = combined.filter(s => {
         if (seen.has(s.id)) return false;

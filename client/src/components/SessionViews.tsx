@@ -203,7 +203,7 @@ function getIntensityLevel(session: SessionItem): { label: string; color: string
   return { label: "LOW", color: "bg-blue-400/15 text-blue-600 dark:text-blue-400 ring-blue-400/30" };
 }
 
-function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate }: { session: SessionItem; clubs?: any[]; mySignup?: any; onSignUp?: (session: SessionItem) => void; onNavigate: () => void }) {
+function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate, adminActions }: { session: SessionItem; clubs?: any[]; mySignup?: any; onSignUp?: (session: SessionItem) => void; onNavigate: () => void; adminActions?: AdminActions }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
 
@@ -431,6 +431,10 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
                 View Session
               </Button>
             </div>
+
+            {adminActions && (
+              <AdminControlsBar session={session} adminActions={adminActions} />
+            )}
           </div>
         )}
       </div>
@@ -446,6 +450,7 @@ function TimelineSessionCard({
   onToggleExpand,
   onNavigate,
   onSignUp,
+  adminActions,
 }: {
   session: SessionItem;
   clubs: any[];
@@ -454,6 +459,7 @@ function TimelineSessionCard({
   onToggleExpand: () => void;
   onNavigate: () => void;
   onSignUp?: (session: SessionItem) => void;
+  adminActions?: AdminActions;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date(new Date().toDateString());
@@ -651,7 +657,7 @@ function TimelineSessionCard({
           </div>
         )}
 
-        {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} />}
+        {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} adminActions={adminActions} />}
       </div>
     </div>
   );
@@ -1417,6 +1423,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                               onToggleExpand={() => handleToggleExpand(s.id)}
                               onNavigate={() => handleNavigate(s)}
                               onSignUp={onSignUp}
+                              adminActions={adminActions}
                             />
                           </div>
                         </div>
