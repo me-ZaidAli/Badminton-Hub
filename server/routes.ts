@@ -9968,22 +9968,30 @@ export async function registerRoutes(
 
     try {
       const isOwner = user.role === "OWNER";
+      let clubFilter: number[] | null = null;
       if (!isOwner) {
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        const adminClubs = adminProfiles.map(p => p.clubId);
         if (clubId) {
-          const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_CREDITS", clubId);
-          if (!allowed) return res.sendStatus(403);
+          if (!adminClubs.includes(clubId)) return res.sendStatus(403);
+          clubFilter = [clubId];
         } else {
-          return res.sendStatus(403);
+          if (adminClubs.length === 0) return res.json([]);
+          clubFilter = adminClubs;
         }
+      } else if (clubId) {
+        clubFilter = [clubId];
       }
 
       const clConditions = [sql`1=1`];
       const rlConditions = [sql`1=1`];
       const ccConditions = [sql`1=1`];
-      if (clubId) {
-        clConditions.push(sql`cl.club_id = ${clubId}`);
-        rlConditions.push(sql`rl.club_id = ${clubId}`);
-        ccConditions.push(sql`uc.club_id = ${clubId}`);
+      if (clubFilter && clubFilter.length > 0) {
+        const clubIds = sql.join(clubFilter.map(id => sql`${id}`), sql`, `);
+        clConditions.push(sql`cl.club_id IN (${clubIds})`);
+        rlConditions.push(sql`rl.club_id IN (${clubIds})`);
+        ccConditions.push(sql`uc.club_id IN (${clubIds})`);
       }
       if (userId) {
         clConditions.push(sql`cl.user_id = ${userId}`);
