@@ -532,10 +532,10 @@ export default function Financials() {
   const [searchQuery, setSearchQuery] = useState("");
   const [paymentFilter, setPaymentFilter] = useState<string>("all");
   const [viewMode, setViewMode] = useState<"session" | "player" | "credits" | "memberships" | "manage-credits" | "donations">("session");
-  const [dashboardView, setDashboardView] = useState<"classic" | "analytics" | "profitability" | "cashflow" | "reports" | "sessions">(() => {
+  const [dashboardView, setDashboardView] = useState<"classic" | "analytics" | "profitability" | "cashflow" | "reports" | "sessions" | "credits">(() => {
     try {
       const saved = localStorage.getItem("financialDashboardView");
-      if (saved && ["classic", "analytics", "profitability", "cashflow", "reports", "sessions"].includes(saved)) {
+      if (saved && ["classic", "analytics", "profitability", "cashflow", "reports", "sessions", "credits"].includes(saved)) {
         return saved as any;
       }
     } catch {}
@@ -776,7 +776,7 @@ export default function Financials() {
 
   const { data: creditHistory = [], isLoading: creditLoading } = useQuery<CreditHistoryEntry[]>({
     queryKey: [creditHistoryUrl],
-    enabled: viewMode === "credits",
+    enabled: viewMode === "credits" || dashboardView === "credits",
   });
 
   interface PendingCreditRequest {
@@ -806,7 +806,7 @@ export default function Financials() {
 
   const { data: pendingCreditRequests = [], isLoading: pendingCreditLoading } = useQuery<PendingCreditRequest[]>({
     queryKey: [pendingCreditUrl],
-    enabled: viewMode === "credits",
+    enabled: viewMode === "credits" || dashboardView === "credits",
   });
 
   const approveCreditMutation = useMutation({
@@ -2179,6 +2179,19 @@ export default function Financials() {
           </Button>
           <Button
             size="sm"
+            variant={dashboardView === "credits" ? "default" : "ghost"}
+            onClick={() => setDashboardView("credits")}
+            className="gap-1.5 relative"
+            data-testid="button-credits-view"
+          >
+            <CreditCard className="h-4 w-4" />
+            <span className="hidden sm:inline">Credits</span>
+            {pendingCreditRequests.length > 0 && (
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-[9px] font-bold rounded-full h-4 min-w-[16px] flex items-center justify-center px-0.5">{pendingCreditRequests.length}</span>
+            )}
+          </Button>
+          <Button
+            size="sm"
             variant={dashboardView === "reports" ? "default" : "ghost"}
             onClick={() => setDashboardView("reports")}
             className="gap-1.5"
@@ -2190,7 +2203,7 @@ export default function Financials() {
         </div>
       </div>
 
-      <Card data-testid="card-filter-bar">
+      <Card data-testid="card-filter-bar" className={dashboardView === "credits" ? "hidden" : ""}>
         <CardContent className="pt-6">
           <div className="flex flex-col gap-4">
             <div className="flex flex-col md:flex-row gap-3 flex-wrap">
@@ -2319,11 +2332,549 @@ export default function Financials() {
         </CardContent>
       </Card>
 
-      {dashboardView !== "classic" && dashboardView !== "sessions" && (
+      {dashboardView !== "classic" && dashboardView !== "sessions" && dashboardView !== "credits" && (
         <SmartInsights filteredData={filteredData} dashboardData={dashboardData} />
       )}
 
-      {dashboardView === "analytics" ? (
+      {dashboardView === "credits" ? (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Button size="sm" variant={creditSubTab === "history" ? "default" : "outline"} onClick={() => setCreditSubTab("history")} data-testid="button-credit-tab-history-main">
+                <History className="h-3.5 w-3.5 mr-1" /> Transaction History
+              </Button>
+              <Button size="sm" variant={creditSubTab === "pending" ? "default" : "outline"} onClick={() => setCreditSubTab("pending")} className="relative" data-testid="button-credit-tab-pending-main">
+                <Clock className="h-3.5 w-3.5 mr-1" /> Pending Requests
+                {pendingCreditRequests.length > 0 && (
+                  <span className="absolute -top-1.5 -right-1.5 bg-red-500 text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center">{pendingCreditRequests.length}</span>
+                )}
+              </Button>
+              <Button size="sm" variant={creditSubTab === "analytics" ? "default" : "outline"} onClick={() => setCreditSubTab("analytics")} data-testid="button-credit-tab-analytics-main">
+                <TrendingUp className="h-3.5 w-3.5 mr-1" /> Analytics
+              </Button>
+            </div>
+            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+              <SelectTrigger className="w-[180px]" data-testid="select-credit-club-filter">
+                <SelectValue placeholder="All Clubs" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Clubs</SelectItem>
+                {uniqueClubs.map((club) => (
+                  <SelectItem key={club.id} value={club.id.toString()}>
+                    {club.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {creditSummary && (creditSummary.totalIssued > 0 || creditSummary.totalRedeemed > 0) && (
+            <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+              <Card className="min-w-0" data-testid="card-credit-held-main">
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Held</CardTitle>
+                  <CreditCard className="h-3 w-3 shrink-0 text-blue-500" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold text-blue-600">{"\u00A3"}{formatPounds(creditSummary.totalHeld)}</div>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Currently outstanding</p>
+                </CardContent>
+              </Card>
+              <Card className="min-w-0" data-testid="card-credit-issued-main">
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Issued</CardTitle>
+                  <TrendingUp className="h-3 w-3 shrink-0 text-green-500" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold text-green-600">{"\u00A3"}{formatPounds(creditSummary.totalIssued)}</div>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">All time issued</p>
+                </CardContent>
+              </Card>
+              <Card className="min-w-0" data-testid="card-credit-redeemed-main">
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Credits Redeemed</CardTitle>
+                  <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold">{"\u00A3"}{formatPounds(creditSummary.totalRedeemed)}</div>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Used by members</p>
+                </CardContent>
+              </Card>
+              <Card className="min-w-0" data-testid="card-credit-rate-main">
+                <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                  <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redemption Rate</CardTitle>
+                  <Percent className="h-3 w-3 shrink-0 text-muted-foreground" />
+                </CardHeader>
+                <CardContent className="px-3 pb-3">
+                  <div className="text-sm sm:text-xl font-bold">{creditSummary.totalIssued > 0 ? ((creditSummary.totalRedeemed / creditSummary.totalIssued) * 100).toFixed(1) : "0.0"}%</div>
+                  <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Redeemed vs issued</p>
+                </CardContent>
+              </Card>
+            </div>
+          )}
+
+          {creditSubTab === "pending" && (
+            <div className="space-y-3">
+              <div className="flex items-center gap-2">
+                <AlertCircle className="h-4 w-4 text-amber-500" />
+                <span className="text-sm font-medium">
+                  {pendingCreditRequests.length} pending credit request{pendingCreditRequests.length !== 1 ? "s" : ""}
+                </span>
+              </div>
+
+              {pendingCreditLoading ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading pending requests...</p>
+                  </CardContent>
+                </Card>
+              ) : pendingCreditRequests.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-pending-credits-main">
+                    <CheckCircle className="h-8 w-8 mx-auto mb-2 text-green-500" />
+                    No pending credit requests. All caught up!
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {pendingCreditRequests.map((pcr) => (
+                    <Card key={pcr.id} data-testid={`card-pending-credit-main-${pcr.id}`}>
+                      <CardContent className="p-4">
+                        <div className="flex items-start justify-between gap-4 flex-wrap">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 flex-wrap mb-1">
+                              <span className="font-semibold text-sm" data-testid={`text-pending-player-main-${pcr.id}`}>{pcr.playerName}</span>
+                              <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">{pcr.ticketNumber}</Badge>
+                              <Badge variant="outline" className="text-amber-600 text-xs no-default-hover-elevate no-default-active-elevate">
+                                <Clock className="h-3 w-3 mr-1" /> Pending
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-muted-foreground">{pcr.playerEmail}</p>
+                            <p className="text-sm mt-1 font-medium" data-testid={`text-pending-subject-main-${pcr.id}`}>{pcr.subject}</p>
+                            {pcr.description && (
+                              <p className="text-xs text-muted-foreground mt-0.5 max-w-[500px] line-clamp-2">{pcr.description}</p>
+                            )}
+                            <div className="flex items-center gap-3 mt-2 flex-wrap text-xs text-muted-foreground">
+                              {pcr.creditAmount && pcr.creditAmount > 0 && (
+                                <span className="font-medium text-blue-600" data-testid={`text-pending-amount-main-${pcr.id}`}>
+                                  Requested: {"\u00A3"}{formatPounds(pcr.creditAmount)}
+                                </span>
+                              )}
+                              <span>{pcr.clubName}</span>
+                              {pcr.sessionTitle && <span>Session: {pcr.sessionTitle}</span>}
+                              {pcr.sessionDate && <span>{format(new Date(pcr.sessionDate), "MMM d, yyyy")}</span>}
+                              <span>Submitted: {pcr.createdAt ? format(new Date(pcr.createdAt), "MMM d, yyyy HH:mm") : "N/A"}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              size="sm"
+                              variant="default"
+                              className="bg-green-600 hover:bg-green-700 text-white"
+                              onClick={() => {
+                                setApproveDialog({
+                                  ticketId: pcr.id,
+                                  playerName: pcr.playerName,
+                                  amount: pcr.creditAmount || 0,
+                                  subject: pcr.subject,
+                                  description: pcr.description,
+                                });
+                                setApproveAmount(pcr.creditAmount ? (pcr.creditAmount / 100).toFixed(2) : "");
+                                setApproveReason("");
+                              }}
+                              data-testid={`button-approve-credit-main-${pcr.id}`}
+                            >
+                              <CheckCircle className="h-3.5 w-3.5 mr-1" /> Approve
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-red-600 border-red-300 hover:bg-red-50 dark:hover:bg-red-950"
+                              onClick={() => {
+                                setDeclineDialog({
+                                  ticketId: pcr.id,
+                                  playerName: pcr.playerName,
+                                  subject: pcr.subject,
+                                });
+                                setDeclineReason("");
+                              }}
+                              data-testid={`button-decline-credit-main-${pcr.id}`}
+                            >
+                              <X className="h-3.5 w-3.5 mr-1" /> Decline
+                            </Button>
+                          </div>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {creditSubTab === "analytics" && (
+            <div className="space-y-4">
+              {!creditAnalytics ? (
+                creditLoading ? (
+                  <Card>
+                    <CardContent className="py-8 text-center">
+                      <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                      <p className="text-sm text-muted-foreground mt-2">Loading analytics...</p>
+                    </CardContent>
+                  </Card>
+                ) : (
+                  <Card>
+                    <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-credit-analytics-main">
+                      No credit data available for analytics.
+                    </CardContent>
+                  </Card>
+                )
+              ) : (
+                <>
+                  <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+                    <Card className="min-w-0">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Issued</CardTitle>
+                        <TrendingUp className="h-3 w-3 shrink-0 text-green-500" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold text-green-600">{"\u00A3"}{formatPounds(creditAnalytics.totalAdded)}</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditAnalytics.addedCount} transactions</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="min-w-0">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Redeemed</CardTitle>
+                        <TrendingDown className="h-3 w-3 shrink-0 text-orange-500" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold text-orange-600">{"\u00A3"}{formatPounds(creditAnalytics.totalUsed)}</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditAnalytics.usedCount} transactions</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="min-w-0">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Outstanding</CardTitle>
+                        <CreditCard className="h-3 w-3 shrink-0 text-blue-500" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold text-blue-600">{"\u00A3"}{formatPounds(creditAnalytics.netOutstanding)}</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditAnalytics.uniquePlayers} player(s)</p>
+                      </CardContent>
+                    </Card>
+                    <Card className="min-w-0">
+                      <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+                        <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redemption Rate</CardTitle>
+                        <Percent className="h-3 w-3 shrink-0 text-muted-foreground" />
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="text-sm sm:text-xl font-bold">{creditAnalytics.redemptionRate}%</div>
+                        <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Redeemed vs issued</p>
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <Card className="min-w-0">
+                      <CardHeader className="px-3 pt-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Average Transaction</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg Credit Issued</p>
+                            <p className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(creditAnalytics.avgCreditIssued)}</p>
+                          </div>
+                          <div>
+                            <p className="text-xs text-muted-foreground">Avg Credit Redeemed</p>
+                            <p className="text-lg font-bold text-orange-600">{"\u00A3"}{formatPounds(creditAnalytics.avgCreditUsed)}</p>
+                          </div>
+                        </div>
+                        <div className="mt-2 pt-2 border-t">
+                          <p className="text-xs text-muted-foreground">Total Transactions</p>
+                          <p className="text-lg font-bold">{creditAnalytics.totalTransactions}</p>
+                        </div>
+                      </CardContent>
+                    </Card>
+
+                    {creditAnalytics.topHolders.length > 0 && (
+                      <Card className="min-w-0">
+                        <CardHeader className="px-3 pt-3 pb-2">
+                          <CardTitle className="text-sm font-medium">Top Credit Holders</CardTitle>
+                        </CardHeader>
+                        <CardContent className="px-3 pb-3">
+                          <div className="space-y-1.5">
+                            {creditAnalytics.topHolders.map((p, i) => (
+                              <div key={p.userId} className="flex items-center justify-between text-sm">
+                                <span className="flex items-center gap-2">
+                                  <span className="text-xs text-muted-foreground w-4">{i + 1}.</span>
+                                  <span className="truncate max-w-[180px]">{p.name}</span>
+                                </span>
+                                <span className="font-medium text-blue-600">{"\u00A3"}{formatPounds(p.balance)}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    )}
+                  </div>
+
+                  {creditAnalytics.recentMonths.length > 0 && (
+                    <Card className="min-w-0">
+                      <CardHeader className="px-3 pt-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Monthly Breakdown</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="overflow-x-auto">
+                          <Table>
+                            <TableHeader>
+                              <TableRow>
+                                <TableHead>Month</TableHead>
+                                <TableHead>Issued</TableHead>
+                                <TableHead>Redeemed</TableHead>
+                                <TableHead>Net</TableHead>
+                              </TableRow>
+                            </TableHeader>
+                            <TableBody>
+                              {creditAnalytics.recentMonths.map((m) => (
+                                <TableRow key={m.month}>
+                                  <TableCell className="font-medium">{format(new Date(m.month + "-01"), "MMM yyyy")}</TableCell>
+                                  <TableCell className="text-green-600">{"\u00A3"}{formatPounds(m.added)}</TableCell>
+                                  <TableCell className="text-orange-600">{"\u00A3"}{formatPounds(m.used)}</TableCell>
+                                  <TableCell className={m.added - m.used > 0 ? "text-blue-600 font-medium" : "text-muted-foreground"}>{"\u00A3"}{formatPounds(m.added - m.used)}</TableCell>
+                                </TableRow>
+                              ))}
+                            </TableBody>
+                          </Table>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+
+                  {creditAnalytics.topReasons.length > 0 && (
+                    <Card className="min-w-0">
+                      <CardHeader className="px-3 pt-3 pb-2">
+                        <CardTitle className="text-sm font-medium">Top Credit Reasons</CardTitle>
+                      </CardHeader>
+                      <CardContent className="px-3 pb-3">
+                        <div className="space-y-1.5">
+                          {creditAnalytics.topReasons.map(([reason, count]) => (
+                            <div key={reason} className="flex items-center justify-between text-sm">
+                              <span className="truncate max-w-[300px] text-muted-foreground">{reason}</span>
+                              <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">{count}</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </CardContent>
+                    </Card>
+                  )}
+                </>
+              )}
+            </div>
+          )}
+
+          {creditSubTab === "history" && (
+            <>
+              <div className="flex items-center gap-3 flex-wrap">
+                <div className="relative flex-1 min-w-[200px]">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Search by player name or email..."
+                    value={creditSearchQuery}
+                    onChange={(e) => setCreditSearchQuery(e.target.value)}
+                    className="pl-9"
+                    data-testid="input-credit-search-main"
+                  />
+                </div>
+                <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+                  {Object.keys(creditPlayerGroups).length} player(s)
+                </Badge>
+                <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+                  {creditHistory.length} transaction(s)
+                </Badge>
+              </div>
+
+              {creditLoading ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading credit history...</p>
+                  </CardContent>
+                </Card>
+              ) : Object.keys(creditPlayerGroups).length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground" data-testid="text-no-credits-main">
+                    No credit history found.
+                  </CardContent>
+                </Card>
+              ) : (
+                Object.entries(creditPlayerGroups).map(([key, group]) => {
+                  const isExpanded = expandedCreditPlayers.has(key);
+                  return (
+                    <Card key={key} data-testid={`card-credit-player-main-${key}`}>
+                      <CardHeader
+                        className="cursor-pointer"
+                        onClick={() => {
+                          setExpandedCreditPlayers((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(key)) next.delete(key);
+                            else next.add(key);
+                            return next;
+                          });
+                        }}
+                        data-testid={`button-expand-credit-main-${key}`}
+                      >
+                        <div className="flex items-center justify-between gap-4 flex-wrap">
+                          <div className="flex items-center gap-3 flex-wrap">
+                            {isExpanded ? (
+                              <ChevronDown className="h-5 w-5 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                            )}
+                            <div>
+                              <CardTitle className="text-base" data-testid={`text-credit-player-name-main-${key}`}>
+                                {group.playerName}
+                              </CardTitle>
+                              <p className="text-sm text-muted-foreground">{group.playerEmail}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 flex-wrap">
+                            <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                              <TrendingUp className="h-3 w-3 mr-1" />
+                              Added: {"\u00A3"}{formatPounds(group.totalAdded)}
+                            </Badge>
+                            <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                              <TrendingDown className="h-3 w-3 mr-1" />
+                              Used: {"\u00A3"}{formatPounds(group.totalUsed)}
+                            </Badge>
+                            <Badge variant={group.balance > 0 ? "default" : "secondary"} className="no-default-hover-elevate no-default-active-elevate">
+                              <CreditCard className="h-3 w-3 mr-1" />
+                              Balance: {"\u00A3"}{formatPounds(group.balance)}
+                            </Badge>
+                            <Badge variant="secondary" className="no-default-hover-elevate no-default-active-elevate">
+                              {group.entries.length} txn(s)
+                            </Badge>
+                          </div>
+                        </div>
+                      </CardHeader>
+                      {isExpanded && (
+                        <CardContent>
+                          <div className="overflow-x-auto">
+                            <Table>
+                              <TableHeader>
+                                <TableRow>
+                                  <TableHead>Date</TableHead>
+                                  <TableHead>Type</TableHead>
+                                  <TableHead>Amount</TableHead>
+                                  <TableHead>Reason</TableHead>
+                                  <TableHead>Status</TableHead>
+                                  <TableHead>Session</TableHead>
+                                  <TableHead>Club</TableHead>
+                                  <TableHead>By</TableHead>
+                                  <TableHead>Actions</TableHead>
+                                </TableRow>
+                              </TableHeader>
+                              <TableBody>
+                                {group.entries.map((entry) => (
+                                  <TableRow key={entry.id} data-testid={`row-credit-main-${entry.id}`}>
+                                    <TableCell className="whitespace-nowrap text-sm">
+                                      {entry.createdAt ? format(new Date(entry.createdAt), "MMM d, yyyy HH:mm") : "N/A"}
+                                    </TableCell>
+                                    <TableCell>
+                                      {entry.amount > 0 ? (
+                                        <Badge variant="outline" className="text-green-600 no-default-hover-elevate no-default-active-elevate">
+                                          <Plus className="h-3 w-3 mr-1" /> Added
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-orange-600 no-default-hover-elevate no-default-active-elevate">
+                                          <TrendingDown className="h-3 w-3 mr-1" /> Used
+                                        </Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className={`font-medium ${entry.amount > 0 ? "text-green-600" : "text-orange-600"}`}>
+                                      {entry.amount > 0 ? "+" : "-"}{"\u00A3"}{formatPounds(Math.abs(entry.amount))}
+                                    </TableCell>
+                                    <TableCell className="text-sm max-w-[200px] truncate" title={entry.reason}>
+                                      {entry.reason}
+                                    </TableCell>
+                                    <TableCell>
+                                      {entry.amount > 0 ? (
+                                        group.balance <= 0 ? (
+                                          <Badge variant="outline" className="text-blue-600 no-default-hover-elevate no-default-active-elevate">
+                                            <CheckCircle className="h-3 w-3 mr-1" /> Claimed
+                                          </Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-amber-600 no-default-hover-elevate no-default-active-elevate">
+                                            <Clock className="h-3 w-3 mr-1" /> Unclaimed
+                                          </Badge>
+                                        )
+                                      ) : (
+                                        <Badge variant="outline" className="text-muted-foreground no-default-hover-elevate no-default-active-elevate">
+                                          <CheckCircle className="h-3 w-3 mr-1" /> Applied
+                                        </Badge>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">
+                                      {entry.sessionTitle || "-"}
+                                      {entry.sessionDate && (
+                                        <span className="block text-xs">{format(new Date(entry.sessionDate), "MMM d, yyyy")}</span>
+                                      )}
+                                    </TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">{entry.clubName}</TableCell>
+                                    <TableCell className="text-sm text-muted-foreground">{entry.createdByName}</TableCell>
+                                    <TableCell>
+                                      <div className="flex items-center gap-1">
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          onClick={() => {
+                                            setEditCreditDialog({
+                                              id: entry.id,
+                                              amount: entry.amount,
+                                              reason: entry.reason,
+                                              linkedSignupId: entry.linkedSignupId,
+                                              sessionFee: entry.sessionFee,
+                                              playerName: group.playerName,
+                                            });
+                                            setEditCreditAmount((Math.abs(entry.amount) / 100).toFixed(2));
+                                            setEditCreditReason(entry.reason);
+                                          }}
+                                          data-testid={`button-edit-credit-main-${entry.id}`}
+                                        >
+                                          <Pencil className="h-3 w-3" />
+                                        </Button>
+                                        <Button
+                                          size="icon"
+                                          variant="ghost"
+                                          className="text-red-500 hover:text-red-700"
+                                          onClick={() => setDeleteCreditDialog({
+                                            id: entry.id,
+                                            amount: entry.amount,
+                                            playerName: group.playerName,
+                                            reason: entry.reason,
+                                          })}
+                                          data-testid={`button-delete-credit-main-${entry.id}`}
+                                        >
+                                          <Trash2 className="h-3 w-3" />
+                                        </Button>
+                                      </div>
+                                    </TableCell>
+                                  </TableRow>
+                                ))}
+                              </TableBody>
+                            </Table>
+                          </div>
+                        </CardContent>
+                      )}
+                    </Card>
+                  );
+                })
+              )}
+            </>
+          )}
+        </div>
+      ) : dashboardView === "analytics" ? (
         <FinancialAnalyticsView
           filteredData={filteredData}
           dashboardData={dashboardData}
