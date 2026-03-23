@@ -289,12 +289,6 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
             )}
           </div>
 
-          {(session as any).waitingCount > 0 && (
-            <div className="flex items-center gap-2 rounded-lg px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40" data-testid={`expanded-waiting-list-${session.id}`}>
-              <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-              <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">{(session as any).waitingCount} on Waiting List</span>
-            </div>
-          )}
         </div>
 
         {isLoading ? (
@@ -633,9 +627,27 @@ function TimelineSessionCard({
         )}
 
         {(session as any).waitingCount > 0 && (
-          <div className="mt-2 flex items-center gap-2 rounded-lg px-3 py-1.5 bg-amber-50 dark:bg-amber-950/30 border border-amber-200/70 dark:border-amber-800/40" data-testid={`timeline-waiting-list-${session.id}`}>
-            <Clock className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
-            <span className="text-[11px] font-semibold text-amber-700 dark:text-amber-300">{(session as any).waitingCount} on Waiting List</span>
+          <div className="mt-2 flex items-center justify-between gap-2" data-testid={`timeline-waiting-list-${session.id}`}>
+            <div className="flex items-center gap-1.5 flex-wrap">
+              <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 ring-1 ring-amber-300/50 dark:ring-amber-700/50">
+                Waiting List
+              </span>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5">
+                {Array.from({ length: 10 }).map((_, i) => (
+                  <div
+                    key={i}
+                    className={`w-[5px] h-[10px] rounded-[1px] ${
+                      i < Math.round(Math.min((session as any).waitingCount / session.maxPlayers * 100, 100) / 10) ? "bg-amber-500" : "bg-muted/50 dark:bg-muted/40"
+                    }`}
+                  />
+                ))}
+              </div>
+              <span className="text-[11px] font-semibold tabular-nums text-amber-600 dark:text-amber-400">
+                {(session as any).waitingCount}
+              </span>
+            </div>
           </div>
         )}
 
