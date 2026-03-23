@@ -10391,18 +10391,24 @@ export async function registerRoutes(
     const user = req.user!;
 
     try {
-      const balances = await db
-        .select({
-          clubId: creditLedger.clubId,
-          clubName: clubs.name,
-          balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)`,
-        })
-        .from(creditLedger)
-        .innerJoin(clubs, eq(creditLedger.clubId, clubs.id))
-        .where(eq(creditLedger.userId, user.id))
-        .groupBy(creditLedger.clubId, clubs.name);
+      const query = sql`
+        SELECT "clubId", "clubName", COALESCE(SUM(amount), 0) AS balance FROM (
+          SELECT cl.club_id AS "clubId", c.name AS "clubName", cl.amount
+          FROM credit_ledger cl
+          INNER JOIN clubs c ON cl.club_id = c.id
+          WHERE cl.user_id = ${user.id}
 
-      res.json(balances);
+          UNION ALL
+
+          SELECT rl.club_id AS "clubId", c.name AS "clubName", rl.credits AS amount
+          FROM player_reward_ledger rl
+          INNER JOIN clubs c ON rl.club_id = c.id
+          WHERE rl.player_id = ${user.id} AND rl.credits > 0 AND rl.status = 'AVAILABLE'
+        ) combined
+        GROUP BY "clubId", "clubName"`;
+
+      const result = await db.execute(query);
+      res.json(result.rows);
     } catch (err: any) {
       console.error("Error fetching user credits:", err);
       res.status(500).json({ message: "Failed to fetch credits" });
@@ -10980,29 +10986,41 @@ export async function registerRoutes(
     const clubId = req.query.clubId ? Number(req.query.clubId) : null;
 
     try {
-      const conditions: any[] = [eq(creditLedger.userId, user.id)];
-      if (clubId) conditions.push(eq(creditLedger.clubId, clubId));
+      const clConds = [sql`cl.user_id = ${user.id}`];
+      const rlConds = [sql`rl.player_id = ${user.id}`];
+      if (clubId) {
+        clConds.push(sql`cl.club_id = ${clubId}`);
+        rlConds.push(sql`rl.club_id = ${clubId}`);
+      }
 
-      const entries = await db
-        .select({
-          id: creditLedger.id,
-          clubId: creditLedger.clubId,
-          amount: creditLedger.amount,
-          reason: creditLedger.reason,
-          linkedSessionId: creditLedger.linkedSessionId,
-          attendanceStatus: creditLedger.attendanceStatus,
-          createdAt: creditLedger.createdAt,
-          clubName: clubs.name,
-          sessionTitle: sessions.title,
-          sessionDate: sessions.date,
-        })
-        .from(creditLedger)
-        .innerJoin(clubs, eq(creditLedger.clubId, clubs.id))
-        .leftJoin(sessions, eq(creditLedger.linkedSessionId, sessions.id))
-        .where(and(...conditions))
-        .orderBy(desc(creditLedger.createdAt));
+      const query = sql`
+        SELECT * FROM (
+          SELECT 'credit-' || cl.id::text AS id, 'credit' AS source, cl.club_id AS "clubId", cl.amount, cl.reason,
+            cl.linked_session_id AS "linkedSessionId",
+            cl.attendance_status AS "attendanceStatus",
+            cl.created_at AS "createdAt", c.name AS "clubName",
+            s.title AS "sessionTitle", s.date AS "sessionDate"
+          FROM credit_ledger cl
+          INNER JOIN clubs c ON cl.club_id = c.id
+          LEFT JOIN sessions s ON cl.linked_session_id = s.id
+          WHERE ${sql.join(clConds, sql` AND `)}
 
-      res.json(entries);
+          UNION ALL
+
+          SELECT 'reward-' || rl.id::text AS id, 'reward' AS source, rl.club_id AS "clubId", rl.credits AS amount,
+            rl.description AS reason,
+            NULL::int AS "linkedSessionId",
+            NULL::text AS "attendanceStatus",
+            rl.created_at AS "createdAt", c.name AS "clubName",
+            NULL::text AS "sessionTitle", NULL::timestamp AS "sessionDate"
+          FROM player_reward_ledger rl
+          INNER JOIN clubs c ON rl.club_id = c.id
+          WHERE rl.credits > 0 AND rl.status = 'AVAILABLE' AND ${sql.join(rlConds, sql` AND `)}
+        ) combined
+        ORDER BY "createdAt" DESC`;
+
+      const entries = await db.execute(query);
+      res.json(entries.rows);
     } catch (err: any) {
       console.error("Error fetching credit history:", err);
       res.status(500).json({ message: "Failed to fetch credit history" });

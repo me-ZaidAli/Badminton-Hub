@@ -1859,6 +1859,11 @@ function CreditHistoryModal({ open, onClose, history, creditBalances }: {
                         <Badge variant="outline" className={`text-[10px] px-1.5 py-0 no-default-hover-elevate ${typeInfo.color}`}>
                           {typeInfo.label}
                         </Badge>
+                        {entry.source === "reward" && (
+                          <Badge variant="outline" className="text-[10px] px-1.5 py-0 no-default-hover-elevate border-amber-300 dark:border-amber-700 text-amber-700 dark:text-amber-400">
+                            Reward
+                          </Badge>
+                        )}
                         <span className="text-[10px] text-muted-foreground">
                           {format(new Date(entry.createdAt), "MMM d, yyyy 'at' h:mm a")}
                         </span>
