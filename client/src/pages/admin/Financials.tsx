@@ -887,6 +887,13 @@ export default function Financials() {
   }
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [rewardSearchQuery, setRewardSearchQuery] = useState("");
+  const [rewardSortBy, setRewardSortBy] = useState<"total-desc" | "total-asc" | "name-asc" | "name-desc" | "unclaimed-desc" | "pending-desc" | "claimed-desc" | "count-desc">("total-desc");
+  const [showAdvancedFilters, setShowAdvancedFilters] = useState(false);
+  const [rewardMinAmount, setRewardMinAmount] = useState("");
+  const [rewardMaxAmount, setRewardMaxAmount] = useState("");
+  const [rewardMinRewards, setRewardMinRewards] = useState("");
+  const [rewardStatusChips, setRewardStatusChips] = useState<Set<string>>(new Set());
 
   const CATEGORY_LABELS: Record<string, { label: string; color: string; icon: string }> = {
     REFERRAL: { label: "Referral", color: "text-blue-600", icon: "🤝" },
@@ -930,6 +937,44 @@ export default function Financials() {
     enabled: !!allCategoriesUrl && !!selectedCategory,
   });
   const allCategoryTotals = selectedCategory ? (allCategoriesData?.categoryTotals || categoryTotals) : categoryTotals;
+
+  const filteredSortedPlayers = useMemo(() => {
+    let result = [...rewardPlayers];
+    if (rewardSearchQuery.trim()) {
+      const q = rewardSearchQuery.trim().toLowerCase();
+      result = result.filter(p =>
+        (p.playerName || "").toLowerCase().includes(q) ||
+        (p.playerEmail || "").toLowerCase().includes(q)
+      );
+    }
+    if (rewardStatusChips.size > 0) {
+      result = result.filter(p => {
+        if (rewardStatusChips.has("unclaimed") && p.availableCount > 0) return true;
+        if (rewardStatusChips.has("pending") && p.requestedCount > 0) return true;
+        if (rewardStatusChips.has("claimed") && p.usedCount > 0) return true;
+        return false;
+      });
+    }
+    const minAmt = rewardMinAmount ? parseFloat(rewardMinAmount) * 100 : null;
+    const maxAmt = rewardMaxAmount ? parseFloat(rewardMaxAmount) * 100 : null;
+    const minCount = rewardMinRewards ? parseInt(rewardMinRewards, 10) : null;
+    if (minAmt !== null) result = result.filter(p => p.totalCredits >= minAmt);
+    if (maxAmt !== null) result = result.filter(p => p.totalCredits <= maxAmt);
+    if (minCount !== null) result = result.filter(p => p.totalCount >= minCount);
+    switch (rewardSortBy) {
+      case "total-desc": result.sort((a, b) => b.totalCredits - a.totalCredits); break;
+      case "total-asc": result.sort((a, b) => a.totalCredits - b.totalCredits); break;
+      case "name-asc": result.sort((a, b) => (a.playerName || "").localeCompare(b.playerName || "")); break;
+      case "name-desc": result.sort((a, b) => (b.playerName || "").localeCompare(a.playerName || "")); break;
+      case "unclaimed-desc": result.sort((a, b) => b.available - a.available); break;
+      case "pending-desc": result.sort((a, b) => b.requested - a.requested); break;
+      case "claimed-desc": result.sort((a, b) => b.used - a.used); break;
+      case "count-desc": result.sort((a, b) => b.totalCount - a.totalCount); break;
+    }
+    return result;
+  }, [rewardPlayers, rewardSearchQuery, rewardSortBy, rewardStatusChips, rewardMinAmount, rewardMaxAmount, rewardMinRewards]);
+
+  const hasActiveAdvancedFilters = rewardMinAmount !== "" || rewardMaxAmount !== "" || rewardMinRewards !== "" || rewardStatusChips.size > 0;
 
   const approveRewardMutation = useMutation({
     mutationFn: async ({ rewardId, action }: { rewardId: number; action: "approve" | "decline" }) => {
@@ -2606,7 +2651,9 @@ export default function Financials() {
                      "All Player Rewards & Credits"}
                   </h3>
                   <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">
-                    {rewardPlayers.length} player{rewardPlayers.length !== 1 ? "s" : ""}
+                    {filteredSortedPlayers.length !== rewardPlayers.length
+                      ? `${filteredSortedPlayers.length} of ${rewardPlayers.length} players`
+                      : `${rewardPlayers.length} player${rewardPlayers.length !== 1 ? "s" : ""}`}
                   </Badge>
                 </div>
                 <div className="flex items-center gap-2">
@@ -2615,39 +2662,192 @@ export default function Financials() {
                       Show All Statuses
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" onClick={() => { setRewardDetailFilter(null); setExpandedPlayerId(null); setSelectedCategory(null); }} data-testid="button-close-reward-details">
+                  <Button size="sm" variant="ghost" onClick={() => { setRewardDetailFilter(null); setExpandedPlayerId(null); setSelectedCategory(null); setRewardSearchQuery(""); setRewardMinAmount(""); setRewardMaxAmount(""); setRewardMinRewards(""); setRewardStatusChips(new Set()); setShowAdvancedFilters(false); }} data-testid="button-close-reward-details">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              {Object.keys(allCategoryTotals).length > 0 && (
-                <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-3">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="relative flex-1 min-w-[200px]">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search by name or email..."
+                      value={rewardSearchQuery}
+                      onChange={(e) => { setRewardSearchQuery(e.target.value); setExpandedPlayerId(null); }}
+                      className="pl-9 h-9 text-sm"
+                      data-testid="input-reward-search"
+                    />
+                    {rewardSearchQuery && (
+                      <button className="absolute right-2.5 top-1/2 -translate-y-1/2" onClick={() => setRewardSearchQuery("")}>
+                        <X className="h-3.5 w-3.5 text-muted-foreground hover:text-foreground" />
+                      </button>
+                    )}
+                  </div>
+                  <Select value={rewardSortBy} onValueChange={(v: any) => { setRewardSortBy(v); setExpandedPlayerId(null); }}>
+                    <SelectTrigger className="w-[180px] h-9 text-xs" data-testid="select-reward-sort">
+                      <ArrowUpDown className="h-3.5 w-3.5 mr-1.5 shrink-0" />
+                      <SelectValue placeholder="Sort by..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="total-desc">Highest Total</SelectItem>
+                      <SelectItem value="total-asc">Lowest Total</SelectItem>
+                      <SelectItem value="name-asc">Name A-Z</SelectItem>
+                      <SelectItem value="name-desc">Name Z-A</SelectItem>
+                      <SelectItem value="unclaimed-desc">Most Unclaimed</SelectItem>
+                      <SelectItem value="pending-desc">Most Pending</SelectItem>
+                      <SelectItem value="claimed-desc">Most Claimed</SelectItem>
+                      <SelectItem value="count-desc">Most Rewards</SelectItem>
+                    </SelectContent>
+                  </Select>
                   <Button
                     size="sm"
-                    variant={selectedCategory === null ? "default" : "outline"}
-                    className="text-xs h-7"
-                    onClick={() => { setSelectedCategory(null); setExpandedPlayerId(null); }}
-                    data-testid="button-category-all"
+                    variant={showAdvancedFilters ? "default" : "outline"}
+                    className={`h-9 text-xs gap-1.5 ${hasActiveAdvancedFilters && !showAdvancedFilters ? "border-primary text-primary" : ""}`}
+                    onClick={() => setShowAdvancedFilters(!showAdvancedFilters)}
+                    data-testid="button-toggle-advanced-filters"
                   >
-                    All Categories
+                    <Filter className="h-3.5 w-3.5" />
+                    Filters
+                    {hasActiveAdvancedFilters && (
+                      <Badge variant="secondary" className="ml-1 h-4 px-1 text-[10px] no-default-hover-elevate no-default-active-elevate">
+                        {(rewardMinAmount ? 1 : 0) + (rewardMaxAmount ? 1 : 0) + (rewardMinRewards ? 1 : 0) + rewardStatusChips.size}
+                      </Badge>
+                    )}
                   </Button>
-                  {Object.entries(allCategoryTotals).sort(([,a],[,b]) => b.credits - a.credits).map(([cat, totals]) => {
-                    const info = CATEGORY_LABELS[cat] || { label: cat, color: "text-gray-600", icon: "📦" };
-                    return (
-                      <Button
-                        key={cat}
-                        size="sm"
-                        variant={selectedCategory === cat ? "default" : "outline"}
-                        className={`text-xs h-7 ${selectedCategory !== cat ? info.color : ""}`}
-                        onClick={() => { setSelectedCategory(selectedCategory === cat ? null : cat); setExpandedPlayerId(null); }}
-                        data-testid={`button-category-${cat}`}
-                      >
-                        <span className="mr-1">{info.icon}</span>
-                        {info.label} ({totals.count}) {"\u00A3"}{formatPounds(totals.credits)}
-                      </Button>
-                    );
-                  })}
+                </div>
+
+                {showAdvancedFilters && (
+                  <Card className="border-dashed">
+                    <CardContent className="p-3">
+                      <div className="flex flex-wrap gap-4 items-end">
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Min Amount (£)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="0.00"
+                            value={rewardMinAmount}
+                            onChange={(e) => setRewardMinAmount(e.target.value)}
+                            className="w-24 h-8 text-xs"
+                            data-testid="input-reward-min-amount"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Max Amount (£)</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            placeholder="999.99"
+                            value={rewardMaxAmount}
+                            onChange={(e) => setRewardMaxAmount(e.target.value)}
+                            className="w-24 h-8 text-xs"
+                            data-testid="input-reward-max-amount"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Min Rewards</Label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="1"
+                            placeholder="0"
+                            value={rewardMinRewards}
+                            onChange={(e) => setRewardMinRewards(e.target.value)}
+                            className="w-20 h-8 text-xs"
+                            data-testid="input-reward-min-count"
+                          />
+                        </div>
+                        <div className="space-y-1">
+                          <Label className="text-xs text-muted-foreground">Has Status</Label>
+                          <div className="flex gap-1.5">
+                            {([
+                              { key: "unclaimed", label: "Unclaimed", color: "text-amber-600 border-amber-300" },
+                              { key: "pending", label: "Pending", color: "text-purple-600 border-purple-300" },
+                              { key: "claimed", label: "Claimed", color: "text-green-600 border-green-300" },
+                            ] as const).map(chip => (
+                              <button
+                                key={chip.key}
+                                className={`px-2 py-1 text-[10px] rounded-md border transition-colors ${
+                                  rewardStatusChips.has(chip.key) ? "bg-primary text-primary-foreground border-primary" : chip.color
+                                }`}
+                                onClick={() => {
+                                  const next = new Set(rewardStatusChips);
+                                  if (next.has(chip.key)) next.delete(chip.key); else next.add(chip.key);
+                                  setRewardStatusChips(next);
+                                  setExpandedPlayerId(null);
+                                }}
+                                data-testid={`chip-status-${chip.key}`}
+                              >
+                                {chip.label}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                        {hasActiveAdvancedFilters && (
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="h-8 text-xs text-muted-foreground"
+                            onClick={() => { setRewardMinAmount(""); setRewardMaxAmount(""); setRewardMinRewards(""); setRewardStatusChips(new Set()); setExpandedPlayerId(null); }}
+                            data-testid="button-clear-advanced-filters"
+                          >
+                            <X className="h-3 w-3 mr-1" /> Clear All
+                          </Button>
+                        )}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
+
+                {Object.keys(allCategoryTotals).length > 0 && (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      size="sm"
+                      variant={selectedCategory === null ? "default" : "outline"}
+                      className="text-xs h-7"
+                      onClick={() => { setSelectedCategory(null); setExpandedPlayerId(null); }}
+                      data-testid="button-category-all"
+                    >
+                      All Categories
+                    </Button>
+                    {Object.entries(allCategoryTotals).sort(([,a],[,b]) => b.credits - a.credits).map(([cat, totals]) => {
+                      const info = CATEGORY_LABELS[cat] || { label: cat, color: "text-gray-600", icon: "📦" };
+                      return (
+                        <Button
+                          key={cat}
+                          size="sm"
+                          variant={selectedCategory === cat ? "default" : "outline"}
+                          className={`text-xs h-7 ${selectedCategory !== cat ? info.color : ""}`}
+                          onClick={() => { setSelectedCategory(selectedCategory === cat ? null : cat); setExpandedPlayerId(null); }}
+                          data-testid={`button-category-${cat}`}
+                        >
+                          <span className="mr-1">{info.icon}</span>
+                          {info.label} ({totals.count}) {"\u00A3"}{formatPounds(totals.credits)}
+                        </Button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+
+              {(rewardSearchQuery || hasActiveAdvancedFilters) && !rewardPerPlayerLoading && (
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span>Showing {filteredSortedPlayers.length} of {rewardPlayers.length} players</span>
+                  {(rewardSearchQuery || hasActiveAdvancedFilters) && (
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      className="h-6 text-[10px] px-2"
+                      onClick={() => { setRewardSearchQuery(""); setRewardMinAmount(""); setRewardMaxAmount(""); setRewardMinRewards(""); setRewardStatusChips(new Set()); }}
+                      data-testid="button-clear-all-filters"
+                    >
+                      Clear all filters
+                    </Button>
+                  )}
                 </div>
               )}
 
@@ -2658,16 +2858,16 @@ export default function Financials() {
                     <p className="text-sm text-muted-foreground mt-2">Loading reward details...</p>
                   </CardContent>
                 </Card>
-              ) : rewardPlayers.length === 0 ? (
+              ) : filteredSortedPlayers.length === 0 ? (
                 <Card>
                   <CardContent className="py-8 text-center text-muted-foreground">
                     <Gift className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                    No rewards found for this filter.
+                    {rewardPlayers.length > 0 ? "No players match your filters." : "No rewards found for this filter."}
                   </CardContent>
                 </Card>
               ) : (
                 <div className="space-y-2">
-                  {rewardPlayers.map((player) => (
+                  {filteredSortedPlayers.map((player) => (
                     <Card
                       key={player.playerId}
                       className={`transition-all ${expandedPlayerId === player.playerId ? "ring-1 ring-primary" : ""}`}
