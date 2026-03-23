@@ -18986,6 +18986,90 @@ export async function registerRoutes(
     }
   });
 
+  // GET /api/admin/rewards/per-player - Get reward breakdown grouped by player
+  app.get("/api/admin/rewards/per-player", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const user = req.user as any;
+      const isSuperAdmin = user.role === "OWNER";
+      const userProfiles = await storage.getPlayerProfilesByUser(user.id);
+      const adminClubIds = userProfiles
+        .filter((p: any) => p.clubRole === "ADMIN" || p.clubRole === "OWNER")
+        .map((p: any) => p.clubId);
+      if (!isSuperAdmin && adminClubIds.length === 0) return res.status(403).json({ message: "Admin access required" });
+
+      const requestedClubId = req.query.clubId && req.query.clubId !== "all" ? Number(req.query.clubId) : null;
+      const statusFilter = req.query.status as string | undefined;
+
+      const clubFilter = requestedClubId
+        ? [requestedClubId]
+        : (isSuperAdmin ? undefined : adminClubIds);
+
+      let whereConditions: any[] = [];
+      if (clubFilter && clubFilter.length > 0) {
+        whereConditions.push(inArray(playerRewardLedger.clubId, clubFilter));
+      }
+      if (statusFilter && ["AVAILABLE", "USED", "REQUESTED"].includes(statusFilter)) {
+        whereConditions.push(eq(playerRewardLedger.status, statusFilter as any));
+      }
+
+      const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+
+      const allRewards = await db.select({
+        id: playerRewardLedger.id,
+        playerId: playerRewardLedger.playerId,
+        clubId: playerRewardLedger.clubId,
+        rewardType: playerRewardLedger.rewardType,
+        description: playerRewardLedger.description,
+        credits: playerRewardLedger.credits,
+        gifts: playerRewardLedger.gifts,
+        freeSessions: playerRewardLedger.freeSessions,
+        status: playerRewardLedger.status,
+        createdAt: playerRewardLedger.createdAt,
+        updatedAt: playerRewardLedger.updatedAt,
+        playerName: users.fullName,
+        playerEmail: users.email,
+        clubName: clubs.name,
+      }).from(playerRewardLedger)
+        .leftJoin(users, eq(playerRewardLedger.playerId, users.id))
+        .leftJoin(clubs, eq(playerRewardLedger.clubId, clubs.id))
+        .where(whereClause)
+        .orderBy(desc(playerRewardLedger.createdAt));
+
+      const playerMap = new Map<number, any>();
+      for (const r of allRewards) {
+        if (!playerMap.has(r.playerId)) {
+          playerMap.set(r.playerId, {
+            playerId: r.playerId,
+            playerName: r.playerName,
+            playerEmail: r.playerEmail,
+            available: 0,
+            availableCount: 0,
+            used: 0,
+            usedCount: 0,
+            requested: 0,
+            requestedCount: 0,
+            totalCredits: 0,
+            totalCount: 0,
+            rewards: [],
+          });
+        }
+        const p = playerMap.get(r.playerId)!;
+        p.totalCredits += r.credits || 0;
+        p.totalCount += 1;
+        if (r.status === "AVAILABLE") { p.available += r.credits || 0; p.availableCount += 1; }
+        if (r.status === "USED") { p.used += r.credits || 0; p.usedCount += 1; }
+        if (r.status === "REQUESTED") { p.requested += r.credits || 0; p.requestedCount += 1; }
+        p.rewards.push(r);
+      }
+
+      const players = Array.from(playerMap.values()).sort((a, b) => b.totalCredits - a.totalCredits);
+      res.json({ players });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/my-rewards - Get current user's reward ledger
   app.get("/api/my-rewards", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });

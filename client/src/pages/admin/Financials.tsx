@@ -601,6 +601,8 @@ export default function Financials() {
   const [expandedCreditPlayers, setExpandedCreditPlayers] = useState<Set<string>>(new Set());
 
   const [creditSubTab, setCreditSubTab] = useState<"history" | "pending" | "analytics">("history");
+  const [rewardDetailFilter, setRewardDetailFilter] = useState<"AVAILABLE" | "REQUESTED" | "USED" | "all" | null>(null);
+  const [expandedPlayerId, setExpandedPlayerId] = useState<number | null>(null);
   const [approveDialog, setApproveDialog] = useState<{
     ticketId: number;
     playerName: string;
@@ -850,6 +852,53 @@ export default function Financials() {
     queryKey: ["/api/admin/rewards/pending-tasks"],
   });
   const pendingRewards = pendingRewardsData?.rewards || [];
+
+  interface PlayerRewardEntry {
+    id: number;
+    playerId: number;
+    clubId: number;
+    rewardType: string;
+    description: string;
+    credits: number;
+    gifts: string | null;
+    freeSessions: number;
+    status: string;
+    createdAt: string;
+    updatedAt: string;
+    playerName: string;
+    playerEmail: string;
+    clubName: string;
+  }
+
+  interface PlayerRewardSummary {
+    playerId: number;
+    playerName: string;
+    playerEmail: string;
+    available: number;
+    availableCount: number;
+    used: number;
+    usedCount: number;
+    requested: number;
+    requestedCount: number;
+    totalCredits: number;
+    totalCount: number;
+    rewards: PlayerRewardEntry[];
+  }
+
+  const rewardPerPlayerUrl = rewardDetailFilter
+    ? `/api/admin/rewards/per-player?clubId=${selectedClubId || "all"}${rewardDetailFilter !== "all" ? `&status=${rewardDetailFilter}` : ""}`
+    : null;
+
+  const { data: rewardPerPlayerData, isLoading: rewardPerPlayerLoading } = useQuery<{ players: PlayerRewardSummary[] }>({
+    queryKey: [rewardPerPlayerUrl],
+    queryFn: rewardPerPlayerUrl ? async () => {
+      const res = await fetch(rewardPerPlayerUrl);
+      if (!res.ok) throw new Error("Failed to fetch reward details");
+      return res.json();
+    } : undefined,
+    enabled: !!rewardPerPlayerUrl,
+  });
+  const rewardPlayers = rewardPerPlayerData?.players || [];
 
   const approveRewardMutation = useMutation({
     mutationFn: async ({ rewardId, action }: { rewardId: number; action: "approve" | "decline" }) => {
@@ -2428,7 +2477,11 @@ export default function Financials() {
 
           {creditSummary && (creditSummary.totalIssued > 0 || creditSummary.totalRedeemed > 0 || (creditSummary.rewardsUnclaimed || 0) > 0) && (
             <div className="grid gap-2 grid-cols-2 md:grid-cols-3 lg:grid-cols-6">
-              <Card className="min-w-0" data-testid="card-credit-issued-main">
+              <Card
+                className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "all" ? "ring-2 ring-primary" : ""}`}
+                data-testid="card-credit-issued-main"
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "all" ? null : "all"); setExpandedPlayerId(null); }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Issued</CardTitle>
                   <TrendingUp className="h-3 w-3 shrink-0 text-green-500" />
@@ -2458,7 +2511,11 @@ export default function Financials() {
                   <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Currently held</p>
                 </CardContent>
               </Card>
-              <Card className="min-w-0 border-amber-200 dark:border-amber-800" data-testid="card-rewards-unclaimed-main">
+              <Card
+                className={`min-w-0 border-amber-200 dark:border-amber-800 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "AVAILABLE" ? "ring-2 ring-amber-500" : ""}`}
+                data-testid="card-rewards-unclaimed-main"
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "AVAILABLE" ? null : "AVAILABLE"); setExpandedPlayerId(null); }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-amber-600 dark:text-amber-400">Rewards Unclaimed</CardTitle>
                   <Gift className="h-3 w-3 shrink-0 text-amber-500" />
@@ -2468,7 +2525,11 @@ export default function Financials() {
                   <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditSummary.rewardsUnclaimedCount || 0} pending collection</p>
                 </CardContent>
               </Card>
-              <Card className="min-w-0 border-purple-200 dark:border-purple-800" data-testid="card-rewards-pending-main">
+              <Card
+                className={`min-w-0 border-purple-200 dark:border-purple-800 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "REQUESTED" ? "ring-2 ring-purple-500" : ""}`}
+                data-testid="card-rewards-pending-main"
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "REQUESTED" ? null : "REQUESTED"); setExpandedPlayerId(null); }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-purple-600 dark:text-purple-400">Awaiting Approval</CardTitle>
                   <Clock className="h-3 w-3 shrink-0 text-purple-500" />
@@ -2478,7 +2539,11 @@ export default function Financials() {
                   <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{creditSummary.rewardsRequestedCount || 0} request(s)</p>
                 </CardContent>
               </Card>
-              <Card className="min-w-0" data-testid="card-credit-rate-main">
+              <Card
+                className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "USED" ? "ring-2 ring-green-500" : ""}`}
+                data-testid="card-credit-rate-main"
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "USED" ? null : "USED"); setExpandedPlayerId(null); }}
+              >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redemption Rate</CardTitle>
                   <Percent className="h-3 w-3 shrink-0 text-muted-foreground" />
@@ -2488,6 +2553,161 @@ export default function Financials() {
                   <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Redeemed vs issued</p>
                 </CardContent>
               </Card>
+            </div>
+          )}
+
+          {rewardDetailFilter && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-semibold">
+                    {rewardDetailFilter === "AVAILABLE" ? "Players with Unclaimed Rewards" :
+                     rewardDetailFilter === "REQUESTED" ? "Players with Pending Approval" :
+                     rewardDetailFilter === "USED" ? "Players with Claimed Rewards" :
+                     "All Player Rewards"}
+                  </h3>
+                  <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">
+                    {rewardPlayers.length} player{rewardPlayers.length !== 1 ? "s" : ""}
+                  </Badge>
+                </div>
+                <div className="flex items-center gap-2">
+                  {rewardDetailFilter !== "all" && (
+                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setRewardDetailFilter("all"); setExpandedPlayerId(null); }} data-testid="button-show-all-rewards">
+                      Show All Statuses
+                    </Button>
+                  )}
+                  <Button size="sm" variant="ghost" onClick={() => { setRewardDetailFilter(null); setExpandedPlayerId(null); }} data-testid="button-close-reward-details">
+                    <X className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+
+              {rewardPerPlayerLoading ? (
+                <Card>
+                  <CardContent className="py-8 text-center">
+                    <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+                    <p className="text-sm text-muted-foreground mt-2">Loading reward details...</p>
+                  </CardContent>
+                </Card>
+              ) : rewardPlayers.length === 0 ? (
+                <Card>
+                  <CardContent className="py-8 text-center text-muted-foreground">
+                    <Gift className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
+                    No rewards found for this filter.
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="space-y-2">
+                  {rewardPlayers.map((player) => (
+                    <Card
+                      key={player.playerId}
+                      className={`transition-all ${expandedPlayerId === player.playerId ? "ring-1 ring-primary" : ""}`}
+                      data-testid={`card-reward-player-${player.playerId}`}
+                    >
+                      <CardContent className="p-0">
+                        <button
+                          className="w-full p-4 text-left flex items-center justify-between gap-3 hover:bg-muted/50 transition-colors rounded-lg"
+                          onClick={() => setExpandedPlayerId(expandedPlayerId === player.playerId ? null : player.playerId)}
+                          data-testid={`button-expand-player-${player.playerId}`}
+                        >
+                          <div className="flex items-center gap-3 min-w-0 flex-1">
+                            <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                              <Users className="h-4 w-4 text-primary" />
+                            </div>
+                            <div className="min-w-0">
+                              <p className="font-semibold text-sm truncate" data-testid={`text-reward-player-name-${player.playerId}`}>{player.playerName}</p>
+                              <p className="text-xs text-muted-foreground truncate">{player.playerEmail}</p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-3 shrink-0 flex-wrap justify-end">
+                            {player.availableCount > 0 && (
+                              <Badge variant="outline" className="text-amber-600 border-amber-300 text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-available-${player.playerId}`}>
+                                <Gift className="h-3 w-3 mr-1" />
+                                {player.availableCount} unclaimed ({"\u00A3"}{formatPounds(player.available)})
+                              </Badge>
+                            )}
+                            {player.requestedCount > 0 && (
+                              <Badge variant="outline" className="text-purple-600 border-purple-300 text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-requested-${player.playerId}`}>
+                                <Clock className="h-3 w-3 mr-1" />
+                                {player.requestedCount} pending ({"\u00A3"}{formatPounds(player.requested)})
+                              </Badge>
+                            )}
+                            {player.usedCount > 0 && (
+                              <Badge variant="outline" className="text-green-600 border-green-300 text-xs no-default-hover-elevate no-default-active-elevate" data-testid={`badge-used-${player.playerId}`}>
+                                <CheckCircle className="h-3 w-3 mr-1" />
+                                {player.usedCount} claimed ({"\u00A3"}{formatPounds(player.used)})
+                              </Badge>
+                            )}
+                            {expandedPlayerId === player.playerId ? (
+                              <ChevronDown className="h-4 w-4 text-muted-foreground" />
+                            ) : (
+                              <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                            )}
+                          </div>
+                        </button>
+
+                        {expandedPlayerId === player.playerId && (
+                          <div className="px-4 pb-4 border-t">
+                            <div className="grid grid-cols-3 gap-3 py-3 mb-3 border-b">
+                              <div className="text-center">
+                                <p className="text-xs text-muted-foreground">Unclaimed</p>
+                                <p className="text-sm font-bold text-amber-600">{"\u00A3"}{formatPounds(player.available)}</p>
+                                <p className="text-[10px] text-muted-foreground">{player.availableCount} reward{player.availableCount !== 1 ? "s" : ""}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-xs text-muted-foreground">Pending</p>
+                                <p className="text-sm font-bold text-purple-600">{"\u00A3"}{formatPounds(player.requested)}</p>
+                                <p className="text-[10px] text-muted-foreground">{player.requestedCount} reward{player.requestedCount !== 1 ? "s" : ""}</p>
+                              </div>
+                              <div className="text-center">
+                                <p className="text-xs text-muted-foreground">Claimed</p>
+                                <p className="text-sm font-bold text-green-600">{"\u00A3"}{formatPounds(player.used)}</p>
+                                <p className="text-[10px] text-muted-foreground">{player.usedCount} reward{player.usedCount !== 1 ? "s" : ""}</p>
+                              </div>
+                            </div>
+                            <div className="space-y-2">
+                              {player.rewards.map((r) => (
+                                <div key={r.id} className="flex items-start justify-between gap-3 py-2 border-b last:border-0" data-testid={`row-reward-detail-${r.id}`}>
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <span className="text-sm font-medium">{r.rewardType?.replace(/_/g, " ")}</span>
+                                      {r.status === "AVAILABLE" && (
+                                        <Badge variant="outline" className="text-amber-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Unclaimed</Badge>
+                                      )}
+                                      {r.status === "REQUESTED" && (
+                                        <Badge variant="outline" className="text-purple-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Pending</Badge>
+                                      )}
+                                      {r.status === "USED" && (
+                                        <Badge variant="outline" className="text-green-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Claimed</Badge>
+                                      )}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>
+                                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                                      <span>{r.clubName}</span>
+                                      <span>{r.createdAt ? format(new Date(r.createdAt), "MMM d, yyyy") : ""}</span>
+                                    </div>
+                                  </div>
+                                  <div className="text-right shrink-0">
+                                    {r.credits > 0 && (
+                                      <p className="text-sm font-semibold">{"\u00A3"}{formatPounds(r.credits)}</p>
+                                    )}
+                                    {r.freeSessions > 0 && (
+                                      <p className="text-xs text-blue-600">{r.freeSessions} free session{r.freeSessions !== 1 ? "s" : ""}</p>
+                                    )}
+                                    {r.gifts && (
+                                      <p className="text-xs text-green-600"><Gift className="h-3 w-3 inline mr-0.5" />{r.gifts}</p>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
             </div>
           )}
 
