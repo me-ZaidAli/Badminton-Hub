@@ -18986,7 +18986,7 @@ export async function registerRoutes(
     }
   });
 
-  // GET /api/admin/rewards/per-player - Get reward breakdown grouped by player
+  // GET /api/admin/rewards/per-player - Get reward breakdown grouped by player with categories
   app.get("/api/admin/rewards/per-player", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
@@ -19000,20 +19000,24 @@ export async function registerRoutes(
 
       const requestedClubId = req.query.clubId && req.query.clubId !== "all" ? Number(req.query.clubId) : null;
       const statusFilter = req.query.status as string | undefined;
+      const categoryFilter = req.query.category as string | undefined;
 
       const clubFilter = requestedClubId
         ? [requestedClubId]
         : (isSuperAdmin ? undefined : adminClubIds);
 
-      let whereConditions: any[] = [];
+      let rewardConditions: any[] = [];
       if (clubFilter && clubFilter.length > 0) {
-        whereConditions.push(inArray(playerRewardLedger.clubId, clubFilter));
+        rewardConditions.push(inArray(playerRewardLedger.clubId, clubFilter));
       }
       if (statusFilter && ["AVAILABLE", "USED", "REQUESTED"].includes(statusFilter)) {
-        whereConditions.push(eq(playerRewardLedger.status, statusFilter as any));
+        rewardConditions.push(eq(playerRewardLedger.status, statusFilter as any));
+      }
+      if (categoryFilter && categoryFilter !== "ADMIN_CREDIT" && ["REFERRAL", "SESSION_ATTENDANCE", "GIFT", "MANUAL", "ANNIVERSARY", "POINTS", "GRADE", "BADGE_ACHIEVEMENT", "BIRTHDAY"].includes(categoryFilter)) {
+        rewardConditions.push(eq(playerRewardLedger.rewardType, categoryFilter as any));
       }
 
-      const whereClause = whereConditions.length > 0 ? and(...whereConditions) : undefined;
+      const rewardWhere = rewardConditions.length > 0 ? and(...rewardConditions) : undefined;
 
       const allRewards = await db.select({
         id: playerRewardLedger.id,
@@ -19033,14 +19037,71 @@ export async function registerRoutes(
       }).from(playerRewardLedger)
         .leftJoin(users, eq(playerRewardLedger.playerId, users.id))
         .leftJoin(clubs, eq(playerRewardLedger.clubId, clubs.id))
-        .where(whereClause)
+        .where(rewardWhere)
         .orderBy(desc(playerRewardLedger.createdAt));
 
+      let creditEntries: any[] = [];
+      const includeCredits = (!categoryFilter || categoryFilter === "ADMIN_CREDIT") &&
+        (!statusFilter || statusFilter === "USED" || !["AVAILABLE", "REQUESTED"].includes(statusFilter));
+      if (includeCredits) {
+        let creditConditions: any[] = [];
+        if (clubFilter && clubFilter.length > 0) {
+          creditConditions.push(inArray(creditLedger.clubId, clubFilter));
+        }
+        creditConditions.push(sql`${creditLedger.amount} > 0`);
+        const creditWhere = creditConditions.length > 0 ? and(...creditConditions) : undefined;
+
+        const rawCredits = await db.select({
+          id: creditLedger.id,
+          userId: creditLedger.userId,
+          clubId: creditLedger.clubId,
+          amount: creditLedger.amount,
+          reason: creditLedger.reason,
+          linkedSessionId: creditLedger.linkedSessionId,
+          createdAt: creditLedger.createdAt,
+          playerName: users.fullName,
+          playerEmail: users.email,
+          clubName: clubs.name,
+          sessionTitle: sessions.title,
+        }).from(creditLedger)
+          .leftJoin(users, eq(creditLedger.userId, users.id))
+          .leftJoin(clubs, eq(creditLedger.clubId, clubs.id))
+          .leftJoin(sessions, eq(creditLedger.linkedSessionId, sessions.id))
+          .where(creditWhere)
+          .orderBy(desc(creditLedger.createdAt));
+
+        creditEntries = rawCredits.map(c => ({
+          id: `credit-${c.id}`,
+          playerId: c.userId,
+          clubId: c.clubId,
+          rewardType: "ADMIN_CREDIT",
+          description: c.reason + (c.sessionTitle ? ` (Session: ${c.sessionTitle})` : ""),
+          credits: c.amount,
+          gifts: null,
+          freeSessions: 0,
+          status: "USED",
+          createdAt: c.createdAt,
+          updatedAt: c.createdAt,
+          playerName: c.playerName,
+          playerEmail: c.playerEmail,
+          clubName: c.clubName,
+          linkedSessionId: c.linkedSessionId,
+          sessionTitle: c.sessionTitle,
+        }));
+      }
+
+      const combined = categoryFilter === "ADMIN_CREDIT"
+        ? creditEntries
+        : (categoryFilter ? [...allRewards.map(r => ({ ...r, id: `reward-${r.id}` }))] : [...allRewards.map(r => ({ ...r, id: `reward-${r.id}` })), ...creditEntries]);
+
       const playerMap = new Map<number, any>();
-      for (const r of allRewards) {
-        if (!playerMap.has(r.playerId)) {
-          playerMap.set(r.playerId, {
-            playerId: r.playerId,
+      const categoryTotals: Record<string, { count: number; credits: number }> = {};
+
+      for (const r of combined) {
+        const pid = r.playerId;
+        if (!playerMap.has(pid)) {
+          playerMap.set(pid, {
+            playerId: pid,
             playerName: r.playerName,
             playerEmail: r.playerEmail,
             available: 0,
@@ -19051,20 +19112,32 @@ export async function registerRoutes(
             requestedCount: 0,
             totalCredits: 0,
             totalCount: 0,
+            byCategory: {} as Record<string, { count: number; credits: number }>,
             rewards: [],
           });
         }
-        const p = playerMap.get(r.playerId)!;
-        p.totalCredits += r.credits || 0;
+        const p = playerMap.get(pid)!;
+        const amt = r.credits || 0;
+        p.totalCredits += amt;
         p.totalCount += 1;
-        if (r.status === "AVAILABLE") { p.available += r.credits || 0; p.availableCount += 1; }
-        if (r.status === "USED") { p.used += r.credits || 0; p.usedCount += 1; }
-        if (r.status === "REQUESTED") { p.requested += r.credits || 0; p.requestedCount += 1; }
+        if (r.status === "AVAILABLE") { p.available += amt; p.availableCount += 1; }
+        if (r.status === "USED") { p.used += amt; p.usedCount += 1; }
+        if (r.status === "REQUESTED") { p.requested += amt; p.requestedCount += 1; }
+
+        const cat = r.rewardType || "OTHER";
+        if (!p.byCategory[cat]) p.byCategory[cat] = { count: 0, credits: 0 };
+        p.byCategory[cat].count += 1;
+        p.byCategory[cat].credits += amt;
+
+        if (!categoryTotals[cat]) categoryTotals[cat] = { count: 0, credits: 0 };
+        categoryTotals[cat].count += 1;
+        categoryTotals[cat].credits += amt;
+
         p.rewards.push(r);
       }
 
       const players = Array.from(playerMap.values()).sort((a, b) => b.totalCredits - a.totalCredits);
-      res.json({ players });
+      res.json({ players, categoryTotals });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

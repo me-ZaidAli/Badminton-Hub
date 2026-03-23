@@ -854,7 +854,7 @@ export default function Financials() {
   const pendingRewards = pendingRewardsData?.rewards || [];
 
   interface PlayerRewardEntry {
-    id: number;
+    id: string;
     playerId: number;
     clubId: number;
     rewardType: string;
@@ -882,14 +882,30 @@ export default function Financials() {
     requestedCount: number;
     totalCredits: number;
     totalCount: number;
+    byCategory: Record<string, { count: number; credits: number }>;
     rewards: PlayerRewardEntry[];
   }
 
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+
+  const CATEGORY_LABELS: Record<string, { label: string; color: string; icon: string }> = {
+    REFERRAL: { label: "Referral", color: "text-blue-600", icon: "🤝" },
+    SESSION_ATTENDANCE: { label: "Session Attendance", color: "text-green-600", icon: "📋" },
+    ANNIVERSARY: { label: "Anniversary", color: "text-purple-600", icon: "🎉" },
+    BIRTHDAY: { label: "Birthday", color: "text-pink-600", icon: "🎂" },
+    BADGE_ACHIEVEMENT: { label: "Badge Achievement", color: "text-amber-600", icon: "🏅" },
+    GIFT: { label: "Gift", color: "text-teal-600", icon: "🎁" },
+    MANUAL: { label: "Manual Award", color: "text-indigo-600", icon: "✍️" },
+    POINTS: { label: "Points", color: "text-orange-600", icon: "⭐" },
+    GRADE: { label: "Grade Reward", color: "text-cyan-600", icon: "📊" },
+    ADMIN_CREDIT: { label: "Admin Credit (Session)", color: "text-slate-600", icon: "💷" },
+  };
+
   const rewardPerPlayerUrl = rewardDetailFilter
-    ? `/api/admin/rewards/per-player?clubId=${selectedClubId || "all"}${rewardDetailFilter !== "all" ? `&status=${rewardDetailFilter}` : ""}`
+    ? `/api/admin/rewards/per-player?clubId=${selectedClubId || "all"}${rewardDetailFilter !== "all" ? `&status=${rewardDetailFilter}` : ""}${selectedCategory ? `&category=${selectedCategory}` : ""}`
     : null;
 
-  const { data: rewardPerPlayerData, isLoading: rewardPerPlayerLoading } = useQuery<{ players: PlayerRewardSummary[] }>({
+  const { data: rewardPerPlayerData, isLoading: rewardPerPlayerLoading } = useQuery<{ players: PlayerRewardSummary[]; categoryTotals: Record<string, { count: number; credits: number }> }>({
     queryKey: [rewardPerPlayerUrl],
     queryFn: rewardPerPlayerUrl ? async () => {
       const res = await fetch(rewardPerPlayerUrl);
@@ -899,6 +915,21 @@ export default function Financials() {
     enabled: !!rewardPerPlayerUrl,
   });
   const rewardPlayers = rewardPerPlayerData?.players || [];
+  const categoryTotals = rewardPerPlayerData?.categoryTotals || {};
+
+  const allCategoriesUrl = rewardDetailFilter
+    ? `/api/admin/rewards/per-player?clubId=${selectedClubId || "all"}${rewardDetailFilter !== "all" ? `&status=${rewardDetailFilter}` : ""}`
+    : null;
+  const { data: allCategoriesData } = useQuery<{ categoryTotals: Record<string, { count: number; credits: number }> }>({
+    queryKey: [allCategoriesUrl, "categories-only"],
+    queryFn: allCategoriesUrl ? async () => {
+      const res = await fetch(allCategoriesUrl);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    } : undefined,
+    enabled: !!allCategoriesUrl && !!selectedCategory,
+  });
+  const allCategoryTotals = selectedCategory ? (allCategoriesData?.categoryTotals || categoryTotals) : categoryTotals;
 
   const approveRewardMutation = useMutation({
     mutationFn: async ({ rewardId, action }: { rewardId: number; action: "approve" | "decline" }) => {
@@ -2480,7 +2511,7 @@ export default function Financials() {
               <Card
                 className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "all" ? "ring-2 ring-primary" : ""}`}
                 data-testid="card-credit-issued-main"
-                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "all" ? null : "all"); setExpandedPlayerId(null); }}
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "all" ? null : "all"); setExpandedPlayerId(null); setSelectedCategory(null); }}
               >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Total Issued</CardTitle>
@@ -2494,7 +2525,7 @@ export default function Financials() {
               <Card
                 className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "USED" ? "ring-2 ring-green-500" : ""}`}
                 data-testid="card-credit-redeemed-main"
-                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "USED" ? null : "USED"); setExpandedPlayerId(null); }}
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "USED" ? null : "USED"); setExpandedPlayerId(null); setSelectedCategory(null); }}
               >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redeemed</CardTitle>
@@ -2508,7 +2539,7 @@ export default function Financials() {
               <Card
                 className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "AVAILABLE" ? "ring-2 ring-amber-500" : ""}`}
                 data-testid="card-credit-held-main"
-                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "AVAILABLE" ? null : "AVAILABLE"); setExpandedPlayerId(null); }}
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "AVAILABLE" ? null : "AVAILABLE"); setExpandedPlayerId(null); setSelectedCategory(null); }}
               >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Outstanding</CardTitle>
@@ -2522,7 +2553,7 @@ export default function Financials() {
               <Card
                 className={`min-w-0 border-amber-200 dark:border-amber-800 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "AVAILABLE" ? "ring-2 ring-amber-500" : ""}`}
                 data-testid="card-rewards-unclaimed-main"
-                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "AVAILABLE" ? null : "AVAILABLE"); setExpandedPlayerId(null); }}
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "AVAILABLE" ? null : "AVAILABLE"); setExpandedPlayerId(null); setSelectedCategory(null); }}
               >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-amber-600 dark:text-amber-400">Rewards Unclaimed</CardTitle>
@@ -2536,7 +2567,7 @@ export default function Financials() {
               <Card
                 className={`min-w-0 border-purple-200 dark:border-purple-800 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "REQUESTED" ? "ring-2 ring-purple-500" : ""}`}
                 data-testid="card-rewards-pending-main"
-                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "REQUESTED" ? null : "REQUESTED"); setExpandedPlayerId(null); }}
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "REQUESTED" ? null : "REQUESTED"); setExpandedPlayerId(null); setSelectedCategory(null); }}
               >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-purple-600 dark:text-purple-400">Awaiting Approval</CardTitle>
@@ -2550,7 +2581,7 @@ export default function Financials() {
               <Card
                 className={`min-w-0 cursor-pointer transition-all hover:shadow-md ${rewardDetailFilter === "USED" ? "ring-2 ring-green-500" : ""}`}
                 data-testid="card-credit-rate-main"
-                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "USED" ? null : "USED"); setExpandedPlayerId(null); }}
+                onClick={() => { setRewardDetailFilter(rewardDetailFilter === "USED" ? null : "USED"); setExpandedPlayerId(null); setSelectedCategory(null); }}
               >
                 <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
                   <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Redemption Rate</CardTitle>
@@ -2572,7 +2603,7 @@ export default function Financials() {
                     {rewardDetailFilter === "AVAILABLE" ? "Players with Unclaimed Rewards" :
                      rewardDetailFilter === "REQUESTED" ? "Players with Pending Approval" :
                      rewardDetailFilter === "USED" ? "Players with Claimed Rewards" :
-                     "All Player Rewards"}
+                     "All Player Rewards & Credits"}
                   </h3>
                   <Badge variant="outline" className="text-xs no-default-hover-elevate no-default-active-elevate">
                     {rewardPlayers.length} player{rewardPlayers.length !== 1 ? "s" : ""}
@@ -2580,15 +2611,45 @@ export default function Financials() {
                 </div>
                 <div className="flex items-center gap-2">
                   {rewardDetailFilter !== "all" && (
-                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setRewardDetailFilter("all"); setExpandedPlayerId(null); }} data-testid="button-show-all-rewards">
+                    <Button size="sm" variant="ghost" className="text-xs" onClick={() => { setRewardDetailFilter("all"); setExpandedPlayerId(null); setSelectedCategory(null); }} data-testid="button-show-all-rewards">
                       Show All Statuses
                     </Button>
                   )}
-                  <Button size="sm" variant="ghost" onClick={() => { setRewardDetailFilter(null); setExpandedPlayerId(null); }} data-testid="button-close-reward-details">
+                  <Button size="sm" variant="ghost" onClick={() => { setRewardDetailFilter(null); setExpandedPlayerId(null); setSelectedCategory(null); }} data-testid="button-close-reward-details">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
+
+              {Object.keys(allCategoryTotals).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    size="sm"
+                    variant={selectedCategory === null ? "default" : "outline"}
+                    className="text-xs h-7"
+                    onClick={() => { setSelectedCategory(null); setExpandedPlayerId(null); }}
+                    data-testid="button-category-all"
+                  >
+                    All Categories
+                  </Button>
+                  {Object.entries(allCategoryTotals).sort(([,a],[,b]) => b.credits - a.credits).map(([cat, totals]) => {
+                    const info = CATEGORY_LABELS[cat] || { label: cat, color: "text-gray-600", icon: "📦" };
+                    return (
+                      <Button
+                        key={cat}
+                        size="sm"
+                        variant={selectedCategory === cat ? "default" : "outline"}
+                        className={`text-xs h-7 ${selectedCategory !== cat ? info.color : ""}`}
+                        onClick={() => { setSelectedCategory(selectedCategory === cat ? null : cat); setExpandedPlayerId(null); }}
+                        data-testid={`button-category-${cat}`}
+                      >
+                        <span className="mr-1">{info.icon}</span>
+                        {info.label} ({totals.count}) {"\u00A3"}{formatPounds(totals.credits)}
+                      </Button>
+                    );
+                  })}
+                </div>
+              )}
 
               {rewardPerPlayerLoading ? (
                 <Card>
@@ -2646,6 +2707,7 @@ export default function Financials() {
                                 {player.usedCount} claimed ({"\u00A3"}{formatPounds(player.used)})
                               </Badge>
                             )}
+                            <span className="text-sm font-bold">{"\u00A3"}{formatPounds(player.totalCredits)}</span>
                             {expandedPlayerId === player.playerId ? (
                               <ChevronDown className="h-4 w-4 text-muted-foreground" />
                             ) : (
@@ -2673,41 +2735,61 @@ export default function Financials() {
                                 <p className="text-[10px] text-muted-foreground">{player.usedCount} reward{player.usedCount !== 1 ? "s" : ""}</p>
                               </div>
                             </div>
+
+                            {Object.keys(player.byCategory || {}).length > 0 && (
+                              <div className="flex flex-wrap gap-2 py-2 mb-2 border-b">
+                                {Object.entries(player.byCategory || {}).map(([cat, data]) => {
+                                  const info = CATEGORY_LABELS[cat] || { label: cat, color: "text-gray-600", icon: "📦" };
+                                  return (
+                                    <div key={cat} className="flex items-center gap-1 text-[10px] px-2 py-1 rounded-md bg-muted/50">
+                                      <span>{info.icon}</span>
+                                      <span className={`font-medium ${info.color}`}>{info.label}</span>
+                                      <span className="text-muted-foreground">({data.count}) {"\u00A3"}{formatPounds(data.credits)}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+
                             <div className="space-y-2">
-                              {player.rewards.map((r) => (
-                                <div key={r.id} className="flex items-start justify-between gap-3 py-2 border-b last:border-0" data-testid={`row-reward-detail-${r.id}`}>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <span className="text-sm font-medium">{r.rewardType?.replace(/_/g, " ")}</span>
-                                      {r.status === "AVAILABLE" && (
-                                        <Badge variant="outline" className="text-amber-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Unclaimed</Badge>
+                              {player.rewards.map((r) => {
+                                const catInfo = CATEGORY_LABELS[r.rewardType] || { label: r.rewardType, color: "text-gray-600", icon: "📦" };
+                                return (
+                                  <div key={r.id} className="flex items-start justify-between gap-3 py-2 border-b last:border-0" data-testid={`row-reward-detail-${r.id}`}>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <span className="text-sm">{catInfo.icon}</span>
+                                        <span className={`text-sm font-medium ${catInfo.color}`}>{catInfo.label}</span>
+                                        {r.status === "AVAILABLE" && (
+                                          <Badge variant="outline" className="text-amber-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Unclaimed</Badge>
+                                        )}
+                                        {r.status === "REQUESTED" && (
+                                          <Badge variant="outline" className="text-purple-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Pending</Badge>
+                                        )}
+                                        {r.status === "USED" && (
+                                          <Badge variant="outline" className="text-green-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Claimed</Badge>
+                                        )}
+                                      </div>
+                                      <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>
+                                      <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
+                                        <span>{r.clubName}</span>
+                                        <span>{r.createdAt ? format(new Date(r.createdAt), "MMM d, yyyy") : ""}</span>
+                                      </div>
+                                    </div>
+                                    <div className="text-right shrink-0">
+                                      {r.credits > 0 && (
+                                        <p className="text-sm font-semibold">{"\u00A3"}{formatPounds(r.credits)}</p>
                                       )}
-                                      {r.status === "REQUESTED" && (
-                                        <Badge variant="outline" className="text-purple-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Pending</Badge>
+                                      {r.freeSessions > 0 && (
+                                        <p className="text-xs text-blue-600">{r.freeSessions} free session{r.freeSessions !== 1 ? "s" : ""}</p>
                                       )}
-                                      {r.status === "USED" && (
-                                        <Badge variant="outline" className="text-green-600 text-[10px] no-default-hover-elevate no-default-active-elevate">Claimed</Badge>
+                                      {r.gifts && (
+                                        <p className="text-xs text-green-600"><Gift className="h-3 w-3 inline mr-0.5" />{r.gifts}</p>
                                       )}
                                     </div>
-                                    <p className="text-xs text-muted-foreground mt-0.5">{r.description}</p>
-                                    <div className="flex items-center gap-2 mt-1 text-xs text-muted-foreground flex-wrap">
-                                      <span>{r.clubName}</span>
-                                      <span>{r.createdAt ? format(new Date(r.createdAt), "MMM d, yyyy") : ""}</span>
-                                    </div>
                                   </div>
-                                  <div className="text-right shrink-0">
-                                    {r.credits > 0 && (
-                                      <p className="text-sm font-semibold">{"\u00A3"}{formatPounds(r.credits)}</p>
-                                    )}
-                                    {r.freeSessions > 0 && (
-                                      <p className="text-xs text-blue-600">{r.freeSessions} free session{r.freeSessions !== 1 ? "s" : ""}</p>
-                                    )}
-                                    {r.gifts && (
-                                      <p className="text-xs text-green-600"><Gift className="h-3 w-3 inline mr-0.5" />{r.gifts}</p>
-                                    )}
-                                  </div>
-                                </div>
-                              ))}
+                                );
+                              })}
                             </div>
                           </div>
                         )}
