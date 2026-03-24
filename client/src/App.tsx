@@ -77,6 +77,7 @@ const ClubRewards = lazy(() => import("@/pages/admin/ClubRewards"));
 const RewardsDashboard = lazy(() => import("@/pages/admin/RewardsDashboard"));
 const AdminAnnouncements = lazy(() => import("@/pages/admin/Announcements"));
 const MatchEngineLab = lazy(() => import("@/pages/admin/MatchEngineLab"));
+const MatchEngineSettingsPage = lazy(() => import("@/pages/admin/MatchEngineSettings"));
 const Announcements = lazy(() => import("@/pages/Announcements"));
 const CalendarImport = lazy(() => import("@/pages/admin/CalendarImport"));
 const MemberImport = lazy(() => import("@/pages/admin/MemberImport"));
@@ -623,6 +624,9 @@ function Router() {
       </Route>
       <Route path="/admin/match-engine-lab">
         <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><MatchEngineLab /></Suspense>} />
+      </Route>
+      <Route path="/admin/match-engine-settings">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><MatchEngineSettingsPage /></Suspense>} />
       </Route>
       <Route path="/admin/calendar">
         <AdminRoute component={CalendarImport} />

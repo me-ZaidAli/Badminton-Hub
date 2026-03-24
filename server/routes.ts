@@ -6224,6 +6224,66 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/match-engine/preview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user as any;
+    if (!(await isAnyClubAdmin(user.id, user.role))) return res.sendStatus(403);
+
+    try {
+      const { settings } = req.body;
+      const { DEFAULT_SETTINGS } = await import("@shared/matchEngineSettings");
+      const cfg = settings ? { ...DEFAULT_SETTINGS, ...settings } : DEFAULT_SETTINGS;
+
+      const GRADES = ["A+", "A", "A-", "B+", "B", "B-", "C+", "C", "C-"];
+      const demoPlayers = Array.from({ length: 16 }, (_, i) => ({
+        id: 9000 + i,
+        gender: i < 5 ? "FEMALE" : "MALE",
+        grade: GRADES[i % GRADES.length],
+        isPaused: false,
+      }));
+
+      const result = generateSmartMatches({
+        mode: "SOCIAL",
+        players: demoPlayers,
+        playersPerSide: 2,
+        genderType: "MIXED",
+        queueTarget: 4,
+        recentPairings: new Map(),
+        recentOpponents: new Map(),
+        playerMatchCounts: new Map(),
+        settings: { femaleQuotaRatio: cfg.femaleQuotaRatio, engineConfig: cfg },
+      });
+
+      const gradeMap = new Map(demoPlayers.map(p => [p.id, `P${p.id - 9000 + 1}(${p.grade},${p.gender === "FEMALE" ? "F" : "M"})`]));
+
+      const matches = (result.matches || []).map((m, idx) => {
+        const teamA = [m.teamAPlayer1Id, m.teamAPlayer2Id].filter(Boolean).map(id => gradeMap.get(id!) || `#${id}`);
+        const teamB = [m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean).map(id => gradeMap.get(id!) || `#${id}`);
+        const log = result.scoringLogs?.[idx];
+        return {
+          teamA,
+          teamB,
+          qualityScore: m.qualityScore || 0,
+          breakdown: m.breakdown || { fairness: 0, variety: 0, quality: 0, priority: 0, gender: 0, total: m.qualityScore || 0 },
+          factors: log?.topFactors || [],
+          courtNumber: idx + 1,
+        };
+      });
+
+      const totalCandidatesEvaluated = (result.scoringLogs || []).reduce((sum, l) => sum + l.candidatesEvaluated, 0);
+
+      res.json({
+        matches,
+        totalCandidatesEvaluated,
+        engineMode: "SOCIAL DOUBLES",
+        playerCount: demoPlayers.length,
+      });
+    } catch (error: any) {
+      console.error("Match engine preview error:", error);
+      res.status(500).json({ error: error.message || "Preview failed" });
+    }
+  });
+
   app.post("/api/admin/match-engine-lab/simulate", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user as any;
