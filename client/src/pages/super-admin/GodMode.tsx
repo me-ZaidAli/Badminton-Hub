@@ -18,7 +18,7 @@ import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
   Save, Trash2, Pencil, Building2, Clock, User, Mail, PoundSterling,
   Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell, Gift, Activity, UserX, Trophy, Award, Share2,
-  UserCheck, Baby, Target, FlaskConical, Megaphone, Swords, ExternalLink
+  UserCheck, UserPlus, Baby, Target, FlaskConical, Megaphone, Swords, ExternalLink
 } from "lucide-react";
 import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
 import { GlobalMergeModal } from "@/components/GlobalMergeModal";
@@ -29,7 +29,9 @@ const controlSections = [
     label: "People & Clubs",
     items: [
       { href: "/super-admin/users-management", label: "Users Management", desc: "Manage all platform users", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+      { href: "/admin/players", label: "Player Management", desc: "Add, edit, and manage player profiles", icon: UserPlus, color: "text-purple-500", bg: "bg-purple-500/10" },
       { href: "/admin/clubs-management", label: "Clubs Management", desc: "Oversee all registered clubs", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/admin/clubs", label: "Club Management", desc: "Create and manage your clubs", icon: Building2, color: "text-sky-500", bg: "bg-sky-500/10" },
       { href: "/admin/trials", label: "Trial Players", desc: "Manage trial registrations and evaluations", icon: UserCheck, color: "text-cyan-500", bg: "bg-cyan-500/10" },
       { href: "/admin/import-members", label: "Import Members", desc: "Bulk upload via CSV", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
       { href: "/admin/inactive-members", label: "Inactive Members", desc: "Re-engage or remove inactive players", icon: UserX, color: "text-orange-500", bg: "bg-orange-500/10" },
@@ -46,6 +48,7 @@ const controlSections = [
     label: "Finance & Memberships",
     items: [
       { href: "/admin/financials", label: "Financials", desc: "Track payments and revenue", icon: PoundSterling, color: "text-green-500", bg: "bg-green-500/10" },
+      { href: "/admin/memberships", label: "Memberships", desc: "Manage plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" },
       { href: "/admin/membership-board", label: "Membership Board", desc: "Plans, requests, and status", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
       { href: "/admin/billing", label: "Billing & Plan", desc: "Manage club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
       { href: "/admin/inventory", label: "Inventory", desc: "Stock and expense tracking", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
@@ -90,6 +93,12 @@ const controlSections = [
     items: [
       { href: "/admin/recognition-cards", label: "Recognition Cards", desc: "Award and manage player recognition cards", icon: Award, color: "text-rose-500", bg: "bg-rose-500/10" },
       { href: "/admin/black-card", label: "Black Card Management", desc: "Grant Ultra Exclusive member access", icon: CreditCard, color: "text-amber-500", bg: "bg-amber-500/10" },
+    ],
+  },
+  {
+    label: "Club Settings",
+    items: [
+      { href: "/admin/venues", label: "Venues & Courts", desc: "Manage venues, halls, and court setup", icon: MapPin, color: "text-red-500", bg: "bg-red-500/10" },
     ],
   },
 ];
