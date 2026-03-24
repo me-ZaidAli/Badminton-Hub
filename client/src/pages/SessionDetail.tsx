@@ -4736,7 +4736,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
             </CollapsibleSection>
 
             <CollapsibleSection storageKey="completed-matches" title="Completed" badge={completedCount} icon={<CheckCircle className="w-4 h-4 text-emerald-500" />}>
-              <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} />
+              <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} availablePlayers={availablePlayers} onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })} />
             </CollapsibleSection>
 
             <CollapsibleSection storageKey="live-leaderboard" title="Live Leaderboard" icon={<Trophy className="w-4 h-4 text-amber-500" />}>

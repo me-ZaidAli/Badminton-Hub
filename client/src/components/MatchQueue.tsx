@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Lightbulb, TrendingDown } from "lucide-react";
+import { GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Lightbulb, TrendingDown, Check, UserCog } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -567,9 +567,10 @@ export function MatchQueue({
   );
 }
 
-export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false, currentPlayerProfileId }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean; currentPlayerProfileId?: number | null }) {
+export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false, currentPlayerProfileId, availablePlayers = [], onSwapPlayer }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean; currentPlayerProfileId?: number | null; availablePlayers?: Player[]; onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void }) {
   const [scoreMatch, setScoreMatch] = useState<CourtMatch | null>(null);
   const [scoreMode, setScoreMode] = useState<"edit" | "player">("edit");
+  const [editTab, setEditTab] = useState<"score" | "players">("score");
   const [teamScoreA, setTeamScoreA] = useState<string>("");
   const [teamScoreB, setTeamScoreB] = useState<string>("");
   const [showSuccess, setShowSuccess] = useState(false);
@@ -597,6 +598,7 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
   const openScoreDialog = (match: CourtMatch, mode: "edit" | "player") => {
     setScoreMatch(match);
     setScoreMode(mode);
+    setEditTab("score");
     setShowSuccess(false);
     setEditSelectedSet(null);
     setEditSetScoreA("");
@@ -808,22 +810,27 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
         </CardContent>
       </Card>
 
-      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); resetFinishFlow(); setShowSuccess(false); setEditSelectedSet(null); } }}>
+      <Dialog open={!!scoreMatch} onOpenChange={(open) => { if (!open) { setScoreMatch(null); resetFinishFlow(); setShowSuccess(false); setEditSelectedSet(null); setEditTab("score"); } }}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>
               {showSuccess
                 ? "Score Saved"
+                : scoreMatch && scoreMode === "edit" && editTab === "players"
+                ? "Edit Players"
                 : scoreMatch && scoreMode === "edit" && isMultiSet(scoreMatch)
                 ? (editSelectedSet !== null ? `Edit Set ${editSelectedSet + 1}` : "Edit Set Scores")
                 : scoreMode === "edit"
-                ? "Edit Match Score"
+                ? "Edit Match"
                 : "Enter Match Score"}
             </DialogTitle>
-            {!showSuccess && scoreMode === "edit" && !(scoreMatch && isMultiSet(scoreMatch)) && (
+            {!showSuccess && scoreMode === "edit" && editTab === "players" && (
+              <DialogDescription>Tap a player to swap them with another session player.</DialogDescription>
+            )}
+            {!showSuccess && scoreMode === "edit" && editTab === "score" && !(scoreMatch && isMultiSet(scoreMatch)) && (
               <DialogDescription>Amend the score for this match. This action is logged.</DialogDescription>
             )}
-            {!showSuccess && scoreMode === "edit" && scoreMatch && isMultiSet(scoreMatch) && (
+            {!showSuccess && scoreMode === "edit" && editTab === "score" && scoreMatch && isMultiSet(scoreMatch) && (
               <DialogDescription>Select a set to amend its score</DialogDescription>
             )}
             {!showSuccess && scoreMode === "player" && (
@@ -835,6 +842,79 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
             <div className="py-8 text-center space-y-3" data-testid="score-edit-success">
               <CheckCircle className="w-12 h-12 mx-auto text-green-500" />
               <p className="text-lg font-medium">Thank you. Match results have been saved.</p>
+            </div>
+          ) : scoreMatch && scoreMode === "edit" && editTab === "players" ? (
+            <div className="space-y-4 py-2">
+              <div className="rounded-md bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 p-2.5 text-xs text-amber-800 dark:text-amber-200">
+                Changing a player on a completed match will update the match record. The dialog will close after each swap.
+              </div>
+              <div className="space-y-3">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Team A</div>
+                <div className="space-y-2">
+                  <PlayerSlotEditable
+                    player={scoreMatch.teamAPlayer1 || null}
+                    position="teamAPlayer1Id"
+                    matchId={scoreMatch.id}
+                    availablePlayers={availablePlayers}
+                    isOrganiser={isOrganiser}
+                    onSwap={(matchId, position, newPlayerId) => {
+                      onSwapPlayer?.(matchId, position, newPlayerId);
+                      setScoreMatch(null);
+                    }}
+                    variant="queue"
+                    team="A"
+                  />
+                  {scoreMatch.teamAPlayer2 !== undefined && (
+                    <PlayerSlotEditable
+                      player={scoreMatch.teamAPlayer2 || null}
+                      position="teamAPlayer2Id"
+                      matchId={scoreMatch.id}
+                      availablePlayers={availablePlayers}
+                      isOrganiser={isOrganiser}
+                      onSwap={(matchId, position, newPlayerId) => {
+                        onSwapPlayer?.(matchId, position, newPlayerId);
+                        setScoreMatch(null);
+                      }}
+                      variant="queue"
+                      team="A"
+                    />
+                  )}
+                </div>
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wider">Team B</div>
+                <div className="space-y-2">
+                  <PlayerSlotEditable
+                    player={scoreMatch.teamBPlayer1 || null}
+                    position="teamBPlayer1Id"
+                    matchId={scoreMatch.id}
+                    availablePlayers={availablePlayers}
+                    isOrganiser={isOrganiser}
+                    onSwap={(matchId, position, newPlayerId) => {
+                      onSwapPlayer?.(matchId, position, newPlayerId);
+                      setScoreMatch(null);
+                    }}
+                    variant="queue"
+                    team="B"
+                  />
+                  {scoreMatch.teamBPlayer2 !== undefined && (
+                    <PlayerSlotEditable
+                      player={scoreMatch.teamBPlayer2 || null}
+                      position="teamBPlayer2Id"
+                      matchId={scoreMatch.id}
+                      availablePlayers={availablePlayers}
+                      isOrganiser={isOrganiser}
+                      onSwap={(matchId, position, newPlayerId) => {
+                        onSwapPlayer?.(matchId, position, newPlayerId);
+                        setScoreMatch(null);
+                      }}
+                      variant="queue"
+                      team="B"
+                    />
+                  )}
+                </div>
+              </div>
+              <Button variant="outline" className="w-full gap-2" onClick={() => setEditTab("score")} data-testid="button-back-to-score">
+                <Pencil className="w-4 h-4" /> Edit Scores
+              </Button>
             </div>
           ) : scoreMatch && scoreMode === "edit" && isMultiSet(scoreMatch) ? (
             editSelectedSet !== null ? (
@@ -921,6 +1001,11 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                   {isEditPending ? <Loader2 className="w-4 h-4 animate-spin" /> : <CheckCircle className="w-4 h-4" />}
                   Save All Scores
                 </Button>
+                {isOrganiser && onSwapPlayer && availablePlayers.length > 0 && (
+                  <Button variant="outline" className="w-full gap-2" onClick={() => setEditTab("players")} data-testid="button-edit-players">
+                    <UserCog className="w-4 h-4" /> Change Players
+                  </Button>
+                )}
               </div>
             )
           ) : scoreMatch && (
@@ -970,6 +1055,11 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
               >
                 <Check className="w-4 h-4" /> {isEditPending || isPlayerScorePending ? "Saving..." : "Confirm Scores"}
               </Button>
+              {isOrganiser && scoreMode === "edit" && onSwapPlayer && availablePlayers.length > 0 && (
+                <Button variant="outline" className="w-full gap-2" onClick={() => setEditTab("players")} data-testid="button-edit-players">
+                  <UserCog className="w-4 h-4" /> Change Players
+                </Button>
+              )}
             </div>
           )}
         </DialogContent>
