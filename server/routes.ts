@@ -19195,13 +19195,15 @@ export async function registerRoutes(
       for (const profile of profiles) {
         const clubId = (profile as any).clubId;
 
-        const attendedCount = await db.select({ count: sql<number>`count(*)` })
+        const attendedCount = await db.select({ count: sql<number>`count(DISTINCT ${sessions.id})` })
           .from(sessionSignups)
           .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .innerJoin(matches, sql`${sessions.id} = ${matches.sessionId} AND (${matches.teamAPlayer1Id} = ${profile.id} OR ${matches.teamAPlayer2Id} = ${profile.id} OR ${matches.teamBPlayer1Id} = ${profile.id} OR ${matches.teamBPlayer2Id} = ${profile.id})`)
           .where(and(
             eq(sessionSignups.playerId, profile.id),
             eq(sessions.clubId, clubId),
             eq(sessions.status, "COMPLETED"),
+            sql`${sessions.date}::date < CURRENT_DATE`,
             inArray(sessionSignups.signupStatus, ["CONFIRMED"]),
             sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW', 'JUSTIFIED_CANCELLATION', 'SICKNESS', 'EMERGENCY')`
           )).then(r => Number(r[0]?.count || 0));
@@ -20321,16 +20323,18 @@ export async function registerRoutes(
         perClubStats: Object.values(perClubStatsMap),
       };
 
-      // Attendance progress
+      // Attendance progress — only past sessions where the player actually played matches
       const attendanceResults: any[] = [];
       for (const { profile, clubName } of visibleProfiles) {
-        const attendedCount = await db.select({ count: sql<number>`count(*)` })
+        const attendedCount = await db.select({ count: sql<number>`count(DISTINCT ${sessions.id})` })
           .from(sessionSignups)
           .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .innerJoin(matches, sql`${sessions.id} = ${matches.sessionId} AND (${matches.teamAPlayer1Id} = ${profile.id} OR ${matches.teamAPlayer2Id} = ${profile.id} OR ${matches.teamBPlayer1Id} = ${profile.id} OR ${matches.teamBPlayer2Id} = ${profile.id})`)
           .where(and(
             eq(sessionSignups.playerId, profile.id),
             eq(sessions.clubId, profile.clubId),
             eq(sessions.status, "COMPLETED"),
+            sql`${sessions.date}::date < CURRENT_DATE`,
             inArray(sessionSignups.signupStatus, ["CONFIRMED"]),
             sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW', 'JUSTIFIED_CANCELLATION', 'SICKNESS', 'EMERGENCY')`
           )).then(r => Number(r[0]?.count || 0));
