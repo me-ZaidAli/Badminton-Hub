@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Shield, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1506,13 +1506,32 @@ export default function Sessions() {
                 )}
 
                 {session.allowedCategories && session.allowedCategories.length > 0 && (
-                  <div className="mt-2 flex items-center gap-1.5 text-xs text-muted-foreground" data-testid={`text-grades-${session.id}`}>
-                    <Layers className="h-3 w-3 shrink-0" />
-                    <span>
-                      {session.allowedCategories.length >= 9
-                        ? "All grades welcome"
-                        : `Recommended: ${session.allowedCategories.filter((g: string) => !["A", "B", "C", "D"].includes(g)).join(", ") || session.allowedCategories.join(", ")}`}
-                    </span>
+                  <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 dark:bg-muted/20 px-3 py-2.5" data-testid={`text-grades-${session.id}`}>
+                    <div className="flex items-center gap-1.5 mb-1.5">
+                      <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
+                      <span className="text-xs font-semibold text-foreground">
+                        {session.allowedCategories.length >= 9 ? "All Grades Welcome" : "Grading Criteria"}
+                      </span>
+                    </div>
+                    {session.allowedCategories.length < 9 && (
+                      <div className="flex items-center gap-1 flex-wrap">
+                        {session.allowedCategories
+                          .filter((g: string) => !["A", "B", "C", "D"].includes(g))
+                          .map((grade: string) => {
+                            const tier = grade.charAt(0);
+                            const colors = tier === "A"
+                              ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/60"
+                              : tier === "B"
+                              ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/60"
+                              : "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/60";
+                            return (
+                              <span key={grade} className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold border ${colors}`}>
+                                {grade}
+                              </span>
+                            );
+                          })}
+                      </div>
+                    )}
                   </div>
                 )}
 

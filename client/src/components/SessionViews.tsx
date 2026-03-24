@@ -949,10 +949,22 @@ function SessionPreviewDialog({
             {session.sessionType === "JUNIORS_ONLY" && (
               <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
             )}
-            {session.allowedCategories && session.allowedCategories.length > 0 && session.allowedCategories.length < 9 && (
-              <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-medium bg-muted text-muted-foreground">
-                {session.allowedCategories.join(", ")}
-              </span>
+            {session.allowedCategories && session.allowedCategories.length > 0 && (
+              session.allowedCategories.length >= 9
+                ? <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-emerald-100 text-emerald-700 dark:bg-emerald-900/40 dark:text-emerald-300 border border-emerald-300/50 dark:border-emerald-700/50">All Grades</span>
+                : session.allowedCategories.filter((g: string) => !["A", "B", "C", "D"].includes(g)).map((grade: string) => {
+                    const tier = grade.charAt(0);
+                    const colors = tier === "A"
+                      ? "bg-amber-100 text-amber-800 border-amber-300/60 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/50"
+                      : tier === "B"
+                      ? "bg-blue-100 text-blue-800 border-blue-300/60 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/50"
+                      : "bg-emerald-100 text-emerald-800 border-emerald-300/60 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/50";
+                    return (
+                      <span key={grade} className={`inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-bold border ${colors}`}>
+                        {grade}
+                      </span>
+                    );
+                  })
             )}
             {isLive && <Badge className="bg-green-600 text-white">LIVE</Badge>}
           </div>
