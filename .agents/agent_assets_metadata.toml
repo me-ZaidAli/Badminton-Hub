@@ -1,0 +1,8 @@
+uploads = []
+generated = []
+
+[[outputs]]
+id = "_DTq5o-onEE6_4AMQp_uJ"
+uri = "file://Smart-Match-Engine-Algorithm.md"
+type = "text"
+title = "Smart Match Engine — Complete Algorithm Documentation"
