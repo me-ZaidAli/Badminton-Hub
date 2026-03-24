@@ -19212,24 +19212,61 @@ export async function registerRoutes(
           and(eq(sessionAttendanceRewards.clubId, clubId), eq(sessionAttendanceRewards.isActive, true))
         ).orderBy(sessionAttendanceRewards.sessionsRequired);
 
-        const milestones = activeRewards.filter(r => r.sessionsRequired > 0).map(reward => {
+        const existingAttendanceRewards = await db.select().from(playerRewardLedger).where(
+          and(
+            eq(playerRewardLedger.playerId, user.id),
+            eq(playerRewardLedger.clubId, clubId),
+            eq(playerRewardLedger.rewardType, "SESSION_ATTENDANCE")
+          )
+        );
+
+        const milestones = [];
+        for (const reward of activeRewards.filter(r => r.sessionsRequired > 0)) {
           const config = reward.rewardConfig as any;
-          const nextMilestoneNum = Math.floor(attendedCount / reward.sessionsRequired) + 1;
+          const milestonesCompleted = Math.floor(attendedCount / reward.sessionsRequired);
+          const nextMilestoneNum = milestonesCompleted + 1;
           const nextTarget = nextMilestoneNum * reward.sessionsRequired;
           const sessionsUntilNext = nextTarget - attendedCount;
           const progressInCurrent = ((attendedCount % reward.sessionsRequired) / reward.sessionsRequired) * 100;
 
-          return {
+          const alreadyCredited = existingAttendanceRewards.filter(r => r.sourceId === reward.id);
+          const creditsDue = milestonesCompleted - alreadyCredited.length;
+
+          if (creditsDue > 0) {
+            const creditAmount = config?.credits || 0;
+            const freeSessionsAmount = config?.freeSessions || 0;
+            const giftText = config?.gift || null;
+            for (let i = 0; i < creditsDue; i++) {
+              const milestoneNum = alreadyCredited.length + i + 1;
+              await db.insert(playerRewardLedger).values({
+                playerId: user.id,
+                clubId,
+                rewardType: "SESSION_ATTENDANCE",
+                sourceId: reward.id,
+                sourceMilestone: milestoneNum,
+                description: `Attendance milestone: ${milestoneNum * reward.sessionsRequired} sessions attended`,
+                credits: creditAmount,
+                freeSessions: freeSessionsAmount,
+                gifts: giftText,
+                status: "AVAILABLE",
+              });
+            }
+            if (creditsDue > 0) {
+              console.log(`[ATTENDANCE REWARD] Auto-credited ${creditsDue} milestone(s) for user ${user.id}, club ${clubId}, reward ${reward.id}`);
+            }
+          }
+
+          milestones.push({
             rewardId: reward.id,
             sessionsRequired: reward.sessionsRequired,
             currentCount: attendedCount,
             nextTarget,
             sessionsUntilNext,
             progressPercent: progressInCurrent,
-            milestonesCompleted: Math.floor(attendedCount / reward.sessionsRequired),
+            milestonesCompleted,
             rewardConfig: config,
-          };
-        });
+          });
+        }
 
         results.push({
           clubId,
@@ -20343,16 +20380,52 @@ export async function registerRoutes(
           and(eq(sessionAttendanceRewards.clubId, profile.clubId), eq(sessionAttendanceRewards.isActive, true))
         ).orderBy(sessionAttendanceRewards.sessionsRequired);
 
-        const milestones = activeRewards.filter(r => r.sessionsRequired > 0).map(reward => {
+        const existingAttRewards = await db.select().from(playerRewardLedger).where(
+          and(
+            eq(playerRewardLedger.playerId, targetUserId),
+            eq(playerRewardLedger.clubId, profile.clubId),
+            eq(playerRewardLedger.rewardType, "SESSION_ATTENDANCE")
+          )
+        );
+
+        const milestones = [];
+        for (const reward of activeRewards.filter(r => r.sessionsRequired > 0)) {
           const config = reward.rewardConfig as any;
-          return {
+          const milestonesCompleted = Math.floor(attendedCount / reward.sessionsRequired);
+
+          const alreadyCredited = existingAttRewards.filter(r => r.sourceId === reward.id);
+          const creditsDue = milestonesCompleted - alreadyCredited.length;
+
+          if (creditsDue > 0) {
+            const creditAmount = config?.credits || 0;
+            const freeSessionsAmount = config?.freeSessions || 0;
+            const giftText = config?.gift || null;
+            for (let i = 0; i < creditsDue; i++) {
+              const milestoneNum = alreadyCredited.length + i + 1;
+              await db.insert(playerRewardLedger).values({
+                playerId: targetUserId,
+                clubId: profile.clubId,
+                rewardType: "SESSION_ATTENDANCE",
+                sourceId: reward.id,
+                sourceMilestone: milestoneNum,
+                description: `Attendance milestone: ${milestoneNum * reward.sessionsRequired} sessions attended`,
+                credits: creditAmount,
+                freeSessions: freeSessionsAmount,
+                gifts: giftText,
+                status: "AVAILABLE",
+              });
+            }
+            console.log(`[ATTENDANCE REWARD] Auto-credited ${creditsDue} milestone(s) for user ${targetUserId}, club ${profile.clubId}, reward ${reward.id}`);
+          }
+
+          milestones.push({
             rewardId: reward.id,
             sessionsRequired: reward.sessionsRequired,
             currentCount: attendedCount,
-            milestonesCompleted: Math.floor(attendedCount / reward.sessionsRequired),
+            milestonesCompleted,
             rewardConfig: config,
-          };
-        });
+          });
+        }
 
         attendanceResults.push({
           clubId: profile.clubId,
