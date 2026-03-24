@@ -1506,33 +1506,38 @@ export default function Sessions() {
                 )}
 
                 {session.allowedCategories && session.allowedCategories.length > 0 && (
-                  <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 dark:bg-muted/20 px-3 py-2.5" data-testid={`text-grades-${session.id}`}>
-                    <div className="flex items-center gap-1.5 mb-1.5">
-                      <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
-                      <span className="text-xs font-semibold text-foreground">
-                        {session.allowedCategories.length >= 9 ? "All Grades Welcome" : "Grading Criteria"}
-                      </span>
-                    </div>
-                    {session.allowedCategories.length < 9 && (
-                      <div className="flex items-center gap-1 flex-wrap">
-                        {session.allowedCategories
-                          .filter((g: string) => !["A", "B", "C", "D"].includes(g))
-                          .map((grade: string) => {
-                            const tier = grade.charAt(0);
-                            const colors = tier === "A"
-                              ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/60"
-                              : tier === "B"
-                              ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/60"
-                              : "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/60";
-                            return (
-                              <span key={grade} className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold border ${colors}`}>
-                                {grade}
-                              </span>
-                            );
-                          })}
+                  (() => {
+                    const ALL_GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+                    const grades = session.allowedCategories.filter((g: string) => !["A", "B", "C", "D"].includes(g));
+                    const isAll = ALL_GRADES.every(g => session.allowedCategories!.includes(g));
+                    return (
+                      <div className="mt-3 rounded-lg border border-border/50 bg-muted/30 dark:bg-muted/20 px-3 py-2.5" data-testid={`text-grades-${session.id}`}>
+                        <div className="flex items-center gap-1.5 mb-1.5">
+                          <Shield className="h-3.5 w-3.5 text-primary shrink-0" />
+                          <span className="text-xs font-semibold text-foreground">
+                            {isAll ? "All Grades Welcome" : "Grading Criteria"}
+                          </span>
+                        </div>
+                        {!isAll && (
+                          <div className="flex items-center gap-1 flex-wrap">
+                            {grades.map((grade: string) => {
+                              const tier = grade.charAt(0);
+                              const colors = tier === "A"
+                                ? "bg-amber-100 text-amber-800 border-amber-300 dark:bg-amber-900/50 dark:text-amber-300 dark:border-amber-700/60"
+                                : tier === "B"
+                                ? "bg-blue-100 text-blue-800 border-blue-300 dark:bg-blue-900/50 dark:text-blue-300 dark:border-blue-700/60"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-300 dark:bg-emerald-900/50 dark:text-emerald-300 dark:border-emerald-700/60";
+                              return (
+                                <span key={grade} className={`inline-flex items-center rounded-md px-2 py-0.5 text-[11px] font-bold border ${colors}`}>
+                                  {grade}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
-                    )}
-                  </div>
+                    );
+                  })()
                 )}
 
                 {(() => {
