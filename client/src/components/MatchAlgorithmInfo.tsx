@@ -23,11 +23,12 @@ export function MatchAlgorithmInfoButton() {
           </DialogDescription>
         </DialogHeader>
         <Tabs defaultValue="overview" className="w-full" data-testid="content-match-algorithm-info">
-          <TabsList className="w-full grid grid-cols-5 h-auto">
+          <TabsList className="w-full grid grid-cols-6 h-auto">
             <TabsTrigger value="overview" className="text-xs py-1.5">Overview</TabsTrigger>
             <TabsTrigger value="scoring" className="text-xs py-1.5">Scoring</TabsTrigger>
             <TabsTrigger value="modes" className="text-xs py-1.5">Modes</TabsTrigger>
             <TabsTrigger value="gender" className="text-xs py-1.5">Gender</TabsTrigger>
+            <TabsTrigger value="v2" className="text-xs py-1.5">v2 Engine</TabsTrigger>
             <TabsTrigger value="advanced" className="text-xs py-1.5">Advanced</TabsTrigger>
           </TabsList>
 
@@ -114,24 +115,25 @@ export function MatchAlgorithmInfoButton() {
                 <div className="rounded-lg border p-3 bg-red-500/5 border-red-500/20">
                   <p className="font-medium text-foreground mb-1 text-xs flex items-center gap-1.5">
                     <Badge variant="destructive" className="text-[10px] px-1.5">HIGHEST</Badge>
-                    Equal Playing Time (Match Count Deficit)
+                    Equal Playing Time (Capped Deficit)
                   </p>
                   <div className="text-xs text-muted-foreground space-y-0.5">
-                    <p><strong>-100 points</strong> per game deficit from global minimum (per player)</p>
+                    <p><strong>Deficit 1:</strong> -100 · <strong>Deficit 2:</strong> -170 · <strong>Deficit 3+:</strong> -210 (capped)</p>
                     <p><strong>-20 points</strong> per total games played (per player)</p>
                     <p><strong>-80 points</strong> per spread between most and least played in a match</p>
-                    <p className="text-foreground/70 mt-1">This is the strongest factor. A player with 0 games will always be chosen over a player with 2 games, regardless of other factors.</p>
+                    <p className="text-foreground/70 mt-1">v2: Diminishing returns prevent extreme deficits from overriding match quality. Max penalty capped at -210 per player.</p>
                   </div>
                 </div>
 
                 <div className="rounded-lg border p-3 bg-amber-500/5 border-amber-500/20">
                   <p className="font-medium text-foreground mb-1 text-xs flex items-center gap-1.5">
                     <Badge className="text-[10px] px-1.5 bg-amber-500">HIGH</Badge>
-                    Priority Players (Queue Waiting)
+                    Priority Players (Rebalanced)
                   </p>
                   <div className="text-xs text-muted-foreground">
-                    <p><strong>+200 points</strong> per priority player in the match</p>
-                    <p className="text-foreground/70 mt-1">Players who have been waiting the longest get priority status, ensuring they get on court sooner.</p>
+                    <p><strong>+150 points</strong> if the priority player has a deficit (needs games)</p>
+                    <p><strong>+80 points</strong> if the priority player has no deficit</p>
+                    <p className="text-foreground/70 mt-1">v2: Reduced from flat +200 to prevent priority from overriding match quality entirely.</p>
                   </div>
                 </div>
 
@@ -153,12 +155,12 @@ export function MatchAlgorithmInfoButton() {
                 <div className="rounded-lg border p-3 bg-purple-500/5 border-purple-500/20">
                   <p className="font-medium text-foreground mb-1 text-xs flex items-center gap-1.5">
                     <Badge className="text-[10px] px-1.5 bg-purple-500">VARIETY</Badge>
-                    Partner & Opponent Variety
+                    Partner & Opponent Variety (Strengthened)
                   </p>
                   <div className="text-xs text-muted-foreground space-y-0.5">
-                    <p><strong>-10 points</strong> per repeated partner pairing (×repeat count)</p>
+                    <p><strong>Partner repeat 1:</strong> -25 · <strong>Repeat 2:</strong> -50 · <strong>Repeat 3+:</strong> -80</p>
                     <p><strong>-8 points</strong> per repeated opponent matchup (×repeat count)</p>
-                    <p className="text-foreground/70 mt-1">Tracked across the entire session. Fixed pairs are exempt from the partner repeat penalty.</p>
+                    <p className="text-foreground/70 mt-1">v2: Partner penalties increased from flat -10 to escalating -25/-50/-80. Fixed pairs remain exempt.</p>
                   </div>
                 </div>
 
@@ -190,19 +192,18 @@ export function MatchAlgorithmInfoButton() {
             </section>
 
             <section>
-              <h4 className="font-semibold text-foreground mb-1.5">Scoring Example</h4>
+              <h4 className="font-semibold text-foreground mb-1.5">Scoring Example (v2)</h4>
               <div className="rounded-lg border p-3 bg-muted/20">
                 <p className="text-xs text-muted-foreground mb-2">
-                  Match candidate: Players A(B1, 0 games), B(B2, 0 games) vs C(B3, 1 game), D(A3, 0 games)
+                  Match candidate: Players A(B1, 0 games), B(B2, 0 games) vs C(B3, 1 game), D(A3, 0 games) — MID phase
                 </p>
                 <div className="text-xs space-y-0.5 font-mono text-muted-foreground">
                   <p>Equal time: -(0+0+1+0)×20 = <span className="text-red-400">-20</span></p>
-                  <p>Deficit C: -(1-0)×100 = <span className="text-red-400">-100</span></p>
+                  <p>Deficit C(1): capped = <span className="text-red-400">-100</span></p>
                   <p>Spread(1): -1×80 = <span className="text-red-400">-80</span></p>
-                  <p>Grade spread(2): <span className="text-green-400">+50</span></p>
-                  <p>High-level quality (avg 5.5, spread ≤2): <span className="text-green-400">+20</span></p>
+                  <p>Match quality(avg 5.5, spread 2): <span className="text-green-400">+60</span></p>
                   <p>No repeats: <span className="text-muted-foreground/50">0</span></p>
-                  <p className="border-t pt-1 mt-1 font-bold text-foreground">Total: -130</p>
+                  <p className="border-t pt-1 mt-1 font-bold text-foreground">Total: -140</p>
                 </div>
               </div>
             </section>
@@ -292,7 +293,10 @@ export function MatchAlgorithmInfoButton() {
                     <tr className="border-b"><td className="py-1">Category matching</td><td className="text-center">—</td><td className="text-center">✅ +35/+15</td></tr>
                     <tr className="border-b"><td className="py-1">Grade hard filter (singles)</td><td className="text-center">—</td><td className="text-center">✅ Max 4 tiers</td></tr>
                     <tr className="border-b"><td className="py-1">Gender-aware pairing</td><td className="text-center">✅ Active</td><td className="text-center">✅ Active</td></tr>
-                    <tr><td className="py-1">Priority players</td><td className="text-center">✅ +200</td><td className="text-center">✅ +200</td></tr>
+                    <tr className="border-b"><td className="py-1">Match quality score</td><td className="text-center">✅ Active</td><td className="text-center">✅ Active</td></tr>
+                    <tr className="border-b"><td className="py-1">Session phase logic</td><td className="text-center">✅ Active</td><td className="text-center">✅ Active</td></tr>
+                    <tr className="border-b"><td className="py-1">Anti-dominance</td><td className="text-center">✅ -30</td><td className="text-center">✅ -30</td></tr>
+                    <tr><td className="py-1">Priority players</td><td className="text-center">✅ +150/+80</td><td className="text-center">✅ +150/+80</td></tr>
                   </tbody>
                 </table>
               </div>
@@ -335,10 +339,11 @@ export function MatchAlgorithmInfoButton() {
               </p>
               <div className="rounded-lg border p-3 space-y-1.5 text-xs text-muted-foreground">
                 <p><strong>1.</strong> Calculates maximum possible all-female matches: floor(females / 4)</p>
-                <p><strong>2.</strong> Allocates up to 80% of queue target as female-only slots</p>
+                <p><strong>2.</strong> Allocates up to 70% of queue target as female-only slots (configurable via settings)</p>
                 <p><strong>3.</strong> Remaining slots are filled with mixed-gender matches</p>
                 <p><strong>4.</strong> Mixed slots rotate which males participate (penalty for reusing same males: -25 per repeat)</p>
                 <p><strong>5.</strong> If not enough females for female-only slot, falls back to mixed</p>
+                <p className="text-foreground/70 mt-1">v2: Quota ratio reduced from fixed 80% to configurable default 70%. Admins can adjust per session.</p>
               </div>
             </section>
 
@@ -366,6 +371,107 @@ export function MatchAlgorithmInfoButton() {
             </section>
           </TabsContent>
 
+          <TabsContent value="v2" className="space-y-4 text-sm mt-4">
+            <section>
+              <h4 className="font-semibold text-foreground mb-1.5 flex items-center gap-2">
+                <Zap className="w-4 h-4 text-amber-500" />
+                v2 Engine Upgrades
+              </h4>
+              <p className="text-muted-foreground leading-relaxed">
+                The v2 Smart Match Engine introduces 12 improvements for better match quality, fairness, and configurability — while remaining fully deterministic and backward compatible.
+              </p>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-foreground mb-1.5">New Scoring Functions</h4>
+              <div className="space-y-2">
+                <div className="rounded-lg border p-3 bg-blue-500/5 border-blue-500/20">
+                  <p className="font-medium text-foreground text-xs mb-1">Match Quality Score (New Core Factor)</p>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <p><strong>Spread ≤ 2:</strong> +60 · <strong>Spread ≤ 4:</strong> +20 · <strong>Spread {'>'} 4:</strong> -40</p>
+                    <p><strong>High-level bonus:</strong> +40 if avg rank ≥ 6 and spread ≤ 2</p>
+                    <p><strong>Beginner bonus:</strong> +20 if avg rank ≤ 3 and spread ≤ 2</p>
+                    <p className="text-foreground/70 mt-1">Ensures "good matches" are always preferred. Phase-weighted — stronger in late session.</p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-3 bg-red-500/5 border-red-500/20">
+                  <p className="font-medium text-foreground text-xs mb-1">Match Quality Floor (Hard Filter)</p>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <p><strong>Doubles:</strong> Reject if grade spread {'>'} 5 tiers</p>
+                    <p><strong>Social Singles:</strong> Reject if grade difference {'>'} 6</p>
+                    <p><strong>Dynamic:</strong> High-level matches (avg rank ≥ 6) reject if spread {'>'} 4</p>
+                    <p className="text-foreground/70 mt-1">Extremely unbalanced matches are prevented from ever being considered.</p>
+                  </div>
+                </div>
+
+                <div className="rounded-lg border p-3 bg-orange-500/5 border-orange-500/20">
+                  <p className="font-medium text-foreground text-xs mb-1">Anti-Dominance Rule</p>
+                  <div className="text-xs text-muted-foreground space-y-0.5">
+                    <p>Tracks how often each player appears in top-scored matches</p>
+                    <p><strong>-30 penalty</strong> when a player exceeds the appearance threshold (30% of total players)</p>
+                    <p className="text-foreground/70 mt-1">Prevents the same strong players from always dominating the best court.</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-foreground mb-1.5">Session Phase Logic</h4>
+              <div className="rounded-lg border p-3 text-xs text-muted-foreground space-y-1.5">
+                <p>The engine adapts scoring weights based on session progress:</p>
+                <div className="grid grid-cols-3 gap-2 mt-2">
+                  <div className="rounded border p-2 text-center">
+                    <p className="font-medium text-foreground">EARLY</p>
+                    <p className="text-[10px]">Matches &lt; player count</p>
+                    <p className="text-[10px] mt-1">Strong fairness priority</p>
+                    <p className="text-[10px]">Quality: 0.8×</p>
+                  </div>
+                  <div className="rounded border p-2 text-center bg-primary/5">
+                    <p className="font-medium text-foreground">MID</p>
+                    <p className="text-[10px]">Matches &lt; 2× players</p>
+                    <p className="text-[10px] mt-1">Balanced scoring</p>
+                    <p className="text-[10px]">All factors: 1.0×</p>
+                  </div>
+                  <div className="rounded border p-2 text-center">
+                    <p className="font-medium text-foreground">LATE</p>
+                    <p className="text-[10px]">Matches ≥ 2× players</p>
+                    <p className="text-[10px] mt-1">Quality priority</p>
+                    <p className="text-[10px]">Quality: 1.3× · Deficit: 0.7×</p>
+                  </div>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-foreground mb-1.5">Performance & Court Optimisation</h4>
+              <div className="space-y-2">
+                <div className="rounded-lg border p-3 text-xs text-muted-foreground space-y-1">
+                  <p><strong>Adaptive candidates:</strong> ≤8 players → 120 candidates · ≤12 players → 180 · 13+ → 240</p>
+                  <p><strong>Grade rank cache:</strong> Cached lookups avoid recalculating grade-to-rank mappings</p>
+                  <p><strong>Court assignment:</strong> Generated matches are sorted by quality score — best match goes to Court 1</p>
+                </div>
+              </div>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-foreground mb-1.5">Match Closeness Memory</h4>
+              <div className="rounded-lg border p-3 text-xs text-muted-foreground space-y-1">
+                <p>When match score history is provided, the engine remembers past results:</p>
+                <p><strong>+15 bonus</strong> for rematching players who had a close game (score diff ≤ 5)</p>
+                <p><strong>-20 penalty</strong> for rematching players from one-sided games (score diff ≥ 15)</p>
+                <p className="text-foreground/70 mt-1">Future-ready feature — activates when match scoring data is available.</p>
+              </div>
+            </section>
+
+            <section>
+              <h4 className="font-semibold text-foreground mb-1.5">Backward Compatibility</h4>
+              <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+                <p>All v2 features are backward compatible. The new <code className="bg-muted px-1 rounded">settings</code> parameter is optional — existing code works without changes. The engine remains fully deterministic: same inputs always produce the same outputs.</p>
+              </div>
+            </section>
+          </TabsContent>
+
           <TabsContent value="advanced" className="space-y-4 text-sm mt-4">
             <section>
               <h4 className="font-semibold text-foreground mb-1.5 flex items-center gap-2">
@@ -375,7 +481,7 @@ export function MatchAlgorithmInfoButton() {
               <div className="text-xs text-muted-foreground space-y-1.5">
                 <p>Admins can lock two players as a "fixed pair". The engine guarantees they are always on the same team together.</p>
                 <div className="rounded-lg border p-3 space-y-1">
-                  <p><strong>Partner repeat exemption:</strong> Fixed pairs are exempt from the -10 partner repeat penalty (since they always play together by design)</p>
+                  <p><strong>Partner repeat exemption:</strong> Fixed pairs are exempt from the partner repeat penalty (since they always play together by design)</p>
                   <p><strong>Both-or-neither rule:</strong> If one player of a fixed pair is in a match, the other must be too — you cannot have one without the other</p>
                   <p><strong>Duplicate matchup prevention:</strong> With fixed pairs, the engine checks for duplicate team-vs-team matchups across all generated matches and finds alternatives if needed</p>
                   <p><strong>Constraint blocked:</strong> If no valid match exists without duplicating an existing matchup, the engine returns a "pair constraint blocked" message rather than generating an invalid match</p>
@@ -389,7 +495,7 @@ export function MatchAlgorithmInfoButton() {
                 Candidate Generation (Doubles)
               </h4>
               <div className="text-xs text-muted-foreground space-y-1.5">
-                <p>Up to 120 candidate matches are generated per round using three strategies:</p>
+                <p>Up to 120-240 candidate matches (adaptive based on player count) are generated per round using three strategies:</p>
                 <div className="rounded-lg border p-3 space-y-1">
                   <p><strong>1. Fixed pair teams:</strong> Fixed pairs form team units. These are matched against each other or against ad-hoc pairs.</p>
                   <p><strong>2. Grade-sorted pairs:</strong> Non-fixed players are sorted by grade (descending). Adjacent players are paired as team units, then matched against each other.</p>
