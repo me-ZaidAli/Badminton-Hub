@@ -83,6 +83,7 @@ const MemberImport = lazy(() => import("@/pages/admin/MemberImport"));
 const UserApproval = lazy(() => import("@/pages/admin/UserApproval"));
 const ClubManagement = lazy(() => import("@/pages/admin/ClubManagement"));
 const ClubApprovals = lazy(() => import("@/pages/admin/ClubApprovals"));
+const ClubDashboard = lazy(() => import("@/pages/admin/ClubDashboard"));
 const PlayerProfile = lazy(() => import("@/pages/admin/PlayerProfile"));
 const Analytics = lazy(() => import("@/pages/admin/Analytics"));
 const AcquisitionAnalytics = lazy(() => import("@/pages/admin/AcquisitionAnalytics"));
@@ -634,6 +635,9 @@ function Router() {
       </Route>
       <Route path="/admin/club-approvals">
         <OwnerRoute component={ClubApprovals} />
+      </Route>
+      <Route path="/admin/club/:clubId">
+        <PrivateRoute component={ClubDashboard} />
       </Route>
       <Route path="/admin/venues">
         <PrivateRoute component={Venues} />

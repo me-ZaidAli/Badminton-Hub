@@ -2354,16 +2354,32 @@ export default function Clubs() {
                   </div>
                 )}
                 {user && (() => {
-                  const isOwner = selectedClub.ownerId === user.id;
-                  if (isOwner) {
-                    return null;
+                  const isClubOwner = selectedClub.ownerId === user.id;
+                  const isAdminOfClub = myAdminClubs?.some((c: any) => c.id === selectedClub.id);
+                  const isSuperAdmin = user.role === "OWNER";
+                  const hasAdminAccess = isClubOwner || isAdminOfClub || isSuperAdmin;
+                  if (isClubOwner) {
+                    return (
+                      <Button className="w-full sm:w-auto" data-testid="button-go-club-dashboard" onClick={() => { setSelectedClub(null); navigate(`/admin/club/${selectedClub.id}`); }}>
+                        <Building2 className="w-4 h-4 mr-2" />
+                        Club Dashboard
+                      </Button>
+                    );
                   }
                   const state = getJoinButtonState(selectedClub.id);
                   if (state === "member") {
                     return (
-                      <Button className="w-full sm:w-auto" data-testid="button-go-dashboard" onClick={() => { setSelectedClub(null); navigate("/dashboard"); }}>
-                        Go to Dashboard
-                      </Button>
+                      <div className="flex gap-2 w-full sm:w-auto">
+                        {hasAdminAccess && (
+                          <Button variant="default" className="flex-1 sm:flex-initial" data-testid="button-go-club-dashboard-admin" onClick={() => { setSelectedClub(null); navigate(`/admin/club/${selectedClub.id}`); }}>
+                            <Building2 className="w-4 h-4 mr-2" />
+                            Club Dashboard
+                          </Button>
+                        )}
+                        <Button variant={hasAdminAccess ? "outline" : "default"} className="flex-1 sm:flex-initial" data-testid="button-go-dashboard" onClick={() => { setSelectedClub(null); navigate("/dashboard"); }}>
+                          Go to Dashboard
+                        </Button>
+                      </div>
                     );
                   }
                   if (state === "pending") {

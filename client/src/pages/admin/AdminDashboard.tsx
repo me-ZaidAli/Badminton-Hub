@@ -1,4 +1,4 @@
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useUser } from "@/hooks/use-auth";
 import { usePlayers, usePendingUsers } from "@/hooks/use-players";
 import { useSessions } from "@/hooks/use-sessions";
@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings } from "lucide-react";
+import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, ChevronRight } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -343,6 +343,7 @@ function HistoricalImportButton() {
 }
 
 export default function AdminDashboard() {
+  const [, navigate] = useLocation();
   const { data: user } = useUser();
   const { data: players } = usePlayers();
   const { data: sessions } = useSessions();
@@ -544,6 +545,32 @@ export default function AdminDashboard() {
         </Card>
       </div>
 
+      {myAdminClubs && myAdminClubs.length > 0 && (
+        <div>
+          <div className="flex items-center gap-2 mb-3">
+            <div className="h-px flex-1 bg-border/50" />
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">My Clubs</p>
+            <div className="h-px flex-1 bg-border/50" />
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {myAdminClubs.map((club: any) => (
+              <Card key={club.id} className="border-border/40 cursor-pointer hover:shadow-md transition-shadow" data-testid={`card-my-club-${club.id}`} onClick={() => navigate(`/admin/club/${club.id}`)}>
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="bg-primary/10 rounded-xl p-2.5 shrink-0">
+                    <Building2 className="w-5 h-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold truncate">{club.name}</p>
+                    <p className="text-xs text-muted-foreground">View club dashboard</p>
+                  </div>
+                  <ChevronRight className="h-4 w-4 text-muted-foreground" />
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="space-y-6">
         {allSections.map(section => (
           <div key={section.label}>
@@ -586,8 +613,8 @@ export default function AdminDashboard() {
             </TableRow></TableHeader>
             <TableBody>
               {analytics?.clubs?.map((club) => (
-                <TableRow key={club.clubId}>
-                  <TableCell className="font-medium">{club.clubName}</TableCell>
+                <TableRow key={club.clubId} className="cursor-pointer hover:bg-muted/50" onClick={() => navigate(`/admin/club/${club.clubId}`)}>
+                  <TableCell className="font-medium text-primary">{club.clubName}</TableCell>
                   <TableCell className="text-right">{club.totalPlayers}</TableCell>
                   <TableCell className="text-right">{club.totalSessions}</TableCell>
                   <TableCell><Badge variant={club.status === "APPROVED" ? "default" : "secondary"}>{club.status}</Badge></TableCell>

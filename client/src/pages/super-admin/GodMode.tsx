@@ -18,7 +18,7 @@ import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
   Save, Trash2, Pencil, Building2, Clock, User, Mail, PoundSterling,
   Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell, Gift, Activity, UserX, Trophy, Award, Share2,
-  UserCheck, Baby, Target, FlaskConical, Megaphone, Swords
+  UserCheck, Baby, Target, FlaskConical, Megaphone, Swords, ExternalLink
 } from "lucide-react";
 import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
 import { GlobalMergeModal } from "@/components/GlobalMergeModal";
@@ -1338,16 +1338,27 @@ export default function GodMode() {
           {clubsLoading ? (
             <div className="flex items-center justify-center py-4"><Loader2 className="w-5 h-5 animate-spin" /></div>
           ) : (
-            <Select value={selectedClubId} onValueChange={setSelectedClubId}>
-              <SelectTrigger data-testid="select-god-club"><SelectValue placeholder="Choose a club..." /></SelectTrigger>
-              <SelectContent>
-                {clubs?.map(c => (
-                  <SelectItem key={c.id} value={String(c.id)}>
-                    {c.name} ({c.status})
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <div className="flex items-center gap-2">
+              <div className="flex-1">
+                <Select value={selectedClubId} onValueChange={setSelectedClubId}>
+                  <SelectTrigger data-testid="select-god-club"><SelectValue placeholder="Choose a club..." /></SelectTrigger>
+                  <SelectContent>
+                    {clubs?.map(c => (
+                      <SelectItem key={c.id} value={String(c.id)}>
+                        {c.name} ({c.status})
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              {selectedClubId && (
+                <Link href={`/admin/club/${selectedClubId}`}>
+                  <Button size="sm" variant="outline" data-testid="button-god-view-club-dashboard">
+                    <ExternalLink className="h-3.5 w-3.5 mr-1.5" /> Club Dashboard
+                  </Button>
+                </Link>
+              )}
+            </div>
           )}
         </CardContent>
       </Card>
