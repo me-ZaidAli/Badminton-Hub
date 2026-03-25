@@ -3755,7 +3755,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
   }, [forcedCompletionIndex, forcedCompletionActive, currentFcMatchForEffect?.pointsToPlayTo, defaultPointsToPlayTo]);
 
-  const attendingSignups = confirmedSignups.filter(s => !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING");
+  const attendingSignups = confirmedSignups.filter(s => !(s as any).attendanceStatus || (s as any).attendanceStatus === "ATTENDING" || (s as any).attendanceStatus === "ATTENDED");
   const activePlayerCount = attendingSignups.filter(s => !s.isPaused).length;
   const minPlayersNeeded = playersPerSide * 2;
 
