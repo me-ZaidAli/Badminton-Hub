@@ -730,6 +730,92 @@ function generateDeterministicCandidateDoubles(
   return candidates;
 }
 
+function generateMixedDoublesCandidates(
+  eligible: Player[],
+  fixedPairs: FixedPair[],
+  states: PlayerStateMap,
+  cfg?: MatchEngineSettings
+): MatchResult[] {
+  const candidates: MatchResult[] = [];
+  const maxCandidates = getCandidateLimit(eligible.length, cfg);
+
+  const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+  const males = deterministicSort(available.filter(p => getEffectiveGender(p) !== "FEMALE"));
+  const females = deterministicSort(available.filter(p => getEffectiveGender(p) === "FEMALE"));
+
+  if (males.length < 2 || females.length < 2) return candidates;
+
+  for (let fi = 0; fi < females.length && candidates.length < maxCandidates; fi++) {
+    for (let fj = fi + 1; fj < females.length && candidates.length < maxCandidates; fj++) {
+      for (let mi = 0; mi < males.length && candidates.length < maxCandidates; mi++) {
+        for (let mj = mi + 1; mj < males.length && candidates.length < maxCandidates; mj++) {
+          const f1 = females[fi], f2 = females[fj], m1 = males[mi], m2 = males[mj];
+
+          const c1: MatchResult = {
+            teamAPlayer1Id: Math.min(m1.id, f1.id),
+            teamAPlayer2Id: Math.max(m1.id, f1.id),
+            teamBPlayer1Id: Math.min(m2.id, f2.id),
+            teamBPlayer2Id: Math.max(m2.id, f2.id),
+          };
+          if (candidateRespectsFixedPairs(c1, fixedPairs)) {
+            candidates.push(c1);
+          }
+
+          if (candidates.length < maxCandidates) {
+            const c2: MatchResult = {
+              teamAPlayer1Id: Math.min(m1.id, f2.id),
+              teamAPlayer2Id: Math.max(m1.id, f2.id),
+              teamBPlayer1Id: Math.min(m2.id, f1.id),
+              teamBPlayer2Id: Math.max(m2.id, f1.id),
+            };
+            if (candidateRespectsFixedPairs(c2, fixedPairs)) {
+              candidates.push(c2);
+            }
+          }
+        }
+      }
+    }
+  }
+
+  return candidates;
+}
+
+function generateFemaleOnlyCandidates(
+  eligible: Player[],
+  fixedPairs: FixedPair[],
+  states: PlayerStateMap,
+  cfg?: MatchEngineSettings
+): MatchResult[] {
+  const candidates: MatchResult[] = [];
+  const maxCandidates = getCandidateLimit(eligible.length, cfg);
+
+  const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+  const females = deterministicSort(available.filter(p => getEffectiveGender(p) === "FEMALE"));
+
+  if (females.length < 4) return candidates;
+
+  for (let a = 0; a < females.length && candidates.length < maxCandidates; a++) {
+    for (let b = a + 1; b < females.length && candidates.length < maxCandidates; b++) {
+      for (let c = b + 1; c < females.length && candidates.length < maxCandidates; c++) {
+        for (let d = c + 1; d < females.length && candidates.length < maxCandidates; d++) {
+          const p = [females[a], females[b], females[c], females[d]];
+          const candidate: MatchResult = {
+            teamAPlayer1Id: p[0].id,
+            teamAPlayer2Id: p[3].id,
+            teamBPlayer1Id: p[1].id,
+            teamBPlayer2Id: p[2].id,
+          };
+          if (candidateRespectsFixedPairs(candidate, fixedPairs)) {
+            candidates.push(candidate);
+          }
+        }
+      }
+    }
+  }
+
+  return candidates;
+}
+
 function generateDeterministicCandidateSingles(
   eligible: Player[],
   states: PlayerStateMap
@@ -788,6 +874,12 @@ function computeMatchSlots(
   let mixedSlots = Math.round(queueTarget * cfg.mixedTargetRatio);
   let maleSlots = queueTarget - femaleSlots - mixedSlots;
 
+  if (availableFemales >= 4 && femaleSlots < 1) {
+    femaleSlots = 1;
+    if (maleSlots > 0) maleSlots--;
+    else if (mixedSlots > 0) mixedSlots--;
+  }
+
   const maxFemaleOnlyMatches = Math.floor(availableFemales / 4);
   if (femaleSlots > maxFemaleOnlyMatches) {
     const excess = femaleSlots - maxFemaleOnlyMatches;
@@ -796,15 +888,23 @@ function computeMatchSlots(
   }
 
   const femalesRemainingAfterFemaleOnly = availableFemales - (femaleSlots * 4);
-  const maxMixedFromFemales = Math.max(0, femalesRemainingAfterFemaleOnly);
-  if (mixedSlots > maxMixedFromFemales) {
-    const excess = mixedSlots - maxMixedFromFemales;
-    mixedSlots = maxMixedFromFemales;
+  const maxMixedMatches = Math.min(
+    Math.max(0, femalesRemainingAfterFemaleOnly),
+    Math.floor(availableMales / 2)
+  );
+  if (mixedSlots > maxMixedMatches) {
+    const excess = mixedSlots - maxMixedMatches;
+    mixedSlots = maxMixedMatches;
     maleSlots += excess;
   }
 
-  if (availableMales < 1 && mixedSlots > 0) {
+  if (availableMales < 2 && mixedSlots > 0) {
     femaleSlots += mixedSlots;
+    mixedSlots = 0;
+  }
+
+  if (availableFemales < 1 && mixedSlots > 0) {
+    maleSlots += mixedSlots;
     mixedSlots = 0;
   }
 
@@ -825,8 +925,9 @@ function computeMatchSlots(
   for (let i = 0; i < maleSlots; i++) slots.push("MALE_ONLY");
 
   while (slots.length < queueTarget) {
-    if (availableMales >= 4) slots.push("MALE_ONLY");
-    else if (availableFemales >= 4) slots.push("FEMALE_ONLY");
+    if (availableFemales >= 4) slots.push("FEMALE_ONLY");
+    else if (availableFemales >= 2 && availableMales >= 2) slots.push("MIXED");
+    else if (availableMales >= 4) slots.push("MALE_ONLY");
     else if (availableFemales >= 1 && availableMales >= 1) slots.push("MIXED");
     else slots.push("MALE_ONLY");
   }
@@ -1041,7 +1142,16 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
 
     const fairnessPool = fairnessPreFilter(eligible, localCounts, 4, states);
     const candidatePool = fairnessPool.length >= 4 ? fairnessPool : eligible;
-    const candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states, cfg);
+    let candidates: MatchResult[];
+    if (slotType === "MIXED") {
+      candidates = generateMixedDoublesCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateMixedDoublesCandidates(eligible, fixedPairs || [], states, cfg);
+    } else if (slotType === "FEMALE_ONLY") {
+      candidates = generateFemaleOnlyCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateFemaleOnlyCandidates(eligible, fixedPairs || [], states, cfg);
+    } else {
+      candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states, cfg);
+    }
 
     const evaluateCandidate = (candidate: MatchResult, pool: Player[]): boolean => {
       const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
@@ -1054,6 +1164,7 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
       const candidateType = getMatchType(candidate, pool);
       if (candidateType !== slotType) return false;
 
+      if (slotType === "MIXED" && !isProperMixedDoubles(candidate, pool)) return false;
       if (slotType === "MIXED" && exceedsMixedMatchLimit(candidate, pool, mixedMaleCounts, cfg)) return false;
 
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
@@ -1101,6 +1212,10 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
         const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
         if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
         if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
+        if (genderType === "MIXED") {
+          const mt = getMatchType(candidate, eligible);
+          if (mt === "MIXED" && !isProperMixedDoubles(candidate, eligible)) continue;
+        }
         if (!passesQualityFloor(candidate, eligible, false, false, cfg)) continue;
         if (hasOpponentCooldown(candidate, opponentHistory, cfg)) continue;
 
@@ -1389,7 +1504,16 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
 
     const fairnessPool = fairnessPreFilter(eligible, localCounts, 4, states);
     const candidatePool = fairnessPool.length >= 4 ? fairnessPool : eligible;
-    const candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states, cfg);
+    let candidates: MatchResult[];
+    if (slotType === "MIXED") {
+      candidates = generateMixedDoublesCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateMixedDoublesCandidates(eligible, fixedPairs || [], states, cfg);
+    } else if (slotType === "FEMALE_ONLY") {
+      candidates = generateFemaleOnlyCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateFemaleOnlyCandidates(eligible, fixedPairs || [], states, cfg);
+    } else {
+      candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states, cfg);
+    }
     let candidatesEvaluated = 0;
 
     const scoreCandidate = (candidate: MatchResult, requireSlot: boolean): { score: number; factors: string[]; breakdown?: ScoringBreakdown } | null => {
@@ -1403,6 +1527,7 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
       if (requireSlot) {
         const candidateType = getMatchType(candidate, eligible);
         if (candidateType !== slotType) return null;
+        if (slotType === "MIXED" && !isProperMixedDoubles(candidate, eligible)) return null;
         if (slotType === "MIXED" && exceedsMixedMatchLimit(candidate, eligible, mixedMaleCounts, cfg)) return null;
       }
 
@@ -1830,6 +1955,20 @@ function isGenderUnfairDoubles(candidate: MatchResult, playerPool: Player[]): bo
   return false;
 }
 
+function isProperMixedDoubles(candidate: MatchResult, playerPool: Player[]): boolean {
+  const getPlayer = (id: number) => playerPool.find(p => p.id === id);
+  const p1 = getPlayer(candidate.teamAPlayer1Id);
+  const p2 = candidate.teamAPlayer2Id ? getPlayer(candidate.teamAPlayer2Id) : null;
+  const p3 = getPlayer(candidate.teamBPlayer1Id);
+  const p4 = candidate.teamBPlayer2Id ? getPlayer(candidate.teamBPlayer2Id) : null;
+  if (!p1 || !p2 || !p3 || !p4) return false;
+
+  const teamAFemales = [p1, p2].filter(p => getEffectiveGender(p) === "FEMALE").length;
+  const teamBFemales = [p3, p4].filter(p => getEffectiveGender(p) === "FEMALE").length;
+
+  return teamAFemales === 1 && teamBFemales === 1;
+}
+
 function getCategoryFromGrade(grade: string | null): string {
   if (!grade) return "D";
   if (grade.startsWith("A")) return "A";
@@ -2029,6 +2168,11 @@ function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
 
       if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, groupPool)) continue;
 
+      if (genderType === "MIXED") {
+        const mt = getMatchType(candidate, groupPool);
+        if (mt === "MIXED" && !isProperMixedDoubles(candidate, groupPool)) continue;
+      }
+
       const allIds = ids;
       const grades = allIds.map(id => {
         const p = groupPool.find(pp => pp.id === id);
@@ -2143,6 +2287,10 @@ function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
         const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
         if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
         if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
+        if (genderType === "MIXED") {
+          const mt = getMatchType(candidate, eligible);
+          if (mt === "MIXED" && !isProperMixedDoubles(candidate, eligible)) continue;
+        }
         candidatesEvaluated++;
 
         let score = 0;
