@@ -3542,6 +3542,19 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const { mutate: editMatchScore } = useEditMatchScore();
   const queryClient = useQueryClient();
   const { data: sessionLeaderboard } = useSessionLeaderboard(sessionId);
+  const { data: clubEngineSettings } = useQuery<{ matchmakingMode?: string }>({
+    queryKey: ["/api/clubs", clubId, "match-engine-settings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${clubId}/match-engine-settings`, { credentials: "include" });
+      if (!res.ok) return {};
+      return res.json();
+    },
+    enabled: !!clubId,
+  });
+  const { data: sessionRecord } = useQuery<any>({
+    queryKey: ["/api/sessions", sessionId],
+    enabled: !!sessionId,
+  });
   const [autoGenWaiting, setAutoGenWaiting] = useState(false);
   const [pairConstraintMessage, setPairConstraintMessage] = useState<string | null>(null);
   const [autoGenLocallyStopped, setAutoGenLocallyStopped] = useState(false);
@@ -3567,7 +3580,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    const sessionSavedMode = (session as any)?.matchmakingMode;
+    const sessionSavedMode = sessionRecord?.matchmakingMode;
     if (sessionSavedMode && ["ADVANCED", "HYBRID", "ROTATION"].includes(sessionSavedMode)) {
       setSessionMatchmakingMode(sessionSavedMode);
     } else if (clubEngineSettings?.matchmakingMode) {
@@ -3576,7 +3589,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
         setSessionMatchmakingMode(m);
       }
     }
-  }, [clubEngineSettings, session]);
+  }, [clubEngineSettings, sessionRecord]);
 
   const [enginePanelOpen, setEnginePanelOpen] = useState(false);
   const enginePanelRef = useRef<HTMLDivElement>(null);
