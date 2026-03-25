@@ -21,15 +21,18 @@ export type MatchEngineSettings = {
   maleOnlyTargetRatio: number;
   femaleOnlyTargetRatio: number;
   mixedTargetRatio: number;
-  ratioBoostBonus: number;
-  ratioOverPenalty: number;
 
   strongMaleFemaleBonus: number;
   noStrongMaleFemalePenalty: number;
   maleRotationScaling: number;
 
-  consecutiveOpponentBlock: number;
+  mixedMatchPlayerLimit: number;
+  mixedMatchPlayerWindow: number;
+
+  opponentCooldownWindow: number;
+  opponentCooldownThreshold: number;
   softOpponentPenalty: number;
+
   groupRepeatPenalty: number;
 
   hardGradeSpreadLimit: number;
@@ -59,15 +62,18 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
   maleOnlyTargetRatio: 0.5,
   femaleOnlyTargetRatio: 0.3,
   mixedTargetRatio: 0.2,
-  ratioBoostBonus: 25,
-  ratioOverPenalty: -20,
 
   strongMaleFemaleBonus: 25,
   noStrongMaleFemalePenalty: -40,
-  maleRotationScaling: -15,
+  maleRotationScaling: -20,
 
-  consecutiveOpponentBlock: 2,
+  mixedMatchPlayerLimit: 2,
+  mixedMatchPlayerWindow: 5,
+
+  opponentCooldownWindow: 3,
+  opponentCooldownThreshold: 2,
   softOpponentPenalty: -25,
+
   groupRepeatPenalty: -50,
 
   hardGradeSpreadLimit: 4,
@@ -93,12 +99,13 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       maleOnlyTargetRatio: 0.4,
       femaleOnlyTargetRatio: 0.3,
       mixedTargetRatio: 0.3,
-      ratioBoostBonus: 15,
-      ratioOverPenalty: -10,
       strongMaleFemaleBonus: 15,
       noStrongMaleFemalePenalty: -20,
       maleRotationScaling: -10,
-      consecutiveOpponentBlock: 3,
+      mixedMatchPlayerLimit: 3,
+      mixedMatchPlayerWindow: 5,
+      opponentCooldownWindow: 3,
+      opponentCooldownThreshold: 3,
       softOpponentPenalty: -15,
       groupRepeatPenalty: -30,
       hardGradeSpreadLimit: 6,
@@ -128,12 +135,13 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       maleOnlyTargetRatio: 0.5,
       femaleOnlyTargetRatio: 0.2,
       mixedTargetRatio: 0.3,
-      ratioBoostBonus: 30,
-      ratioOverPenalty: -25,
       strongMaleFemaleBonus: 30,
       noStrongMaleFemalePenalty: -50,
-      maleRotationScaling: -20,
-      consecutiveOpponentBlock: 2,
+      maleRotationScaling: -25,
+      mixedMatchPlayerLimit: 2,
+      mixedMatchPlayerWindow: 4,
+      opponentCooldownWindow: 3,
+      opponentCooldownThreshold: 2,
       softOpponentPenalty: -35,
       groupRepeatPenalty: -60,
       hardGradeSpreadLimit: 3,

@@ -111,7 +111,6 @@ const FAIRNESS_SLIDERS: SliderConfig[] = [
 const VARIETY_SLIDERS: SliderConfig[] = [
   { key: "partnerRepeatWeight", label: "Partner Repeat Penalty", min: -80, max: -10, step: 5, tooltip: "Penalty for pairing with the same partner again. More negative = stronger partner variety." },
   { key: "opponentRepeatWeight", label: "Opponent Repeat Penalty", min: -25, max: -5, step: 1, tooltip: "Penalty for facing the same opponent again. Encourages diverse matchups." },
-  { key: "consecutiveOpponentBlock", label: "Consecutive Opponent Block", min: 0, max: 5, step: 1, tooltip: "Hard block if a player faces the same opponent this many times consecutively. 0 = disabled, 2 = block after 2 consecutive." },
   { key: "softOpponentPenalty", label: "Soft Opponent Penalty", min: -60, max: 0, step: 5, tooltip: "Score penalty when a player has faced the same opponent once. Applied before hard block kicks in." },
   { key: "groupRepeatPenalty", label: "4-Player Group Repeat", min: -100, max: 0, step: 5, tooltip: "Penalty when the same 4 players are grouped together again. Prevents stale groupings." },
 ];
@@ -132,8 +131,6 @@ const GENDER_SLIDERS: SliderConfig[] = [
   { key: "maleOnlyTargetRatio", label: "Male-Only Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of male-only matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
   { key: "femaleOnlyTargetRatio", label: "Female-Only Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of female-only matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
   { key: "mixedTargetRatio", label: "Mixed Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of mixed-gender matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
-  { key: "ratioBoostBonus", label: "Underrepresented Boost", min: 0, max: 50, step: 5, tooltip: "Score bonus when a match type is below its target ratio. Encourages the engine to create more of that type." },
-  { key: "ratioOverPenalty", label: "Overrepresented Penalty", min: -50, max: 0, step: 5, tooltip: "Score penalty when a match type is above its target ratio. Discourages over-producing that type." },
   { key: "strongMaleFemaleBonus", label: "Strong Male + Female Bonus", min: 0, max: 50, step: 5, tooltip: "Bonus when a strong male is paired with a female. Encourages protective pairing." },
   { key: "noStrongMaleFemalePenalty", label: "No Strong Male Penalty", min: -80, max: 0, step: 5, tooltip: "Penalty when a mixed match has no strong male player available. Discourages unbalanced mixed games." },
   { key: "maleRotationScaling", label: "Male Rotation Scaling", min: -30, max: 0, step: 5, tooltip: "Per-use penalty for repeatedly including the same male in mixed matches. Encourages rotation." },
