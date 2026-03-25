@@ -1,6 +1,7 @@
-import { useState, useMemo, useCallback } from "react";
-import { useMutation } from "@tanstack/react-query";
+import { useState, useMemo, useCallback, useEffect } from "react";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
+import { useMyAdminClubs } from "@/hooks/use-clubs";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
@@ -9,31 +10,15 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { Separator } from "@/components/ui/separator";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import {
   Settings2, RotateCcw, Save, Play, Bug, Trophy, Zap,
   Users, Target, Shield, Gauge, Info,
-  Sparkles, BarChart3, ArrowUpDown, RefreshCw, Layers, Bolt
+  Sparkles, BarChart3, ArrowUpDown, RefreshCw, Layers, Bolt, Loader2
 } from "lucide-react";
 import type { MatchEngineSettings as SettingsType, MatchmakingMode, ScoringBreakdown, MatchPreviewResult } from "@shared/matchEngineSettings";
 import { DEFAULT_SETTINGS, PRESETS } from "@shared/matchEngineSettings";
-
-const STORAGE_KEY = "matchEngineSettings";
-
-function loadSettings(): SettingsType {
-  try {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return { ...DEFAULT_SETTINGS, ...parsed };
-    }
-  } catch {}
-  return { ...DEFAULT_SETTINGS };
-}
-
-function saveSettings(settings: SettingsType) {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(settings));
-}
 
 type SliderConfig = {
   key: keyof SettingsType;
@@ -197,10 +182,55 @@ const MODE_INFO: Record<MatchmakingMode, { label: string; icon: typeof Bolt; col
 export default function MatchEngineSettingsPage() {
   const { data: user } = useUser();
   const { toast } = useToast();
-  const [settings, setSettings] = useState<SettingsType>(loadSettings);
+  const { data: adminClubs } = useMyAdminClubs(!!user);
+  const [selectedClubId, setSelectedClubId] = useState<string>("");
+  const [settings, setSettings] = useState<SettingsType>({ ...DEFAULT_SETTINGS });
   const [showDebug, setShowDebug] = useState(false);
   const [previewData, setPreviewData] = useState<PreviewResponse | null>(null);
   const [activePreset, setActivePreset] = useState<string | null>(null);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+
+  const effectiveClubId = selectedClubId || String(adminClubs?.[0]?.id || "");
+
+  const { data: serverSettings, isLoading: isLoadingSettings } = useQuery<SettingsType>({
+    queryKey: ["/api/clubs", effectiveClubId, "match-engine-settings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${effectiveClubId}/match-engine-settings`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load");
+      return res.json();
+    },
+    enabled: !!effectiveClubId,
+  });
+
+  useEffect(() => {
+    if (serverSettings && !settingsLoaded) {
+      setSettings({ ...DEFAULT_SETTINGS, ...serverSettings });
+      setSettingsLoaded(true);
+    }
+  }, [serverSettings, settingsLoaded]);
+
+  useEffect(() => {
+    setSettingsLoaded(false);
+  }, [effectiveClubId]);
+
+  const saveMutation = useMutation({
+    mutationFn: async (s: SettingsType) => {
+      const res = await fetch(`/api/clubs/${effectiveClubId}/match-engine-settings`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(s),
+        credentials: "include",
+      });
+      if (!res.ok) throw new Error("Failed to save");
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Settings saved", description: "Match engine settings saved to your club." });
+    },
+    onError: () => {
+      toast({ title: "Save failed", description: "Could not save settings. Please try again.", variant: "destructive" });
+    },
+  });
 
   const modifiedCount = useMemo(() => {
     let count = 0;
@@ -216,14 +246,14 @@ export default function MatchEngineSettingsPage() {
   }, []);
 
   const handleSave = useCallback(() => {
-    saveSettings(settings);
-    toast({ title: "Settings saved", description: "Match engine settings have been saved to your browser." });
-  }, [settings, toast]);
+    if (!effectiveClubId) return;
+    saveMutation.mutate(settings);
+  }, [settings, effectiveClubId, saveMutation]);
 
   const handleReset = useCallback(() => {
     setSettings({ ...DEFAULT_SETTINGS });
     setActivePreset("balanced");
-    toast({ title: "Settings reset", description: "All settings restored to defaults." });
+    toast({ title: "Settings reset", description: "All settings restored to defaults. Click Save to apply." });
   }, [toast]);
 
   const handlePreset = useCallback((presetKey: string) => {
@@ -231,7 +261,7 @@ export default function MatchEngineSettingsPage() {
     if (preset) {
       setSettings({ ...DEFAULT_SETTINGS, ...preset.settings });
       setActivePreset(presetKey);
-      toast({ title: `${preset.label} preset applied`, description: preset.description });
+      toast({ title: `${preset.label} preset applied`, description: `${preset.description} Click Save to apply.` });
     }
   }, [toast]);
 
@@ -427,6 +457,15 @@ export default function MatchEngineSettingsPage() {
     </div>
   );
 
+  if (isLoadingSettings && effectiveClubId) {
+    return (
+      <div className="container max-w-6xl mx-auto py-6 px-4 flex items-center justify-center gap-2">
+        <Loader2 className="h-5 w-5 animate-spin" />
+        <span className="text-muted-foreground">Loading engine settings...</span>
+      </div>
+    );
+  }
+
   return (
     <div className="container max-w-6xl mx-auto py-6 px-4 space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -440,6 +479,18 @@ export default function MatchEngineSettingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          {adminClubs && adminClubs.length > 1 && (
+            <Select value={effectiveClubId} onValueChange={setSelectedClubId}>
+              <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-club">
+                <SelectValue placeholder="Select club" />
+              </SelectTrigger>
+              <SelectContent>
+                {adminClubs.map((c: any) => (
+                  <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
           <Badge variant="outline" className={modeInfo.color} data-testid="badge-active-mode">
             <ModeIcon className="h-3 w-3 mr-1" />
             {modeInfo.label}
@@ -453,8 +504,8 @@ export default function MatchEngineSettingsPage() {
             <RotateCcw className="h-4 w-4 mr-1" />
             Reset
           </Button>
-          <Button variant="default" size="sm" onClick={handleSave} data-testid="button-save">
-            <Save className="h-4 w-4 mr-1" />
+          <Button variant="default" size="sm" onClick={handleSave} disabled={saveMutation.isPending} data-testid="button-save">
+            {saveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Save className="h-4 w-4 mr-1" />}
             Save
           </Button>
         </div>

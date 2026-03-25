@@ -15,6 +15,7 @@ import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
 import { computeSessionMetrics } from "./adaptiveFairnessAI";
 import { runSimulation } from "./matchEngineLab";
+import { DEFAULT_SETTINGS, MatchEngineSettings, MatchmakingMode } from "@shared/matchEngineSettings";
 import { sendTicketReplyNotification, sendNewMessageNotification, sendWithdrawSpaceNotification, sendAdminSessionReminder } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
@@ -23,6 +24,16 @@ import { registerTournamentRoutes } from "./tournamentRoutes";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+
+async function loadClubEngineSettings(clubId: number, modeOverride?: string): Promise<MatchEngineSettings> {
+  const club = await storage.getClub(clubId);
+  const saved = (club as any)?.matchEngineSettings;
+  const cfg = saved ? { ...DEFAULT_SETTINGS, ...saved } : { ...DEFAULT_SETTINGS };
+  if (modeOverride && (modeOverride === "ADVANCED" || modeOverride === "HYBRID" || modeOverride === "ROTATION")) {
+    cfg.matchmakingMode = modeOverride as MatchmakingMode;
+  }
+  return cfg;
+}
 
 function extractFixedPairs(signups: any[]): [number, number][] {
   const pairGroups = new Map<number, number[]>();
@@ -4780,6 +4791,7 @@ export async function registerRoutes(
             }
           }
 
+          const autoEngineConfig = await loadClubEngineSettings(session.clubId);
           const generated = generateSmartMatches({
             mode: matchMode as "SOCIAL" | "COMPETITIVE",
             players: autoActivePlayers,
@@ -4791,6 +4803,7 @@ export async function registerRoutes(
             playerMatchCounts,
             fixedPairs: extractFixedPairs(signups),
             priorityPlayerIds: autoPriorityIds.length > 0 ? autoPriorityIds : undefined,
+            settings: { engineConfig: autoEngineConfig },
           });
 
           const safeDeleteReplacements = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -4972,6 +4985,7 @@ export async function registerRoutes(
           .map(p => p.id);
       }
 
+      const reshuffleEngineConfig = await loadClubEngineSettings(session.clubId);
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
         players,
@@ -4983,6 +4997,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
         priorityPlayerIds,
+        settings: { engineConfig: reshuffleEngineConfig },
       });
 
       if (generated.matches.length === 0) {
@@ -5078,6 +5093,7 @@ export async function registerRoutes(
         .sort((a, b) => (playerMatchCounts.get(a.id) || 0) - (playerMatchCounts.get(b.id) || 0))
         .map(p => p.id);
 
+      const lowGamesEngineConfig = await loadClubEngineSettings(session.clubId);
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
         players,
@@ -5089,6 +5105,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
         priorityPlayerIds: lowGamePlayers.length > 0 ? lowGamePlayers : undefined,
+        settings: { engineConfig: lowGamesEngineConfig },
       });
 
       if (generated.matches.length === 0) {
@@ -5376,6 +5393,7 @@ export async function registerRoutes(
         }
       }
 
+      const autoGenEngineConfig = await loadClubEngineSettings(session.clubId);
       const generated = generateSmartMatches({
         mode: (session.matchMode as "SOCIAL" | "COMPETITIVE") || "SOCIAL",
         players: smartPlayers,
@@ -5387,6 +5405,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(eligibleSignups),
         priorityPlayerIds: priorityPlayerIdsAuto.length > 0 ? priorityPlayerIdsAuto : undefined,
+        settings: { engineConfig: autoGenEngineConfig },
       });
 
       const safeAutoMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -5452,7 +5471,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Cannot generate matches for a completed session" });
       }
 
-      const { mode, queueTargetSize, genderType, isAutoGenerate } = req.body;
+      const { mode, queueTargetSize, genderType, isAutoGenerate, matchmakingMode: modeOverride } = req.body;
+
+      if (modeOverride && ["ADVANCED", "HYBRID", "ROTATION"].includes(modeOverride)) {
+        if ((session as any).matchmakingMode !== modeOverride) {
+          await storage.updateSession(sessionId, { matchmakingMode: modeOverride } as any);
+        }
+      }
 
       if (isAutoGenerate && !session.autoGenerateActive) {
         return res.json({ status: "stopped", message: "Auto-generation is stopped for this session", matches: [] });
@@ -5588,6 +5613,8 @@ export async function registerRoutes(
       }
 
       const fixedPairs = extractFixedPairs(eligibleSignups);
+      const effectiveModeOverride = modeOverride || (session as any).matchmakingMode || undefined;
+      const smartEngineConfig = await loadClubEngineSettings(session.clubId, effectiveModeOverride);
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
         players: activePlayers,
@@ -5599,6 +5626,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs,
         priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
+        settings: { engineConfig: smartEngineConfig },
       });
 
       if (generated.pairConstraintBlocked) {
@@ -5733,6 +5761,7 @@ export async function registerRoutes(
           }
         }
 
+        const schedEngineConfig = await loadClubEngineSettings(session.clubId);
         const generated = generateSmartMatches({
           mode: matchMode as "SOCIAL" | "COMPETITIVE",
           players: allPlayers,
@@ -5744,6 +5773,7 @@ export async function registerRoutes(
           playerMatchCounts,
           priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
           fixedPairs,
+          settings: { engineConfig: schedEngineConfig },
         });
 
         const roundMatches = deduplicateGeneratedMatches(generated.matches, new Set<number>()).slice(0, matchesPerRound);
@@ -6221,6 +6251,56 @@ export async function registerRoutes(
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to get recommendations" });
+    }
+  });
+
+  app.get("/api/clubs/:clubId/match-engine-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    const user = req.user as any;
+    if (!(await canManageSessions(user.id, user.role, clubId))) return res.sendStatus(403);
+    try {
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const { DEFAULT_SETTINGS } = await import("@shared/matchEngineSettings");
+      const saved = (club as any).matchEngineSettings;
+      res.json(saved ? { ...DEFAULT_SETTINGS, ...saved } : DEFAULT_SETTINGS);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to load settings" });
+    }
+  });
+
+  app.put("/api/clubs/:clubId/match-engine-settings", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.clubId);
+    const user = req.user as any;
+    if (!(await canManageSessions(user.id, user.role, clubId))) return res.sendStatus(403);
+    try {
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const settings = req.body;
+      if (typeof settings !== "object" || settings === null || Array.isArray(settings)) {
+        return res.status(400).json({ message: "Settings must be an object" });
+      }
+      const validKeys = new Set(Object.keys(DEFAULT_SETTINGS));
+      const sanitized: Record<string, any> = {};
+      for (const [key, val] of Object.entries(settings)) {
+        if (validKeys.has(key)) {
+          if (key === "matchmakingMode" && typeof val === "string" && ["ADVANCED", "HYBRID", "ROTATION"].includes(val)) {
+            sanitized[key] = val;
+          } else if (key === "enablePhaseAdjustments" && typeof val === "boolean") {
+            sanitized[key] = val;
+          } else if (key === "rotationWinnerStays" && typeof val === "boolean") {
+            sanitized[key] = val;
+          } else if (typeof val === "number" && !isNaN(val)) {
+            sanitized[key] = val;
+          }
+        }
+      }
+      await storage.updateClub(clubId, { matchEngineSettings: sanitized } as any);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to save settings" });
     }
   });
 

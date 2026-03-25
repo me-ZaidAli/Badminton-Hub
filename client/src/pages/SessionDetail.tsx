@@ -322,6 +322,16 @@ export default function SessionDetail() {
     enabled: !!user,
   });
 
+  const { data: clubEngineSettings } = useQuery<{ matchmakingMode?: string }>({
+    queryKey: ["/api/clubs", session?.clubId, "match-engine-settings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${session!.clubId}/match-engine-settings`, { credentials: "include" });
+      if (!res.ok) return {};
+      return res.json();
+    },
+    enabled: !!session?.clubId && !!user,
+  });
+
   const userProfileForClub = user?.playerProfiles?.find((p: any) => session && p.clubId === session.clubId) || user?.playerProfiles?.[0];
   const userSignup = signups?.find(s => s.playerId === userProfileForClub?.id);
   const isSignedUp = userSignup && ((userSignup as any).signupStatus === "CONFIRMED" || !(userSignup as any).signupStatus);
@@ -3544,6 +3554,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [crowdControlOpen, setCrowdControlOpen] = useState(false);
   const [queueTargetSize, setQueueTargetSize] = useState(savedQueueTargetSize);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
+  const [sessionMatchmakingMode, setSessionMatchmakingMode] = useState<"ADVANCED" | "HYBRID" | "ROTATION">("ADVANCED");
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
   const [forcedCompletionIndex, setForcedCompletionIndex] = useState(0);
   const [forcedMatches, setForcedMatches] = useState<CourtMatch[]>([]);
@@ -3554,6 +3565,19 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
   const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
+
+  useEffect(() => {
+    const sessionSavedMode = (session as any)?.matchmakingMode;
+    if (sessionSavedMode && ["ADVANCED", "HYBRID", "ROTATION"].includes(sessionSavedMode)) {
+      setSessionMatchmakingMode(sessionSavedMode);
+    } else if (clubEngineSettings?.matchmakingMode) {
+      const m = clubEngineSettings.matchmakingMode;
+      if (m === "ADVANCED" || m === "HYBRID" || m === "ROTATION") {
+        setSessionMatchmakingMode(m);
+      }
+    }
+  }, [clubEngineSettings, session]);
+
   const [enginePanelOpen, setEnginePanelOpen] = useState(false);
   const enginePanelRef = useRef<HTMLDivElement>(null);
   const [enginePanelHeight, setEnginePanelHeight] = useState(0);
@@ -3679,7 +3703,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
     const interval = setInterval(() => {
       if (manualGenInFlight.current) return;
-      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
         onSuccess: (data: any) => {
           if (data?.status === "waiting") {
             setAutoGenWaiting(true);
@@ -3699,7 +3723,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [autoGenerateActive, isOrganiser, autoGenLocallyStopped, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
+  }, [autoGenerateActive, isOrganiser, autoGenLocallyStopped, sessionId, activeMode, queueTargetSize, generateGenderType, sessionMatchmakingMode, smartGenerate]);
 
   const handleCourtNameChange = (courtNumber: number, name: string) => {
     const newNames = [...courtNamesState];
@@ -3865,7 +3889,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       setAutoGenLocallyStopped(false);
       updateSession({ sessionId, updates: { autoGenerateActive: true } });
     }
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: !wasInactive }, {
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: !wasInactive, matchmakingMode: sessionMatchmakingMode }, {
       onSuccess: (data: any) => {
         manualGenInFlight.current = false;
         if (data?.status === "waiting") {
@@ -3895,7 +3919,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     manualGenInFlight.current = true;
     setAutoGenLocallyStopped(false);
     updateSession({ sessionId, updates: { autoGenerateActive: true } });
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
       onSuccess: (data: any) => {
         manualGenInFlight.current = false;
         if (data?.status === "waiting") {
@@ -3928,7 +3952,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       trimQueue({ sessionId, targetSize: newSize });
     } else if (currentQueuedCount < newSize && autoGenerateActive && !autoGenLocallyStopped) {
       manualGenInFlight.current = true;
-      smartGenerate({ sessionId, mode: activeMode, queueTargetSize: newSize, genderType: generateGenderType, isAutoGenerate: true }, {
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize: newSize, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
         onSettled: () => { manualGenInFlight.current = false; },
       });
     }
@@ -4163,6 +4187,43 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                           <MatchAlgorithmInfoButton />
                         </div>
 
+                        <div className="flex items-center gap-3" data-testid="engine-toggle-container">
+                          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Engine</span>
+                          <div className="flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(168,85,247,0.15)]">
+                            {(["ADVANCED", "HYBRID", "ROTATION"] as const).map((m, i) => (
+                              <button
+                                key={m}
+                                className={cn(
+                                  "relative z-10 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1 active:scale-95 whitespace-nowrap",
+                                  sessionMatchmakingMode === m
+                                    ? "text-white"
+                                    : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
+                                )}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setSessionMatchmakingMode(m);
+                                }}
+                                data-testid={`button-engine-${m.toLowerCase()}`}
+                              >
+                                <span className={cn(
+                                  "w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500",
+                                  sessionMatchmakingMode === m ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
+                                )} />
+                                {m === "ADVANCED" ? "Advanced" : m === "HYBRID" ? "Hybrid" : "Rotation"}
+                              </button>
+                            ))}
+                            <div
+                              className={cn(
+                                "absolute top-0.5 bottom-0.5 rounded-full shadow-[0_0_16px_rgba(168,85,247,0.3)]",
+                                sessionMatchmakingMode === "ADVANCED" ? "bg-gradient-to-b from-purple-500 to-purple-700 left-0.5 w-[calc(33.33%-2px)]" :
+                                sessionMatchmakingMode === "HYBRID" ? "bg-gradient-to-b from-blue-500 to-blue-700 left-[33.33%] w-[calc(33.33%-2px)]" :
+                                "bg-gradient-to-b from-green-500 to-green-700 left-[66.66%] w-[calc(33.33%-4px)]"
+                              )}
+                              style={{ transition: 'all 500ms cubic-bezier(0.34, 1.56, 0.64, 1)' }}
+                            />
+                          </div>
+                        </div>
+
                         <div className="flex items-center gap-3">
                           <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Courts</span>
                           <div className="inline-flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 overflow-hidden">
@@ -4289,16 +4350,18 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
 
                   {isOrganiser && (
                     <div className="flex items-center justify-center gap-6 flex-wrap pt-2">
-                      <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
-                        <SelectTrigger className="w-[120px] rounded-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-700 dark:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all duration-300" data-testid="select-generate-gender-type">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MIXED">Mixed</SelectItem>
-                          <SelectItem value="FEMALE">Female Only</SelectItem>
-                          <SelectItem value="MALE">Male Only</SelectItem>
-                        </SelectContent>
-                      </Select>
+                      <div className="flex items-center gap-2">
+                        <Select value={generateGenderType} onValueChange={setGenerateGenderType}>
+                          <SelectTrigger className="w-[120px] rounded-full border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 text-gray-700 dark:text-white/80 hover:bg-slate-200 dark:hover:bg-slate-800 transition-all duration-300" data-testid="select-generate-gender-type">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="MIXED">Mixed</SelectItem>
+                            <SelectItem value="FEMALE">Female Only</SelectItem>
+                            <SelectItem value="MALE">Male Only</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
 
                       <div className="relative flex flex-col items-center gap-1.5">
                         <div className="absolute inset-0 -m-6 rounded-full bg-[radial-gradient(circle,rgba(56,189,248,0.08)_0%,transparent_70%)] pointer-events-none" />

@@ -792,11 +792,19 @@ function computeMatchSlots(
   if (femaleSlots > maxFemaleOnlyMatches) {
     const excess = femaleSlots - maxFemaleOnlyMatches;
     femaleSlots = maxFemaleOnlyMatches;
+    mixedSlots += excess;
+  }
+
+  const femalesRemainingAfterFemaleOnly = availableFemales - (femaleSlots * 4);
+  const maxMixedFromFemales = Math.max(0, femalesRemainingAfterFemaleOnly);
+  if (mixedSlots > maxMixedFromFemales) {
+    const excess = mixedSlots - maxMixedFromFemales;
+    mixedSlots = maxMixedFromFemales;
     maleSlots += excess;
   }
 
-  if (availableFemales < 1) {
-    maleSlots += mixedSlots;
+  if (availableMales < 1 && mixedSlots > 0) {
+    femaleSlots += mixedSlots;
     mixedSlots = 0;
   }
 
@@ -807,12 +815,21 @@ function computeMatchSlots(
     mixedSlots += excess;
   }
 
+  if (maleSlots < 0) maleSlots = 0;
+  if (femaleSlots < 0) femaleSlots = 0;
+  if (mixedSlots < 0) mixedSlots = 0;
+
   const slots: MatchType[] = [];
   for (let i = 0; i < femaleSlots; i++) slots.push("FEMALE_ONLY");
   for (let i = 0; i < mixedSlots; i++) slots.push("MIXED");
   for (let i = 0; i < maleSlots; i++) slots.push("MALE_ONLY");
 
-  while (slots.length < queueTarget) slots.push("MALE_ONLY");
+  while (slots.length < queueTarget) {
+    if (availableMales >= 4) slots.push("MALE_ONLY");
+    else if (availableFemales >= 4) slots.push("FEMALE_ONLY");
+    else if (availableFemales >= 1 && availableMales >= 1) slots.push("MIXED");
+    else slots.push("MALE_ONLY");
+  }
 
   return slots;
 }
