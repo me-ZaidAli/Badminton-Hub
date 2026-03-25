@@ -4286,6 +4286,13 @@ export async function registerRoutes(
       if (!match.teamAPlayer1Id || !match.teamBPlayer1Id) {
         return res.status(400).json({ message: "Cannot start match: each team needs at least one player" });
       }
+
+      const sessionMatches0 = await storage.getSessionMatches(match.sessionId);
+      const liveMatchCount0 = sessionMatches0.filter(m => m.status === "LIVE").length;
+      const courtsLimit = session.courtsAvailable || 2;
+      if (liveMatchCount0 >= courtsLimit) {
+        return res.status(400).json({ message: `All ${courtsLimit} courts are occupied. Cannot start another match.` });
+      }
       
       const updated = await storage.updateMatch(matchId, {
         status: "LIVE",
@@ -4386,31 +4393,36 @@ export async function registerRoutes(
 
         if (freedCourt && currentMatch.sessionId) {
           const sessionMatches = await storage.getSessionMatches(currentMatch.sessionId);
+          const courtSession = await storage.getSession(currentMatch.sessionId);
+          const courtLimit = courtSession?.courtsAvailable || 2;
+          const currentLiveCount = sessionMatches.filter(m => m.status === "LIVE").length;
 
-          const livePlayerIds = new Set<number>();
-          sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
-            if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
-            if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
-            if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
-            if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
-          });
-
-          const queuedMatches = sessionMatches
-            .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
-            .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
-
-          const nextMatch = queuedMatches.find(m => {
-            const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
-            return !mPlayers.some(pid => livePlayerIds.has(pid));
-          });
-
-          if (nextMatch) {
-            await storage.updateMatch(nextMatch.id, {
-              status: "LIVE",
-              courtNumber: freedCourt,
-              startedAt: new Date(),
-              queuePosition: null
+          if (currentLiveCount < courtLimit) {
+            const livePlayerIds = new Set<number>();
+            sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
+              if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
+              if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
+              if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
+              if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
             });
+
+            const queuedMatches = sessionMatches
+              .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
+              .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+            const nextMatch = queuedMatches.find(m => {
+              const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+              return !mPlayers.some(pid => livePlayerIds.has(pid));
+            });
+
+            if (nextMatch) {
+              await storage.updateMatch(nextMatch.id, {
+                status: "LIVE",
+                courtNumber: freedCourt,
+                startedAt: new Date(),
+                queuePosition: null
+              });
+            }
           }
         }
 
@@ -4507,31 +4519,36 @@ export async function registerRoutes(
 
       if (freedCourt && currentMatch.sessionId) {
         const sessionMatches = await storage.getSessionMatches(currentMatch.sessionId);
+        const courtSession2 = await storage.getSession(currentMatch.sessionId);
+        const courtLimit2 = courtSession2?.courtsAvailable || 2;
+        const currentLiveCount2 = sessionMatches.filter(m => m.status === "LIVE").length;
 
-        const livePlayerIds = new Set<number>();
-        sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
-          if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
-          if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
-          if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
-          if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
-        });
-
-        const queuedMatches = sessionMatches
-          .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
-          .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
-
-        const nextMatch = queuedMatches.find(m => {
-          const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
-          return !mPlayers.some(pid => livePlayerIds.has(pid));
-        });
-
-        if (nextMatch) {
-          await storage.updateMatch(nextMatch.id, {
-            status: "LIVE",
-            courtNumber: freedCourt,
-            startedAt: new Date(),
-            queuePosition: null
+        if (currentLiveCount2 < courtLimit2) {
+          const livePlayerIds = new Set<number>();
+          sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
+            if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
+            if (m.teamAPlayer2Id) livePlayerIds.add(m.teamAPlayer2Id);
+            if (m.teamBPlayer1Id) livePlayerIds.add(m.teamBPlayer1Id);
+            if (m.teamBPlayer2Id) livePlayerIds.add(m.teamBPlayer2Id);
           });
+
+          const queuedMatches = sessionMatches
+            .filter(m => m.status === "QUEUED" && m.queuePosition !== null)
+            .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+          const nextMatch = queuedMatches.find(m => {
+            const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+            return !mPlayers.some(pid => livePlayerIds.has(pid));
+          });
+
+          if (nextMatch) {
+            await storage.updateMatch(nextMatch.id, {
+              status: "LIVE",
+              courtNumber: freedCourt,
+              startedAt: new Date(),
+              queuePosition: null
+            });
+          }
         }
       }
 
@@ -6698,6 +6715,21 @@ export async function registerRoutes(
         repeatedMatchups,
         busyPlayerCount: busyPlayerIds.size,
         availablePlayerCount: playerDetails.filter(p => p.isAvailable).length,
+        fairnessReport: (() => {
+          const counts = playerDetails.map(p => p.matchesPlayed);
+          if (counts.length === 0) return { minGames: 0, maxGames: 0, maxGap: 0, stdDev: "0.00" };
+          const minG = Math.min(...counts);
+          const maxG = Math.max(...counts);
+          const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
+          const variance = counts.reduce((s, c) => s + (c - avg) ** 2, 0) / counts.length;
+          return { minGames: minG, maxGames: maxG, maxGap: maxG - minG, stdDev: Math.sqrt(variance).toFixed(2) };
+        })(),
+        courtInfo: {
+          courtsAvailable: session.courtsAvailable || 2,
+          liveMatches: existingMatches.filter(m => m.status === "LIVE").length,
+          queuedMatches: existingMatches.filter(m => m.status === "QUEUED").length,
+          completedMatches: existingMatches.filter(m => m.status === "COMPLETED").length,
+        },
       });
     } catch (err: any) {
       console.error("Match engine debug error:", err);

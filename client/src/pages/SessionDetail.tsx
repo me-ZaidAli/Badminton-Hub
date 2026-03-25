@@ -4210,9 +4210,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           )}
 
           {debugOpen && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setDebugOpen(false)}>
-              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto m-4 p-5" onClick={(e) => e.stopPropagation()} data-testid="debug-panel">
-                <div className="flex items-center justify-between mb-4">
+            <div className="fixed inset-0 z-[9999] flex items-end sm:items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setDebugOpen(false)}>
+              <div className="bg-white dark:bg-gray-900 rounded-t-2xl sm:rounded-2xl shadow-2xl w-full sm:max-w-lg sm:m-4 flex flex-col" style={{ maxHeight: '92vh' }} onClick={(e) => e.stopPropagation()} data-testid="debug-panel">
+                <div className="flex items-center justify-between p-4 pb-2 shrink-0 border-b border-gray-100 dark:border-white/10">
                   <div className="flex items-center gap-2">
                     <Bug className="w-5 h-5 text-orange-500" />
                     <h3 className="text-lg font-bold text-gray-900 dark:text-white">Match Engine Debug</h3>
@@ -4221,6 +4221,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     <X className="w-5 h-5 text-gray-400" />
                   </button>
                 </div>
+                <div className="overflow-y-auto flex-1 overscroll-contain p-4 -webkit-overflow-scrolling-touch" style={{ WebkitOverflowScrolling: 'touch' }}>
                 {debugLoading ? (
                   <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
                 ) : debugData ? (
@@ -4237,6 +4238,21 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                         <div className="text-[10px] text-emerald-500 dark:text-emerald-400/70">Available: {debugData.availablePlayerCount} · Busy: {debugData.busyPlayerCount}</div>
                       </div>
                     </div>
+
+                    {debugData.fairnessReport && (
+                      <div className={cn("rounded-xl p-3 border", debugData.fairnessReport.maxGap > 1 ? "border-red-300 dark:border-red-500/30 bg-red-50 dark:bg-red-500/10" : "border-emerald-300 dark:border-emerald-500/30 bg-emerald-50 dark:bg-emerald-500/10")}>
+                        <div className="text-xs font-semibold uppercase tracking-wider mb-2" style={{ color: debugData.fairnessReport.maxGap > 1 ? '#ef4444' : '#10b981' }}>Fairness Report</div>
+                        <div className="space-y-1">
+                          <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Min Games</span><span className="font-mono font-bold">{debugData.fairnessReport.minGames}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Max Games</span><span className="font-mono font-bold">{debugData.fairnessReport.maxGames}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Gap (max−min)</span><span className={cn("font-mono font-bold", debugData.fairnessReport.maxGap > 1 ? "text-red-500" : "text-emerald-500")}>{debugData.fairnessReport.maxGap}</span></div>
+                          <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Std Deviation</span><span className="font-mono font-bold">{debugData.fairnessReport.stdDev}</span></div>
+                        </div>
+                        {debugData.fairnessReport.maxGap > 1 && (
+                          <div className="mt-2 text-[10px] text-red-500 dark:text-red-400 font-medium">⚠ Gap exceeds target (max 1). Players with fewer games should be prioritised.</div>
+                        )}
+                      </div>
+                    )}
 
                     <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
                       <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Match Type Distribution</div>
@@ -4257,9 +4273,19 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                       <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Female Overload</span><span className={cn("font-mono font-bold", debugData.femaleOverloadRatio !== "N/A" && parseInt(debugData.femaleOverloadRatio) > 130 ? "text-red-500" : "text-emerald-500")}>{debugData.femaleOverloadRatio}</span></div>
                     </div>
 
+                    {debugData.courtInfo && (
+                      <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
+                        <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Court Status</div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Courts Available</span><span className="font-mono font-bold">{debugData.courtInfo.courtsAvailable}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Live Matches</span><span className="font-mono font-bold">{debugData.courtInfo.liveMatches}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Queued Matches</span><span className="font-mono font-bold">{debugData.courtInfo.queuedMatches}</span></div>
+                        <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Completed</span><span className="font-mono font-bold">{debugData.courtInfo.completedMatches}</span></div>
+                      </div>
+                    )}
+
                     <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
                       <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Player Game Counts</div>
-                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                      <div className="space-y-1">
                         {debugData.players?.map((p: any) => (
                           <div key={p.id} className="flex items-center justify-between text-xs">
                             <span className={cn("truncate", p.gender === "FEMALE" ? "text-pink-600 dark:text-pink-400" : "text-blue-600 dark:text-blue-400")}>
@@ -4278,7 +4304,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     {debugData.topPartnerPairings?.length > 0 && (
                       <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
                         <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Top Partner Pairings</div>
-                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                        <div className="space-y-1">
                           {debugData.topPartnerPairings.slice(0, 10).map((p: any, i: number) => (
                             <div key={i} className="flex items-center justify-between text-xs">
                               <span className="text-gray-600 dark:text-white/60 truncate">{p.pair}</span>
@@ -4307,6 +4333,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                     )}
                   </div>
                 ) : null}
+                </div>
               </div>
             </div>
           )}

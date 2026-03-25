@@ -378,13 +378,12 @@ function hardFairnessGate(
   players: Player[],
   playerMatchCounts: Map<number, number>,
   states: PlayerStateMap,
-  maxGap: number = 2
+  maxGap: number = 1
 ): Player[] {
   const available = players.filter(p => states.get(p.id) === "AVAILABLE");
   if (available.length === 0) return available;
 
-  const allCounts = Array.from(playerMatchCounts.values());
-  const globalMin = allCounts.length > 0 ? Math.min(...allCounts) : 0;
+  const globalMin = Math.min(...players.map(p => playerMatchCounts.get(p.id) || 0));
 
   const gated = available.filter(p => {
     const count = playerMatchCounts.get(p.id) || 0;
