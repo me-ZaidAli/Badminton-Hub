@@ -52,9 +52,9 @@ export type MatchEngineSettings = {
 export const DEFAULT_SETTINGS: MatchEngineSettings = {
   matchmakingMode: "ADVANCED",
 
-  deficitWeight: -100,
-  deficitCap: -210,
-  gamesPlayedWeight: -20,
+  deficitWeight: -200,
+  deficitCap: -500,
+  gamesPlayedWeight: -40,
   spreadWeight: -80,
 
   partnerRepeatWeight: -25,
@@ -71,9 +71,9 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
 
   enablePhaseAdjustments: true,
 
-  maleOnlyTargetRatio: 0.6,
-  femaleOnlyTargetRatio: 0.2,
-  mixedTargetRatio: 0.2,
+  maleOnlyTargetRatio: 0.65,
+  femaleOnlyTargetRatio: 0.25,
+  mixedTargetRatio: 0.10,
 
   strongMaleFemaleBonus: 25,
   noStrongMaleFemalePenalty: -40,

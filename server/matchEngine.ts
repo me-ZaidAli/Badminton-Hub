@@ -199,8 +199,9 @@ function getDeficitPenalty(deficit: number, cfg?: MatchEngineSettings): number {
   const c = cfg || DEFAULT_SETTINGS;
   if (deficit <= 0) return 0;
   if (deficit === 1) return c.deficitWeight;
-  if (deficit === 2) return Math.round(c.deficitWeight * 1.7);
-  return c.deficitCap;
+  if (deficit === 2) return Math.round(c.deficitWeight * 2.5);
+  if (deficit === 3) return Math.round(c.deficitWeight * 4);
+  return Math.round(c.deficitCap * Math.min(deficit, 6));
 }
 
 // --- v2 UPGRADE #4: Strengthened partner variety (v3: configurable) ---
@@ -347,6 +348,11 @@ function fairnessPreFilter(
   const minCount = playerMatchCounts.get(sorted[0].id) || 0;
   const maxCount = playerMatchCounts.get(sorted[sorted.length - 1].id) || 0;
   if (minCount >= maxCount) return selectable;
+
+  const exactMin = sorted.filter(p => (playerMatchCounts.get(p.id) || 0) === minCount);
+  if (exactMin.length >= playersPerMatch) {
+    return exactMin;
+  }
 
   const lowGamePlayers = sorted.filter(p => {
     const count = playerMatchCounts.get(p.id) || 0;
