@@ -71,8 +71,8 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
 
   enablePhaseAdjustments: true,
 
-  maleOnlyTargetRatio: 0.5,
-  femaleOnlyTargetRatio: 0.3,
+  maleOnlyTargetRatio: 0.6,
+  femaleOnlyTargetRatio: 0.2,
   mixedTargetRatio: 0.2,
 
   strongMaleFemaleBonus: 25,

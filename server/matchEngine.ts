@@ -831,14 +831,22 @@ function generateFemaleOnlyCandidates(
       for (let c = b + 1; c < females.length && candidates.length < maxCandidates; c++) {
         for (let d = c + 1; d < females.length && candidates.length < maxCandidates; d++) {
           const p = [females[a], females[b], females[c], females[d]];
-          const candidate: MatchResult = {
-            teamAPlayer1Id: p[0].id,
-            teamAPlayer2Id: p[3].id,
-            teamBPlayer1Id: p[1].id,
-            teamBPlayer2Id: p[2].id,
-          };
-          if (candidateRespectsFixedPairs(candidate, fixedPairs)) {
-            candidates.push(candidate);
+          const teamSplits: [number, number, number, number][] = [
+            [p[0].id, p[1].id, p[2].id, p[3].id],
+            [p[0].id, p[2].id, p[1].id, p[3].id],
+            [p[0].id, p[3].id, p[1].id, p[2].id],
+          ];
+          for (const [a1, a2, b1, b2] of teamSplits) {
+            if (candidates.length >= maxCandidates) break;
+            const candidate: MatchResult = {
+              teamAPlayer1Id: a1,
+              teamAPlayer2Id: a2,
+              teamBPlayer1Id: b1,
+              teamBPlayer2Id: b2,
+            };
+            if (candidateRespectsFixedPairs(candidate, fixedPairs)) {
+              candidates.push(candidate);
+            }
           }
         }
       }

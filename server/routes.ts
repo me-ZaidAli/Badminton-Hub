@@ -6595,6 +6595,116 @@ export async function registerRoutes(
     }
   });
 
+  app.get("/api/sessions/:sessionId/match-engine-debug", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+      if (!isAdmin) return res.sendStatus(403);
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
+      const existingMatches = await storage.getSessionMatches(sessionId);
+      const playersPerSide = session.playersPerSide || 2;
+
+      const busyPlayerIds = new Set<number>();
+      existingMatches.filter(m => m.status === "LIVE" || m.status === "QUEUED").forEach(m => {
+        [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].forEach(id => { if (id) busyPlayerIds.add(id); });
+      });
+
+      const matchHistory = existingMatches.map(m => ({
+        teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id,
+        teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status,
+      }));
+      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(matchHistory);
+      for (const s of confirmedSignups) {
+        if (!playerMatchCounts.has(s.player.id)) playerMatchCounts.set(s.player.id, 0);
+      }
+
+      const playerDetails = confirmedSignups.map(s => ({
+        id: s.player.id,
+        name: (s.player as any).user?.fullName || `Player#${s.player.id}`,
+        gender: s.player.gender,
+        grade: s.player.grade || s.player.category || "C3",
+        isPaused: s.isPaused,
+        genderOverride: s.genderOverride,
+        matchesPlayed: playerMatchCounts.get(s.player.id) || 0,
+        isBusy: busyPlayerIds.has(s.player.id),
+        isAvailable: !busyPlayerIds.has(s.player.id) && !s.isPaused,
+      }));
+
+      const matchTypeCounts = { maleOnly: 0, femaleOnly: 0, mixed: 0 };
+      const pairCounts = new Map<string, { count: number; names: string[] }>();
+      const nameMap = new Map(playerDetails.map(p => [p.id, p.name.split(" ")[0]]));
+
+      for (const m of existingMatches.filter(mx => mx.status === "LIVE" || mx.status === "COMPLETED")) {
+        const ids = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+        const genders = ids.map(id => playerDetails.find(p => p.id === id)?.gender || "MALE");
+        const hasMale = genders.some(g => g !== "FEMALE");
+        const hasFemale = genders.some(g => g === "FEMALE");
+        if (hasMale && hasFemale) matchTypeCounts.mixed++;
+        else if (hasFemale) matchTypeCounts.femaleOnly++;
+        else matchTypeCounts.maleOnly++;
+
+        const sorted = [...ids].sort((a, b) => a - b);
+        const gk = sorted.join("-");
+        const existing = pairCounts.get(gk);
+        if (existing) existing.count++;
+        else pairCounts.set(gk, { count: 1, names: sorted.map(id => nameMap.get(id) || `#${id}`) });
+      }
+
+      const partnerPairCounts: { pair: string; count: number }[] = [];
+      for (const [key, count] of recentPairings) {
+        if (count > 0) {
+          const [a, b] = key.split("-").map(Number);
+          partnerPairCounts.push({ pair: `${nameMap.get(a) || `#${a}`} & ${nameMap.get(b) || `#${b}`}`, count });
+        }
+      }
+      partnerPairCounts.sort((a, b) => b.count - a.count);
+
+      const repeatedMatchups = Array.from(pairCounts.entries())
+        .filter(([, v]) => v.count > 1)
+        .map(([, v]) => ({ players: v.names.join(", "), count: v.count }))
+        .sort((a, b) => b.count - a.count);
+
+      const totalMatches = matchTypeCounts.maleOnly + matchTypeCounts.femaleOnly + matchTypeCounts.mixed;
+      const femaleIds = playerDetails.filter(p => p.gender === "FEMALE").map(p => p.id);
+      const maleIds = playerDetails.filter(p => p.gender !== "FEMALE").map(p => p.id);
+      const avgFemaleGames = femaleIds.length > 0 ? femaleIds.reduce((s, id) => s + (playerMatchCounts.get(id) || 0), 0) / femaleIds.length : 0;
+      const avgMaleGames = maleIds.length > 0 ? maleIds.reduce((s, id) => s + (playerMatchCounts.get(id) || 0), 0) / maleIds.length : 0;
+
+      const { DEFAULT_SETTINGS } = await import("@shared/matchEngineSettings");
+
+      res.json({
+        sessionId,
+        totalPlayers: confirmedSignups.length,
+        femaleCount: femaleIds.length,
+        maleCount: maleIds.length,
+        totalMatches,
+        matchTypeCounts,
+        matchTypePercentages: totalMatches > 0 ? {
+          maleOnly: `${Math.round(matchTypeCounts.maleOnly / totalMatches * 100)}%`,
+          femaleOnly: `${Math.round(matchTypeCounts.femaleOnly / totalMatches * 100)}%`,
+          mixed: `${Math.round(matchTypeCounts.mixed / totalMatches * 100)}%`,
+        } : null,
+        targetRatios: { maleOnly: `${DEFAULT_SETTINGS.maleOnlyTargetRatio * 100}%`, femaleOnly: `${DEFAULT_SETTINGS.femaleOnlyTargetRatio * 100}%`, mixed: `${DEFAULT_SETTINGS.mixedTargetRatio * 100}%` },
+        avgFemaleGames: Math.round(avgFemaleGames * 100) / 100,
+        avgMaleGames: Math.round(avgMaleGames * 100) / 100,
+        femaleOverloadRatio: avgMaleGames > 0 ? `${Math.round(avgFemaleGames / avgMaleGames * 100)}%` : "N/A",
+        players: playerDetails.sort((a, b) => b.matchesPlayed - a.matchesPlayed),
+        topPartnerPairings: partnerPairCounts.slice(0, 20),
+        repeatedMatchups,
+        busyPlayerCount: busyPlayerIds.size,
+        availablePlayerCount: playerDetails.filter(p => p.isAvailable).length,
+      });
+    } catch (err: any) {
+      console.error("Match engine debug error:", err);
+      res.status(500).json({ message: err.message || "Debug failed" });
+    }
+  });
+
   // === Stop All Matches - Delete queued, freeze live ===
   app.post("/api/sessions/:sessionId/matches/stop-all", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
