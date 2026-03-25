@@ -3960,6 +3960,19 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const handleQueueTargetSizeChange = (newSize: number) => {
     setQueueTargetSize(newSize);
     updateSession({ sessionId, updates: { queueTargetSize: newSize } });
+    if (newSize === 0) {
+      const currentQueuedCount = typedMatches.filter(m => m.status === "QUEUED").length;
+      if (currentQueuedCount > 0) {
+        clearQueue({ sessionId });
+      }
+      if (autoGenerateActive && !autoGenLocallyStopped) {
+        manualGenInFlight.current = true;
+        smartGenerate({ sessionId, mode: activeMode, queueTargetSize: 0, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
+          onSettled: () => { manualGenInFlight.current = false; },
+        });
+      }
+      return;
+    }
     const currentQueuedCount = typedMatches.filter(m => m.status === "QUEUED").length;
     if (currentQueuedCount > newSize) {
       trimQueue({ sessionId, targetSize: newSize });
@@ -4718,9 +4731,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           {pairConstraintMessage ? (
             <span>{pairConstraintMessage}</span>
           ) : autoGenWaiting ? (
-            <span>Waiting for matches to finish before generating new ones... (target: {queueTargetSize} queued)</span>
+            <span>Waiting for matches to finish before generating new ones... {queueTargetSize === 0 ? "(direct to court)" : `(target: ${queueTargetSize} queued)`}</span>
           ) : (
-            <span>Session active — auto-generating matches in <strong>{activeMode}</strong> mode (target: {queueTargetSize} queued)</span>
+            <span>Session active — auto-generating matches in <strong>{activeMode}</strong> mode {queueTargetSize === 0 ? "(direct to court)" : `(target: ${queueTargetSize} queued)`}</span>
           )}
         </div>
       )}
@@ -4787,6 +4800,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                 busyPlayerIds={busyPlayerIds}
                 sessionMatchCounts={sessionMatchCounts}
                 achievements={playerAchievements}
+                autoGenerateActive={autoGenerateActive && !autoGenLocallyStopped}
+                onToggleAutoGenerate={(active) => {
+                  if (active) {
+                    handleStartAutoGenerate();
+                  } else {
+                    handleStopAutoGenerate();
+                  }
+                }}
               />
             </CollapsibleSection>
 

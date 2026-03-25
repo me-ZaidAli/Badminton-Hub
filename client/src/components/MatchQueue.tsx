@@ -5,7 +5,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, RotateCcw, CheckCircle, Loader2, Play, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Lightbulb, TrendingDown, Check, UserCog } from "lucide-react";
+import { GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, RotateCcw, CheckCircle, Loader2, Play, Pause, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Lightbulb, TrendingDown, Check, UserCog, Zap } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
@@ -40,6 +40,8 @@ type MatchQueueProps = {
   busyPlayerIds?: Set<number>;
   sessionMatchCounts?: Record<number, number>;
   achievements?: Record<number, { trophy?: boolean; fire?: boolean }>;
+  autoGenerateActive?: boolean;
+  onToggleAutoGenerate?: (active: boolean) => void;
 };
 
 
@@ -132,6 +134,8 @@ export function MatchQueue({
   busyPlayerIds,
   sessionMatchCounts,
   achievements,
+  autoGenerateActive,
+  onToggleAutoGenerate,
 }: MatchQueueProps) {
   const { mutate: deleteQueuedMatch, isPending: isDeleting } = useDeleteQueuedMatch();
   const { mutate: reshuffleMatch, isPending: isReshuffling } = useReshuffleMatch();
@@ -222,6 +226,9 @@ export function MatchQueue({
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
+                      <SelectItem value="0">
+                        <span className="flex items-center gap-1"><Zap className="w-3 h-3" /> 0 (Direct)</span>
+                      </SelectItem>
                       <SelectItem value="1">1</SelectItem>
                       <SelectItem value="2">2</SelectItem>
                       <SelectItem value="3">3</SelectItem>
@@ -230,7 +237,31 @@ export function MatchQueue({
                     </SelectContent>
                   </Select>
                 )}
-                {isOrganiser && onGenerateMatch && (
+                {isOrganiser && onGenerateMatch && onToggleAutoGenerate && (
+                  autoGenerateActive ? (
+                    <Button
+                      size="sm"
+                      onClick={() => onToggleAutoGenerate(false)}
+                      className="bg-gradient-to-r from-amber-500 to-orange-500 text-white shadow-lg shadow-amber-500/25 dark:shadow-amber-500/15"
+                      data-testid="button-pause-auto-generate"
+                    >
+                      <Pause className="w-4 h-4 mr-1" />
+                      Pause
+                    </Button>
+                  ) : (
+                    <Button
+                      size="sm"
+                      onClick={() => onToggleAutoGenerate(true)}
+                      disabled={isGenerating}
+                      className="bg-gradient-to-r from-emerald-500 to-teal-600 text-white shadow-lg shadow-emerald-500/25 dark:shadow-emerald-500/15"
+                      data-testid="button-play-auto-generate"
+                    >
+                      {isGenerating ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Play className="w-4 h-4 mr-1" />}
+                      Play
+                    </Button>
+                  )
+                )}
+                {isOrganiser && onGenerateMatch && !onToggleAutoGenerate && (
                   <Button
                     size="sm"
                     onClick={onGenerateMatch}

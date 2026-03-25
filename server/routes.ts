@@ -5513,7 +5513,8 @@ export async function registerRoutes(
       const playersPerSide = session.playersPerSide || 2;
       const playersPerMatch = playersPerSide * 2;
       const gType = genderType || session.matchGenderType || "MIXED";
-      const queueTarget = Math.min(Math.max(queueTargetSize || 3, 1), 10);
+      const directToCourt = queueTargetSize === 0;
+      const queueTarget = directToCourt ? 99 : Math.min(Math.max(queueTargetSize || 3, 1), 10);
 
       const signups = await storage.getSessionSignups(sessionId);
       const confirmedSignups = signups.filter(s => s.signupStatus === "CONFIRMED");
@@ -5545,13 +5546,28 @@ export async function registerRoutes(
 
       if (players.length < playersPerMatch) {
         if (isAutoGenerate) {
-          return res.json({ status: "waiting", message: `Waiting for players to finish. ${busyPlayerIds.size} players are in live or queued matches.`, matches: [] });
+          return res.json({ status: "waiting", message: `Waiting for players to finish. ${busyPlayerIds.size} players are in live matches.`, matches: [] });
         }
         return res.status(400).json({ message: `Not enough available players. ${busyPlayerIds.size} players are already in live or queued matches.` });
       }
 
+      const liveMatchCount = existingMatches.filter(m => m.status === "LIVE").length;
+      const courtsAvailableCount = session.courtsAvailable || 2;
+
+      if (directToCourt) {
+        const freeCourts = courtsAvailableCount - liveMatchCount;
+        if (freeCourts <= 0) {
+          if (isAutoGenerate) {
+            return res.json({ status: "waiting", message: "All courts are occupied. Waiting for matches to finish.", matches: [] });
+          }
+          return res.status(400).json({ message: "All courts are occupied." });
+        }
+      }
+
       const queuedCount = existingMatches.filter(m => m.status === "QUEUED").length;
-      const matchesNeeded = Math.max(0, queueTarget - queuedCount);
+      const matchesNeeded = directToCourt
+        ? Math.max(0, (courtsAvailableCount - liveMatchCount))
+        : Math.max(0, queueTarget - queuedCount);
 
       if (matchesNeeded === 0) {
         return res.json({ status: "full", message: "Queue is already full", matches: [] });
@@ -5679,26 +5695,39 @@ export async function registerRoutes(
         .map(m => m.queuePosition || 0));
 
       const defaultTarget = session.defaultPointsToPlayTo || 21;
+
+      let assignedCourts: number[] = [];
+      if (directToCourt) {
+        const occupiedCourts = new Set(existingMatches.filter(m => m.status === "LIVE" && m.courtNumber).map(m => m.courtNumber!));
+        for (let c = 1; c <= courtsAvailableCount; c++) {
+          if (!occupiedCourts.has(c)) assignedCourts.push(c);
+        }
+      }
+
       const createdMatches = await Promise.all(
-        safeMatches.map((m, i) => storage.createMatch({
-          sessionId,
-          courtNumber: null,
-          queuePosition: maxQueuePos + i + 1,
-          status: "QUEUED" as const,
-          teamAPlayer1Id: m.teamAPlayer1Id,
-          teamAPlayer2Id: m.teamAPlayer2Id,
-          teamBPlayer1Id: m.teamBPlayer1Id,
-          teamBPlayer2Id: m.teamBPlayer2Id,
-          scoreA: 0,
-          scoreB: 0,
-          isCompleted: false,
-          pointsToPlayTo: defaultTarget,
-          numberOfSets: session.numberOfSets || 1,
-          currentSet: 1,
-          setsWonA: 0,
-          setsWonB: 0,
-          setScores: [],
-        }))
+        safeMatches.map((m, i) => {
+          const isDirectMatch = directToCourt && i < assignedCourts.length;
+          return storage.createMatch({
+            sessionId,
+            courtNumber: isDirectMatch ? assignedCourts[i] : null,
+            queuePosition: isDirectMatch ? null : maxQueuePos + i + 1,
+            status: isDirectMatch ? "LIVE" as const : "QUEUED" as const,
+            teamAPlayer1Id: m.teamAPlayer1Id,
+            teamAPlayer2Id: m.teamAPlayer2Id,
+            teamBPlayer1Id: m.teamBPlayer1Id,
+            teamBPlayer2Id: m.teamBPlayer2Id,
+            scoreA: 0,
+            scoreB: 0,
+            isCompleted: false,
+            pointsToPlayTo: defaultTarget,
+            numberOfSets: session.numberOfSets || 1,
+            currentSet: 1,
+            setsWonA: 0,
+            setsWonB: 0,
+            setScores: [],
+            ...(isDirectMatch ? { startedAt: new Date() } : {}),
+          });
+        })
       );
 
       res.status(201).json(createdMatches);
