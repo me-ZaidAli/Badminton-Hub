@@ -952,36 +952,10 @@ function computeMatchSlots(
     total = femaleSlots + mixedSlots + maleSlots;
   }
 
-  if (availableFemales >= 4 && femaleSlots === 0 && queueTarget >= 1) {
+  if (availableFemales >= 4 && existFemale === 0 && femaleSlots === 0 && queueTarget >= 1) {
     femaleSlots = 1;
     if (mixedSlots > 0) mixedSlots--;
     else if (maleSlots > 0) maleSlots--;
-  }
-
-  if (availableFemales >= 4) {
-    const currentFemaleRatio = existTotal > 0 ? existFemale / existTotal : 0;
-    if (currentFemaleRatio < cfg.femaleOnlyTargetRatio * 0.5 && femaleSlots < Math.ceil(queueTarget * 0.4)) {
-      const desired = Math.max(1, Math.ceil(queueTarget * 0.4));
-      const add = Math.min(desired - femaleSlots, maxFemaleOnlyMatches - femaleSlots);
-      if (add > 0) {
-        femaleSlots += add;
-        while (femaleSlots + mixedSlots + maleSlots > queueTarget) {
-          if (mixedSlots > 0) mixedSlots--;
-          else if (maleSlots > 0) maleSlots--;
-          else break;
-        }
-      }
-    }
-  }
-
-  if (existTotal >= 6 && existFemale === 0 && availableFemales >= 4) {
-    femaleSlots = Math.max(femaleSlots, Math.min(queueTarget, 1));
-    while (femaleSlots + mixedSlots + maleSlots > queueTarget) {
-      if (mixedSlots > maleSlots && mixedSlots > 0) mixedSlots--;
-      else if (maleSlots > 0) maleSlots--;
-      else if (mixedSlots > 0) mixedSlots--;
-      else break;
-    }
   }
 
   while (femaleSlots + mixedSlots + maleSlots > queueTarget) {
