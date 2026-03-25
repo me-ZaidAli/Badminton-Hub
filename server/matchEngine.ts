@@ -24,6 +24,7 @@ type EngineSettings = {
   matchScoreHistory?: Map<string, number[]>;
   totalSessionMatches?: number;
   engineConfig?: MatchEngineSettings;
+  existingMatchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number };
 };
 
 type GenerateOptions = {
@@ -866,19 +867,71 @@ function computeMatchSlots(
   queueTarget: number,
   eligible: Player[],
   states: PlayerStateMap,
-  cfg: MatchEngineSettings
+  cfg: MatchEngineSettings,
+  existingCounts?: { maleOnly: number; femaleOnly: number; mixed: number }
 ): MatchType[] {
   const availableFemales = eligible.filter(p => states.get(p.id) === "AVAILABLE" && getEffectiveGender(p) === "FEMALE").length;
   const availableMales = eligible.filter(p => states.get(p.id) === "AVAILABLE" && getEffectiveGender(p) !== "FEMALE").length;
 
-  let femaleSlots = Math.round(queueTarget * cfg.femaleOnlyTargetRatio);
-  let mixedSlots = Math.round(queueTarget * cfg.mixedTargetRatio);
-  let maleSlots = queueTarget - femaleSlots - mixedSlots;
+  if (availableFemales === 0 && availableMales === 0) return [];
+  if (availableFemales === 0) {
+    return Array(queueTarget).fill("MALE_ONLY" as MatchType);
+  }
+  if (availableMales === 0) {
+    return Array(queueTarget).fill("FEMALE_ONLY" as MatchType);
+  }
 
-  if (availableFemales >= 4 && femaleSlots < 1) {
-    femaleSlots = 1;
-    if (maleSlots > 0) maleSlots--;
+  const existFemale = existingCounts?.femaleOnly ?? 0;
+  const existMixed = existingCounts?.mixed ?? 0;
+  const existMale = existingCounts?.maleOnly ?? 0;
+  const existTotal = existFemale + existMixed + existMale;
+
+  const totalTarget = existTotal + queueTarget;
+
+  const idealFemale = Math.round(totalTarget * cfg.femaleOnlyTargetRatio);
+  const idealMixed = Math.round(totalTarget * cfg.mixedTargetRatio);
+  const idealMale = totalTarget - idealFemale - idealMixed;
+
+  let femaleSlots = Math.max(0, idealFemale - existFemale);
+  let mixedSlots = Math.max(0, idealMixed - existMixed);
+  let maleSlots = Math.max(0, idealMale - existMale);
+
+  let total = femaleSlots + mixedSlots + maleSlots;
+  if (total === 0) {
+    const currentFemaleRatio = existTotal > 0 ? existFemale / existTotal : 0;
+    const currentMixedRatio = existTotal > 0 ? existMixed / existTotal : 0;
+    const currentMaleRatio = existTotal > 0 ? existMale / existTotal : 0;
+
+    const femaleDef = cfg.femaleOnlyTargetRatio - currentFemaleRatio;
+    const mixedDef = cfg.mixedTargetRatio - currentMixedRatio;
+    const maleDef = cfg.maleOnlyTargetRatio - currentMaleRatio;
+
+    for (let i = 0; i < queueTarget; i++) {
+      if (femaleDef >= mixedDef && femaleDef >= maleDef) femaleSlots++;
+      else if (mixedDef >= femaleDef && mixedDef >= maleDef) mixedSlots++;
+      else maleSlots++;
+    }
+    total = femaleSlots + mixedSlots + maleSlots;
+  }
+
+  while (femaleSlots + mixedSlots + maleSlots > queueTarget) {
+    if (maleSlots > 0 && maleSlots >= femaleSlots && maleSlots >= mixedSlots) maleSlots--;
+    else if (femaleSlots > 0 && femaleSlots >= mixedSlots) femaleSlots--;
     else if (mixedSlots > 0) mixedSlots--;
+    else break;
+  }
+  while (femaleSlots + mixedSlots + maleSlots < queueTarget) {
+    const currentFR = (existFemale + femaleSlots) / (existTotal + femaleSlots + mixedSlots + maleSlots || 1);
+    const currentMR = (existMixed + mixedSlots) / (existTotal + femaleSlots + mixedSlots + maleSlots || 1);
+    const currentAR = (existMale + maleSlots) / (existTotal + femaleSlots + mixedSlots + maleSlots || 1);
+
+    const fDef = cfg.femaleOnlyTargetRatio - currentFR;
+    const mxDef = cfg.mixedTargetRatio - currentMR;
+    const mDef = cfg.maleOnlyTargetRatio - currentAR;
+
+    if (fDef >= mxDef && fDef >= mDef) femaleSlots++;
+    else if (mxDef >= fDef && mxDef >= mDef) mixedSlots++;
+    else maleSlots++;
   }
 
   const maxFemaleOnlyMatches = Math.floor(availableFemales / 4);
@@ -900,11 +953,10 @@ function computeMatchSlots(
   }
 
   if (availableMales < 2 && mixedSlots > 0) {
-    femaleSlots += mixedSlots;
+    maleSlots += mixedSlots;
     mixedSlots = 0;
   }
-
-  if (availableFemales < 1 && mixedSlots > 0) {
+  if (availableFemales < 2 && mixedSlots > 0) {
     maleSlots += mixedSlots;
     mixedSlots = 0;
   }
@@ -913,7 +965,8 @@ function computeMatchSlots(
   if (maleSlots > maxMaleOnlyMatches) {
     const excess = maleSlots - maxMaleOnlyMatches;
     maleSlots = maxMaleOnlyMatches;
-    mixedSlots += excess;
+    femaleSlots += Math.min(excess, maxFemaleOnlyMatches - femaleSlots);
+    mixedSlots += Math.max(0, excess - Math.max(0, maxFemaleOnlyMatches - femaleSlots));
   }
 
   if (maleSlots < 0) maleSlots = 0;
@@ -926,10 +979,9 @@ function computeMatchSlots(
   for (let i = 0; i < maleSlots; i++) slots.push("MALE_ONLY");
 
   while (slots.length < queueTarget) {
-    if (availableFemales >= 4) slots.push("FEMALE_ONLY");
+    if (availableMales >= 4) slots.push("MALE_ONLY");
     else if (availableFemales >= 2 && availableMales >= 2) slots.push("MIXED");
-    else if (availableMales >= 4) slots.push("MALE_ONLY");
-    else if (availableFemales >= 1 && availableMales >= 1) slots.push("MIXED");
+    else if (availableFemales >= 4) slots.push("FEMALE_ONLY");
     else slots.push("MALE_ONLY");
   }
 
@@ -1164,7 +1216,8 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
   const localGroupHistory = new Map<string, number>();
   const opponentHistory: PlayerOpponentHistory = new Map();
 
-  const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg);
+  const existingTypeCounts = settings?.existingMatchTypeCounts;
+  const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg, existingTypeCounts);
 
   for (let q = 0; q < matchSlots.length; q++) {
     const availableCount = Array.from(states.values()).filter(s => s === "AVAILABLE").length;
@@ -1529,7 +1582,8 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
   const localGroupHistory = new Map<string, number>();
   const opponentHistory: PlayerOpponentHistory = new Map();
 
-  const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg);
+  const existingTypeCounts2 = settings?.existingMatchTypeCounts;
+  const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg, existingTypeCounts2);
 
   for (let q = 0; q < matchSlots.length; q++) {
     const availableCount = Array.from(states.values()).filter(s => s === "AVAILABLE").length;
@@ -2139,6 +2193,23 @@ export function buildPairingHistory(
   return { recentPairings, recentOpponents, playerMatchCounts };
 }
 
+export function countExistingMatchTypes(
+  matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; status: string }[],
+  playerGenders: Map<number, string>
+): { maleOnly: number; femaleOnly: number; mixed: number } {
+  let maleOnly = 0, femaleOnly = 0, mixed = 0;
+  for (const m of matches) {
+    const ids = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+    const genders = ids.map(id => playerGenders.get(id) || "MALE");
+    const hasMale = genders.some(g => g !== "FEMALE");
+    const hasFemale = genders.some(g => g === "FEMALE");
+    if (hasMale && hasFemale) mixed++;
+    else if (hasFemale) femaleOnly++;
+    else maleOnly++;
+  }
+  return { maleOnly, femaleOnly, mixed };
+}
+
 export { getGradeRank, isHighGrade, isLowGrade };
 
 function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
@@ -2162,7 +2233,8 @@ function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
   const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
   const groupSize = Math.max(4, Math.min(cfg.hybridGroupSize, 8));
 
-  const hybridSlots = computeMatchSlots(queueTarget, eligible, states, cfg);
+  const hybridExistingCounts = settings?.existingMatchTypeCounts;
+  const hybridSlots = computeMatchSlots(queueTarget, eligible, states, cfg, hybridExistingCounts);
 
   for (let q = 0; q < queueTarget; q++) {
     const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
@@ -2608,7 +2680,8 @@ function generateRotationDoubles(opts: GenerateOptions): GenerateResult {
 
   const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
 
-  const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg);
+  const rotExistingCounts = settings?.existingMatchTypeCounts;
+  const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg, rotExistingCounts);
 
   for (let q = 0; q < matchSlots.length; q++) {
     const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");

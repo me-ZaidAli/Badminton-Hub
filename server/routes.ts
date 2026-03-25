@@ -12,7 +12,7 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
-import { generateSmartMatches, buildPairingHistory, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
+import { generateSmartMatches, buildPairingHistory, countExistingMatchTypes, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
 import { computeSessionMetrics } from "./adaptiveFairnessAI";
 import { runSimulation } from "./matchEngineLab";
 import { DEFAULT_SETTINGS, MatchEngineSettings, MatchmakingMode } from "@shared/matchEngineSettings";
@@ -4792,6 +4792,12 @@ export async function registerRoutes(
           }
 
           const autoEngineConfig = await loadClubEngineSettings(session.clubId);
+          const autoGenderMap = new Map<number, string>();
+          for (const s of signups) { if (s.player) autoGenderMap.set(s.player.id, s.player.gender || "MALE"); }
+          const autoExistingTypeCounts = countExistingMatchTypes(
+            existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
+            autoGenderMap
+          );
           const generated = generateSmartMatches({
             mode: matchMode as "SOCIAL" | "COMPETITIVE",
             players: autoActivePlayers,
@@ -4803,7 +4809,7 @@ export async function registerRoutes(
             playerMatchCounts,
             fixedPairs: extractFixedPairs(signups),
             priorityPlayerIds: autoPriorityIds.length > 0 ? autoPriorityIds : undefined,
-            settings: { engineConfig: autoEngineConfig },
+            settings: { engineConfig: autoEngineConfig, existingMatchTypeCounts: autoExistingTypeCounts },
           });
 
           const safeDeleteReplacements = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -4986,6 +4992,12 @@ export async function registerRoutes(
       }
 
       const reshuffleEngineConfig = await loadClubEngineSettings(session.clubId);
+      const reshuffleGenderMap = new Map<number, string>();
+      for (const s of signups) { if (s.player) reshuffleGenderMap.set(s.player.id, s.player.gender || "MALE"); }
+      const reshuffleTypeCounts = countExistingMatchTypes(
+        existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
+        reshuffleGenderMap
+      );
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
         players,
@@ -4997,7 +5009,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
         priorityPlayerIds,
-        settings: { engineConfig: reshuffleEngineConfig },
+        settings: { engineConfig: reshuffleEngineConfig, existingMatchTypeCounts: reshuffleTypeCounts },
       });
 
       if (generated.matches.length === 0) {
@@ -5094,6 +5106,12 @@ export async function registerRoutes(
         .map(p => p.id);
 
       const lowGamesEngineConfig = await loadClubEngineSettings(session.clubId);
+      const lowGamesGenderMap = new Map<number, string>();
+      for (const s of signups) { if (s.player) lowGamesGenderMap.set(s.player.id, s.player.gender || "MALE"); }
+      const lowGamesTypeCounts = countExistingMatchTypes(
+        existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
+        lowGamesGenderMap
+      );
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
         players,
@@ -5105,7 +5123,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
         priorityPlayerIds: lowGamePlayers.length > 0 ? lowGamePlayers : undefined,
-        settings: { engineConfig: lowGamesEngineConfig },
+        settings: { engineConfig: lowGamesEngineConfig, existingMatchTypeCounts: lowGamesTypeCounts },
       });
 
       if (generated.matches.length === 0) {
@@ -5394,6 +5412,14 @@ export async function registerRoutes(
       }
 
       const autoGenEngineConfig = await loadClubEngineSettings(session.clubId);
+      const allSessionPlayers = signups.filter(s => s.player).map(s => s.player);
+      const playerGenderMap = new Map<number, string>();
+      for (const p of allSessionPlayers) { playerGenderMap.set(p.id, p.gender || "MALE"); }
+      const completedForCounting = existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE");
+      const existingMatchTypeCounts = countExistingMatchTypes(
+        completedForCounting.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
+        playerGenderMap
+      );
       const generated = generateSmartMatches({
         mode: (session.matchMode as "SOCIAL" | "COMPETITIVE") || "SOCIAL",
         players: smartPlayers,
@@ -5405,7 +5431,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(eligibleSignups),
         priorityPlayerIds: priorityPlayerIdsAuto.length > 0 ? priorityPlayerIdsAuto : undefined,
-        settings: { engineConfig: autoGenEngineConfig },
+        settings: { engineConfig: autoGenEngineConfig, existingMatchTypeCounts },
       });
 
       const safeAutoMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -5615,6 +5641,12 @@ export async function registerRoutes(
       const fixedPairs = extractFixedPairs(eligibleSignups);
       const effectiveModeOverride = modeOverride || (session as any).matchmakingMode || undefined;
       const smartEngineConfig = await loadClubEngineSettings(session.clubId, effectiveModeOverride);
+      const smartGenderMap = new Map<number, string>();
+      for (const s of eligibleSignups) { if (s.player) smartGenderMap.set(s.player.id, s.player.gender || "MALE"); }
+      const smartTypeCounts = countExistingMatchTypes(
+        existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
+        smartGenderMap
+      );
       const generated = generateSmartMatches({
         mode: matchMode as "SOCIAL" | "COMPETITIVE",
         players: activePlayers,
@@ -5626,7 +5658,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs,
         priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-        settings: { engineConfig: smartEngineConfig },
+        settings: { engineConfig: smartEngineConfig, existingMatchTypeCounts: smartTypeCounts },
       });
 
       if (generated.pairConstraintBlocked) {
@@ -5762,6 +5794,12 @@ export async function registerRoutes(
         }
 
         const schedEngineConfig = await loadClubEngineSettings(session.clubId);
+        const schedGenderMap = new Map<number, string>();
+        for (const p of allPlayers) { schedGenderMap.set(p.id, p.gender || "MALE"); }
+        const schedTypeCounts = countExistingMatchTypes(
+          simulatedMatchHistory.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
+          schedGenderMap
+        );
         const generated = generateSmartMatches({
           mode: matchMode as "SOCIAL" | "COMPETITIVE",
           players: allPlayers,
@@ -5773,7 +5811,7 @@ export async function registerRoutes(
           playerMatchCounts,
           priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
           fixedPairs,
-          settings: { engineConfig: schedEngineConfig },
+          settings: { engineConfig: schedEngineConfig, existingMatchTypeCounts: schedTypeCounts },
         });
 
         const roundMatches = deduplicateGeneratedMatches(generated.matches, new Set<number>()).slice(0, matchesPerRound);
@@ -6331,7 +6369,7 @@ export async function registerRoutes(
         recentPairings: new Map(),
         recentOpponents: new Map(),
         playerMatchCounts: new Map(),
-        settings: { engineConfig: cfg },
+        settings: { engineConfig: cfg, existingMatchTypeCounts: { maleOnly: 0, femaleOnly: 0, mixed: 0 } },
       });
 
       const gradeMap = new Map(demoPlayers.map(p => [p.id, `P${p.id - 9000 + 1}(${p.grade},${p.gender === "FEMALE" ? "F" : "M"})`]));
