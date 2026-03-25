@@ -1944,13 +1944,15 @@ function isGenderUnfairDoubles(candidate: MatchResult, playerPool: Player[]): bo
   const p4 = candidate.teamBPlayer2Id ? getPlayer(candidate.teamBPlayer2Id) : null;
   if (!p1 || !p2 || !p3 || !p4) return false;
 
-  const teamAFemales = [p1, p2].filter(p => getEffectiveGender(p) === "FEMALE").length;
-  const teamBFemales = [p3, p4].filter(p => getEffectiveGender(p) === "FEMALE").length;
-  const teamAMales = 2 - teamAFemales;
-  const teamBMales = 2 - teamBFemales;
+  const allPlayers = [p1, p2, p3, p4];
+  const hasMale = allPlayers.some(p => getEffectiveGender(p) !== "FEMALE");
+  const hasFemale = allPlayers.some(p => getEffectiveGender(p) === "FEMALE");
 
-  if (teamAFemales === 2 && teamBMales === 2) return true;
-  if (teamBFemales === 2 && teamAMales === 2) return true;
+  if (hasMale && hasFemale) {
+    const teamAFemales = [p1, p2].filter(p => getEffectiveGender(p) === "FEMALE").length;
+    const teamBFemales = [p3, p4].filter(p => getEffectiveGender(p) === "FEMALE").length;
+    if (teamAFemales !== 1 || teamBFemales !== 1) return true;
+  }
 
   return false;
 }
