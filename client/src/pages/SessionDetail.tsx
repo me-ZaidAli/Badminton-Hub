@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useBulkPause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useRecoverMatches, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
