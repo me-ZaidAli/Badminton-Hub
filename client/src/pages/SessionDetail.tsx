@@ -3819,6 +3819,35 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
   }
 
+  const matchTypeStats = useMemo(() => {
+    const stats = { maleOnly: 0, femaleOnly: 0, mixed: 0 };
+    const pairingCounts = new Map<string, number>();
+    const playerGenders = new Map<number, string>();
+    for (const s of confirmedSignups) {
+      const pid = s.player?.id || s.playerId;
+      const gender = (s.player as any)?.gender || "MALE";
+      playerGenders.set(pid, gender);
+    }
+    for (const m of countedMatches) {
+      const ids = [m.teamAPlayer1?.id, m.teamAPlayer2?.id, m.teamBPlayer1?.id, m.teamBPlayer2?.id].filter(Boolean) as number[];
+      const genders = ids.map(id => playerGenders.get(id) || "MALE");
+      const hasMale = genders.some(g => g !== "FEMALE");
+      const hasFemale = genders.some(g => g === "FEMALE");
+      if (hasMale && hasFemale) stats.mixed++;
+      else if (hasFemale) stats.femaleOnly++;
+      else stats.maleOnly++;
+      const sorted = [...ids].sort((a, b) => a - b);
+      const key = sorted.join("-");
+      pairingCounts.set(key, (pairingCounts.get(key) || 0) + 1);
+    }
+    const repeats: { ids: number[]; count: number }[] = [];
+    for (const [key, count] of pairingCounts) {
+      if (count > 1) repeats.push({ ids: key.split("-").map(Number), count });
+    }
+    repeats.sort((a, b) => b.count - a.count);
+    return { ...stats, total: countedMatches.length, repeats };
+  }, [countedMatches, confirmedSignups]);
+
   const playerAchievements = (() => {
     if (!sessionLeaderboard || sessionLeaderboard.length === 0) return {} as Record<number, { trophy?: boolean; fire?: boolean }>;
     const result: Record<number, { trophy?: boolean; fire?: boolean }> = {};
@@ -4378,6 +4407,58 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                       </div>
                     );
                   })()}
+
+                  {isOrganiser && matchTypeStats.total > 0 && (
+                    <div className="rounded-2xl border border-slate-200 dark:border-white/[0.07] bg-slate-50/50 dark:bg-white/[0.03] p-4" data-testid="match-type-stats-panel">
+                      <div className="flex items-center gap-3 flex-wrap">
+                        <span className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider">Match Types</span>
+                        <div className="flex items-center gap-3 flex-wrap flex-1">
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-blue-500" />
+                            <span className="text-xs text-gray-600 dark:text-white/60">Men {matchTypeStats.maleOnly}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-white/30">({matchTypeStats.total > 0 ? Math.round(matchTypeStats.maleOnly / matchTypeStats.total * 100) : 0}%)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-pink-500" />
+                            <span className="text-xs text-gray-600 dark:text-white/60">Women {matchTypeStats.femaleOnly}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-white/30">({matchTypeStats.total > 0 ? Math.round(matchTypeStats.femaleOnly / matchTypeStats.total * 100) : 0}%)</span>
+                          </div>
+                          <div className="flex items-center gap-1.5">
+                            <div className="w-2.5 h-2.5 rounded-full bg-purple-500" />
+                            <span className="text-xs text-gray-600 dark:text-white/60">Mixed {matchTypeStats.mixed}</span>
+                            <span className="text-[10px] text-gray-400 dark:text-white/30">({matchTypeStats.total > 0 ? Math.round(matchTypeStats.mixed / matchTypeStats.total * 100) : 0}%)</span>
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-2 flex h-2 rounded-full overflow-hidden bg-gray-200 dark:bg-white/10">
+                        {matchTypeStats.maleOnly > 0 && <div className="bg-blue-500 transition-all" style={{ width: `${matchTypeStats.maleOnly / matchTypeStats.total * 100}%` }} />}
+                        {matchTypeStats.femaleOnly > 0 && <div className="bg-pink-500 transition-all" style={{ width: `${matchTypeStats.femaleOnly / matchTypeStats.total * 100}%` }} />}
+                        {matchTypeStats.mixed > 0 && <div className="bg-purple-500 transition-all" style={{ width: `${matchTypeStats.mixed / matchTypeStats.total * 100}%` }} />}
+                      </div>
+                      {matchTypeStats.repeats.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-slate-200 dark:border-white/[0.07]">
+                          <div className="flex items-center gap-1.5 mb-2">
+                            <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                            <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Repeated Matchups ({matchTypeStats.repeats.length})</span>
+                          </div>
+                          <div className="space-y-1 max-h-28 overflow-y-auto">
+                            {matchTypeStats.repeats.slice(0, 8).map((r, i) => {
+                              const names = r.ids.map(id => {
+                                const s = confirmedSignups.find(s => (s.player?.id || s.playerId) === id);
+                                return s?.player?.user?.fullName?.split(" ")[0] || `#${id}`;
+                              });
+                              return (
+                                <div key={i} className="flex items-center justify-between text-xs" data-testid={`repeat-matchup-${i}`}>
+                                  <span className="text-gray-600 dark:text-white/60 truncate">{names.join(", ")}</span>
+                                  <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 dark:text-amber-400 dark:border-amber-700 shrink-0 ml-2">{r.count}x</Badge>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )}
 
                   {isOrganiser && (
                     <div className="flex items-center justify-center gap-6 flex-wrap pt-2">

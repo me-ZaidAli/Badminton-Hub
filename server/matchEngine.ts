@@ -910,20 +910,35 @@ function computeMatchSlots(
     return Array(queueTarget).fill("FEMALE_ONLY" as MatchType);
   }
 
-  const maxFemaleOnlyMatches = Math.floor(availableFemales / 4);
-  const femalesForMixed = availableFemales;
-  const maxMixedMatches = Math.min(Math.floor(femalesForMixed / 2), Math.floor(availableMales / 2));
-  const maxMaleOnlyMatches = Math.floor(availableMales / 4);
+  const totalFemales = eligible.filter(p => getEffectiveGender(p) === "FEMALE").length;
+  const totalMales = eligible.filter(p => getEffectiveGender(p) !== "FEMALE").length;
 
   const existFemale = existingCounts?.femaleOnly ?? 0;
   const existMixed = existingCounts?.mixed ?? 0;
   const existMale = existingCounts?.maleOnly ?? 0;
   const existTotal = existFemale + existMixed + existMale;
 
+  const femaleMatchLoad = (existFemale * 4 + existMixed * 2);
+  const maleMatchLoad = (existMale * 4 + existMixed * 2);
+  const avgFemaleGames = totalFemales > 0 ? femaleMatchLoad / totalFemales : 0;
+  const avgMaleGames = totalMales > 0 ? maleMatchLoad / totalMales : 0;
+
   const totalTarget = existTotal + queueTarget;
 
-  const idealFemale = Math.round(totalTarget * cfg.femaleOnlyTargetRatio);
-  const idealMixed = Math.round(totalTarget * cfg.mixedTargetRatio);
+  let targetFemaleRatio = cfg.femaleOnlyTargetRatio;
+  let targetMixedRatio = cfg.mixedTargetRatio;
+  let targetMaleRatio = cfg.maleOnlyTargetRatio;
+
+  if (existTotal >= 3 && avgFemaleGames > avgMaleGames * 1.3) {
+    const overload = Math.min(targetFemaleRatio * 0.6, targetFemaleRatio);
+    targetFemaleRatio = Math.max(0, targetFemaleRatio - overload);
+    const mixedCut = Math.min(targetMixedRatio * 0.3, overload * 0.5);
+    targetMixedRatio = Math.max(0, targetMixedRatio - mixedCut);
+    targetMaleRatio = 1 - targetFemaleRatio - targetMixedRatio;
+  }
+
+  const idealFemale = Math.round(totalTarget * targetFemaleRatio);
+  const idealMixed = Math.round(totalTarget * targetMixedRatio);
   const idealMale = totalTarget - idealFemale - idealMixed;
 
   let femaleSlots = Math.max(0, idealFemale - existFemale);
@@ -932,49 +947,59 @@ function computeMatchSlots(
 
   let total = femaleSlots + mixedSlots + maleSlots;
   if (total === 0) {
-    const currentFemaleRatio = existTotal > 0 ? existFemale / existTotal : 0;
-    const currentMixedRatio = existTotal > 0 ? existMixed / existTotal : 0;
-    const currentMaleRatio = existTotal > 0 ? existMale / existTotal : 0;
+    if (avgFemaleGames > avgMaleGames * 1.2) {
+      maleSlots = queueTarget;
+    } else {
+      const currentFemaleRatio = existTotal > 0 ? existFemale / existTotal : 0;
+      const currentMixedRatio = existTotal > 0 ? existMixed / existTotal : 0;
+      const currentMaleRatio = existTotal > 0 ? existMale / existTotal : 0;
 
-    const deficits: { type: MatchType; deficit: number }[] = [
-      { type: "FEMALE_ONLY", deficit: cfg.femaleOnlyTargetRatio - currentFemaleRatio },
-      { type: "MIXED", deficit: cfg.mixedTargetRatio - currentMixedRatio },
-      { type: "MALE_ONLY", deficit: cfg.maleOnlyTargetRatio - currentMaleRatio },
-    ];
-    deficits.sort((a, b) => b.deficit - a.deficit);
+      const deficits: { type: MatchType; deficit: number }[] = [
+        { type: "FEMALE_ONLY", deficit: targetFemaleRatio - currentFemaleRatio },
+        { type: "MIXED", deficit: targetMixedRatio - currentMixedRatio },
+        { type: "MALE_ONLY", deficit: targetMaleRatio - currentMaleRatio },
+      ];
+      deficits.sort((a, b) => b.deficit - a.deficit);
 
-    for (let i = 0; i < queueTarget; i++) {
-      const pick = deficits[i % deficits.length];
-      if (pick.type === "FEMALE_ONLY") femaleSlots++;
-      else if (pick.type === "MIXED") mixedSlots++;
-      else maleSlots++;
+      for (let i = 0; i < queueTarget; i++) {
+        const pick = deficits[i % deficits.length];
+        if (pick.type === "FEMALE_ONLY") femaleSlots++;
+        else if (pick.type === "MIXED") mixedSlots++;
+        else maleSlots++;
+      }
     }
     total = femaleSlots + mixedSlots + maleSlots;
   }
 
   if (availableFemales >= 4 && existFemale === 0 && femaleSlots === 0 && queueTarget >= 1) {
     femaleSlots = 1;
-    if (mixedSlots > 0) mixedSlots--;
-    else if (maleSlots > 0) maleSlots--;
+    if (maleSlots > 0) maleSlots--;
+    else if (mixedSlots > 0) mixedSlots--;
   }
 
   while (femaleSlots + mixedSlots + maleSlots > queueTarget) {
-    if (maleSlots > 0 && maleSlots >= femaleSlots && maleSlots >= mixedSlots) maleSlots--;
+    if (femaleSlots > 0 && avgFemaleGames > avgMaleGames * 1.1) femaleSlots--;
+    else if (maleSlots > 0 && maleSlots >= femaleSlots && maleSlots >= mixedSlots) maleSlots--;
     else if (mixedSlots > 0 && mixedSlots >= femaleSlots) mixedSlots--;
     else if (femaleSlots > 0) femaleSlots--;
     else break;
   }
   while (femaleSlots + mixedSlots + maleSlots < queueTarget) {
-    const projTotal = existTotal + femaleSlots + mixedSlots + maleSlots || 1;
-    const fDef = cfg.femaleOnlyTargetRatio - (existFemale + femaleSlots) / projTotal;
-    const mxDef = cfg.mixedTargetRatio - (existMixed + mixedSlots) / projTotal;
-    const mDef = cfg.maleOnlyTargetRatio - (existMale + maleSlots) / projTotal;
+    if (avgFemaleGames > avgMaleGames * 1.2) {
+      maleSlots++;
+    } else {
+      const projTotal = existTotal + femaleSlots + mixedSlots + maleSlots || 1;
+      const fDef = targetFemaleRatio - (existFemale + femaleSlots) / projTotal;
+      const mxDef = targetMixedRatio - (existMixed + mixedSlots) / projTotal;
+      const mDef = targetMaleRatio - (existMale + maleSlots) / projTotal;
 
-    if (fDef >= mxDef && fDef >= mDef) femaleSlots++;
-    else if (mxDef >= fDef && mxDef >= mDef) mixedSlots++;
-    else maleSlots++;
+      if (fDef >= mxDef && fDef >= mDef) femaleSlots++;
+      else if (mxDef >= fDef && mxDef >= mDef) mixedSlots++;
+      else maleSlots++;
+    }
   }
 
+  const maxFemaleOnlyMatches = Math.floor(availableFemales / 4);
   if (femaleSlots > maxFemaleOnlyMatches) {
     const excess = femaleSlots - maxFemaleOnlyMatches;
     femaleSlots = maxFemaleOnlyMatches;
@@ -1023,9 +1048,9 @@ function computeMatchSlots(
 
   const slotDeficits: { type: MatchType; count: number; deficit: number }[] = [];
   const projTotal = existTotal + femaleSlots + mixedSlots + maleSlots || 1;
-  slotDeficits.push({ type: "FEMALE_ONLY", count: femaleSlots, deficit: cfg.femaleOnlyTargetRatio - (existFemale + femaleSlots) / projTotal });
-  slotDeficits.push({ type: "MIXED", count: mixedSlots, deficit: cfg.mixedTargetRatio - (existMixed + mixedSlots) / projTotal });
-  slotDeficits.push({ type: "MALE_ONLY", count: maleSlots, deficit: cfg.maleOnlyTargetRatio - (existMale + maleSlots) / projTotal });
+  slotDeficits.push({ type: "FEMALE_ONLY", count: femaleSlots, deficit: targetFemaleRatio - (existFemale + femaleSlots) / projTotal });
+  slotDeficits.push({ type: "MIXED", count: mixedSlots, deficit: targetMixedRatio - (existMixed + mixedSlots) / projTotal });
+  slotDeficits.push({ type: "MALE_ONLY", count: maleSlots, deficit: targetMaleRatio - (existMale + maleSlots) / projTotal });
   slotDeficits.sort((a, b) => b.deficit - a.deficit);
 
   for (const sd of slotDeficits) {
@@ -1033,7 +1058,7 @@ function computeMatchSlots(
   }
 
   while (slots.length < queueTarget) {
-    if (availableFemales >= 4 && existFemale + femaleSlots === 0) slots.push("FEMALE_ONLY");
+    if (avgFemaleGames > avgMaleGames * 1.1) slots.push("MALE_ONLY");
     else if (availableMales >= 4) slots.push("MALE_ONLY");
     else if (availableFemales >= 2 && availableMales >= 2) slots.push("MIXED");
     else if (availableFemales >= 4) slots.push("FEMALE_ONLY");
