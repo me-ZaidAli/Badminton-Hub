@@ -20,11 +20,14 @@ type MatchResult = {
 
 type FixedPair = [number, number];
 
+type MatchType = "MALE_ONLY" | "FEMALE_ONLY" | "MIXED";
+
 type EngineSettings = {
   matchScoreHistory?: Map<string, number[]>;
   totalSessionMatches?: number;
   engineConfig?: MatchEngineSettings;
   existingMatchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number };
+  playerLastMatchTypes?: Map<number, MatchType>;
 };
 
 type GenerateOptions = {
@@ -347,11 +350,19 @@ function fairnessPreFilter(
 
   const lowGamePlayers = sorted.filter(p => {
     const count = playerMatchCounts.get(p.id) || 0;
-    return count < maxCount;
+    return count <= minCount + 1;
   });
 
   if (lowGamePlayers.length >= playersPerMatch) {
     return lowGamePlayers;
+  }
+
+  const withinTwo = sorted.filter(p => {
+    const count = playerMatchCounts.get(p.id) || 0;
+    return count <= minCount + 2;
+  });
+  if (withinTwo.length >= playersPerMatch) {
+    return withinTwo;
   }
 
   return selectable;
@@ -599,6 +610,25 @@ function scorePairing(
   return { score, factors, breakdown };
 }
 
+function scoreBackToBackPenalty(
+  candidate: MatchResult,
+  slotType: MatchType,
+  playerLastMatchTypes: Map<number, MatchType> | undefined
+): { score: number; factors: string[] } {
+  if (!playerLastMatchTypes || playerLastMatchTypes.size === 0) return { score: 0, factors: [] };
+  const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
+  let penalty = 0;
+  const factors: string[] = [];
+  for (const id of ids) {
+    const lastType = playerLastMatchTypes.get(id);
+    if (lastType && lastType === slotType) {
+      penalty -= 80;
+      factors.push(`back-to-back ${slotType} for player ${id}: -80`);
+    }
+  }
+  return { score: penalty, factors };
+}
+
 function removeUsedPlayers(pool: Player[], match: MatchResult): Player[] {
   const usedIds = new Set([match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[]);
   return pool.filter(p => !usedIds.has(p.id));
@@ -841,7 +871,6 @@ function generateDeterministicCandidateSingles(
 }
 
 // --- v5: Match type classification for dynamic ratio system ---
-type MatchType = "MALE_ONLY" | "FEMALE_ONLY" | "MIXED";
 
 function getMatchType(candidate: MatchResult, playerPool: Player[]): MatchType {
   const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
@@ -881,6 +910,11 @@ function computeMatchSlots(
     return Array(queueTarget).fill("FEMALE_ONLY" as MatchType);
   }
 
+  const maxFemaleOnlyMatches = Math.floor(availableFemales / 4);
+  const femalesForMixed = availableFemales;
+  const maxMixedMatches = Math.min(Math.floor(femalesForMixed / 2), Math.floor(availableMales / 2));
+  const maxMaleOnlyMatches = Math.floor(availableMales / 4);
+
   const existFemale = existingCounts?.femaleOnly ?? 0;
   const existMixed = existingCounts?.mixed ?? 0;
   const existMale = existingCounts?.maleOnly ?? 0;
@@ -902,53 +936,69 @@ function computeMatchSlots(
     const currentMixedRatio = existTotal > 0 ? existMixed / existTotal : 0;
     const currentMaleRatio = existTotal > 0 ? existMale / existTotal : 0;
 
-    const femaleDef = cfg.femaleOnlyTargetRatio - currentFemaleRatio;
-    const mixedDef = cfg.mixedTargetRatio - currentMixedRatio;
-    const maleDef = cfg.maleOnlyTargetRatio - currentMaleRatio;
+    const deficits: { type: MatchType; deficit: number }[] = [
+      { type: "FEMALE_ONLY", deficit: cfg.femaleOnlyTargetRatio - currentFemaleRatio },
+      { type: "MIXED", deficit: cfg.mixedTargetRatio - currentMixedRatio },
+      { type: "MALE_ONLY", deficit: cfg.maleOnlyTargetRatio - currentMaleRatio },
+    ];
+    deficits.sort((a, b) => b.deficit - a.deficit);
 
     for (let i = 0; i < queueTarget; i++) {
-      if (femaleDef >= mixedDef && femaleDef >= maleDef) femaleSlots++;
-      else if (mixedDef >= femaleDef && mixedDef >= maleDef) mixedSlots++;
+      const pick = deficits[i % deficits.length];
+      if (pick.type === "FEMALE_ONLY") femaleSlots++;
+      else if (pick.type === "MIXED") mixedSlots++;
       else maleSlots++;
     }
     total = femaleSlots + mixedSlots + maleSlots;
   }
 
+  if (availableFemales >= 4 && existFemale === 0 && femaleSlots === 0 && queueTarget >= 1) {
+    femaleSlots = 1;
+    if (mixedSlots > 0) mixedSlots--;
+    else if (maleSlots > 0) maleSlots--;
+  }
+
+  if (existTotal >= 6 && existFemale === 0 && availableFemales >= 4) {
+    femaleSlots = Math.max(femaleSlots, Math.min(queueTarget, 1));
+    while (femaleSlots + mixedSlots + maleSlots > queueTarget) {
+      if (mixedSlots > maleSlots && mixedSlots > 0) mixedSlots--;
+      else if (maleSlots > 0) maleSlots--;
+      else if (mixedSlots > 0) mixedSlots--;
+      else break;
+    }
+  }
+
   while (femaleSlots + mixedSlots + maleSlots > queueTarget) {
     if (maleSlots > 0 && maleSlots >= femaleSlots && maleSlots >= mixedSlots) maleSlots--;
-    else if (femaleSlots > 0 && femaleSlots >= mixedSlots) femaleSlots--;
-    else if (mixedSlots > 0) mixedSlots--;
+    else if (mixedSlots > 0 && mixedSlots >= femaleSlots) mixedSlots--;
+    else if (femaleSlots > 0) femaleSlots--;
     else break;
   }
   while (femaleSlots + mixedSlots + maleSlots < queueTarget) {
-    const currentFR = (existFemale + femaleSlots) / (existTotal + femaleSlots + mixedSlots + maleSlots || 1);
-    const currentMR = (existMixed + mixedSlots) / (existTotal + femaleSlots + mixedSlots + maleSlots || 1);
-    const currentAR = (existMale + maleSlots) / (existTotal + femaleSlots + mixedSlots + maleSlots || 1);
-
-    const fDef = cfg.femaleOnlyTargetRatio - currentFR;
-    const mxDef = cfg.mixedTargetRatio - currentMR;
-    const mDef = cfg.maleOnlyTargetRatio - currentAR;
+    const projTotal = existTotal + femaleSlots + mixedSlots + maleSlots || 1;
+    const fDef = cfg.femaleOnlyTargetRatio - (existFemale + femaleSlots) / projTotal;
+    const mxDef = cfg.mixedTargetRatio - (existMixed + mixedSlots) / projTotal;
+    const mDef = cfg.maleOnlyTargetRatio - (existMale + maleSlots) / projTotal;
 
     if (fDef >= mxDef && fDef >= mDef) femaleSlots++;
     else if (mxDef >= fDef && mxDef >= mDef) mixedSlots++;
     else maleSlots++;
   }
 
-  const maxFemaleOnlyMatches = Math.floor(availableFemales / 4);
   if (femaleSlots > maxFemaleOnlyMatches) {
     const excess = femaleSlots - maxFemaleOnlyMatches;
     femaleSlots = maxFemaleOnlyMatches;
-    mixedSlots += excess;
+    maleSlots += excess;
   }
 
   const femalesRemainingAfterFemaleOnly = availableFemales - (femaleSlots * 4);
-  const maxMixedMatches = Math.min(
+  const effectiveMaxMixed = Math.min(
     Math.floor(Math.max(0, femalesRemainingAfterFemaleOnly) / 2),
     Math.floor(availableMales / 2)
   );
-  if (mixedSlots > maxMixedMatches) {
-    const excess = mixedSlots - maxMixedMatches;
-    mixedSlots = maxMixedMatches;
+  if (mixedSlots > effectiveMaxMixed) {
+    const excess = mixedSlots - effectiveMaxMixed;
+    mixedSlots = effectiveMaxMixed;
     maleSlots += excess;
   }
 
@@ -961,12 +1011,18 @@ function computeMatchSlots(
     mixedSlots = 0;
   }
 
-  const maxMaleOnlyMatches = Math.floor(availableMales / 4);
-  if (maleSlots > maxMaleOnlyMatches) {
-    const excess = maleSlots - maxMaleOnlyMatches;
-    maleSlots = maxMaleOnlyMatches;
-    femaleSlots += Math.min(excess, maxFemaleOnlyMatches - femaleSlots);
-    mixedSlots += Math.max(0, excess - Math.max(0, maxFemaleOnlyMatches - femaleSlots));
+  const effectiveMaxMale = Math.floor(availableMales / 4);
+  if (maleSlots > effectiveMaxMale) {
+    const excess = maleSlots - effectiveMaxMale;
+    maleSlots = effectiveMaxMale;
+    const femaleRoom = Math.max(0, maxFemaleOnlyMatches - femaleSlots);
+    const toFemale = Math.min(excess, femaleRoom);
+    femaleSlots += toFemale;
+    const remaining = excess - toFemale;
+    if (remaining > 0) {
+      const mixedRoom = Math.max(0, effectiveMaxMixed - mixedSlots);
+      mixedSlots += Math.min(remaining, mixedRoom);
+    }
   }
 
   if (maleSlots < 0) maleSlots = 0;
@@ -974,12 +1030,21 @@ function computeMatchSlots(
   if (mixedSlots < 0) mixedSlots = 0;
 
   const slots: MatchType[] = [];
-  for (let i = 0; i < femaleSlots; i++) slots.push("FEMALE_ONLY");
-  for (let i = 0; i < mixedSlots; i++) slots.push("MIXED");
-  for (let i = 0; i < maleSlots; i++) slots.push("MALE_ONLY");
+
+  const slotDeficits: { type: MatchType; count: number; deficit: number }[] = [];
+  const projTotal = existTotal + femaleSlots + mixedSlots + maleSlots || 1;
+  slotDeficits.push({ type: "FEMALE_ONLY", count: femaleSlots, deficit: cfg.femaleOnlyTargetRatio - (existFemale + femaleSlots) / projTotal });
+  slotDeficits.push({ type: "MIXED", count: mixedSlots, deficit: cfg.mixedTargetRatio - (existMixed + mixedSlots) / projTotal });
+  slotDeficits.push({ type: "MALE_ONLY", count: maleSlots, deficit: cfg.maleOnlyTargetRatio - (existMale + maleSlots) / projTotal });
+  slotDeficits.sort((a, b) => b.deficit - a.deficit);
+
+  for (const sd of slotDeficits) {
+    for (let i = 0; i < sd.count; i++) slots.push(sd.type);
+  }
 
   while (slots.length < queueTarget) {
-    if (availableMales >= 4) slots.push("MALE_ONLY");
+    if (availableFemales >= 4 && existFemale + femaleSlots === 0) slots.push("FEMALE_ONLY");
+    else if (availableMales >= 4) slots.push("MALE_ONLY");
     else if (availableFemales >= 2 && availableMales >= 2) slots.push("MIXED");
     else if (availableFemales >= 4) slots.push("FEMALE_ONLY");
     else slots.push("MALE_ONLY");
@@ -1215,6 +1280,7 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
   const mixedMaleCounts = new Map<number, number>();
   const localGroupHistory = new Map<string, number>();
   const opponentHistory: PlayerOpponentHistory = new Map();
+  const localLastMatchTypes = new Map<number, MatchType>(settings?.playerLastMatchTypes || []);
 
   const existingTypeCounts = settings?.existingMatchTypeCounts;
   const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg, existingTypeCounts);
@@ -1274,6 +1340,13 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
         bd.variety += groupPenalty.score;
       }
 
+      const b2bPenalty = scoreBackToBackPenalty(candidate, slotType, localLastMatchTypes);
+      if (b2bPenalty.score !== 0) {
+        s += b2bPenalty.score;
+        factors.push(...b2bPenalty.factors);
+        bd.variety += b2bPenalty.score;
+      }
+
       if (s > bestScore || (s === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
         bestScore = s;
         bestMatch = candidate;
@@ -1318,6 +1391,9 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
         const groupPenalty = scoreGroupRepeat(candidate, localGroupHistory, cfg);
         s += groupPenalty.score;
         factors.push(...groupPenalty.factors);
+        const fallbackB2b = scoreBackToBackPenalty(candidate, mt, localLastMatchTypes);
+        s += fallbackB2b.score;
+        factors.push(...fallbackB2b.factors);
         if (s > bestScore || (s === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
           bestScore = s;
           bestMatch = candidate;
@@ -1373,6 +1449,7 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
 
       for (const id of ids) {
         topMatchTracker.set(id, (topMatchTracker.get(id) || 0) + 1);
+        localLastMatchTypes.set(id, bestMatchType);
       }
       trackGroupRepeat(bestMatch, localGroupHistory);
 
@@ -1399,7 +1476,6 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
     }
   }
 
-  // --- v2 UPGRADE #11: Court assignment optimization (sort by quality) ---
   if (results.length > 1) {
     results.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0));
   }
@@ -1581,6 +1657,7 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
   const mixedMaleCounts = new Map<number, number>();
   const localGroupHistory = new Map<string, number>();
   const opponentHistory: PlayerOpponentHistory = new Map();
+  const compLastMatchTypes = new Map<number, MatchType>(settings?.playerLastMatchTypes || []);
 
   const existingTypeCounts2 = settings?.existingMatchTypeCounts;
   const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg, existingTypeCounts2);
@@ -1685,6 +1762,13 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
         if (bd) bd.variety += groupPenalty.score;
       }
 
+      const b2bPen = scoreBackToBackPenalty(candidate, slotType, compLastMatchTypes);
+      if (b2bPen.score !== 0) {
+        s += b2bPen.score;
+        factors.push(...b2bPen.factors);
+        if (bd) bd.variety += b2bPen.score;
+      }
+
       return { score: s, factors, breakdown: bd };
     };
 
@@ -1778,6 +1862,7 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
       if (bestBreakdown) bestMatch.breakdown = bestBreakdown;
       for (const id of ids) {
         topMatchTracker.set(id, (topMatchTracker.get(id) || 0) + 1);
+        compLastMatchTypes.set(id, bestMatchType);
       }
       trackGroupRepeat(bestMatch, localGroupHistory);
 
@@ -2210,6 +2295,32 @@ export function countExistingMatchTypes(
   return { maleOnly, femaleOnly, mixed };
 }
 
+type MatchTypeLabel = "MALE_ONLY" | "FEMALE_ONLY" | "MIXED";
+
+export function buildPlayerLastMatchTypes(
+  matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; status: string; id?: number; createdAt?: string | Date | null }[],
+  playerGenders: Map<number, string>
+): Map<number, MatchTypeLabel> {
+  const result = new Map<number, MatchTypeLabel>();
+  const sorted = [...matches].sort((a, b) => {
+    if (a.id && b.id) return a.id - b.id;
+    return 0;
+  });
+  for (const m of sorted) {
+    const ids = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+    const genders = ids.map(id => playerGenders.get(id) || "MALE");
+    const hasMale = genders.some(g => g !== "FEMALE");
+    const hasFemale = genders.some(g => g === "FEMALE");
+    let mt: MatchTypeLabel = "MALE_ONLY";
+    if (hasMale && hasFemale) mt = "MIXED";
+    else if (hasFemale) mt = "FEMALE_ONLY";
+    for (const id of ids) {
+      result.set(id, mt);
+    }
+  }
+  return result;
+}
+
 export { getGradeRank, isHighGrade, isLowGrade };
 
 function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
@@ -2229,6 +2340,7 @@ function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
   const localGroupHistory = new Map<string, number>();
   const mixedMaleCounts = new Map<number, number>();
   const opponentHistory: PlayerOpponentHistory = new Map();
+  const hybridLastMatchTypes = new Map<number, MatchType>(settings?.playerLastMatchTypes || []);
 
   const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
   const groupSize = Math.max(4, Math.min(cfg.hybridGroupSize, 8));
@@ -2408,6 +2520,13 @@ function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
         }
       }
 
+      const hybB2b = scoreBackToBackPenalty(candidate, slotType, hybridLastMatchTypes);
+      if (hybB2b.score !== 0) {
+        score += hybB2b.score;
+        varietyTotal += hybB2b.score;
+        factors.push(...hybB2b.factors);
+      }
+
       const bd: ScoringBreakdown = { fairness: fairnessTotal, variety: varietyTotal, quality: qualityTotal, priority: 0, gender: 0, total: score };
 
       if (score > bestScore || (score === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
@@ -2483,10 +2602,14 @@ function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
         }
       }
 
+      const hybMatchType = getMatchType(bestMatch, eligible);
       trackGroupRepeat(bestMatch, localGroupHistory);
       trackOpponentHistory(bestMatch, opponentHistory, cfg);
       bestMatch.qualityScore = bestScore;
       if (bestBreakdown) bestMatch.breakdown = bestBreakdown;
+      for (const id of ids) {
+        hybridLastMatchTypes.set(id, hybMatchType);
+      }
 
       results.push(bestMatch);
       scoringLogs.push({ matchIndex: q, candidatesEvaluated, winner: bestMatch, winnerScore: bestScore, topFactors: bestFactors.slice(0, 5) });

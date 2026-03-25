@@ -12,7 +12,7 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
-import { generateSmartMatches, buildPairingHistory, countExistingMatchTypes, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
+import { generateSmartMatches, buildPairingHistory, countExistingMatchTypes, buildPlayerLastMatchTypes, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
 import { computeSessionMetrics } from "./adaptiveFairnessAI";
 import { runSimulation } from "./matchEngineLab";
 import { DEFAULT_SETTINGS, MatchEngineSettings, MatchmakingMode } from "@shared/matchEngineSettings";
@@ -4809,7 +4809,7 @@ export async function registerRoutes(
             playerMatchCounts,
             fixedPairs: extractFixedPairs(signups),
             priorityPlayerIds: autoPriorityIds.length > 0 ? autoPriorityIds : undefined,
-            settings: { engineConfig: autoEngineConfig, existingMatchTypeCounts: autoExistingTypeCounts },
+            settings: { engineConfig: autoEngineConfig, existingMatchTypeCounts: autoExistingTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), autoGenderMap) },
           });
 
           const safeDeleteReplacements = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -5009,7 +5009,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
         priorityPlayerIds,
-        settings: { engineConfig: reshuffleEngineConfig, existingMatchTypeCounts: reshuffleTypeCounts },
+        settings: { engineConfig: reshuffleEngineConfig, existingMatchTypeCounts: reshuffleTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), reshuffleGenderMap) },
       });
 
       if (generated.matches.length === 0) {
@@ -5123,7 +5123,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
         priorityPlayerIds: lowGamePlayers.length > 0 ? lowGamePlayers : undefined,
-        settings: { engineConfig: lowGamesEngineConfig, existingMatchTypeCounts: lowGamesTypeCounts },
+        settings: { engineConfig: lowGamesEngineConfig, existingMatchTypeCounts: lowGamesTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), lowGamesGenderMap) },
       });
 
       if (generated.matches.length === 0) {
@@ -5431,7 +5431,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs: extractFixedPairs(eligibleSignups),
         priorityPlayerIds: priorityPlayerIdsAuto.length > 0 ? priorityPlayerIdsAuto : undefined,
-        settings: { engineConfig: autoGenEngineConfig, existingMatchTypeCounts },
+        settings: { engineConfig: autoGenEngineConfig, existingMatchTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(completedForCounting.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), playerGenderMap) },
       });
 
       const safeAutoMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -5658,7 +5658,7 @@ export async function registerRoutes(
         playerMatchCounts,
         fixedPairs,
         priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-        settings: { engineConfig: smartEngineConfig, existingMatchTypeCounts: smartTypeCounts },
+        settings: { engineConfig: smartEngineConfig, existingMatchTypeCounts: smartTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), smartGenderMap) },
       });
 
       if (generated.pairConstraintBlocked) {
@@ -5811,7 +5811,7 @@ export async function registerRoutes(
           playerMatchCounts,
           priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
           fixedPairs,
-          settings: { engineConfig: schedEngineConfig, existingMatchTypeCounts: schedTypeCounts },
+          settings: { engineConfig: schedEngineConfig, existingMatchTypeCounts: schedTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(simulatedMatchHistory.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), schedGenderMap) },
         });
 
         const roundMatches = deduplicateGeneratedMatches(generated.matches, new Set<number>()).slice(0, matchesPerRound);
