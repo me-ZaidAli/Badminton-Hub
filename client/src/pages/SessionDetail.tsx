@@ -3597,6 +3597,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [debugOpen, setDebugOpen] = useState(false);
   const [debugData, setDebugData] = useState<any>(null);
   const [debugLoading, setDebugLoading] = useState(false);
+  const [aiAdvisorText, setAiAdvisorText] = useState("");
+  const [aiAdvisorLoading, setAiAdvisorLoading] = useState(false);
+  const [aiAdvisorError, setAiAdvisorError] = useState("");
+  const aiAdvisorIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const lastAiMatchCount = useRef<number>(-1);
   const [fullScheduleOpen, setFullScheduleOpen] = useState(false);
   const [fullScheduleData, setFullScheduleData] = useState<any>(null);
   const [fullScheduleRounds, setFullScheduleRounds] = useState<string>("");
@@ -3740,6 +3745,44 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }, 5000);
     return () => clearInterval(interval);
   }, [autoGenerateActive, isOrganiser, autoGenLocallyStopped, sessionId, activeMode, queueTargetSize, generateGenderType, sessionMatchmakingMode, smartGenerate]);
+
+  const fetchAiAdvisor = async () => {
+    if (!isOrganiser) return;
+    setAiAdvisorLoading(true);
+    setAiAdvisorError("");
+    try {
+      const res = await fetch(`/api/sessions/${sessionId}/ai-session-advisor`, { credentials: "include" });
+      if (res.ok) {
+        const data = await res.json();
+        setAiAdvisorText(data.analysis || "");
+      } else {
+        setAiAdvisorError("Could not load AI analysis");
+      }
+    } catch {
+      setAiAdvisorError("Connection error");
+    } finally {
+      setAiAdvisorLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    if (!enginePanelOpen || !isOrganiser) return;
+
+    const totalMatches = Object.values(sessionMatchCounts).reduce((a, b) => a + b, 0);
+    if (totalMatches !== lastAiMatchCount.current) {
+      lastAiMatchCount.current = totalMatches;
+      fetchAiAdvisor();
+    }
+
+    if (aiAdvisorIntervalRef.current) clearInterval(aiAdvisorIntervalRef.current);
+    aiAdvisorIntervalRef.current = setInterval(() => {
+      fetchAiAdvisor();
+    }, 45000);
+
+    return () => {
+      if (aiAdvisorIntervalRef.current) clearInterval(aiAdvisorIntervalRef.current);
+    };
+  }, [enginePanelOpen, isOrganiser, sessionId, Object.values(sessionMatchCounts).reduce((a, b) => a + b, 0)]);
 
   const handleCourtNameChange = (courtNumber: number, name: string) => {
     const newNames = [...courtNamesState];
@@ -4616,6 +4659,58 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                           </div>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {isOrganiser && (
+                    <div className="rounded-2xl border border-indigo-200 dark:border-indigo-500/20 bg-gradient-to-br from-indigo-50/80 via-blue-50/60 to-violet-50/40 dark:from-indigo-500/[0.08] dark:via-blue-500/[0.05] dark:to-violet-500/[0.03] p-4 sm:p-5 relative overflow-hidden" data-testid="ai-session-advisor">
+                      <div className="absolute top-0 right-0 w-32 h-32 bg-gradient-to-bl from-indigo-200/30 dark:from-indigo-500/10 to-transparent rounded-bl-full pointer-events-none" />
+                      <div className="flex items-center justify-between mb-3 relative z-10">
+                        <div className="flex items-center gap-2">
+                          <div className="w-8 h-8 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-600 flex items-center justify-center shadow-lg shadow-indigo-500/25">
+                            <Brain className="w-4.5 h-4.5 text-white" />
+                          </div>
+                          <div>
+                            <h4 className="text-sm font-bold text-gray-900 dark:text-white">AI Session Advisor</h4>
+                            <span className="text-[10px] text-indigo-500 dark:text-indigo-400 font-medium">Live Analysis</span>
+                          </div>
+                        </div>
+                        <button
+                          onClick={(e) => { e.stopPropagation(); fetchAiAdvisor(); }}
+                          disabled={aiAdvisorLoading}
+                          className="inline-flex items-center gap-1 text-xs font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 dark:hover:text-indigo-300 bg-white/70 dark:bg-white/5 border border-indigo-200 dark:border-indigo-500/20 rounded-full px-3 py-1 transition-all active:scale-95 disabled:opacity-50"
+                          data-testid="button-refresh-ai-advisor"
+                        >
+                          <RotateCcw className={cn("w-3 h-3", aiAdvisorLoading && "animate-spin")} />
+                          Refresh
+                        </button>
+                      </div>
+                      <div className="relative z-10 min-h-[80px]">
+                        {aiAdvisorLoading && !aiAdvisorText ? (
+                          <div className="flex items-center gap-3 py-6 justify-center">
+                            <div className="flex gap-1">
+                              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '0ms' }} />
+                              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '150ms' }} />
+                              <div className="w-2 h-2 rounded-full bg-indigo-400 animate-bounce" style={{ animationDelay: '300ms' }} />
+                            </div>
+                            <span className="text-sm text-indigo-500 dark:text-indigo-400 font-medium">Analysing session...</span>
+                          </div>
+                        ) : aiAdvisorError ? (
+                          <div className="text-sm text-red-500 dark:text-red-400 py-2">{aiAdvisorError}</div>
+                        ) : aiAdvisorText ? (
+                          <div className="space-y-2">
+                            {aiAdvisorLoading && (
+                              <div className="flex items-center gap-1.5 mb-1">
+                                <Loader2 className="w-3 h-3 animate-spin text-indigo-400" />
+                                <span className="text-[10px] text-indigo-400">Updating...</span>
+                              </div>
+                            )}
+                            <div className="text-sm leading-relaxed text-gray-700 dark:text-white/80 whitespace-pre-line" data-testid="text-ai-advisor-content">
+                              {aiAdvisorText}
+                            </div>
+                          </div>
+                        ) : null}
+                      </div>
                     </div>
                   )}
 
