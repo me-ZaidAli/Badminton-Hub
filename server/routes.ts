@@ -10743,7 +10743,7 @@ export async function registerRoutes(
   });
 
   // Get all credit balances the current user has across clubs (for profile view)
-  app.get("/api/my-credits", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/my-credits", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
 
@@ -11337,7 +11337,7 @@ export async function registerRoutes(
   });
 
   // Get credit history for current user (for profile view)
-  app.get("/api/my-credits/history", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/my-credits/history", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
     const clubId = req.query.clubId ? Number(req.query.clubId) : null;
@@ -19493,7 +19493,7 @@ export async function registerRoutes(
   });
 
   // GET /api/my-rewards - Get current user's reward ledger
-  app.get("/api/my-rewards", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/my-rewards", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -19511,7 +19511,7 @@ export async function registerRoutes(
   });
 
   // GET /api/my-rewards/summary - Get aggregated reward summary
-  app.get("/api/my-rewards/summary", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/my-rewards/summary", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
@@ -19877,7 +19877,7 @@ export async function registerRoutes(
   });
 
   // POST /api/rewards/:id/request - Request/redeem a reward
-  app.post("/api/rewards/:id/request", requirePremium(clubIdFromSession), async (req, res) => {
+  app.post("/api/rewards/:id/request", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const id = Number(req.params.id);
@@ -19918,7 +19918,7 @@ export async function registerRoutes(
   });
 
   // POST /api/rewards/bulk-request - Bulk request multiple available rewards
-  app.post("/api/rewards/bulk-request", requirePremium(clubIdFromSession), async (req, res) => {
+  app.post("/api/rewards/bulk-request", async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     try {
       const user = req.user as any;
