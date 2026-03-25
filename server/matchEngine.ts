@@ -21,7 +21,6 @@ type MatchResult = {
 type FixedPair = [number, number];
 
 type EngineSettings = {
-  femaleQuotaRatio?: number;
   matchScoreHistory?: Map<string, number[]>;
   totalSessionMatches?: number;
   engineConfig?: MatchEngineSettings;
@@ -753,29 +752,65 @@ function generateDeterministicCandidateSingles(
   return candidates;
 }
 
-// --- v4 UPGRADE: Configurable gender quota with female-only cap + mixed minimum ---
-function computeGenderSlots(
-  eligible: Player[],
-  states: PlayerStateMap,
-  queueTarget: number,
-  femaleQuotaRatio: number = 0.7,
-  cfg?: MatchEngineSettings
-): { femaleOnlySlots: number; mixedSlots: number; hasFemaleQuota: boolean } {
-  const c = cfg || DEFAULT_SETTINGS;
-  const availableFemales = eligible.filter(p => states.get(p.id) === "AVAILABLE" && getEffectiveGender(p) === "FEMALE").length;
-  const availableMales = eligible.filter(p => states.get(p.id) === "AVAILABLE" && getEffectiveGender(p) !== "FEMALE").length;
+// --- v5: Match type classification for dynamic ratio system ---
+type MatchType = "MALE_ONLY" | "FEMALE_ONLY" | "MIXED";
 
-  if (availableFemales >= 4 && availableMales >= 2) {
-    const maxFemaleMatches = Math.floor(availableFemales / 4);
-    const maxFemaleOnlyByRatio = Math.ceil(queueTarget * femaleQuotaRatio);
-    const maxFemaleOnlyByCap = Math.floor(queueTarget * c.femaleOnlyMaxRatio);
-    const minMixedSlots = Math.ceil(queueTarget * c.mixedMinRatio);
-    const femaleOnlySlots = Math.min(maxFemaleMatches, maxFemaleOnlyByRatio, maxFemaleOnlyByCap, queueTarget - minMixedSlots);
-    const mixedSlots = queueTarget - Math.max(0, femaleOnlySlots);
-    return { femaleOnlySlots: Math.max(0, femaleOnlySlots), mixedSlots, hasFemaleQuota: true };
+function getMatchType(candidate: MatchResult, playerPool: Player[]): MatchType {
+  const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
+  const genders = ids.map(id => {
+    const p = playerPool.find(pp => pp.id === id);
+    return p ? getEffectiveGender(p) : "MALE";
+  });
+  const hasMale = genders.some(g => g !== "FEMALE");
+  const hasFemale = genders.some(g => g === "FEMALE");
+  if (hasMale && hasFemale) return "MIXED";
+  if (hasFemale && !hasMale) return "FEMALE_ONLY";
+  return "MALE_ONLY";
+}
+
+function isMaleOnlyMatch(candidate: MatchResult, playerPool: Player[]): boolean {
+  return getMatchType(candidate, playerPool) === "MALE_ONLY";
+}
+
+// --- v5: Dynamic target ratio scoring (soft, not hard) ---
+type MatchTypeCounts = { maleOnly: number; femaleOnly: number; mixed: number; total: number };
+
+function scoreMatchTypeRatio(
+  matchType: MatchType,
+  counts: MatchTypeCounts,
+  cfg: MatchEngineSettings
+): { score: number; factors: string[] } {
+  if (counts.total === 0) return { score: 0, factors: [] };
+
+  const currentRatios = {
+    maleOnly: counts.maleOnly / counts.total,
+    femaleOnly: counts.femaleOnly / counts.total,
+    mixed: counts.mixed / counts.total,
+  };
+
+  const targets = {
+    maleOnly: cfg.maleOnlyTargetRatio,
+    femaleOnly: cfg.femaleOnlyTargetRatio,
+    mixed: cfg.mixedTargetRatio,
+  };
+
+  let score = 0;
+  const factors: string[] = [];
+  const key = matchType === "MALE_ONLY" ? "maleOnly" : matchType === "FEMALE_ONLY" ? "femaleOnly" : "mixed";
+  const label = matchType === "MALE_ONLY" ? "male-only" : matchType === "FEMALE_ONLY" ? "female-only" : "mixed";
+
+  const currentRatio = currentRatios[key];
+  const targetRatio = targets[key];
+
+  if (currentRatio < targetRatio) {
+    score += cfg.ratioBoostBonus;
+    factors.push(`${label} underrepresented(${(currentRatio * 100).toFixed(0)}% vs ${(targetRatio * 100).toFixed(0)}% target): +${cfg.ratioBoostBonus}`);
+  } else if (currentRatio > targetRatio) {
+    score += cfg.ratioOverPenalty;
+    factors.push(`${label} overrepresented(${(currentRatio * 100).toFixed(0)}% vs ${(targetRatio * 100).toFixed(0)}% target): ${cfg.ratioOverPenalty}`);
   }
 
-  return { femaleOnlySlots: 0, mixedSlots: queueTarget, hasFemaleQuota: false };
+  return { score, factors };
 }
 
 function isFemaleOnlyMatch(candidate: MatchResult, playerPool: Player[]): boolean {
@@ -843,34 +878,28 @@ function trackGroupRepeat(match: MatchResult, groupHistory: Map<string, number>)
   groupHistory.set(key, (groupHistory.get(key) || 0) + 1);
 }
 
-// --- v4: Enhanced gender scoring with configurable bonuses ---
+// --- v5: Gender scoring with dynamic ratio system + mixed match quality ---
 function scoreGenderFactors(
   candidate: MatchResult,
   playerPool: Player[],
   mixedMaleCounts: Map<number, number>,
-  hasFemaleQuota: boolean,
-  wantFemaleOnly: boolean,
+  matchTypeCounts: MatchTypeCounts,
   cfg?: MatchEngineSettings
 ): { score: number; factors: string[] } {
   const c = cfg || DEFAULT_SETTINGS;
   let score = 0;
   const factors: string[] = [];
-  const getPlayer = (id: number) => playerPool.find(p => p.id === id);
 
-  const teamA = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id].filter(Boolean) as number[];
-  const teamB = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
-  const allIds = [...teamA, ...teamB];
+  const matchType = getMatchType(candidate, playerPool);
 
-  const allPlayers = allIds.map(id => getPlayer(id)).filter(Boolean) as Player[];
-  const males = allPlayers.filter(p => getEffectiveGender(p) !== "FEMALE");
-  const females = allPlayers.filter(p => getEffectiveGender(p) === "FEMALE");
+  const ratioScoring = scoreMatchTypeRatio(matchType, matchTypeCounts, c);
+  score += ratioScoring.score;
+  factors.push(...ratioScoring.factors);
 
-  const isMixed = males.length > 0 && females.length > 0;
-  const isAllSameGender = males.length === allPlayers.length || females.length === allPlayers.length;
-
-  if (isMixed) {
-    score += c.mixedMatchBonus;
-    factors.push(`mixed match bonus: +${c.mixedMatchBonus}`);
+  if (matchType === "MIXED") {
+    const allIds = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
+    const allPlayers = allIds.map(id => playerPool.find(p => p.id === id)).filter(Boolean) as Player[];
+    const males = allPlayers.filter(p => getEffectiveGender(p) !== "FEMALE");
 
     const hasStrongMale = males.some(p => isStrongPlayer(p.grade));
     if (hasStrongMale) {
@@ -880,16 +909,7 @@ function scoreGenderFactors(
       score += c.noStrongMaleFemalePenalty;
       factors.push(`no strong male in mixed: ${c.noStrongMaleFemalePenalty}`);
     }
-  }
 
-  if (isAllSameGender && allPlayers.length >= 4) {
-    score += c.sameGenderMatchPenalty;
-    factors.push(`all-same-gender penalty: ${c.sameGenderMatchPenalty}`);
-  }
-
-  if (hasFemaleQuota && !wantFemaleOnly && isMixed) {
-    score += c.mixedPreferenceBonus;
-    factors.push(`mixed slot preference: +${c.mixedPreferenceBonus}`);
     const malesInMatch = getMalesInMatch(candidate, playerPool);
     for (const maleId of malesInMatch) {
       const maleUses = mixedMaleCounts.get(maleId) || 0;
@@ -921,16 +941,10 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
   const topMatchTracker: TopMatchTracker = new Map();
 
   const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
-  const femaleQuotaRatio = settings?.femaleQuotaRatio ?? cfg.femaleQuotaRatio;
   const totalSessionMatches = settings?.totalSessionMatches ?? 0;
   const matchScoreHistory = settings?.matchScoreHistory;
 
-  const { femaleOnlySlots, hasFemaleQuota } = genderType === "MIXED"
-    ? computeGenderSlots(eligible, states, queueTarget, femaleQuotaRatio, cfg)
-    : { femaleOnlySlots: 0, hasFemaleQuota: false };
-
-  let femaleMatchesGenerated = 0;
-  let mixedMatchesGenerated = 0;
+  const matchTypeCounts: MatchTypeCounts = { maleOnly: 0, femaleOnly: 0, mixed: 0, total: 0 };
   const mixedMaleCounts = new Map<number, number>();
   const localGroupHistory = new Map<string, number>();
 
@@ -938,8 +952,6 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
     const availableCount = Array.from(states.values()).filter(s => s === "AVAILABLE").length;
     if (availableCount < 4) break;
 
-    const femaleQuotaReached = hasFemaleQuota && femaleMatchesGenerated >= femaleOnlySlots;
-    const wantFemaleOnly = hasFemaleQuota && femaleMatchesGenerated < femaleOnlySlots;
     const phase = getSessionPhase(totalSessionMatches + results.length, players.length);
 
     let bestMatch: MatchResult | null = null;
@@ -962,23 +974,12 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
 
       if (hasConsecutiveOpponentBlock(candidate, localOpponents, cfg)) continue;
 
-      if (hasFemaleQuota) {
-        const allFemale = isFemaleOnlyMatch(candidate, eligible);
-        const mixed = isMixedMatch(candidate, eligible);
-
-        if (femaleQuotaReached && allFemale) continue;
-        if (wantFemaleOnly && !allFemale) continue;
-        if (!wantFemaleOnly) {
-          if (!mixed && !allFemale) continue;
-        }
-      }
-
       candidatesEvaluated++;
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
       let { score: s, factors, breakdown: bd } = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs, phase, topMatchTracker, matchScoreHistory, cfg);
 
-      const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, hasFemaleQuota, wantFemaleOnly, cfg);
+      const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, matchTypeCounts, cfg);
       s += genderScoring.score;
       factors.push(...genderScoring.factors);
       bd.gender += genderScoring.score;
@@ -1006,54 +1007,16 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
         if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
         if (!passesQualityFloor(candidate, eligible, false, false, cfg)) continue;
         if (hasConsecutiveOpponentBlock(candidate, localOpponents, cfg)) continue;
-        if (hasFemaleQuota) {
-          const allFemale = isFemaleOnlyMatch(candidate, eligible);
-          const mixed = isMixedMatch(candidate, eligible);
-          if (femaleQuotaReached && allFemale) continue;
-          if (wantFemaleOnly && !allFemale) continue;
-          if (!wantFemaleOnly && !mixed && !allFemale) continue;
-        }
         candidatesEvaluated++;
         const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
         const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
         let { score: s, factors, breakdown: bd } = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs, phase, topMatchTracker, matchScoreHistory, cfg);
-        const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, hasFemaleQuota, wantFemaleOnly, cfg);
+        const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, matchTypeCounts, cfg);
         s += genderScoring.score;
         factors.push(...genderScoring.factors);
         const groupPenalty = scoreGroupRepeat(candidate, localGroupHistory, cfg);
         s += groupPenalty.score;
         factors.push(...groupPenalty.factors);
-        if (s > bestScore || (s === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
-          bestScore = s;
-          bestMatch = candidate;
-          bestFactors = factors;
-        if (typeof bd !== "undefined") bestBreakdown = bd;
-        }
-      }
-    }
-
-    if (!bestMatch && hasFemaleQuota && wantFemaleOnly) {
-      femaleMatchesGenerated = femaleOnlySlots;
-      const genderFallbackCandidates = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states, cfg);
-      for (const candidate of genderFallbackCandidates) {
-        const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-        if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
-        if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
-        if (!passesQualityFloor(candidate, eligible, false, false, cfg)) continue;
-        if (hasConsecutiveOpponentBlock(candidate, localOpponents, cfg)) continue;
-
-        candidatesEvaluated++;
-        const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
-        const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-        let { score: s, factors, breakdown: bd } = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs, phase, topMatchTracker, matchScoreHistory, cfg);
-
-        const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, hasFemaleQuota, false, cfg);
-        s += genderScoring.score;
-        factors.push(...genderScoring.factors);
-        const groupPenalty = scoreGroupRepeat(candidate, localGroupHistory, cfg);
-        s += groupPenalty.score;
-        factors.push(...groupPenalty.factors);
-
         if (s > bestScore || (s === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
           bestScore = s;
           bestMatch = candidate;
@@ -1087,15 +1050,16 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
       const assigned = atomicAssign(states, ids);
       if (!assigned) continue;
 
-      if (hasFemaleQuota) {
-        if (isFemaleOnlyMatch(bestMatch, eligible)) {
-          femaleMatchesGenerated++;
-        } else {
-          mixedMatchesGenerated++;
-          const malesInMatch = getMalesInMatch(bestMatch, eligible);
-          for (const maleId of malesInMatch) {
-            mixedMaleCounts.set(maleId, (mixedMaleCounts.get(maleId) || 0) + 1);
-          }
+      const bestMatchType = getMatchType(bestMatch, eligible);
+      matchTypeCounts.total++;
+      if (bestMatchType === "MALE_ONLY") matchTypeCounts.maleOnly++;
+      else if (bestMatchType === "FEMALE_ONLY") matchTypeCounts.femaleOnly++;
+      else matchTypeCounts.mixed++;
+
+      if (bestMatchType === "MIXED") {
+        const malesInMatch = getMalesInMatch(bestMatch, eligible);
+        for (const maleId of malesInMatch) {
+          mixedMaleCounts.set(maleId, (mixedMaleCounts.get(maleId) || 0) + 1);
         }
       }
 
@@ -1306,16 +1270,10 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
   const topMatchTracker: TopMatchTracker = new Map();
 
   const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
-  const femaleQuotaRatio = settings?.femaleQuotaRatio ?? cfg.femaleQuotaRatio;
   const totalSessionMatches = settings?.totalSessionMatches ?? 0;
   const matchScoreHistory = settings?.matchScoreHistory;
 
-  const { femaleOnlySlots, hasFemaleQuota } = genderType === "MIXED"
-    ? computeGenderSlots(eligible, states, queueTarget, femaleQuotaRatio, cfg)
-    : { femaleOnlySlots: 0, hasFemaleQuota: false };
-
-  let femaleMatchesGenerated = 0;
-  let mixedMatchesGenerated = 0;
+  const matchTypeCounts: MatchTypeCounts = { maleOnly: 0, femaleOnly: 0, mixed: 0, total: 0 };
   const mixedMaleCounts = new Map<number, number>();
   const localGroupHistory = new Map<string, number>();
 
@@ -1323,8 +1281,6 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
     const availableCount = Array.from(states.values()).filter(s => s === "AVAILABLE").length;
     if (availableCount < 4) break;
 
-    const femaleQuotaReached = hasFemaleQuota && femaleMatchesGenerated >= femaleOnlySlots;
-    const wantFemaleOnly = hasFemaleQuota && femaleMatchesGenerated < femaleOnlySlots;
     const phase = getSessionPhase(totalSessionMatches + results.length, players.length);
 
     let bestMatch: MatchResult | null = null;
@@ -1346,16 +1302,6 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
       if (!passesQualityFloor(candidate, eligible, true, false, cfg)) return null;
 
       if (hasConsecutiveOpponentBlock(candidate, localOpponents, cfg)) return null;
-
-      if (hasFemaleQuota) {
-        const allFemale = isFemaleOnlyMatch(candidate, eligible);
-        const mixed = isMixedMatch(candidate, eligible);
-        if (femaleQuotaReached && allFemale) return null;
-        if (wantFemaleOnly && !allFemale) return null;
-        if (!wantFemaleOnly) {
-          if (!mixed && !allFemale) return null;
-        }
-      }
 
       const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
       const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
@@ -1404,7 +1350,7 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
         }
       }
 
-      const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, hasFemaleQuota, wantFemaleOnly, cfg);
+      const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, matchTypeCounts, cfg);
       s += genderScoring.score;
       factors.push(...genderScoring.factors);
       if (bd) bd.gender += genderScoring.score;
@@ -1447,37 +1393,6 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
       }
     }
 
-    if (!bestMatch && hasFemaleQuota && wantFemaleOnly) {
-      femaleMatchesGenerated = femaleOnlySlots;
-      const compGenderFallback = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states, cfg);
-      for (const candidate of compGenderFallback) {
-        const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-        if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
-        if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
-        if (!passesQualityFloor(candidate, eligible, true, false, cfg)) continue;
-        if (hasConsecutiveOpponentBlock(candidate, localOpponents, cfg)) continue;
-
-        const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
-        const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
-        let { score: s, factors, breakdown: bd } = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs, phase, topMatchTracker, matchScoreHistory, cfg);
-
-        const genderScoring = scoreGenderFactors(candidate, eligible, mixedMaleCounts, hasFemaleQuota, false, cfg);
-        s += genderScoring.score;
-        factors.push(...genderScoring.factors);
-        const groupPenalty = scoreGroupRepeat(candidate, localGroupHistory, cfg);
-        s += groupPenalty.score;
-        factors.push(...groupPenalty.factors);
-
-        candidatesEvaluated++;
-        if (s > bestScore || (s === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
-          bestScore = s;
-          bestMatch = candidate;
-          bestFactors = factors;
-        if (typeof bd !== "undefined") bestBreakdown = bd;
-        }
-      }
-    }
-
     if (bestMatch) {
       if (hasFixedPairs) {
         const blocked = checkDuplicateMatchup(bestMatch, results);
@@ -1502,15 +1417,16 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
       const assigned = atomicAssign(states, ids);
       if (!assigned) continue;
 
-      if (hasFemaleQuota) {
-        if (isFemaleOnlyMatch(bestMatch, eligible)) {
-          femaleMatchesGenerated++;
-        } else {
-          mixedMatchesGenerated++;
-          const malesInMatch = getMalesInMatch(bestMatch, eligible);
-          for (const maleId of malesInMatch) {
-            mixedMaleCounts.set(maleId, (mixedMaleCounts.get(maleId) || 0) + 1);
-          }
+      const bestMatchType = getMatchType(bestMatch, eligible);
+      matchTypeCounts.total++;
+      if (bestMatchType === "MALE_ONLY") matchTypeCounts.maleOnly++;
+      else if (bestMatchType === "FEMALE_ONLY") matchTypeCounts.femaleOnly++;
+      else matchTypeCounts.mixed++;
+
+      if (bestMatchType === "MIXED") {
+        const malesInMatch = getMalesInMatch(bestMatch, eligible);
+        for (const maleId of malesInMatch) {
+          mixedMaleCounts.set(maleId, (mixedMaleCounts.get(maleId) || 0) + 1);
         }
       }
 
@@ -1756,7 +1672,8 @@ function findAlternativeMatch(
     const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
     let { score: s, factors } = scorePairing(team, opp, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs, phase, topMatchTracker, matchScoreHistory, c);
 
-    const genderScoring = scoreGenderFactors(candidate, eligible, emptyMaleCounts, false, false, c);
+    const emptyMatchTypeCounts: MatchTypeCounts = { maleOnly: 0, femaleOnly: 0, mixed: 0, total: 0 };
+    const genderScoring = scoreGenderFactors(candidate, eligible, emptyMaleCounts, emptyMatchTypeCounts, c);
     s += genderScoring.score;
     factors.push(...genderScoring.factors);
 

@@ -129,16 +129,14 @@ const PRIORITY_SLIDERS: SliderConfig[] = [
 ];
 
 const GENDER_SLIDERS: SliderConfig[] = [
-  { key: "femaleQuotaRatio", label: "Female Quota Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target ratio of female-only matches when enough female players are available.", format: (v: number) => `${Math.round(v * 100)}%` },
-  { key: "femaleOnlyMaxRatio", label: "Female-Only Max Cap", min: 0, max: 1, step: 0.05, tooltip: "Maximum percentage of matches that can be female-only. Caps the quota to guarantee mixed slots.", format: (v: number) => `${Math.round(v * 100)}%` },
-  { key: "mixedMinRatio", label: "Mixed Minimum Ratio", min: 0, max: 1, step: 0.05, tooltip: "Minimum percentage of matches that must be mixed-gender. Forces at least this many mixed slots.", format: (v: number) => `${Math.round(v * 100)}%` },
-  { key: "mixedPreferenceBonus", label: "Mixed Slot Preference", min: 0, max: 50, step: 5, tooltip: "Score bonus for creating mixed-gender matches in mixed slots. Encourages gender diversity." },
-  { key: "mixedMatchBonus", label: "Mixed Match Bonus", min: 0, max: 50, step: 5, tooltip: "Bonus applied to any match containing both genders. Rewards mixed pairings." },
+  { key: "maleOnlyTargetRatio", label: "Male-Only Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of male-only matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
+  { key: "femaleOnlyTargetRatio", label: "Female-Only Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of female-only matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
+  { key: "mixedTargetRatio", label: "Mixed Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of mixed-gender matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
+  { key: "ratioBoostBonus", label: "Underrepresented Boost", min: 0, max: 50, step: 5, tooltip: "Score bonus when a match type is below its target ratio. Encourages the engine to create more of that type." },
+  { key: "ratioOverPenalty", label: "Overrepresented Penalty", min: -50, max: 0, step: 5, tooltip: "Score penalty when a match type is above its target ratio. Discourages over-producing that type." },
   { key: "strongMaleFemaleBonus", label: "Strong Male + Female Bonus", min: 0, max: 50, step: 5, tooltip: "Bonus when a strong male is paired with a female. Encourages protective pairing." },
   { key: "noStrongMaleFemalePenalty", label: "No Strong Male Penalty", min: -80, max: 0, step: 5, tooltip: "Penalty when a mixed match has no strong male player available. Discourages unbalanced mixed games." },
-  { key: "sameGenderMatchPenalty", label: "All-Same-Gender Penalty", min: -30, max: 0, step: 5, tooltip: "Penalty when all 4 players in a match are the same gender. Encourages mixing." },
   { key: "maleRotationScaling", label: "Male Rotation Scaling", min: -30, max: 0, step: 5, tooltip: "Per-use penalty for repeatedly including the same male in mixed matches. Encourages rotation." },
-  { key: "maleRotationPenalty", label: "Male Rotation Penalty (Legacy)", min: -50, max: -10, step: 5, tooltip: "Legacy penalty for male rotation in mixed quota slots." },
 ];
 
 const ADVANCED_SLIDERS: SliderConfig[] = [

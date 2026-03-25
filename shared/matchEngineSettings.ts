@@ -13,21 +13,19 @@ export type MatchEngineSettings = {
   priorityHigh: number;
   priorityLow: number;
 
-  femaleQuotaRatio: number;
-  mixedPreferenceBonus: number;
-  maleRotationPenalty: number;
-
   candidateLimitBase: number;
   candidateLimitScaling: number;
 
   enablePhaseAdjustments: boolean;
 
-  femaleOnlyMaxRatio: number;
-  mixedMinRatio: number;
+  maleOnlyTargetRatio: number;
+  femaleOnlyTargetRatio: number;
+  mixedTargetRatio: number;
+  ratioBoostBonus: number;
+  ratioOverPenalty: number;
+
   strongMaleFemaleBonus: number;
   noStrongMaleFemalePenalty: number;
-  mixedMatchBonus: number;
-  sameGenderMatchPenalty: number;
   maleRotationScaling: number;
 
   consecutiveOpponentBlock: number;
@@ -53,21 +51,19 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
   priorityHigh: 150,
   priorityLow: 80,
 
-  femaleQuotaRatio: 0.7,
-  mixedPreferenceBonus: 30,
-  maleRotationPenalty: -25,
-
   candidateLimitBase: 120,
   candidateLimitScaling: 20,
 
   enablePhaseAdjustments: true,
 
-  femaleOnlyMaxRatio: 0.4,
-  mixedMinRatio: 0.6,
+  maleOnlyTargetRatio: 0.5,
+  femaleOnlyTargetRatio: 0.3,
+  mixedTargetRatio: 0.2,
+  ratioBoostBonus: 25,
+  ratioOverPenalty: -20,
+
   strongMaleFemaleBonus: 25,
   noStrongMaleFemalePenalty: -40,
-  mixedMatchBonus: 20,
-  sameGenderMatchPenalty: -10,
   maleRotationScaling: -15,
 
   consecutiveOpponentBlock: 2,
@@ -94,12 +90,13 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       priorityHigh: 180,
       priorityLow: 100,
       enablePhaseAdjustments: false,
-      femaleOnlyMaxRatio: 0.5,
-      mixedMinRatio: 0.5,
+      maleOnlyTargetRatio: 0.4,
+      femaleOnlyTargetRatio: 0.3,
+      mixedTargetRatio: 0.3,
+      ratioBoostBonus: 15,
+      ratioOverPenalty: -10,
       strongMaleFemaleBonus: 15,
       noStrongMaleFemalePenalty: -20,
-      mixedMatchBonus: 10,
-      sameGenderMatchPenalty: -5,
       maleRotationScaling: -10,
       consecutiveOpponentBlock: 3,
       softOpponentPenalty: -15,
@@ -128,12 +125,13 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       priorityHigh: 120,
       priorityLow: 60,
       enablePhaseAdjustments: true,
-      femaleOnlyMaxRatio: 0.3,
-      mixedMinRatio: 0.7,
+      maleOnlyTargetRatio: 0.5,
+      femaleOnlyTargetRatio: 0.2,
+      mixedTargetRatio: 0.3,
+      ratioBoostBonus: 30,
+      ratioOverPenalty: -25,
       strongMaleFemaleBonus: 30,
       noStrongMaleFemalePenalty: -50,
-      mixedMatchBonus: 25,
-      sameGenderMatchPenalty: -15,
       maleRotationScaling: -20,
       consecutiveOpponentBlock: 2,
       softOpponentPenalty: -35,

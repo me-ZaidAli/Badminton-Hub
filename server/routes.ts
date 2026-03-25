@@ -6251,7 +6251,7 @@ export async function registerRoutes(
         recentPairings: new Map(),
         recentOpponents: new Map(),
         playerMatchCounts: new Map(),
-        settings: { femaleQuotaRatio: cfg.femaleQuotaRatio, engineConfig: cfg },
+        settings: { engineConfig: cfg },
       });
 
       const gradeMap = new Map(demoPlayers.map(p => [p.id, `P${p.id - 9000 + 1}(${p.grade},${p.gender === "FEMALE" ? "F" : "M"})`]));
