@@ -21,6 +21,21 @@ export type MatchEngineSettings = {
   candidateLimitScaling: number;
 
   enablePhaseAdjustments: boolean;
+
+  femaleOnlyMaxRatio: number;
+  mixedMinRatio: number;
+  strongMaleFemaleBonus: number;
+  noStrongMaleFemalePenalty: number;
+  mixedMatchBonus: number;
+  sameGenderMatchPenalty: number;
+  maleRotationScaling: number;
+
+  consecutiveOpponentBlock: number;
+  softOpponentPenalty: number;
+  groupRepeatPenalty: number;
+
+  hardGradeSpreadLimit: number;
+  teamAvgDiffLimit: number;
 };
 
 export const DEFAULT_SETTINGS: MatchEngineSettings = {
@@ -30,7 +45,7 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
   spreadWeight: -80,
 
   partnerRepeatWeight: -25,
-  opponentRepeatWeight: -8,
+  opponentRepeatWeight: -15,
 
   gradeSpreadLimit: 5,
   qualityWeight: 1,
@@ -46,6 +61,21 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
   candidateLimitScaling: 20,
 
   enablePhaseAdjustments: true,
+
+  femaleOnlyMaxRatio: 0.4,
+  mixedMinRatio: 0.6,
+  strongMaleFemaleBonus: 25,
+  noStrongMaleFemalePenalty: -40,
+  mixedMatchBonus: 20,
+  sameGenderMatchPenalty: -10,
+  maleRotationScaling: -15,
+
+  consecutiveOpponentBlock: 2,
+  softOpponentPenalty: -25,
+  groupRepeatPenalty: -50,
+
+  hardGradeSpreadLimit: 4,
+  teamAvgDiffLimit: 3,
 };
 
 export const PRESETS: Record<string, { label: string; description: string; settings: Partial<MatchEngineSettings> }> = {
@@ -58,12 +88,24 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       gamesPlayedWeight: -25,
       spreadWeight: -100,
       partnerRepeatWeight: -30,
-      opponentRepeatWeight: -10,
+      opponentRepeatWeight: -18,
       gradeSpreadLimit: 7,
       qualityWeight: 0.5,
       priorityHigh: 180,
       priorityLow: 100,
       enablePhaseAdjustments: false,
+      femaleOnlyMaxRatio: 0.5,
+      mixedMinRatio: 0.5,
+      strongMaleFemaleBonus: 15,
+      noStrongMaleFemalePenalty: -20,
+      mixedMatchBonus: 10,
+      sameGenderMatchPenalty: -5,
+      maleRotationScaling: -10,
+      consecutiveOpponentBlock: 3,
+      softOpponentPenalty: -15,
+      groupRepeatPenalty: -30,
+      hardGradeSpreadLimit: 6,
+      teamAvgDiffLimit: 4,
     },
   },
   balanced: {
@@ -80,12 +122,24 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       gamesPlayedWeight: -15,
       spreadWeight: -60,
       partnerRepeatWeight: -20,
-      opponentRepeatWeight: -6,
+      opponentRepeatWeight: -12,
       gradeSpreadLimit: 3,
       qualityWeight: 1.5,
       priorityHigh: 120,
       priorityLow: 60,
       enablePhaseAdjustments: true,
+      femaleOnlyMaxRatio: 0.3,
+      mixedMinRatio: 0.7,
+      strongMaleFemaleBonus: 30,
+      noStrongMaleFemalePenalty: -50,
+      mixedMatchBonus: 25,
+      sameGenderMatchPenalty: -15,
+      maleRotationScaling: -20,
+      consecutiveOpponentBlock: 2,
+      softOpponentPenalty: -35,
+      groupRepeatPenalty: -60,
+      hardGradeSpreadLimit: 3,
+      teamAvgDiffLimit: 2,
     },
   },
 };

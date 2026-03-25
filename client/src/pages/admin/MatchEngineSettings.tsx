@@ -110,11 +110,16 @@ const FAIRNESS_SLIDERS: SliderConfig[] = [
 
 const VARIETY_SLIDERS: SliderConfig[] = [
   { key: "partnerRepeatWeight", label: "Partner Repeat Penalty", min: -80, max: -10, step: 5, tooltip: "Penalty for pairing with the same partner again. More negative = stronger partner variety." },
-  { key: "opponentRepeatWeight", label: "Opponent Repeat Penalty", min: -20, max: -5, step: 1, tooltip: "Penalty for facing the same opponent again. Encourages diverse matchups." },
+  { key: "opponentRepeatWeight", label: "Opponent Repeat Penalty", min: -25, max: -5, step: 1, tooltip: "Penalty for facing the same opponent again. Encourages diverse matchups." },
+  { key: "consecutiveOpponentBlock", label: "Consecutive Opponent Block", min: 0, max: 5, step: 1, tooltip: "Hard block if a player faces the same opponent this many times consecutively. 0 = disabled, 2 = block after 2 consecutive." },
+  { key: "softOpponentPenalty", label: "Soft Opponent Penalty", min: -60, max: 0, step: 5, tooltip: "Score penalty when a player has faced the same opponent once. Applied before hard block kicks in." },
+  { key: "groupRepeatPenalty", label: "4-Player Group Repeat", min: -100, max: 0, step: 5, tooltip: "Penalty when the same 4 players are grouped together again. Prevents stale groupings." },
 ];
 
 const QUALITY_SLIDERS: SliderConfig[] = [
   { key: "gradeSpreadLimit", label: "Max Grade Spread", min: 2, max: 7, step: 1, tooltip: "Maximum allowed skill level difference between players in a match. Lower = tighter skill matching." },
+  { key: "hardGradeSpreadLimit", label: "Hard Grade Spread Limit", min: 2, max: 8, step: 1, tooltip: "Absolute maximum grade spread. Matches exceeding this are rejected outright — no exceptions." },
+  { key: "teamAvgDiffLimit", label: "Team Avg Diff Limit", min: 1, max: 5, step: 0.5, tooltip: "Maximum allowed difference between team average grades in doubles. Matches exceeding this are rejected." },
   { key: "qualityWeight", label: "Quality Weight Multiplier", min: 0, max: 2, step: 0.1, tooltip: "Multiplier for match quality scoring. Higher values prioritise well-matched games over other factors." },
 ];
 
@@ -125,8 +130,15 @@ const PRIORITY_SLIDERS: SliderConfig[] = [
 
 const GENDER_SLIDERS: SliderConfig[] = [
   { key: "femaleQuotaRatio", label: "Female Quota Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target ratio of female-only matches when enough female players are available.", format: (v: number) => `${Math.round(v * 100)}%` },
-  { key: "mixedPreferenceBonus", label: "Mixed Match Bonus", min: 0, max: 50, step: 5, tooltip: "Score bonus for creating mixed-gender matches. Encourages gender diversity in matches." },
-  { key: "maleRotationPenalty", label: "Male Rotation Penalty", min: -50, max: -10, step: 5, tooltip: "Penalty for repeatedly including the same male in mixed matches. Encourages male player rotation." },
+  { key: "femaleOnlyMaxRatio", label: "Female-Only Max Cap", min: 0, max: 1, step: 0.05, tooltip: "Maximum percentage of matches that can be female-only. Caps the quota to guarantee mixed slots.", format: (v: number) => `${Math.round(v * 100)}%` },
+  { key: "mixedMinRatio", label: "Mixed Minimum Ratio", min: 0, max: 1, step: 0.05, tooltip: "Minimum percentage of matches that must be mixed-gender. Forces at least this many mixed slots.", format: (v: number) => `${Math.round(v * 100)}%` },
+  { key: "mixedPreferenceBonus", label: "Mixed Slot Preference", min: 0, max: 50, step: 5, tooltip: "Score bonus for creating mixed-gender matches in mixed slots. Encourages gender diversity." },
+  { key: "mixedMatchBonus", label: "Mixed Match Bonus", min: 0, max: 50, step: 5, tooltip: "Bonus applied to any match containing both genders. Rewards mixed pairings." },
+  { key: "strongMaleFemaleBonus", label: "Strong Male + Female Bonus", min: 0, max: 50, step: 5, tooltip: "Bonus when a strong male is paired with a female. Encourages protective pairing." },
+  { key: "noStrongMaleFemalePenalty", label: "No Strong Male Penalty", min: -80, max: 0, step: 5, tooltip: "Penalty when a mixed match has no strong male player available. Discourages unbalanced mixed games." },
+  { key: "sameGenderMatchPenalty", label: "All-Same-Gender Penalty", min: -30, max: 0, step: 5, tooltip: "Penalty when all 4 players in a match are the same gender. Encourages mixing." },
+  { key: "maleRotationScaling", label: "Male Rotation Scaling", min: -30, max: 0, step: 5, tooltip: "Per-use penalty for repeatedly including the same male in mixed matches. Encourages rotation." },
+  { key: "maleRotationPenalty", label: "Male Rotation Penalty (Legacy)", min: -50, max: -10, step: 5, tooltip: "Legacy penalty for male rotation in mixed quota slots." },
 ];
 
 const ADVANCED_SLIDERS: SliderConfig[] = [
