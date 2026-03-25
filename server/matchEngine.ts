@@ -1,5 +1,5 @@
 import { GRADE_ORDER } from "@shared/schema";
-import { MatchEngineSettings, DEFAULT_SETTINGS, ScoringBreakdown } from "@shared/matchEngineSettings";
+import { MatchEngineSettings, MatchmakingMode, DEFAULT_SETTINGS, ScoringBreakdown } from "@shared/matchEngineSettings";
 
 type Player = {
   id: number;
@@ -1932,8 +1932,621 @@ export function buildPairingHistory(
 
 export { getGradeRank, isHighGrade, isLowGrade };
 
+function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
+  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds, fixedPairs, settings } = opts;
+  const cfg = settings?.engineConfig || DEFAULT_SETTINGS;
+  let eligible = filterByGender(players, genderType);
+
+  const preErrors = validatePreConditions(eligible, 4);
+  if (preErrors.length > 0) return { matches: [], validationErrors: preErrors };
+
+  const results: MatchResult[] = [];
+  const scoringLogs: ScoringLog[] = [];
+  const localPairings = new Map(recentPairings);
+  const localOpponents = new Map(recentOpponents);
+  const localCounts = new Map(playerMatchCounts);
+  const states = initPlayerStates(eligible);
+  const localGroupHistory = new Map<string, number>();
+  const mixedMaleCounts = new Map<number, number>();
+  const opponentHistory: PlayerOpponentHistory = new Map();
+
+  const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
+  const groupSize = Math.max(4, Math.min(cfg.hybridGroupSize, 8));
+
+  for (let q = 0; q < queueTarget; q++) {
+    const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+    if (available.length < 4) break;
+
+    const sorted = [...available].sort((a, b) => {
+      const ca = localCounts.get(a.id) || 0;
+      const cb = localCounts.get(b.id) || 0;
+      if (ca !== cb) return ca - cb;
+      return a.id - b.id;
+    });
+
+    const groupPool = sorted.slice(0, Math.min(groupSize, sorted.length));
+    if (groupPool.length < 4) break;
+
+    if (hasFixedPairs) {
+      for (const [a, b] of fixedPairs!) {
+        const aInGroup = groupPool.some(p => p.id === a);
+        const bInGroup = groupPool.some(p => p.id === b);
+        if (aInGroup && !bInGroup) {
+          const partner = sorted.find(p => p.id === b);
+          if (partner && states.get(b) === "AVAILABLE") {
+            const extra = groupPool.find(pp => pp.id !== a && !fixedPairs!.some(([x, y]) => x === pp.id || y === pp.id));
+            if (extra) {
+              const idx = groupPool.indexOf(extra);
+              if (idx >= 0) groupPool[idx] = partner;
+              else groupPool.push(partner);
+            } else {
+              groupPool.push(partner);
+            }
+          }
+        } else if (bInGroup && !aInGroup) {
+          const partner = sorted.find(p => p.id === a);
+          if (partner && states.get(a) === "AVAILABLE") {
+            const extra = groupPool.find(pp => pp.id !== b && !fixedPairs!.some(([x, y]) => x === pp.id || y === pp.id));
+            if (extra) {
+              const idx = groupPool.indexOf(extra);
+              if (idx >= 0) groupPool[idx] = partner;
+              else groupPool.push(partner);
+            } else {
+              groupPool.push(partner);
+            }
+          }
+        }
+      }
+    }
+
+    const candidates = generateDeterministicCandidateDoubles(groupPool, fixedPairs || [], states, cfg);
+    let bestMatch: MatchResult | null = null;
+    let bestScore = -Infinity;
+    let bestFactors: string[] = [];
+    let bestBreakdown: ScoringBreakdown | undefined;
+    let candidatesEvaluated = 0;
+
+    for (const candidate of candidates) {
+      const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
+      if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
+
+      if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, groupPool)) continue;
+
+      const allIds = ids;
+      const grades = allIds.map(id => {
+        const p = groupPool.find(pp => pp.id === id);
+        return p ? getGradeRank(p.grade) : 1;
+      });
+      const spread = Math.max(...grades) - Math.min(...grades);
+      if (spread > cfg.hybridGradeSpreadLimit) continue;
+
+      const gk = groupKey(allIds);
+      const groupCount = localGroupHistory.get(gk) || 0;
+      if (groupCount >= cfg.hybridGroupCooldown) continue;
+
+      if (hasOpponentCooldown(candidate, opponentHistory, cfg)) continue;
+
+      candidatesEvaluated++;
+
+      let score = 0;
+      const factors: string[] = [];
+      let fairnessTotal = 0;
+      let varietyTotal = 0;
+      let qualityTotal = 0;
+
+      const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
+      for (const id of allIds) {
+        const played = localCounts.get(id) || 0;
+        const deficit = played - globalMin;
+        const pen = getDeficitPenalty(deficit, cfg);
+        score += pen;
+        fairnessTotal += pen;
+        if (deficit > 0) factors.push(`deficit(${id})=${deficit}: ${pen}`);
+      }
+
+      for (const a of [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!]) {
+        for (const b of [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!]) {
+          const oppKey = pairKey(a, b);
+          const oppCount = localOpponents.get(oppKey) || 0;
+          if (oppCount > 0) {
+            const pen = Math.round(-oppCount * Math.abs(cfg.opponentRepeatWeight));
+            score += pen;
+            varietyTotal += pen;
+            factors.push(`opp repeat(${a}v${b})x${oppCount}: ${pen}`);
+          }
+        }
+      }
+
+      const team = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!];
+      const opp = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
+      for (const pair of [team, opp]) {
+        const pk = pairKey(pair[0], pair[1]);
+        const pairCount = localPairings.get(pk) || 0;
+        if (pairCount > 0) {
+          const pen = getPartnerPenalty(pairCount, cfg);
+          score += pen;
+          varietyTotal += pen;
+          factors.push(`partner repeat(${pair[0]},${pair[1]})x${pairCount}: ${pen}`);
+        }
+      }
+
+      if (groupCount > 0) {
+        const pen = Math.round(groupCount * (cfg.groupRepeatPenalty * 0.5));
+        score += pen;
+        varietyTotal += pen;
+        factors.push(`group repeat x${groupCount}: ${pen}`);
+      }
+
+      if (genderType === "MIXED") {
+        const matchType = getMatchType(candidate, groupPool);
+        if (matchType === "MIXED") {
+          const malesInMatch = getMalesInMatch(candidate, groupPool);
+          for (const maleId of malesInMatch) {
+            const maleUses = mixedMaleCounts.get(maleId) || 0;
+            if (maleUses > 0) {
+              const rotPen = maleUses * cfg.maleRotationScaling;
+              score += rotPen;
+              factors.push(`mixed rotation(${maleId})x${maleUses}: ${rotPen}`);
+            }
+          }
+        }
+      }
+
+      const avgGrade = grades.reduce((a, b) => a + b, 0) / grades.length;
+      const qualityScore = Math.round(getMatchQualityScore(avgGrade, spread) * cfg.qualityWeight * 0.5);
+      score += qualityScore;
+      qualityTotal += qualityScore;
+      if (qualityScore !== 0) factors.push(`quality(avg${avgGrade.toFixed(1)},spread${spread}): ${qualityScore}`);
+
+      if (priorityPlayerIds && priorityPlayerIds.length > 0) {
+        for (const id of allIds) {
+          if (priorityPlayerIds.includes(id)) {
+            const played = localCounts.get(id) || 0;
+            const deficit = played - globalMin;
+            const bonus = getPriorityScore(deficit, cfg);
+            score += bonus;
+            factors.push(`priority(${id}): +${bonus}`);
+          }
+        }
+      }
+
+      const bd: ScoringBreakdown = { fairness: fairnessTotal, variety: varietyTotal, quality: qualityTotal, priority: 0, gender: 0, total: score };
+
+      if (score > bestScore || (score === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+        bestScore = score;
+        bestMatch = candidate;
+        bestFactors = factors;
+        bestBreakdown = bd;
+      }
+    }
+
+    if (!bestMatch) {
+      const fallbackCandidates = generateDeterministicCandidateDoubles(eligible, fixedPairs || [], states, cfg);
+      for (const candidate of fallbackCandidates) {
+        const ids = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!, candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!];
+        if (ids.some(id => states.get(id) !== "AVAILABLE")) continue;
+        if (genderType === "MIXED" && isGenderUnfairDoubles(candidate, eligible)) continue;
+        candidatesEvaluated++;
+
+        let score = 0;
+        const factors: string[] = ["fallback"];
+        const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
+        for (const id of ids) {
+          const played = localCounts.get(id) || 0;
+          const deficit = played - globalMin;
+          score += getDeficitPenalty(deficit, cfg);
+        }
+
+        const bd: ScoringBreakdown = { fairness: score, variety: 0, quality: 0, priority: 0, gender: 0, total: score };
+        if (score > bestScore || (score === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+          bestScore = score;
+          bestMatch = candidate;
+          bestFactors = factors;
+          bestBreakdown = bd;
+        }
+      }
+    }
+
+    if (bestMatch) {
+      if (hasFixedPairs) {
+        const blocked = checkDuplicateMatchup(bestMatch, results);
+        if (blocked) {
+          const alternative = findAlternativeMatch(candidates, results, states, localPairings, localOpponents, localCounts, priorityPlayerIds, eligible, fixedPairs!, undefined, undefined, undefined, cfg);
+          if (alternative) {
+            bestMatch = alternative.match;
+            bestScore = alternative.score;
+            bestFactors = alternative.factors;
+          } else {
+            break;
+          }
+        }
+      }
+
+      const ids = [bestMatch.teamAPlayer1Id, bestMatch.teamAPlayer2Id, bestMatch.teamBPlayer1Id, bestMatch.teamBPlayer2Id].filter(Boolean) as number[];
+      const assigned = atomicAssign(states, ids);
+      if (!assigned) continue;
+
+      if (genderType === "MIXED") {
+        const matchType = getMatchType(bestMatch, eligible);
+        if (matchType === "MIXED") {
+          const malesInMatch = getMalesInMatch(bestMatch, eligible);
+          for (const maleId of malesInMatch) {
+            mixedMaleCounts.set(maleId, (mixedMaleCounts.get(maleId) || 0) + 1);
+          }
+        }
+      }
+
+      trackGroupRepeat(bestMatch, localGroupHistory);
+      trackOpponentHistory(bestMatch, opponentHistory, cfg);
+      bestMatch.qualityScore = bestScore;
+      if (bestBreakdown) bestMatch.breakdown = bestBreakdown;
+
+      results.push(bestMatch);
+      scoringLogs.push({ matchIndex: q, candidatesEvaluated, winner: bestMatch, winnerScore: bestScore, topFactors: bestFactors.slice(0, 5) });
+      updateTrackingMaps(bestMatch, localPairings, localOpponents, localCounts);
+      eligible = removeUsedPlayers(eligible, bestMatch);
+    } else {
+      break;
+    }
+  }
+
+  if (results.length > 1) {
+    results.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0));
+  }
+
+  const postErrors = validatePostConditions(results, states);
+  return { matches: results, scoringLogs, validationErrors: postErrors.length > 0 ? postErrors : undefined };
+}
+
+function generateHybridSingles(opts: GenerateOptions): GenerateResult {
+  const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, priorityPlayerIds, settings } = opts;
+  const cfg = settings?.engineConfig || DEFAULT_SETTINGS;
+  let eligible = filterByGender(players, genderType);
+
+  const preErrors = validatePreConditions(eligible, 2);
+  if (preErrors.length > 0) return { matches: [], validationErrors: preErrors };
+
+  const results: MatchResult[] = [];
+  const scoringLogs: ScoringLog[] = [];
+  const localOpponents = new Map(recentOpponents);
+  const localCounts = new Map(playerMatchCounts);
+  const states = initPlayerStates(eligible);
+  const groupSize = Math.max(4, Math.min(cfg.hybridGroupSize, 8));
+
+  for (let q = 0; q < queueTarget; q++) {
+    const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+    if (available.length < 2) break;
+
+    const sorted = [...available].sort((a, b) => {
+      const ca = localCounts.get(a.id) || 0;
+      const cb = localCounts.get(b.id) || 0;
+      if (ca !== cb) return ca - cb;
+      return a.id - b.id;
+    });
+
+    const groupPool = sorted.slice(0, Math.min(groupSize, sorted.length));
+    if (groupPool.length < 2) break;
+
+    const candidates = generateDeterministicCandidateSingles(groupPool, states);
+    let bestMatch: MatchResult | null = null;
+    let bestScore = -Infinity;
+    let bestFactors: string[] = [];
+    let candidatesEvaluated = 0;
+
+    const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
+
+    for (const candidate of candidates) {
+      if (states.get(candidate.teamAPlayer1Id) !== "AVAILABLE" || states.get(candidate.teamBPlayer1Id) !== "AVAILABLE") continue;
+
+      const pA = groupPool.find(p => p.id === candidate.teamAPlayer1Id);
+      const pB = groupPool.find(p => p.id === candidate.teamBPlayer1Id);
+      if (!pA || !pB) continue;
+
+      const gradeDiff = Math.abs(getGradeRank(pA.grade) - getGradeRank(pB.grade));
+      if (gradeDiff > cfg.hybridGradeSpreadLimit) continue;
+
+      const oppKey = pairKey(candidate.teamAPlayer1Id, candidate.teamBPlayer1Id);
+      const oppCount = localOpponents.get(oppKey) || 0;
+      if (oppCount >= 2) continue;
+
+      candidatesEvaluated++;
+      let score = 0;
+      const factors: string[] = [];
+
+      const countA = localCounts.get(candidate.teamAPlayer1Id) || 0;
+      const countB = localCounts.get(candidate.teamBPlayer1Id) || 0;
+      score += getDeficitPenalty(countA - globalMin, cfg);
+      score += getDeficitPenalty(countB - globalMin, cfg);
+
+      if (oppCount > 0) {
+        const pen = Math.round(-oppCount * Math.abs(cfg.opponentRepeatWeight));
+        score += pen;
+        factors.push(`opp repeat x${oppCount}: ${pen}`);
+      }
+
+      if (priorityPlayerIds && priorityPlayerIds.length > 0) {
+        if (priorityPlayerIds.includes(candidate.teamAPlayer1Id)) { const b = getPriorityScore(countA - globalMin, cfg); score += b; factors.push(`priority: +${b}`); }
+        if (priorityPlayerIds.includes(candidate.teamBPlayer1Id)) { const b = getPriorityScore(countB - globalMin, cfg); score += b; factors.push(`priority: +${b}`); }
+      }
+
+      if (score > bestScore || (score === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+        bestScore = score;
+        bestMatch = candidate;
+        bestFactors = factors;
+      }
+    }
+
+    if (!bestMatch) {
+      const fallbackCandidates = generateDeterministicCandidateSingles(eligible, states);
+      for (const candidate of fallbackCandidates) {
+        if (states.get(candidate.teamAPlayer1Id) !== "AVAILABLE" || states.get(candidate.teamBPlayer1Id) !== "AVAILABLE") continue;
+        candidatesEvaluated++;
+        const countA = localCounts.get(candidate.teamAPlayer1Id) || 0;
+        const countB = localCounts.get(candidate.teamBPlayer1Id) || 0;
+        let score = getDeficitPenalty(countA - globalMin, cfg) + getDeficitPenalty(countB - globalMin, cfg);
+        if (score > bestScore || (score === bestScore && deterministicTiebreak(candidate, bestMatch!))) {
+          bestScore = score;
+          bestMatch = candidate;
+          bestFactors = ["fallback"];
+        }
+      }
+    }
+
+    if (bestMatch) {
+      const ids = [bestMatch.teamAPlayer1Id, bestMatch.teamBPlayer1Id];
+      const assigned = atomicAssign(states, ids);
+      if (!assigned) continue;
+
+      bestMatch.qualityScore = bestScore;
+      results.push(bestMatch);
+      scoringLogs.push({ matchIndex: q, candidatesEvaluated, winner: bestMatch, winnerScore: bestScore, topFactors: bestFactors.slice(0, 5) });
+      const key = pairKey(bestMatch.teamAPlayer1Id, bestMatch.teamBPlayer1Id);
+      localOpponents.set(key, (localOpponents.get(key) || 0) + 1);
+      localCounts.set(bestMatch.teamAPlayer1Id, (localCounts.get(bestMatch.teamAPlayer1Id) || 0) + 1);
+      localCounts.set(bestMatch.teamBPlayer1Id, (localCounts.get(bestMatch.teamBPlayer1Id) || 0) + 1);
+      eligible = removeUsedPlayers(eligible, bestMatch);
+    } else {
+      break;
+    }
+  }
+
+  if (results.length > 1) {
+    results.sort((a, b) => (b.qualityScore || 0) - (a.qualityScore || 0));
+  }
+
+  const postErrors = validatePostConditions(results, states);
+  return { matches: results, scoringLogs, validationErrors: postErrors.length > 0 ? postErrors : undefined };
+}
+
+function generateRotationDoubles(opts: GenerateOptions): GenerateResult {
+  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, fixedPairs, settings } = opts;
+  const cfg = settings?.engineConfig || DEFAULT_SETTINGS;
+  let eligible = filterByGender(players, genderType);
+
+  const preErrors = validatePreConditions(eligible, 4);
+  if (preErrors.length > 0) return { matches: [], validationErrors: preErrors };
+
+  const results: MatchResult[] = [];
+  const scoringLogs: ScoringLog[] = [];
+  const localPairings = new Map(recentPairings);
+  const localOpponents = new Map(recentOpponents);
+  const localCounts = new Map(playerMatchCounts);
+  const states = initPlayerStates(eligible);
+
+  const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
+
+  for (let q = 0; q < queueTarget; q++) {
+    const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+    if (available.length < 4) break;
+
+    const sorted = [...available].sort((a, b) => {
+      const ca = localCounts.get(a.id) || 0;
+      const cb = localCounts.get(b.id) || 0;
+      if (ca !== cb) return ca - cb;
+      return a.id - b.id;
+    });
+
+    const group = sorted.slice(0, 4);
+
+    if (hasFixedPairs) {
+      for (const [a, b] of fixedPairs!) {
+        const groupIds = group.map(p => p.id);
+        const aInGroup = groupIds.includes(a);
+        const bInGroup = groupIds.includes(b);
+        if (aInGroup && !bInGroup) {
+          const partner = sorted.find(p => p.id === b && states.get(p.id) === "AVAILABLE");
+          if (partner) {
+            const replaceIdx = group.findIndex(p => p.id !== a && !fixedPairs!.some(([x, y]) => x === p.id || y === p.id));
+            if (replaceIdx >= 0) group[replaceIdx] = partner;
+            else if (group.length < 5) group.push(partner);
+          }
+        } else if (bInGroup && !aInGroup) {
+          const partner = sorted.find(p => p.id === a && states.get(p.id) === "AVAILABLE");
+          if (partner) {
+            const replaceIdx = group.findIndex(p => p.id !== b && !fixedPairs!.some(([x, y]) => x === p.id || y === p.id));
+            if (replaceIdx >= 0) group[replaceIdx] = partner;
+            else if (group.length < 5) group.push(partner);
+          }
+        }
+      }
+    }
+
+    if (group.length < 4) break;
+    let [p1, p2, p3, p4] = group;
+
+    if (hasFixedPairs) {
+      for (const [a, b] of fixedPairs!) {
+        const fourIds = [p1.id, p2.id, p3.id, p4.id];
+        const aIdx = fourIds.indexOf(a);
+        const bIdx = fourIds.indexOf(b);
+        if (aIdx >= 0 && bIdx >= 0 && ((aIdx < 2) !== (bIdx < 2))) {
+          const fourPlayers = [p1, p2, p3, p4];
+          if (aIdx < 2) {
+            const targetIdx = aIdx === 0 ? 1 : 0;
+            [fourPlayers[targetIdx], fourPlayers[bIdx]] = [fourPlayers[bIdx], fourPlayers[targetIdx]];
+          } else {
+            const targetIdx = bIdx < 2 ? (bIdx === 0 ? 1 : 0) : (bIdx === 2 ? 3 : 2);
+            [fourPlayers[targetIdx], fourPlayers[aIdx]] = [fourPlayers[aIdx], fourPlayers[targetIdx]];
+          }
+          [p1, p2, p3, p4] = fourPlayers;
+        }
+      }
+    }
+
+    const candidate: MatchResult = {
+      teamAPlayer1Id: p1.id,
+      teamAPlayer2Id: p4.id,
+      teamBPlayer1Id: p2.id,
+      teamBPlayer2Id: p3.id,
+    };
+
+    let usedCandidate = candidate;
+    const factors: string[] = ["rotation"];
+
+    const pk1 = pairKey(candidate.teamAPlayer1Id, candidate.teamAPlayer2Id!);
+    const pk2 = pairKey(candidate.teamBPlayer1Id, candidate.teamBPlayer2Id!);
+    const recentPartnerA = (localPairings.get(pk1) || 0) > 0;
+    const recentPartnerB = (localPairings.get(pk2) || 0) > 0;
+
+    if (recentPartnerA || recentPartnerB) {
+      const alt: MatchResult = {
+        teamAPlayer1Id: p1.id,
+        teamAPlayer2Id: p3.id,
+        teamBPlayer1Id: p2.id,
+        teamBPlayer2Id: p4.id,
+      };
+
+      if (hasFixedPairs && !candidateRespectsFixedPairs(alt, fixedPairs!)) {
+        const alt2: MatchResult = {
+          teamAPlayer1Id: p1.id,
+          teamAPlayer2Id: p2.id,
+          teamBPlayer1Id: p3.id,
+          teamBPlayer2Id: p4.id,
+        };
+        if (candidateRespectsFixedPairs(alt2, fixedPairs!)) {
+          usedCandidate = alt2;
+          factors.push("partner swap alt2");
+        }
+      } else {
+        usedCandidate = alt;
+        factors.push("partner swap");
+      }
+    }
+
+    if (hasFixedPairs && !candidateRespectsFixedPairs(usedCandidate, fixedPairs!)) {
+      continue;
+    }
+
+    if (hasFixedPairs && checkDuplicateMatchup(usedCandidate, results)) {
+      continue;
+    }
+
+    const ids = [usedCandidate.teamAPlayer1Id, usedCandidate.teamAPlayer2Id, usedCandidate.teamBPlayer1Id, usedCandidate.teamBPlayer2Id].filter(Boolean) as number[];
+    const assigned = atomicAssign(states, ids);
+    if (!assigned) continue;
+
+    const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
+    let score = 0;
+    for (const id of ids) {
+      const deficit = (localCounts.get(id) || 0) - globalMin;
+      score += getDeficitPenalty(deficit, cfg);
+    }
+    usedCandidate.qualityScore = score;
+    usedCandidate.breakdown = { fairness: score, variety: 0, quality: 0, priority: 0, gender: 0, total: score };
+
+    results.push(usedCandidate);
+    scoringLogs.push({ matchIndex: q, candidatesEvaluated: 1, winner: usedCandidate, winnerScore: score, topFactors: factors });
+    updateTrackingMaps(usedCandidate, localPairings, localOpponents, localCounts);
+    eligible = removeUsedPlayers(eligible, usedCandidate);
+  }
+
+  const postErrors = validatePostConditions(results, states);
+  return { matches: results, scoringLogs, validationErrors: postErrors.length > 0 ? postErrors : undefined };
+}
+
+function generateRotationSingles(opts: GenerateOptions): GenerateResult {
+  const { players, queueTarget, recentOpponents, playerMatchCounts, genderType, settings } = opts;
+  const cfg = settings?.engineConfig || DEFAULT_SETTINGS;
+  let eligible = filterByGender(players, genderType);
+
+  const preErrors = validatePreConditions(eligible, 2);
+  if (preErrors.length > 0) return { matches: [], validationErrors: preErrors };
+
+  const results: MatchResult[] = [];
+  const scoringLogs: ScoringLog[] = [];
+  const localOpponents = new Map(recentOpponents);
+  const localCounts = new Map(playerMatchCounts);
+  const states = initPlayerStates(eligible);
+
+  for (let q = 0; q < queueTarget; q++) {
+    const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+    if (available.length < 2) break;
+
+    const sorted = [...available].sort((a, b) => {
+      const ca = localCounts.get(a.id) || 0;
+      const cb = localCounts.get(b.id) || 0;
+      if (ca !== cb) return ca - cb;
+      return a.id - b.id;
+    });
+
+    let chosen: [Player, Player] = [sorted[0], sorted[1]];
+
+    const oppKey = pairKey(sorted[0].id, sorted[1].id);
+    const recentOpp = (localOpponents.get(oppKey) || 0) > 0;
+    if (recentOpp && sorted.length >= 3) {
+      const altKey = pairKey(sorted[0].id, sorted[2].id);
+      const altRecentOpp = (localOpponents.get(altKey) || 0) > 0;
+      if (!altRecentOpp) {
+        chosen = [sorted[0], sorted[2]];
+      }
+    }
+
+    const candidate: MatchResult = {
+      teamAPlayer1Id: chosen[0].id,
+      teamAPlayer2Id: null,
+      teamBPlayer1Id: chosen[1].id,
+      teamBPlayer2Id: null,
+    };
+
+    const ids = [candidate.teamAPlayer1Id, candidate.teamBPlayer1Id];
+    const assigned = atomicAssign(states, ids);
+    if (!assigned) continue;
+
+    const globalMin = localCounts.size > 0 ? Math.min(...Array.from(localCounts.values())) : 0;
+    let score = 0;
+    for (const id of ids) {
+      const deficit = (localCounts.get(id) || 0) - globalMin;
+      score += getDeficitPenalty(deficit, cfg);
+    }
+    candidate.qualityScore = score;
+    candidate.breakdown = { fairness: score, variety: 0, quality: 0, priority: 0, gender: 0, total: score };
+
+    results.push(candidate);
+    scoringLogs.push({ matchIndex: q, candidatesEvaluated: 1, winner: candidate, winnerScore: score, topFactors: ["rotation"] });
+    const key = pairKey(candidate.teamAPlayer1Id, candidate.teamBPlayer1Id);
+    localOpponents.set(key, (localOpponents.get(key) || 0) + 1);
+    localCounts.set(candidate.teamAPlayer1Id, (localCounts.get(candidate.teamAPlayer1Id) || 0) + 1);
+    localCounts.set(candidate.teamBPlayer1Id, (localCounts.get(candidate.teamBPlayer1Id) || 0) + 1);
+    eligible = removeUsedPlayers(eligible, candidate);
+  }
+
+  const postErrors = validatePostConditions(results, states);
+  return { matches: results, scoringLogs, validationErrors: postErrors.length > 0 ? postErrors : undefined };
+}
+
 export function generateSmartMatches(opts: GenerateOptions): GenerateResult {
-  const { mode, playersPerSide } = opts;
+  const { mode, playersPerSide, settings } = opts;
+  const matchmakingMode: MatchmakingMode = settings?.engineConfig?.matchmakingMode || "ADVANCED";
+
+  if (matchmakingMode === "ROTATION") {
+    if (playersPerSide === 1) return generateRotationSingles(opts);
+    return generateRotationDoubles(opts);
+  }
+
+  if (matchmakingMode === "HYBRID") {
+    if (playersPerSide === 1) return generateHybridSingles(opts);
+    return generateHybridDoubles(opts);
+  }
 
   if (mode === "SOCIAL") {
     if (playersPerSide === 1) return generateSocialSingles(opts);

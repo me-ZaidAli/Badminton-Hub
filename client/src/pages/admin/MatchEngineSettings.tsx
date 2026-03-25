@@ -1,5 +1,5 @@
-import { useState, useEffect, useMemo, useCallback } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useState, useMemo, useCallback } from "react";
+import { useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,10 +12,10 @@ import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
   Settings2, RotateCcw, Save, Play, Bug, Trophy, Zap,
-  Users, Target, Shield, Gauge, Info, ChevronDown, ChevronUp,
-  Sparkles, BarChart3, ArrowUpDown
+  Users, Target, Shield, Gauge, Info,
+  Sparkles, BarChart3, ArrowUpDown, RefreshCw, Layers, Bolt
 } from "lucide-react";
-import type { MatchEngineSettings as SettingsType, ScoringBreakdown, MatchPreviewResult } from "@shared/matchEngineSettings";
+import type { MatchEngineSettings as SettingsType, MatchmakingMode, ScoringBreakdown, MatchPreviewResult } from "@shared/matchEngineSettings";
 import { DEFAULT_SETTINGS, PRESETS } from "@shared/matchEngineSettings";
 
 const STORAGE_KEY = "matchEngineSettings";
@@ -136,9 +136,22 @@ const GENDER_SLIDERS: SliderConfig[] = [
   { key: "maleRotationScaling", label: "Male Rotation Scaling", min: -30, max: 0, step: 5, tooltip: "Per-use penalty for repeatedly including the same male in mixed matches. Encourages rotation." },
 ];
 
+const COOLDOWN_SLIDERS: SliderConfig[] = [
+  { key: "mixedMatchPlayerLimit", label: "Mixed Match Limit", min: 1, max: 5, step: 1, tooltip: "Maximum mixed matches a male can appear in within the window. Enforces mixed rotation." },
+  { key: "mixedMatchPlayerWindow", label: "Mixed Match Window", min: 3, max: 10, step: 1, tooltip: "Window of matches to check for mixed match limit." },
+  { key: "opponentCooldownWindow", label: "Opponent Cooldown Window", min: 1, max: 6, step: 1, tooltip: "Number of recent matches to check for opponent cooldown." },
+  { key: "opponentCooldownThreshold", label: "Opponent Cooldown Threshold", min: 1, max: 4, step: 1, tooltip: "Block if a player has faced the same opponent this many times in the cooldown window." },
+];
+
 const ADVANCED_SLIDERS: SliderConfig[] = [
   { key: "candidateLimitBase", label: "Base Candidate Limit", min: 100, max: 300, step: 10, tooltip: "Base number of match candidates to evaluate. Higher = better quality but slower." },
   { key: "candidateLimitScaling", label: "Scaling Factor", min: 0, max: 50, step: 5, tooltip: "Additional candidates per player group size increase. Scales evaluation depth with player count." },
+];
+
+const HYBRID_SLIDERS: SliderConfig[] = [
+  { key: "hybridGroupSize", label: "Group Size", min: 4, max: 8, step: 1, tooltip: "Number of players selected per rotation cycle. Smaller = faster rotation, larger = more variety." },
+  { key: "hybridGroupCooldown", label: "Group Cooldown", min: 1, max: 5, step: 1, tooltip: "Block the same 4-player group from repeating within this many matches." },
+  { key: "hybridGradeSpreadLimit", label: "Grade Spread Limit", min: 2, max: 8, step: 1, tooltip: "Maximum grade difference allowed within a hybrid match." },
 ];
 
 type PreviewMatch = {
@@ -157,6 +170,30 @@ type PreviewResponse = {
   playerCount: number;
 };
 
+const MODE_INFO: Record<MatchmakingMode, { label: string; icon: typeof Bolt; color: string; bgColor: string; description: string }> = {
+  ADVANCED: {
+    label: "Advanced",
+    icon: Bolt,
+    color: "text-purple-600 dark:text-purple-400",
+    bgColor: "bg-purple-100 dark:bg-purple-900/30 border-purple-300 dark:border-purple-700",
+    description: "Full optimisation engine with slot-based distribution, strict cooldowns, quality filters, and gender balance. Best for competitive or carefully managed sessions.",
+  },
+  HYBRID: {
+    label: "Hybrid",
+    icon: Layers,
+    color: "text-blue-600 dark:text-blue-400",
+    bgColor: "bg-blue-100 dark:bg-blue-900/30 border-blue-300 dark:border-blue-700",
+    description: "Rotation-first with light optimisation. Selects small groups of least-played players, then picks the best match within each group. Good for balanced club sessions.",
+  },
+  ROTATION: {
+    label: "Rotation",
+    icon: RefreshCw,
+    color: "text-green-600 dark:text-green-400",
+    bgColor: "bg-green-100 dark:bg-green-900/30 border-green-300 dark:border-green-700",
+    description: "Simple fast queue. Picks the 4 least-played players, assigns teams deterministically, avoids immediate repeats. Maximum speed and equal playing time.",
+  },
+};
+
 export default function MatchEngineSettingsPage() {
   const { data: user } = useUser();
   const { toast } = useToast();
@@ -173,7 +210,7 @@ export default function MatchEngineSettingsPage() {
     return count;
   }, [settings]);
 
-  const updateSetting = useCallback((key: keyof SettingsType, value: number | boolean) => {
+  const updateSetting = useCallback((key: keyof SettingsType, value: number | boolean | string) => {
     setSettings(prev => ({ ...prev, [key]: value }));
     setActivePreset(null);
   }, []);
@@ -217,6 +254,10 @@ export default function MatchEngineSettingsPage() {
     },
   });
 
+  const currentMode = settings.matchmakingMode;
+  const modeInfo = MODE_INFO[currentMode];
+  const ModeIcon = modeInfo.icon;
+
   const renderSliderSection = (title: string, icon: React.ReactNode, sliders: SliderConfig[], color: string) => (
     <Card className="border">
       <CardHeader className="pb-3">
@@ -241,6 +282,151 @@ export default function MatchEngineSettingsPage() {
     </Card>
   );
 
+  const renderModeSelector = () => (
+    <Card className={`border-2 ${modeInfo.bgColor}`} data-testid="mode-selector-card">
+      <CardHeader className="pb-3">
+        <CardTitle className="flex items-center gap-2 text-base">
+          <ModeIcon className={`h-5 w-5 ${modeInfo.color}`} />
+          Matchmaking Mode
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          {(Object.keys(MODE_INFO) as MatchmakingMode[]).map(mode => {
+            const info = MODE_INFO[mode];
+            const Icon = info.icon;
+            const isActive = currentMode === mode;
+
+            return (
+              <button
+                key={mode}
+                onClick={() => updateSetting("matchmakingMode", mode)}
+                className={`relative flex flex-col items-center gap-2 p-4 rounded-lg border-2 transition-all ${
+                  isActive
+                    ? `${info.bgColor} border-current ring-2 ring-offset-2 ring-current`
+                    : "border-border hover:border-muted-foreground/30 bg-card"
+                }`}
+                data-testid={`mode-select-${mode.toLowerCase()}`}
+              >
+                <Icon className={`h-6 w-6 ${isActive ? info.color : "text-muted-foreground"}`} />
+                <span className={`text-sm font-semibold ${isActive ? info.color : ""}`}>{info.label}</span>
+                {isActive && (
+                  <Badge className="absolute top-2 right-2 text-[10px] px-1.5 py-0 h-4">Active</Badge>
+                )}
+              </button>
+            );
+          })}
+        </div>
+        <p className="text-sm text-muted-foreground">{modeInfo.description}</p>
+      </CardContent>
+    </Card>
+  );
+
+  const renderAdvancedSettings = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {renderSliderSection("Fairness Controls", <Shield className="h-4 w-4 text-blue-600" />, FAIRNESS_SLIDERS, "bg-blue-100 dark:bg-blue-900/30")}
+      {renderSliderSection("Variety Controls", <ArrowUpDown className="h-4 w-4 text-green-600" />, VARIETY_SLIDERS, "bg-green-100 dark:bg-green-900/30")}
+      {renderSliderSection("Match Quality", <Target className="h-4 w-4 text-yellow-600" />, QUALITY_SLIDERS, "bg-yellow-100 dark:bg-yellow-900/30")}
+      {renderSliderSection("Priority Controls", <Zap className="h-4 w-4 text-red-600" />, PRIORITY_SLIDERS, "bg-red-100 dark:bg-red-900/30")}
+      {renderSliderSection("Gender Controls", <Users className="h-4 w-4 text-purple-600" />, GENDER_SLIDERS, "bg-purple-100 dark:bg-purple-900/30")}
+      {renderSliderSection("Cooldowns & Limits", <Shield className="h-4 w-4 text-orange-600" />, COOLDOWN_SLIDERS, "bg-orange-100 dark:bg-orange-900/30")}
+      {renderSliderSection("Advanced", <Gauge className="h-4 w-4 text-gray-600" />, ADVANCED_SLIDERS, "bg-gray-100 dark:bg-gray-900/30")}
+
+      <Card className="border">
+        <CardContent className="pt-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Enable Phase Adjustments</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[250px]">
+                    <p className="text-xs">When enabled, the engine adjusts scoring weights based on session phase (Early/Mid/Late). Early phase focuses on fairness, late phase on quality.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              checked={settings.enablePhaseAdjustments}
+              onCheckedChange={(v) => updateSetting("enablePhaseAdjustments", v)}
+              data-testid="toggle-phase-adjustments"
+            />
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+
+  const renderHybridSettings = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {renderSliderSection("Group Selection", <Layers className="h-4 w-4 text-blue-600" />, HYBRID_SLIDERS, "bg-blue-100 dark:bg-blue-900/30")}
+      {renderSliderSection("Fairness Controls", <Shield className="h-4 w-4 text-blue-600" />, FAIRNESS_SLIDERS, "bg-blue-100 dark:bg-blue-900/30")}
+      {renderSliderSection("Variety Controls", <ArrowUpDown className="h-4 w-4 text-green-600" />, [
+        VARIETY_SLIDERS[0],
+        VARIETY_SLIDERS[1],
+        VARIETY_SLIDERS[3],
+      ], "bg-green-100 dark:bg-green-900/30")}
+      {renderSliderSection("Priority Controls", <Zap className="h-4 w-4 text-red-600" />, PRIORITY_SLIDERS, "bg-red-100 dark:bg-red-900/30")}
+      {renderSliderSection("Gender Rotation", <Users className="h-4 w-4 text-purple-600" />, [
+        { key: "maleRotationScaling" as keyof SettingsType, label: "Male Rotation Scaling", min: -30, max: 0, step: 5, tooltip: "Per-use penalty for repeatedly including the same male in mixed matches." },
+      ], "bg-purple-100 dark:bg-purple-900/30")}
+    </div>
+  );
+
+  const renderRotationSettings = () => (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      <Card className="border">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="p-1.5 rounded-md bg-green-100 dark:bg-green-900/30">
+              <RefreshCw className="h-4 w-4 text-green-600" />
+            </div>
+            Rotation Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <span className="text-sm font-medium">Winner Stays</span>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
+                  </TooltipTrigger>
+                  <TooltipContent className="max-w-[250px]">
+                    <p className="text-xs">When enabled, winning players stay on court for the next match if scores are available. Otherwise pure rotation.</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            </div>
+            <Switch
+              checked={settings.rotationWinnerStays}
+              onCheckedChange={(v) => updateSetting("rotationWinnerStays", v)}
+              data-testid="toggle-winner-stays"
+            />
+          </div>
+          <Separator />
+          <div className="text-sm text-muted-foreground space-y-2">
+            <p>Rotation mode uses a simple queue-based system:</p>
+            <ul className="list-disc pl-5 space-y-1">
+              <li>Picks the 4 least-played players each round</li>
+              <li>Assigns teams as 1+4 vs 2+3 (cross-pairing)</li>
+              <li>Avoids immediate partner/opponent repeats when possible</li>
+              <li>Respects fixed pairs if set</li>
+              <li>No complex scoring — maximum speed</li>
+            </ul>
+          </div>
+        </CardContent>
+      </Card>
+      {renderSliderSection("Fairness Tuning", <Shield className="h-4 w-4 text-blue-600" />, [
+        FAIRNESS_SLIDERS[0],
+        FAIRNESS_SLIDERS[1],
+      ], "bg-blue-100 dark:bg-blue-900/30")}
+    </div>
+  );
+
   return (
     <div className="container max-w-6xl mx-auto py-6 px-4 space-y-6">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -254,6 +440,10 @@ export default function MatchEngineSettingsPage() {
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
+          <Badge variant="outline" className={modeInfo.color} data-testid="badge-active-mode">
+            <ModeIcon className="h-3 w-3 mr-1" />
+            {modeInfo.label}
+          </Badge>
           {modifiedCount > 0 && (
             <Badge variant="secondary" data-testid="badge-modified-count">
               {modifiedCount} modified
@@ -283,6 +473,7 @@ export default function MatchEngineSettingsPage() {
             {key === "casual" && <Sparkles className="h-3.5 w-3.5" />}
             {key === "balanced" && <Gauge className="h-3.5 w-3.5" />}
             {key === "competitive" && <Trophy className="h-3.5 w-3.5" />}
+            {key === "rotation" && <RefreshCw className="h-3.5 w-3.5" />}
             {preset.label}
           </Button>
         ))}
@@ -305,39 +496,11 @@ export default function MatchEngineSettingsPage() {
         </TabsList>
 
         <TabsContent value="settings" className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {renderSliderSection("Fairness Controls", <Shield className="h-4 w-4 text-blue-600" />, FAIRNESS_SLIDERS, "bg-blue-100 dark:bg-blue-900/30")}
-            {renderSliderSection("Variety Controls", <ArrowUpDown className="h-4 w-4 text-green-600" />, VARIETY_SLIDERS, "bg-green-100 dark:bg-green-900/30")}
-            {renderSliderSection("Match Quality", <Target className="h-4 w-4 text-yellow-600" />, QUALITY_SLIDERS, "bg-yellow-100 dark:bg-yellow-900/30")}
-            {renderSliderSection("Priority Controls", <Zap className="h-4 w-4 text-red-600" />, PRIORITY_SLIDERS, "bg-red-100 dark:bg-red-900/30")}
-            {renderSliderSection("Gender Controls", <Users className="h-4 w-4 text-purple-600" />, GENDER_SLIDERS, "bg-purple-100 dark:bg-purple-900/30")}
-            {renderSliderSection("Advanced", <Gauge className="h-4 w-4 text-gray-600" />, ADVANCED_SLIDERS, "bg-gray-100 dark:bg-gray-900/30")}
-          </div>
+          {renderModeSelector()}
 
-          <Card className="border">
-            <CardContent className="pt-4">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2">
-                  <span className="text-sm font-medium">Enable Phase Adjustments</span>
-                  <TooltipProvider>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <Info className="h-3.5 w-3.5 text-muted-foreground cursor-help" />
-                      </TooltipTrigger>
-                      <TooltipContent className="max-w-[250px]">
-                        <p className="text-xs">When enabled, the engine adjusts scoring weights based on session phase (Early/Mid/Late). Early phase focuses on fairness, late phase on quality.</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  </TooltipProvider>
-                </div>
-                <Switch
-                  checked={settings.enablePhaseAdjustments}
-                  onCheckedChange={(v) => updateSetting("enablePhaseAdjustments", v)}
-                  data-testid="toggle-phase-adjustments"
-                />
-              </div>
-            </CardContent>
-          </Card>
+          {currentMode === "ADVANCED" && renderAdvancedSettings()}
+          {currentMode === "HYBRID" && renderHybridSettings()}
+          {currentMode === "ROTATION" && renderRotationSettings()}
         </TabsContent>
 
         <TabsContent value="preview" className="space-y-4">
@@ -352,15 +515,21 @@ export default function MatchEngineSettingsPage() {
               <p className="text-sm text-muted-foreground">
                 Run a simulation with the current settings using demo players to see how matches would be generated.
               </p>
-              <Button
-                onClick={() => previewMutation.mutate()}
-                disabled={previewMutation.isPending}
-                data-testid="button-preview"
-                className="gap-2"
-              >
-                <Play className="h-4 w-4" />
-                {previewMutation.isPending ? "Generating..." : "Preview Matches"}
-              </Button>
+              <div className="flex items-center gap-3">
+                <Button
+                  onClick={() => previewMutation.mutate()}
+                  disabled={previewMutation.isPending}
+                  data-testid="button-preview"
+                  className="gap-2"
+                >
+                  <Play className="h-4 w-4" />
+                  {previewMutation.isPending ? "Generating..." : "Preview Matches"}
+                </Button>
+                <Badge variant="outline" className={modeInfo.color}>
+                  <ModeIcon className="h-3 w-3 mr-1" />
+                  {modeInfo.label} Mode
+                </Badge>
+              </div>
 
               {previewData && (
                 <div className="space-y-4 mt-4">

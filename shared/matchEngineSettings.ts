@@ -1,4 +1,8 @@
+export type MatchmakingMode = "ADVANCED" | "HYBRID" | "ROTATION";
+
 export type MatchEngineSettings = {
+  matchmakingMode: MatchmakingMode;
+
   deficitWeight: number;
   deficitCap: number;
   gamesPlayedWeight: number;
@@ -37,9 +41,17 @@ export type MatchEngineSettings = {
 
   hardGradeSpreadLimit: number;
   teamAvgDiffLimit: number;
+
+  hybridGroupSize: number;
+  hybridGroupCooldown: number;
+  hybridGradeSpreadLimit: number;
+
+  rotationWinnerStays: boolean;
 };
 
 export const DEFAULT_SETTINGS: MatchEngineSettings = {
+  matchmakingMode: "ADVANCED",
+
   deficitWeight: -100,
   deficitCap: -210,
   gamesPlayedWeight: -20,
@@ -78,6 +90,12 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
 
   hardGradeSpreadLimit: 4,
   teamAvgDiffLimit: 3,
+
+  hybridGroupSize: 6,
+  hybridGroupCooldown: 2,
+  hybridGradeSpreadLimit: 5,
+
+  rotationWinnerStays: false,
 };
 
 export const PRESETS: Record<string, { label: string; description: string; settings: Partial<MatchEngineSettings> }> = {
@@ -85,6 +103,7 @@ export const PRESETS: Record<string, { label: string; description: string; setti
     label: "Casual Play",
     description: "Relaxed settings for social nights — focuses on variety and equal playing time over competitive balance",
     settings: {
+      matchmakingMode: "HYBRID",
       deficitWeight: -120,
       deficitCap: -250,
       gamesPlayedWeight: -25,
@@ -110,6 +129,10 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       groupRepeatPenalty: -30,
       hardGradeSpreadLimit: 6,
       teamAvgDiffLimit: 4,
+      hybridGroupSize: 6,
+      hybridGroupCooldown: 2,
+      hybridGradeSpreadLimit: 6,
+      rotationWinnerStays: false,
     },
   },
   balanced: {
@@ -121,6 +144,7 @@ export const PRESETS: Record<string, { label: string; description: string; setti
     label: "Competitive Night",
     description: "Tight skill matching and quality-focused — best for competitive sessions and graded play",
     settings: {
+      matchmakingMode: "ADVANCED",
       deficitWeight: -80,
       deficitCap: -170,
       gamesPlayedWeight: -15,
@@ -146,6 +170,21 @@ export const PRESETS: Record<string, { label: string; description: string; setti
       groupRepeatPenalty: -60,
       hardGradeSpreadLimit: 3,
       teamAvgDiffLimit: 2,
+      hybridGroupSize: 4,
+      hybridGroupCooldown: 2,
+      hybridGradeSpreadLimit: 4,
+      rotationWinnerStays: false,
+    },
+  },
+  rotation: {
+    label: "Quick Rotation",
+    description: "Fast queue-based rotation — minimal optimisation, maximum speed and equal playing time",
+    settings: {
+      matchmakingMode: "ROTATION",
+      rotationWinnerStays: false,
+      hybridGroupSize: 4,
+      hybridGroupCooldown: 2,
+      hybridGradeSpreadLimit: 7,
     },
   },
 };
