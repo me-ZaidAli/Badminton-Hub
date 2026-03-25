@@ -3819,7 +3819,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
   }
 
-  const matchTypeStats = useMemo(() => {
+  const matchTypeStats = (() => {
     const stats = { maleOnly: 0, femaleOnly: 0, mixed: 0 };
     const pairingCounts = new Map<string, number>();
     const playerGenders = new Map<number, string>();
@@ -3846,7 +3846,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
     repeats.sort((a, b) => b.count - a.count);
     return { ...stats, total: countedMatches.length, repeats };
-  }, [countedMatches, confirmedSignups]);
+  })();
 
   const playerAchievements = (() => {
     if (!sessionLeaderboard || sessionLeaderboard.length === 0) return {} as Record<number, { trophy?: boolean; fire?: boolean }>;
