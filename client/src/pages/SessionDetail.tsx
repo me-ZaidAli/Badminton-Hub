@@ -3928,9 +3928,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   };
 
   const handleStartAutoGenerate = () => {
-    if (showNotEnoughPlayersWarning()) return;
     manualGenInFlight.current = true;
     setAutoGenLocallyStopped(false);
+    setNotEnoughPlayersMessage(null);
     updateSession({ sessionId, updates: { autoGenerateActive: true } });
     smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
       onSuccess: (data: any) => {
@@ -3946,7 +3946,12 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
           setPairConstraintMessage(null);
         }
       },
-      onError: () => { manualGenInFlight.current = false; },
+      onError: (err: any) => {
+        manualGenInFlight.current = false;
+        const msg = err?.message || "Failed to generate matches";
+        setNotEnoughPlayersMessage(msg);
+        setTimeout(() => setNotEnoughPlayersMessage(null), 5000);
+      },
     });
   };
 
