@@ -3765,25 +3765,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
   };
 
-  useEffect(() => {
-    if (!enginePanelOpen || !isOrganiser) return;
-
-    const totalMatches = Object.values(sessionMatchCounts).reduce((a, b) => a + b, 0);
-    if (totalMatches !== lastAiMatchCount.current) {
-      lastAiMatchCount.current = totalMatches;
-      fetchAiAdvisor();
-    }
-
-    if (aiAdvisorIntervalRef.current) clearInterval(aiAdvisorIntervalRef.current);
-    aiAdvisorIntervalRef.current = setInterval(() => {
-      fetchAiAdvisor();
-    }, 45000);
-
-    return () => {
-      if (aiAdvisorIntervalRef.current) clearInterval(aiAdvisorIntervalRef.current);
-    };
-  }, [enginePanelOpen, isOrganiser, sessionId, Object.values(sessionMatchCounts).reduce((a, b) => a + b, 0)]);
-
   const handleCourtNameChange = (courtNumber: number, name: string) => {
     const newNames = [...courtNamesState];
     while (newNames.length < courtNumber) {
@@ -3864,6 +3845,25 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       if (p?.id) sessionMatchCounts[p.id] = (sessionMatchCounts[p.id] || 0) + 1;
     }
   }
+
+  const aiTotalMatchCount = Object.values(sessionMatchCounts).reduce((a: number, b: number) => a + b, 0);
+  useEffect(() => {
+    if (!enginePanelOpen || !isOrganiser) return;
+
+    if (aiTotalMatchCount !== lastAiMatchCount.current) {
+      lastAiMatchCount.current = aiTotalMatchCount;
+      fetchAiAdvisor();
+    }
+
+    if (aiAdvisorIntervalRef.current) clearInterval(aiAdvisorIntervalRef.current);
+    aiAdvisorIntervalRef.current = setInterval(() => {
+      fetchAiAdvisor();
+    }, 45000);
+
+    return () => {
+      if (aiAdvisorIntervalRef.current) clearInterval(aiAdvisorIntervalRef.current);
+    };
+  }, [enginePanelOpen, isOrganiser, sessionId, aiTotalMatchCount]);
 
   const matchTypeStats = (() => {
     const stats = { maleOnly: 0, femaleOnly: 0, mixed: 0 };
