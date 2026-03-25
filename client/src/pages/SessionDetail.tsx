@@ -29,7 +29,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell, Bug } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -3594,6 +3594,9 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [enginePanelOpen, setEnginePanelOpen] = useState(false);
   const enginePanelRef = useRef<HTMLDivElement>(null);
   const [enginePanelHeight, setEnginePanelHeight] = useState(0);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugData, setDebugData] = useState<any>(null);
+  const [debugLoading, setDebugLoading] = useState(false);
   const [fullScheduleOpen, setFullScheduleOpen] = useState(false);
   const [fullScheduleData, setFullScheduleData] = useState<any>(null);
   const [fullScheduleRounds, setFullScheduleRounds] = useState<string>("");
@@ -4178,6 +4181,135 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               <ChevronDown className={cn("w-4 h-4 text-gray-400 dark:text-white/40 transition-transform duration-300 ml-1", enginePanelOpen && "rotate-180")} />
             </div>
           </button>
+
+          {isOrganiser && (
+            <button
+              data-testid="button-match-engine-debug"
+              className="absolute top-3 right-14 z-10 p-1.5 rounded-lg hover:bg-slate-100 dark:hover:bg-white/10 transition-colors"
+              title="Match Engine Debug"
+              onClick={async (e) => {
+                e.stopPropagation();
+                setDebugLoading(true);
+                setDebugOpen(true);
+                try {
+                  const res = await fetch(`/api/sessions/${sessionId}/match-engine-debug`, { credentials: "include" });
+                  if (res.ok) {
+                    setDebugData(await res.json());
+                  } else {
+                    toast({ title: "Debug failed", description: `Error: ${res.status}`, variant: "destructive" });
+                  }
+                } catch (err: any) {
+                  toast({ title: "Debug failed", description: err.message, variant: "destructive" });
+                } finally {
+                  setDebugLoading(false);
+                }
+              }}
+            >
+              <Bug className="w-4 h-4 text-gray-400 dark:text-white/40 hover:text-orange-500 dark:hover:text-orange-400 transition-colors" />
+            </button>
+          )}
+
+          {debugOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm" onClick={() => setDebugOpen(false)}>
+              <div className="bg-white dark:bg-gray-900 rounded-2xl shadow-2xl w-full max-w-lg max-h-[85vh] overflow-y-auto m-4 p-5" onClick={(e) => e.stopPropagation()} data-testid="debug-panel">
+                <div className="flex items-center justify-between mb-4">
+                  <div className="flex items-center gap-2">
+                    <Bug className="w-5 h-5 text-orange-500" />
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">Match Engine Debug</h3>
+                  </div>
+                  <button onClick={() => setDebugOpen(false)} className="p-1 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10">
+                    <X className="w-5 h-5 text-gray-400" />
+                  </button>
+                </div>
+                {debugLoading ? (
+                  <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin text-blue-500" /></div>
+                ) : debugData ? (
+                  <div className="space-y-4 text-sm">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl bg-blue-50 dark:bg-blue-500/10 p-3">
+                        <div className="text-xs text-blue-600 dark:text-blue-400 font-medium">Players</div>
+                        <div className="text-xl font-bold text-blue-700 dark:text-blue-300">{debugData.totalPlayers}</div>
+                        <div className="text-[10px] text-blue-500 dark:text-blue-400/70">{debugData.maleCount}M · {debugData.femaleCount}F</div>
+                      </div>
+                      <div className="rounded-xl bg-emerald-50 dark:bg-emerald-500/10 p-3">
+                        <div className="text-xs text-emerald-600 dark:text-emerald-400 font-medium">Matches</div>
+                        <div className="text-xl font-bold text-emerald-700 dark:text-emerald-300">{debugData.totalMatches}</div>
+                        <div className="text-[10px] text-emerald-500 dark:text-emerald-400/70">Available: {debugData.availablePlayerCount} · Busy: {debugData.busyPlayerCount}</div>
+                      </div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Match Type Distribution</div>
+                      {debugData.matchTypePercentages && (
+                        <div className="space-y-1">
+                          <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Men Doubles</span><span className="font-mono font-bold">{debugData.matchTypeCounts.maleOnly} ({debugData.matchTypePercentages.maleOnly})</span></div>
+                          <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Women Doubles</span><span className="font-mono font-bold">{debugData.matchTypeCounts.femaleOnly} ({debugData.matchTypePercentages.femaleOnly})</span></div>
+                          <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Mixed</span><span className="font-mono font-bold">{debugData.matchTypeCounts.mixed} ({debugData.matchTypePercentages.mixed})</span></div>
+                        </div>
+                      )}
+                      <div className="mt-2 text-[10px] text-gray-400 dark:text-white/30">Target: {debugData.targetRatios?.maleOnly} M / {debugData.targetRatios?.femaleOnly} F / {debugData.targetRatios?.mixed} Mix</div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Gender Load Balance</div>
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Avg Female Games</span><span className="font-mono font-bold">{debugData.avgFemaleGames}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Avg Male Games</span><span className="font-mono font-bold">{debugData.avgMaleGames}</span></div>
+                      <div className="flex justify-between"><span className="text-gray-600 dark:text-white/60">Female Overload</span><span className={cn("font-mono font-bold", debugData.femaleOverloadRatio !== "N/A" && parseInt(debugData.femaleOverloadRatio) > 130 ? "text-red-500" : "text-emerald-500")}>{debugData.femaleOverloadRatio}</span></div>
+                    </div>
+
+                    <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
+                      <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Player Game Counts</div>
+                      <div className="space-y-1 max-h-40 overflow-y-auto">
+                        {debugData.players?.map((p: any) => (
+                          <div key={p.id} className="flex items-center justify-between text-xs">
+                            <span className={cn("truncate", p.gender === "FEMALE" ? "text-pink-600 dark:text-pink-400" : "text-blue-600 dark:text-blue-400")}>
+                              {p.name} <span className="text-gray-400">({p.grade})</span>
+                            </span>
+                            <div className="flex items-center gap-2 shrink-0 ml-2">
+                              <span className="font-mono font-bold">{p.matchesPlayed}g</span>
+                              {p.isBusy && <span className="text-[9px] bg-amber-100 dark:bg-amber-500/20 text-amber-600 px-1 rounded">BUSY</span>}
+                              {p.isPaused && <span className="text-[9px] bg-red-100 dark:bg-red-500/20 text-red-600 px-1 rounded">PAUSED</span>}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+
+                    {debugData.topPartnerPairings?.length > 0 && (
+                      <div className="rounded-xl border border-gray-200 dark:border-white/10 p-3">
+                        <div className="text-xs font-semibold text-gray-500 dark:text-white/50 uppercase tracking-wider mb-2">Top Partner Pairings</div>
+                        <div className="space-y-1 max-h-32 overflow-y-auto">
+                          {debugData.topPartnerPairings.slice(0, 10).map((p: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600 dark:text-white/60 truncate">{p.pair}</span>
+                              <Badge variant="outline" className="text-[10px] shrink-0 ml-2">{p.count}x</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {debugData.repeatedMatchups?.length > 0 && (
+                      <div className="rounded-xl border border-amber-200 dark:border-amber-500/20 bg-amber-50/50 dark:bg-amber-500/5 p-3">
+                        <div className="flex items-center gap-1.5 mb-2">
+                          <AlertTriangle className="w-3.5 h-3.5 text-amber-500" />
+                          <span className="text-xs font-semibold text-amber-600 dark:text-amber-400">Repeated Full Matchups</span>
+                        </div>
+                        <div className="space-y-1">
+                          {debugData.repeatedMatchups.map((r: any, i: number) => (
+                            <div key={i} className="flex items-center justify-between text-xs">
+                              <span className="text-gray-600 dark:text-white/60 truncate">{r.players}</span>
+                              <Badge variant="outline" className="text-[10px] text-amber-600 border-amber-300 shrink-0 ml-2">{r.count}x</Badge>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </div>
+            </div>
+          )}
 
           <div
             className="overflow-hidden transition-all ease-[cubic-bezier(0.4,0,0.2,1)]"
