@@ -374,6 +374,26 @@ function fairnessPreFilter(
   return selectable;
 }
 
+function hardFairnessGate(
+  players: Player[],
+  playerMatchCounts: Map<number, number>,
+  states: PlayerStateMap,
+  maxGap: number = 2
+): Player[] {
+  const available = players.filter(p => states.get(p.id) === "AVAILABLE");
+  if (available.length === 0) return available;
+
+  const allCounts = Array.from(playerMatchCounts.values());
+  const globalMin = allCounts.length > 0 ? Math.min(...allCounts) : 0;
+
+  const gated = available.filter(p => {
+    const count = playerMatchCounts.get(p.id) || 0;
+    return count <= globalMin + maxGap;
+  });
+
+  return gated.length >= 4 ? gated : available;
+}
+
 function validatePostConditions(matches: MatchResult[], states: PlayerStateMap): string[] {
   const errors: string[] = [];
 
@@ -1326,14 +1346,17 @@ function generateSocialDoubles(opts: GenerateOptions): GenerateResult {
     let bestFactors: string[] = [];
     let bestBreakdown: ScoringBreakdown | undefined;
 
-    const fairnessPool = fairnessPreFilter(eligible, localCounts, 4, states);
-    const candidatePool = fairnessPool.length >= 4 ? fairnessPool : eligible;
+    const gatedPool = hardFairnessGate(eligible, localCounts, states, 1);
+    const fairnessPool = fairnessPreFilter(gatedPool.length >= 4 ? gatedPool : eligible, localCounts, 4, states);
+    const candidatePool = fairnessPool.length >= 4 ? fairnessPool : (gatedPool.length >= 4 ? gatedPool : eligible);
     let candidates: MatchResult[];
     if (slotType === "MIXED") {
       candidates = generateMixedDoublesCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateMixedDoublesCandidates(gatedPool.length >= 4 ? gatedPool : eligible, fixedPairs || [], states, cfg);
       if (candidates.length === 0) candidates = generateMixedDoublesCandidates(eligible, fixedPairs || [], states, cfg);
     } else if (slotType === "FEMALE_ONLY") {
       candidates = generateFemaleOnlyCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateFemaleOnlyCandidates(gatedPool.length >= 4 ? gatedPool : eligible, fixedPairs || [], states, cfg);
       if (candidates.length === 0) candidates = generateFemaleOnlyCandidates(eligible, fixedPairs || [], states, cfg);
     } else {
       candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states, cfg);
@@ -1703,14 +1726,17 @@ function generateCompetitiveDoubles(opts: GenerateOptions): GenerateResult {
     let bestFactors: string[] = [];
     let bestBreakdown: ScoringBreakdown | undefined;
 
-    const fairnessPool = fairnessPreFilter(eligible, localCounts, 4, states);
-    const candidatePool = fairnessPool.length >= 4 ? fairnessPool : eligible;
+    const gatedPool = hardFairnessGate(eligible, localCounts, states, 1);
+    const fairnessPool = fairnessPreFilter(gatedPool.length >= 4 ? gatedPool : eligible, localCounts, 4, states);
+    const candidatePool = fairnessPool.length >= 4 ? fairnessPool : (gatedPool.length >= 4 ? gatedPool : eligible);
     let candidates: MatchResult[];
     if (slotType === "MIXED") {
       candidates = generateMixedDoublesCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateMixedDoublesCandidates(gatedPool.length >= 4 ? gatedPool : eligible, fixedPairs || [], states, cfg);
       if (candidates.length === 0) candidates = generateMixedDoublesCandidates(eligible, fixedPairs || [], states, cfg);
     } else if (slotType === "FEMALE_ONLY") {
       candidates = generateFemaleOnlyCandidates(candidatePool, fixedPairs || [], states, cfg);
+      if (candidates.length === 0) candidates = generateFemaleOnlyCandidates(gatedPool.length >= 4 ? gatedPool : eligible, fixedPairs || [], states, cfg);
       if (candidates.length === 0) candidates = generateFemaleOnlyCandidates(eligible, fixedPairs || [], states, cfg);
     } else {
       candidates = generateDeterministicCandidateDoubles(candidatePool, fixedPairs || [], states, cfg);
@@ -2378,7 +2404,8 @@ function generateHybridDoubles(opts: GenerateOptions): GenerateResult {
   const hybridSlots = computeMatchSlots(queueTarget, eligible, states, cfg, hybridExistingCounts);
 
   for (let q = 0; q < queueTarget; q++) {
-    const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+    const gatedHybrid = hardFairnessGate(eligible, localCounts, states, 1);
+    const available = (gatedHybrid.length >= 4 ? gatedHybrid : eligible).filter(p => states.get(p.id) === "AVAILABLE");
     if (available.length < 4) break;
 
     const sorted = [...available].sort((a, b) => {
@@ -2836,7 +2863,8 @@ function generateRotationDoubles(opts: GenerateOptions): GenerateResult {
   const matchSlots = computeMatchSlots(queueTarget, eligible, states, cfg, rotExistingCounts);
 
   for (let q = 0; q < matchSlots.length; q++) {
-    const available = eligible.filter(p => states.get(p.id) === "AVAILABLE");
+    const gatedRot = hardFairnessGate(eligible, localCounts, states, 1);
+    const available = (gatedRot.length >= 4 ? gatedRot : eligible).filter(p => states.get(p.id) === "AVAILABLE");
     if (available.length < 4) break;
 
     const slotType = matchSlots[q];
