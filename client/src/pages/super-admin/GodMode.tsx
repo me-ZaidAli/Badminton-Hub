@@ -51,6 +51,7 @@ const controlSections = [
       { href: "/admin/memberships", label: "Memberships", desc: "Plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" },
       { href: "/admin/billing", label: "Billing & Plan", desc: "Club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
       { href: "/super-admin/billing", label: "Platform Billing", desc: "Manage club plans: Free or Premium", icon: PoundSterling, color: "text-yellow-500", bg: "bg-yellow-500/10" },
+      { href: "#wallets", label: "Wallets", desc: "Manage user wallets and funds", icon: Wallet, color: "text-indigo-500", bg: "bg-indigo-500/10" },
       { href: "/admin/inventory", label: "Inventory", desc: "Stock and expense tracking", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     ],
   },
@@ -1575,8 +1576,8 @@ export default function GodMode() {
                   <div className="h-px flex-1 bg-border/50" />
                 </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2.5">
-                  {section.items.map(item => (
-                    <Link key={item.href} href={item.href}>
+                  {section.items.map(item => {
+                    const tileCard = (
                       <Card className="group border-border/40 hover:border-border hover:shadow-md transition-all duration-200 cursor-pointer h-full" data-testid={`card-control-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
                         <CardContent className="flex items-start gap-3 p-3.5">
                           <div className={`${item.bg} rounded-xl p-2 shrink-0 group-hover:scale-105 transition-transform`}>
@@ -1588,8 +1589,16 @@ export default function GodMode() {
                           </div>
                         </CardContent>
                       </Card>
-                    </Link>
-                  ))}
+                    );
+                    if (item.href.startsWith("#")) {
+                      return (
+                        <div key={item.href} onClick={() => document.getElementById(item.href.slice(1))?.scrollIntoView({ behavior: "smooth" })} className="cursor-pointer">
+                          {tileCard}
+                        </div>
+                      );
+                    }
+                    return <Link key={item.href} href={item.href}>{tileCard}</Link>;
+                  })}
                 </div>
               </div>
             ))}
@@ -1833,7 +1842,7 @@ export default function GodMode() {
         </Card>
       )}
 
-      <Card data-testid="card-god-wallets">
+      <Card id="wallets" data-testid="card-god-wallets">
         <CardHeader className="pb-3">
           <CardTitle className="text-lg flex items-center gap-2">
             <Wallet className="w-5 h-5 text-primary" />
