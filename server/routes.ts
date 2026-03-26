@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -30885,6 +30885,233 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const enrollments = await db.select().from(playerAnalyticsEnrollments)
         .where(inArray(playerAnalyticsEnrollments.playerId, profileIds));
       res.json(enrollments);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ============================================================
+  // === CLUB-RESTRICTED WALLETS (GOD MODE / SUPER ADMIN) ===
+  // ============================================================
+
+  app.get("/api/god-mode/wallets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const allWallets = await db.select({
+        id: wallets.id,
+        userId: wallets.userId,
+        name: wallets.name,
+        balance: wallets.balance,
+        isGlobal: wallets.isGlobal,
+        allowedClubIds: wallets.allowedClubIds,
+        lowBalanceThreshold: wallets.lowBalanceThreshold,
+        isActive: wallets.isActive,
+        createdAt: wallets.createdAt,
+        updatedAt: wallets.updatedAt,
+        userName: users.fullName,
+        userEmail: users.email,
+      }).from(wallets)
+        .innerJoin(users, eq(wallets.userId, users.id))
+        .orderBy(desc(wallets.createdAt));
+      res.json(allWallets);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/god-mode/wallets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const { userId, name, isGlobal, allowedClubIds, lowBalanceThreshold } = req.body;
+      if (!userId || !name) return res.status(400).json({ message: "userId and name are required" });
+      const [wallet] = await db.insert(wallets).values({
+        userId,
+        name,
+        isGlobal: !!isGlobal,
+        allowedClubIds: isGlobal ? [] : (allowedClubIds || []),
+        lowBalanceThreshold: lowBalanceThreshold || 500,
+        createdById: u.id,
+      }).returning();
+      console.log(`[AUDIT] Wallet created: id=${wallet.id}, user=${userId}, name="${name}", isGlobal=${isGlobal}, by=${u.id}`);
+      res.json(wallet);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/god-mode/wallets/:walletId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      const { name, isGlobal, allowedClubIds, lowBalanceThreshold, isActive } = req.body;
+      const updates: any = { updatedAt: new Date() };
+      if (name !== undefined) updates.name = name;
+      if (isGlobal !== undefined) {
+        updates.isGlobal = !!isGlobal;
+        if (isGlobal) updates.allowedClubIds = [];
+      }
+      if (allowedClubIds !== undefined && !updates.isGlobal) updates.allowedClubIds = allowedClubIds;
+      if (lowBalanceThreshold !== undefined) updates.lowBalanceThreshold = lowBalanceThreshold;
+      if (isActive !== undefined) updates.isActive = isActive;
+      const [updated] = await db.update(wallets).set(updates).where(eq(wallets.id, walletId)).returning();
+      if (!updated) return res.status(404).json({ message: "Wallet not found" });
+      console.log(`[AUDIT] Wallet updated: id=${walletId}, changes=${JSON.stringify(req.body)}, by=${u.id}`);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/god-mode/wallets/:walletId/add-funds", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      if (isNaN(walletId)) return res.status(400).json({ message: "Invalid wallet ID" });
+      const { amount, reason, clubId } = req.body;
+      if (!amount || typeof amount !== "number" || amount <= 0) return res.status(400).json({ message: "Amount must be a positive number" });
+      const txResult = await db.transaction(async (trx) => {
+        const [wallet] = await trx.select().from(wallets).where(eq(wallets.id, walletId));
+        if (!wallet) throw new Error("NOT_FOUND");
+        await trx.update(wallets).set({ balance: sql`${wallets.balance} + ${amount}`, updatedAt: new Date() }).where(eq(wallets.id, walletId));
+        const [tx] = await trx.insert(walletTransactions).values({
+          walletId,
+          userId: wallet.userId,
+          clubId: clubId || null,
+          amount,
+          type: "CREDIT" as const,
+          reason: reason || "Funds added by admin",
+          createdById: u.id,
+        }).returning();
+        return tx;
+      });
+      console.log(`[AUDIT] Wallet funds added: walletId=${walletId}, amount=${amount}, by=${u.id}`);
+      res.json(txResult);
+    } catch (err: any) {
+      if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/god-mode/wallets/:walletId/remove-funds", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      if (isNaN(walletId)) return res.status(400).json({ message: "Invalid wallet ID" });
+      const { amount, reason, clubId } = req.body;
+      if (!amount || typeof amount !== "number" || amount <= 0) return res.status(400).json({ message: "Amount must be a positive number" });
+      const txResult = await db.transaction(async (trx) => {
+        const [updated] = await trx.update(wallets)
+          .set({ balance: sql`${wallets.balance} - ${amount}`, updatedAt: new Date() })
+          .where(and(eq(wallets.id, walletId), gte(wallets.balance, amount)))
+          .returning();
+        if (!updated) {
+          const [w] = await trx.select().from(wallets).where(eq(wallets.id, walletId));
+          if (!w) throw new Error("NOT_FOUND");
+          throw new Error("INSUFFICIENT");
+        }
+        const [tx] = await trx.insert(walletTransactions).values({
+          walletId,
+          userId: updated.userId,
+          clubId: clubId || null,
+          amount: -amount,
+          type: "DEBIT" as const,
+          reason: reason || "Funds removed by admin",
+          createdById: u.id,
+        }).returning();
+        return tx;
+      });
+      console.log(`[AUDIT] Wallet funds removed: walletId=${walletId}, amount=${amount}, by=${u.id}`);
+      res.json(txResult);
+    } catch (err: any) {
+      if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
+      if (err.message === "INSUFFICIENT") return res.status(400).json({ message: "Insufficient balance" });
+      res.status(500).json({ message: err.message });
+    }
+  });
+  app.get("/api/god-mode/wallets/:walletId/transactions", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      const txs = await db.select({
+        id: walletTransactions.id,
+        walletId: walletTransactions.walletId,
+        userId: walletTransactions.userId,
+        clubId: walletTransactions.clubId,
+        amount: walletTransactions.amount,
+        type: walletTransactions.type,
+        reason: walletTransactions.reason,
+        linkedSessionId: walletTransactions.linkedSessionId,
+        createdById: walletTransactions.createdById,
+        createdAt: walletTransactions.createdAt,
+        clubName: clubs.name,
+      }).from(walletTransactions)
+        .leftJoin(clubs, eq(walletTransactions.clubId, clubs.id))
+        .where(eq(walletTransactions.walletId, walletId))
+        .orderBy(desc(walletTransactions.createdAt));
+      res.json(txs);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/god-mode/wallets/user/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const targetUserId = parseInt(req.params.userId);
+      const userWallets = await db.select().from(wallets)
+        .where(eq(wallets.userId, targetUserId))
+        .orderBy(desc(wallets.createdAt));
+      res.json(userWallets);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/my-wallets", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const myWallets = await db.select({
+        id: wallets.id,
+        name: wallets.name,
+        balance: wallets.balance,
+        isGlobal: wallets.isGlobal,
+        allowedClubIds: wallets.allowedClubIds,
+        isActive: wallets.isActive,
+      }).from(wallets)
+        .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)))
+        .orderBy(desc(wallets.createdAt));
+      res.json(myWallets);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/my-wallets/eligible/:clubId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = req.user!.id;
+      const clubId = parseInt(req.params.clubId);
+      const activeWallets = await db.select().from(wallets)
+        .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)));
+      const eligible = activeWallets.filter(w =>
+        w.isGlobal || (w.allowedClubIds && w.allowedClubIds.includes(clubId))
+      );
+      res.json(eligible);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

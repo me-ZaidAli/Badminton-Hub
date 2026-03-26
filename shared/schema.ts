@@ -2520,3 +2520,54 @@ export const lessonRequests = pgTable("lesson_requests", {
 export const insertLessonRequestSchema = createInsertSchema(lessonRequests).omit({ id: true, createdAt: true, updatedAt: true });
 export type LessonRequest = typeof lessonRequests.$inferSelect;
 export type InsertLessonRequest = z.infer<typeof insertLessonRequestSchema>;
+
+// === CLUB-RESTRICTED WALLETS ===
+export const walletTransactionTypeEnum = pgEnum("wallet_transaction_type", ["CREDIT", "DEBIT", "ADJUSTMENT"]);
+
+export const wallets = pgTable("wallets", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  name: text("name").notNull(),
+  balance: integer("balance").default(0).notNull(),
+  isGlobal: boolean("is_global").default(false).notNull(),
+  allowedClubIds: integer("allowed_club_ids").array().default([]).notNull(),
+  lowBalanceThreshold: integer("low_balance_threshold").default(500),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const walletTransactions = pgTable("wallet_transactions", {
+  id: serial("id").primaryKey(),
+  walletId: integer("wallet_id").references(() => wallets.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id),
+  amount: integer("amount").notNull(),
+  type: walletTransactionTypeEnum("type").notNull(),
+  reason: text("reason").notNull(),
+  linkedSessionId: integer("linked_session_id").references(() => sessions.id),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const walletRelations = relations(wallets, ({ one, many }) => ({
+  user: one(users, { fields: [wallets.userId], references: [users.id] }),
+  createdBy: one(users, { fields: [wallets.createdById], references: [users.id], relationName: "walletCreator" }),
+  transactions: many(walletTransactions),
+}));
+
+export const walletTransactionRelations = relations(walletTransactions, ({ one }) => ({
+  wallet: one(wallets, { fields: [walletTransactions.walletId], references: [wallets.id] }),
+  user: one(users, { fields: [walletTransactions.userId], references: [users.id] }),
+  club: one(clubs, { fields: [walletTransactions.clubId], references: [clubs.id] }),
+  createdBy: one(users, { fields: [walletTransactions.createdById], references: [users.id], relationName: "txCreator" }),
+}));
+
+export const insertWalletSchema = createInsertSchema(wallets).omit({ id: true, createdAt: true, updatedAt: true, balance: true });
+export type Wallet = typeof wallets.$inferSelect;
+export type InsertWallet = z.infer<typeof insertWalletSchema>;
+
+export const insertWalletTransactionSchema = createInsertSchema(walletTransactions).omit({ id: true, createdAt: true });
+export type WalletTransaction = typeof walletTransactions.$inferSelect;
+export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSchema>;
