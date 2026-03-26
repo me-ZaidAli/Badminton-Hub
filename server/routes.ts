@@ -31058,6 +31058,16 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           reason: reason || "Funds added by admin",
           createdById: u.id,
         }).returning();
+        const ledgerClubId = clubId || (wallet.allowedClubIds && wallet.allowedClubIds.length > 0 ? wallet.allowedClubIds[0] : null);
+        if (ledgerClubId) {
+          await trx.insert(creditLedger).values({
+            userId: wallet.userId,
+            clubId: ledgerClubId,
+            amount,
+            reason: reason || "Funds added via wallet",
+            createdById: u.id,
+          });
+        }
         return tx;
       });
       console.log(`[AUDIT] Wallet funds added: walletId=${walletId}, amount=${amount}, by=${u.id}`);
@@ -31096,6 +31106,16 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           reason: reason || "Funds removed by admin",
           createdById: u.id,
         }).returning();
+        const ledgerClubId = clubId || (updated.allowedClubIds && updated.allowedClubIds.length > 0 ? updated.allowedClubIds[0] : null);
+        if (ledgerClubId) {
+          await trx.insert(creditLedger).values({
+            userId: updated.userId,
+            clubId: ledgerClubId,
+            amount: -amount,
+            reason: reason || "Funds removed via wallet",
+            createdById: u.id,
+          });
+        }
         return tx;
       });
       console.log(`[AUDIT] Wallet funds removed: walletId=${walletId}, amount=${amount}, by=${u.id}`);
