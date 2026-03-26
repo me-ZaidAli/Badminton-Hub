@@ -28,11 +28,10 @@ const controlSections = [
   {
     label: "People & Clubs",
     items: [
-      { href: "/super-admin/users-management", label: "Users Management", desc: "Manage all platform users", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-      { href: "/admin/players", label: "Player Management", desc: "Add, edit, and manage player profiles", icon: UserPlus, color: "text-purple-500", bg: "bg-purple-500/10" },
-      { href: "/admin/clubs-management", label: "Clubs Management", desc: "Oversee all registered clubs", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-      { href: "/admin/clubs", label: "Club Management", desc: "Create and manage your clubs", icon: Building2, color: "text-sky-500", bg: "bg-sky-500/10" },
-      { href: "/admin/trials", label: "Trial Players", desc: "Manage trial registrations and evaluations", icon: UserCheck, color: "text-cyan-500", bg: "bg-cyan-500/10" },
+      { href: "/super-admin/users-management", label: "Users", desc: "Manage all platform users", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
+      { href: "/admin/players", label: "Players", desc: "Add, edit, and manage profiles", icon: UserPlus, color: "text-purple-500", bg: "bg-purple-500/10" },
+      { href: "/admin/clubs-management", label: "Clubs", desc: "Create, oversee, and manage all clubs", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/admin/trials", label: "Trials", desc: "Trial registrations and evaluations", icon: UserCheck, color: "text-cyan-500", bg: "bg-cyan-500/10" },
       { href: "/admin/import-members", label: "Import Members", desc: "Bulk upload via CSV", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
       { href: "/admin/inactive-members", label: "Inactive Members", desc: "Re-engage or remove inactive players", icon: UserX, color: "text-orange-500", bg: "bg-orange-500/10" },
     ],
@@ -40,65 +39,49 @@ const controlSections = [
   {
     label: "Sessions & Competitions",
     items: [
-      { href: "/sessions", label: "Session Management", desc: "Create sessions, manage signups and attendance", icon: Calendar, color: "text-blue-500", bg: "bg-blue-500/10" },
-      { href: "/admin/league", label: "League Management", desc: "Fixtures, teams, and results", icon: Swords, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/sessions", label: "Sessions", desc: "Create sessions, signups, and attendance", icon: Calendar, color: "text-blue-500", bg: "bg-blue-500/10" },
+      { href: "/admin/league", label: "Leagues", desc: "Fixtures, teams, and results", icon: Swords, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/admin/venues", label: "Venues & Courts", desc: "Manage venues, halls, and courts", icon: MapPin, color: "text-red-500", bg: "bg-red-500/10" },
     ],
   },
   {
     label: "Finance & Memberships",
     items: [
       { href: "/admin/financials", label: "Financials", desc: "Track payments and revenue", icon: PoundSterling, color: "text-green-500", bg: "bg-green-500/10" },
-      { href: "/admin/memberships", label: "Memberships", desc: "Manage plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" },
-      { href: "/admin/membership-board", label: "Membership Board", desc: "Plans, requests, and status", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
-      { href: "/admin/billing", label: "Billing & Plan", desc: "Manage club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
+      { href: "/admin/memberships", label: "Memberships", desc: "Plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" },
+      { href: "/admin/billing", label: "Billing & Plan", desc: "Club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
+      { href: "/super-admin/billing", label: "Platform Billing", desc: "Manage club plans: Free or Premium", icon: PoundSterling, color: "text-yellow-500", bg: "bg-yellow-500/10" },
       { href: "/admin/inventory", label: "Inventory", desc: "Stock and expense tracking", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
-      { href: "/super-admin/billing", label: "Platform Billing", desc: "Manage club plans: Free or Premium", icon: CreditCard, color: "text-yellow-500", bg: "bg-yellow-500/10" },
     ],
   },
   {
-    label: "Juniors & Coaching",
-    items: [
-      { href: "/juniors", label: "Juniors Hub", desc: "Manage junior players, families, and sessions", icon: Baby, color: "text-pink-500", bg: "bg-pink-500/10" },
-      { href: "/coach/juniors/skills", label: "Coach Skills Analytics", desc: "Aggregate skill insights, trends, and AI reports", icon: Target, color: "text-amber-500", bg: "bg-amber-500/10" },
-    ],
-  },
-  {
-    label: "Rewards & Referrals",
+    label: "Rewards, Referrals & Recognition",
     items: [
       { href: "/admin/rewards", label: "Club Rewards", desc: "Anniversary and milestone rewards", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
       { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", desc: "View all claimed rewards", icon: Award, color: "text-pink-500", bg: "bg-pink-500/10" },
-      { href: "/admin/referrals", label: "Referral Management", desc: "Approve referrals and award rewards", icon: Share2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/admin/referrals", label: "Referrals", desc: "Approve referrals and award rewards", icon: Share2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
       { href: "/super-admin/referrals", label: "Referral Programs", desc: "Configure multi-level reward tiers", icon: Gift, color: "text-violet-500", bg: "bg-violet-500/10" },
+      { href: "/admin/recognition-cards", label: "Recognition Cards", desc: "Award player recognition cards", icon: Award, color: "text-rose-500", bg: "bg-rose-500/10" },
+      { href: "/admin/black-card", label: "Black Card", desc: "Grant Ultra Exclusive member access", icon: CreditCard, color: "text-amber-500", bg: "bg-amber-500/10" },
     ],
   },
   {
     label: "Analytics & Insights",
     items: [
-      { href: "/dashboard/analytics", label: "Analytics Dashboard", desc: "Power BI-level business intelligence and insights", icon: BarChart3, color: "text-violet-500", bg: "bg-violet-500/10" },
+      { href: "/dashboard/analytics", label: "Analytics Dashboard", desc: "Business intelligence and insights", icon: BarChart3, color: "text-violet-500", bg: "bg-violet-500/10" },
       { href: "/admin/acquisition-analytics", label: "Acquisition & KPI", desc: "Growth, channels, and retention", icon: BarChart3, color: "text-blue-500", bg: "bg-blue-500/10" },
-      { href: "/admin/attendance-analytics", label: "Attendance Analytics", desc: "Session attendance and engagement", icon: Activity, color: "text-teal-500", bg: "bg-teal-500/10" },
+      { href: "/admin/attendance-analytics", label: "Attendance", desc: "Session attendance and engagement", icon: Activity, color: "text-teal-500", bg: "bg-teal-500/10" },
       { href: "/admin/match-engine-lab", label: "Match Engine Lab", desc: "Stress-test the matchmaking algorithm", icon: FlaskConical, color: "text-indigo-500", bg: "bg-indigo-500/10" },
     ],
   },
   {
-    label: "Communication",
+    label: "Communication & Coaching",
     items: [
       { href: "/admin/announcements", label: "Announcements", desc: "Post updates to club members", icon: Megaphone, color: "text-orange-500", bg: "bg-orange-500/10" },
       { href: "/admin/messages", label: "Messages", desc: "View and manage contact messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
-      { href: "/admin/notifications", label: "Notification Settings", desc: "Reminders, schedules, and logs", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" },
-    ],
-  },
-  {
-    label: "Exclusive Access",
-    items: [
-      { href: "/admin/recognition-cards", label: "Recognition Cards", desc: "Award and manage player recognition cards", icon: Award, color: "text-rose-500", bg: "bg-rose-500/10" },
-      { href: "/admin/black-card", label: "Black Card Management", desc: "Grant Ultra Exclusive member access", icon: CreditCard, color: "text-amber-500", bg: "bg-amber-500/10" },
-    ],
-  },
-  {
-    label: "Club Settings",
-    items: [
-      { href: "/admin/venues", label: "Venues & Courts", desc: "Manage venues, halls, and court setup", icon: MapPin, color: "text-red-500", bg: "bg-red-500/10" },
+      { href: "/admin/notifications", label: "Notifications", desc: "Reminders, schedules, and logs", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+      { href: "/juniors", label: "Juniors Hub", desc: "Junior players, families, and sessions", icon: Baby, color: "text-pink-500", bg: "bg-pink-500/10" },
+      { href: "/coach/juniors/skills", label: "Coach Skills", desc: "Skill insights, trends, and AI reports", icon: Target, color: "text-amber-500", bg: "bg-amber-500/10" },
     ],
   },
 ];
