@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Shield, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Shield, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell, ShieldCheck, ShieldX, CircleDollarSign } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -1555,27 +1555,55 @@ export default function Sessions() {
                       {user && hasAccess && !isPast && !isScheduledLater && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
                         <div className="mt-4 pt-4 border-t border-border/30 space-y-2" data-testid={`session-join-area-${session.id}`}>
                           {isSignedUp ? (
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/40 px-3.5 py-2.5">
-                                <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-                                <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
-                                  {signup.signupStatus === "WAITING" ? "On Waiting List" : "Signed Up"}
-                                </span>
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2">
+                                <div className="flex-1 flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/40 px-3.5 py-2.5">
+                                  <CheckCircle className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                  <span className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">
+                                    {signup.signupStatus === "WAITING" ? "On Waiting List" : "Signed Up"}
+                                  </span>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-xl text-xs font-medium"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    withdrawMutation.mutate(session.id);
+                                  }}
+                                  disabled={withdrawMutation.isPending}
+                                  data-testid={`button-decline-session-${session.id}`}
+                                >
+                                  {withdrawMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
+                                  Withdraw
+                                </Button>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                className="text-red-600 dark:text-red-400 border-red-200 dark:border-red-800/60 rounded-xl text-xs font-medium"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  withdrawMutation.mutate(session.id);
-                                }}
-                                disabled={withdrawMutation.isPending}
-                                data-testid={`button-decline-session-${session.id}`}
-                              >
-                                {withdrawMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <UserX className="h-3.5 w-3.5" />}
-                                Withdraw
-                              </Button>
+                              {signup.signupStatus !== "WAITING" && (
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  {signup.paymentStatus === "PAID" ? (
+                                    <div className="flex-1 flex items-center gap-1.5 rounded-lg bg-blue-50 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/40 px-3 py-1.5">
+                                      <ShieldCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+                                      <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Space Secured</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex-1 flex items-center gap-1.5 rounded-lg bg-orange-50 dark:bg-orange-950/40 border border-orange-200/70 dark:border-orange-800/40 px-3 py-1.5">
+                                      <ShieldX className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400 shrink-0" />
+                                      <span className="text-xs font-semibold text-orange-700 dark:text-orange-300">Space Unsecured</span>
+                                    </div>
+                                  )}
+                                  {signup.paymentStatus === "PAID" ? (
+                                    <div className="flex items-center gap-1.5 rounded-lg bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/40 px-3 py-1.5">
+                                      <CircleDollarSign className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Payment Received</span>
+                                    </div>
+                                  ) : (
+                                    <div className="flex items-center gap-1.5 rounded-lg bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/40 px-3 py-1.5">
+                                      <CircleDollarSign className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
+                                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Payment Pending</span>
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ) : isInvited ? (
                             <div className="flex items-center gap-2">

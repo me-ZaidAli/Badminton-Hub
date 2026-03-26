@@ -29,7 +29,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell, Bug } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell, Bug, ShieldCheck, ShieldX, CircleDollarSign } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -1305,14 +1305,40 @@ export default function SessionDetail() {
                 </div>
               </div>
             ) : isSignedUp ? (
-              <Button 
-                variant="destructive" 
-                className="w-full" 
-                onClick={() => withdraw(id)}
-                disabled={isWithdrawing}
-              >
-                {isWithdrawing ? "Withdrawing..." : "Withdraw"}
-              </Button>
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 flex-wrap">
+                  {(userSignup as any)?.paymentStatus === "PAID" ? (
+                    <div className="flex-1 flex items-center gap-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200/70 dark:border-blue-800/40 px-3.5 py-2.5">
+                      <ShieldCheck className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <span className="text-xs font-semibold text-blue-700 dark:text-blue-300">Space Secured</span>
+                    </div>
+                  ) : (
+                    <div className="flex-1 flex items-center gap-2 rounded-xl bg-orange-50 dark:bg-orange-950/40 border border-orange-200/70 dark:border-orange-800/40 px-3.5 py-2.5">
+                      <ShieldX className="h-4 w-4 text-orange-600 dark:text-orange-400 shrink-0" />
+                      <span className="text-xs font-semibold text-orange-700 dark:text-orange-300">Space Unsecured</span>
+                    </div>
+                  )}
+                  {(userSignup as any)?.paymentStatus === "PAID" ? (
+                    <div className="flex items-center gap-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200/70 dark:border-emerald-800/40 px-3.5 py-2.5">
+                      <CircleDollarSign className="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+                      <span className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">Payment Received</span>
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/40 px-3.5 py-2.5">
+                      <CircleDollarSign className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                      <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">Payment Pending</span>
+                    </div>
+                  )}
+                </div>
+                <Button 
+                  variant="destructive" 
+                  className="w-full" 
+                  onClick={() => withdraw(id)}
+                  disabled={isWithdrawing}
+                >
+                  {isWithdrawing ? "Withdrawing..." : "Withdraw"}
+                </Button>
+              </div>
             ) : isInvited ? (
               <div className="space-y-2">
                 <Badge variant="secondary" className="w-full justify-center py-2 text-base bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
