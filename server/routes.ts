@@ -11464,6 +11464,8 @@ export async function registerRoutes(
           courtsAvailable: sessions.courtsAvailable,
           clubId: sessions.clubId,
           venueId: sessions.venueId,
+          allowedCategories: sessions.allowedCategories,
+          matchMode: sessions.matchMode,
         })
         .from(sessionSignups)
         .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
@@ -11507,6 +11509,8 @@ export async function registerRoutes(
         venueName: s.venueId ? venueMap[s.venueId]?.name || null : null,
         venueAddress: s.venueId ? venueMap[s.venueId]?.address || null : null,
         venueCity: s.venueId ? venueMap[s.venueId]?.city || null : null,
+        allowedCategories: s.allowedCategories,
+        matchMode: s.matchMode,
       }));
 
       res.json(result);
@@ -11544,7 +11548,10 @@ export async function registerRoutes(
           sessionDate: sessions.date,
           sessionStartTime: sessions.startTime,
           sessionStatus: sessions.status,
+          sessionDuration: sessions.durationMinutes,
           clubId: sessions.clubId,
+          allowedCategories: sessions.allowedCategories,
+          matchMode: sessions.matchMode,
         })
         .from(sessionSignups)
         .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
@@ -11588,8 +11595,25 @@ export async function registerRoutes(
           );
       }
 
+      const allPlayerIds = new Set<number>();
+      for (const m of userMatches) {
+        [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].forEach(id => { if (id) allPlayerIds.add(id); });
+      }
+      const playerIdArr = Array.from(allPlayerIds);
+      const playerNameMap = new Map<number, string>();
+      if (playerIdArr.length > 0) {
+        const profileRows = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, playerIdArr));
+        const userIds = profileRows.map(p => p.userId).filter(Boolean);
+        if (userIds.length > 0) {
+          const userRows = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
+          const userMap = new Map(userRows.map(u => [u.id, u.fullName]));
+          for (const p of profileRows) { playerNameMap.set(p.id, userMap.get(p.userId) || `Player #${p.id}`); }
+        }
+      }
+
       const profileIdSet = new Set(profileIds);
       const sessionMatchMap = new Map<number, { won: number; lost: number; total: number }>();
+      const sessionMatchDetails = new Map<number, any[]>();
       for (const m of userMatches) {
         const isTeamA = profileIdSet.has(m.teamAPlayer1Id) || (m.teamAPlayer2Id && profileIdSet.has(m.teamAPlayer2Id));
         const isTeamB = profileIdSet.has(m.teamBPlayer1Id) || (m.teamBPlayer2Id && profileIdSet.has(m.teamBPlayer2Id));
@@ -11598,12 +11622,23 @@ export async function registerRoutes(
         const entry = sessionMatchMap.get(m.sessionId) || { won: 0, lost: 0, total: 0 };
         entry.total++;
         const aWon = m.setsWonA > m.setsWonB || (m.setsWonA === m.setsWonB && (m.scoreA || 0) > (m.scoreB || 0));
-        if ((isTeamA && aWon) || (isTeamB && !aWon)) {
-          entry.won++;
-        } else {
-          entry.lost++;
-        }
+        const playerWon = (isTeamA && aWon) || (isTeamB && !aWon);
+        if (playerWon) { entry.won++; } else { entry.lost++; }
         sessionMatchMap.set(m.sessionId, entry);
+
+        const details = sessionMatchDetails.get(m.sessionId) || [];
+        details.push({
+          matchId: m.id,
+          teamA: [playerNameMap.get(m.teamAPlayer1Id) || "?", m.teamAPlayer2Id ? playerNameMap.get(m.teamAPlayer2Id) || "?" : null].filter(Boolean),
+          teamB: [playerNameMap.get(m.teamBPlayer1Id) || "?", m.teamBPlayer2Id ? playerNameMap.get(m.teamBPlayer2Id) || "?" : null].filter(Boolean),
+          scoreA: m.scoreA,
+          scoreB: m.scoreB,
+          setsWonA: m.setsWonA,
+          setsWonB: m.setsWonB,
+          playerWon,
+          playerTeam: isTeamA ? "A" : "B",
+        });
+        sessionMatchDetails.set(m.sessionId, details);
       }
 
       const result = signups.map(s => ({
@@ -11616,9 +11651,14 @@ export async function registerRoutes(
         clubName: clubMap[s.clubId] || `Club ${s.clubId}`,
         fee: s.fee || 0,
         paymentStatus: s.paymentStatus,
+        paymentMethod: s.paymentMethod,
         matchesWon: sessionMatchMap.get(s.sessionId)?.won || 0,
         matchesLost: sessionMatchMap.get(s.sessionId)?.lost || 0,
         matchesTotal: sessionMatchMap.get(s.sessionId)?.total || 0,
+        matchDetails: sessionMatchDetails.get(s.sessionId) || [],
+        allowedCategories: s.allowedCategories,
+        matchMode: s.matchMode,
+        sessionDuration: s.sessionDuration,
       }));
 
       res.json(result);
