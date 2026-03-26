@@ -336,6 +336,56 @@ function clubIdFromParamOrQuery(req: any): number | null {
   return clubIdFromParam(req) || clubIdFromQuery(req);
 }
 
+async function ensureUserWallet(userId: number, clubId: number, creditAmount: number, reason: string, createdById: number): Promise<void> {
+  try {
+    const existing = await db.select().from(wallets)
+      .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)))
+      .limit(1);
+    
+    let walletId: number;
+    if (existing.length > 0) {
+      const wallet = existing[0];
+      if (!wallet.isGlobal && wallet.allowedClubIds.length > 0 && !wallet.allowedClubIds.includes(clubId)) {
+        await db.update(wallets)
+          .set({ allowedClubIds: sql`array_append(${wallets.allowedClubIds}, ${clubId})`, updatedAt: new Date() })
+          .where(eq(wallets.id, wallet.id));
+      }
+      walletId = wallet.id;
+    } else {
+      const [newWallet] = await db.insert(wallets).values({
+        userId,
+        name: "Credit Wallet",
+        isGlobal: false,
+        allowedClubIds: [clubId],
+        lowBalanceThreshold: 500,
+        createdById,
+      }).returning();
+      walletId = newWallet.id;
+      console.log(`[WALLET AUTO] Created wallet id=${walletId} for user=${userId}`);
+    }
+
+    if (creditAmount > 0) {
+      await db.transaction(async (trx) => {
+        await trx.update(wallets)
+          .set({ balance: sql`${wallets.balance} + ${creditAmount}`, updatedAt: new Date() })
+          .where(eq(wallets.id, walletId));
+        await trx.insert(walletTransactions).values({
+          walletId,
+          userId,
+          clubId,
+          amount: creditAmount,
+          type: "CREDIT" as const,
+          reason: reason || "Credit issued",
+          createdById,
+        });
+      });
+      console.log(`[WALLET AUTO] Added £${(creditAmount / 100).toFixed(2)} to wallet=${walletId} for user=${userId}`);
+    }
+  } catch (err: any) {
+    console.error(`[WALLET AUTO] Error ensuring wallet for user=${userId}:`, err.message);
+  }
+}
+
 export async function registerRoutes(
   httpServer: Server,
   app: Express
@@ -3624,6 +3674,7 @@ export async function registerRoutes(
                         reason: `Session attendance reward: ${attendedCount} sessions milestone`,
                         createdById: req.user!.id,
                       });
+                      ensureUserWallet(userId, clubId, config.credits, "Credit issued", req.user!.id).catch(() => {});
                     }
                     console.log(`[AUDIT] Attendance reward issued: user=${userId}, club=${clubId}, milestone=${milestoneNum}, sessions=${attendedCount}`);
                   }
@@ -10478,6 +10529,7 @@ export async function registerRoutes(
           linkedSignupId: signup.id,
           createdById: admin.id,
         });
+        ensureUserWallet(userId, session.clubId, amount, "Credit issued", admin.id).catch(() => {});
 
         await storage.createNotification({
           userId,
@@ -17214,6 +17266,7 @@ export async function registerRoutes(
         attendanceStatus: null,
         createdById: req.user!.id,
       }).returning();
+      ensureUserWallet(ticket.createdByUserId, ticket.clubId, creditAmount, "Credit issued", req.user!.id).catch(() => {});
 
       const [updated] = await db.update(tickets).set({
         status: "CLOSED",
@@ -17440,6 +17493,7 @@ export async function registerRoutes(
           attendanceStatus: null,
           createdById: req.user!.id,
         }).returning();
+        ensureUserWallet(signup.userId, session.clubId, creditAmt, "Credit issued", req.user!.id).catch(() => {});
         creditEntries.push(entry);
 
         await db.insert(notifications).values({
@@ -18385,6 +18439,7 @@ export async function registerRoutes(
           reason: `Referral reward for ${clubName} - referred ${referral.referredName || "a new member"} (code: ${referral.code})`,
           createdById: user.id,
         });
+        ensureUserWallet(referral.referrerId, referral.clubId, creditAmount, "Credit issued", user.id).catch(() => {});
       }
 
       const allApprovedForClub = await db.select().from(referrals)
@@ -18409,6 +18464,7 @@ export async function registerRoutes(
           reason: `Free session reward - 4 approved referrals for ${clubName}`,
           createdById: user.id,
         });
+        ensureUserWallet(referral.referrerId, referral.clubId, sessionFeeForClub, "Credit issued", user.id).catch(() => {});
         notifMessage += ` Congratulations! You've reached 4 approved referrals for ${clubName} and earned 1 free session (\u00A3${(sessionFeeForClub / 100).toFixed(2)} credit added)!`;
       } else if (approvedCount === 2) {
         notifMessage += ` Great news! You've reached 2 approved referrals for ${clubName} and earned the Premium member rate for 2 months! After 2 months you can revert to the standard rate or upgrade to a 1-year Premium membership.`;
@@ -19808,6 +19864,7 @@ export async function registerRoutes(
                     reason: `Badge achievement reward: ${badgeDef?.name || reward.badge}`,
                     createdById: user.id,
                   });
+                  ensureUserWallet(profile.userId, clubId, config.credits, "Credit issued", user.id).catch(() => {});
                 }
                 console.log(`[AUDIT] Badge reward issued: user=${profile.userId}, club=${clubId}, badge=${reward.badge}`);
               }
@@ -20129,6 +20186,7 @@ export async function registerRoutes(
             reason: `Reward approved: ${reward.description}`,
             createdById: user.id,
           });
+          ensureUserWallet(reward.playerId, reward.clubId, reward.credits, "Credit issued", user.id).catch(() => {});
         }
 
         if (reward.freeSessions > 0) {
@@ -20141,6 +20199,7 @@ export async function registerRoutes(
             reason: `Reward approved: ${reward.freeSessions} free session(s) from ${reward.description}`,
             createdById: user.id,
           });
+          ensureUserWallet(reward.playerId, reward.clubId, reward.freeSessions * sessionValue, "Credit issued", user.id).catch(() => {});
         }
 
         return updated;
@@ -20222,6 +20281,7 @@ export async function registerRoutes(
                 reason: `Reward approved: ${reward.description}`,
                 createdById: user.id,
               });
+              ensureUserWallet(reward.playerId, reward.clubId, reward.credits, "Credit issued", user.id).catch(() => {});
             }
 
             if (reward.freeSessions > 0) {
@@ -20234,6 +20294,7 @@ export async function registerRoutes(
                 reason: `Reward approved: ${reward.freeSessions} free session(s) from ${reward.description}`,
                 createdById: user.id,
               });
+              ensureUserWallet(reward.playerId, reward.clubId, reward.freeSessions * sessionValue, "Credit issued", user.id).catch(() => {});
             }
 
             return upd;
@@ -20306,6 +20367,7 @@ export async function registerRoutes(
           reason: `Reward: ${description || "Manual reward"}`,
           createdById: user.id,
         });
+        ensureUserWallet(playerId, clubId, credits, "Credit issued", user.id).catch(() => {});
       }
 
       console.log(`[AUDIT] Reward issued: id=${reward.id}, player=${playerId}, club=${clubId}, credits=${credits || 0}, by user=${user.id}`);
@@ -21046,6 +21108,7 @@ export async function registerRoutes(
                   reason: `Club anniversary reward: ${yearNum} year(s) at ${clubName}`,
                   createdById: user.id,
                 });
+                ensureUserWallet(profile.userId, settings.clubId, settings.credits, "Credit issued", user.id).catch(() => {});
               }
 
               // Send notification
@@ -26231,6 +26294,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
             reason: `Recognition card benefit: ${card.cardName}`,
             createdById: (req.user as any).id,
           });
+          ensureUserWallet(card.userId, targetClubId, card.weeklyCreditValue, "Credit issued", (req.user as any).id).catch(() => {});
         }
 
         await tx.insert(notifications).values({
@@ -26329,6 +26393,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
           reason: `Recognition card benefit: ${txn.cardName}`,
           createdById: userId,
         });
+        ensureUserWallet(userId, clubId, txn.amount, "Credit issued", userId).catch(() => {});
       });
 
       res.json({ success: true, message: `£${(txn.amount / 100).toFixed(2)} benefit applied to your account` });
@@ -26368,6 +26433,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
             reason: `Recognition card benefit: ${txn.cardName}`,
             createdById: userId,
           });
+          ensureUserWallet(userId, clubId, txn.amount, "Credit issued", userId).catch(() => {});
           totalClaimed += txn.amount;
         }
       });
@@ -28922,6 +28988,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         linkedSessionId: sessionId,
         createdById: req.user!.id,
       });
+      ensureUserWallet(profile.userId, session.clubId, creditAmount, "Credit issued", req.user!.id).catch(() => {});
 
       await storage.createNotification({
         userId: profile.userId,
@@ -29777,6 +29844,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           reason: "Welcome credit for passing trial",
           createdById: user.id,
         });
+        ensureUserWallet(trial.userId, trial.clubId, welcomeCreditAmount, "Credit issued", user.id).catch(() => {});
 
         const [club] = await db.select().from(clubs).where(eq(clubs.id, trial.clubId)).limit(1);
         const clubName = club?.name || "the club";
@@ -31113,6 +31181,75 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       );
       res.json(eligible);
     } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+
+  app.post("/api/god-mode/wallets/migrate-credits", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const creditSums = await db.execute(sql`
+        SELECT cl.user_id, cl.club_id, COALESCE(SUM(cl.amount), 0)::int AS total_credits,
+               u.full_name AS user_name
+        FROM credit_ledger cl
+        JOIN users u ON u.id = cl.user_id
+        GROUP BY cl.user_id, cl.club_id, u.full_name
+        HAVING COALESCE(SUM(cl.amount), 0) > 0
+      `);
+      
+      let walletsCreated = 0;
+      let walletsUpdated = 0;
+      let skipped = 0;
+      
+      for (const row of (creditSums as any).rows || []) {
+        const existingWallets = await db.select().from(wallets)
+          .where(and(eq(wallets.userId, row.user_id), eq(wallets.isActive, true)));
+        
+        if (existingWallets.length > 0) {
+          const wallet = existingWallets[0];
+          if (!wallet.isGlobal && wallet.allowedClubIds.length > 0 && !wallet.allowedClubIds.includes(row.club_id)) {
+            await db.update(wallets)
+              .set({ allowedClubIds: sql`array_append(${wallets.allowedClubIds}, ${row.club_id})`, updatedAt: new Date() })
+              .where(eq(wallets.id, wallet.id));
+            walletsUpdated++;
+          } else {
+            skipped++;
+          }
+        } else {
+          const totalCredits = parseInt(row.total_credits) || 0;
+          const [newWallet] = await db.insert(wallets).values({
+            userId: row.user_id,
+            name: "Credit Wallet",
+            balance: totalCredits,
+            isGlobal: false,
+            allowedClubIds: [row.club_id],
+            lowBalanceThreshold: 500,
+            createdById: u.id,
+          }).returning();
+          
+          if (totalCredits > 0) {
+            await db.insert(walletTransactions).values({
+              walletId: newWallet.id,
+              userId: row.user_id,
+              clubId: row.club_id,
+              amount: totalCredits,
+              type: "CREDIT" as const,
+              reason: "Migrated from credit ledger balance",
+              createdById: u.id,
+            });
+          }
+          walletsCreated++;
+          console.log(`[WALLET MIGRATE] Created wallet for user=${row.user_id} (${row.user_name}), balance=£${(totalCredits / 100).toFixed(2)}`);
+        }
+      }
+      
+      console.log(`[WALLET MIGRATE] Complete: created=${walletsCreated}, updated=${walletsUpdated}, skipped=${skipped}`);
+      res.json({ walletsCreated, walletsUpdated, skipped, total: (creditSums as any).rows?.length || 0 });
+    } catch (err: any) {
+      console.error("[WALLET MIGRATE] Error:", err);
       res.status(500).json({ message: err.message });
     }
   });

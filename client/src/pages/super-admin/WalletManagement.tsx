@@ -331,6 +331,18 @@ export default function WalletManagement() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  const migrateMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/god-mode/wallets/migrate-credits");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Migration Complete", description: `${data.walletsCreated} wallets created, ${data.walletsUpdated} updated, ${data.skipped} already existed.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/god-mode/wallets"] });
+    },
+    onError: (err: any) => toast({ title: "Migration Failed", description: err.message, variant: "destructive" }),
+  });
+
   const totalBalance = useMemo(() => {
     if (!allWallets) return 0;
     return allWallets.reduce((sum: number, w: any) => sum + (w.balance || 0), 0);
@@ -360,9 +372,15 @@ export default function WalletManagement() {
             </h1>
             <p className="text-muted-foreground text-sm mt-1">Create, manage, and monitor user wallets across all clubs</p>
           </div>
-          <Button onClick={() => { setEditWallet(null); setWalletModalOpen(true); }} data-testid="button-create-wallet">
-            <Plus className="w-4 h-4 mr-1" /> Create Wallet
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button variant="outline" onClick={() => migrateMutation.mutate()} disabled={migrateMutation.isPending} data-testid="button-migrate-credits">
+              {migrateMutation.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ArrowUpCircle className="w-4 h-4 mr-1" />}
+              Sync Credit Wallets
+            </Button>
+            <Button onClick={() => { setEditWallet(null); setWalletModalOpen(true); }} data-testid="button-create-wallet">
+              <Plus className="w-4 h-4 mr-1" /> Create Wallet
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
