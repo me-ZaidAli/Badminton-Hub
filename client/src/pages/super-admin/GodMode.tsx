@@ -1698,10 +1698,6 @@ export default function GodMode() {
                   <MapPin className="w-4 h-4 mr-1" /> Venues
                   {venues && <Badge variant="secondary" className="ml-2 text-xs">{venues.length}</Badge>}
                 </TabsTrigger>
-                <TabsTrigger value="wallets" data-testid="tab-god-wallets">
-                  <Wallet className="w-4 h-4 mr-1" /> Wallets
-                  {allWallets && <Badge variant="secondary" className="ml-2 text-xs">{allWallets.length}</Badge>}
-                </TabsTrigger>
               </TabsList>
 
               <TabsContent value="members" className="mt-4">
@@ -1849,105 +1845,115 @@ export default function GodMode() {
                 )}
               </TabsContent>
 
-              <TabsContent value="wallets" className="mt-4">
-                {lowBalanceWallets.length > 0 && (
-                  <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50" data-testid="alert-low-balance">
-                    <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-sm font-semibold mb-1">
-                      <AlertTriangle className="h-4 w-4" />
-                      {lowBalanceWallets.length} wallet{lowBalanceWallets.length !== 1 ? "s" : ""} with low balance
-                    </div>
-                    <div className="flex flex-wrap gap-1.5">
-                      {lowBalanceWallets.map((w: any) => (
-                        <Badge key={w.id} variant="outline" className="text-xs border-amber-300 text-amber-600 dark:text-amber-400">
-                          {w.userName} — {w.name}: £{(w.balance / 100).toFixed(2)}
-                        </Badge>
-                      ))}
-                    </div>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 mb-4 flex-wrap">
-                  <div className="relative flex-1 min-w-[200px]">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
-                    <Input placeholder="Search wallets by user or name..." value={walletSearch} onChange={(e) => setWalletSearch(e.target.value)} className="pl-10" data-testid="input-god-search-wallets" />
-                  </div>
-                  <Button onClick={() => { setEditWallet(null); setWalletModalOpen(true); }} data-testid="button-god-add-wallet">
-                    <Plus className="w-4 h-4 mr-1" /> Create Wallet
-                  </Button>
-                </div>
-                {walletsLoading ? (
-                  <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
-                ) : (
-                  <div className="overflow-auto max-h-[55vh]">
-                    <Table>
-                      <TableHeader>
-                        <TableRow>
-                          <TableHead>User</TableHead>
-                          <TableHead>Wallet Name</TableHead>
-                          <TableHead>Balance</TableHead>
-                          <TableHead>Scope</TableHead>
-                          <TableHead>Status</TableHead>
-                          <TableHead>Actions</TableHead>
-                        </TableRow>
-                      </TableHeader>
-                      <TableBody>
-                        {filteredWallets.map((w: any) => {
-                          const isLow = w.isActive && w.balance <= (w.lowBalanceThreshold || 500);
-                          return (
-                            <TableRow key={w.id} data-testid={`row-god-wallet-${w.id}`}>
-                              <TableCell>
-                                <div className="font-medium text-sm" data-testid={`text-wallet-user-${w.id}`}>{w.userName}</div>
-                                <div className="text-xs text-muted-foreground">{w.userEmail}</div>
-                              </TableCell>
-                              <TableCell className="font-medium" data-testid={`text-wallet-name-${w.id}`}>{w.name}</TableCell>
-                              <TableCell>
-                                <div className={`font-semibold text-sm ${isLow ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`} data-testid={`text-wallet-balance-${w.id}`}>
-                                  £{(w.balance / 100).toFixed(2)}
-                                  {isLow && <AlertTriangle className="inline h-3.5 w-3.5 ml-1 text-amber-500" />}
-                                </div>
-                              </TableCell>
-                              <TableCell>
-                                {w.isGlobal ? (
-                                  <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><Globe className="h-3 w-3 mr-1" />Global</Badge>
-                                ) : (
-                                  <Badge variant="outline" className="text-xs"><Lock className="h-3 w-3 mr-1" />{w.allowedClubIds?.length || 0} club{(w.allowedClubIds?.length || 0) !== 1 ? "s" : ""}</Badge>
-                                )}
-                              </TableCell>
-                              <TableCell>
-                                <Badge variant="outline" className={`text-xs ${w.isActive ? "text-green-600 border-green-300" : "text-red-500 border-red-300"}`}>
-                                  {w.isActive ? "Active" : "Disabled"}
-                                </Badge>
-                              </TableCell>
-                              <TableCell>
-                                <div className="flex items-center gap-1">
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setFundsWallet(w); setFundsMode("add"); setFundsModalOpen(true); }} data-testid={`button-add-funds-${w.id}`}>
-                                    <ArrowUpCircle className="h-3 w-3 mr-0.5 text-green-600" />Add
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setFundsWallet(w); setFundsMode("remove"); setFundsModalOpen(true); }} data-testid={`button-remove-funds-${w.id}`}>
-                                    <ArrowDownCircle className="h-3 w-3 mr-0.5 text-red-500" />Remove
-                                  </Button>
-                                  <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setTxWalletId(w.id); setTxModalOpen(true); }} data-testid={`button-view-tx-${w.id}`}>
-                                    <Eye className="h-3 w-3 mr-0.5" />Log
-                                  </Button>
-                                  <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditWallet(w); setWalletModalOpen(true); }} data-testid={`button-edit-wallet-${w.id}`}>
-                                    <Pencil className="h-3 w-3" />
-                                  </Button>
-                                </div>
-                              </TableCell>
-                            </TableRow>
-                          );
-                        })}
-                        {filteredWallets.length === 0 && (
-                          <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No wallets found.</TableCell></TableRow>
-                        )}
-                      </TableBody>
-                    </Table>
-                  </div>
-                )}
-              </TabsContent>
             </Tabs>
           </CardContent>
         </Card>
       )}
+
+      <Card data-testid="card-god-wallets">
+        <CardHeader className="pb-3">
+          <CardTitle className="text-lg flex items-center gap-2">
+            <Wallet className="w-5 h-5 text-primary" />
+            Wallet Management
+            {allWallets && <Badge variant="secondary" className="ml-2 text-xs">{allWallets.length}</Badge>}
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          {lowBalanceWallets.length > 0 && (
+            <div className="mb-4 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-800/50" data-testid="alert-low-balance">
+              <div className="flex items-center gap-2 text-amber-700 dark:text-amber-300 text-sm font-semibold mb-1">
+                <AlertTriangle className="h-4 w-4" />
+                {lowBalanceWallets.length} wallet{lowBalanceWallets.length !== 1 ? "s" : ""} with low balance
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {lowBalanceWallets.map((w: any) => (
+                  <Badge key={w.id} variant="outline" className="text-xs border-amber-300 text-amber-600 dark:text-amber-400">
+                    {w.userName} — {w.name}: £{(w.balance / 100).toFixed(2)}
+                  </Badge>
+                ))}
+              </div>
+            </div>
+          )}
+          <div className="flex items-center gap-2 mb-4 flex-wrap">
+            <div className="relative flex-1 min-w-[200px]">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+              <Input placeholder="Search wallets by user or name..." value={walletSearch} onChange={(e) => setWalletSearch(e.target.value)} className="pl-10" data-testid="input-god-search-wallets" />
+            </div>
+            <Button onClick={() => { setEditWallet(null); setWalletModalOpen(true); }} data-testid="button-god-add-wallet">
+              <Plus className="w-4 h-4 mr-1" /> Create Wallet
+            </Button>
+          </div>
+          {walletsLoading ? (
+            <div className="flex items-center justify-center py-12"><Loader2 className="w-6 h-6 animate-spin" /></div>
+          ) : (
+            <div className="overflow-auto max-h-[55vh]">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>User</TableHead>
+                    <TableHead>Wallet Name</TableHead>
+                    <TableHead>Balance</TableHead>
+                    <TableHead>Scope</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {filteredWallets.map((w: any) => {
+                    const isLow = w.isActive && w.balance <= (w.lowBalanceThreshold || 500);
+                    return (
+                      <TableRow key={w.id} data-testid={`row-god-wallet-${w.id}`}>
+                        <TableCell>
+                          <div className="font-medium text-sm" data-testid={`text-wallet-user-${w.id}`}>{w.userName}</div>
+                          <div className="text-xs text-muted-foreground">{w.userEmail}</div>
+                        </TableCell>
+                        <TableCell className="font-medium" data-testid={`text-wallet-name-${w.id}`}>{w.name}</TableCell>
+                        <TableCell>
+                          <div className={`font-semibold text-sm ${isLow ? "text-amber-600 dark:text-amber-400" : "text-foreground"}`} data-testid={`text-wallet-balance-${w.id}`}>
+                            £{(w.balance / 100).toFixed(2)}
+                            {isLow && <AlertTriangle className="inline h-3.5 w-3.5 ml-1 text-amber-500" />}
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          {w.isGlobal ? (
+                            <Badge className="text-xs bg-blue-100 text-blue-700 dark:bg-blue-950 dark:text-blue-300"><Globe className="h-3 w-3 mr-1" />Global</Badge>
+                          ) : (
+                            <Badge variant="outline" className="text-xs"><Lock className="h-3 w-3 mr-1" />{w.allowedClubIds?.length || 0} club{(w.allowedClubIds?.length || 0) !== 1 ? "s" : ""}</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className={`text-xs ${w.isActive ? "text-green-600 border-green-300" : "text-red-500 border-red-300"}`}>
+                            {w.isActive ? "Active" : "Disabled"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-1">
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setFundsWallet(w); setFundsMode("add"); setFundsModalOpen(true); }} data-testid={`button-add-funds-${w.id}`}>
+                              <ArrowUpCircle className="h-3 w-3 mr-0.5 text-green-600" />Add
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setFundsWallet(w); setFundsMode("remove"); setFundsModalOpen(true); }} data-testid={`button-remove-funds-${w.id}`}>
+                              <ArrowDownCircle className="h-3 w-3 mr-0.5 text-red-500" />Remove
+                            </Button>
+                            <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setTxWalletId(w.id); setTxModalOpen(true); }} data-testid={`button-view-tx-${w.id}`}>
+                              <Eye className="h-3 w-3 mr-0.5" />Log
+                            </Button>
+                            <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditWallet(w); setWalletModalOpen(true); }} data-testid={`button-edit-wallet-${w.id}`}>
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                  {filteredWallets.length === 0 && (
+                    <TableRow><TableCell colSpan={6} className="text-center py-8 text-muted-foreground">No wallets found. Click "Create Wallet" to get started.</TableCell></TableRow>
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {walletModalOpen && (
         <WalletEditModal
