@@ -10248,6 +10248,10 @@ export async function registerRoutes(
         })
         .returning();
 
+      if (amount > 0) {
+        await ensureUserWallet(userId, clubId, amount, reason, admin.id);
+      }
+
       res.json(entry);
     } catch (err: any) {
       console.error("Error creating credit entry:", err);
@@ -31058,7 +31062,11 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           reason: reason || "Funds added by admin",
           createdById: u.id,
         }).returning();
-        const ledgerClubId = clubId || (wallet.allowedClubIds && wallet.allowedClubIds.length > 0 ? wallet.allowedClubIds[0] : null);
+        let ledgerClubId = clubId || (wallet.allowedClubIds && wallet.allowedClubIds.length > 0 ? wallet.allowedClubIds[0] : null);
+        if (!ledgerClubId) {
+          const profile = await trx.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, wallet.userId)).limit(1);
+          if (profile.length > 0) ledgerClubId = profile[0].clubId;
+        }
         if (ledgerClubId) {
           await trx.insert(creditLedger).values({
             userId: wallet.userId,
@@ -31106,7 +31114,11 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           reason: reason || "Funds removed by admin",
           createdById: u.id,
         }).returning();
-        const ledgerClubId = clubId || (updated.allowedClubIds && updated.allowedClubIds.length > 0 ? updated.allowedClubIds[0] : null);
+        let ledgerClubId = clubId || (updated.allowedClubIds && updated.allowedClubIds.length > 0 ? updated.allowedClubIds[0] : null);
+        if (!ledgerClubId) {
+          const profile = await trx.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, updated.userId)).limit(1);
+          if (profile.length > 0) ledgerClubId = profile[0].clubId;
+        }
         if (ledgerClubId) {
           await trx.insert(creditLedger).values({
             userId: updated.userId,
