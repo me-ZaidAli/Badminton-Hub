@@ -1229,6 +1229,19 @@ export function registerTournamentRoutes(app: Express) {
       await db.update(tournamentRegistrations).set({ pairName: trimmed || null })
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, reg.partnerId)));
 
+      const matchingPRs = await db.select().from(tournamentPairRequests)
+        .where(and(
+          eq(tournamentPairRequests.tournamentId, tournamentId),
+          or(
+            and(eq(tournamentPairRequests.fromUserId, reg.userId), eq(tournamentPairRequests.toUserId, reg.partnerId)),
+            and(eq(tournamentPairRequests.fromUserId, reg.partnerId), eq(tournamentPairRequests.toUserId, reg.userId))
+          )
+        ));
+      for (const pr of matchingPRs) {
+        await db.update(tournamentPairRequests).set({ pairName: trimmed || null })
+          .where(eq(tournamentPairRequests.id, pr.id));
+      }
+
       res.json({ message: "Team name updated", pairName: trimmed || null });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
