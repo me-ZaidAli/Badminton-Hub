@@ -1141,6 +1141,8 @@ export function registerTournamentRoutes(app: Express) {
 
       const seen = new Set<string>();
       const uniquePairs: any[] = [];
+      const allPairRequests = await db.select().from(tournamentPairRequests)
+        .where(and(eq(tournamentPairRequests.tournamentId, tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
       for (const reg of pairs) {
         if (!reg.partnerId) continue;
         const key = [Math.min(reg.userId, reg.partnerId), Math.max(reg.userId, reg.partnerId)].join("-");
@@ -1150,7 +1152,11 @@ export function registerTournamentRoutes(app: Express) {
         const [user2] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, reg.partnerId));
         const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
         const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.partnerId));
-        uniquePairs.push({ id: reg.id, user1, user2, profile1: p1, profile2: p2, pairName: reg.pairName || null, createdAt: reg.createdAt });
+        const matchingPR = allPairRequests.find(pr =>
+          (pr.fromUserId === reg.userId && pr.toUserId === reg.partnerId) ||
+          (pr.fromUserId === reg.partnerId && pr.toUserId === reg.userId)
+        );
+        uniquePairs.push({ id: reg.id, pairRequestId: matchingPR?.id || null, user1, user2, profile1: p1, profile2: p2, pairName: reg.pairName || null, createdAt: reg.createdAt });
       }
       res.json(uniquePairs);
     } catch (e: any) {
@@ -2398,7 +2404,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           .orderBy(asc(tournamentGroupPairs.pairOrder));
       }
 
-      const teamIds = [...new Set(pairs.map(p => p.teamId))];
+      const teamIds = [...new Set(pairs.map(p => p.teamId).filter(Boolean))] as number[];
       let teams: any[] = [];
       if (teamIds.length > 0) {
         teams = await db.select().from(tournamentTeams).where(inArray(tournamentTeams.id, teamIds));
@@ -2418,6 +2424,18 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const profileMap: Record<number, string> = {};
       profiles.forEach(p => { profileMap[p.id] = userMap[p.userId] || "Unknown"; });
 
+      const pairRequestIds = [...new Set(pairs.map(p => p.pairRequestId).filter(Boolean))] as number[];
+      let pairRequests: any[] = [];
+      if (pairRequestIds.length > 0) {
+        pairRequests = await db.select().from(tournamentPairRequests).where(inArray(tournamentPairRequests.id, pairRequestIds));
+      }
+      const prUserIds = [...new Set(pairRequests.flatMap(pr => [pr.fromUserId, pr.toUserId].filter(Boolean)))] as number[];
+      let prUserMap: Record<number, string> = {};
+      if (prUserIds.length > 0) {
+        const prUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, prUserIds));
+        prUsers.forEach(u => { prUserMap[u.id] = u.fullName; });
+      }
+
       let venueIds = [...new Set(groups.map(g => g.venueId).filter(Boolean))] as number[];
       let venueMap: Record<number, any> = {};
       if (venueIds.length > 0) {
@@ -2427,6 +2445,19 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
 
       const enriched = groups.map(g => {
         const groupPairs = pairs.filter(p => p.groupId === g.id).map(p => {
+          if (p.pairRequestId) {
+            const pr = pairRequests.find(r => r.id === p.pairRequestId);
+            return {
+              ...p,
+              pairRequest: pr ? {
+                ...pr,
+                fromUserName: prUserMap[pr.fromUserId] || "Unknown",
+                toUserName: prUserMap[pr.toUserId] || "Unknown",
+                pairName: pr.pairName || null,
+              } : null,
+              team: null,
+            };
+          }
           const team = teams.find(t => t.id === p.teamId);
           return {
             ...p,
@@ -2435,6 +2466,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
               player1Name: profileMap[team.player1Id] || "Unknown",
               player2Name: team.player2Id ? (profileMap[team.player2Id] || "Unknown") : null,
             } : null,
+            pairRequest: null,
           };
         });
         return {
@@ -2533,8 +2565,33 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const isAdmin = await isTournamentAdmin(req.user!.id, group.tournamentId);
       if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
 
-      const { teamId } = req.body;
-      if (!teamId) return res.status(400).json({ message: "Team ID required" });
+      const { teamId, pairRequestId } = req.body;
+      if (!teamId && !pairRequestId) return res.status(400).json({ message: "Team ID or Pair Request ID required" });
+
+      const existingPairs = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.groupId, groupId));
+      if (existingPairs.length >= group.maxPairs) {
+        return res.status(400).json({ message: `Group is full (max ${group.maxPairs} pairs)` });
+      }
+
+      if (pairRequestId) {
+        const [pr] = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, pairRequestId));
+        if (!pr) return res.status(404).json({ message: "Pair not found" });
+        if (pr.tournamentId !== group.tournamentId) return res.status(400).json({ message: "Pair does not belong to this tournament" });
+        if (pr.status !== "ACCEPTED") return res.status(400).json({ message: "Pair request must be accepted before adding to a group" });
+
+        const alreadyInGroup = existingPairs.find(p => p.pairRequestId === pairRequestId);
+        if (alreadyInGroup) return res.status(400).json({ message: "Pair already in this group" });
+
+        const inAnyGroup = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.pairRequestId, pairRequestId));
+        if (inAnyGroup.length > 0) return res.status(400).json({ message: "Pair already assigned to a group" });
+
+        const [pair] = await db.insert(tournamentGroupPairs).values({
+          groupId,
+          pairRequestId,
+          pairOrder: existingPairs.length + 1,
+        }).returning();
+        return res.json(pair);
+      }
 
       const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
       if (!team) return res.status(404).json({ message: "Team not found" });
@@ -2545,11 +2602,6 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       }
       if (group.categoryId && team.categoryId !== group.categoryId) {
         return res.status(400).json({ message: "Team category does not match group category" });
-      }
-
-      const existingPairs = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.groupId, groupId));
-      if (existingPairs.length >= group.maxPairs) {
-        return res.status(400).json({ message: `Group is full (max ${group.maxPairs} pairs)` });
       }
 
       const alreadyInGroup = existingPairs.find(p => p.teamId === teamId);

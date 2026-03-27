@@ -2999,9 +2999,14 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
 
   const activeCatId = formCategoryId ? Number(formCategoryId) : (categories.length > 0 ? categories[0].id : 0);
   const { data: allTeams = [] } = useTournamentTeams(activeCatId);
+  const { data: allPairs = [] } = useTournamentPairs(tournamentId);
+  const acceptedPairs = allPairs.filter((p: any) => !!p.pairRequestId);
 
-  const assignedTeamIds = new Set(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.teamId) || []));
+  const assignedTeamIds = new Set(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.teamId).filter(Boolean) || []));
+  const assignedPairRequestIds = new Set(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.pairRequestId).filter(Boolean) || []));
   const availableTeams = allTeams.filter((t: any) => !assignedTeamIds.has(t.id));
+  const availablePairs = acceptedPairs.filter((p: any) => !assignedPairRequestIds.has(p.pairRequestId));
+  const hasPairs = acceptedPairs.length > 0;
 
   function resetForm() {
     setFormName(""); setFormMaxPairs("4"); setFormStartTime(""); setFormHallName(""); setFormCourtName(""); setFormCategoryId("");
@@ -3066,7 +3071,14 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   async function handleAddPair(groupId: number) {
     if (!selectedTeamId) return;
     try {
-      await addPairMutation.mutateAsync({ groupId, teamId: Number(selectedTeamId), tournamentId });
+      const isPairReq = selectedTeamId.startsWith("pr-");
+      const payload: any = { groupId, tournamentId };
+      if (isPairReq) {
+        payload.pairRequestId = Number(selectedTeamId.replace("pr-", ""));
+      } else {
+        payload.teamId = Number(selectedTeamId);
+      }
+      await addPairMutation.mutateAsync(payload);
       toast({ title: "Pair Added" });
       setSelectedTeamId("");
       setAddPairOpen(null);
@@ -3215,27 +3227,33 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
 
                   {group.pairs && group.pairs.length > 0 ? (
                     <div className="space-y-1.5">
-                      {group.pairs.map((pair: any, idx: number) => (
-                        <div key={pair.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
-                          <div className="flex items-center gap-2">
-                            <span className="text-[10px] font-black text-muted-foreground w-5">{idx + 1}.</span>
-                            {pair.team ? (
-                              <span className="text-xs font-bold text-foreground">
-                                {pair.team.player1Name}{pair.team.player2Name ? ` & ${pair.team.player2Name}` : ""}
-                              </span>
-                            ) : (
-                              <span className="text-xs text-muted-foreground italic">Unknown team</span>
+                      {group.pairs.map((pair: any, idx: number) => {
+                        let pairLabel = "";
+                        if (pair.pairRequest) {
+                          pairLabel = pair.pairRequest.pairName || `${pair.pairRequest.fromUserName} & ${pair.pairRequest.toUserName}`;
+                        } else if (pair.team) {
+                          pairLabel = `${pair.team.player1Name}${pair.team.player2Name ? ` & ${pair.team.player2Name}` : ""}`;
+                        }
+                        return (
+                          <div key={pair.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-black text-muted-foreground w-5">{idx + 1}.</span>
+                              {pairLabel ? (
+                                <span className="text-xs font-bold text-foreground">{pairLabel}</span>
+                              ) : (
+                                <span className="text-xs text-muted-foreground italic">Unknown pair</span>
+                              )}
+                            </div>
+                            {canManage && (
+                              <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 hover:text-red-600"
+                                data-testid={`button-remove-pair-${pair.id}`}
+                                onClick={() => handleRemovePair(pair.id)}>
+                                <X className="h-3 w-3" />
+                              </Button>
                             )}
                           </div>
-                          {canManage && (
-                            <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 hover:text-red-600"
-                              data-testid={`button-remove-pair-${pair.id}`}
-                              onClick={() => handleRemovePair(pair.id)}>
-                              <X className="h-3 w-3" />
-                            </Button>
-                          )}
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   ) : (
                     <p className="text-xs text-muted-foreground text-center py-2 italic">No pairs assigned yet</p>
@@ -3249,6 +3267,11 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                             <SelectValue placeholder="Select a pair..." />
                           </SelectTrigger>
                           <SelectContent>
+                            {availablePairs.map((p: any) => (
+                              <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
+                                {p.pairName || `${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
+                              </SelectItem>
+                            ))}
                             {availableTeams.map((t: any) => (
                               <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
                             ))}

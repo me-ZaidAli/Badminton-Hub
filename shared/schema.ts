@@ -630,7 +630,8 @@ export const tournamentGroups = pgTable("tournament_groups", {
 export const tournamentGroupPairs = pgTable("tournament_group_pairs", {
   id: serial("id").primaryKey(),
   groupId: integer("group_id").references(() => tournamentGroups.id).notNull(),
-  teamId: integer("team_id").references(() => tournamentTeams.id).notNull(),
+  teamId: integer("team_id").references(() => tournamentTeams.id),
+  pairRequestId: integer("pair_request_id").references(() => tournamentPairRequests.id),
   pairOrder: integer("pair_order").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

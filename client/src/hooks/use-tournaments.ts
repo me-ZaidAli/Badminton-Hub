@@ -832,8 +832,11 @@ export function useDeleteTournamentGroup() {
 
 export function useAddPairToGroup() {
   return useMutation({
-    mutationFn: async ({ groupId, teamId, tournamentId }: { groupId: number; teamId: number; tournamentId: number }) => {
-      const res = await apiRequest("POST", `/api/tournament-groups/${groupId}/pairs`, { teamId });
+    mutationFn: async ({ groupId, teamId, pairRequestId, tournamentId }: { groupId: number; teamId?: number; pairRequestId?: number; tournamentId: number }) => {
+      const body: any = {};
+      if (pairRequestId) body.pairRequestId = pairRequestId;
+      else if (teamId) body.teamId = teamId;
+      const res = await apiRequest("POST", `/api/tournament-groups/${groupId}/pairs`, body);
       return res.json();
     },
     onSuccess: (_, vars) => {
