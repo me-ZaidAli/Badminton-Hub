@@ -8215,3 +8215,46 @@ html.theme-transitioning * {
   }
 }
 
+@keyframes esports-border-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 0.8; }
+}
+@keyframes esports-shimmer {
+  0% { background-position: -200% 0; }
+  100% { background-position: 200% 0; }
+}
+@keyframes esports-glow-breathe {
+  0%, 100% { box-shadow: 0 0 8px rgba(139, 92, 246, 0.15), 0 0 20px rgba(139, 92, 246, 0.05); }
+  50% { box-shadow: 0 0 12px rgba(139, 92, 246, 0.25), 0 0 30px rgba(139, 92, 246, 0.1); }
+}
+@keyframes esports-status-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.7; }
+  50% { transform: scale(1.4); opacity: 1; }
+}
+@keyframes esports-energy-flow {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+.esports-card {
+  animation: esports-glow-breathe 4s ease-in-out infinite;
+}
+.esports-card:hover {
+  animation: none;
+}
+.esports-shimmer-line {
+  background: linear-gradient(90deg, transparent 0%, rgba(139, 92, 246, 0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: esports-shimmer 3s ease-in-out infinite;
+}
+.esports-status-dot {
+  animation: esports-status-pulse 2s ease-in-out infinite;
+}
+.esports-border-glow {
+  animation: esports-border-pulse 3s ease-in-out infinite;
+}
+.esports-synergy-bar {
+  background-size: 200% 200%;
+  animation: esports-energy-flow 3s ease-in-out infinite;
+}
+
