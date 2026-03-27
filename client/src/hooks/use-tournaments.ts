@@ -753,3 +753,91 @@ export function useRecalculateStats() {
     },
   });
 }
+
+export function useRestartTournament() {
+  return useMutation({
+    mutationFn: async ({ tournamentId }: { tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/restart`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "player-stats"] });
+    },
+  });
+}
+
+export function useTournamentGroups(tournamentId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/tournaments", tournamentId, "groups"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/groups`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch groups");
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useCreateTournamentGroup() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, ...data }: { tournamentId: number; name: string; categoryId?: number; maxPairs?: number; startTime?: string; venueId?: number; hallName?: string; courtName?: string; groupOrder?: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/groups`, data);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+    },
+  });
+}
+
+export function useUpdateTournamentGroup() {
+  return useMutation({
+    mutationFn: async ({ groupId, tournamentId, ...data }: { groupId: number; tournamentId: number; name?: string; maxPairs?: number; startTime?: string | null; venueId?: number | null; hallName?: string | null; courtName?: string | null; groupOrder?: number; categoryId?: number | null }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-groups/${groupId}`, data);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+    },
+  });
+}
+
+export function useDeleteTournamentGroup() {
+  return useMutation({
+    mutationFn: async ({ groupId }: { groupId: number }) => {
+      const res = await apiRequest("DELETE", `/api/tournament-groups/${groupId}`);
+      return res.json();
+    },
+    onSuccess: (_, _vars, context) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+    },
+  });
+}
+
+export function useAddPairToGroup() {
+  return useMutation({
+    mutationFn: async ({ groupId, teamId, tournamentId }: { groupId: number; teamId: number; tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournament-groups/${groupId}/pairs`, { teamId });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+    },
+  });
+}
+
+export function useRemovePairFromGroup() {
+  return useMutation({
+    mutationFn: async ({ pairId, tournamentId }: { pairId: number; tournamentId: number }) => {
+      const res = await apiRequest("DELETE", `/api/tournament-group-pairs/${pairId}`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+    },
+  });
+}

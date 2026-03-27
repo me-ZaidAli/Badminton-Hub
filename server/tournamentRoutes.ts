@@ -6,6 +6,7 @@ import {
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
   tournamentWaitlist, tournamentAdmins, tournamentPrizes,
   tournamentCourts, tournamentPlayerStats,
+  tournamentGroups, tournamentGroupPairs,
   users, clubs, venues, playerProfiles, matches,
   notifications, clubMemberships, internalMessages
 } from "@shared/schema";
@@ -2300,6 +2301,253 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         await recalculatePlayerStats(tournamentId, cat.id);
       }
       res.json({ message: "Stats recalculated" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/restart", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const cats = await db.select({ id: tournamentCategories.id }).from(tournamentCategories)
+        .where(eq(tournamentCategories.tournamentId, tournamentId));
+      const catIds = cats.map(c => c.id);
+
+      await db.transaction(async (trx) => {
+        if (catIds.length > 0) {
+          await trx.delete(tournamentPlayerStats).where(
+            and(eq(tournamentPlayerStats.tournamentId, tournamentId), inArray(tournamentPlayerStats.categoryId, catIds))
+          );
+          await trx.delete(tournamentStandings).where(inArray(tournamentStandings.categoryId, catIds));
+          await trx.delete(tournamentMatches).where(inArray(tournamentMatches.categoryId, catIds));
+
+          for (const catId of catIds) {
+            await trx.update(tournamentTeams).set({ groupNumber: null, subGroupNumber: null })
+              .where(eq(tournamentTeams.categoryId, catId));
+          }
+        }
+
+        const groups = await trx.select({ id: tournamentGroups.id }).from(tournamentGroups)
+          .where(eq(tournamentGroups.tournamentId, tournamentId));
+        const groupIds = groups.map(g => g.id);
+        if (groupIds.length > 0) {
+          await trx.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, groupIds));
+        }
+        await trx.delete(tournamentGroups).where(eq(tournamentGroups.tournamentId, tournamentId));
+
+        await trx.update(tournaments).set({ status: "DRAFT" }).where(eq(tournaments.id, tournamentId));
+      });
+
+      res.json({ message: "Tournament restarted. All matches, standings, stats, and groups cleared." });
+    } catch (e: any) {
+      console.error("Error restarting tournament:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/tournaments/:id/groups", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const groups = await db.select().from(tournamentGroups)
+        .where(eq(tournamentGroups.tournamentId, tournamentId))
+        .orderBy(asc(tournamentGroups.groupOrder));
+
+      const groupIds = groups.map(g => g.id);
+      let pairs: any[] = [];
+      if (groupIds.length > 0) {
+        pairs = await db.select().from(tournamentGroupPairs)
+          .where(inArray(tournamentGroupPairs.groupId, groupIds))
+          .orderBy(asc(tournamentGroupPairs.pairOrder));
+      }
+
+      const teamIds = [...new Set(pairs.map(p => p.teamId))];
+      let teams: any[] = [];
+      if (teamIds.length > 0) {
+        teams = await db.select().from(tournamentTeams).where(inArray(tournamentTeams.id, teamIds));
+      }
+      const profileIds = [...new Set(teams.flatMap(t => [t.player1Id, t.player2Id].filter(Boolean)))];
+      let profiles: any[] = [];
+      if (profileIds.length > 0) {
+        profiles = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId })
+          .from(playerProfiles).where(inArray(playerProfiles.id, profileIds));
+      }
+      const userIds = profiles.map(p => p.userId);
+      let userMap: Record<number, string> = {};
+      if (userIds.length > 0) {
+        const usersData = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
+        usersData.forEach(u => { userMap[u.id] = u.fullName; });
+      }
+      const profileMap: Record<number, string> = {};
+      profiles.forEach(p => { profileMap[p.id] = userMap[p.userId] || "Unknown"; });
+
+      let venueIds = [...new Set(groups.map(g => g.venueId).filter(Boolean))] as number[];
+      let venueMap: Record<number, any> = {};
+      if (venueIds.length > 0) {
+        const venuesData = await db.select().from(venues).where(inArray(venues.id, venueIds));
+        venuesData.forEach(v => { venueMap[v.id] = v; });
+      }
+
+      const enriched = groups.map(g => {
+        const groupPairs = pairs.filter(p => p.groupId === g.id).map(p => {
+          const team = teams.find(t => t.id === p.teamId);
+          return {
+            ...p,
+            team: team ? {
+              ...team,
+              player1Name: profileMap[team.player1Id] || "Unknown",
+              player2Name: team.player2Id ? (profileMap[team.player2Id] || "Unknown") : null,
+            } : null,
+          };
+        });
+        return {
+          ...g,
+          pairs: groupPairs,
+          venue: g.venueId ? venueMap[g.venueId] || null : null,
+        };
+      });
+
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/groups", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { name, categoryId, maxPairs, startTime, venueId, hallName, courtName, groupOrder } = req.body;
+      if (!name) return res.status(400).json({ message: "Group name is required" });
+
+      const [group] = await db.insert(tournamentGroups).values({
+        tournamentId,
+        categoryId: categoryId || null,
+        name,
+        groupOrder: groupOrder || 1,
+        maxPairs: maxPairs || 4,
+        startTime: startTime ? new Date(startTime) : null,
+        venueId: venueId || null,
+        hallName: hallName || null,
+        courtName: courtName || null,
+      }).returning();
+
+      res.json(group);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-groups/:groupId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const groupId = Number(req.params.groupId);
+      const [group] = await db.select().from(tournamentGroups).where(eq(tournamentGroups.id, groupId));
+      if (!group) return res.status(404).json({ message: "Group not found" });
+
+      const isAdmin = await isTournamentAdmin(req.user!.id, group.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.maxPairs !== undefined) updates.maxPairs = req.body.maxPairs;
+      if (req.body.startTime !== undefined) updates.startTime = req.body.startTime ? new Date(req.body.startTime) : null;
+      if (req.body.venueId !== undefined) updates.venueId = req.body.venueId || null;
+      if (req.body.hallName !== undefined) updates.hallName = req.body.hallName || null;
+      if (req.body.courtName !== undefined) updates.courtName = req.body.courtName || null;
+      if (req.body.groupOrder !== undefined) updates.groupOrder = req.body.groupOrder;
+      if (req.body.categoryId !== undefined) updates.categoryId = req.body.categoryId || null;
+
+      const [updated] = await db.update(tournamentGroups).set(updates).where(eq(tournamentGroups.id, groupId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/tournament-groups/:groupId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const groupId = Number(req.params.groupId);
+      const [group] = await db.select().from(tournamentGroups).where(eq(tournamentGroups.id, groupId));
+      if (!group) return res.status(404).json({ message: "Group not found" });
+
+      const isAdmin = await isTournamentAdmin(req.user!.id, group.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      await db.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.groupId, groupId));
+      await db.delete(tournamentGroups).where(eq(tournamentGroups.id, groupId));
+      res.json({ message: "Group deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournament-groups/:groupId/pairs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const groupId = Number(req.params.groupId);
+      const [group] = await db.select().from(tournamentGroups).where(eq(tournamentGroups.id, groupId));
+      if (!group) return res.status(404).json({ message: "Group not found" });
+
+      const isAdmin = await isTournamentAdmin(req.user!.id, group.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const { teamId } = req.body;
+      if (!teamId) return res.status(400).json({ message: "Team ID required" });
+
+      const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+      if (!team) return res.status(404).json({ message: "Team not found" });
+
+      const [teamCat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, team.categoryId));
+      if (!teamCat || teamCat.tournamentId !== group.tournamentId) {
+        return res.status(400).json({ message: "Team does not belong to this tournament" });
+      }
+      if (group.categoryId && team.categoryId !== group.categoryId) {
+        return res.status(400).json({ message: "Team category does not match group category" });
+      }
+
+      const existingPairs = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.groupId, groupId));
+      if (existingPairs.length >= group.maxPairs) {
+        return res.status(400).json({ message: `Group is full (max ${group.maxPairs} pairs)` });
+      }
+
+      const alreadyInGroup = existingPairs.find(p => p.teamId === teamId);
+      if (alreadyInGroup) return res.status(400).json({ message: "Team already in this group" });
+
+      const [pair] = await db.insert(tournamentGroupPairs).values({
+        groupId,
+        teamId,
+        pairOrder: existingPairs.length + 1,
+      }).returning();
+
+      res.json(pair);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/tournament-group-pairs/:pairId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const pairId = Number(req.params.pairId);
+      const [pair] = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.id, pairId));
+      if (!pair) return res.status(404).json({ message: "Pair assignment not found" });
+
+      const [group] = await db.select().from(tournamentGroups).where(eq(tournamentGroups.id, pair.groupId));
+      if (!group) return res.status(404).json({ message: "Group not found" });
+
+      const isAdmin = await isTournamentAdmin(req.user!.id, group.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      await db.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.id, pairId));
+      res.json({ message: "Pair removed from group" });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

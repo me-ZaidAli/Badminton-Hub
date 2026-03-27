@@ -612,6 +612,28 @@ export const tournamentPrizes = pgTable("tournament_prizes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tournamentGroups = pgTable("tournament_groups", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
+  categoryId: integer("category_id").references(() => tournamentCategories.id),
+  name: text("name").notNull(),
+  groupOrder: integer("group_order").default(1).notNull(),
+  maxPairs: integer("max_pairs").default(4).notNull(),
+  startTime: timestamp("start_time"),
+  venueId: integer("venue_id").references(() => venues.id),
+  hallName: text("hall_name"),
+  courtName: text("court_name"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tournamentGroupPairs = pgTable("tournament_group_pairs", {
+  id: serial("id").primaryKey(),
+  groupId: integer("group_id").references(() => tournamentGroups.id).notNull(),
+  teamId: integer("team_id").references(() => tournamentTeams.id).notNull(),
+  pairOrder: integer("pair_order").default(1).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const tournamentAdmins = pgTable("tournament_admins", {
   id: serial("id").primaryKey(),
   tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
@@ -997,6 +1019,8 @@ export const insertTournamentCategorySchema = createInsertSchema(tournamentCateg
 export const insertTournamentTeamSchema = createInsertSchema(tournamentTeams).omit({ id: true, createdAt: true });
 export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches).omit({ id: true, createdAt: true });
 export const insertTournamentPlayerStatSchema = createInsertSchema(tournamentPlayerStats).omit({ id: true });
+export const insertTournamentGroupSchema = createInsertSchema(tournamentGroups).omit({ id: true, createdAt: true });
+export const insertTournamentGroupPairSchema = createInsertSchema(tournamentGroupPairs).omit({ id: true, createdAt: true });
 
 export const insertInternalMessageSchema = createInsertSchema(internalMessages).omit({ id: true, createdAt: true, readAt: true });
 export const insertPolicyAcceptanceSchema = createInsertSchema(policyAcceptances).omit({ id: true, acceptedAt: true });
@@ -1037,6 +1061,8 @@ export type TournamentRegistration = typeof tournamentRegistrations.$inferSelect
 export type TournamentPairRequest = typeof tournamentPairRequests.$inferSelect;
 export type TournamentWaitlistEntry = typeof tournamentWaitlist.$inferSelect;
 export type TournamentPrize = typeof tournamentPrizes.$inferSelect;
+export type TournamentGroup = typeof tournamentGroups.$inferSelect;
+export type TournamentGroupPair = typeof tournamentGroupPairs.$inferSelect;
 export type Coach = typeof coaches.$inferSelect;
 export type CoachSeekerMembership = typeof coachSeekerMemberships.$inferSelect;
 export type Review = typeof reviews.$inferSelect;

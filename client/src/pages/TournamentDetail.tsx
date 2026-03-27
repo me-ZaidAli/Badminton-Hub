@@ -11,7 +11,9 @@ import {
   useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
-  useSeedDemoPlayers, useClearDemoPlayers,
+  useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
+  useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup,
+  useAddPairToGroup, useRemovePairFromGroup,
   useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
   useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
@@ -45,7 +47,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import tournamentHeroImg from "@assets/tournament-hero.png";
 
-type SubPage = "overview" | "players" | "pairs" | "signup" | "matches" | "courts" | "stats" | "prizes" | "admin";
+type SubPage = "overview" | "players" | "pairs" | "signup" | "matches" | "groups" | "courts" | "stats" | "prizes" | "admin";
 
 const categorySchema = z.object({
   name: z.string().min(1, "Name required"),
@@ -189,6 +191,7 @@ export default function TournamentDetail() {
     { key: "pairs", label: "Pairs", icon: UserPlus },
     { key: "signup", label: "Sign Up", icon: Zap },
     { key: "matches", label: "Matches", icon: Swords },
+    { key: "groups", label: "Groups", icon: LayoutGrid },
     { key: "courts", label: "Courts", icon: Monitor },
     { key: "stats", label: "Stats", icon: BarChart },
     { key: "prizes", label: "Prizes", icon: Trophy },
@@ -344,6 +347,7 @@ export default function TournamentDetail() {
       {subPage === "matches" && !activeCategory && (
         <EmptyState icon={Swords} title="No Categories" description="Add a category to create matches." />
       )}
+      {subPage === "groups" && <GroupsTab tournamentId={tournamentId} tournament={tournament} categories={categories} canManage={canManage} />}
       {subPage === "courts" && <CourtsTab tournamentId={tournamentId} canManage={canManage} />}
       {subPage === "stats" && <PlayerStatsTab tournamentId={tournamentId} categories={categories} canManage={canManage} />}
       {subPage === "prizes" && <PrizesTab tournamentId={tournamentId} tournament={tournament} categories={categories} />}
@@ -2832,6 +2836,319 @@ function PlayerStatsTab({ tournamentId, categories, canManage }: { tournamentId:
   );
 }
 
+function GroupsTab({ tournamentId, tournament, categories, canManage }: { tournamentId: number; tournament: any; categories: any[]; canManage: boolean }) {
+  const { data: groups = [], isLoading } = useTournamentGroups(tournamentId);
+  const createGroupMutation = useCreateTournamentGroup();
+  const updateGroupMutation = useUpdateTournamentGroup();
+  const deleteGroupMutation = useDeleteTournamentGroup();
+  const addPairMutation = useAddPairToGroup();
+  const removePairMutation = useRemovePairFromGroup();
+  const { toast } = useToast();
+
+  const [createOpen, setCreateOpen] = useState(false);
+  const [editingGroup, setEditingGroup] = useState<any>(null);
+  const [addPairOpen, setAddPairOpen] = useState<number | null>(null);
+  const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+
+  const [formName, setFormName] = useState("");
+  const [formMaxPairs, setFormMaxPairs] = useState("4");
+  const [formStartTime, setFormStartTime] = useState("");
+  const [formHallName, setFormHallName] = useState("");
+  const [formCourtName, setFormCourtName] = useState("");
+  const [formCategoryId, setFormCategoryId] = useState<string>("");
+
+  const activeCatId = formCategoryId ? Number(formCategoryId) : (categories.length > 0 ? categories[0].id : 0);
+  const { data: allTeams = [] } = useTournamentTeams(activeCatId);
+
+  const assignedTeamIds = new Set(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.teamId) || []));
+  const availableTeams = allTeams.filter((t: any) => !assignedTeamIds.has(t.id));
+
+  function resetForm() {
+    setFormName(""); setFormMaxPairs("4"); setFormStartTime(""); setFormHallName(""); setFormCourtName(""); setFormCategoryId("");
+  }
+
+  function openEdit(group: any) {
+    setEditingGroup(group);
+    setFormName(group.name);
+    setFormMaxPairs(String(group.maxPairs));
+    setFormStartTime(group.startTime ? new Date(group.startTime).toISOString().slice(0, 16) : "");
+    setFormHallName(group.hallName || "");
+    setFormCourtName(group.courtName || "");
+    setFormCategoryId(group.categoryId ? String(group.categoryId) : "");
+  }
+
+  async function handleCreate() {
+    if (!formName.trim()) { toast({ title: "Error", description: "Group name is required", variant: "destructive" }); return; }
+    try {
+      await createGroupMutation.mutateAsync({
+        tournamentId,
+        name: formName.trim(),
+        maxPairs: Number(formMaxPairs) || 4,
+        startTime: formStartTime || undefined,
+        hallName: formHallName || undefined,
+        courtName: formCourtName || undefined,
+        categoryId: formCategoryId ? Number(formCategoryId) : undefined,
+        groupOrder: groups.length + 1,
+      });
+      toast({ title: "Group Created" });
+      setCreateOpen(false);
+      resetForm();
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function handleUpdate() {
+    if (!editingGroup || !formName.trim()) return;
+    try {
+      await updateGroupMutation.mutateAsync({
+        groupId: editingGroup.id,
+        tournamentId,
+        name: formName.trim(),
+        maxPairs: Number(formMaxPairs) || 4,
+        startTime: formStartTime || null,
+        hallName: formHallName || null,
+        courtName: formCourtName || null,
+        categoryId: formCategoryId ? Number(formCategoryId) : null,
+      });
+      toast({ title: "Group Updated" });
+      setEditingGroup(null);
+      resetForm();
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function handleDelete(groupId: number) {
+    try {
+      await deleteGroupMutation.mutateAsync({ groupId });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "groups"] });
+      toast({ title: "Group Deleted" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function handleAddPair(groupId: number) {
+    if (!selectedTeamId) return;
+    try {
+      await addPairMutation.mutateAsync({ groupId, teamId: Number(selectedTeamId), tournamentId });
+      toast({ title: "Pair Added" });
+      setSelectedTeamId("");
+      setAddPairOpen(null);
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function handleRemovePair(pairId: number) {
+    try {
+      await removePairMutation.mutateAsync({ pairId, tournamentId });
+      toast({ title: "Pair Removed" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  if (isLoading) {
+    return <div className="flex justify-center py-8"><Loader2 className="h-8 w-8 animate-spin text-violet-500" /></div>;
+  }
+
+  const groupFormDialog = (
+    <Dialog open={createOpen || !!editingGroup} onOpenChange={(open) => { if (!open) { setCreateOpen(false); setEditingGroup(null); resetForm(); } }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>{editingGroup ? "Edit Group" : "Create Group"}</DialogTitle>
+          <DialogDescription>Set up a round robin group with venue details</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-3">
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Group Name *</label>
+            <Input data-testid="input-group-name" value={formName} onChange={(e) => setFormName(e.target.value)} placeholder="e.g. Group A" />
+          </div>
+          {categories.length > 0 && (
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Category</label>
+              <Select value={formCategoryId} onValueChange={setFormCategoryId}>
+                <SelectTrigger data-testid="select-group-category"><SelectValue placeholder="All categories" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="0">All Categories</SelectItem>
+                  {categories.map(c => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Max Pairs</label>
+              <Input data-testid="input-group-max-pairs" type="number" min={2} value={formMaxPairs} onChange={(e) => setFormMaxPairs(e.target.value)} />
+            </div>
+            <div>
+              <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Start Time</label>
+              <Input data-testid="input-group-start-time" type="datetime-local" value={formStartTime} onChange={(e) => setFormStartTime(e.target.value)} />
+            </div>
+          </div>
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Hall Name</label>
+            <Input data-testid="input-group-hall" value={formHallName} onChange={(e) => setFormHallName(e.target.value)} placeholder="e.g. Main Hall" />
+          </div>
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Court Name</label>
+            <Input data-testid="input-group-court" value={formCourtName} onChange={(e) => setFormCourtName(e.target.value)} placeholder="e.g. Court 1" />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => { setCreateOpen(false); setEditingGroup(null); resetForm(); }}>Cancel</Button>
+          <Button data-testid="button-save-group" className="bg-violet-600 hover:bg-violet-700 text-white font-bold"
+            disabled={createGroupMutation.isPending || updateGroupMutation.isPending}
+            onClick={editingGroup ? handleUpdate : handleCreate}>
+            {(createGroupMutation.isPending || updateGroupMutation.isPending) && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+            {editingGroup ? "Save Changes" : "Create Group"}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
+        <h3 className="text-sm font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+          <LayoutGrid className="h-4 w-4 text-violet-500" />
+          Round Robin Groups
+        </h3>
+        {canManage && (
+          <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
+            data-testid="button-create-group"
+            onClick={() => { resetForm(); setCreateOpen(true); }}>
+            <Plus className="h-3.5 w-3.5 mr-1" /> Add Group
+          </Button>
+        )}
+      </div>
+
+      {groups.length === 0 ? (
+        <EmptyState icon={LayoutGrid} title="No Groups" description="Create round robin groups and assign pairs to get started." />
+      ) : (
+        <div className="grid gap-4">
+          {groups.map((group: any) => {
+            const pairsCount = group.pairs?.length || 0;
+            const isFull = pairsCount >= group.maxPairs;
+            return (
+              <Card key={group.id} className="overflow-hidden border-border/50">
+                <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center text-white font-black text-sm shadow-lg">
+                        {group.name.charAt(0)}
+                      </div>
+                      <div>
+                        <h4 className="font-black text-foreground text-sm" data-testid={`text-group-name-${group.id}`}>{group.name}</h4>
+                        <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                          <span className="font-bold">{pairsCount}/{group.maxPairs} pairs</span>
+                          {group.startTime && (
+                            <>
+                              <span>·</span>
+                              <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{format(new Date(group.startTime), "dd MMM, HH:mm")}</span>
+                            </>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                    {canManage && (
+                      <div className="flex items-center gap-1">
+                        <Button size="icon" variant="ghost" className="h-7 w-7" data-testid={`button-edit-group-${group.id}`}
+                          onClick={() => openEdit(group)}>
+                          <Edit3 className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-600" data-testid={`button-delete-group-${group.id}`}
+                          onClick={() => handleDelete(group.id)}>
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <CardContent className="p-4 space-y-3">
+                  {(group.hallName || group.courtName) && (
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      {group.hallName && (
+                        <span className="flex items-center gap-1"><Building2 className="h-3.5 w-3.5 text-blue-500" />{group.hallName}</span>
+                      )}
+                      {group.courtName && (
+                        <span className="flex items-center gap-1"><Square className="h-3.5 w-3.5 text-emerald-500" />{group.courtName}</span>
+                      )}
+                      {group.venue && (
+                        <span className="flex items-center gap-1"><MapPin className="h-3.5 w-3.5 text-rose-500" />{group.venue.name}</span>
+                      )}
+                    </div>
+                  )}
+
+                  {group.pairs && group.pairs.length > 0 ? (
+                    <div className="space-y-1.5">
+                      {group.pairs.map((pair: any, idx: number) => (
+                        <div key={pair.id} className="flex items-center justify-between px-3 py-2 rounded-lg bg-muted/30 hover:bg-muted/50 transition-colors">
+                          <div className="flex items-center gap-2">
+                            <span className="text-[10px] font-black text-muted-foreground w-5">{idx + 1}.</span>
+                            {pair.team ? (
+                              <span className="text-xs font-bold text-foreground">
+                                {pair.team.player1Name}{pair.team.player2Name ? ` & ${pair.team.player2Name}` : ""}
+                              </span>
+                            ) : (
+                              <span className="text-xs text-muted-foreground italic">Unknown team</span>
+                            )}
+                          </div>
+                          {canManage && (
+                            <Button size="icon" variant="ghost" className="h-6 w-6 text-red-500 hover:text-red-600"
+                              data-testid={`button-remove-pair-${pair.id}`}
+                              onClick={() => handleRemovePair(pair.id)}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-xs text-muted-foreground text-center py-2 italic">No pairs assigned yet</p>
+                  )}
+
+                  {canManage && !isFull && (
+                    addPairOpen === group.id ? (
+                      <div className="flex items-center gap-2 pt-1">
+                        <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
+                          <SelectTrigger className="h-8 text-xs flex-1" data-testid={`select-add-pair-${group.id}`}>
+                            <SelectValue placeholder="Select a pair..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {availableTeams.map((t: any) => (
+                              <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                        <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold"
+                          data-testid={`button-confirm-add-pair-${group.id}`}
+                          disabled={!selectedTeamId || addPairMutation.isPending}
+                          onClick={() => handleAddPair(group.id)}>
+                          {addPairMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
+                        </Button>
+                        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setAddPairOpen(null); setSelectedTeamId(""); }}>
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    ) : (
+                      <Button size="sm" variant="outline" className="w-full h-8 text-xs font-bold text-violet-500 border-violet-500/30 hover:bg-violet-500/10"
+                        data-testid={`button-add-pair-to-group-${group.id}`}
+                        onClick={() => setAddPairOpen(group.id)}>
+                        <Plus className="h-3 w-3 mr-1" /> Add Pair
+                      </Button>
+                    )
+                  )}
+                  {isFull && (
+                    <Badge className="bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[9px] font-black">
+                      <CheckCircle className="h-3 w-3 mr-1" /> Full
+                    </Badge>
+                  )}
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+      )}
+
+      {groupFormDialog}
+    </div>
+  );
+}
+
 function AdminTab({ tournamentId, tournament, categories, canManage }: { tournamentId: number; tournament: any; categories: any[]; canManage: boolean }) {
   const { data: registrations, isLoading: regsLoading } = useTournamentRegistrations(tournamentId);
   const { data: waitlist } = useTournamentWaitlist(tournamentId);
@@ -2845,6 +3162,8 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const removeAdminMutation = useRemoveTournamentAdmin();
   const seedDemoMutation = useSeedDemoPlayers();
   const clearDemoMutation = useClearDemoPlayers();
+  const restartMutation = useRestartTournament();
+  const [confirmRestart, setConfirmRestart] = useState(false);
   const { toast } = useToast();
   const [adminView, setAdminView] = useState<"registrations" | "pairs" | "groups" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
   const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
@@ -2905,7 +3224,39 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
           {clearDemoMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />}
           Clear Demo Players
         </Button>
+        <Button size="sm" variant="outline" className="font-bold border-orange-500/30 text-orange-500 hover:bg-orange-500/10"
+          data-testid="button-restart-tournament"
+          disabled={restartMutation.isPending}
+          onClick={() => setConfirmRestart(true)}>
+          {restartMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <AlertTriangle className="h-3.5 w-3.5 mr-1" />}
+          Restart Tournament
+        </Button>
       </div>
+
+      <Dialog open={confirmRestart} onOpenChange={setConfirmRestart}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Restart Tournament?</DialogTitle>
+            <DialogDescription>
+              This will clear ALL match data, standings, stats, and groups. Teams and registrations will be kept. The tournament status will be reset to Draft. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setConfirmRestart(false)} data-testid="button-cancel-restart">Cancel</Button>
+            <Button variant="destructive" data-testid="button-confirm-restart" disabled={restartMutation.isPending}
+              onClick={async () => {
+                try {
+                  const result = await restartMutation.mutateAsync({ tournamentId });
+                  toast({ title: "Tournament Restarted", description: result.message });
+                  setConfirmRestart(false);
+                } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+              }}>
+              {restartMutation.isPending && <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" />}
+              Yes, Restart
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="flex gap-1 bg-muted/30 dark:bg-muted/10 rounded-xl p-1 overflow-x-auto">
         {["registrations", "pairs", "groups", "waitlist", "finance", "prizes", "settings"].map(view => (
