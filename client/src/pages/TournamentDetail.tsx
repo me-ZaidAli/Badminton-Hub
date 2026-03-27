@@ -1,5 +1,6 @@
 import { useRoute } from "wouter";
 import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
 import {
   useTournament, useTournamentCategories, useTournamentTeams,
   useTournamentMatches, useTournamentStandings,
@@ -100,8 +101,8 @@ function getAvatarGradient(name: string) {
   return avatarGradients[Math.abs(h) % avatarGradients.length];
 }
 
-function PlayerAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" }) {
-  const sizeClasses = { sm: "h-8 w-8 text-[10px]", md: "h-10 w-10 text-xs", lg: "h-12 w-12 text-sm" };
+function PlayerAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" | "xl" }) {
+  const sizeClasses = { sm: "h-8 w-8 text-[10px]", md: "h-10 w-10 text-xs", lg: "h-12 w-12 text-sm", xl: "h-14 w-14 text-base" };
   return (
     <div className={cn("rounded-full flex items-center justify-center text-white font-bold bg-gradient-to-br shadow-lg", getAvatarGradient(name), sizeClasses[size])}>
       {getInitials(name)}
@@ -1110,23 +1111,22 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
 
   if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>;
 
-  const pairBorderGradients = [
-    "from-amber-500 via-orange-500 to-rose-500",
-    "from-violet-500 via-purple-500 to-fuchsia-500",
-    "from-cyan-500 via-blue-500 to-indigo-500",
-    "from-emerald-500 via-teal-500 to-cyan-500",
-    "from-rose-500 via-pink-500 to-purple-500",
-    "from-blue-500 via-indigo-500 to-violet-500",
+  const pairAccentColors = [
+    { bg: "bg-amber-500", text: "text-amber-600 dark:text-amber-400", light: "bg-amber-50 dark:bg-amber-500/10", border: "border-amber-200 dark:border-amber-500/20", dot: "bg-amber-400" },
+    { bg: "bg-violet-500", text: "text-violet-600 dark:text-violet-400", light: "bg-violet-50 dark:bg-violet-500/10", border: "border-violet-200 dark:border-violet-500/20", dot: "bg-violet-400" },
+    { bg: "bg-sky-500", text: "text-sky-600 dark:text-sky-400", light: "bg-sky-50 dark:bg-sky-500/10", border: "border-sky-200 dark:border-sky-500/20", dot: "bg-sky-400" },
+    { bg: "bg-emerald-500", text: "text-emerald-600 dark:text-emerald-400", light: "bg-emerald-50 dark:bg-emerald-500/10", border: "border-emerald-200 dark:border-emerald-500/20", dot: "bg-emerald-400" },
+    { bg: "bg-rose-500", text: "text-rose-600 dark:text-rose-400", light: "bg-rose-50 dark:bg-rose-500/10", border: "border-rose-200 dark:border-rose-500/20", dot: "bg-rose-400" },
+    { bg: "bg-indigo-500", text: "text-indigo-600 dark:text-indigo-400", light: "bg-indigo-50 dark:bg-indigo-500/10", border: "border-indigo-200 dark:border-indigo-500/20", dot: "bg-indigo-400" },
   ];
 
-  const pairGlowColors = [
-    "shadow-amber-500/20",
-    "shadow-violet-500/20",
-    "shadow-cyan-500/20",
-    "shadow-emerald-500/20",
-    "shadow-rose-500/20",
-    "shadow-blue-500/20",
-  ];
+  function getPairQuality(p1Power: number, p2Power: number) {
+    const avg = (p1Power + p2Power) / 2;
+    const diff = Math.abs(p1Power - p2Power);
+    if (avg >= 75 && diff <= 15) return { label: "Strong", color: "text-emerald-600 dark:text-emerald-400", bg: "bg-emerald-50 dark:bg-emerald-500/10", border: "border-emerald-200 dark:border-emerald-500/25", icon: "▲" };
+    if (diff <= 20) return { label: "Balanced", color: "text-sky-600 dark:text-sky-400", bg: "bg-sky-50 dark:bg-sky-500/10", border: "border-sky-200 dark:border-sky-500/25", icon: "◆" };
+    return { label: "Risky", color: "text-amber-600 dark:text-amber-400", bg: "bg-amber-50 dark:bg-amber-500/10", border: "border-amber-200 dark:border-amber-500/25", icon: "⚠" };
+  }
 
   const loadAiAnalysis = async () => {
     if (!comparisonPairId) return;
@@ -1329,149 +1329,151 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
 
       {pairs && pairs.length > 0 && (
         <>
-          <div className="relative overflow-hidden rounded-2xl border border-violet-500/20 bg-card p-6">
-            <div className="absolute inset-0 bg-gradient-to-r from-violet-500/5 via-purple-500/5 to-violet-500/5" />
-            <div className="relative flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-purple-500 to-violet-600 flex items-center justify-center">
-                    <Swords className="h-3.5 w-3.5 text-white" />
-                  </div>
-                  <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-violet-500 dark:text-purple-400">Team Roster</span>
-                </div>
-                <h2 className="text-xl font-black text-foreground uppercase tracking-wide">Confirmed Pairs</h2>
-                <p className="text-xs text-muted-foreground mt-0.5">Elite duos ready to compete</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-2xl font-black text-transparent bg-clip-text bg-gradient-to-r from-amber-400 to-orange-500">{pairs.length}</div>
-                  <div className="text-[9px] uppercase tracking-wider text-muted-foreground font-bold">Teams</div>
-                </div>
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.4, ease: "easeOut" }}
+            className="flex items-center justify-between px-1"
+          >
+            <div>
+              <p className="text-[10px] font-semibold uppercase tracking-[0.2em] text-muted-foreground mb-0.5">Team Roster</p>
+              <h2 className="text-lg font-bold text-foreground">Confirmed Pairs</h2>
+            </div>
+            <div className="flex items-center gap-2">
+              <div className="h-9 min-w-[36px] rounded-xl bg-card border border-border/60 shadow-sm flex items-center justify-center px-3">
+                <span className="text-sm font-bold text-foreground">{pairs.length}</span>
+                <span className="text-[10px] text-muted-foreground ml-1.5 font-medium">teams</span>
               </div>
             </div>
-          </div>
+          </motion.div>
 
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 sm:grid-cols-2">
             {pairs.map((pair: any, idx: number) => {
               const p1Name = pair.user1?.fullName || "Player 1";
               const p2Name = pair.user2?.fullName || "Player 2";
-              const gradientIdx = idx % pairBorderGradients.length;
+              const accentIdx = idx % pairAccentColors.length;
+              const accent = pairAccentColors[accentIdx];
               const pairedDate = pair.createdAt ? format(new Date(pair.createdAt), "d MMM yyyy") : null;
               const isMyPair = user && (pair.user1?.id === user.id || pair.user2?.id === user.id);
               const partnerInPair = isMyPair
                 ? (pair.user1?.id === user.id ? pair.user2?.fullName : pair.user1?.fullName)
                 : null;
 
+              const p1Level = getPlayerPowerLevel(
+                pair.profile1?.grade || pair.profile1?.currentGrade || "C3",
+                pair.profile1?.matchesPlayed || 0,
+                pair.profile1?.matchesWon || 0
+              );
+              const p2Level = getPlayerPowerLevel(
+                pair.profile2?.grade || pair.profile2?.currentGrade || "C3",
+                pair.profile2?.matchesPlayed || 0,
+                pair.profile2?.matchesWon || 0
+              );
+              const quality = getPairQuality(p1Level.power, p2Level.power);
+              const teamName = pair.pairName || `${p1Name.split(" ")[0]} & ${p2Name.split(" ")[0]}`;
+
               return (
-                <div
+                <motion.div
                   key={pair.id}
-                  className="group relative"
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.35, delay: idx * 0.06, ease: "easeOut" }}
+                  whileHover={{ scale: 1.015, y: -2 }}
+                  whileTap={{ scale: 0.985 }}
+                  role="button"
+                  tabIndex={0}
+                  className="group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-primary/50 rounded-2xl"
                   data-testid={`pair-card-${idx}`}
+                  onClick={() => {
+                    setComparisonPairId(pair.id);
+                    setComparisonPairNames({ p1: p1Name, p2: p2Name });
+                    setAiAnalysis(null);
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      setComparisonPairId(pair.id);
+                      setComparisonPairNames({ p1: p1Name, p2: p2Name });
+                      setAiAnalysis(null);
+                    }
+                  }}
                 >
-                  <div className={cn(
-                    "absolute -inset-[1px] rounded-2xl bg-gradient-to-br opacity-60 group-hover:opacity-100 transition-opacity duration-300 blur-[0.5px]",
-                    pairBorderGradients[gradientIdx]
-                  )} />
+                  <div className="relative rounded-2xl bg-card border border-border/40 shadow-sm hover:shadow-md transition-shadow duration-300 overflow-hidden">
+                    <div className={cn("absolute top-0 left-0 w-1 h-full rounded-l-2xl", accent.bg)} />
 
-                  <div className={cn(
-                    "relative rounded-2xl bg-card backdrop-blur-sm overflow-hidden shadow-lg transition-all duration-300 group-hover:shadow-xl border border-border/30",
-                    pairGlowColors[gradientIdx]
-                  )}>
-                    <div className={cn(
-                      "h-1 w-full bg-gradient-to-r",
-                      pairBorderGradients[gradientIdx]
-                    )} />
-
-                    <div className="p-4">
+                    <div className="pl-4 pr-4 pt-4 pb-3">
                       <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2">
-                          <div className="h-7 w-7 rounded-full bg-muted border border-border/50 flex items-center justify-center">
-                            <span className="text-xs font-black text-muted-foreground">#{idx + 1}</span>
-                          </div>
-                          <span className="text-[9px] font-bold uppercase tracking-[0.15em] text-muted-foreground">Team {idx + 1}</span>
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-xs font-bold text-muted-foreground/60">#{idx + 1}</span>
+                          <span className="text-[13px] font-semibold text-foreground truncate max-w-[140px]">{teamName}</span>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1.5">
                           {isMyPair && (
                             <button
-                              onClick={() => setUnpairConfirm({ pairId: pair.id, partnerName: partnerInPair || "your partner" })}
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg bg-red-500/10 text-red-500 dark:text-red-400 text-[9px] font-bold hover:bg-red-500/20 transition-colors"
+                              onClick={(e) => { e.stopPropagation(); setUnpairConfirm({ pairId: pair.id, partnerName: partnerInPair || "your partner" }); }}
+                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-red-500 dark:text-red-400 text-[9px] font-medium hover:bg-red-500/10 transition-colors"
+                              aria-label={`Unpair from ${partnerInPair || "your partner"}`}
                               data-testid={`button-unpair-${idx}`}
                             >
                               <UserMinus className="h-3 w-3" />
-                              Unpair
                             </button>
                           )}
-                          <Badge className="bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-[8px] font-black tracking-wider px-2">
-                            <CheckCircle className="h-2.5 w-2.5 mr-1" />READY
-                          </Badge>
+                          <div className={cn("flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-semibold border", quality.bg, quality.color, quality.border)}>
+                            <span>{quality.icon}</span>
+                            <span>{quality.label}</span>
+                          </div>
                         </div>
                       </div>
 
                       <div
-                        className="flex items-center justify-center gap-3 mb-4 cursor-pointer hover:opacity-90 transition-opacity"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setComparisonPairId(pair.id);
-                          setComparisonPairNames({ p1: p1Name, p2: p2Name });
-                          setAiAnalysis(null);
-                        }}
+                        className="flex items-center gap-4"
                         data-testid={`pair-compare-trigger-${idx}`}
                       >
-                        {[{ name: p1Name, profile: pair.profile1 }, { name: p2Name, profile: pair.profile2 }].map((player, pi) => {
-                          const pLevel = getPlayerPowerLevel(
-                            player.profile?.grade || player.profile?.currentGrade || "C3",
-                            player.profile?.matchesPlayed || 0,
-                            player.profile?.matchesWon || 0
-                          );
-                          return (
-                            <div key={pi} className="flex flex-col items-center">
-                              <div className="relative">
-                                <div className={cn("absolute -inset-1 rounded-full bg-gradient-to-br opacity-50 blur-sm", pairBorderGradients[gradientIdx])} />
-                                <PlayerAvatar name={player.name} size="lg" />
+                        {[{ name: p1Name, profile: pair.profile1, level: p1Level }, { name: p2Name, profile: pair.profile2, level: p2Level }].map((player, pi) => (
+                          <div key={pi} className="flex-1 flex items-center gap-3">
+                            <div className="relative flex-shrink-0">
+                              <PlayerAvatar name={player.name} size="xl" />
+                              <div className={cn("absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full border-2 border-card", accent.dot)} />
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="text-sm font-semibold text-foreground truncate leading-tight">{player.name}</p>
+                              <div className="flex items-center gap-1.5 mt-1">
+                                <GradeTierBadge grade={player.profile?.currentGrade || "—"} />
                               </div>
-                              <h4 className="text-xs font-bold text-foreground mt-2 text-center max-w-[80px] truncate">{player.name.split(" ")[0]}</h4>
-                              <div className="mt-1"><GradeTierBadge grade={player.profile?.currentGrade || "—"} /></div>
-                              <div className="mt-1.5 flex items-center gap-1" data-testid={`power-bar-${idx}-${pi}`}>
-                                <Zap className={cn("h-3 w-3", pLevel.color)} />
-                                <div className="w-14 h-2 rounded-full bg-muted/50 dark:bg-white/[0.08] overflow-hidden">
-                                  <div className={cn("h-full rounded-full transition-all", pLevel.bgColor)} style={{ width: `${pLevel.power}%`, opacity: 0.8 }} />
+                              <div className="flex items-center gap-1.5 mt-1.5">
+                                <div className="w-full max-w-[72px] h-1.5 rounded-full bg-muted/40 dark:bg-white/[0.06] overflow-hidden">
+                                  <motion.div
+                                    initial={{ width: 0 }}
+                                    animate={{ width: `${player.level.power}%` }}
+                                    transition={{ duration: 0.7, delay: 0.3 + idx * 0.06, ease: "easeOut" }}
+                                    className={cn("h-full rounded-full", player.level.bgColor)}
+                                    style={{ opacity: 0.75 }}
+                                  />
                                 </div>
+                                <span className={cn("text-[9px] font-medium whitespace-nowrap", player.level.color)}>{player.level.label}</span>
                               </div>
-                              <span className={cn("text-[8px] font-bold uppercase tracking-wider mt-0.5", pLevel.color)}>{pLevel.label}</span>
                             </div>
-                          );
-                        }).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, (
-                          <div key="sep" className="flex flex-col items-center gap-1 px-2">
-                            <div className="h-8 w-8 rounded-full bg-gradient-to-br from-amber-500/20 to-orange-500/20 border border-amber-500/30 flex items-center justify-center">
-                              <Zap className="h-4 w-4 text-amber-400" />
-                            </div>
-                            <span className="text-[8px] font-black uppercase tracking-widest text-amber-500/70">&amp;</span>
                           </div>
+                        )).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, (
+                          <div key="divider" className="w-px h-12 bg-border/40 flex-shrink-0" />
                         ), curr], [] as any[])}
                       </div>
 
-                      <div className="border-t border-border/30 pt-3">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center gap-1.5">
-                            <Shield className="h-3 w-3 text-muted-foreground" />
-                            <span className="text-[10px] text-muted-foreground font-medium">{p1Name.split(" ")[0]} & {p2Name.split(" ")[0]}</span>
-                          </div>
-                          {pairedDate ? (
-                            <div className="flex items-center gap-1">
-                              <Calendar className="h-3 w-3 text-muted-foreground" />
-                              <span className="text-[9px] text-muted-foreground font-medium">{pairedDate}</span>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <div className={cn("h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse")} />
-                              <span className="text-[9px] text-emerald-400 font-bold uppercase">Active</span>
-                            </div>
-                          )}
+                      <div className="flex items-center justify-between mt-4 pt-3 border-t border-border/30">
+                        <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+                          <CheckCircle className="h-3 w-3 text-emerald-400" />
+                          <span className="font-medium">Ready</span>
                         </div>
+                        {pairedDate && (
+                          <div className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                            <Calendar className="h-3 w-3" />
+                            <span>{pairedDate}</span>
+                          </div>
+                        )}
                       </div>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               );
             })}
           </div>
