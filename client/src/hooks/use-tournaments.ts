@@ -411,6 +411,18 @@ export function useAdminCreatePair() {
   });
 }
 
+export function useUpdatePairName() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, pairId, pairName }: { tournamentId: number; pairId: number; pairName: string }) => {
+      const res = await apiRequest("PATCH", `/api/tournaments/${tournamentId}/pair-name`, { pairId, pairName });
+      return res.json();
+    },
+    onSuccess: (_data: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "pairs"] });
+    },
+  });
+}
+
 export function useRespondPairRequest() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {

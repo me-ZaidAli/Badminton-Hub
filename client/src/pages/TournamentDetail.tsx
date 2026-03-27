@@ -8,7 +8,7 @@ import {
   useGenerateMatches, useScoreMatch, useAdvanceWinners, useUpdateTournament,
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
-  useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest,
+  useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
   useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
@@ -1066,6 +1066,8 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
   const { data: registrations } = useTournamentRegistrations(tournamentId);
   const respondPairMutation = useRespondPairRequest();
   const sendPairMutation = useSendPairRequest();
+  const updatePairNameMutation = useUpdatePairName();
+  const { data: adminCheck } = useTournamentIsAdmin(tournamentId);
   const { toast } = useToast();
   const [proposingTo, setProposingTo] = useState<{ userId: number; name: string } | null>(null);
   const [proposalMessage, setProposalMessage] = useState("");
@@ -1076,6 +1078,9 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
   const [comparisonPairNames, setComparisonPairNames] = useState<{ p1: string; p2: string }>({ p1: "", p2: "" });
   const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
   const [aiLoading, setAiLoading] = useState(false);
+  const [editingPairId, setEditingPairId] = useState<number | null>(null);
+  const [editPairName, setEditPairName] = useState("");
+  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN" || adminCheck?.isAdmin === true;
 
   const { data: comparisonData, isLoading: compLoading } = useQuery<any>({
     queryKey: ["/api/tournaments", tournamentId, "pair-comparison", comparisonPairId],
@@ -1467,9 +1472,69 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                           <span className={cn("relative text-[9px] font-black uppercase tracking-wider", quality.text)}>{quality.label}</span>
                         </div>
                       </div>
-                      <h3 className="text-lg font-black tracking-wide mb-4 truncate" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${idx}`}>
-                        {pair.pairName || `Pair ${idx + 1}`}
-                      </h3>
+                      <div className="flex items-center gap-2 mb-4">
+                        {editingPairId === pair.id ? (
+                          <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editPairName}
+                              onChange={(e) => setEditPairName(e.target.value)}
+                              maxLength={50}
+                              placeholder="Enter team name..."
+                              className="flex-1 h-8 px-2 rounded-lg bg-white/[0.06] border border-white/[0.12] text-sm font-bold text-white placeholder:text-slate-500 outline-none focus:border-amber-500/50"
+                              onKeyDown={(e) => {
+                                e.stopPropagation();
+                                if (e.key === "Enter") {
+                                  updatePairNameMutation.mutate({ tournamentId, pairId: pair.id, pairName: editPairName }, {
+                                    onSuccess: () => { toast({ title: "Team name updated" }); setEditingPairId(null); },
+                                    onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
+                                  });
+                                }
+                                if (e.key === "Escape") setEditingPairId(null);
+                              }}
+                              data-testid={`input-pair-name-${idx}`}
+                            />
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                updatePairNameMutation.mutate({ tournamentId, pairId: pair.id, pairName: editPairName }, {
+                                  onSuccess: () => { toast({ title: "Team name updated" }); setEditingPairId(null); },
+                                  onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
+                                });
+                              }}
+                              disabled={updatePairNameMutation.isPending}
+                              className="h-8 w-8 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center transition-colors"
+                              data-testid={`button-save-pair-name-${idx}`}
+                            >
+                              {updatePairNameMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
+                            </button>
+                            <button
+                              onClick={(e) => { e.stopPropagation(); setEditingPairId(null); }}
+                              className="h-8 w-8 rounded-lg bg-white/[0.04] text-slate-400 hover:bg-white/[0.08] flex items-center justify-center transition-colors"
+                              data-testid={`button-cancel-pair-name-${idx}`}
+                            >
+                              <X className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <h3 className="text-lg font-black tracking-wide truncate flex-1" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${idx}`}>
+                              {pair.pairName || `Pair ${idx + 1}`}
+                            </h3>
+                            {(isMyPair || isAdmin) && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setEditingPairId(pair.id); setEditPairName(pair.pairName || ""); }}
+                                className="flex-shrink-0 h-7 w-7 rounded-lg bg-white/[0.04] text-slate-400 hover:text-amber-400 hover:bg-white/[0.08] flex items-center justify-center transition-colors"
+                                aria-label="Edit team name"
+                                data-testid={`button-edit-pair-name-${idx}`}
+                              >
+                                <Edit3 className="h-3 w-3" />
+                              </button>
+                            )}
+                          </>
+                        )}
+                      </div>
 
                       <div
                         className="flex items-center"

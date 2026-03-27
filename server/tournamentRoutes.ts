@@ -1004,9 +1004,9 @@ export function registerTournamentRoutes(app: Express) {
         message: `Paired by admin`,
         pairName: pairName || null,
       }).returning();
-      await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: player2Id })
+      await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: player2Id, pairName: pairName || null })
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, player1Id)));
-      await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: player1Id })
+      await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: player1Id, pairName: pairName || null })
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, player2Id)));
       const enriched = {
         ...pr,
@@ -1086,9 +1086,9 @@ export function registerTournamentRoutes(app: Express) {
         .where(eq(tournamentPairRequests.id, Number(req.params.id))).returning();
 
       if (status === "ACCEPTED") {
-        await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.toUserId })
+        await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.toUserId, pairName: pr.pairName || null })
           .where(and(eq(tournamentRegistrations.tournamentId, pr.tournamentId), eq(tournamentRegistrations.userId, pr.fromUserId)));
-        await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.fromUserId })
+        await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.fromUserId, pairName: pr.pairName || null })
           .where(and(eq(tournamentRegistrations.tournamentId, pr.tournamentId), eq(tournamentRegistrations.userId, pr.toUserId)));
 
         const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, pr.tournamentId));
@@ -1150,7 +1150,7 @@ export function registerTournamentRoutes(app: Express) {
         const [user2] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, reg.partnerId));
         const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
         const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.partnerId));
-        uniquePairs.push({ id: reg.id, user1, user2, profile1: p1, profile2: p2, createdAt: reg.createdAt });
+        uniquePairs.push({ id: reg.id, user1, user2, profile1: p1, profile2: p2, pairName: reg.pairName || null, createdAt: reg.createdAt });
       }
       res.json(uniquePairs);
     } catch (e: any) {
@@ -1190,6 +1190,40 @@ export function registerTournamentRoutes(app: Express) {
         ));
 
       res.json({ message: "Pair has been dissolved. Both players are now registered as individuals." });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournaments/:id/pair-name", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = (req.user as any).id;
+      const userRole = (req.user as any).role;
+      const tournamentId = Number(req.params.id);
+      const { pairId, pairName } = req.body;
+      if (typeof pairName !== "string") return res.status(400).json({ message: "pairName is required" });
+      const trimmed = pairName.trim().slice(0, 50);
+
+      const [reg] = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.id, pairId), eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.registrationType, "PAIR")));
+      if (!reg || !reg.partnerId) return res.status(404).json({ message: "Pair not found" });
+
+      const isMember = reg.userId === userId || reg.partnerId === userId;
+      const isAdmin = userRole === "OWNER" || userRole === "ADMIN";
+      let isTournamentAdmin = false;
+      if (!isMember && !isAdmin) {
+        const [ta] = await db.select().from(tournamentAdmins).where(and(eq(tournamentAdmins.tournamentId, tournamentId), eq(tournamentAdmins.userId, userId)));
+        isTournamentAdmin = !!ta;
+      }
+      if (!isMember && !isAdmin && !isTournamentAdmin) return res.status(403).json({ message: "Only pair members or admins can change the team name" });
+
+      await db.update(tournamentRegistrations).set({ pairName: trimmed || null })
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, reg.userId)));
+      await db.update(tournamentRegistrations).set({ pairName: trimmed || null })
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, reg.partnerId)));
+
+      res.json({ message: "Team name updated", pairName: trimmed || null });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

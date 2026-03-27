@@ -577,6 +577,7 @@ export const tournamentRegistrations = pgTable("tournament_registrations", {
   paymentMethod: text("payment_method"),
   paidAt: timestamp("paid_at"),
   categoryId: integer("category_id").references(() => tournamentCategories.id),
+  pairName: text("pair_name"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
