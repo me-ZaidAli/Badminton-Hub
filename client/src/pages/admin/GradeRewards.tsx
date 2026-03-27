@@ -18,7 +18,7 @@ const ALL_BADGES = [
   { id: "10_matches", name: "10+ Matches", icon: Star, color: "#eab308", criteria: "Play 10 or more matches" },
   { id: "rising_star", name: "Rising Star", icon: Sparkles, color: "#ec4899", criteria: "3+ wins with 60%+ win rate" },
   { id: "top_performer", name: "Top Performer", icon: Medal, color: "#a855f7", criteria: "75%+ win rate (4+ matches)" },
-  { id: "undefeated", name: "Undefeated", icon: Trophy, color: "#d97706", criteria: "3+ matches without a loss" },
+  { id: "undefeated", name: "Undefeated", icon: Trophy, color: "#d97706", criteria: "10 consecutive wins" },
   { id: "iron_player", name: "Iron Player", icon: Shield, color: "#3b82f6", criteria: "Play 20+ matches" },
   { id: "champion", name: "Champion", icon: Crown, color: "#f59e0b", criteria: "15+ wins with 70%+ win rate" },
 ];

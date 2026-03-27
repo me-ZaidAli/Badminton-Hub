@@ -19817,7 +19817,7 @@ export async function registerRoutes(
         { id: "10_matches", name: "10+ Matches", check: (s: any) => s.played >= 10 },
         { id: "rising_star", name: "Rising Star", check: (s: any) => s.won >= 3 && s.played > 0 && (s.won / s.played) * 100 >= 60 },
         { id: "top_performer", name: "Top Performer", check: (s: any) => s.played >= 4 && (s.won / s.played) * 100 >= 75 },
-        { id: "undefeated", name: "Undefeated", check: (s: any) => s.played >= 3 && s.won === s.played },
+        { id: "undefeated", name: "Undefeated", check: (s: any) => (s.winStreak || 0) >= 10 },
         { id: "iron_player", name: "Iron Player", check: (s: any) => s.played >= 20 },
         { id: "champion", name: "Champion", check: (s: any) => s.won >= 15 && s.played > 0 && (s.won / s.played) * 100 >= 70 },
       ];
@@ -19837,7 +19837,43 @@ export async function registerRoutes(
         const myEntry = leaderboard.find((e: any) => e.id === profile.id);
         const played = myEntry?.matchesPlayed || 0;
         const won = myEntry?.matchesWon || 0;
-        const stats = { played, won };
+        // Compute current consecutive win streak
+        const profileMatches = await db.select({
+          id: matches.id,
+          scoreA: matches.scoreA,
+          scoreB: matches.scoreB,
+          teamAPlayer1Id: matches.teamAPlayer1Id,
+          teamAPlayer2Id: matches.teamAPlayer2Id,
+          teamBPlayer1Id: matches.teamBPlayer1Id,
+          teamBPlayer2Id: matches.teamBPlayer2Id,
+          completedAt: matches.completedAt,
+          setsWonA: matches.setsWonA,
+          setsWonB: matches.setsWonB,
+          numberOfSets: matches.numberOfSets,
+        }).from(matches).innerJoin(sessions, eq(matches.sessionId, sessions.id)).where(
+          and(
+            eq(sessions.clubId, clubId),
+            eq(matches.isCompleted, true),
+            isNull(matches.deletedAt),
+            or(
+              eq(matches.teamAPlayer1Id, profile.id),
+              eq(matches.teamAPlayer2Id, profile.id),
+              eq(matches.teamBPlayer1Id, profile.id),
+              eq(matches.teamBPlayer2Id, profile.id),
+            )
+          )
+        ).orderBy(desc(matches.completedAt));
+        let winStreak = 0;
+        for (const pm of profileMatches) {
+          const onTeamA = pm.teamAPlayer1Id === profile.id || pm.teamAPlayer2Id === profile.id;
+          const isMultiSet = pm.numberOfSets > 1;
+          const didWin = isMultiSet
+            ? (onTeamA ? pm.setsWonA > pm.setsWonB : pm.setsWonB > pm.setsWonA)
+            : (onTeamA ? (pm.scoreA || 0) > (pm.scoreB || 0) : (pm.scoreB || 0) > (pm.scoreA || 0));
+          if (didWin) winStreak++;
+          else break;
+        }
+        const stats = { played, won, winStreak };
 
         const earnedBadgeIds = new Set<string>();
         for (const def of BADGE_REWARD_DEFS) {
@@ -19926,7 +19962,7 @@ export async function registerRoutes(
         { id: "10_matches", name: "10+ Matches", criteria: "Play 10 or more matches", icon: "star", color: "#eab308", check: (s: any) => s.played >= 10 },
         { id: "rising_star", name: "Rising Star", criteria: "3+ wins with 60%+ win rate", icon: "sparkles", color: "#ec4899", check: (s: any) => s.won >= 3 && s.played > 0 && (s.won / s.played) * 100 >= 60 },
         { id: "top_performer", name: "Top Performer", criteria: "75%+ win rate (4+ matches)", icon: "medal", color: "#a855f7", check: (s: any) => s.played >= 4 && (s.won / s.played) * 100 >= 75 },
-        { id: "undefeated", name: "Undefeated", criteria: "3+ matches without a loss", icon: "trophy", color: "#d97706", check: (s: any) => s.played >= 3 && s.won === s.played },
+        { id: "undefeated", name: "Undefeated", criteria: "10 consecutive wins", icon: "trophy", color: "#d97706", check: (s: any) => (s.winStreak || 0) >= 10 },
         { id: "iron_player", name: "Iron Player", criteria: "Play 20+ matches", icon: "shield", color: "#3b82f6", check: (s: any) => s.played >= 20 },
         { id: "champion", name: "Champion", criteria: "15+ wins with 70%+ win rate", icon: "crown", color: "#f59e0b", check: (s: any) => s.won >= 15 && s.played > 0 && (s.won / s.played) * 100 >= 70 },
       ];
@@ -19940,7 +19976,43 @@ export async function registerRoutes(
         const myEntry = leaderboard.find((e: any) => e.id === profile.id);
         const played = myEntry?.matchesPlayed || 0;
         const won = myEntry?.matchesWon || 0;
-        const stats = { played, won };
+        // Compute current consecutive win streak
+        const profileMatches = await db.select({
+          id: matches.id,
+          scoreA: matches.scoreA,
+          scoreB: matches.scoreB,
+          teamAPlayer1Id: matches.teamAPlayer1Id,
+          teamAPlayer2Id: matches.teamAPlayer2Id,
+          teamBPlayer1Id: matches.teamBPlayer1Id,
+          teamBPlayer2Id: matches.teamBPlayer2Id,
+          completedAt: matches.completedAt,
+          setsWonA: matches.setsWonA,
+          setsWonB: matches.setsWonB,
+          numberOfSets: matches.numberOfSets,
+        }).from(matches).innerJoin(sessions, eq(matches.sessionId, sessions.id)).where(
+          and(
+            eq(sessions.clubId, clubId),
+            eq(matches.isCompleted, true),
+            isNull(matches.deletedAt),
+            or(
+              eq(matches.teamAPlayer1Id, profile.id),
+              eq(matches.teamAPlayer2Id, profile.id),
+              eq(matches.teamBPlayer1Id, profile.id),
+              eq(matches.teamBPlayer2Id, profile.id),
+            )
+          )
+        ).orderBy(desc(matches.completedAt));
+        let winStreak = 0;
+        for (const pm of profileMatches) {
+          const onTeamA = pm.teamAPlayer1Id === profile.id || pm.teamAPlayer2Id === profile.id;
+          const isMultiSet = pm.numberOfSets > 1;
+          const didWin = isMultiSet
+            ? (onTeamA ? pm.setsWonA > pm.setsWonB : pm.setsWonB > pm.setsWonA)
+            : (onTeamA ? (pm.scoreA || 0) > (pm.scoreB || 0) : (pm.scoreB || 0) > (pm.scoreA || 0));
+          if (didWin) winStreak++;
+          else break;
+        }
+        const stats = { played, won, winStreak };
         const winRate = played > 0 ? Math.round((won / played) * 100) : 0;
 
         const badges = BADGE_DEFS.map(bd => ({
@@ -20999,7 +21071,7 @@ export async function registerRoutes(
         { id: "10_matches", name: "10+ Matches", criteria: "Play 10 or more matches", icon: "star", color: "#eab308", check: (s: any) => s.played >= 10 },
         { id: "rising_star", name: "Rising Star", criteria: "3+ wins with 60%+ win rate", icon: "sparkles", color: "#ec4899", check: (s: any) => s.won >= 3 && s.played > 0 && (s.won / s.played) * 100 >= 60 },
         { id: "top_performer", name: "Top Performer", criteria: "75%+ win rate (4+ matches)", icon: "medal", color: "#a855f7", check: (s: any) => s.played >= 4 && (s.won / s.played) * 100 >= 75 },
-        { id: "undefeated", name: "Undefeated", criteria: "3+ matches without a loss", icon: "trophy", color: "#d97706", check: (s: any) => s.played >= 3 && s.won === s.played },
+        { id: "undefeated", name: "Undefeated", criteria: "10 consecutive wins", icon: "trophy", color: "#d97706", check: (s: any) => (s.winStreak || 0) >= 10 },
         { id: "iron_player", name: "Iron Player", criteria: "Play 20+ matches", icon: "shield", color: "#3b82f6", check: (s: any) => s.played >= 20 },
         { id: "champion", name: "Champion", criteria: "15+ wins with 70%+ win rate", icon: "crown", color: "#f59e0b", check: (s: any) => s.won >= 15 && s.played > 0 && (s.won / s.played) * 100 >= 70 },
       ];

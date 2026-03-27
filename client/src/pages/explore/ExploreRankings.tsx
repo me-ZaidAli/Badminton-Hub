@@ -67,7 +67,7 @@ function getAchievements(player: LeaderboardPlayer): { icon: any; label: string;
   if (player.matchesWon >= 1 && player.matchesPlayed <= 3) {
     badges.push({ icon: Zap, label: "First Win", color: "text-green-500" });
   }
-  if (player.winPercentage === 100 && player.matchesPlayed >= 3) {
+  if ((player as any).winStreak >= 10) {
     badges.push({ icon: Medal, label: "Undefeated", color: "text-yellow-500" });
   }
   return badges;

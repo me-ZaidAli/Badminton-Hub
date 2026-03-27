@@ -1979,7 +1979,7 @@ export default function Rewards() {
                           { name: "10+ Matches", icon: Star, color: "#3b82f6", desc: "Play 10 or more matches" },
                           { name: "Rising Star", icon: Sparkles, color: "#10b981", desc: "Win 3+ with 60%+ rate" },
                           { name: "Top Performer", icon: Medal, color: "#8b5cf6", desc: "Win 10+ with 65%+ rate" },
-                          { name: "Undefeated", icon: Shield, color: "#06b6d4", desc: "100% win rate (3+ matches)" },
+                          { name: "Undefeated", icon: Shield, color: "#06b6d4", desc: "10 consecutive wins" },
                           { name: "Iron Player", icon: Trophy, color: "#64748b", desc: "Play 20 or more matches" },
                           { name: "Champion", icon: Crown, color: "#eab308", desc: "Win 15+ with 70%+ rate" },
                         ].map(badge => (

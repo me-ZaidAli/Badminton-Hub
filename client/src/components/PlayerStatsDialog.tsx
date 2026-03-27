@@ -41,7 +41,7 @@ function computeAchievements(stats: DetailedPlayerStats) {
   }
 
   if (stats.winRatio === 100 && stats.matchesPlayed >= 3) {
-    badges.push({ icon: Medal, label: "Undefeated", description: "100% win rate (3+ matches)", color: "text-yellow-500" });
+    badges.push({ icon: Medal, label: "Undefeated", description: "10 consecutive wins", color: "text-yellow-500" });
   }
 
   return badges;

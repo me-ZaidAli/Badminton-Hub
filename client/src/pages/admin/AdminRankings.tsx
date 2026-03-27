@@ -91,7 +91,7 @@ function getAchievements(player: { matchesWon: number; matchesPlayed: number; wi
   if (player.matchesPlayed >= 10) badges.push({ icon: Star, label: "10+ Matches", color: "text-amber-500" });
   if (player.winPercentage >= 75 && player.matchesPlayed >= 4) badges.push({ icon: Award, label: "Top Performer", color: "text-purple-500" });
   if (player.matchesWon >= 1 && player.matchesPlayed <= 3) badges.push({ icon: Zap, label: "First Win", color: "text-green-500" });
-  if (player.winPercentage === 100 && player.matchesPlayed >= 3) badges.push({ icon: Medal, label: "Undefeated", color: "text-yellow-500" });
+  if ((player as any).winStreak >= 10) badges.push({ icon: Medal, label: "Undefeated", color: "text-yellow-500" });
   return badges;
 }
 
