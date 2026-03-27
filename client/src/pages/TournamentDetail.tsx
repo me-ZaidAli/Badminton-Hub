@@ -1446,30 +1446,30 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                     <div className="absolute inset-0 esports-shimmer-line opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
 
                     <div className="relative p-4">
-                      <div className="flex items-center justify-between mb-4">
-                        <div className="flex items-center gap-2.5">
-                          <div className="flex items-center justify-center h-6 w-6 rounded-md border border-white/[0.06]" style={{ background: "rgba(255,255,255,0.03)" }}>
-                            <span className="text-[10px] font-black text-slate-400">#{idx + 1}</span>
+                      <div className="flex items-center justify-between mb-1.5">
+                        <div className="flex items-center gap-2">
+                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">#{idx + 1}</span>
+                          <div className="flex items-center gap-1.5">
+                            {isMyPair && (
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setUnpairConfirm({ pairId: pair.id, partnerName: partnerInPair || "your partner" }); }}
+                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-red-400 text-[9px] font-medium hover:bg-red-500/15 transition-colors"
+                                aria-label={`Unpair from ${partnerInPair || "your partner"}`}
+                                data-testid={`button-unpair-${idx}`}
+                              >
+                                <UserMinus className="h-3 w-3" />
+                              </button>
+                            )}
                           </div>
-                          <span className="text-[13px] font-bold text-white/90 truncate max-w-[130px]">{teamName}</span>
                         </div>
-                        <div className="flex items-center gap-1.5">
-                          {isMyPair && (
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setUnpairConfirm({ pairId: pair.id, partnerName: partnerInPair || "your partner" }); }}
-                              className="flex items-center gap-1 px-2 py-1 rounded-lg text-red-400 text-[9px] font-medium hover:bg-red-500/15 transition-colors"
-                              aria-label={`Unpair from ${partnerInPair || "your partner"}`}
-                              data-testid={`button-unpair-${idx}`}
-                            >
-                              <UserMinus className="h-3 w-3" />
-                            </button>
-                          )}
-                          <div className={cn("relative overflow-hidden px-2.5 py-1 rounded-full", quality.glow)} style={{ background: "rgba(255,255,255,0.04)" }}>
-                            <div className={cn("absolute inset-0 bg-gradient-to-r opacity-15", quality.gradient)} />
-                            <span className={cn("relative text-[9px] font-black uppercase tracking-wider", quality.text)}>{quality.label}</span>
-                          </div>
+                        <div className={cn("relative overflow-hidden px-2.5 py-1 rounded-full", quality.glow)} style={{ background: "rgba(255,255,255,0.04)" }}>
+                          <div className={cn("absolute inset-0 bg-gradient-to-r opacity-15", quality.gradient)} />
+                          <span className={cn("relative text-[9px] font-black uppercase tracking-wider", quality.text)}>{quality.label}</span>
                         </div>
                       </div>
+                      <h3 className="text-lg font-black tracking-wide mb-4 truncate" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${idx}`}>
+                        {pair.pairName || `Pair ${idx + 1}`}
+                      </h3>
 
                       <div
                         className="flex items-center"
