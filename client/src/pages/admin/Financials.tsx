@@ -61,6 +61,7 @@ import {
   Gift,
   Award,
   Star,
+  RotateCcw,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -1444,6 +1445,24 @@ export default function Financials() {
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
       qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
     },
+  });
+
+  const [resetCreditConfirm, setResetCreditConfirm] = useState<{ userId: number; clubId: number; playerName: string; currentBalance: number } | null>(null);
+
+  const resetCreditMutation = useMutation({
+    mutationFn: async (data: { userId: number; clubId: number; reason: string }) => {
+      const res = await apiRequest("POST", "/api/credits/reset", data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Credit Reset", description: `Balance reset to £0.00 (was £${((data.previousBalance || 0) / 100).toFixed(2)})` });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/god-mode/wallets") });
+      setResetCreditConfirm(null);
+      setAdjustCreditDialog(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message || "Failed to reset credit.", variant: "destructive" }),
   });
 
   const useCredit = useMutation({
@@ -6660,7 +6679,16 @@ export default function Financials() {
                   data-testid="input-adjust-credit-reason"
                 />
               </div>
-              <DialogFooter>
+              <DialogFooter className="flex-col sm:flex-row gap-2">
+                <Button
+                  variant="outline"
+                  className="text-orange-600 border-orange-300 hover:bg-orange-50"
+                  onClick={() => setResetCreditConfirm({ userId: adjustCreditDialog.userId, clubId: adjustCreditDialog.clubId, playerName: adjustCreditDialog.playerName, currentBalance: adjustCreditDialog.currentBalance })}
+                  data-testid="button-reset-credit"
+                >
+                  <RotateCcw className="h-4 w-4 mr-1" />Reset to £0.00
+                </Button>
+                <div className="flex-1" />
                 <Button variant="outline" onClick={() => setAdjustCreditDialog(null)} data-testid="button-cancel-adjust-credit">
                   Cancel
                 </Button>
@@ -6694,6 +6722,37 @@ export default function Financials() {
                 >
                   {createCredit.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                   {adjustCreditType === "add" ? "Add Credit" : "Deduct Credit"}
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!resetCreditConfirm} onOpenChange={(open) => { if (!open) setResetCreditConfirm(null); }}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-reset-credit">
+          <DialogHeader>
+            <DialogTitle>Reset Credit Balance</DialogTitle>
+            <DialogDescription>
+              {resetCreditConfirm ? `Reset ${resetCreditConfirm.playerName}'s credit balance to £0.00` : ""}
+            </DialogDescription>
+          </DialogHeader>
+          {resetCreditConfirm && (
+            <div className="space-y-4">
+              <div className="rounded-md border p-3 bg-orange-50 dark:bg-orange-950/30">
+                <p className="text-sm font-medium">Current Balance: <span className="text-orange-600">£{((resetCreditConfirm.currentBalance || 0) / 100).toFixed(2)}</span></p>
+                <p className="text-xs text-muted-foreground mt-1">This will set the balance to £0.00 and sync with the wallet.</p>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setResetCreditConfirm(null)} data-testid="button-cancel-reset-credit">Cancel</Button>
+                <Button
+                  variant="destructive"
+                  disabled={resetCreditMutation.isPending}
+                  onClick={() => resetCreditMutation.mutate({ userId: resetCreditConfirm.userId, clubId: resetCreditConfirm.clubId, reason: "Credit reset to zero by admin" })}
+                  data-testid="button-confirm-reset-credit"
+                >
+                  {resetCreditMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                  Reset to £0.00
                 </Button>
               </DialogFooter>
             </div>

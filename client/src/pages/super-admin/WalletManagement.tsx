@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
   Wallet, Search, Plus, Loader2, AlertTriangle, ArrowUpCircle, ArrowDownCircle,
-  Eye, Globe, Lock, Pencil, Save, ArrowLeft, PoundSterling,
+  Eye, Globe, Lock, Pencil, Save, ArrowLeft, PoundSterling, RotateCcw,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -331,6 +331,22 @@ export default function WalletManagement() {
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  const [resetWalletConfirm, setResetWalletConfirm] = useState<any>(null);
+
+  const resetWalletMutation = useMutation({
+    mutationFn: async ({ walletId }: { walletId: number }) => {
+      const res = await apiRequest("POST", `/api/god-mode/wallets/${walletId}/reset`, { reason: "Wallet reset to zero by admin" });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({ title: "Wallet Reset", description: `Balance reset to £0.00 (was £${((data.previousBalance || 0) / 100).toFixed(2)})` });
+      queryClient.invalidateQueries({ queryKey: ["/api/god-mode/wallets"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+      setResetWalletConfirm(null);
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   const migrateMutation = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/god-mode/wallets/migrate-credits");
@@ -497,6 +513,9 @@ export default function WalletManagement() {
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setTxWalletId(w.id); setTxModalOpen(true); }} data-testid={`button-view-tx-${w.id}`}>
                                 <Eye className="h-3 w-3 mr-0.5" />Log
                               </Button>
+                              <Button size="sm" variant="outline" className="h-7 text-xs text-orange-600 border-orange-300 hover:bg-orange-50" onClick={() => setResetWalletConfirm(w)} data-testid={`button-reset-wallet-${w.id}`}>
+                                <RotateCcw className="h-3 w-3 mr-0.5" />Reset
+                              </Button>
                               <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => { setEditWallet(w); setWalletModalOpen(true); }} data-testid={`button-edit-wallet-${w.id}`}>
                                 <Pencil className="h-3 w-3" />
                               </Button>
@@ -549,6 +568,32 @@ export default function WalletManagement() {
           onClose={() => { setTxModalOpen(false); setTxWalletId(null); }}
         />
       )}
+
+      <Dialog open={!!resetWalletConfirm} onOpenChange={(open) => { if (!open) setResetWalletConfirm(null); }}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Reset Wallet</DialogTitle>
+          </DialogHeader>
+          {resetWalletConfirm && (
+            <div className="space-y-4">
+              <p className="text-sm text-muted-foreground">
+                This will set the wallet balance to <strong>£0.00</strong> and record a reset transaction.
+              </p>
+              <div className="rounded-md border p-3 bg-orange-50 dark:bg-orange-950/30">
+                <p className="text-sm font-medium">Current Balance: <span className="text-orange-600">£{((resetWalletConfirm.balance || 0) / 100).toFixed(2)}</span></p>
+                <p className="text-xs text-muted-foreground mt-1">User ID: {resetWalletConfirm.userId}</p>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setResetWalletConfirm(null)} data-testid="button-cancel-reset-wallet">Cancel</Button>
+                <Button variant="destructive" disabled={resetWalletMutation.isPending} onClick={() => resetWalletMutation.mutate({ walletId: resetWalletConfirm.id })} data-testid="button-confirm-reset-wallet">
+                  {resetWalletMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <RotateCcw className="h-4 w-4 mr-1" />}
+                  Reset to £0.00
+                </Button>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

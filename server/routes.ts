@@ -31225,6 +31225,100 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       res.status(500).json({ message: err.message });
     }
   });
+
+  app.post("/api/god-mode/wallets/:walletId/reset", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      if (isNaN(walletId)) return res.status(400).json({ message: "Invalid wallet ID" });
+      const { reason } = req.body;
+      const txResult = await db.transaction(async (trx) => {
+        const [wallet] = await trx.select().from(wallets).where(eq(wallets.id, walletId));
+        if (!wallet) throw new Error("NOT_FOUND");
+        const previousBalance = wallet.balance;
+        if (previousBalance === 0) return { walletId, previousBalance: 0, message: "Wallet already at zero" };
+        await trx.update(wallets).set({ balance: 0, updatedAt: new Date() }).where(eq(wallets.id, walletId));
+        const [tx] = await trx.insert(walletTransactions).values({
+          walletId,
+          userId: wallet.userId,
+          clubId: null,
+          amount: -previousBalance,
+          type: "ADJUSTMENT" as const,
+          reason: reason || "Wallet reset to zero by admin",
+          createdById: u.id,
+        }).returning();
+        let ledgerClubId = wallet.allowedClubIds && wallet.allowedClubIds.length > 0 ? wallet.allowedClubIds[0] : null;
+        if (!ledgerClubId) {
+          const profile = await trx.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, wallet.userId)).limit(1);
+          if (profile.length > 0) ledgerClubId = profile[0].clubId;
+        }
+        if (ledgerClubId && previousBalance !== 0) {
+          await trx.insert(creditLedger).values({
+            userId: wallet.userId,
+            clubId: ledgerClubId,
+            amount: -previousBalance,
+            reason: reason || "Wallet reset to zero by admin",
+            createdById: u.id,
+          });
+        }
+        return { ...tx, previousBalance };
+      });
+      console.log(`[AUDIT] Wallet reset: walletId=${walletId}, by=${u.id}`);
+      res.json(txResult);
+    } catch (err: any) {
+      if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/credits/reset", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const { userId, clubId, reason } = req.body;
+      if (!userId || !clubId) return res.status(400).json({ message: "userId and clubId required" });
+      const balanceResult = await db.select({ balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` }).from(creditLedger)
+        .where(and(eq(creditLedger.userId, userId), eq(creditLedger.clubId, clubId)));
+      const currentBalance = balanceResult[0]?.balance || 0;
+      if (currentBalance === 0) return res.json({ message: "Balance already at zero", previousBalance: 0 });
+      const result = await db.transaction(async (trx) => {
+        const [entry] = await trx.insert(creditLedger).values({
+          userId,
+          clubId,
+          amount: -currentBalance,
+          reason: reason || "Credit reset to zero by admin",
+          createdById: u.id,
+        }).returning();
+        const eligibleWallets = await trx.select().from(wallets)
+          .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)));
+        const clubWallet = eligibleWallets.find(w =>
+          !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId)
+        );
+        if (clubWallet && clubWallet.balance !== 0) {
+          const deductAmount = Math.min(clubWallet.balance, currentBalance);
+          await trx.update(wallets).set({ balance: sql`${wallets.balance} - ${deductAmount}`, updatedAt: new Date() }).where(eq(wallets.id, clubWallet.id));
+          await trx.insert(walletTransactions).values({
+            walletId: clubWallet.id,
+            userId,
+            clubId,
+            amount: -deductAmount,
+            type: "ADJUSTMENT" as const,
+            reason: reason || "Credit reset to zero by admin",
+            createdById: u.id,
+          });
+        }
+        return { ...entry, previousBalance: currentBalance };
+      });
+      console.log(`[AUDIT] Credit reset: userId=${userId}, clubId=${clubId}, previousBalance=${currentBalance}, by=${u.id}`);
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/god-mode/wallets/:walletId/transactions", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const u = req.user as any;
