@@ -10123,9 +10123,6 @@ export async function registerRoutes(
     const clubId = req.query.clubId ? Number(req.query.clubId) : null;
 
     try {
-      const conditions: any[] = [eq(creditLedger.userId, userId)];
-      if (clubId) conditions.push(eq(creditLedger.clubId, clubId));
-
       if (userId !== user.id) {
         const isOwner = user.role === "OWNER";
         if (!isOwner && clubId) {
@@ -10136,12 +10133,19 @@ export async function registerRoutes(
         }
       }
 
-      const result = await db
-        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
-        .from(creditLedger)
-        .where(and(...conditions));
+      const activeWallets = await db.select().from(wallets)
+        .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)));
+      let balance = 0;
+      if (clubId) {
+        const eligible = activeWallets.filter(w =>
+          !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId)
+        );
+        balance = eligible.reduce((sum, w) => sum + (w.balance || 0), 0);
+      } else {
+        balance = activeWallets.reduce((sum, w) => sum + (w.balance || 0), 0);
+      }
 
-      res.json({ balance: Number(result[0]?.total || 0) });
+      res.json({ balance });
     } catch (err: any) {
       console.error("Error fetching credit balance:", err);
       res.status(500).json({ message: "Failed to fetch credit balance" });
@@ -10363,14 +10367,16 @@ export async function registerRoutes(
       const allowed = await canPerform({ id: user.id, role: user.role }, "MANAGE_CREDITS", clubId);
       if (!allowed) return res.sendStatus(403);
 
-      const balances = await db
-        .select({
-          userId: creditLedger.userId,
-          balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)`,
-        })
-        .from(creditLedger)
-        .where(eq(creditLedger.clubId, clubId))
-        .groupBy(creditLedger.userId);
+      const allActiveWallets = await db.select().from(wallets)
+        .where(eq(wallets.isActive, true));
+      const balanceMap: Record<number, number> = {};
+      for (const w of allActiveWallets) {
+        const isEligible = !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId);
+        if (isEligible && w.balance !== 0) {
+          balanceMap[w.userId] = (balanceMap[w.userId] || 0) + w.balance;
+        }
+      }
+      const balances = Object.entries(balanceMap).map(([uid, bal]) => ({ userId: Number(uid), balance: bal }));
 
       res.json(balances);
     } catch (err: any) {
@@ -10689,30 +10695,44 @@ export async function registerRoutes(
       const allowed = await canPerform({ id: admin.id, role: admin.role }, "MANAGE_CREDITS", clubId);
       if (!allowed) return res.sendStatus(403);
 
-      const balanceResult = await db
-        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
-        .from(creditLedger)
-        .where(and(eq(creditLedger.userId, userId), eq(creditLedger.clubId, clubId)));
-
-      const currentBalance = Number(balanceResult[0]?.total || 0);
+      const activeWallets = await db.select().from(wallets)
+        .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)));
+      const eligibleWallets = activeWallets.filter(w =>
+        !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId)
+      );
+      const currentBalance = eligibleWallets.reduce((sum, w) => sum + (w.balance || 0), 0);
       if (currentBalance < amount) {
         return res.status(400).json({ message: "Insufficient credit balance" });
       }
 
-      const [entry] = await db
-        .insert(creditLedger)
-        .values({
-          userId,
-          clubId,
-          amount: -amount,
-          reason: `Credit used for session`,
-          linkedSessionId: sessionId,
-          linkedSignupId: signupId,
-          createdById: admin.id,
-        })
-        .returning();
+      const result = await db.transaction(async (trx) => {
+        const [entry] = await trx
+          .insert(creditLedger)
+          .values({
+            userId,
+            clubId,
+            amount: -amount,
+            reason: `Credit used for session`,
+            linkedSessionId: sessionId,
+            linkedSignupId: signupId,
+            createdById: admin.id,
+          })
+          .returning();
 
-      res.json(entry);
+        let remaining = amount;
+        for (const w of eligibleWallets) {
+          if (remaining <= 0) break;
+          const deduct = Math.min(w.balance, remaining);
+          if (deduct > 0) {
+            await trx.update(wallets).set({ balance: sql`${wallets.balance} - ${deduct}`, updatedAt: new Date() }).where(eq(wallets.id, w.id));
+            await trx.insert(walletTransactions).values({ walletId: w.id, userId, clubId, amount: -deduct, type: "DEBIT" as const, reason: "Credit used for session", createdById: admin.id });
+            remaining -= deduct;
+          }
+        }
+        return entry;
+      });
+
+      res.json(result);
     } catch (err: any) {
       console.error("Error using credit:", err);
       res.status(500).json({ message: "Failed to use credit" });
@@ -10748,12 +10768,12 @@ export async function registerRoutes(
       const cappedAmount = Math.min(amount, totalFee);
       if (cappedAmount <= 0) return res.status(400).json({ message: "No applicable fee to credit" });
 
-      const balanceResult = await db
-        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
-        .from(creditLedger)
-        .where(and(eq(creditLedger.userId, user.id), eq(creditLedger.clubId, clubId)));
-
-      const currentBalance = Number(balanceResult[0]?.total || 0);
+      const activeWallets = await db.select().from(wallets)
+        .where(and(eq(wallets.userId, user.id), eq(wallets.isActive, true)));
+      const eligibleWallets = activeWallets.filter(w =>
+        !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId)
+      );
+      const currentBalance = eligibleWallets.reduce((sum, w) => sum + (w.balance || 0), 0);
       if (currentBalance < cappedAmount) {
         return res.status(400).json({ message: "Insufficient credit balance" });
       }
@@ -10771,6 +10791,17 @@ export async function registerRoutes(
         })
         .returning();
 
+      let remaining = cappedAmount;
+      for (const w of eligibleWallets) {
+        if (remaining <= 0) break;
+        const deduct = Math.min(w.balance, remaining);
+        if (deduct > 0) {
+          await db.update(wallets).set({ balance: sql`${wallets.balance} - ${deduct}`, updatedAt: new Date() }).where(eq(wallets.id, w.id));
+          await db.insert(walletTransactions).values({ walletId: w.id, userId: user.id, clubId, amount: -deduct, type: "DEBIT" as const, reason: `Credit applied to session: ${sessionData.title}`, createdById: user.id });
+          remaining -= deduct;
+        }
+      }
+
       const coversFullFee = cappedAmount >= totalFee;
       for (const su of userSignups) {
         await db.update(sessionSignups)
@@ -10781,11 +10812,12 @@ export async function registerRoutes(
           .where(eq(sessionSignups.id, su.id));
       }
 
-      const newBalanceResult = await db
-        .select({ total: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` })
-        .from(creditLedger)
-        .where(and(eq(creditLedger.userId, user.id), eq(creditLedger.clubId, clubId)));
-      const newBalance = Number(newBalanceResult[0]?.total || 0);
+      const updatedWallets = await db.select().from(wallets)
+        .where(and(eq(wallets.userId, user.id), eq(wallets.isActive, true)));
+      const updatedEligible = updatedWallets.filter(w =>
+        !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId)
+      );
+      const newBalance = updatedEligible.reduce((sum, w) => sum + (w.balance || 0), 0);
 
       const club = await storage.getClub(clubId);
       const adminProfiles = await db
@@ -31280,39 +31312,40 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     try {
       const { userId, clubId, reason } = req.body;
       if (!userId || !clubId) return res.status(400).json({ message: "userId and clubId required" });
-      const balanceResult = await db.select({ balance: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)` }).from(creditLedger)
-        .where(and(eq(creditLedger.userId, userId), eq(creditLedger.clubId, clubId)));
-      const currentBalance = balanceResult[0]?.balance || 0;
-      if (currentBalance === 0) return res.json({ message: "Balance already at zero", previousBalance: 0 });
+      const allWallets = await db.select().from(wallets)
+        .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)));
+      const eligibleWallets = allWallets.filter(w =>
+        !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId)
+      );
+      const totalBalance = eligibleWallets.reduce((sum, w) => sum + (w.balance || 0), 0);
+      if (totalBalance === 0) return res.json({ message: "Balance already at zero", previousBalance: 0 });
+      const previousBalance = totalBalance;
       const result = await db.transaction(async (trx) => {
-        const [entry] = await trx.insert(creditLedger).values({
-          userId,
-          clubId,
-          amount: -currentBalance,
-          reason: reason || "Credit reset to zero by admin",
-          createdById: u.id,
-        }).returning();
-        const eligibleWallets = await trx.select().from(wallets)
-          .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)));
-        const clubWallet = eligibleWallets.find(w =>
-          !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(clubId)
-        );
-        if (clubWallet && clubWallet.balance !== 0) {
-          const deductAmount = Math.min(clubWallet.balance, currentBalance);
-          await trx.update(wallets).set({ balance: sql`${wallets.balance} - ${deductAmount}`, updatedAt: new Date() }).where(eq(wallets.id, clubWallet.id));
-          await trx.insert(walletTransactions).values({
-            walletId: clubWallet.id,
+        let lastTx: any = null;
+        for (const w of eligibleWallets) {
+          if (w.balance === 0) continue;
+          await trx.update(wallets).set({ balance: 0, updatedAt: new Date() }).where(eq(wallets.id, w.id));
+          const [tx] = await trx.insert(walletTransactions).values({
+            walletId: w.id,
             userId,
             clubId,
-            amount: -deductAmount,
+            amount: -w.balance,
             type: "ADJUSTMENT" as const,
-            reason: reason || "Credit reset to zero by admin",
+            reason: reason || "Wallet reset to zero by admin",
             createdById: u.id,
-          });
+          }).returning();
+          lastTx = tx;
         }
-        return { ...entry, previousBalance: currentBalance };
+        await trx.insert(creditLedger).values({
+          userId,
+          clubId,
+          amount: -previousBalance,
+          reason: reason || "Wallet reset to zero by admin",
+          createdById: u.id,
+        });
+        return { ...lastTx, previousBalance };
       });
-      console.log(`[AUDIT] Credit reset: userId=${userId}, clubId=${clubId}, previousBalance=${currentBalance}, by=${u.id}`);
+      console.log(`[AUDIT] Credit/wallet reset: userId=${userId}, clubId=${clubId}, previousBalance=${previousBalance}, by=${u.id}`);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message });

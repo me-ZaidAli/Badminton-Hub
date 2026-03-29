@@ -2171,6 +2171,21 @@ export default function Financials() {
           >
             <Pencil className="h-3 w-3" />
           </Button>
+          {getCreditBalance(entry.playerUserId, entry.clubId) !== 0 && (
+            <Button
+              size="icon"
+              variant="ghost"
+              className="h-6 w-6 text-orange-500 hover:text-orange-700"
+              onClick={() => {
+                const bal = getCreditBalance(entry.playerUserId, entry.clubId);
+                setResetCreditConfirm({ userId: entry.playerUserId, clubId: entry.clubId, playerName: entry.playerName, currentBalance: bal });
+              }}
+              title="Reset wallet to £0.00"
+              data-testid={`button-reset-credit-${entry.signupId}`}
+            >
+              <RotateCcw className="h-3 w-3" />
+            </Button>
+          )}
         </div>
       </TableCell>
       <TableCell>
