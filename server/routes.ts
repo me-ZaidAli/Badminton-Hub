@@ -380,6 +380,23 @@ async function ensureUserWallet(userId: number, clubId: number, creditAmount: nu
         });
       });
       console.log(`[WALLET AUTO] Added £${(creditAmount / 100).toFixed(2)} to wallet=${walletId} for user=${userId}`);
+    } else if (creditAmount < 0) {
+      const absAmount = Math.abs(creditAmount);
+      await db.transaction(async (trx) => {
+        await trx.update(wallets)
+          .set({ balance: sql`${wallets.balance} - ${absAmount}`, updatedAt: new Date() })
+          .where(eq(wallets.id, walletId));
+        await trx.insert(walletTransactions).values({
+          walletId,
+          userId,
+          clubId,
+          amount: creditAmount,
+          type: "DEBIT" as const,
+          reason: reason || "Credit deducted",
+          createdById,
+        });
+      });
+      console.log(`[WALLET AUTO] Deducted £${(absAmount / 100).toFixed(2)} from wallet=${walletId} for user=${userId}`);
     }
   } catch (err: any) {
     console.error(`[WALLET AUTO] Error ensuring wallet for user=${userId}:`, err.message);
@@ -10248,9 +10265,7 @@ export async function registerRoutes(
         })
         .returning();
 
-      if (amount > 0) {
-        await ensureUserWallet(userId, clubId, amount, reason, admin.id);
-      }
+      await ensureUserWallet(userId, clubId, amount, reason, admin.id);
 
       res.json(entry);
     } catch (err: any) {

@@ -647,6 +647,8 @@ export default function Financials() {
     clubId: number;
     playerName: string;
     currentBalance: number;
+    sessionId?: number;
+    signupId?: number;
   } | null>(null);
   const [adjustCreditAmount, setAdjustCreditAmount] = useState("");
   const [adjustCreditReason, setAdjustCreditReason] = useState("");
@@ -2139,6 +2141,8 @@ export default function Financials() {
                 clubId: entry.clubId,
                 playerName: entry.playerName,
                 currentBalance: bal,
+                sessionId: entry.sessionId,
+                signupId: entry.signupId,
               });
               setAdjustCreditAmount("");
               setAdjustCreditReason("");
@@ -6673,7 +6677,7 @@ export default function Financials() {
                     }
                     const signedAmount = adjustCreditType === "deduct" ? -pence : pence;
                     createCredit.mutate(
-                      { userId: adjustCreditDialog.userId, clubId: adjustCreditDialog.clubId, amount: signedAmount, reason: adjustCreditReason.trim() },
+                      { userId: adjustCreditDialog.userId, clubId: adjustCreditDialog.clubId, amount: signedAmount, reason: adjustCreditReason.trim(), linkedSessionId: adjustCreditDialog.sessionId, linkedSignupId: adjustCreditDialog.signupId },
                       {
                         onSuccess: () => {
                           toast({ title: "Credit Updated", description: `${adjustCreditType === "add" ? "Added" : "Deducted"} £${(pence / 100).toFixed(2)} ${adjustCreditType === "add" ? "to" : "from"} ${adjustCreditDialog.playerName}'s balance.` });
