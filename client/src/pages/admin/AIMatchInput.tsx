@@ -440,7 +440,7 @@ export default function AIMatchInput() {
         </Card>
       </motion.div>
 
-      {extractedMatches.length > 0 && (
+      {(extractedMatches.length > 0 || pendingImages.length > 0) && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
           <Card data-testid="card-session-select">
             <CardContent className="p-4">
@@ -660,29 +660,41 @@ export default function AIMatchInput() {
 
       {extractedMatches.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
-          <div className="flex items-center justify-between gap-4">
-            <div className="text-sm text-muted-foreground">
-              {extractedMatches.filter((m) => getMatchValidation(m).length === 0).length} of {extractedMatches.length} match(es) valid
-              {savedCount > 0 && (
-                <Badge className="ml-2 bg-emerald-500 text-white">
-                  <CheckCircle2 className="w-3 h-3 mr-1" /> {savedCount} saved
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <span>{unsavedMatches.length} unsaved, {extractedMatches.length - unsavedMatches.length} saved</span>
+              {totalSavedCount > 0 && (
+                <Badge className="bg-emerald-500 text-white">
+                  <CheckCircle2 className="w-3 h-3 mr-1" /> {totalSavedCount} total saved
                 </Badge>
               )}
             </div>
-            <Button
-              onClick={handleSaveAll}
-              disabled={!canConfirmAll || saveMatchesMutation.isPending || savedCount > 0}
-              className="bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700"
-              data-testid="button-save-all"
-            >
-              {saveMatchesMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
-              ) : savedCount > 0 ? (
-                <><CheckCircle2 className="w-4 h-4 mr-2" /> All Saved</>
-              ) : (
-                <><Save className="w-4 h-4 mr-2" /> Save All Matches</>
+            <div className="flex items-center gap-2">
+              {unsavedMatches.length === 0 && pendingImages.length === 0 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => fileInputRef.current?.click()}
+                  data-testid="button-add-more-after-save"
+                >
+                  <Plus className="w-4 h-4 mr-1" /> Add More Images
+                </Button>
               )}
-            </Button>
+              <Button
+                onClick={handleSaveAll}
+                disabled={!canSaveUnsaved || saveMatchesMutation.isPending || unsavedMatches.length === 0}
+                className="bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700"
+                data-testid="button-save-all"
+              >
+                {saveMatchesMutation.isPending ? (
+                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                ) : unsavedMatches.length === 0 ? (
+                  <><CheckCircle2 className="w-4 h-4 mr-2" /> All Saved</>
+                ) : (
+                  <><Save className="w-4 h-4 mr-2" /> Save {unsavedMatches.length} Match(es)</>
+                )}
+              </Button>
+            </div>
           </div>
         </motion.div>
       )}
