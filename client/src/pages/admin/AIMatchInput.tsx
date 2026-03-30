@@ -216,6 +216,23 @@ export default function AIMatchInput() {
     setPlayerSearch("");
   };
 
+  const unlinkPlayer = (matchId: string, teamKey: "teamA" | "teamB", playerIdx: number) => {
+    setExtractedMatches((prev) =>
+      prev.map((m) => {
+        if (m.id !== matchId) return m;
+        const team = [...m[teamKey]];
+        team[playerIdx] = {
+          ...team[playerIdx],
+          linkedUserId: null,
+          linkedProfileId: null,
+          linkedName: null,
+          confidence: team[playerIdx].confidence,
+        };
+        return { ...m, [teamKey]: team, edited: true };
+      })
+    );
+  };
+
   const openCreateDialog = (matchId: string, teamKey: "teamA" | "teamB", playerIdx: number, name: string) => {
     setCreateDialog({ matchId, teamKey, playerIdx, name });
     setNewPlayerName(name);
@@ -757,6 +774,7 @@ export default function AIMatchInput() {
                               setLinkDialog({ matchId: match.id, teamKey: "teamA", playerIdx });
                               setPlayerSearch("");
                             }}
+                            onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamA", playerIdx)}
                             disabled={match.confirmed}
                           />
                           <TeamCard
@@ -770,6 +788,7 @@ export default function AIMatchInput() {
                               setLinkDialog({ matchId: match.id, teamKey: "teamB", playerIdx });
                               setPlayerSearch("");
                             }}
+                            onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamB", playerIdx)}
                             disabled={match.confirmed}
                           />
                         </div>
@@ -1074,6 +1093,7 @@ function TeamCard({
   confidenceColor,
   confidenceBg,
   onLink,
+  onUnlink,
   disabled,
 }: {
   label: string;
@@ -1083,6 +1103,7 @@ function TeamCard({
   confidenceColor: (c: number) => string;
   confidenceBg: (c: number) => string;
   onLink: (playerIdx: number) => void;
+  onUnlink: (playerIdx: number) => void;
   disabled: boolean;
 }) {
   return (
@@ -1122,16 +1143,29 @@ function TeamCard({
             <span className={`text-[10px] font-medium ${confidenceColor(player.confidence)}`}>
               {Math.round(player.confidence * 100)}%
             </span>
-            {!isLinked && !disabled && (
-              <Button
-                variant="ghost"
-                size="sm"
-                className="h-7 text-xs text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20"
-                onClick={() => onLink(pidx)}
-                data-testid={`button-link-${teamKey}-${pidx}`}
-              >
-                <Link2 className="w-3 h-3 mr-1" /> Link
-              </Button>
+            {!disabled && (
+              <div className="flex items-center gap-1">
+                {isLinked && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                    onClick={() => onUnlink(pidx)}
+                    data-testid={`button-unlink-${teamKey}-${pidx}`}
+                  >
+                    <X className="w-3 h-3 mr-1" /> Unlink
+                  </Button>
+                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 text-xs text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20"
+                  onClick={() => onLink(pidx)}
+                  data-testid={`button-link-${teamKey}-${pidx}`}
+                >
+                  <Link2 className="w-3 h-3 mr-1" /> {isLinked ? "Change" : "Link"}
+                </Button>
+              </div>
             )}
           </div>
         );
