@@ -31560,7 +31560,9 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         messages: [
           {
             role: "system",
-            content: `You are a sports score sheet OCR assistant. Extract all matches from the image. For each match, identify:
+            content: `You are a sports score sheet OCR assistant. You MUST extract EVERY SINGLE match from the image — do not stop early or limit yourself. There could be 5, 10, 20, 30, 40, or even 50+ matches. Extract them ALL.
+
+For each match, identify:
 - Team A players (1-2 names)
 - Team B players (1-2 names)
 - Score for Team A
@@ -31581,7 +31583,8 @@ Return ONLY valid JSON in this exact format:
 }
 
 Rules:
-- Extract ALL matches visible in the image
+- Extract EVERY match visible — do NOT stop at 10 or any arbitrary limit
+- If the image contains a table/list, process EVERY row
 - If handwriting is unclear, give lower confidence
 - Each team can have 1 or 2 players (singles or doubles)
 - Scores must be integers >= 0
@@ -31591,12 +31594,12 @@ Rules:
           {
             role: "user",
             content: [
-              { type: "text", text: "Extract all match results from this score sheet image." },
+              { type: "text", text: "Extract ALL match results from this score sheet image. There may be many matches (20, 30, 40+). Do not stop early — extract every single one." },
               { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
             ]
           }
         ],
-        max_tokens: 2000,
+        max_tokens: 16000,
         temperature: 0.1,
       });
 
