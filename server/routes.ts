@@ -31639,10 +31639,10 @@ Rules:
         const usedUserIds = new Set<number>();
         const allPlayers = [...match.teamA, ...match.teamB];
 
-        const playerScores: { player: any; bestMatch: any; bestScore: number }[] = [];
+        const playerCandidates: { player: any; candidates: { user: any; score: number }[] }[] = [];
         for (const player of allPlayers) {
           const pName = (player.name || "").toLowerCase().trim();
-          if (!pName) { playerScores.push({ player, bestMatch: null, bestScore: 0 }); continue; }
+          if (!pName) { playerCandidates.push({ player, candidates: [] }); continue; }
 
           const candidates: { user: any; score: number }[] = [];
           for (const u of usersForLink) {
@@ -31661,27 +31661,35 @@ Rules:
             if (score >= 0.5) candidates.push({ user: u, score });
           }
           candidates.sort((a, b) => b.score - a.score);
-          playerScores.push({ player, bestMatch: candidates.length > 0 ? candidates[0].user : null, bestScore: candidates.length > 0 ? candidates[0].score : 0 });
+          playerCandidates.push({ player, candidates });
         }
 
-        playerScores.sort((a, b) => b.bestScore - a.bestScore);
+        playerCandidates.sort((a, b) => {
+          const aTop = a.candidates[0]?.score || 0;
+          const bTop = b.candidates[0]?.score || 0;
+          return bTop - aTop;
+        });
 
-        for (const ps of playerScores) {
-          if (!ps.bestMatch) continue;
-          if (usedUserIds.has(ps.bestMatch.id)) {
-            ps.player.linkedUserId = null;
-            ps.player.linkedName = null;
-            ps.player.linkedProfileId = null;
-            continue;
+        for (const pc of playerCandidates) {
+          let linked = false;
+          for (const cand of pc.candidates) {
+            if (usedUserIds.has(cand.user.id)) continue;
+            usedUserIds.add(cand.user.id);
+            pc.player.linkedUserId = cand.user.id;
+            pc.player.linkedName = cand.user.fullName;
+            pc.player.linkedProfileId = null;
+            pc.player.confidence = Math.max(pc.player.confidence, cand.score);
+            const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, cand.user.id)).limit(1);
+            if (profiles.length > 0) {
+              pc.player.linkedProfileId = profiles[0].id;
+            }
+            linked = true;
+            break;
           }
-          usedUserIds.add(ps.bestMatch.id);
-          ps.player.linkedUserId = ps.bestMatch.id;
-          ps.player.linkedName = ps.bestMatch.fullName;
-          ps.player.linkedProfileId = null;
-          ps.player.confidence = Math.max(ps.player.confidence, ps.bestScore);
-          const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, ps.bestMatch.id)).limit(1);
-          if (profiles.length > 0) {
-            ps.player.linkedProfileId = profiles[0].id;
+          if (!linked) {
+            pc.player.linkedUserId = null;
+            pc.player.linkedName = null;
+            pc.player.linkedProfileId = null;
           }
         }
       }
