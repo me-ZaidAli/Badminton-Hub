@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -193,6 +193,49 @@ function computeEnergyScore(session: SessionItem): number {
   return Math.round((playerRatio * 30 + durationFactor * 15 + modeFactor * 25 + courtDensity * 15 + typeFactor * 15));
 }
 
+function getSessionHype(session: SessionItem, leaderboard?: any[]): { icon: typeof Flame; message: string; color: string; priority: number } | null {
+  const energy = computeEnergyScore(session);
+  if (leaderboard && leaderboard.length > 0) {
+    const streakPlayers = leaderboard.filter((p: any) => (p.winStreak || 0) >= 2);
+    if (energy > 70) return { icon: Flame, message: "High energy session expected", color: "text-orange-500", priority: 1 };
+    if (streakPlayers.length > 0) return { icon: Zap, message: `${streakPlayers.length} player${streakPlayers.length > 1 ? "s" : ""} on a win streak`, color: "text-amber-500", priority: 2 };
+    const avgWinRate = leaderboard.reduce((s: number, p: any) => s + (p.winRate || 0), 0) / leaderboard.length;
+    const ratings = leaderboard.map((p: any) => p.rating || p.winRate || 0);
+    const ratingVariance = ratings.length > 1 ? Math.sqrt(ratings.reduce((s, r) => s + Math.pow(r - ratings.reduce((a, b) => a + b, 0) / ratings.length, 2), 0) / ratings.length) : 0;
+    if (ratingVariance < 15 && leaderboard.length >= 4) return { icon: Brain, message: "Balanced matchmaking", color: "text-blue-500", priority: 3 };
+    if (avgWinRate < 40) return { icon: Snowflake, message: "Chill social session", color: "text-cyan-500", priority: 4 };
+  }
+  if (energy > 70) return { icon: Flame, message: "High energy session expected", color: "text-orange-500", priority: 1 };
+  if (energy < 30) return { icon: Snowflake, message: "Chill social session", color: "text-cyan-500", priority: 4 };
+  return null;
+}
+
+function getSessionLiveStatus(session: SessionItem): "past" | "live" | "upcoming" {
+  const now = new Date();
+  const sessionDate = new Date(session.date);
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  sessionDate.setHours(0, 0, 0, 0);
+  if (sessionDate.getTime() < today.getTime()) return "past";
+  if (sessionDate.getTime() > today.getTime()) return "upcoming";
+  const [sh, sm] = session.startTime.split(":").map(Number);
+  const startMin = sh * 60 + sm;
+  const endMin = startMin + session.durationMinutes;
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  if (nowMin < startMin) return "upcoming";
+  if (nowMin <= endMin) return "live";
+  return "past";
+}
+
+function useCurrentTime(intervalMs = 60000) {
+  const [now, setNow] = useState(() => new Date());
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), intervalMs);
+    return () => clearInterval(id);
+  }, [intervalMs]);
+  return now;
+}
+
 function getIntensityLevel(session: SessionItem): { label: string; color: string } {
   if (session.matchMode === "COMPETITIVE") {
     const playerRatio = (session.signupCount || 0) / Math.max(1, session.maxPlayers);
@@ -243,52 +286,71 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
   const isLoading = signupsLoading || leaderboardLoading;
   const hasError = signupsError || leaderboardError;
 
+  const energyScore = computeEnergyScore(session);
+  const hype = getSessionHype(session, leaderboard || undefined);
+  const topPlayer = leaderboard && leaderboard.length > 0 ? leaderboard.reduce((best: any, p: any) => (!best || (p.winRate || 0) > (best.winRate || 0)) ? p : best, null) : null;
+  const avgWinRate = leaderboard && leaderboard.length > 0 ? Math.round(leaderboard.reduce((s: number, p: any) => s + (p.winRate || 0), 0) / leaderboard.length) : null;
+  const matchCount = (session as any).matchCount || 0;
+
   return (
     <div
       className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
-      style={{ maxHeight: height > 0 ? `${height + 16}px` : "500px" }}
+      style={{ maxHeight: height > 0 ? `${height + 16}px` : "600px" }}
       role="region"
       aria-label={`Details for ${session.title || "session"}`}
       id={`session-details-${session.id}`}
     >
       <div ref={contentRef} className="pt-3">
-        <div className="h-px bg-border/30 mb-3" />
+        <div className="h-px tl-gradient-divider mb-3" />
 
-        <div className="space-y-2 mb-3">
+        <div className="tl-dropdown-panel rounded-2xl p-3 space-y-3 mb-3">
+
           <div className="flex items-center gap-2" data-testid={`expanded-energy-${session.id}`}>
-            <Zap className={`h-3.5 w-3.5 flex-shrink-0 ${computeEnergyScore(session) > 70 ? "text-orange-500" : computeEnergyScore(session) > 40 ? "text-amber-500" : "text-blue-500"}`} />
-            <div className="flex-1 h-2 rounded-full bg-muted/50 overflow-hidden max-w-[120px]">
+            <Activity className={`h-3.5 w-3.5 flex-shrink-0 ${energyScore > 70 ? "text-orange-500" : energyScore > 40 ? "text-amber-500" : "text-blue-500"}`} />
+            <div className="flex-1 h-2.5 rounded-full bg-muted/30 dark:bg-white/5 overflow-hidden max-w-[140px] tl-energy-track">
               <div
                 className={`h-full rounded-full tl-energy-bar ${
-                  computeEnergyScore(session) > 70 ? "bg-orange-500" : computeEnergyScore(session) > 40 ? "bg-amber-500" : "bg-blue-500"
+                  energyScore > 70 ? "bg-gradient-to-r from-orange-500 to-red-500" : energyScore > 40 ? "bg-gradient-to-r from-amber-400 to-orange-500" : "bg-gradient-to-r from-blue-400 to-cyan-500"
                 }`}
-                style={{ "--energy-width": `${computeEnergyScore(session)}%` } as React.CSSProperties}
+                style={{ "--energy-width": `${energyScore}%` } as React.CSSProperties}
               />
             </div>
-            <span className={`text-[10px] font-semibold tabular-nums ${computeEnergyScore(session) > 70 ? "text-orange-500" : computeEnergyScore(session) > 40 ? "text-amber-500" : "text-blue-500"}`}>
-              Energy {computeEnergyScore(session)}%
+            <span className={`text-[10px] font-bold tabular-nums ${energyScore > 70 ? "text-orange-500" : energyScore > 40 ? "text-amber-500" : "text-blue-500"}`}>
+              {energyScore}/100
             </span>
           </div>
+
+          {hype && (
+            <div className="tl-insight-card rounded-xl px-3 py-2" data-testid={`expanded-hype-${session.id}`}>
+              <div className="flex items-center gap-1.5 mb-1">
+                <Flame className="h-3 w-3 text-orange-500" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Session Insight</span>
+              </div>
+              <div className={`flex items-center gap-1.5 ${hype.color}`}>
+                <hype.icon className="h-3.5 w-3.5" />
+                <span className="text-xs font-semibold">{hype.message}</span>
+              </div>
+            </div>
+          )}
 
           <div className="flex items-center gap-3 text-[10px]">
             <div className="flex items-center gap-1">
               <Users className="h-3 w-3 text-blue-500" />
               <span className="font-semibold text-foreground dark:text-white/80">{session.signupCount || 0} Player{(session.signupCount || 0) !== 1 ? "s" : ""}</span>
             </div>
-            {(session as any).matchCount > 0 && (
+            {matchCount > 0 && (
               <div className="flex items-center gap-1">
                 <Swords className="h-3 w-3 text-emerald-500" />
-                <span className="font-semibold text-foreground dark:text-white/80">{(session as any).matchCount} Match{(session as any).matchCount !== 1 ? "es" : ""}</span>
+                <span className="font-semibold text-foreground dark:text-white/80">{matchCount} Match{matchCount !== 1 ? "es" : ""}</span>
               </div>
             )}
-            {(session as any).matchCount > 0 && (session.signupCount || 0) > 1 && (
+            {matchCount > 0 && (session.signupCount || 0) > 1 && (
               <div className="flex items-center gap-1">
                 <Zap className="h-3 w-3 text-orange-500" />
-                <span className="font-semibold text-foreground dark:text-white/80">Avg {Math.min(10, ((session as any).matchCount / (session.signupCount || 1) * 5)).toFixed(1)} Difficulty</span>
+                <span className="font-semibold text-foreground dark:text-white/80">Avg {Math.min(10, (matchCount / (session.signupCount || 1) * 5)).toFixed(1)} Difficulty</span>
               </div>
             )}
           </div>
-
         </div>
 
         {isLoading ? (
@@ -302,49 +364,83 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
           </div>
         ) : (
           <div className="space-y-3">
-            {(matchesPlayed > 0 || (leaderboard && leaderboard.length > 0)) && (
-              <div>
-                <div className="flex items-center gap-1.5 mb-1.5">
-                  <Swords className="h-3 w-3 text-muted-foreground/70" />
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Match Stats</span>
+
+            {(topPlayer || avgWinRate !== null) && (
+              <div className="tl-section-card rounded-xl p-2.5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Trophy className="h-3 w-3 text-amber-500 tl-section-icon" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Player Stats</span>
                 </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="bg-muted/30 dark:bg-muted/20 rounded-lg p-2 text-center">
-                    <span className="text-lg font-bold text-foreground dark:text-white">{matchesPlayed}</span>
-                    <p className="text-[9px] text-muted-foreground">Matches</p>
-                  </div>
-                  <div className="bg-muted/30 dark:bg-muted/20 rounded-lg p-2 text-center">
-                    <span className="text-lg font-bold text-foreground dark:text-white">{leaderboard?.length || 0}</span>
-                    <p className="text-[9px] text-muted-foreground">Players Ranked</p>
-                  </div>
-                  {avgDifficulty && (
-                    <div className="bg-muted/30 dark:bg-muted/20 rounded-lg p-2 text-center">
-                      <span className="text-lg font-bold text-foreground dark:text-white">{avgDifficulty}</span>
-                      <p className="text-[9px] text-muted-foreground">Avg Difficulty</p>
+                <div className="grid grid-cols-2 gap-2">
+                  {topPlayer && (
+                    <div className="tl-stat-card rounded-lg px-2.5 py-2 text-center">
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wide">🏆 Top Player</span>
+                      <p className="text-xs font-bold text-foreground dark:text-white mt-0.5 truncate">{topPlayer.fullName || "Player"}</p>
+                      <p className="text-[10px] text-muted-foreground">{topPlayer.winRate != null ? `${Math.round(topPlayer.winRate)}% WR` : `${topPlayer.wins || 0}W`}</p>
+                    </div>
+                  )}
+                  {avgWinRate !== null && (
+                    <div className="tl-stat-card rounded-lg px-2.5 py-2 text-center">
+                      <span className="text-[9px] text-muted-foreground uppercase tracking-wide">📊 Avg Win Rate</span>
+                      <p className="text-lg font-bold text-foreground dark:text-white mt-0.5">{avgWinRate}%</p>
+                      <p className="text-[10px] text-muted-foreground">{leaderboard?.length || 0} players</p>
                     </div>
                   )}
                 </div>
               </div>
             )}
 
+            {matchCount > 0 && (
+              <div className="tl-section-card rounded-xl p-2.5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <Swords className="h-3 w-3 text-emerald-500 tl-section-icon" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Match Insights</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="tl-stat-card rounded-lg p-2 text-center">
+                    <span className="text-lg font-bold text-foreground dark:text-white">{matchesPlayed}</span>
+                    <p className="text-[9px] text-muted-foreground">Matches</p>
+                  </div>
+                  <div className="tl-stat-card rounded-lg p-2 text-center">
+                    <span className="text-lg font-bold text-foreground dark:text-white">{leaderboard?.length || 0}</span>
+                    <p className="text-[9px] text-muted-foreground">Ranked</p>
+                  </div>
+                  {avgDifficulty && (
+                    <div className="tl-stat-card rounded-lg p-2 text-center">
+                      <span className="text-lg font-bold text-foreground dark:text-white">{avgDifficulty}</span>
+                      <p className="text-[9px] text-muted-foreground">Difficulty</p>
+                    </div>
+                  )}
+                </div>
+                {session.matchMode && (
+                  <div className="mt-2 flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">🔁 Mode:</span>
+                    <span className={`text-[10px] font-semibold ${session.matchMode === "COMPETITIVE" ? "text-red-500" : session.matchMode === "TRAINING" ? "text-violet-500" : "text-blue-500"}`}>
+                      {session.matchMode}
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
             {leaderboard && leaderboard.length > 0 && (
-              <div>
+              <div className="tl-section-card rounded-xl p-2.5">
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <Trophy className="h-3 w-3 text-muted-foreground/70" />
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Top Players</span>
+                  <Trophy className="h-3 w-3 text-amber-500 tl-section-icon" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Leaderboard</span>
                 </div>
                 <div className="space-y-1">
                   {leaderboard.slice(0, 3).map((p: any, i: number) => (
-                    <div key={p.profileId || i} className="flex items-center justify-between bg-muted/25 dark:bg-muted/15 rounded-md px-2.5 py-1.5" data-testid={`expanded-rank-${i}`}>
+                    <div key={p.profileId || i} className="flex items-center justify-between tl-stat-card rounded-md px-2.5 py-1.5" data-testid={`expanded-rank-${i}`}>
                       <div className="flex items-center gap-2">
                         <span className={`text-[11px] font-bold w-4 text-center ${i === 0 ? "text-amber-500" : i === 1 ? "text-gray-400" : "text-amber-700"}`}>
-                          {i + 1}
+                          {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
                         </span>
                         <span className="text-[11px] text-foreground dark:text-white/80">{p.fullName || "Player"}</span>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span>{p.wins || 0}W</span>
-                        <span>{p.losses || 0}L</span>
+                        <span className="text-emerald-500">{p.wins || 0}W</span>
+                        <span className="text-red-400">{p.losses || 0}L</span>
                         <span className="font-medium text-foreground dark:text-white/70">{p.played || 0}P</span>
                       </div>
                     </div>
@@ -475,6 +571,12 @@ function TimelineSessionCard({
 
   const intensity = getIntensityLevel(session);
   const isElite = intensity.label === "ELITE";
+  useCurrentTime(60000);
+  const liveStatus = getSessionLiveStatus(session);
+  const isRealTimeLive = liveStatus === "live";
+  const isRealTimePast = liveStatus === "past";
+  const energyScore = computeEnergyScore(session);
+  const hype = getSessionHype(session);
 
   const accentColor = session.matchMode === "TRAINING"
     ? "bg-violet-500" : session.matchMode === "COMPETITIVE"
@@ -499,12 +601,12 @@ function TimelineSessionCard({
       aria-controls={`session-details-${session.id}`}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}
       className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
-        isPast ? "opacity-55" : ""
-      } ${isElite && !isPast ? "ring-1 ring-amber-400/30" : ""} ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
+        isRealTimePast ? "opacity-55" : ""
+      } ${isElite && !isRealTimePast ? "ring-1 ring-amber-400/30" : ""} ${isRealTimeLive ? "tl-live-card-glow" : ""} ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
       onClick={handleCardClick}
       data-testid={`timeline-session-${session.id}`}
     >
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${accentColor}`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isRealTimeLive ? "bg-green-500 tl-live-stripe" : accentColor}`} />
 
       <div className={`p-4 pl-5 border rounded-xl backdrop-blur-sm shadow-sm ${
         isSignedUp ? "border-emerald-400/50 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
@@ -516,11 +618,14 @@ function TimelineSessionCard({
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
             <h4 className="font-bold text-sm sm:text-base truncate">{session.title || "Session"}</h4>
-            {isLive && (
+            {(isLive || isRealTimeLive) && (
               <span className="tl-live-badge inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white">
                 <span className="tl-live-dot w-1.5 h-1.5 rounded-full bg-white" />
                 LIVE
               </span>
+            )}
+            {isRealTimeLive && !isLive && (
+              <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-bold bg-green-500/10 text-green-600 dark:text-green-400 ring-1 ring-green-500/30">NOW</span>
             )}
             {isSignedUp && (
               <>
@@ -559,7 +664,17 @@ function TimelineSessionCard({
           </div>
         </div>
 
-        <div className="h-px bg-border/40 mb-2.5" />
+        <div className="h-px tl-gradient-divider mb-2.5" />
+
+        {hype && !isRealTimePast && (
+          <div className={`flex items-center gap-1.5 mb-2 ${hype.color}`} data-testid={`session-hype-${session.id}`}>
+            <hype.icon className="h-3 w-3" />
+            <span className="text-[10px] font-semibold">{hype.message}</span>
+            <div className="flex-1 h-[3px] rounded-full bg-muted/30 overflow-hidden max-w-[50px] ml-auto">
+              <div className={`h-full rounded-full tl-energy-micro ${energyScore > 70 ? "bg-orange-500" : energyScore > 40 ? "bg-amber-500" : "bg-blue-500"}`} style={{ "--energy-w": `${energyScore}%` } as React.CSSProperties} />
+            </div>
+          </div>
+        )}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-foreground dark:text-white/80 mb-2.5">
           {venueName && (
@@ -575,7 +690,7 @@ function TimelineSessionCard({
           {session.courtsAvailable > 0 && (
             <div className="flex items-center gap-1.5">
               <Layers className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
-              <span>{session.courtsAvailable} Court{session.courtsAvailable !== 1 ? "s" : ""}{session.hallName ? ` · ${session.hallName}` : ""}{session.courtNames && session.courtNames.length > 0 ? ` (${session.courtNames.join(", ")})` : ""}</span>
+              <span>🏟 Court{session.courtsAvailable !== 1 ? `s 1-${session.courtsAvailable}` : " 1"} Active{session.hallName ? ` · ${session.hallName}` : ""}{session.courtNames && session.courtNames.length > 0 ? ` (${session.courtNames.join(", ")})` : ""}</span>
             </div>
           )}
           {!session.courtsAvailable && (session.hallName || (session.courtNames && session.courtNames.length > 0)) && (
@@ -592,7 +707,7 @@ function TimelineSessionCard({
           )}
           <div className="flex items-center gap-1.5">
             <Timer className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
-            <span>{session.durationMinutes >= 60 ? `${Math.floor(session.durationMinutes / 60)}h${session.durationMinutes % 60 > 0 ? ` ${session.durationMinutes % 60}m` : ""}` : `${session.durationMinutes}m`}</span>
+            <span>⏱ {session.durationMinutes >= 60 ? `${Math.floor(session.durationMinutes / 60)}h${session.durationMinutes % 60 > 0 ? ` ${session.durationMinutes % 60}m` : ""}` : `${session.durationMinutes}m`} Session</span>
           </div>
         </div>
 
@@ -651,8 +766,9 @@ function TimelineSessionCard({
                   <div
                     key={i}
                     className={`w-[5px] h-[10px] rounded-[1px] ${
-                      i < filledBlocks ? barColor : "bg-muted/50 dark:bg-muted/40"
+                      i < filledBlocks ? `${barColor} tl-cap-block ${isFull && i === filledBlocks - 1 ? "tl-cap-pulse-only" : ""}` : "bg-muted/50 dark:bg-muted/40"
                     }`}
+                    style={i < filledBlocks ? { animationDelay: `${i * 60}ms` } as React.CSSProperties : undefined}
                   />
                 ));
               })()}
@@ -1374,6 +1490,120 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
           animation: tl-livePulse 2s ease-in-out infinite;
           animation-fill-mode: none;
         }
+        @keyframes tl-liveCardGlow {
+          0%, 100% { box-shadow: 0 0 8px 0px rgba(34, 197, 94, 0.15); }
+          50% { box-shadow: 0 0 20px 4px rgba(34, 197, 94, 0.25); }
+        }
+        .tl-live-card-glow {
+          animation: tl-liveCardGlow 3s ease-in-out infinite;
+        }
+        @keyframes tl-liveStripe {
+          0% { background-position: 0 0; }
+          100% { background-position: 0 20px; }
+        }
+        .tl-live-stripe {
+          background: repeating-linear-gradient(
+            0deg,
+            rgba(34,197,94,1) 0px,
+            rgba(34,197,94,1) 6px,
+            rgba(34,197,94,0.5) 6px,
+            rgba(34,197,94,0.5) 10px
+          );
+          background-size: 100% 20px;
+          animation: tl-liveStripe 1s linear infinite;
+        }
+        .tl-gradient-divider {
+          background: linear-gradient(90deg, transparent, hsl(var(--primary) / 0.3), transparent);
+        }
+        @keyframes tl-capBlockIn {
+          from { transform: scaleY(0); opacity: 0; }
+          to { transform: scaleY(1); opacity: 1; }
+        }
+        .tl-cap-block {
+          animation: tl-capBlockIn 0.4s ease-out both;
+          transform-origin: bottom;
+        }
+        @keyframes tl-capPulse {
+          0%, 100% { box-shadow: 0 0 3px 0px currentColor; }
+          50% { box-shadow: 0 0 8px 2px currentColor; }
+        }
+        .tl-cap-pulse-only {
+          animation: tl-capBlockIn 0.4s ease-out both, tl-capPulse 1.5s ease-in-out 0.4s infinite;
+        }
+        @keyframes tl-energyMicro {
+          from { width: 0%; }
+          to { width: var(--energy-w); }
+        }
+        .tl-energy-micro {
+          animation: tl-energyMicro 0.8s ease-out 0.3s both;
+        }
+        @keyframes tl-energyBarGrow {
+          from { width: 0%; }
+          to { width: var(--energy-width); }
+        }
+        .tl-energy-bar {
+          width: var(--energy-width);
+          animation: tl-energyBarGrow 1s ease-out both;
+        }
+        .tl-energy-track {
+          box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
+        }
+        .tl-dropdown-panel {
+          background: rgba(255,255,255,0.6);
+          backdrop-filter: blur(16px) saturate(1.8);
+          -webkit-backdrop-filter: blur(16px) saturate(1.8);
+          border: 1px solid rgba(255,255,255,0.3);
+          box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
+        }
+        .dark .tl-dropdown-panel {
+          background: rgba(30,30,40,0.6);
+          border: 1px solid rgba(255,255,255,0.08);
+          box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.2);
+        }
+        .tl-insight-card {
+          background: linear-gradient(135deg, rgba(251,146,60,0.05), rgba(239,68,68,0.05));
+          border: 1px solid rgba(251,146,60,0.15);
+        }
+        .dark .tl-insight-card {
+          background: linear-gradient(135deg, rgba(251,146,60,0.08), rgba(239,68,68,0.05));
+          border: 1px solid rgba(251,146,60,0.2);
+        }
+        .tl-section-card {
+          background: rgba(0,0,0,0.02);
+          border: 1px solid rgba(0,0,0,0.04);
+        }
+        .dark .tl-section-card {
+          background: rgba(255,255,255,0.03);
+          border: 1px solid rgba(255,255,255,0.06);
+        }
+        .tl-stat-card {
+          background: rgba(0,0,0,0.03);
+        }
+        .dark .tl-stat-card {
+          background: rgba(255,255,255,0.04);
+        }
+        @keyframes tl-sectionIconGlow {
+          0%, 100% { filter: drop-shadow(0 0 2px currentColor); }
+          50% { filter: drop-shadow(0 0 6px currentColor); }
+        }
+        .tl-section-icon {
+          animation: tl-sectionIconGlow 3s ease-in-out infinite;
+        }
+        .tl-now-marker {
+          position: relative;
+        }
+        .tl-now-marker::before {
+          content: '';
+          position: absolute;
+          left: 50%;
+          top: 50%;
+          transform: translate(-50%, -50%);
+          width: 24px;
+          height: 24px;
+          border-radius: 50%;
+          background: radial-gradient(circle, hsl(var(--primary) / 0.3), transparent 70%);
+          animation: tl-nodeGlow 2s ease-in-out infinite;
+        }
         @media (prefers-reduced-motion: reduce) {
           .tl-card-anim,
           .tl-date-anim,
@@ -1381,10 +1611,18 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
           .tl-node-glow,
           .tl-node-ring,
           .tl-rail-anim,
-          .tl-connector-anim { animation: none; }
+          .tl-connector-anim,
+          .tl-live-card-glow,
+          .tl-live-stripe,
+          .tl-cap-block,
+          .tl-cap-pulse-only,
+          .tl-energy-micro,
+          .tl-section-icon { animation: none; }
           .tl-bar-fill { animation: none; transform: scaleX(1); }
           .tl-live-dot::before { animation: none; }
           .tl-live-badge { animation: none; }
+          .tl-cap-block { transform: scaleY(1); opacity: 1; }
+          .tl-energy-micro { width: var(--energy-w); }
         }
       `}</style>
 
