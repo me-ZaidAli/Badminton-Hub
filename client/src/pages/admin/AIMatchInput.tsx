@@ -18,6 +18,7 @@ import {
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
+import { useLocation } from "wouter";
 
 interface ExtractedPlayer {
   name: string;
@@ -49,6 +50,7 @@ interface PlayerSearchResult {
 export default function AIMatchInput() {
   const { data: user } = useUser();
   const { toast } = useToast();
+  const [, navigate] = useLocation();
 
   const [pendingImages, setPendingImages] = useState<{ file: File; preview: string }[]>([]);
   const [extractedMatches, setExtractedMatches] = useState<ExtractedMatch[]>([]);
@@ -59,6 +61,7 @@ export default function AIMatchInput() {
   const [createDialog, setCreateDialog] = useState<{ matchId: string; teamKey: "teamA" | "teamB"; playerIdx: number; name: string } | null>(null);
   const [playerSearch, setPlayerSearch] = useState("");
   const [newPlayerName, setNewPlayerName] = useState("");
+  const [lastSavedSession, setLastSavedSession] = useState<{ id: number; title: string; count: number } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: sessions = [] } = useQuery<any[]>({
@@ -282,10 +285,22 @@ export default function AIMatchInput() {
     },
     onSuccess: (data, savedMatches) => {
       const newSaved = data.savedCount || 0;
+      const savedSid = data.sessionId;
       setTotalSavedCount((prev) => prev + newSaved);
       const savedIds = new Set(savedMatches.map((m) => m.id));
       setExtractedMatches((prev) => prev.map((m) => savedIds.has(m.id) ? { ...m, confirmed: true } : m));
-      toast({ title: "Matches Saved", description: `${newSaved} match(es) added to the session` });
+      const sessionTitle = activeSessions.find((s: any) => String(s.id) === selectedSessionId)?.title || `Session #${savedSid}`;
+      setLastSavedSession({ id: savedSid, title: sessionTitle, count: newSaved });
+      toast({
+        title: `${newSaved} Match(es) Saved`,
+        description: `Added to "${sessionTitle}". Tap "View Session" to see them.`,
+        action: (
+          <Button size="sm" variant="outline" onClick={() => navigate(`/sessions/${savedSid}`)} data-testid="button-view-saved-session">
+            View Session
+          </Button>
+        ),
+        duration: 15000,
+      });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       if (selectedSessionId) {
         queryClient.invalidateQueries({ queryKey: ["/api/sessions", parseInt(selectedSessionId), "matches"] });
@@ -443,6 +458,21 @@ export default function AIMatchInput() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {lastSavedSession && (
+        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
+          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30" data-testid="banner-save-success">
+            <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{lastSavedSession.count} match(es) saved successfully</p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 truncate">Added to: {lastSavedSession.title}</p>
+            </div>
+            <Button size="sm" onClick={() => navigate(`/sessions/${lastSavedSession.id}`)} className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0" data-testid="button-go-to-session">
+              View Session
+            </Button>
+          </div>
+        </motion.div>
+      )}
 
       {(extractedMatches.length > 0 || pendingImages.length > 0) && (
         <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
