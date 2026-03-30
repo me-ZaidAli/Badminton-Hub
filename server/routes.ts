@@ -20784,30 +20784,51 @@ export async function registerRoutes(
     if (!isOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin access required" });
     try {
       const q = (req.query.q as string || "").trim().toLowerCase();
-      if (q.length < 2) return res.json([]);
-      const allUsers = await db.select({
-        id: users.id,
-        fullName: users.fullName,
-        email: users.email,
-      }).from(users)
-        .where(or(
-          sql`lower(${users.fullName}) LIKE ${`%${q}%`}`,
-          sql`lower(${users.email}) LIKE ${`%${q}%`}`
-        ))
-        .limit(20);
+      const fetchAll = q === "*";
+      if (!fetchAll && q.length < 2) return res.json([]);
 
-      if (isOwner) {
-        return res.json(allUsers);
+      let allUsers: { id: number; fullName: string; email: string; profileId?: number }[];
+      if (fetchAll) {
+        const rows = await db.select({
+          id: users.id,
+          fullName: users.fullName,
+          email: users.email,
+        }).from(users).limit(2000);
+        allUsers = rows;
+      } else {
+        const rows = await db.select({
+          id: users.id,
+          fullName: users.fullName,
+          email: users.email,
+        }).from(users)
+          .where(or(
+            sql`lower(${users.fullName}) LIKE ${`%${q}%`}`,
+            sql`lower(${users.email}) LIKE ${`%${q}%`}`
+          ))
+          .limit(20);
+        allUsers = rows;
       }
-      const adminClubIds = adminProfiles.map((p: any) => p.clubId);
-      const filtered: typeof allUsers = [];
-      for (const u of allUsers) {
-        const profiles = await db.select().from(playerProfiles).where(
-          and(eq(playerProfiles.userId, u.id), inArray(playerProfiles.clubId, adminClubIds))
-        );
-        if (profiles.length > 0) filtered.push(u);
+
+      let result = allUsers;
+      if (!isOwner) {
+        const adminClubIds = adminProfiles.map((p: any) => p.clubId);
+        const filtered: typeof allUsers = [];
+        for (const u of allUsers) {
+          const profiles = await db.select().from(playerProfiles).where(
+            and(eq(playerProfiles.userId, u.id), inArray(playerProfiles.clubId, adminClubIds))
+          );
+          if (profiles.length > 0) filtered.push(u);
+        }
+        result = filtered;
       }
-      res.json(filtered);
+
+      const withProfiles = await Promise.all(
+        result.map(async (u) => {
+          const profiles = await db.select({ id: playerProfiles.id }).from(playerProfiles).where(eq(playerProfiles.userId, u.id)).limit(1);
+          return { ...u, profileId: profiles[0]?.id || undefined };
+        })
+      );
+      res.json(withProfiles);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
@@ -31620,83 +31641,7 @@ Rules:
         confidence: Math.min(1, Math.max(0, parseFloat(m.confidence) || 0.5)),
       }));
 
-      // Auto-link players scoped to admin's clubs
-      const adminClubIds: number[] = isAdminOrOwner
-        ? []
-        : adminProfiles.map((p: any) => p.clubId);
-
-      let usersForLink: { id: number; fullName: string }[] = [];
-      if (isAdminOrOwner) {
-        usersForLink = await db.select({ id: users.id, fullName: users.fullName }).from(users).limit(1000);
-      } else if (adminClubIds.length > 0) {
-        const profileRows = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
-          .where(inArray(playerProfiles.clubId, adminClubIds));
-        const userIds = [...new Set(profileRows.map(r => r.userId))];
-        if (userIds.length > 0) {
-          usersForLink = await db.select({ id: users.id, fullName: users.fullName }).from(users)
-            .where(inArray(users.id, userIds));
-        }
-      }
-
-      for (const match of extractedMatches) {
-        const usedUserIds = new Set<number>();
-        const allPlayers = [...match.teamA, ...match.teamB];
-
-        const playerCandidates: { player: any; candidates: { user: any; score: number }[] }[] = [];
-        for (const player of allPlayers) {
-          const pName = (player.name || "").toLowerCase().trim();
-          if (!pName) { playerCandidates.push({ player, candidates: [] }); continue; }
-
-          const candidates: { user: any; score: number }[] = [];
-          for (const u of usersForLink) {
-            const uName = (u.fullName || "").toLowerCase().trim();
-            if (!uName) continue;
-            if (uName === pName) { candidates.push({ user: u, score: 1.0 }); continue; }
-            const pParts = pName.split(/\s+/).filter(s => s.length > 0);
-            const uParts = uName.split(/\s+/).filter(s => s.length > 0);
-            let matchParts = 0;
-            for (const pp of pParts) {
-              for (const up of uParts) {
-                if (pp === up) { matchParts++; break; }
-                if (pp.length >= 3 && up.length >= 3 && (up.includes(pp) || pp.includes(up))) { matchParts++; break; }
-              }
-            }
-            const score = matchParts / Math.max(pParts.length, uParts.length);
-            if (score >= 0.5) candidates.push({ user: u, score });
-          }
-          candidates.sort((a, b) => b.score - a.score);
-          playerCandidates.push({ player, candidates });
-        }
-
-        playerCandidates.sort((a, b) => {
-          const aTop = a.candidates[0]?.score || 0;
-          const bTop = b.candidates[0]?.score || 0;
-          return bTop - aTop;
-        });
-
-        for (const pc of playerCandidates) {
-          let linked = false;
-          for (const cand of pc.candidates) {
-            if (usedUserIds.has(cand.user.id)) continue;
-            usedUserIds.add(cand.user.id);
-            pc.player.linkedUserId = cand.user.id;
-            pc.player.linkedName = cand.user.fullName;
-            pc.player.linkedProfileId = null;
-            pc.player.confidence = Math.max(pc.player.confidence, cand.score);
-            const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, cand.user.id)).limit(1);
-            if (profiles.length > 0) {
-              pc.player.linkedProfileId = profiles[0].id;
-            }
-            linked = true;
-            break;
-          }
-          if (!linked) {
-            pc.player.linkedUserId = null;
-            pc.player.linkedName = null;
-            pc.player.linkedProfileId = null;
-          }
-        }
-      }
+      console.log(`[AI Match Extract] Extracted ${extractedMatches.length} matches from image`);
 
       res.json({ matches: extractedMatches });
     } catch (err: any) {

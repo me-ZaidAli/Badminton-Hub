@@ -371,6 +371,101 @@ export default function AIMatchInput() {
     );
   }, [extractedMatches]);
 
+  const [isLinking, setIsLinking] = useState(false);
+
+  const handleLinkAll = useCallback(async () => {
+    if (!selectedSessionId || extractedMatches.length === 0) return;
+    setIsLinking(true);
+    try {
+      const res = await fetch(`/api/admin/player-search?q=*&sessionId=${selectedSessionId}&limit=500`);
+      let allPlayers: PlayerSearchResult[] = [];
+      if (res.ok) {
+        allPlayers = await res.json();
+      }
+      if (allPlayers.length === 0) {
+        const res2 = await fetch(`/api/admin/player-search?q=*&limit=500`);
+        if (res2.ok) allPlayers = await res2.json();
+      }
+      if (allPlayers.length === 0) {
+        toast({ title: "No players found", description: "Could not find any players to match against", variant: "destructive" });
+        return;
+      }
+
+      setExtractedMatches((prev) =>
+        prev.map((match) => {
+          if (match.confirmed) return match;
+          const usedIds = new Set<number>();
+          const allSlots = [
+            ...match.teamA.map((p, i) => ({ team: "teamA" as const, idx: i, player: p })),
+            ...match.teamB.map((p, i) => ({ team: "teamB" as const, idx: i, player: p })),
+          ];
+
+          const slotCandidates = allSlots.map((slot) => {
+            if (slot.player.linkedUserId) return { ...slot, candidates: [] };
+            const pName = slot.player.name.toLowerCase().trim();
+            const candidates: { user: PlayerSearchResult; score: number }[] = [];
+            for (const u of allPlayers) {
+              const uName = (u.fullName || "").toLowerCase().trim();
+              if (!uName) continue;
+              if (uName === pName) { candidates.push({ user: u, score: 1.0 }); continue; }
+              const pParts = pName.split(/\s+/).filter((s) => s.length > 0);
+              const uParts = uName.split(/\s+/).filter((s) => s.length > 0);
+              let matchParts = 0;
+              for (const pp of pParts) {
+                for (const up of uParts) {
+                  if (pp === up) { matchParts++; break; }
+                  if (pp.length >= 3 && up.length >= 3 && (up.includes(pp) || pp.includes(up))) { matchParts++; break; }
+                }
+              }
+              const score = matchParts / Math.max(pParts.length, uParts.length);
+              if (score >= 0.5) candidates.push({ user: u, score });
+            }
+            candidates.sort((a, b) => b.score - a.score);
+            return { ...slot, candidates };
+          });
+
+          slotCandidates.sort((a, b) => {
+            const aTop = a.candidates[0]?.score || 0;
+            const bTop = b.candidates[0]?.score || 0;
+            return bTop - aTop;
+          });
+
+          const newTeamA = [...match.teamA];
+          const newTeamB = [...match.teamB];
+
+          for (const sc of slotCandidates) {
+            if (sc.player.linkedUserId) {
+              usedIds.add(sc.player.linkedUserId);
+              continue;
+            }
+            for (const cand of sc.candidates) {
+              if (usedIds.has(cand.user.id)) continue;
+              usedIds.add(cand.user.id);
+              const updated = {
+                ...sc.player,
+                linkedUserId: cand.user.id,
+                linkedProfileId: cand.user.profileId || null,
+                linkedName: cand.user.fullName,
+                confidence: cand.score,
+              };
+              if (sc.team === "teamA") newTeamA[sc.idx] = updated;
+              else newTeamB[sc.idx] = updated;
+              break;
+            }
+          }
+
+          return { ...match, teamA: newTeamA, teamB: newTeamB, edited: true };
+        })
+      );
+
+      toast({ title: "Linking Complete", description: "Matched player names to existing profiles. Review any unlinked players." });
+    } catch (err: any) {
+      toast({ title: "Linking Failed", description: err.message, variant: "destructive" });
+    } finally {
+      setIsLinking(false);
+    }
+  }, [selectedSessionId, extractedMatches, toast]);
+
   const confidenceColor = (c: number) => {
     if (c >= 0.8) return "text-emerald-600 dark:text-emerald-400";
     if (c >= 0.5) return "text-amber-600 dark:text-amber-400";
@@ -555,7 +650,20 @@ export default function AIMatchInput() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
           <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm" data-testid="warning-unlinked">
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-            <span>Some players could not be automatically matched. Please link or create them before saving.</span>
+            <span className="flex-1">Some players are not linked yet. Link them to existing profiles or create new ones.</span>
+            {selectedSessionId && (
+              <Button
+                size="sm"
+                variant="outline"
+                className="flex-shrink-0 text-violet-600 dark:text-violet-400 border-violet-300 dark:border-violet-500/40 hover:bg-violet-50 dark:hover:bg-violet-500/10"
+                onClick={handleLinkAll}
+                disabled={isLinking}
+                data-testid="button-link-all"
+              >
+                {isLinking ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5 mr-1.5" />}
+                Link All
+              </Button>
+            )}
           </div>
         </motion.div>
       )}
