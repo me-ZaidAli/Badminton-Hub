@@ -2831,13 +2831,35 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose, prefillData 
                 </FormItem>
               )} />
             </div>
-            <FormField control={form.control} name="sessionFee" render={({ field }) => (
-              <FormItem>
-                <FormLabel>Session Fee (optional)</FormLabel>
-                <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} value={field.value ?? ""} data-testid="input-recurring-fee" /></FormControl>
-                <FormMessage />
-              </FormItem>
-            )} />
+            <div className="space-y-2">
+              <p className="text-sm font-medium">Session Fees (optional, in £)</p>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField control={form.control} name="sessionFee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Standard</FormLabel>
+                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} value={field.value ?? ""} data-testid="input-recurring-fee" /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="premiumFee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Premium</FormLabel>
+                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} value={field.value ?? ""} data-testid="input-recurring-premium-fee" /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="superPremiumFee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Super Premium</FormLabel>
+                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} value={field.value ?? ""} data-testid="input-recurring-super-premium-fee" /></FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="clubMemberFee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Club Member</FormLabel>
+                    <FormControl><Input type="number" step="0.01" placeholder="0.00" {...field} onChange={(e) => field.onChange(e.target.value ? Number(e.target.value) : undefined)} value={field.value ?? ""} data-testid="input-recurring-club-member-fee" /></FormControl>
+                  </FormItem>
+                )} />
+              </div>
+            </div>
             <FormField control={form.control} name="matchMode" render={({ field }) => (
               <FormItem>
                 <FormLabel>Match Mode</FormLabel>
@@ -2900,6 +2922,9 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       durationMinutes: prefillData?.durationMinutes ?? 120,
       allowedCategories: prefillData?.allowedCategories ?? ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
       sessionFee: prefillData?.sessionFee ?? undefined,
+      premiumFee: prefillData?.premiumFee ?? undefined,
+      superPremiumFee: prefillData?.superPremiumFee ?? undefined,
+      clubMemberFee: prefillData?.clubMemberFee ?? undefined,
       shuttlecockType: prefillData?.shuttlecockType ?? undefined,
       liveStreamUrl: prefillData?.liveStreamUrl ?? undefined,
       defaultPointsToPlayTo: prefillData?.defaultPointsToPlayTo ?? 21,
@@ -3391,30 +3416,56 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                 </FormItem>
               )}
             />
-            <div className="grid grid-cols-2 gap-4">
-              <FormField
-                control={form.control}
-                name="sessionFee"
-                render={({ field }) => (
+            <div className="space-y-3">
+              <p className="text-sm font-medium">Session Fees (£) — leave empty to use club default</p>
+              <div className="grid grid-cols-2 gap-3">
+                <FormField control={form.control} name="sessionFee" render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Session Fee (£)</FormLabel>
+                    <FormLabel className="text-xs">Standard</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="number" 
-                        step="0.01"
-                        min="0"
-                        placeholder="e.g. 5.00" 
-                        {...field}
+                      <Input type="number" step="0.01" min="0" placeholder="e.g. 5.00" {...field}
                         value={field.value != null ? field.value / 100 : ""}
                         onChange={e => field.onChange(e.target.value ? Math.round(parseFloat(e.target.value) * 100) : undefined)}
-                        data-testid="input-session-fee"
-                      />
+                        data-testid="input-session-fee" />
                     </FormControl>
-                    <FormDescription>Leave empty to use club default</FormDescription>
-                    <FormMessage />
                   </FormItem>
-                )}
-              />
+                )} />
+                <FormField control={form.control} name="premiumFee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Premium</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" min="0" placeholder="e.g. 4.00" {...field}
+                        value={field.value != null ? field.value / 100 : ""}
+                        onChange={e => field.onChange(e.target.value ? Math.round(parseFloat(e.target.value) * 100) : undefined)}
+                        data-testid="input-premium-fee" />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="superPremiumFee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Super Premium</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" min="0" placeholder="e.g. 3.00" {...field}
+                        value={field.value != null ? field.value / 100 : ""}
+                        onChange={e => field.onChange(e.target.value ? Math.round(parseFloat(e.target.value) * 100) : undefined)}
+                        data-testid="input-super-premium-fee" />
+                    </FormControl>
+                  </FormItem>
+                )} />
+                <FormField control={form.control} name="clubMemberFee" render={({ field }) => (
+                  <FormItem>
+                    <FormLabel className="text-xs">Club Member</FormLabel>
+                    <FormControl>
+                      <Input type="number" step="0.01" min="0" placeholder="e.g. 3.50" {...field}
+                        value={field.value != null ? field.value / 100 : ""}
+                        onChange={e => field.onChange(e.target.value ? Math.round(parseFloat(e.target.value) * 100) : undefined)}
+                        data-testid="input-club-member-fee" />
+                    </FormControl>
+                  </FormItem>
+                )} />
+              </div>
+            </div>
+            <div className="grid grid-cols-2 gap-4">
               <FormField
                 control={form.control}
                 name="shuttlecockType"
@@ -3555,6 +3606,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editJuniorAgeGroups, setEditJuniorAgeGroups] = useState<string[]>([]);
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editSessionFee, setEditSessionFee] = useState("");
+  const [editPremiumFee, setEditPremiumFee] = useState("");
+  const [editSuperPremiumFee, setEditSuperPremiumFee] = useState("");
+  const [editClubMemberFee, setEditClubMemberFee] = useState("");
   const [editInvitees, setEditInvitees] = useState<Set<number>>(new Set());
   const [inviteesLoaded, setInviteesLoaded] = useState(false);
   const [editShuttlecockType, setEditShuttlecockType] = useState("");
@@ -3617,6 +3671,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditJuniorAgeGroups(session.juniorAgeGroups || []);
     setEditCategories(session.allowedCategories || ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"]);
     setEditSessionFee(session.sessionFee != null ? (session.sessionFee / 100).toFixed(2) : "");
+    setEditPremiumFee(session.premiumFee != null ? (session.premiumFee / 100).toFixed(2) : "");
+    setEditSuperPremiumFee(session.superPremiumFee != null ? (session.superPremiumFee / 100).toFixed(2) : "");
+    setEditClubMemberFee(session.clubMemberFee != null ? (session.clubMemberFee / 100).toFixed(2) : "");
     setEditShuttlecockType(session.shuttlecockType || "");
     setEditDefaultPoints(session.defaultPointsToPlayTo || 21);
     setEditVenueId(session.venueId || null);
@@ -3680,6 +3737,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       juniorAgeGroups: editJuniorAgeGroups,
       allowedCategories: editCategories,
       sessionFee: editSessionFee ? Math.round(parseFloat(editSessionFee) * 100) : null,
+      premiumFee: editPremiumFee ? Math.round(parseFloat(editPremiumFee) * 100) : null,
+      superPremiumFee: editSuperPremiumFee ? Math.round(parseFloat(editSuperPremiumFee) * 100) : null,
+      clubMemberFee: editClubMemberFee ? Math.round(parseFloat(editClubMemberFee) * 100) : null,
       shuttlecockType: editShuttlecockType || null,
       defaultPointsToPlayTo: editDefaultPoints,
       numberOfSets: editNumberOfSets,
@@ -4057,21 +4117,28 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <Label>Session Fee (£)</Label>
-              <Input
-                type="number"
-                step="0.01"
-                min="0"
-                placeholder="e.g. 5.00"
-                value={editSessionFee}
-                onChange={(e) => setEditSessionFee(e.target.value)}
-                className="mt-2"
-                data-testid="input-edit-session-fee"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Leave empty for club default</p>
+          <div className="space-y-3">
+            <p className="text-sm font-medium">Session Fees (£) — leave empty for club default</p>
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label className="text-xs">Standard</Label>
+                <Input type="number" step="0.01" min="0" placeholder="e.g. 5.00" value={editSessionFee} onChange={(e) => setEditSessionFee(e.target.value)} className="mt-1" data-testid="input-edit-session-fee" />
+              </div>
+              <div>
+                <Label className="text-xs">Premium</Label>
+                <Input type="number" step="0.01" min="0" placeholder="e.g. 4.00" value={editPremiumFee} onChange={(e) => setEditPremiumFee(e.target.value)} className="mt-1" data-testid="input-edit-premium-fee" />
+              </div>
+              <div>
+                <Label className="text-xs">Super Premium</Label>
+                <Input type="number" step="0.01" min="0" placeholder="e.g. 3.00" value={editSuperPremiumFee} onChange={(e) => setEditSuperPremiumFee(e.target.value)} className="mt-1" data-testid="input-edit-super-premium-fee" />
+              </div>
+              <div>
+                <Label className="text-xs">Club Member</Label>
+                <Input type="number" step="0.01" min="0" placeholder="e.g. 3.50" value={editClubMemberFee} onChange={(e) => setEditClubMemberFee(e.target.value)} className="mt-1" data-testid="input-edit-club-member-fee" />
+              </div>
             </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
             <div>
               <Label>Equipment Type</Label>
               <Select value={editShuttlecockType || "none"} onValueChange={(v) => setEditShuttlecockType(v === "none" ? "" : v)}>

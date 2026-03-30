@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -22,6 +22,9 @@ type SessionItem = {
   matchMode: string;
   clubId: number;
   sessionFee?: number | null;
+  premiumFee?: number | null;
+  superPremiumFee?: number | null;
+  clubMemberFee?: number | null;
   status?: string;
   genderRestriction?: string;
   sessionType?: string;
@@ -431,12 +434,16 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
                 </div>
                 <div className="space-y-1">
                   {leaderboard.slice(0, 3).map((p: any, i: number) => (
-                    <div key={p.profileId || i} className="flex items-center justify-between tl-stat-card rounded-md px-2.5 py-1.5" data-testid={`expanded-rank-${i}`}>
+                    <div key={p.profileId || i} className={`flex items-center justify-between tl-stat-card rounded-md px-2.5 py-1.5 ${i === 0 ? "tl-crown-card" : ""}`} data-testid={`expanded-rank-${i}`}>
                       <div className="flex items-center gap-2">
-                        <span className={`text-[11px] font-bold w-4 text-center ${i === 0 ? "text-amber-500" : i === 1 ? "text-gray-400" : "text-amber-700"}`}>
-                          {i === 0 ? "🥇" : i === 1 ? "🥈" : "🥉"}
-                        </span>
-                        <span className="text-[11px] text-foreground dark:text-white/80">{p.fullName || "Player"}</span>
+                        {i === 0 ? (
+                          <Crown className="h-4 w-4 text-amber-400 tl-crown-icon flex-shrink-0" />
+                        ) : (
+                          <span className={`text-[11px] font-bold w-4 text-center ${i === 1 ? "text-gray-400" : "text-amber-700"}`}>
+                            {i === 1 ? "🥈" : "🥉"}
+                          </span>
+                        )}
+                        <span className={`text-[11px] ${i === 0 ? "font-bold text-amber-600 dark:text-amber-400" : "text-foreground dark:text-white/80"}`}>{p.fullName || "Player"}</span>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                         <span className="text-emerald-500">{p.wins || 0}W</span>
@@ -445,6 +452,56 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
                       </div>
                     </div>
                   ))}
+                </div>
+                {leaderboard.length > 0 && (
+                  <div className="tl-challenge-banner mt-2 rounded-lg px-3 py-2" data-testid="challenge-banner">
+                    <div className="flex items-start gap-2">
+                      <Crown className="h-4 w-4 text-amber-400 flex-shrink-0 mt-0.5 tl-crown-icon" />
+                      <div>
+                        <p className="text-[11px] font-bold text-amber-600 dark:text-amber-400">
+                          {leaderboard[0].fullName || "Top player"} holds the crown!
+                        </p>
+                        <p className="text-[10px] text-muted-foreground mt-0.5">
+                          Think you can dethrone the leader? Join this session and claim the top spot!
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {(session.sessionFee != null || session.premiumFee != null || session.superPremiumFee != null || session.clubMemberFee != null) && (
+              <div className="tl-section-card rounded-xl p-2.5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <PoundSterling className="h-3 w-3 text-emerald-500 tl-section-icon" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Session Fees</span>
+                </div>
+                <div className="grid grid-cols-2 gap-1.5">
+                  {session.sessionFee != null && (
+                    <div className="tl-stat-card rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground">Standard</span>
+                      <span className="text-[11px] font-bold text-foreground dark:text-white">£{(session.sessionFee / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {session.premiumFee != null && (
+                    <div className="tl-stat-card rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground">Premium</span>
+                      <span className="text-[11px] font-bold text-violet-600 dark:text-violet-400">£{(session.premiumFee / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {session.superPremiumFee != null && (
+                    <div className="tl-stat-card rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground">Super Premium</span>
+                      <span className="text-[11px] font-bold text-amber-600 dark:text-amber-400">£{(session.superPremiumFee / 100).toFixed(2)}</span>
+                    </div>
+                  )}
+                  {session.clubMemberFee != null && (
+                    <div className="tl-stat-card rounded-lg px-2.5 py-1.5 flex items-center justify-between">
+                      <span className="text-[10px] text-muted-foreground">Club Member</span>
+                      <span className="text-[11px] font-bold text-blue-600 dark:text-blue-400">£{(session.clubMemberFee / 100).toFixed(2)}</span>
+                    </div>
+                  )}
                 </div>
               </div>
             )}
@@ -690,7 +747,7 @@ function TimelineSessionCard({
           {session.courtsAvailable > 0 && (
             <div className="flex items-center gap-1.5">
               <Layers className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
-              <span>🏟 Court{session.courtsAvailable !== 1 ? `s 1-${session.courtsAvailable}` : " 1"} Active{session.hallName ? ` · ${session.hallName}` : ""}{session.courtNames && session.courtNames.length > 0 ? ` (${session.courtNames.join(", ")})` : ""}</span>
+              <span>{session.courtsAvailable} Court{session.courtsAvailable !== 1 ? "s" : ""}{session.hallName ? ` · ${session.hallName}` : ""}{session.courtNames && session.courtNames.length > 0 ? ` (${session.courtNames.join(", ")})` : ""}</span>
             </div>
           )}
           {!session.courtsAvailable && (session.hallName || (session.courtNames && session.courtNames.length > 0)) && (
@@ -707,7 +764,7 @@ function TimelineSessionCard({
           )}
           <div className="flex items-center gap-1.5">
             <Timer className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
-            <span>⏱ {session.durationMinutes >= 60 ? `${Math.floor(session.durationMinutes / 60)}h${session.durationMinutes % 60 > 0 ? ` ${session.durationMinutes % 60}m` : ""}` : `${session.durationMinutes}m`} Session</span>
+            <span>{session.durationMinutes >= 60 ? `${Math.floor(session.durationMinutes / 60)}h${session.durationMinutes % 60 > 0 ? ` ${session.durationMinutes % 60}m` : ""}` : `${session.durationMinutes}m`}</span>
           </div>
         </div>
 
@@ -1036,12 +1093,25 @@ function SessionPreviewDialog({
                 </p>
               </div>
             </div>
-            {session.sessionFee != null && (
-              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50">
-                <PoundSterling className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="text-xs text-muted-foreground">Fee</p>
-                  <p className="text-sm font-medium">£{(session.sessionFee / 100).toFixed(2)}</p>
+            {(session.sessionFee != null || session.premiumFee != null || session.superPremiumFee != null || session.clubMemberFee != null) && (
+              <div className="flex items-center gap-2 p-3 rounded-lg bg-muted/50 col-span-2">
+                <PoundSterling className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <div className="flex-1">
+                  <p className="text-xs text-muted-foreground mb-1">Fees</p>
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-0.5 text-sm">
+                    {session.sessionFee != null && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Standard</span><span className="font-medium">£{(session.sessionFee / 100).toFixed(2)}</span></div>
+                    )}
+                    {session.premiumFee != null && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Premium</span><span className="font-medium text-violet-600 dark:text-violet-400">£{(session.premiumFee / 100).toFixed(2)}</span></div>
+                    )}
+                    {session.superPremiumFee != null && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Super Premium</span><span className="font-medium text-amber-600 dark:text-amber-400">£{(session.superPremiumFee / 100).toFixed(2)}</span></div>
+                    )}
+                    {session.clubMemberFee != null && (
+                      <div className="flex justify-between"><span className="text-muted-foreground">Club Member</span><span className="font-medium text-blue-600 dark:text-blue-400">£{(session.clubMemberFee / 100).toFixed(2)}</span></div>
+                    )}
+                  </div>
                 </div>
               </div>
             )}
@@ -1588,6 +1658,31 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         }
         .tl-section-icon {
           animation: tl-sectionIconGlow 3s ease-in-out infinite;
+        }
+        @keyframes tl-crownBob {
+          0%, 100% { transform: translateY(0) rotate(0deg); }
+          25% { transform: translateY(-1px) rotate(-3deg); }
+          75% { transform: translateY(-1px) rotate(3deg); }
+        }
+        .tl-crown-icon {
+          animation: tl-crownBob 3s ease-in-out infinite;
+          filter: drop-shadow(0 0 4px rgba(251, 191, 36, 0.4));
+        }
+        .tl-crown-card {
+          background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(245, 158, 11, 0.04));
+          border: 1px solid rgba(251, 191, 36, 0.2);
+        }
+        .dark .tl-crown-card {
+          background: linear-gradient(135deg, rgba(251, 191, 36, 0.1), rgba(245, 158, 11, 0.05));
+          border: 1px solid rgba(251, 191, 36, 0.25);
+        }
+        .tl-challenge-banner {
+          background: linear-gradient(135deg, rgba(251, 191, 36, 0.06), rgba(217, 119, 6, 0.04));
+          border: 1px solid rgba(251, 191, 36, 0.15);
+        }
+        .dark .tl-challenge-banner {
+          background: linear-gradient(135deg, rgba(251, 191, 36, 0.08), rgba(217, 119, 6, 0.05));
+          border: 1px solid rgba(251, 191, 36, 0.2);
         }
         .tl-now-marker {
           position: relative;

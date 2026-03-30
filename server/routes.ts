@@ -1749,6 +1749,10 @@ export async function registerRoutes(
           genderRestriction: session.genderRestriction,
           status: session.status,
           liveStreamUrl: session.liveStreamUrl,
+          sessionFee: session.sessionFee,
+          premiumFee: session.premiumFee,
+          superPremiumFee: session.superPremiumFee,
+          clubMemberFee: session.clubMemberFee,
           signupCount,
           liveMatchCount,
           queuedMatchCount,
@@ -3747,7 +3751,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, hallName } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, hallName } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -3776,6 +3780,9 @@ export async function registerRoutes(
       if (playersPerSide !== undefined) updates.playersPerSide = Number(playersPerSide);
       if (matchGenderType !== undefined) updates.matchGenderType = matchGenderType;
       if (sessionFee !== undefined) updates.sessionFee = sessionFee !== null ? Number(sessionFee) : null;
+      if (premiumFee !== undefined) updates.premiumFee = premiumFee !== null ? Number(premiumFee) : null;
+      if (superPremiumFee !== undefined) updates.superPremiumFee = superPremiumFee !== null ? Number(superPremiumFee) : null;
+      if (clubMemberFee !== undefined) updates.clubMemberFee = clubMemberFee !== null ? Number(clubMemberFee) : null;
       if (shuttlecockType !== undefined) updates.shuttlecockType = shuttlecockType || null;
       if (defaultPointsToPlayTo !== undefined) updates.defaultPointsToPlayTo = Number(defaultPointsToPlayTo);
       if (queueTargetSize !== undefined) updates.queueTargetSize = Number(queueTargetSize);
