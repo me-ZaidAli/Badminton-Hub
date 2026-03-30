@@ -31724,7 +31724,6 @@ Rules:
       const sessionId = parseInt(matchData[0]?.sessionId);
       if (!sessionId || isNaN(sessionId)) return res.status(400).json({ message: "Valid session ID is required" });
 
-      // Ensure ALL matches reference same session
       if (!matchData.every((m: any) => parseInt(m.sessionId) === sessionId)) {
         return res.status(400).json({ message: "All matches must belong to the same session" });
       }
@@ -31732,13 +31731,11 @@ Rules:
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
-      // Enforce club-level authorization
       const clubId = (session as any).clubId;
       if (!hasAdminAccessToClub(currentUser, clubId)) {
         return res.status(403).json({ message: "No admin access to this session's club" });
       }
 
-      // Validate each match
       for (const m of matchData) {
         if (typeof m.scoreA !== "number" || typeof m.scoreB !== "number" || m.scoreA < 0 || m.scoreB < 0) {
           return res.status(400).json({ message: "Invalid scores: must be non-negative numbers" });
@@ -31749,31 +31746,48 @@ Rules:
         }
       }
 
-      async function resolveProfileId(userId: number | null): Promise<number | null> {
-        if (!userId) return null;
-        const profiles = await db.select().from(playerProfiles)
-          .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, clubId)))
-          .limit(1);
-        if (profiles.length > 0) return profiles[0].id;
-        // Auto-create profile for this club
-        const [newProfile] = await db.insert(playerProfiles).values({
-          userId: userId,
-          clubId: clubId,
-          clubRole: "PLAYER",
-        }).returning();
-        return newProfile.id;
-      }
-
       let savedCount = 0;
-      // Use transaction for atomicity
       await db.transaction(async (tx) => {
+        const profileCache = new Map<number, number>();
+
+        async function resolveProfileId(userId: number | null): Promise<number | null> {
+          if (!userId) return null;
+          if (profileCache.has(userId)) return profileCache.get(userId)!;
+          const profiles = await tx.select().from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, clubId)))
+            .limit(1);
+          if (profiles.length > 0) {
+            profileCache.set(userId, profiles[0].id);
+            return profiles[0].id;
+          }
+          const [newProfile] = await tx.insert(playerProfiles).values({
+            userId: userId,
+            clubId: clubId,
+            clubRole: "PLAYER",
+          }).returning();
+          profileCache.set(userId, newProfile.id);
+          return newProfile.id;
+        }
+
+        const existingSignups = await tx.select({ id: sessionSignups.id, playerId: sessionSignups.playerId, signupStatus: sessionSignups.signupStatus })
+          .from(sessionSignups)
+          .where(eq(sessionSignups.sessionId, sessionId));
+        const signupMap = new Map(existingSignups.map(s => [s.playerId, s]));
+        const processedProfileIds = new Set<number>();
+
         for (const m of matchData) {
           const p1a = await resolveProfileId(m.teamAPlayer1Id);
           const p2a = await resolveProfileId(m.teamAPlayer2Id);
           const p1b = await resolveProfileId(m.teamBPlayer1Id);
           const p2b = await resolveProfileId(m.teamBPlayer2Id);
 
-          const [newMatch] = await tx.insert(matches).values({
+          const slotIds = [p1a, p2a, p1b, p2b].filter(Boolean) as number[];
+          const uniqueSlotIds = new Set(slotIds);
+          if (uniqueSlotIds.size !== slotIds.length) {
+            throw new Error("Duplicate player in the same match is not allowed");
+          }
+
+          await tx.insert(matches).values({
             sessionId: sessionId,
             teamAPlayer1Id: p1a,
             teamAPlayer2Id: p2a,
@@ -31788,17 +31802,46 @@ Rules:
             scoreEnteredAt: new Date(),
             courtNumber: null,
             queuePosition: null,
-          }).returning();
+          });
 
-          // Update player stats
-          const playerIds = [p1a, p2a, p1b, p2b].filter(Boolean) as number[];
-          for (const pid of playerIds) {
+          for (const pid of slotIds) {
             const isTeamA = pid === p1a || pid === p2a;
             const won = isTeamA ? m.scoreA > m.scoreB : m.scoreB > m.scoreA;
             await tx.update(playerProfiles).set({
               matchesPlayed: sql`COALESCE(matches_played, 0) + 1`,
               ...(won ? { matchesWon: sql`COALESCE(matches_won, 0) + 1` } : {}),
             }).where(eq(playerProfiles.id, pid));
+
+            if (!processedProfileIds.has(pid)) {
+              processedProfileIds.add(pid);
+              const existing = signupMap.get(pid);
+              if (existing) {
+                if (existing.signupStatus !== "CONFIRMED") {
+                  await tx.update(sessionSignups).set({
+                    signupStatus: "CONFIRMED",
+                    attendanceStatus: "ATTENDED",
+                  }).where(eq(sessionSignups.id, existing.id));
+                } else {
+                  await tx.update(sessionSignups).set({
+                    attendanceStatus: "ATTENDED",
+                  }).where(eq(sessionSignups.id, existing.id));
+                }
+              } else {
+                const sessionFee = (session as any).sessionFee || 0;
+                await tx.insert(sessionSignups).values({
+                  sessionId: sessionId,
+                  playerId: pid,
+                  fee: sessionFee,
+                  paymentStatus: "UNPAID",
+                  paymentMethod: "NONE",
+                  signupStatus: "CONFIRMED",
+                  attendanceStatus: "ATTENDED",
+                  signupTime: new Date(),
+                  signedUpByUserId: currentUser.id,
+                });
+                signupMap.set(pid, { id: -1, playerId: pid, signupStatus: "CONFIRMED" });
+              }
+            }
           }
 
           savedCount++;
