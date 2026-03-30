@@ -14,7 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import {
   Upload, ScanText, ChevronDown, ChevronRight, Check, AlertTriangle,
   Pencil, Trash2, UserPlus, Link2, Loader2, Sparkles, ImageIcon,
-  X, Save, Users, Trophy, Calendar, CheckCircle2, Clock, Shield
+  X, Save, Users, Trophy, Calendar, CheckCircle2, Clock, Shield, Plus
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -50,12 +50,11 @@ export default function AIMatchInput() {
   const { data: user } = useUser();
   const { toast } = useToast();
 
-  const [selectedImage, setSelectedImage] = useState<File | null>(null);
-  const [imagePreview, setImagePreview] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<{ file: File; preview: string }[]>([]);
   const [extractedMatches, setExtractedMatches] = useState<ExtractedMatch[]>([]);
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [isExtracting, setIsExtracting] = useState(false);
-  const [savedCount, setSavedCount] = useState(0);
+  const [totalSavedCount, setTotalSavedCount] = useState(0);
   const [linkDialog, setLinkDialog] = useState<{ matchId: string; teamKey: "teamA" | "teamB"; playerIdx: number } | null>(null);
   const [createDialog, setCreateDialog] = useState<{ matchId: string; teamKey: "teamA" | "teamB"; playerIdx: number; name: string } | null>(null);
   const [playerSearch, setPlayerSearch] = useState("");
@@ -86,70 +85,92 @@ export default function AIMatchInput() {
   }, [sessions]);
 
   const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      toast({ title: "Invalid file", description: "Please select an image file", variant: "destructive" });
-      return;
-    }
-    if (file.size > 10 * 1024 * 1024) {
-      toast({ title: "File too large", description: "Maximum file size is 10MB", variant: "destructive" });
-      return;
-    }
-    setSelectedImage(file);
-    const reader = new FileReader();
-    reader.onload = (ev) => setImagePreview(ev.target?.result as string);
-    reader.readAsDataURL(file);
-    setExtractedMatches([]);
-    setSavedCount(0);
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
+    const validFiles: { file: File; preview: string }[] = [];
+    let skipped = 0;
+    const readPromises = files.map((file) => {
+      if (!file.type.startsWith("image/")) { skipped++; return Promise.resolve(); }
+      if (file.size > 10 * 1024 * 1024) { skipped++; return Promise.resolve(); }
+      return new Promise<void>((resolve) => {
+        const reader = new FileReader();
+        reader.onload = (ev) => {
+          validFiles.push({ file, preview: ev.target?.result as string });
+          resolve();
+        };
+        reader.onerror = () => resolve();
+        reader.readAsDataURL(file);
+      });
+    });
+    Promise.all(readPromises).then(() => {
+      if (validFiles.length > 0) {
+        setPendingImages((prev) => [...prev, ...validFiles]);
+      }
+      if (skipped > 0) {
+        toast({ title: "Some files skipped", description: `${skipped} file(s) were invalid or too large (max 10MB)`, variant: "destructive" });
+      }
+    });
+    if (e.target) e.target.value = "";
   }, [toast]);
 
   const handleExtract = useCallback(async () => {
-    if (!selectedImage) return;
+    if (pendingImages.length === 0) return;
     setIsExtracting(true);
+    let totalNew = 0;
+    const timestamp = Date.now();
     try {
-      const formData = new FormData();
-      formData.append("image", selectedImage);
-      const res = await fetch("/api/admin/ai-match-extract", {
-        method: "POST",
-        body: formData,
-      });
-      if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.message || "Extraction failed");
+      for (let imgIdx = 0; imgIdx < pendingImages.length; imgIdx++) {
+        const img = pendingImages[imgIdx];
+        const formData = new FormData();
+        formData.append("image", img.file);
+        const res = await fetch("/api/admin/ai-match-extract", {
+          method: "POST",
+          body: formData,
+        });
+        if (!res.ok) {
+          const err = await res.json();
+          toast({ title: `Image ${imgIdx + 1} failed`, description: err.message || "Extraction failed", variant: "destructive" });
+          continue;
+        }
+        const data = await res.json();
+        const parsed: ExtractedMatch[] = (data.matches || []).map((m: any, i: number) => ({
+          id: `ai-match-${timestamp}-${imgIdx}-${i}`,
+          teamA: (m.teamA || []).map((p: any) => ({
+            name: p.name || "Unknown",
+            linkedProfileId: p.linkedProfileId || null,
+            linkedUserId: p.linkedUserId || null,
+            linkedName: p.linkedName || null,
+            confidence: p.confidence ?? 0.5,
+          })),
+          teamB: (m.teamB || []).map((p: any) => ({
+            name: p.name || "Unknown",
+            linkedProfileId: p.linkedProfileId || null,
+            linkedUserId: p.linkedUserId || null,
+            linkedName: p.linkedName || null,
+            confidence: p.confidence ?? 0.5,
+          })),
+          scoreA: m.scoreA ?? 0,
+          scoreB: m.scoreB ?? 0,
+          confidence: m.confidence ?? 0.5,
+          expanded: true,
+          confirmed: false,
+          edited: false,
+        }));
+        totalNew += parsed.length;
+        setExtractedMatches((prev) => [...prev, ...parsed]);
       }
-      const data = await res.json();
-      const parsed: ExtractedMatch[] = (data.matches || []).map((m: any, i: number) => ({
-        id: `ai-match-${Date.now()}-${i}`,
-        teamA: (m.teamA || []).map((p: any) => ({
-          name: p.name || "Unknown",
-          linkedProfileId: p.linkedProfileId || null,
-          linkedUserId: p.linkedUserId || null,
-          linkedName: p.linkedName || null,
-          confidence: p.confidence ?? 0.5,
-        })),
-        teamB: (m.teamB || []).map((p: any) => ({
-          name: p.name || "Unknown",
-          linkedProfileId: p.linkedProfileId || null,
-          linkedUserId: p.linkedUserId || null,
-          linkedName: p.linkedName || null,
-          confidence: p.confidence ?? 0.5,
-        })),
-        scoreA: m.scoreA ?? 0,
-        scoreB: m.scoreB ?? 0,
-        confidence: m.confidence ?? 0.5,
-        expanded: true,
-        confirmed: false,
-        edited: false,
-      }));
-      setExtractedMatches(parsed);
-      toast({ title: "Extraction Complete", description: `Found ${parsed.length} match(es) from the image` });
+      setPendingImages([]);
+      if (totalNew > 0) {
+        toast({ title: "Extraction Complete", description: `Found ${totalNew} new match(es) from ${pendingImages.length} image(s)` });
+      } else {
+        toast({ title: "No Matches Found", description: "Could not extract any matches from the uploaded images", variant: "destructive" });
+      }
     } catch (err: any) {
       toast({ title: "Extraction Failed", description: err.message, variant: "destructive" });
     } finally {
       setIsExtracting(false);
     }
-  }, [selectedImage, toast]);
+  }, [pendingImages, toast]);
 
   const toggleMatchExpand = (matchId: string) => {
     setExtractedMatches((prev) =>
@@ -237,10 +258,12 @@ export default function AIMatchInput() {
     [selectedSessionId]
   );
 
-  const canConfirmAll = useMemo(() => {
-    if (!selectedSessionId || extractedMatches.length === 0) return false;
-    return extractedMatches.every((m) => getMatchValidation(m).length === 0);
-  }, [selectedSessionId, extractedMatches, getMatchValidation]);
+  const unsavedMatches = useMemo(() => extractedMatches.filter((m) => !m.confirmed), [extractedMatches]);
+
+  const canSaveUnsaved = useMemo(() => {
+    if (!selectedSessionId || unsavedMatches.length === 0) return false;
+    return unsavedMatches.every((m) => getMatchValidation(m).length === 0);
+  }, [selectedSessionId, unsavedMatches, getMatchValidation]);
 
   const saveMatchesMutation = useMutation({
     mutationFn: async (matches: ExtractedMatch[]) => {
@@ -257,10 +280,12 @@ export default function AIMatchInput() {
       const res = await apiRequest("POST", "/api/admin/ai-match-save", { matches: payload });
       return res.json();
     },
-    onSuccess: (data) => {
-      setSavedCount(data.savedCount || 0);
-      setExtractedMatches((prev) => prev.map((m) => ({ ...m, confirmed: true })));
-      toast({ title: "Matches Saved", description: `${data.savedCount} match(es) saved to the session` });
+    onSuccess: (data, savedMatches) => {
+      const newSaved = data.savedCount || 0;
+      setTotalSavedCount((prev) => prev + newSaved);
+      const savedIds = new Set(savedMatches.map((m) => m.id));
+      setExtractedMatches((prev) => prev.map((m) => savedIds.has(m.id) ? { ...m, confirmed: true } : m));
+      toast({ title: "Matches Saved", description: `${newSaved} match(es) added to the session` });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
     },
     onError: (err: any) => {
@@ -282,12 +307,9 @@ export default function AIMatchInput() {
   };
 
   const handleSaveAll = () => {
-    const toSave = extractedMatches.filter((m) => {
-      const errors = getMatchValidation(m);
-      return errors.length === 0;
-    });
+    const toSave = unsavedMatches.filter((m) => getMatchValidation(m).length === 0);
     if (toSave.length === 0) {
-      toast({ title: "Nothing to save", description: "No valid matches to save", variant: "destructive" });
+      toast({ title: "Nothing to save", description: "No unsaved valid matches", variant: "destructive" });
       return;
     }
     saveMatchesMutation.mutate(toSave);
@@ -330,21 +352,52 @@ export default function AIMatchInput() {
       <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
         <Card className="border-dashed border-2 hover:border-violet-400 dark:hover:border-violet-500 transition-colors" data-testid="card-image-upload">
           <CardContent className="p-6">
-            <div className="flex flex-col items-center gap-4">
-              {imagePreview ? (
-                <div className="relative w-full max-w-md">
-                  <img src={imagePreview} alt="Score sheet preview" className="rounded-xl shadow-md w-full max-h-64 object-contain" data-testid="img-preview" />
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    className="absolute top-2 right-2 bg-black/50 text-white hover:bg-black/70 rounded-full h-8 w-8"
-                    onClick={() => { setSelectedImage(null); setImagePreview(null); setExtractedMatches([]); }}
-                    data-testid="button-remove-image"
-                  >
-                    <X className="w-4 h-4" />
-                  </Button>
+            <div className="flex flex-col gap-4">
+              {pendingImages.length > 0 && (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label className="text-sm font-medium">{pendingImages.length} image(s) ready to extract</Label>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setPendingImages([])}
+                      className="text-muted-foreground h-7 text-xs"
+                      data-testid="button-clear-all-images"
+                    >
+                      <Trash2 className="w-3 h-3 mr-1" /> Clear All
+                    </Button>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {pendingImages.map((img, i) => (
+                      <div key={i} className="relative group">
+                        <img
+                          src={img.preview}
+                          alt={`Score sheet ${i + 1}`}
+                          className="w-20 h-20 rounded-lg object-cover border shadow-sm"
+                          data-testid={`img-preview-${i}`}
+                        />
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="absolute -top-1.5 -right-1.5 bg-black/60 text-white hover:bg-black/80 rounded-full h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
+                          data-testid={`button-remove-image-${i}`}
+                        >
+                          <X className="w-3 h-3" />
+                        </Button>
+                      </div>
+                    ))}
+                    <div
+                      onClick={() => fileInputRef.current?.click()}
+                      className="w-20 h-20 rounded-lg border-2 border-dashed border-muted-foreground/30 hover:border-violet-400 dark:hover:border-violet-500 flex items-center justify-center cursor-pointer transition-colors hover:bg-violet-50/50 dark:hover:bg-violet-500/5"
+                      data-testid="button-add-more-images"
+                    >
+                      <Plus className="w-5 h-5 text-muted-foreground" />
+                    </div>
+                  </div>
                 </div>
-              ) : (
+              )}
+              {pendingImages.length === 0 && (
                 <div
                   onClick={() => fileInputRef.current?.click()}
                   className="w-full py-12 flex flex-col items-center gap-3 cursor-pointer rounded-xl border-2 border-dashed border-muted-foreground/30 hover:border-violet-400 dark:hover:border-violet-500 transition-all hover:bg-violet-50/50 dark:hover:bg-violet-500/5"
@@ -354,8 +407,8 @@ export default function AIMatchInput() {
                     <ImageIcon className="w-8 h-8 text-violet-500" />
                   </div>
                   <div className="text-center">
-                    <p className="font-medium">Click to upload a score sheet</p>
-                    <p className="text-xs text-muted-foreground mt-1">Score sheets, whiteboards, screenshots - PNG, JPG up to 10MB</p>
+                    <p className="font-medium">Click to upload score sheets</p>
+                    <p className="text-xs text-muted-foreground mt-1">Score sheets, whiteboards, screenshots - PNG, JPG up to 10MB each. Select multiple files.</p>
                   </div>
                 </div>
               )}
@@ -363,33 +416,24 @@ export default function AIMatchInput() {
                 ref={fileInputRef}
                 type="file"
                 accept="image/*"
+                multiple
                 className="hidden"
                 onChange={handleImageSelect}
                 data-testid="input-file-upload"
               />
-              {selectedImage && (
-                <div className="flex gap-2 w-full max-w-md">
-                  <Button
-                    onClick={() => fileInputRef.current?.click()}
-                    variant="outline"
-                    className="flex-1"
-                    data-testid="button-change-image"
-                  >
-                    <Upload className="w-4 h-4 mr-2" /> Change Image
-                  </Button>
-                  <Button
-                    onClick={handleExtract}
-                    disabled={isExtracting}
-                    className="flex-1 bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700"
-                    data-testid="button-extract"
-                  >
-                    {isExtracting ? (
-                      <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Extracting...</>
-                    ) : (
-                      <><Sparkles className="w-4 h-4 mr-2" /> Extract Matches</>
-                    )}
-                  </Button>
-                </div>
+              {pendingImages.length > 0 && (
+                <Button
+                  onClick={handleExtract}
+                  disabled={isExtracting}
+                  className="w-full bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700"
+                  data-testid="button-extract"
+                >
+                  {isExtracting ? (
+                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Extracting from {pendingImages.length} image(s)...</>
+                  ) : (
+                    <><Sparkles className="w-4 h-4 mr-2" /> Extract Matches from {pendingImages.length} Image(s)</>
+                  )}
+                </Button>
               )}
             </div>
           </CardContent>
