@@ -287,6 +287,10 @@ export default function AIMatchInput() {
       setExtractedMatches((prev) => prev.map((m) => savedIds.has(m.id) ? { ...m, confirmed: true } : m));
       toast({ title: "Matches Saved", description: `${newSaved} match(es) added to the session` });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      if (selectedSessionId) {
+        queryClient.invalidateQueries({ queryKey: ["/api/sessions", parseInt(selectedSessionId), "matches"] });
+        queryClient.invalidateQueries({ queryKey: ["/api/sessions", parseInt(selectedSessionId), "leaderboard"] });
+      }
     },
     onError: (err: any) => {
       toast({ title: "Save Failed", description: err.message, variant: "destructive" });

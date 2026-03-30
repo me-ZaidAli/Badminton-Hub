@@ -1895,7 +1895,22 @@ export async function registerRoutes(
     res.json(leaderboard);
   });
 
-  // === PUBLIC: Session mini-leaderboard (no auth required) ===
+  // GET /api/sessions/:id/matches - Get all matches for a session
+  app.get("/api/sessions/:id/matches", async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      if (!sessionId || isNaN(sessionId)) return res.status(400).json({ message: "Invalid session ID" });
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const sessionMatches = await storage.getSessionMatches(sessionId);
+      res.json(sessionMatches);
+    } catch (err: any) {
+      console.error("[GET session matches] Error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+    // === PUBLIC: Session mini-leaderboard (no auth required) ===
   app.get("/api/sessions/:id/leaderboard", async (req, res) => {
     try {
       const sessionId = Number(req.params.id);
