@@ -31507,5 +31507,295 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     }
   });
 
+
+  // ============================================
+  // AI MATCH INPUT - Image upload + OCR extraction
+  // ============================================
+  const aiMatchUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+
+  function hasAdminAccessToClub(user: any, clubId: number): boolean {
+    if (user.role === "OWNER") return true;
+    if (user.role === "ADMIN") return true;
+    const profiles = user.playerProfiles || [];
+    return profiles.some((p: any) => p.clubId === clubId && ["ADMIN","OWNER","ORGANISER"].includes(p.clubRole));
+  }
+
+  app.post("/api/admin/ai-match-extract", aiMatchUpload.single("image"), async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const currentUser = req.user as any;
+    const isAdminOrOwner = currentUser.role === "OWNER" || currentUser.role === "ADMIN";
+    const adminProfiles = (currentUser.playerProfiles || []).filter((p: any) => ["ADMIN","OWNER","ORGANISER"].includes(p.clubRole));
+    if (!isAdminOrOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin/Organiser access required" });
+
+    try {
+      const file = req.file;
+      if (!file) return res.status(400).json({ message: "No image uploaded" });
+
+      const base64Image = file.buffer.toString("base64");
+      const mimeType = file.mimetype || "image/png";
+
+      const OpenAI = (await import("openai")).default;
+      const openai = new OpenAI({
+        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const completion = await openai.chat.completions.create({
+        model: "gpt-4o",
+        messages: [
+          {
+            role: "system",
+            content: `You are a sports score sheet OCR assistant. Extract all matches from the image. For each match, identify:
+- Team A players (1-2 names)
+- Team B players (1-2 names)
+- Score for Team A
+- Score for Team B
+- Your confidence level (0.0 to 1.0) for each player name and overall match
+
+Return ONLY valid JSON in this exact format:
+{
+  "matches": [
+    {
+      "teamA": [{"name": "Player Name", "confidence": 0.9}],
+      "teamB": [{"name": "Player Name", "confidence": 0.85}],
+      "scoreA": 21,
+      "scoreB": 15,
+      "confidence": 0.9
+    }
+  ]
+}
+
+Rules:
+- Extract ALL matches visible in the image
+- If handwriting is unclear, give lower confidence
+- Each team can have 1 or 2 players (singles or doubles)
+- Scores must be integers >= 0
+- Player names should be as accurate as possible
+- Do not invent data - only extract what you see`
+          },
+          {
+            role: "user",
+            content: [
+              { type: "text", text: "Extract all match results from this score sheet image." },
+              { type: "image_url", image_url: { url: `data:${mimeType};base64,${base64Image}` } }
+            ]
+          }
+        ],
+        max_tokens: 2000,
+        temperature: 0.1,
+      });
+
+      const rawResponse = completion.choices?.[0]?.message?.content || "{}";
+      let parsed;
+      try {
+        const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
+        parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawResponse);
+      } catch {
+        parsed = { matches: [] };
+      }
+
+      const extractedMatches = (parsed.matches || []).map((m: any) => ({
+        teamA: (m.teamA || []).slice(0, 2),
+        teamB: (m.teamB || []).slice(0, 2),
+        scoreA: Math.max(0, parseInt(m.scoreA) || 0),
+        scoreB: Math.max(0, parseInt(m.scoreB) || 0),
+        confidence: Math.min(1, Math.max(0, parseFloat(m.confidence) || 0.5)),
+      }));
+
+      // Auto-link players scoped to admin's clubs
+      const adminClubIds: number[] = isAdminOrOwner
+        ? []
+        : adminProfiles.map((p: any) => p.clubId);
+
+      let usersForLink: { id: number; fullName: string }[] = [];
+      if (isAdminOrOwner) {
+        usersForLink = await db.select({ id: users.id, fullName: users.fullName }).from(users).limit(1000);
+      } else if (adminClubIds.length > 0) {
+        const profileRows = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
+          .where(inArray(playerProfiles.clubId, adminClubIds));
+        const userIds = [...new Set(profileRows.map(r => r.userId))];
+        if (userIds.length > 0) {
+          usersForLink = await db.select({ id: users.id, fullName: users.fullName }).from(users)
+            .where(inArray(users.id, userIds));
+        }
+      }
+
+      for (const match of extractedMatches) {
+        for (const team of [match.teamA, match.teamB]) {
+          for (const player of team) {
+            const pName = (player.name || "").toLowerCase().trim();
+            if (!pName) continue;
+            let bestMatch: any = null;
+            let bestScore = 0;
+            for (const u of usersForLink) {
+              const uName = (u.fullName || "").toLowerCase().trim();
+              if (!uName) continue;
+              if (uName === pName) { bestMatch = u; bestScore = 1.0; break; }
+              const pParts = pName.split(/\s+/);
+              const uParts = uName.split(/\s+/);
+              let matchParts = 0;
+              for (const pp of pParts) {
+                for (const up of uParts) {
+                  if (up.includes(pp) || pp.includes(up)) { matchParts++; break; }
+                }
+              }
+              const score = matchParts / Math.max(pParts.length, uParts.length);
+              if (score > bestScore && score >= 0.5) {
+                bestScore = score;
+                bestMatch = u;
+              }
+            }
+            if (bestMatch) {
+              player.linkedUserId = bestMatch.id;
+              player.linkedName = bestMatch.fullName;
+              player.linkedProfileId = null;
+              player.confidence = Math.max(player.confidence, bestScore);
+              const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, bestMatch.id)).limit(1);
+              if (profiles.length > 0) {
+                player.linkedProfileId = profiles[0].id;
+              }
+            }
+          }
+        }
+      }
+
+      res.json({ matches: extractedMatches });
+    } catch (err: any) {
+      console.error("[AI Match Extract] Error:", err);
+      res.status(500).json({ message: err.message || "Failed to extract matches from image" });
+    }
+  });
+
+  app.post("/api/admin/ai-match-quick-create-player", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const currentUser = req.user as any;
+    const isAdminOrOwner = currentUser.role === "OWNER" || currentUser.role === "ADMIN";
+    const adminProfiles = (currentUser.playerProfiles || []).filter((p: any) => ["ADMIN","OWNER","ORGANISER"].includes(p.clubRole));
+    if (!isAdminOrOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin access required" });
+
+    try {
+      const { fullName } = req.body;
+      if (!fullName || typeof fullName !== "string" || !fullName.trim()) return res.status(400).json({ message: "Name is required" });
+      if (fullName.trim().length > 100) return res.status(400).json({ message: "Name too long" });
+
+      const randomPass = require("crypto").randomBytes(16).toString("hex");
+      const hashedPw = await hashPassword(randomPass);
+      const email = `ai-created-${Date.now()}@placeholder.local`;
+      const [newUser] = await db.insert(users).values({
+        username: email,
+        email: email,
+        password: hashedPw,
+        fullName: fullName.trim(),
+        role: "PLAYER",
+      }).returning();
+
+      res.json({ id: newUser.id, fullName: newUser.fullName, email: newUser.email });
+    } catch (err: any) {
+      console.error("[AI Match Quick Create] Error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/ai-match-save", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    const currentUser = req.user as any;
+
+    try {
+      const { matches: matchData } = req.body;
+      if (!matchData || !Array.isArray(matchData) || matchData.length === 0) {
+        return res.status(400).json({ message: "No matches provided" });
+      }
+
+      const sessionId = parseInt(matchData[0]?.sessionId);
+      if (!sessionId || isNaN(sessionId)) return res.status(400).json({ message: "Valid session ID is required" });
+
+      // Ensure ALL matches reference same session
+      if (!matchData.every((m: any) => parseInt(m.sessionId) === sessionId)) {
+        return res.status(400).json({ message: "All matches must belong to the same session" });
+      }
+
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+
+      // Enforce club-level authorization
+      const clubId = (session as any).clubId;
+      if (!hasAdminAccessToClub(currentUser, clubId)) {
+        return res.status(403).json({ message: "No admin access to this session's club" });
+      }
+
+      // Validate each match
+      for (const m of matchData) {
+        if (typeof m.scoreA !== "number" || typeof m.scoreB !== "number" || m.scoreA < 0 || m.scoreB < 0) {
+          return res.status(400).json({ message: "Invalid scores: must be non-negative numbers" });
+        }
+        const hasPlayers = m.teamAPlayer1Id || m.teamAPlayer2Id || m.teamBPlayer1Id || m.teamBPlayer2Id;
+        if (!hasPlayers) {
+          return res.status(400).json({ message: "Each match must have at least one player" });
+        }
+      }
+
+      async function resolveProfileId(userId: number | null): Promise<number | null> {
+        if (!userId) return null;
+        const profiles = await db.select().from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, clubId)))
+          .limit(1);
+        if (profiles.length > 0) return profiles[0].id;
+        // Auto-create profile for this club
+        const [newProfile] = await db.insert(playerProfiles).values({
+          userId: userId,
+          clubId: clubId,
+          clubRole: "PLAYER",
+        }).returning();
+        return newProfile.id;
+      }
+
+      let savedCount = 0;
+      // Use transaction for atomicity
+      await db.transaction(async (tx) => {
+        for (const m of matchData) {
+          const p1a = await resolveProfileId(m.teamAPlayer1Id);
+          const p2a = await resolveProfileId(m.teamAPlayer2Id);
+          const p1b = await resolveProfileId(m.teamBPlayer1Id);
+          const p2b = await resolveProfileId(m.teamBPlayer2Id);
+
+          const [newMatch] = await tx.insert(matches).values({
+            sessionId: sessionId,
+            teamAPlayer1Id: p1a,
+            teamAPlayer2Id: p2a,
+            teamBPlayer1Id: p1b,
+            teamBPlayer2Id: p2b,
+            scoreA: m.scoreA,
+            scoreB: m.scoreB,
+            status: "COMPLETED",
+            isCompleted: true,
+            completedAt: new Date(),
+            scoreEnteredByUserId: currentUser.id,
+            scoreEnteredAt: new Date(),
+            courtNumber: null,
+            queuePosition: null,
+          }).returning();
+
+          // Update player stats
+          const playerIds = [p1a, p2a, p1b, p2b].filter(Boolean) as number[];
+          for (const pid of playerIds) {
+            const isTeamA = pid === p1a || pid === p2a;
+            const won = isTeamA ? m.scoreA > m.scoreB : m.scoreB > m.scoreA;
+            await tx.update(playerProfiles).set({
+              matchesPlayed: sql`COALESCE(matches_played, 0) + 1`,
+              ...(won ? { matchesWon: sql`COALESCE(matches_won, 0) + 1` } : {}),
+            }).where(eq(playerProfiles.id, pid));
+          }
+
+          savedCount++;
+        }
+      });
+
+      res.json({ savedCount, sessionId });
+    } catch (err: any) {
+      console.error("[AI Match Save] Error:", err);
+      res.status(500).json({ message: err.message || "Failed to save matches" });
+    }
+  });
+
   return httpServer;
 }

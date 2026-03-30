@@ -81,6 +81,15 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Web App Manifest**: Defines PWA properties.
 - **Service Worker**: Implements network-first caching strategy.
 
+### AI Match Input System
+- **Image Upload & AI Vision OCR**: Admin/organiser/god-mode feature at `/admin/ai-match-input`. Upload score sheet images (whiteboards, screenshots) and GPT-4o vision extracts player names, teams, and scores.
+- **Auto Player Linking**: Fuzzy name matching auto-links extracted names to existing players, scoped to admin's club access.
+- **Unlinked Player Handling**: Unlinked players are highlighted with "Unlinked Player" badge. Users can search and link to existing players or quick-create new ones via modal.
+- **Session Linking**: All matches must be linked to an existing session before saving. Strict validation ensures session selected, all players linked, and valid scores.
+- **Match Save**: Saves as COMPLETED matches with `scoreEnteredByUserId` set to current admin. Updates `matchesPlayed`/`matchesWon` stats atomically in a DB transaction. Matches tagged as "AI Imported" or "AI Imported (Edited)".
+- **Security**: Club-level authorization enforced on save. All matches must belong to the same session. Profile resolution scoped to session's club.
+- **API Endpoints**: `POST /api/admin/ai-match-extract`, `POST /api/admin/ai-match-quick-create-player`, `POST /api/admin/ai-match-save`.
+
 ### APIs / Integrations
 - **OpenStreetMap Nominatim API**: Geocoding addresses.
 - **Google Calendar**: Integration for importing calendar events.
