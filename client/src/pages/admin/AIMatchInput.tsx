@@ -62,10 +62,18 @@ export default function AIMatchInput() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [newPlayerName, setNewPlayerName] = useState("");
   const [lastSavedSession, setLastSavedSession] = useState<{ id: number; title: string; count: number } | null>(null);
+  const [showCreateSession, setShowCreateSession] = useState(false);
+  const [newSessionTitle, setNewSessionTitle] = useState("");
+  const [newSessionDate, setNewSessionDate] = useState("");
+  const [newSessionClubId, setNewSessionClubId] = useState("");
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const { data: sessions = [] } = useQuery<any[]>({
     queryKey: ["/api/sessions"],
+  });
+
+  const { data: clubs = [] } = useQuery<any[]>({
+    queryKey: ["/api/clubs"],
   });
 
   const { data: searchResults = [], isFetching: isSearching } = useQuery<PlayerSearchResult[]>({
@@ -79,12 +87,10 @@ export default function AIMatchInput() {
     enabled: playerSearch.length >= 2,
   });
 
-  const activeSessions = useMemo(() => {
+  const allSessions = useMemo(() => {
     if (!sessions.length) return [];
     return sessions
-      .filter((s: any) => s.status !== "CANCELLED")
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime())
-      .slice(0, 50);
+      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
   }, [sessions]);
 
   const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
@@ -268,6 +274,31 @@ export default function AIMatchInput() {
     return unsavedMatches.every((m) => getMatchValidation(m).length === 0);
   }, [selectedSessionId, unsavedMatches, getMatchValidation]);
 
+  const createSessionMutation = useMutation({
+    mutationFn: async () => {
+      if (!newSessionTitle.trim() || !newSessionDate || !newSessionClubId) throw new Error("All fields required");
+      const res = await apiRequest("POST", "/api/sessions", {
+        title: newSessionTitle.trim(),
+        date: new Date(newSessionDate).toISOString(),
+        clubId: parseInt(newSessionClubId),
+        startTime: format(new Date(newSessionDate), "HH:mm"),
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      setSelectedSessionId(String(data.id));
+      setShowCreateSession(false);
+      setNewSessionTitle("");
+      setNewSessionDate("");
+      setNewSessionClubId("");
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      toast({ title: "Session Created", description: `"${data.title}" is ready for match import` });
+    },
+    onError: (err: any) => {
+      toast({ title: "Failed to Create Session", description: err.message, variant: "destructive" });
+    },
+  });
+
   const saveMatchesMutation = useMutation({
     mutationFn: async (matches: ExtractedMatch[]) => {
       const payload = matches.map((m) => ({
@@ -289,7 +320,7 @@ export default function AIMatchInput() {
       setTotalSavedCount((prev) => prev + newSaved);
       const savedIds = new Set(savedMatches.map((m) => m.id));
       setExtractedMatches((prev) => prev.map((m) => savedIds.has(m.id) ? { ...m, confirmed: true } : m));
-      const sessionTitle = activeSessions.find((s: any) => String(s.id) === selectedSessionId)?.title || `Session #${savedSid}`;
+      const sessionTitle = allSessions.find((s: any) => String(s.id) === selectedSessionId)?.title || `Session #${savedSid}`;
       setLastSavedSession({ id: savedSid, title: sessionTitle, count: newSaved });
       toast({
         title: `${newSaved} Match(es) Saved`,
@@ -486,10 +517,10 @@ export default function AIMatchInput() {
                     <SelectTrigger className="mt-1" data-testid="select-session">
                       <SelectValue placeholder="Select a session..." />
                     </SelectTrigger>
-                    <SelectContent>
-                      {activeSessions.map((s: any) => (
+                    <SelectContent className="max-h-[300px]">
+                      {allSessions.map((s: any) => (
                         <SelectItem key={s.id} value={String(s.id)} data-testid={`select-session-${s.id}`}>
-                          {s.title} — {format(new Date(s.date), "dd MMM yyyy HH:mm")}
+                          {format(new Date(s.date), "dd MMM yyyy")} — {s.title}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -506,6 +537,15 @@ export default function AIMatchInput() {
                   </Badge>
                 )}
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-3 w-full text-violet-600 dark:text-violet-400 border-violet-200 dark:border-violet-500/30"
+                onClick={() => setShowCreateSession(true)}
+                data-testid="button-create-session"
+              >
+                <Plus className="w-3.5 h-3.5 mr-1.5" /> Create New Session
+              </Button>
             </CardContent>
           </Card>
         </motion.div>
@@ -842,6 +882,73 @@ export default function AIMatchInput() {
                 <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
               ) : (
                 <><UserPlus className="w-4 h-4 mr-2" /> Create & Link</>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCreateSession} onOpenChange={setShowCreateSession}>
+        <DialogContent className="max-w-sm" data-testid="dialog-create-session">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calendar className="w-5 h-5 text-violet-500" /> Create New Session
+            </DialogTitle>
+            <DialogDescription>
+              Create a quick session to link your imported matches to.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-sm">Club</Label>
+              <Select value={newSessionClubId} onValueChange={setNewSessionClubId}>
+                <SelectTrigger className="mt-1" data-testid="select-new-session-club">
+                  <SelectValue placeholder="Select club..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {clubs.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)} data-testid={`select-club-${c.id}`}>
+                      {c.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label className="text-sm">Session Title</Label>
+              <Input
+                value={newSessionTitle}
+                onChange={(e) => setNewSessionTitle(e.target.value)}
+                placeholder="e.g. Club Night"
+                className="mt-1"
+                data-testid="input-new-session-title"
+              />
+            </div>
+            <div>
+              <Label className="text-sm">Date & Time</Label>
+              <Input
+                type="datetime-local"
+                value={newSessionDate}
+                onChange={(e) => setNewSessionDate(e.target.value)}
+                className="mt-1"
+                data-testid="input-new-session-date"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCreateSession(false)} data-testid="button-cancel-create-session">
+              Cancel
+            </Button>
+            <Button
+              onClick={() => createSessionMutation.mutate()}
+              disabled={!newSessionTitle.trim() || !newSessionDate || !newSessionClubId || createSessionMutation.isPending}
+              className="bg-violet-500 hover:bg-violet-600 text-white"
+              data-testid="button-confirm-create-session"
+            >
+              {createSessionMutation.isPending ? (
+                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
+              ) : (
+                <><Plus className="w-4 h-4 mr-2" /> Create Session</>
               )}
             </Button>
           </DialogFooter>
