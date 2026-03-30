@@ -31649,12 +31649,13 @@ Rules:
             const uName = (u.fullName || "").toLowerCase().trim();
             if (!uName) continue;
             if (uName === pName) { candidates.push({ user: u, score: 1.0 }); continue; }
-            const pParts = pName.split(/\s+/);
-            const uParts = uName.split(/\s+/);
+            const pParts = pName.split(/\s+/).filter(s => s.length > 0);
+            const uParts = uName.split(/\s+/).filter(s => s.length > 0);
             let matchParts = 0;
             for (const pp of pParts) {
               for (const up of uParts) {
-                if (up.includes(pp) || pp.includes(up)) { matchParts++; break; }
+                if (pp === up) { matchParts++; break; }
+                if (pp.length >= 3 && up.length >= 3 && (up.includes(pp) || pp.includes(up))) { matchParts++; break; }
               }
             }
             const score = matchParts / Math.max(pParts.length, uParts.length);
