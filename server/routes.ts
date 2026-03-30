@@ -31636,40 +31636,52 @@ Rules:
       }
 
       for (const match of extractedMatches) {
-        for (const team of [match.teamA, match.teamB]) {
-          for (const player of team) {
-            const pName = (player.name || "").toLowerCase().trim();
-            if (!pName) continue;
-            let bestMatch: any = null;
-            let bestScore = 0;
-            for (const u of usersForLink) {
-              const uName = (u.fullName || "").toLowerCase().trim();
-              if (!uName) continue;
-              if (uName === pName) { bestMatch = u; bestScore = 1.0; break; }
-              const pParts = pName.split(/\s+/);
-              const uParts = uName.split(/\s+/);
-              let matchParts = 0;
-              for (const pp of pParts) {
-                for (const up of uParts) {
-                  if (up.includes(pp) || pp.includes(up)) { matchParts++; break; }
-                }
-              }
-              const score = matchParts / Math.max(pParts.length, uParts.length);
-              if (score > bestScore && score >= 0.5) {
-                bestScore = score;
-                bestMatch = u;
+        const usedUserIds = new Set<number>();
+        const allPlayers = [...match.teamA, ...match.teamB];
+
+        const playerScores: { player: any; bestMatch: any; bestScore: number }[] = [];
+        for (const player of allPlayers) {
+          const pName = (player.name || "").toLowerCase().trim();
+          if (!pName) { playerScores.push({ player, bestMatch: null, bestScore: 0 }); continue; }
+
+          const candidates: { user: any; score: number }[] = [];
+          for (const u of usersForLink) {
+            const uName = (u.fullName || "").toLowerCase().trim();
+            if (!uName) continue;
+            if (uName === pName) { candidates.push({ user: u, score: 1.0 }); continue; }
+            const pParts = pName.split(/\s+/);
+            const uParts = uName.split(/\s+/);
+            let matchParts = 0;
+            for (const pp of pParts) {
+              for (const up of uParts) {
+                if (up.includes(pp) || pp.includes(up)) { matchParts++; break; }
               }
             }
-            if (bestMatch) {
-              player.linkedUserId = bestMatch.id;
-              player.linkedName = bestMatch.fullName;
-              player.linkedProfileId = null;
-              player.confidence = Math.max(player.confidence, bestScore);
-              const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, bestMatch.id)).limit(1);
-              if (profiles.length > 0) {
-                player.linkedProfileId = profiles[0].id;
-              }
-            }
+            const score = matchParts / Math.max(pParts.length, uParts.length);
+            if (score >= 0.5) candidates.push({ user: u, score });
+          }
+          candidates.sort((a, b) => b.score - a.score);
+          playerScores.push({ player, bestMatch: candidates.length > 0 ? candidates[0].user : null, bestScore: candidates.length > 0 ? candidates[0].score : 0 });
+        }
+
+        playerScores.sort((a, b) => b.bestScore - a.bestScore);
+
+        for (const ps of playerScores) {
+          if (!ps.bestMatch) continue;
+          if (usedUserIds.has(ps.bestMatch.id)) {
+            ps.player.linkedUserId = null;
+            ps.player.linkedName = null;
+            ps.player.linkedProfileId = null;
+            continue;
+          }
+          usedUserIds.add(ps.bestMatch.id);
+          ps.player.linkedUserId = ps.bestMatch.id;
+          ps.player.linkedName = ps.bestMatch.fullName;
+          ps.player.linkedProfileId = null;
+          ps.player.confidence = Math.max(ps.player.confidence, ps.bestScore);
+          const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, ps.bestMatch.id)).limit(1);
+          if (profiles.length > 0) {
+            ps.player.linkedProfileId = profiles[0].id;
           }
         }
       }
@@ -31782,10 +31794,6 @@ Rules:
           const p2b = await resolveProfileId(m.teamBPlayer2Id);
 
           const slotIds = [p1a, p2a, p1b, p2b].filter(Boolean) as number[];
-          const uniqueSlotIds = new Set(slotIds);
-          if (uniqueSlotIds.size !== slotIds.length) {
-            throw new Error("Duplicate player in the same match is not allowed");
-          }
 
           await tx.insert(matches).values({
             sessionId: sessionId,
