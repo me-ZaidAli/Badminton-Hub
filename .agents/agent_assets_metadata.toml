@@ -12,3 +12,15 @@ id = "KrpF-sIa-Tss54kBIBqTH"
 uri = "file://Smart-Match-Engine-Algorithm.txt"
 type = "text"
 title = "Smart Match Engine Algorithm (.txt - plain text)"
+
+[[outputs]]
+id = "fIi1vbXass4grZ09fhclq"
+uri = "file://matchEngine_copy.txt"
+type = "text"
+title = "Smart Match Engine v6 - Main Algorithm (3,132 lines)"
+
+[[outputs]]
+id = "PrgeiKiUWwTzXkOOHsX0l"
+uri = "file://matchEngineSettings_copy.txt"
+type = "text"
+title = "Match Engine Settings & Configuration (210 lines)"
