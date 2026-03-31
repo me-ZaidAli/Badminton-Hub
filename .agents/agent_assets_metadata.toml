@@ -24,3 +24,9 @@ id = "PrgeiKiUWwTzXkOOHsX0l"
 uri = "file://matchEngineSettings_copy.txt"
 type = "text"
 title = "Match Engine Settings & Configuration (210 lines)"
+
+[[outputs]]
+id = "r6-3_WzYpQcA_-oyUCET9"
+uri = "file://SmartMatchEngine_v6.docx"
+type = "word_document"
+title = "Smart Match Engine v6 — Full Algorithm (.docx)"
