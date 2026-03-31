@@ -10976,10 +10976,6 @@ export async function registerRoutes(
         return res.status(400).json({ message: "This session has already been marked as paid" });
       }
 
-      if (signup.paymentStatus === "PENDING") {
-        return res.status(400).json({ message: "Payment confirmation already submitted and awaiting admin verification" });
-      }
-
       const [session] = await db.select().from(sessions).where(eq(sessions.id, signup.sessionId));
       const [club] = session ? await db.select().from(clubs).where(eq(clubs.id, session.clubId)) : [null];
       const sessionTitle = session?.title || `Session #${signup.sessionId}`;
@@ -10987,8 +10983,6 @@ export async function registerRoutes(
       const amount = (signup.fee / 100).toFixed(2);
 
       await db.update(sessionSignups).set({
-        paymentStatus: "PENDING",
-        paymentMethod: paymentMethod,
         paymentNotes: `Player confirmed payment on ${paymentDate} via ${paymentMethod}. Awaiting admin verification.`,
       }).where(eq(sessionSignups.id, signupId));
 

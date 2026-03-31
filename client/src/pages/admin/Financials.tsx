@@ -62,6 +62,7 @@ import {
   Award,
   Star,
   RotateCcw,
+  MessageCircle,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -2221,6 +2222,11 @@ export default function Financials() {
           {entry.verifiedByAdmin && (
             <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs bg-green-50 dark:bg-green-950" data-testid={`badge-verified-${entry.signupId}`}>
               <CheckCircle className="h-3 w-3 mr-1" />Verified
+            </Badge>
+          )}
+          {entry.paymentNotes && entry.paymentNotes.includes("Player confirmed") && entry.paymentStatus !== "PAID" && (
+            <Badge variant="outline" className="no-default-hover-elevate no-default-active-elevate text-xs bg-blue-50 dark:bg-blue-950 text-blue-700 dark:text-blue-300 border-blue-300 dark:border-blue-700" data-testid={`badge-player-confirmed-${entry.signupId}`}>
+              <MessageCircle className="h-3 w-3 mr-1" />{entry.paymentNotes}
             </Badge>
           )}
         </div>
