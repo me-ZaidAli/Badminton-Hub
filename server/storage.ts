@@ -668,6 +668,16 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSessionSignup(sessionId: number, playerId: number, fee: number): Promise<SessionSignup> {
+    const existing = await db.select().from(sessionSignups).where(
+      and(
+        eq(sessionSignups.sessionId, sessionId),
+        eq(sessionSignups.playerId, playerId),
+        inArray(sessionSignups.signupStatus as any, ["CONFIRMED", "WAITING", "INVITED"])
+      )
+    ).limit(1);
+    if (existing.length > 0) {
+      return existing[0];
+    }
     const [signup] = await db.insert(sessionSignups).values({
       sessionId,
       playerId,
@@ -2016,6 +2026,19 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; paymentStatus?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup> {
+    const targetStatus = data.signupStatus || "CONFIRMED";
+    if (["CONFIRMED", "WAITING", "INVITED"].includes(targetStatus)) {
+      const existing = await db.select().from(sessionSignups).where(
+        and(
+          eq(sessionSignups.sessionId, data.sessionId),
+          eq(sessionSignups.playerId, data.playerId),
+          inArray(sessionSignups.signupStatus as any, ["CONFIRMED", "WAITING", "INVITED"])
+        )
+      ).limit(1);
+      if (existing.length > 0) {
+        return existing[0];
+      }
+    }
     const derivedStatus = data.paymentMethod === "CARD" ? "PAID" : data.paymentMethod === "BANK_TRANSFER" ? "PENDING" : data.paymentMethod === "CASH" ? "PENDING" : data.paymentMethod === "MEMBERSHIP_CREDIT" ? "PAID" : "UNPAID";
     const paymentStatus = data.paymentStatus || derivedStatus;
     const [signup] = await db.insert(sessionSignups).values({
@@ -2024,7 +2047,7 @@ export class DatabaseStorage implements IStorage {
       fee: data.fee,
       paymentStatus: paymentStatus as any,
       paymentMethod: (data.paymentMethod || "NONE") as any,
-      signupStatus: (data.signupStatus || "CONFIRMED") as any,
+      signupStatus: targetStatus as any,
       waitingListPosition: data.waitingListPosition || null,
       signedUpByUserId: data.signedUpByUserId || null,
       verifiedByAdmin: false,
