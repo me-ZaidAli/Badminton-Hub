@@ -218,14 +218,9 @@ function selectUnits(sortedUnits: SelectionUnit[]): Player[][] {
   return groups;
 }
 
-function determineGenderMode(eligible: Player[], matchIndex: number): GenderMode {
-  const femaleCount = eligible.filter(p => getEffectiveGender(p) === "FEMALE").length;
-
-  if (femaleCount >= 4) {
-    if (matchIndex % 2 === 0) return "FEMALE_ONLY";
-    return "MIXED_ROTATION";
-  }
-
+function determineGenderMode(eligible: Player[], matchIndex: number, genderType?: string): GenderMode {
+  if (genderType === "FEMALE") return "FEMALE_ONLY";
+  if (genderType === "MALE") return "OPEN";
   return "OPEN";
 }
 
@@ -431,7 +426,8 @@ function generateNextMatch(
   usedPlayerIds: Set<number>,
   priorityPlayerIds?: number[],
   playerLastPlayedRound?: Map<number, number>,
-  pairWaitTracker?: Map<string, number>
+  pairWaitTracker?: Map<string, number>,
+  genderType?: string
 ): { match: MatchResult; score: number; teamDiff: number; factors: string[]; isFallback: boolean } | null {
   const pool = eligible.filter(p => !usedPlayerIds.has(p.id));
   if (pool.length < 4) return null;
@@ -450,7 +446,7 @@ function generateNextMatch(
     return null;
   }
 
-  const genderMode = determineGenderMode(pool, matchIndex);
+  const genderMode = determineGenderMode(pool, matchIndex, genderType);
 
   const pairUnits = windowUnits.filter(u => u.type === "PAIR");
 
@@ -551,7 +547,8 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
     const result = generateNextMatch(
       eligible, q, fixedPairs || [], localCounts,
       localPairings, localOpponents, usedPlayerIds,
-      priorityPlayerIds, playerLastPlayedRound, pairWaitTracker
+      priorityPlayerIds, playerLastPlayedRound, pairWaitTracker,
+      genderType
     );
 
     if (!result) break;
