@@ -202,8 +202,8 @@ function getSessionHype(session: SessionItem, leaderboard?: any[]): { icon: type
     const streakPlayers = leaderboard.filter((p: any) => (p.winStreak || 0) >= 2);
     if (energy > 70) return { icon: Flame, message: "High energy session expected", color: "text-orange-500", priority: 1 };
     if (streakPlayers.length > 0) return { icon: Zap, message: `${streakPlayers.length} player${streakPlayers.length > 1 ? "s" : ""} on a win streak`, color: "text-amber-500", priority: 2 };
-    const avgWinRate = leaderboard.reduce((s: number, p: any) => s + (p.winRate || 0), 0) / leaderboard.length;
-    const ratings = leaderboard.map((p: any) => p.rating || p.winRate || 0);
+    const avgWinRate = leaderboard.reduce((s: number, p: any) => s + (p.winPercentage || 0), 0) / leaderboard.length;
+    const ratings = leaderboard.map((p: any) => p.rating || p.winPercentage || 0);
     const ratingVariance = ratings.length > 1 ? Math.sqrt(ratings.reduce((s, r) => s + Math.pow(r - ratings.reduce((a, b) => a + b, 0) / ratings.length, 2), 0) / ratings.length) : 0;
     if (ratingVariance < 15 && leaderboard.length >= 4) return { icon: Brain, message: "Balanced matchmaking", color: "text-blue-500", priority: 3 };
     if (avgWinRate < 40) return { icon: Snowflake, message: "Chill social session", color: "text-cyan-500", priority: 4 };
@@ -293,7 +293,9 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
   const hype = getSessionHype(session, leaderboard || undefined);
   const topPlayer = leaderboard && leaderboard.length > 0 ? leaderboard.reduce((best: any, p: any) => (!best || (p.winPercentage || 0) > (best.winPercentage || 0)) ? p : best, null) : null;
   const avgWinRate = leaderboard && leaderboard.length > 0 ? Math.round(leaderboard.reduce((s: number, p: any) => s + (p.winPercentage || 0), 0) / leaderboard.length) : null;
-  const matchCount = (session as any).matchCount || 0;
+  const matchCount = leaderboard && leaderboard.length > 0
+    ? Math.round(leaderboard.reduce((sum: number, p: any) => sum + (p.matchesPlayed || 0), 0) / 4)
+    : 0;
 
   return (
     <div
@@ -379,7 +381,7 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
                     <div className="tl-stat-card rounded-lg px-2.5 py-2 text-center">
                       <span className="text-[9px] text-muted-foreground uppercase tracking-wide">🏆 Top Player</span>
                       <p className="text-xs font-bold text-foreground dark:text-white mt-0.5 truncate">{topPlayer.fullName || "Player"}</p>
-                      <p className="text-[10px] text-muted-foreground">{topPlayer.winRate != null ? `${Math.round(topPlayer.winRate)}% WR` : `${topPlayer.wins || 0}W`}</p>
+                      <p className="text-[10px] text-muted-foreground">{topPlayer.winPercentage != null ? `${Math.round(topPlayer.winPercentage)}% WR` : `${topPlayer.matchesWon || 0}W`}</p>
                     </div>
                   )}
                   {avgWinRate !== null && (
