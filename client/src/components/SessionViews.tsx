@@ -281,9 +281,9 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
 
   const confirmedPlayers = signups?.filter((s: any) => s.signupStatus === "CONFIRMED" || !s.signupStatus) || [];
   const waitingPlayers = signups?.filter((s: any) => s.signupStatus === "WAITING") || [];
-  const matchesPlayed = leaderboard?.length ? leaderboard.reduce((max: number, p: any) => Math.max(max, p.played || 0), 0) : 0;
+  const matchesPlayed = leaderboard?.length ? leaderboard.reduce((max: number, p: any) => Math.max(max, p.matchesPlayed || 0), 0) : 0;
   const avgDifficulty = leaderboard?.length
-    ? (leaderboard.reduce((sum: number, p: any) => sum + (p.winRate || 0), 0) / leaderboard.length * 10).toFixed(1)
+    ? (leaderboard.reduce((sum: number, p: any) => sum + (p.winPercentage || 0), 0) / leaderboard.length / 10).toFixed(1)
     : null;
 
   const isLoading = signupsLoading || leaderboardLoading;
@@ -291,8 +291,8 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
 
   const energyScore = computeEnergyScore(session);
   const hype = getSessionHype(session, leaderboard || undefined);
-  const topPlayer = leaderboard && leaderboard.length > 0 ? leaderboard.reduce((best: any, p: any) => (!best || (p.winRate || 0) > (best.winRate || 0)) ? p : best, null) : null;
-  const avgWinRate = leaderboard && leaderboard.length > 0 ? Math.round(leaderboard.reduce((s: number, p: any) => s + (p.winRate || 0), 0) / leaderboard.length) : null;
+  const topPlayer = leaderboard && leaderboard.length > 0 ? leaderboard.reduce((best: any, p: any) => (!best || (p.winPercentage || 0) > (best.winPercentage || 0)) ? p : best, null) : null;
+  const avgWinRate = leaderboard && leaderboard.length > 0 ? Math.round(leaderboard.reduce((s: number, p: any) => s + (p.winPercentage || 0), 0) / leaderboard.length) : null;
   const matchCount = (session as any).matchCount || 0;
 
   return (
@@ -446,9 +446,9 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
                         <span className={`text-[11px] ${i === 0 ? "font-bold text-amber-600 dark:text-amber-400" : "text-foreground dark:text-white/80"}`}>{p.fullName || "Player"}</span>
                       </div>
                       <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                        <span className="text-emerald-500">{p.wins || 0}W</span>
-                        <span className="text-red-400">{p.losses || 0}L</span>
-                        <span className="font-medium text-foreground dark:text-white/70">{p.played || 0}P</span>
+                        <span className="text-emerald-500">{p.matchesWon || 0}W</span>
+                        <span className="text-red-400">{p.matchesLost || 0}L</span>
+                        <span className="font-medium text-foreground dark:text-white/70">{p.matchesPlayed || 0}P</span>
                       </div>
                     </div>
                   ))}
