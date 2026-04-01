@@ -20778,10 +20778,40 @@ export async function registerRoutes(
     if (!isOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin access required" });
     try {
       const q = (req.query.q as string || "").trim().toLowerCase();
+      const filterClubId = req.query.clubId ? Number(req.query.clubId) : undefined;
       const fetchAll = q === "*";
       if (!fetchAll && q.length < 2) return res.json([]);
 
+      if (filterClubId && !isOwner) {
+        const adminClubIds = adminProfiles.map((p: any) => p.clubId);
+        if (!adminClubIds.includes(filterClubId)) return res.status(403).json({ message: "No admin access to this club" });
+      }
+
       let allUsers: { id: number; fullName: string; email: string; profileId?: number }[];
+      if (filterClubId) {
+        const baseConditions = fetchAll ? [] : [
+          or(
+            sql`lower(${users.fullName}) LIKE ${`%${q}%`}`,
+            sql`lower(${users.email}) LIKE ${`%${q}%`}`
+          )
+        ];
+        const rows = await db.select({
+          id: users.id,
+          fullName: users.fullName,
+          email: users.email,
+          profileId: playerProfiles.id,
+        }).from(users)
+          .innerJoin(playerProfiles, and(
+            eq(playerProfiles.userId, users.id),
+            eq(playerProfiles.clubId, filterClubId)
+          ))
+          .where(baseConditions.length > 0 ? and(...baseConditions) : undefined)
+          .limit(fetchAll ? 2000 : 20);
+        allUsers = rows;
+        res.json(allUsers);
+        return;
+      }
+
       if (fetchAll) {
         const rows = await db.select({
           id: users.id,
@@ -31979,15 +32009,22 @@ Rules:
   app.post("/api/admin/tshirts", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const { playerId, clubId, size, printedName, paymentStatus } = req.body;
-    if (!playerId || !clubId || !size || !printedName) return res.status(400).json({ message: "Missing required fields" });
+    const { playerId, userId: targetUserId, clubId, size, printedName, paymentStatus } = req.body;
+    if ((!playerId && !targetUserId) || !clubId || !size || !printedName) return res.status(400).json({ message: "Missing required fields" });
     const canAccess = await hasAdminAccess(user.id, user.role, clubId);
     if (!canAccess) return res.sendStatus(403);
     try {
-      const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, playerId), eq(playerProfiles.clubId, clubId))).then(r => r[0]);
-      if (!profile) return res.status(400).json({ message: "Player not found in this club" });
+      let resolvedProfileId = playerId;
+      if (targetUserId) {
+        const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, targetUserId), eq(playerProfiles.clubId, clubId))).then(r => r[0]);
+        if (!profile) return res.status(400).json({ message: "Player does not have a profile in this club" });
+        resolvedProfileId = profile.id;
+      } else {
+        const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, playerId), eq(playerProfiles.clubId, clubId))).then(r => r[0]);
+        if (!profile) return res.status(400).json({ message: "Player not found in this club" });
+      }
       const [shirt] = await db.insert(tshirts).values({
-        playerId,
+        playerId: resolvedProfileId,
         clubId,
         size,
         printedName,
@@ -32198,10 +32235,12 @@ Rules:
   app.get("/api/admin/tshirts/session/:sessionId/uncollected", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const isAdmin = await isAnyClubAdmin(user.id, user.role);
-    if (!isAdmin) return res.sendStatus(403);
     try {
       const sessionId = Number(req.params.sessionId);
+      const [session] = await db.select({ clubId: sessions.clubId }).from(sessions).where(eq(sessions.id, sessionId));
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const canAccess = await hasAdminAccess(user.id, user.role, session.clubId);
+      if (!canAccess) return res.sendStatus(403);
       const signups = await db.select({ playerId: sessionSignups.playerId })
         .from(sessionSignups).where(eq(sessionSignups.sessionId, sessionId));
       const playerIds = signups.map(s => s.playerId).filter((id): id is number => id !== null);

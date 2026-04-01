@@ -44,7 +44,7 @@ export default function TshirtManager() {
   const [createOpen, setCreateOpen] = useState(false);
   const [newSize, setNewSize] = useState("");
   const [newPrintedName, setNewPrintedName] = useState("");
-  const [newPlayerId, setNewPlayerId] = useState("");
+  const [newPlayerUserId, setNewPlayerUserId] = useState("");
   const [newPayment, setNewPayment] = useState("pending");
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("");
@@ -87,13 +87,13 @@ export default function TshirtManager() {
   });
 
   const { data: playerList } = useQuery<any[]>({
-    queryKey: ["/api/admin/player-search", playerSearch],
+    queryKey: ["/api/admin/player-search", playerSearch, clubId],
     queryFn: async () => {
-      const r = await fetch(`/api/admin/player-search?q=${encodeURIComponent(playerSearch || "*")}`);
+      const r = await fetch(`/api/admin/player-search?q=${encodeURIComponent(playerSearch || "*")}${clubId ? `&clubId=${clubId}` : ""}`);
       if (!r.ok) throw new Error("Failed to search");
       return r.json();
     },
-    enabled: !!user && createOpen,
+    enabled: !!user && createOpen && !!clubId,
   });
 
   const createMutation = useMutation({
@@ -106,7 +106,7 @@ export default function TshirtManager() {
       setCreateOpen(false);
       setNewSize("");
       setNewPrintedName("");
-      setNewPlayerId("");
+      setNewPlayerUserId("");
       toast({ title: "T-shirt record created" });
     },
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
@@ -207,14 +207,14 @@ export default function TshirtManager() {
                     <div className="max-h-40 overflow-y-auto border rounded-md">
                       {playerList.slice(0, 20).map((p: any) => (
                         <button
-                          key={p.profileId}
-                          className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${String(p.profileId) === newPlayerId ? "bg-primary/10 font-semibold" : ""}`}
+                          key={p.id}
+                          className={`w-full text-left px-3 py-2 text-sm hover:bg-muted transition-colors ${String(p.id) === newPlayerUserId ? "bg-primary/10 font-semibold" : ""}`}
                           onClick={() => {
-                            setNewPlayerId(String(p.profileId));
+                            setNewPlayerUserId(String(p.id));
                             setNewPrintedName(p.fullName);
                             setPlayerSearch(p.fullName);
                           }}
-                          data-testid={`button-select-player-${p.profileId}`}
+                          data-testid={`button-select-player-${p.id}`}
                         >
                           {p.fullName}
                         </button>
@@ -251,9 +251,9 @@ export default function TshirtManager() {
                 </div>
                 <Button
                   className="w-full"
-                  disabled={!newPlayerId || !newSize || !newPrintedName || createMutation.isPending}
+                  disabled={!newPlayerUserId || !newSize || !newPrintedName || createMutation.isPending}
                   onClick={() => createMutation.mutate({
-                    playerId: Number(newPlayerId),
+                    userId: Number(newPlayerUserId),
                     clubId,
                     size: newSize,
                     printedName: newPrintedName,
