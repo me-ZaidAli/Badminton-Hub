@@ -2602,3 +2602,55 @@ export type InsertWallet = z.infer<typeof insertWalletSchema>;
 export const insertWalletTransactionSchema = createInsertSchema(walletTransactions).omit({ id: true, createdAt: true });
 export type WalletTransaction = typeof walletTransactions.$inferSelect;
 export type InsertWalletTransaction = z.infer<typeof insertWalletTransactionSchema>;
+
+export const tshirtCollectionStatusEnum = pgEnum("tshirt_collection_status", ["not_ready", "ready", "player_confirmed", "collected"]);
+export const tshirtPaymentStatusEnum = pgEnum("tshirt_payment_status", ["paid", "pending"]);
+export const tshirtRequestStatusEnum = pgEnum("tshirt_request_status", ["pending", "batched", "in_production"]);
+
+export const tshirts = pgTable("tshirts", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  size: text("size").notNull(),
+  printedName: text("printed_name").notNull(),
+  paymentStatus: tshirtPaymentStatusEnum("payment_status").default("pending").notNull(),
+  batchId: integer("batch_id"),
+  collectionStatus: tshirtCollectionStatusEnum("collection_status").default("not_ready").notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  collectedAt: timestamp("collected_at"),
+  confirmedById: integer("confirmed_by_id").references(() => users.id),
+});
+
+export const tshirtRequests = pgTable("tshirt_requests", {
+  id: serial("id").primaryKey(),
+  playerId: integer("player_id").references(() => playerProfiles.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  size: text("size").notNull(),
+  printedName: text("printed_name").notNull(),
+  status: tshirtRequestStatusEnum("tshirt_request_status").default("pending").notNull(),
+  batchId: integer("batch_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const tshirtBatches = pgTable("tshirt_batches", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  requestCount: integer("request_count").notNull(),
+  status: text("status").default("created").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertTshirtSchema = createInsertSchema(tshirts).omit({ id: true, createdAt: true, updatedAt: true, collectedAt: true, confirmedById: true });
+export type Tshirt = typeof tshirts.$inferSelect;
+export type InsertTshirt = z.infer<typeof insertTshirtSchema>;
+
+export const insertTshirtRequestSchema = createInsertSchema(tshirtRequests).omit({ id: true, createdAt: true, batchId: true, status: true });
+export type TshirtRequest = typeof tshirtRequests.$inferSelect;
+export type InsertTshirtRequest = z.infer<typeof insertTshirtRequestSchema>;
+
+export const insertTshirtBatchSchema = createInsertSchema(tshirtBatches).omit({ id: true, createdAt: true });
+export type TshirtBatch = typeof tshirtBatches.$inferSelect;
+export type InsertTshirtBatch = z.infer<typeof insertTshirtBatchSchema>;

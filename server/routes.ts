@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -31848,6 +31848,378 @@ Rules:
     } catch (err: any) {
       console.error("[AI Match Save] Error:", err);
       res.status(500).json({ message: err.message || "Failed to save matches" });
+    }
+  });
+
+  // === CLUB T-SHIRT SYSTEM ===
+
+  app.get("/api/tshirts/my", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, req.user!.id));
+      if (profiles.length === 0) return res.json([]);
+      const profileIds = profiles.map(p => p.id);
+      const result = await db.select().from(tshirts)
+        .where(and(inArray(tshirts.playerId, profileIds), eq(tshirts.isActive, true)))
+        .orderBy(desc(tshirts.createdAt));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/tshirts/my-requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, req.user!.id));
+      if (profiles.length === 0) return res.json([]);
+      const profileIds = profiles.map(p => p.id);
+      const result = await db.select().from(tshirtRequests)
+        .where(inArray(tshirtRequests.playerId, profileIds))
+        .orderBy(desc(tshirtRequests.createdAt));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/tshirts/request", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { size, printedName, clubId } = req.body;
+      if (!size || !printedName || !clubId) return res.status(400).json({ message: "Missing required fields" });
+      const profile = await db.select().from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, clubId)))
+        .then(r => r[0]);
+      if (!profile) return res.status(404).json({ message: "No player profile in this club" });
+      const existing = await db.select().from(tshirts)
+        .where(and(eq(tshirts.playerId, profile.id), eq(tshirts.isActive, true)));
+      if (existing.length > 0) return res.status(400).json({ message: "You already have an active t-shirt" });
+      const existingReq = await db.select().from(tshirtRequests)
+        .where(and(eq(tshirtRequests.playerId, profile.id), eq(tshirtRequests.status, "pending")));
+      if (existingReq.length > 0) return res.status(400).json({ message: "You already have a pending request" });
+      const [request] = await db.insert(tshirtRequests).values({
+        playerId: profile.id,
+        clubId,
+        size,
+        printedName,
+      }).returning();
+      res.json(request);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/tshirts/:id/confirm-collection", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tshirtId = Number(req.params.id);
+      const [shirt] = await db.select().from(tshirts).where(eq(tshirts.id, tshirtId));
+      if (!shirt) return res.status(404).json({ message: "T-shirt not found" });
+      const profile = await db.select().from(playerProfiles)
+        .where(and(eq(playerProfiles.id, shirt.playerId), eq(playerProfiles.userId, req.user!.id)))
+        .then(r => r[0]);
+      if (!profile) return res.status(403).json({ message: "Not your t-shirt" });
+      if (shirt.collectionStatus !== "ready") return res.status(400).json({ message: "T-shirt is not ready for collection" });
+      const [updated] = await db.update(tshirts)
+        .set({ collectionStatus: "player_confirmed", updatedAt: new Date() })
+        .where(eq(tshirts.id, tshirtId))
+        .returning();
+      await db.insert(adminAuditLogs).values({
+        actorId: req.user!.id,
+        action: "TSHIRT_PLAYER_CONFIRMED",
+        targetType: "tshirt",
+        targetId: tshirtId,
+        clubId: shirt.clubId,
+        metadata: { playerName: profile.userId },
+      });
+      await db.insert(notifications).values({
+        userId: req.user!.id,
+        type: "TSHIRT_CONFIRMED",
+        title: "T-Shirt Collection Confirmed",
+        message: "You have confirmed collecting your club t-shirt.",
+        linkUrl: "/tshirt",
+      });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/tshirts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isAdmin = await isAnyClubAdmin(user.id, user.role);
+    if (!isAdmin) return res.sendStatus(403);
+    try {
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
+      const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const conditions: any[] = [];
+      if (clubId) {
+        if (!adminClubIds.includes(clubId)) return res.sendStatus(403);
+        conditions.push(eq(tshirts.clubId, clubId));
+      } else if (adminClubIds.length > 0) {
+        conditions.push(inArray(tshirts.clubId, adminClubIds));
+      }
+      const result = await db.select({
+        tshirt: tshirts,
+        playerName: users.fullName,
+        profileId: playerProfiles.id,
+      }).from(tshirts)
+        .innerJoin(playerProfiles, eq(tshirts.playerId, playerProfiles.id))
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(tshirts.createdAt));
+      res.json(result.map(r => ({ ...r.tshirt, playerName: r.playerName, profileId: r.profileId })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/tshirts", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const { playerId, clubId, size, printedName, paymentStatus } = req.body;
+    if (!playerId || !clubId || !size || !printedName) return res.status(400).json({ message: "Missing required fields" });
+    const canAccess = await hasAdminAccess(user.id, user.role, clubId);
+    if (!canAccess) return res.sendStatus(403);
+    try {
+      const profile = await db.select().from(playerProfiles).where(and(eq(playerProfiles.id, playerId), eq(playerProfiles.clubId, clubId))).then(r => r[0]);
+      if (!profile) return res.status(400).json({ message: "Player not found in this club" });
+      const [shirt] = await db.insert(tshirts).values({
+        playerId,
+        clubId,
+        size,
+        printedName,
+        paymentStatus: paymentStatus || "pending",
+      }).returning();
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "TSHIRT_CREATED",
+        targetType: "tshirt",
+        targetId: shirt.id,
+        clubId,
+      });
+      res.json(shirt);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/admin/tshirts/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const tshirtId = Number(req.params.id);
+      const [shirt] = await db.select().from(tshirts).where(eq(tshirts.id, tshirtId));
+      if (!shirt) return res.status(404).json({ message: "T-shirt not found" });
+      const canAccess = await hasAdminAccess(user.id, user.role, shirt.clubId);
+      if (!canAccess) return res.sendStatus(403);
+      const updates: any = { updatedAt: new Date() };
+      if (req.body.size) updates.size = req.body.size;
+      if (req.body.printedName) updates.printedName = req.body.printedName;
+      if (req.body.paymentStatus) updates.paymentStatus = req.body.paymentStatus;
+      if (req.body.collectionStatus) updates.collectionStatus = req.body.collectionStatus;
+      if (req.body.isActive !== undefined) updates.isActive = req.body.isActive;
+      const [updated] = await db.update(tshirts).set(updates).where(eq(tshirts.id, tshirtId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/tshirts/:id/mark-ready", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const tshirtId = Number(req.params.id);
+      const [shirt] = await db.select().from(tshirts).where(eq(tshirts.id, tshirtId));
+      if (!shirt) return res.status(404).json({ message: "T-shirt not found" });
+      const canAccess = await hasAdminAccess(user.id, user.role, shirt.clubId);
+      if (!canAccess) return res.sendStatus(403);
+      const [updated] = await db.update(tshirts)
+        .set({ collectionStatus: "ready", updatedAt: new Date() })
+        .where(eq(tshirts.id, tshirtId)).returning();
+      const profile = await db.select().from(playerProfiles).where(eq(playerProfiles.id, shirt.playerId)).then(r => r[0]);
+      if (profile) {
+        await db.insert(notifications).values({
+          userId: profile.userId,
+          type: "TSHIRT_READY",
+          title: "T-Shirt Ready for Collection",
+          message: "Your club t-shirt is ready for collection!",
+          linkUrl: "/tshirt",
+        });
+      }
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "TSHIRT_MARKED_READY",
+        targetType: "tshirt",
+        targetId: tshirtId,
+        clubId: shirt.clubId,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/tshirts/:id/confirm-collection", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const tshirtId = Number(req.params.id);
+      const [shirt] = await db.select().from(tshirts).where(eq(tshirts.id, tshirtId));
+      if (!shirt) return res.status(404).json({ message: "T-shirt not found" });
+      const canAccess = await hasAdminAccess(user.id, user.role, shirt.clubId);
+      if (!canAccess) return res.sendStatus(403);
+      const [updated] = await db.update(tshirts)
+        .set({ collectionStatus: "collected", collectedAt: new Date(), confirmedById: user.id, updatedAt: new Date() })
+        .where(eq(tshirts.id, tshirtId)).returning();
+      const profile = await db.select().from(playerProfiles).where(eq(playerProfiles.id, shirt.playerId)).then(r => r[0]);
+      if (profile) {
+        await db.insert(notifications).values({
+          userId: profile.userId,
+          type: "TSHIRT_COLLECTED",
+          title: "T-Shirt Collection Confirmed",
+          message: "An admin has confirmed your t-shirt collection.",
+          linkUrl: "/tshirt",
+        });
+      }
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "TSHIRT_COLLECTION_CONFIRMED",
+        targetType: "tshirt",
+        targetId: tshirtId,
+        clubId: shirt.clubId,
+      });
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/tshirt-requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isAdmin = await isAnyClubAdmin(user.id, user.role);
+    if (!isAdmin) return res.sendStatus(403);
+    try {
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
+      const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const conditions: any[] = [];
+      if (clubId) {
+        if (!adminClubIds.includes(clubId)) return res.sendStatus(403);
+        conditions.push(eq(tshirtRequests.clubId, clubId));
+      } else if (adminClubIds.length > 0) {
+        conditions.push(inArray(tshirtRequests.clubId, adminClubIds));
+      }
+      const result = await db.select({
+        request: tshirtRequests,
+        playerName: users.fullName,
+      }).from(tshirtRequests)
+        .innerJoin(playerProfiles, eq(tshirtRequests.playerId, playerProfiles.id))
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(tshirtRequests.createdAt));
+      res.json(result.map(r => ({ ...r.request, playerName: r.playerName })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/tshirt-batches", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const { clubId } = req.body;
+      if (!clubId) return res.status(400).json({ message: "Club ID required" });
+      const canAccess = await hasAdminAccess(user.id, user.role, clubId);
+      if (!canAccess) return res.sendStatus(403);
+      const pendingRequests = await db.select().from(tshirtRequests)
+        .where(and(eq(tshirtRequests.clubId, clubId), eq(tshirtRequests.status, "pending")));
+      if (pendingRequests.length < 10) return res.status(400).json({ message: `Need at least 10 pending requests to create a batch. Currently have ${pendingRequests.length}.` });
+      const [batch] = await db.insert(tshirtBatches).values({
+        clubId,
+        createdById: user.id,
+        requestCount: pendingRequests.length,
+      }).returning();
+      for (const req of pendingRequests) {
+        await db.update(tshirtRequests)
+          .set({ status: "batched", batchId: batch.id })
+          .where(eq(tshirtRequests.id, req.id));
+        await db.insert(tshirts).values({
+          playerId: req.playerId,
+          clubId: req.clubId,
+          size: req.size,
+          printedName: req.printedName,
+          batchId: batch.id,
+          collectionStatus: "not_ready",
+          paymentStatus: "pending",
+        });
+      }
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "TSHIRT_BATCH_CREATED",
+        targetType: "tshirt_batch",
+        targetId: batch.id,
+        clubId,
+        metadata: { requestCount: pendingRequests.length },
+      });
+      res.json(batch);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/tshirt-batches", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isAdmin = await isAnyClubAdmin(user.id, user.role);
+    if (!isAdmin) return res.sendStatus(403);
+    try {
+      const adminClubIds = await getUserAdminClubIds(user.id, user.role);
+      const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const conditions: any[] = [];
+      if (clubId) {
+        if (!adminClubIds.includes(clubId)) return res.sendStatus(403);
+        conditions.push(eq(tshirtBatches.clubId, clubId));
+      } else if (adminClubIds.length > 0) {
+        conditions.push(inArray(tshirtBatches.clubId, adminClubIds));
+      }
+      const result = await db.select().from(tshirtBatches)
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(tshirtBatches.createdAt));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/tshirts/session/:sessionId/uncollected", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isAdmin = await isAnyClubAdmin(user.id, user.role);
+    if (!isAdmin) return res.sendStatus(403);
+    try {
+      const sessionId = Number(req.params.sessionId);
+      const signups = await db.select({ playerId: sessionSignups.playerId })
+        .from(sessionSignups).where(eq(sessionSignups.sessionId, sessionId));
+      const playerIds = signups.map(s => s.playerId).filter((id): id is number => id !== null);
+      if (playerIds.length === 0) return res.json([]);
+      const uncollected = await db.select({
+        tshirt: tshirts,
+        playerName: users.fullName,
+      }).from(tshirts)
+        .innerJoin(playerProfiles, eq(tshirts.playerId, playerProfiles.id))
+        .innerJoin(users, eq(playerProfiles.userId, users.id))
+        .where(and(
+          inArray(tshirts.playerId, playerIds),
+          eq(tshirts.isActive, true),
+          inArray(tshirts.collectionStatus, ["ready", "player_confirmed"])
+        ));
+      res.json(uncollected.map(r => ({ ...r.tshirt, playerName: r.playerName })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
     }
   });
 

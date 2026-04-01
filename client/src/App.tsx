@@ -80,6 +80,8 @@ const AdminAnnouncements = lazy(() => import("@/pages/admin/Announcements"));
 const MatchEngineLab = lazy(() => import("@/pages/admin/MatchEngineLab"));
 const MatchEngineSettingsPage = lazy(() => import("@/pages/admin/MatchEngineSettings"));
 const AIMatchInput = lazy(() => import("@/pages/admin/AIMatchInput"));
+const TshirtManager = lazy(() => import("@/pages/admin/TshirtManager"));
+const TshirtPage = lazy(() => import("@/pages/TshirtPage"));
 const Announcements = lazy(() => import("@/pages/Announcements"));
 const CalendarImport = lazy(() => import("@/pages/admin/CalendarImport"));
 const MemberImport = lazy(() => import("@/pages/admin/MemberImport"));
@@ -605,6 +607,12 @@ function Router() {
       </Route>
       <Route path="/admin/inventory">
         <PremiumRoute component={AdminInventory} />
+      </Route>
+      <Route path="/admin/tshirts">
+        <AdminRoute component={TshirtManager} />
+      </Route>
+      <Route path="/tshirt">
+        <PrivateRoute component={TshirtPage} />
       </Route>
       <Route path="/admin/referrals">
         <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><AdminReferrals /></Suspense>} />

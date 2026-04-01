@@ -16,7 +16,7 @@ import { Link, Redirect, useLocation } from "wouter";
 import { format, isPast, isFuture, subMonths, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import {
   Calendar, Trophy, Zap, Users, Clock, Loader2, ChevronRight, Activity, Megaphone, User, LogOut, Eye, Gift,
-  MapPin, Swords, CreditCard, Crown, Shield, Star, ArrowUpRight, ArrowDownRight,
+  MapPin, Swords, CreditCard, Crown, Shield, Star, ArrowUpRight, ArrowDownRight, Shirt, CheckCircle2, Package,
 } from "lucide-react";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -141,6 +141,13 @@ function DashboardContent({
       return res.json();
     },
   });
+
+  const { data: myTshirts } = useQuery<any[]>({
+    queryKey: ["/api/tshirts/my"],
+    enabled: !!user,
+  });
+
+  const activeTshirt = myTshirts?.find((t: any) => t.isActive && (t.collectionStatus === "ready" || t.collectionStatus === "player_confirmed" || t.collectionStatus === "collected"));
 
   const nextLeagueMatch = useMemo(() => {
     if (!upcomingLeagueMatches || upcomingLeagueMatches.length === 0) return null;
@@ -369,6 +376,38 @@ function DashboardContent({
           </Link>
         </CardContent>
       </Card>
+
+      {activeTshirt && (
+        <Link href="/tshirt">
+          <Card className="bg-gradient-to-br from-blue-500/5 to-indigo-500/10 border-blue-500/20 cursor-pointer hover:shadow-md transition-shadow" data-testid="card-tshirt">
+            <CardContent className="p-5">
+              <div className="flex items-center gap-3">
+                <div className="p-2.5 bg-blue-500/20 rounded-lg shrink-0">
+                  <Shirt className="h-5 w-5 text-blue-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2">
+                    <h3 className="font-bold text-sm">Club T-Shirt</h3>
+                    {activeTshirt.collectionStatus === "ready" && (
+                      <Badge className="bg-emerald-500 text-white text-[10px]">Ready</Badge>
+                    )}
+                    {activeTshirt.collectionStatus === "player_confirmed" && (
+                      <Badge className="bg-amber-500 text-white text-[10px]">Pending</Badge>
+                    )}
+                    {activeTshirt.collectionStatus === "collected" && (
+                      <Badge className="bg-blue-500 text-white text-[10px]">Collected</Badge>
+                    )}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {activeTshirt.size} • {activeTshirt.printedName}
+                  </p>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground" />
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+      )}
 
       {myLeagueSelections && myLeagueSelections.length > 0 && (
         <div className="space-y-3" data-testid="league-selections-banner">
