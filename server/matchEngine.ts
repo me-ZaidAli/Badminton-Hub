@@ -234,20 +234,42 @@ function determineGenderMode(eligible: Player[], matchIndex: number): GenderMode
   return "OPEN";
 }
 
-function applyGenderRules(group: Player[], mode: GenderMode): boolean {
+function groupHasFixedMixedPair(group: Player[], fixedPairs: FixedPair[]): boolean {
+  for (const [p1Id, p2Id] of fixedPairs) {
+    const p1 = group.find(p => p.id === p1Id);
+    const p2 = group.find(p => p.id === p2Id);
+    if (p1 && p2) {
+      const g1 = getEffectiveGender(p1);
+      const g2 = getEffectiveGender(p2);
+      if (g1 !== g2) return true;
+    }
+  }
+  return false;
+}
+
+function applyGenderRules(group: Player[], mode: GenderMode, fixedPairs?: FixedPair[]): boolean {
   const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
   const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
+  const hasFixedMixed = fixedPairs ? groupHasFixedMixedPair(group, fixedPairs) : false;
 
   if (mode === "FEMALE_ONLY") {
+    if (hasFixedMixed) return true;
     return females.length === 4;
   }
 
   if (mode === "MIXED_ROTATION") {
+    if (hasFixedMixed) return true;
     return males.length === 2 && females.length === 2;
   }
 
   if (males.length === 4 || females.length === 4) return true;
   if (males.length === 2 && females.length === 2) return true;
+
+  if (hasFixedMixed) {
+    if (males.length === 3 && females.length === 1) return true;
+    if (males.length === 1 && females.length === 3) return true;
+  }
+
   return false;
 }
 
@@ -372,14 +394,33 @@ function scoreMatch(
   return { score, teamDiff, factors };
 }
 
-function applyMixedTeamFilter(teamA: Player[], teamB: Player[]): boolean {
+function applyMixedTeamFilter(teamA: Player[], teamB: Player[], fixedPairs?: FixedPair[]): boolean {
   const males = [...teamA, ...teamB].filter(p => getEffectiveGender(p) !== "FEMALE");
   const females = [...teamA, ...teamB].filter(p => getEffectiveGender(p) === "FEMALE");
 
   if (males.length === 2 && females.length === 2) {
     const teamAMales = teamA.filter(p => getEffectiveGender(p) !== "FEMALE").length;
     const teamBMales = teamB.filter(p => getEffectiveGender(p) !== "FEMALE").length;
-    return teamAMales === 1 && teamBMales === 1;
+    if (teamAMales === 1 && teamBMales === 1) return true;
+
+    if (fixedPairs && fixedPairs.length > 0) {
+      const hasFixedMixed = groupHasFixedMixedPair([...teamA, ...teamB], fixedPairs);
+      if (hasFixedMixed) return true;
+    }
+    return false;
+  }
+
+  if ((males.length === 3 && females.length === 1) || (males.length === 1 && females.length === 3)) {
+    if (fixedPairs && fixedPairs.length > 0) {
+      for (const [p1Id, p2Id] of fixedPairs) {
+        const teamAHas1 = teamA.some(p => p.id === p1Id);
+        const teamAHas2 = teamA.some(p => p.id === p2Id);
+        const teamBHas1 = teamB.some(p => p.id === p1Id);
+        const teamBHas2 = teamB.some(p => p.id === p2Id);
+        if ((teamAHas1 && teamAHas2) || (teamBHas1 && teamBHas2)) return true;
+      }
+    }
+    return false;
   }
 
   return true;
@@ -430,17 +471,23 @@ function generateNextMatch(
     for (const group of candidateGroups) {
       const ranks = group.map(p => getGradeRank(p.grade));
       const spread = Math.max(...ranks) - Math.min(...ranks);
-      if (spread > rankSpreadLimit) continue;
 
-      if (!applyGenderRules(group, genderMode)) continue;
+      const groupHasFixed = fixedPairs.length > 0 && fixedPairs.some(([a, b]) =>
+        group.some(p => p.id === a) && group.some(p => p.id === b)
+      );
+      const effectiveSpreadLimit = groupHasFixed ? Math.max(rankSpreadLimit, 8) : rankSpreadLimit;
+      if (spread > effectiveSpreadLimit) continue;
+
+      if (!applyGenderRules(group, genderMode, fixedPairs)) continue;
 
       const teamCombos = generateTeams(group, fixedPairs);
 
       for (const [teamA, teamB] of teamCombos) {
         const diff = Math.abs(teamAvgRank(teamA) - teamAvgRank(teamB));
-        if (diff > teamDiffLimit) continue;
+        const effectiveDiffLimit = groupHasFixed ? Math.max(teamDiffLimit, 3.5) : teamDiffLimit;
+        if (diff > effectiveDiffLimit) continue;
 
-        if (!applyMixedTeamFilter(teamA, teamB)) continue;
+        if (!applyMixedTeamFilter(teamA, teamB, fixedPairs)) continue;
 
         const candidate: MatchResult = {
           teamAPlayer1Id: teamA[0].id,
