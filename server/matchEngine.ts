@@ -183,38 +183,33 @@ function buildUnits(
 
 function selectUnits(sortedUnits: SelectionUnit[]): Player[][] {
   const groups: Player[][] = [];
+  const pairs = sortedUnits.filter(u => u.type === "PAIR");
+  const singles = sortedUnits.filter(u => u.type === "SINGLE");
 
-  for (let i = 0; i < sortedUnits.length; i++) {
-    const u1 = sortedUnits[i];
+  for (let i = 0; i < pairs.length; i++) {
+    for (let j = i + 1; j < pairs.length; j++) {
+      groups.push([...pairs[i].players, ...pairs[j].players]);
+    }
+  }
 
-    if (u1.type === "PAIR") {
-      for (let j = i + 1; j < sortedUnits.length; j++) {
-        const u2 = sortedUnits[j];
-        if (u2.type === "PAIR") {
-          groups.push([...u1.players, ...u2.players]);
-        } else {
-          for (let k = j + 1; k < sortedUnits.length; k++) {
-            const u3 = sortedUnits[k];
-            if (u3.type === "SINGLE") {
-              groups.push([...u1.players, ...u2.players, ...u3.players]);
-            }
-          }
-        }
+  for (const pair of pairs) {
+    for (let i = 0; i < singles.length; i++) {
+      for (let j = i + 1; j < singles.length; j++) {
+        groups.push([...pair.players, ...singles[i].players, ...singles[j].players]);
       }
-    } else {
-      for (let j = i + 1; j < sortedUnits.length; j++) {
-        if (sortedUnits[j].type !== "SINGLE") continue;
-        for (let k = j + 1; k < sortedUnits.length; k++) {
-          if (sortedUnits[k].type !== "SINGLE") continue;
-          for (let l = k + 1; l < sortedUnits.length; l++) {
-            if (sortedUnits[l].type !== "SINGLE") continue;
-            groups.push([
-              ...u1.players,
-              ...sortedUnits[j].players,
-              ...sortedUnits[k].players,
-              ...sortedUnits[l].players,
-            ]);
-          }
+    }
+  }
+
+  for (let i = 0; i < singles.length; i++) {
+    for (let j = i + 1; j < singles.length; j++) {
+      for (let k = j + 1; k < singles.length; k++) {
+        for (let l = k + 1; l < singles.length; l++) {
+          groups.push([
+            ...singles[i].players,
+            ...singles[j].players,
+            ...singles[k].players,
+            ...singles[l].players,
+          ]);
         }
       }
     }
@@ -437,7 +432,7 @@ function generateNextMatch(
   priorityPlayerIds?: number[],
   playerLastPlayedRound?: Map<number, number>,
   pairWaitTracker?: Map<string, number>
-): { match: MatchResult; score: number; teamDiff: number; factors: string[]; isFallback: boolean } | { blocked: true; message: string } | null {
+): { match: MatchResult; score: number; teamDiff: number; factors: string[]; isFallback: boolean } | null {
   const pool = eligible.filter(p => !usedPlayerIds.has(p.id));
   if (pool.length < 4) return null;
 
@@ -452,9 +447,6 @@ function generateNextMatch(
 
   const candidateGroups = selectUnits(windowUnits);
   if (candidateGroups.length === 0) {
-    if (fixedPairs.length > 0) {
-      return { blocked: true, message: "Not enough available players to create a valid match with fixed pair constraints." };
-    }
     return null;
   }
 
@@ -530,10 +522,6 @@ function generateNextMatch(
   const fallback = tryGenerate(4, 2.0);
   if (fallback) return { ...fallback, isFallback: true };
 
-  if (fixedPairs.length > 0) {
-    return { blocked: true, message: "Not enough available players to create a valid match with fixed pair constraints." };
-  }
-
   return null;
 }
 
@@ -567,18 +555,6 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
     );
 
     if (!result) break;
-
-    if ("blocked" in result) {
-      if (results.length === 0) {
-        return {
-          matches: [],
-          pairConstraintBlocked: true,
-          pairConstraintMessage: result.message,
-          scoringLogs,
-        };
-      }
-      break;
-    }
 
     const { match, score, teamDiff, factors, isFallback } = result;
     const ids = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
