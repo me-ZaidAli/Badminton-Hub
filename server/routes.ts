@@ -31916,7 +31916,7 @@ Rules:
   app.post("/api/tshirts/request", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const { size, printedName, clubId } = req.body;
+      const { model, size, printedName, clubId } = req.body;
       if (!size || !printedName || !clubId) return res.status(400).json({ message: "Missing required fields" });
       const profile = await db.select().from(playerProfiles)
         .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, clubId)))
@@ -31931,6 +31931,7 @@ Rules:
       const [request] = await db.insert(tshirtRequests).values({
         playerId: profile.id,
         clubId,
+        model: model || "chaotica",
         size,
         printedName,
       }).returning();
@@ -32009,7 +32010,7 @@ Rules:
   app.post("/api/admin/tshirts", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;
-    const { playerId, userId: targetUserId, clubId, size, printedName, paymentStatus } = req.body;
+    const { playerId, userId: targetUserId, clubId, model, size, printedName, paymentStatus } = req.body;
     if ((!playerId && !targetUserId) || !clubId || !size || !printedName) return res.status(400).json({ message: "Missing required fields" });
     const canAccess = await hasAdminAccess(user.id, user.role, clubId);
     if (!canAccess) return res.sendStatus(403);
@@ -32026,6 +32027,7 @@ Rules:
       const [shirt] = await db.insert(tshirts).values({
         playerId: resolvedProfileId,
         clubId,
+        model: model || "chaotica",
         size,
         printedName,
         paymentStatus: paymentStatus || "pending",

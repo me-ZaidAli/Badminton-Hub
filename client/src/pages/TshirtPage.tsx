@@ -12,8 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Shirt, Package, CheckCircle2, Clock, Loader2, ArrowLeft, Send } from "lucide-react";
 import { Link } from "wouter";
 import { format } from "date-fns";
+import chaoticaImg from "@assets/image_1775147617249.png";
+import slasherImg from "@assets/image_1775147642411.png";
 
 const SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+
+const MODELS = [
+  { id: "chaotica", name: "Chaotica", image: chaoticaImg, description: "Grey camo pattern with red collar" },
+  { id: "slasher", name: "Slasher", image: slasherImg, description: "Black and teal tiger stripe design" },
+];
 
 function statusBadge(status: string) {
   switch (status) {
@@ -34,9 +41,15 @@ function requestStatusBadge(status: string) {
   }
 }
 
+function modelLabel(model: string) {
+  const m = MODELS.find(m => m.id === model);
+  return m ? m.name : model;
+}
+
 export default function TshirtPage() {
   const { data: user } = useUser();
   const { toast } = useToast();
+  const [selectedModel, setSelectedModel] = useState("");
   const [size, setSize] = useState("");
   const [printedName, setPrintedName] = useState("");
 
@@ -68,12 +81,13 @@ export default function TshirtPage() {
   });
 
   const requestMutation = useMutation({
-    mutationFn: async (data: { size: string; printedName: string; clubId: number }) => {
+    mutationFn: async (data: { model: string; size: string; printedName: string; clubId: number }) => {
       const res = await apiRequest("POST", "/api/tshirts/request", data);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/tshirts/my-requests"] });
+      setSelectedModel("");
       setSize("");
       setPrintedName("");
       toast({ title: "Request submitted!" });
@@ -121,6 +135,19 @@ export default function TshirtPage() {
                 </div>
               </CardHeader>
               <CardContent className="space-y-4">
+                {shirt.model && (
+                  <div className="flex items-center gap-4 p-3 bg-muted/50 rounded-lg">
+                    <img
+                      src={MODELS.find(m => m.id === shirt.model)?.image || chaoticaImg}
+                      alt={modelLabel(shirt.model)}
+                      className="w-16 h-16 object-contain rounded"
+                    />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Model</p>
+                      <p className="font-semibold" data-testid="text-tshirt-model">{modelLabel(shirt.model)}</p>
+                    </div>
+                  </div>
+                )}
                 <div className="grid grid-cols-2 gap-4">
                   <div>
                     <p className="text-xs text-muted-foreground">Size</p>
@@ -186,6 +213,19 @@ export default function TshirtPage() {
               </CardHeader>
               <CardContent>
                 <div className="grid grid-cols-2 gap-4">
+                  {req.model && (
+                    <div className="col-span-2 flex items-center gap-3 p-2 bg-muted/50 rounded-lg">
+                      <img
+                        src={MODELS.find(m => m.id === req.model)?.image || chaoticaImg}
+                        alt={modelLabel(req.model)}
+                        className="w-12 h-12 object-contain rounded"
+                      />
+                      <div>
+                        <p className="text-xs text-muted-foreground">Model</p>
+                        <p className="font-semibold text-sm">{modelLabel(req.model)}</p>
+                      </div>
+                    </div>
+                  )}
                   <div>
                     <p className="text-xs text-muted-foreground">Size</p>
                     <p className="font-semibold">{req.size}</p>
@@ -207,7 +247,56 @@ export default function TshirtPage() {
                   Request Club T-Shirt
                 </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
+              <CardContent className="space-y-5">
+                <div className="rounded-lg bg-gradient-to-br from-blue-500/5 to-indigo-500/10 border border-blue-500/20 p-4 space-y-2" data-testid="tshirt-info-banner">
+                  <h3 className="font-bold text-sm">2025/26 Season Models</h3>
+                  <ul className="text-xs text-muted-foreground space-y-1.5">
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-500 mt-0.5">&#8226;</span>
+                      <span>Non-members can purchase the club t-shirt at <strong className="text-foreground">{"\u00A3"}23</strong></span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-500 mt-0.5">&#8226;</span>
+                      <span>Want to become a member? It's straightforward — send in the membership start-up fee of <strong className="text-foreground">{"\u00A3"}45</strong></span>
+                    </li>
+                    <li className="flex items-start gap-2">
+                      <span className="text-blue-500 mt-0.5">&#8226;</span>
+                      <span>We order in batches, so once we receive <strong className="text-foreground">10+ requests</strong> we will place the order</span>
+                    </li>
+                  </ul>
+                </div>
+
+                <div className="space-y-3">
+                  <Label>Choose Your Model</Label>
+                  <div className="grid grid-cols-2 gap-3">
+                    {MODELS.map(model => (
+                      <button
+                        key={model.id}
+                        type="button"
+                        onClick={() => setSelectedModel(model.id)}
+                        className={`relative rounded-xl border-2 p-3 transition-all text-left ${
+                          selectedModel === model.id
+                            ? "border-blue-500 bg-blue-500/5 ring-2 ring-blue-500/20"
+                            : "border-border hover:border-blue-300 hover:bg-muted/50"
+                        }`}
+                        data-testid={`model-select-${model.id}`}
+                      >
+                        {selectedModel === model.id && (
+                          <div className="absolute top-2 right-2">
+                            <CheckCircle2 className="h-5 w-5 text-blue-500" />
+                          </div>
+                        )}
+                        <img
+                          src={model.image}
+                          alt={model.name}
+                          className="w-full aspect-square object-contain rounded-lg mb-2"
+                        />
+                        <p className="font-bold text-sm text-center">{model.name}</p>
+                        <p className="text-[11px] text-muted-foreground text-center mt-0.5">{model.description}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label htmlFor="size">Size</Label>
                   <Select value={size} onValueChange={setSize}>
@@ -231,8 +320,8 @@ export default function TshirtPage() {
                 </div>
                 <Button
                   className="w-full"
-                  disabled={!size || !printedName || requestMutation.isPending}
-                  onClick={() => requestMutation.mutate({ size, printedName, clubId: primaryClubId })}
+                  disabled={!selectedModel || !size || !printedName || requestMutation.isPending}
+                  onClick={() => requestMutation.mutate({ model: selectedModel, size, printedName, clubId: primaryClubId })}
                   data-testid="button-submit-request"
                 >
                   {requestMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}

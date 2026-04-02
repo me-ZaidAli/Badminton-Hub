@@ -24,8 +24,16 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Shirt, Package, MoreHorizontal, CheckCircle2, Eye, Loader2, Plus, Users, Search, X, Trash2, CreditCard, Filter } from "lucide-react";
 import { format } from "date-fns";
+import chaoticaImg from "@assets/image_1775147617249.png";
+import slasherImg from "@assets/image_1775147642411.png";
 
 const SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
+const MODELS = [
+  { id: "chaotica", name: "Chaotica", image: chaoticaImg },
+  { id: "slasher", name: "Slasher", image: slasherImg },
+];
+function modelLabel(m: string) { return MODELS.find(x => x.id === m)?.name || m; }
+function modelImg(m: string) { return MODELS.find(x => x.id === m)?.image || chaoticaImg; }
 
 function collectionBadge(status: string) {
   switch (status) {
@@ -47,6 +55,7 @@ export default function TshirtManager() {
   const { data: user } = useUser();
   const { toast } = useToast();
   const [createOpen, setCreateOpen] = useState(false);
+  const [newModel, setNewModel] = useState("");
   const [newSize, setNewSize] = useState("");
   const [newPrintedName, setNewPrintedName] = useState("");
   const [newPlayerUserId, setNewPlayerUserId] = useState("");
@@ -55,6 +64,7 @@ export default function TshirtManager() {
   const [selectedClubId, setSelectedClubId] = useState<string>("");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [searchQuery, setSearchQuery] = useState("");
+  const [filterModel, setFilterModel] = useState<string>("all");
   const [filterSize, setFilterSize] = useState<string>("all");
   const [filterPayment, setFilterPayment] = useState<string>("all");
   const [filterStatus, setFilterStatus] = useState<string>("all");
@@ -119,14 +129,15 @@ export default function TshirtManager() {
         const matchesSize = shirt.size?.toLowerCase().includes(q);
         if (!matchesName && !matchesPrinted && !matchesSize) return false;
       }
+      if (filterModel !== "all" && (shirt.model || "chaotica") !== filterModel) return false;
       if (filterSize !== "all" && shirt.size !== filterSize) return false;
       if (filterPayment !== "all" && shirt.paymentStatus !== filterPayment) return false;
       if (filterStatus !== "all" && shirt.collectionStatus !== filterStatus) return false;
       return true;
     });
-  }, [tshirtList, searchQuery, filterSize, filterPayment, filterStatus]);
+  }, [tshirtList, searchQuery, filterModel, filterSize, filterPayment, filterStatus]);
 
-  const hasActiveFilters = searchQuery || filterSize !== "all" || filterPayment !== "all" || filterStatus !== "all";
+  const hasActiveFilters = searchQuery || filterModel !== "all" || filterSize !== "all" || filterPayment !== "all" || filterStatus !== "all";
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -136,6 +147,7 @@ export default function TshirtManager() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/tshirts"] });
       setCreateOpen(false);
+      setNewModel("");
       setNewSize("");
       setNewPrintedName("");
       setNewPlayerUserId("");
@@ -250,6 +262,7 @@ export default function TshirtManager() {
 
   function clearFilters() {
     setSearchQuery("");
+    setFilterModel("all");
     setFilterSize("all");
     setFilterPayment("all");
     setFilterStatus("all");
@@ -287,6 +300,30 @@ export default function TshirtManager() {
                 <DialogTitle>Create T-Shirt Record</DialogTitle>
               </DialogHeader>
               <div className="space-y-4 pt-2">
+                <div className="space-y-2">
+                  <Label>Model</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {MODELS.map(m => (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => setNewModel(m.id)}
+                        className={`relative rounded-lg border-2 p-2 transition-all ${
+                          newModel === m.id
+                            ? "border-blue-500 bg-blue-500/5 ring-1 ring-blue-500/20"
+                            : "border-border hover:border-blue-300"
+                        }`}
+                        data-testid={`admin-model-select-${m.id}`}
+                      >
+                        {newModel === m.id && (
+                          <CheckCircle2 className="absolute top-1 right-1 h-4 w-4 text-blue-500" />
+                        )}
+                        <img src={m.image} alt={m.name} className="w-full aspect-square object-contain rounded mb-1" />
+                        <p className="text-xs font-semibold text-center">{m.name}</p>
+                      </button>
+                    ))}
+                  </div>
+                </div>
                 <div className="space-y-2">
                   <Label>Player</Label>
                   <Input
@@ -343,10 +380,11 @@ export default function TshirtManager() {
                 </div>
                 <Button
                   className="w-full"
-                  disabled={!newPlayerUserId || !newSize || !newPrintedName || createMutation.isPending}
+                  disabled={!newModel || !newPlayerUserId || !newSize || !newPrintedName || createMutation.isPending}
                   onClick={() => createMutation.mutate({
                     userId: Number(newPlayerUserId),
                     clubId,
+                    model: newModel,
                     size: newSize,
                     printedName: newPrintedName,
                     paymentStatus: newPayment,
@@ -393,6 +431,15 @@ export default function TshirtManager() {
               )}
             </div>
             <div className="flex gap-2 flex-wrap">
+              <Select value={filterModel} onValueChange={setFilterModel}>
+                <SelectTrigger className="w-32" data-testid="filter-model">
+                  <SelectValue placeholder="Model" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Models</SelectItem>
+                  {MODELS.map(m => <SelectItem key={m.id} value={m.id}>{m.name}</SelectItem>)}
+                </SelectContent>
+              </Select>
               <Select value={filterSize} onValueChange={setFilterSize}>
                 <SelectTrigger className="w-28" data-testid="filter-size">
                   <SelectValue placeholder="Size" />
@@ -503,6 +550,7 @@ export default function TshirtManager() {
                         />
                       </TableHead>
                       <TableHead>Player</TableHead>
+                      <TableHead>Model</TableHead>
                       <TableHead>Size</TableHead>
                       <TableHead>Printed Name</TableHead>
                       <TableHead>Payment</TableHead>
@@ -522,6 +570,12 @@ export default function TshirtManager() {
                           />
                         </TableCell>
                         <TableCell className="font-medium">{shirt.playerName}</TableCell>
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <img src={modelImg(shirt.model)} alt={modelLabel(shirt.model)} className="w-8 h-8 object-contain rounded" />
+                            <span className="text-xs font-medium">{modelLabel(shirt.model)}</span>
+                          </div>
+                        </TableCell>
                         <TableCell>{shirt.size}</TableCell>
                         <TableCell>{shirt.printedName}</TableCell>
                         <TableCell>{paymentBadge(shirt.paymentStatus)}</TableCell>
