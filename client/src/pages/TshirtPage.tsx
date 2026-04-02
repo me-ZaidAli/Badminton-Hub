@@ -99,8 +99,6 @@ export default function TshirtPage() {
 
   const activeTshirts = myTshirts?.filter(t => t.isActive) || [];
   const activeRequests = myRequests?.filter(r => r.status === "pending" || r.status === "batched" || r.status === "in_production") || [];
-  const hasActiveTshirt = activeTshirts.length > 0;
-  const hasPendingRequest = activeRequests.length > 0;
   const primaryClubId = myClubs && myClubs.length > 0 ? myClubs[0].id : null;
 
   return (
@@ -239,7 +237,7 @@ export default function TshirtPage() {
             </Card>
           ))}
 
-          {!hasActiveTshirt && !hasPendingRequest && primaryClubId && (
+          {primaryClubId && (
             <Card className="border-dashed border-2" data-testid="tshirt-request-form">
               <CardHeader>
                 <CardTitle className="text-base flex items-center gap-2">
@@ -331,7 +329,7 @@ export default function TshirtPage() {
             </Card>
           )}
 
-          {!hasActiveTshirt && !hasPendingRequest && !primaryClubId && (
+          {!primaryClubId && (
             <Card>
               <CardContent className="py-8 text-center text-muted-foreground">
                 <Shirt className="h-8 w-8 mx-auto mb-2 opacity-40" />

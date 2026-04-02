@@ -31922,12 +31922,6 @@ Rules:
         .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, clubId)))
         .then(r => r[0]);
       if (!profile) return res.status(404).json({ message: "No player profile in this club" });
-      const existing = await db.select().from(tshirts)
-        .where(and(eq(tshirts.playerId, profile.id), eq(tshirts.isActive, true)));
-      if (existing.length > 0) return res.status(400).json({ message: "You already have an active t-shirt" });
-      const existingReq = await db.select().from(tshirtRequests)
-        .where(and(eq(tshirtRequests.playerId, profile.id), eq(tshirtRequests.status, "pending")));
-      if (existingReq.length > 0) return res.status(400).json({ message: "You already have a pending request" });
       const [request] = await db.insert(tshirtRequests).values({
         playerId: profile.id,
         clubId,
