@@ -260,11 +260,61 @@ function UpcomingSessionCard({ session, onWithdraw, withdrawing }: {
   );
 }
 
+function InvitedSessionCard({ session, onWithdraw, withdrawing }: {
+  session: MySession;
+  onWithdraw: (id: number) => void;
+  withdrawing: boolean;
+}) {
+  const sessionDate = new Date(session.sessionDate);
+
+  return (
+    <div className="rounded-lg border border-blue-500/20 bg-blue-500/5 p-3 sm:p-4 space-y-2" data-testid={`invited-card-${session.sessionId}`}>
+      <div className="flex items-start justify-between gap-2">
+        <div className="flex-1 min-w-0 space-y-1.5">
+          <div className="flex items-center gap-2 flex-wrap">
+            <Link href={`/sessions/${session.sessionId}`} className="font-semibold text-sm hover:underline truncate" data-testid={`link-invited-${session.sessionId}`}>
+              {session.sessionTitle}
+            </Link>
+            <Badge variant="secondary" className="text-[10px] no-default-hover-elevate">
+              {session.sessionStatus === "ACTIVE" ? "Live" : "Upcoming"}
+            </Badge>
+            <Badge className="text-[10px] no-default-hover-elevate bg-blue-500 text-white">
+              Invited
+            </Badge>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{format(sessionDate, "EEE, dd MMM yyyy")}</span>
+            <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{session.sessionStartTime} ({session.sessionDuration}min)</span>
+          </div>
+          <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+            <Badge variant="outline" className="text-[10px] no-default-hover-elevate">{session.clubName}</Badge>
+            {session.venueName && <span>{session.venueName}</span>}
+            {session.fee != null && session.fee > 0 && (
+              <span className="flex items-center gap-1"><PoundSterling className="h-3 w-3" />{formatPounds(session.fee)}</span>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5 shrink-0">
+          <Link href={`/sessions/${session.sessionId}`}>
+            <Button variant="default" size="sm" className="text-xs w-full" data-testid={`button-view-invite-${session.sessionId}`}>
+              View
+            </Button>
+          </Link>
+          <Button variant="ghost" size="sm" onClick={() => onWithdraw(session.sessionId)} disabled={withdrawing} data-testid={`button-decline-${session.sessionId}`} className="text-xs text-muted-foreground">
+            <X className="h-3 w-3 mr-1" />
+            Decline
+          </Button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function MySessions() {
   const { data: user, isLoading: userLoading } = useUser();
   const { toast } = useToast();
 
-  const [activeTab, setActiveTab] = useState<"upcoming" | "history">("upcoming");
+  const [activeTab, setActiveTab] = useState<"upcoming" | "invited" | "history">("upcoming");
   const [searchTerm, setSearchTerm] = useState("");
   const [clubFilter, setClubFilter] = useState("all");
   const [paymentFilter, setPaymentFilter] = useState("all");
@@ -293,6 +343,14 @@ export default function MySessions() {
     return historyRaw.filter(s => s.sessionStatus === "COMPLETED");
   }, [historyRaw]);
 
+  const confirmedUpcoming = useMemo(() => {
+    return upcomingSessions.filter(s => s.signupStatus !== "INVITED");
+  }, [upcomingSessions]);
+
+  const invitedSessions = useMemo(() => {
+    return upcomingSessions.filter(s => s.signupStatus === "INVITED");
+  }, [upcomingSessions]);
+
   const allClubs = useMemo(() => {
     const map = new Map<number, string>();
     upcomingSessions.forEach(s => map.set(s.clubId, s.clubName));
@@ -311,7 +369,7 @@ export default function MySessions() {
   }, [upcomingSessions, history, activeTab]);
 
   const filteredUpcoming = useMemo(() => {
-    let items = upcomingSessions;
+    let items = confirmedUpcoming;
     if (searchTerm) {
       const q = searchTerm.toLowerCase();
       items = items.filter(s => s.sessionTitle.toLowerCase().includes(q) || s.clubName.toLowerCase().includes(q));
@@ -332,7 +390,23 @@ export default function MySessions() {
       });
     }
     return items;
-  }, [upcomingSessions, searchTerm, clubFilter, paymentFilter, categoryFilter]);
+  }, [confirmedUpcoming, searchTerm, clubFilter, paymentFilter, categoryFilter]);
+
+  const filteredInvited = useMemo(() => {
+    let items = invitedSessions;
+    if (searchTerm) {
+      const q = searchTerm.toLowerCase();
+      items = items.filter(s => s.sessionTitle.toLowerCase().includes(q) || s.clubName.toLowerCase().includes(q));
+    }
+    if (clubFilter !== "all") items = items.filter(s => s.clubId === parseInt(clubFilter));
+    if (categoryFilter !== "all") {
+      items = items.filter(s => {
+        const ac = (s as any).allowedCategories;
+        return Array.isArray(ac) && ac.includes(categoryFilter);
+      });
+    }
+    return items;
+  }, [invitedSessions, searchTerm, clubFilter, categoryFilter]);
 
   const filteredHistory = useMemo(() => {
     let items = history;
@@ -483,7 +557,17 @@ export default function MySessions() {
           className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === "upcoming" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
           data-testid="tab-upcoming"
         >
-          Upcoming ({upcomingSessions.length})
+          Upcoming ({confirmedUpcoming.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("invited")}
+          className={`relative px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${activeTab === "invited" ? "border-primary text-primary" : "border-transparent text-muted-foreground hover:text-foreground"}`}
+          data-testid="tab-invited"
+        >
+          Invited ({invitedSessions.length})
+          {invitedSessions.length > 0 && activeTab !== "invited" && (
+            <span className="absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full bg-blue-500" />
+          )}
         </button>
         <button
           onClick={() => setActiveTab("history")}
@@ -592,6 +676,33 @@ export default function MySessions() {
                 withdrawing={withdrawingId === s.sessionId}
               />
             ))
+          )}
+        </div>
+      )}
+
+      {activeTab === "invited" && (
+        <div className="space-y-2" data-testid="invited-list">
+          {upcomingLoading ? (
+            <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-muted-foreground" /></div>
+          ) : filteredInvited.length === 0 ? (
+            <Card><CardContent className="py-8 text-center">
+              <CalendarDays className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
+              <p className="text-muted-foreground" data-testid="text-no-invited">{hasActiveFilters ? "No invites match your filters" : "No session invitations"}</p>
+            </CardContent></Card>
+          ) : (
+            <>
+              <p className="text-xs text-muted-foreground px-1">
+                You have been invited to {filteredInvited.length} session{filteredInvited.length !== 1 ? "s" : ""}. View session details to accept or decline.
+              </p>
+              {filteredInvited.map(s => (
+                <InvitedSessionCard
+                  key={s.signupId}
+                  session={s}
+                  onWithdraw={handleWithdraw}
+                  withdrawing={withdrawingId === s.sessionId}
+                />
+              ))}
+            </>
           )}
         </div>
       )}
