@@ -32232,6 +32232,73 @@ Rules:
     }
   });
 
+  app.delete("/api/admin/tshirts/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const tshirtId = Number(req.params.id);
+      const [shirt] = await db.select().from(tshirts).where(eq(tshirts.id, tshirtId));
+      if (!shirt) return res.status(404).json({ message: "T-shirt not found" });
+      const canAccess = await hasAdminAccess(user.id, user.role, shirt.clubId);
+      if (!canAccess) return res.sendStatus(403);
+      await db.delete(tshirts).where(eq(tshirts.id, tshirtId));
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: "TSHIRT_DELETED",
+        targetType: "tshirt",
+        targetId: tshirtId,
+        clubId: shirt.clubId,
+      });
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/admin/tshirts/bulk-action", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    try {
+      const { ids, action } = req.body;
+      if (!ids || !Array.isArray(ids) || ids.length === 0) return res.status(400).json({ message: "No items selected" });
+      if (!action) return res.status(400).json({ message: "Action required" });
+      const shirts = await db.select().from(tshirts).where(inArray(tshirts.id, ids));
+      if (shirts.length === 0) return res.status(404).json({ message: "No t-shirts found" });
+      const clubIds = [...new Set(shirts.map(s => s.clubId))];
+      for (const cId of clubIds) {
+        const canAccess = await hasAdminAccess(user.id, user.role, cId);
+        if (!canAccess) return res.status(403).json({ message: "No access to one or more clubs" });
+      }
+      let updated = 0;
+      if (action === "mark_paid") {
+        const result = await db.update(tshirts).set({ paymentStatus: "paid", updatedAt: new Date() }).where(inArray(tshirts.id, ids));
+        updated = ids.length;
+      } else if (action === "mark_ready") {
+        const result = await db.update(tshirts).set({ collectionStatus: "ready", updatedAt: new Date() }).where(inArray(tshirts.id, ids));
+        updated = ids.length;
+      } else if (action === "confirm_collection") {
+        const result = await db.update(tshirts).set({ collectionStatus: "collected", collectedAt: new Date(), confirmedById: user.id, updatedAt: new Date() }).where(inArray(tshirts.id, ids));
+        updated = ids.length;
+      } else if (action === "delete") {
+        await db.delete(tshirts).where(inArray(tshirts.id, ids));
+        updated = ids.length;
+      } else {
+        return res.status(400).json({ message: "Unknown action" });
+      }
+      await db.insert(adminAuditLogs).values({
+        actorId: user.id,
+        action: `TSHIRT_BULK_${action.toUpperCase()}`,
+        targetType: "tshirt",
+        targetId: ids[0],
+        clubId: clubIds[0],
+        details: `Bulk ${action} on ${ids.length} t-shirts`,
+      });
+      res.json({ success: true, updated });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/admin/tshirts/session/:sessionId/uncollected", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const user = req.user!;

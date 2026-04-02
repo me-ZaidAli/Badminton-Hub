@@ -1,13 +1,14 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -15,9 +16,13 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow
 } from "@/components/ui/table";
 import {
-  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator
 } from "@/components/ui/dropdown-menu";
-import { Shirt, Package, MoreHorizontal, CheckCircle2, Eye, Loader2, Plus, Users } from "lucide-react";
+import {
+  AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent,
+  AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle
+} from "@/components/ui/alert-dialog";
+import { Shirt, Package, MoreHorizontal, CheckCircle2, Eye, Loader2, Plus, Users, Search, X, Trash2, CreditCard, Filter } from "lucide-react";
 import { format } from "date-fns";
 
 const SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
@@ -48,6 +53,14 @@ export default function TshirtManager() {
   const [newPayment, setNewPayment] = useState("pending");
   const [playerSearch, setPlayerSearch] = useState("");
   const [selectedClubId, setSelectedClubId] = useState<string>("");
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [filterSize, setFilterSize] = useState<string>("all");
+  const [filterPayment, setFilterPayment] = useState<string>("all");
+  const [filterStatus, setFilterStatus] = useState<string>("all");
+  const [deleteConfirmOpen, setDeleteConfirmOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<number | null>(null);
+  const [bulkDeleteConfirmOpen, setBulkDeleteConfirmOpen] = useState(false);
 
   const { data: myClubs } = useQuery<any[]>({
     queryKey: ["/api/my-clubs"],
@@ -95,6 +108,25 @@ export default function TshirtManager() {
     },
     enabled: !!user && createOpen && !!clubId,
   });
+
+  const filteredTshirts = useMemo(() => {
+    if (!tshirtList) return [];
+    return tshirtList.filter((shirt: any) => {
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase();
+        const matchesName = shirt.playerName?.toLowerCase().includes(q);
+        const matchesPrinted = shirt.printedName?.toLowerCase().includes(q);
+        const matchesSize = shirt.size?.toLowerCase().includes(q);
+        if (!matchesName && !matchesPrinted && !matchesSize) return false;
+      }
+      if (filterSize !== "all" && shirt.size !== filterSize) return false;
+      if (filterPayment !== "all" && shirt.paymentStatus !== filterPayment) return false;
+      if (filterStatus !== "all" && shirt.collectionStatus !== filterStatus) return false;
+      return true;
+    });
+  }, [tshirtList, searchQuery, filterSize, filterPayment, filterStatus]);
+
+  const hasActiveFilters = searchQuery || filterSize !== "all" || filterPayment !== "all" || filterStatus !== "all";
 
   const createMutation = useMutation({
     mutationFn: async (data: any) => {
@@ -162,12 +194,72 @@ export default function TshirtManager() {
     onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/tshirts/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tshirts"] });
+      setDeleteTarget(null);
+      toast({ title: "T-shirt deleted" });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
+  const bulkActionMutation = useMutation({
+    mutationFn: async ({ ids, action }: { ids: number[]; action: string }) => {
+      const res = await apiRequest("POST", "/api/admin/tshirts/bulk-action", { ids, action });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/tshirts"] });
+      setSelectedIds(new Set());
+      const labels: Record<string, string> = {
+        mark_paid: "marked as paid",
+        mark_ready: "marked as ready",
+        confirm_collection: "marked as collected",
+        delete: "deleted",
+      };
+      toast({ title: `${vars.ids.length} t-shirt(s) ${labels[vars.action] || "updated"}` });
+    },
+    onError: (e: Error) => toast({ title: "Error", description: e.message, variant: "destructive" }),
+  });
+
   const pendingRequests = requestList?.filter(r => r.status === "pending") || [];
   const canCreateBatch = pendingRequests.length >= 10;
 
+  const allFilteredIds = filteredTshirts.map((s: any) => s.id);
+  const allSelected = allFilteredIds.length > 0 && allFilteredIds.every((id: number) => selectedIds.has(id));
+  const someSelected = selectedIds.size > 0;
+
+  function toggleSelectAll() {
+    if (allSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(allFilteredIds));
+    }
+  }
+
+  function toggleSelect(id: number) {
+    const next = new Set(selectedIds);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    setSelectedIds(next);
+  }
+
+  function clearFilters() {
+    setSearchQuery("");
+    setFilterSize("all");
+    setFilterPayment("all");
+    setFilterStatus("all");
+  }
+
+  const selectedArray = Array.from(selectedIds);
+
   return (
     <div className="container max-w-6xl mx-auto px-4 py-6 space-y-6">
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div className="flex items-center gap-3">
           <Shirt className="h-6 w-6 text-blue-500" />
           <div>
@@ -283,7 +375,107 @@ export default function TshirtManager() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="tshirts" className="mt-4">
+        <TabsContent value="tshirts" className="mt-4 space-y-3">
+          <div className="flex flex-col sm:flex-row gap-2">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Input
+                placeholder="Search by player name, printed name, or size..."
+                value={searchQuery}
+                onChange={e => setSearchQuery(e.target.value)}
+                className="pl-9"
+                data-testid="input-tshirt-search"
+              />
+              {searchQuery && (
+                <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+                  <X className="h-4 w-4 text-muted-foreground hover:text-foreground" />
+                </button>
+              )}
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Select value={filterSize} onValueChange={setFilterSize}>
+                <SelectTrigger className="w-28" data-testid="filter-size">
+                  <SelectValue placeholder="Size" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Sizes</SelectItem>
+                  {SIZES.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Select value={filterPayment} onValueChange={setFilterPayment}>
+                <SelectTrigger className="w-32" data-testid="filter-payment">
+                  <SelectValue placeholder="Payment" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Payments</SelectItem>
+                  <SelectItem value="paid">Paid</SelectItem>
+                  <SelectItem value="pending">Pending</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={filterStatus} onValueChange={setFilterStatus}>
+                <SelectTrigger className="w-36" data-testid="filter-status">
+                  <SelectValue placeholder="Status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Statuses</SelectItem>
+                  <SelectItem value="not_ready">Not Ready</SelectItem>
+                  <SelectItem value="ready">Ready</SelectItem>
+                  <SelectItem value="player_confirmed">Player Confirmed</SelectItem>
+                  <SelectItem value="collected">Collected</SelectItem>
+                </SelectContent>
+              </Select>
+              {hasActiveFilters && (
+                <Button variant="ghost" size="sm" onClick={clearFilters} className="h-10 px-3" data-testid="button-clear-filters">
+                  <X className="h-4 w-4 mr-1" /> Clear
+                </Button>
+              )}
+            </div>
+          </div>
+
+          {someSelected && (
+            <div className="flex items-center gap-2 p-3 bg-primary/5 border border-primary/20 rounded-lg" data-testid="bulk-action-bar">
+              <Badge variant="secondary" className="font-semibold">{selectedIds.size} selected</Badge>
+              <div className="flex-1" />
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulkActionMutation.mutate({ ids: selectedArray, action: "mark_paid" })}
+                disabled={bulkActionMutation.isPending}
+                data-testid="bulk-mark-paid"
+              >
+                <CreditCard className="h-3.5 w-3.5 mr-1.5" />Mark Paid
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulkActionMutation.mutate({ ids: selectedArray, action: "mark_ready" })}
+                disabled={bulkActionMutation.isPending}
+                data-testid="bulk-mark-ready"
+              >
+                <Eye className="h-3.5 w-3.5 mr-1.5" />Mark Ready
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => bulkActionMutation.mutate({ ids: selectedArray, action: "confirm_collection" })}
+                disabled={bulkActionMutation.isPending}
+                data-testid="bulk-confirm-collection"
+              >
+                <CheckCircle2 className="h-3.5 w-3.5 mr-1.5" />Mark Collected
+              </Button>
+              <Button
+                size="sm"
+                variant="destructive"
+                onClick={() => setBulkDeleteConfirmOpen(true)}
+                disabled={bulkActionMutation.isPending}
+                data-testid="bulk-delete"
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" />Delete
+              </Button>
+              {bulkActionMutation.isPending && <Loader2 className="h-4 w-4 animate-spin" />}
+            </div>
+          )}
+
           <Card>
             <CardContent className="p-0">
               {tshirtsLoading ? (
@@ -293,10 +485,23 @@ export default function TshirtManager() {
                   <Shirt className="h-8 w-8 mx-auto mb-2 opacity-40" />
                   <p>No t-shirt records yet</p>
                 </div>
+              ) : filteredTshirts.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <Filter className="h-8 w-8 mx-auto mb-2 opacity-40" />
+                  <p>No t-shirts match your filters</p>
+                  <Button variant="link" size="sm" onClick={clearFilters} className="mt-1">Clear filters</Button>
+                </div>
               ) : (
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      <TableHead className="w-12">
+                        <Checkbox
+                          checked={allSelected}
+                          onCheckedChange={toggleSelectAll}
+                          data-testid="checkbox-select-all"
+                        />
+                      </TableHead>
                       <TableHead>Player</TableHead>
                       <TableHead>Size</TableHead>
                       <TableHead>Printed Name</TableHead>
@@ -307,8 +512,15 @@ export default function TshirtManager() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {tshirtList.map((shirt: any) => (
-                      <TableRow key={shirt.id} data-testid={`row-tshirt-${shirt.id}`}>
+                    {filteredTshirts.map((shirt: any) => (
+                      <TableRow key={shirt.id} className={selectedIds.has(shirt.id) ? "bg-primary/5" : ""} data-testid={`row-tshirt-${shirt.id}`}>
+                        <TableCell>
+                          <Checkbox
+                            checked={selectedIds.has(shirt.id)}
+                            onCheckedChange={() => toggleSelect(shirt.id)}
+                            data-testid={`checkbox-tshirt-${shirt.id}`}
+                          />
+                        </TableCell>
                         <TableCell className="font-medium">{shirt.playerName}</TableCell>
                         <TableCell>{shirt.size}</TableCell>
                         <TableCell>{shirt.printedName}</TableCell>
@@ -335,18 +547,25 @@ export default function TshirtManager() {
                               )}
                               {shirt.paymentStatus === "pending" && (
                                 <DropdownMenuItem onClick={() => updateMutation.mutate({ id: shirt.id, data: { paymentStatus: "paid" } })} data-testid={`action-mark-paid-${shirt.id}`}>
-                                  Mark as Paid
+                                  <CreditCard className="h-4 w-4 mr-2" />Mark as Paid
                                 </DropdownMenuItem>
                               )}
                               {shirt.isActive && (
                                 <DropdownMenuItem
-                                  className="text-red-500"
                                   onClick={() => updateMutation.mutate({ id: shirt.id, data: { isActive: false } })}
                                   data-testid={`action-deactivate-${shirt.id}`}
                                 >
                                   Deactivate
                                 </DropdownMenuItem>
                               )}
+                              <DropdownMenuSeparator />
+                              <DropdownMenuItem
+                                className="text-red-600 focus:text-red-600"
+                                onClick={() => { setDeleteTarget(shirt.id); setDeleteConfirmOpen(true); }}
+                                data-testid={`action-delete-${shirt.id}`}
+                              >
+                                <Trash2 className="h-4 w-4 mr-2" />Delete
+                              </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         </TableCell>
@@ -354,6 +573,12 @@ export default function TshirtManager() {
                     ))}
                   </TableBody>
                 </Table>
+              )}
+              {filteredTshirts.length > 0 && (
+                <div className="flex items-center justify-between px-4 py-3 border-t text-sm text-muted-foreground">
+                  <span>Showing {filteredTshirts.length} of {tshirtList?.length || 0} t-shirts</span>
+                  {someSelected && <span>{selectedIds.size} selected</span>}
+                </div>
               )}
             </CardContent>
           </Card>
@@ -458,6 +683,49 @@ export default function TshirtManager() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <AlertDialog open={deleteConfirmOpen} onOpenChange={setDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete T-Shirt Record</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove this t-shirt record. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => { if (deleteTarget) deleteMutation.mutate(deleteTarget); setDeleteConfirmOpen(false); }}
+              data-testid="button-confirm-delete"
+            >
+              {deleteMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteConfirmOpen} onOpenChange={setBulkDeleteConfirmOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete {selectedIds.size} T-Shirt Record{selectedIds.size > 1 ? "s" : ""}</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove {selectedIds.size} t-shirt record{selectedIds.size > 1 ? "s" : ""}. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-bulk-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => { bulkActionMutation.mutate({ ids: selectedArray, action: "delete" }); setBulkDeleteConfirmOpen(false); }}
+              data-testid="button-confirm-bulk-delete"
+            >
+              Delete All
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
