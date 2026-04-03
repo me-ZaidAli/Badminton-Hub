@@ -15,6 +15,7 @@ import { format } from "date-fns";
 import chaoticaImg from "@assets/image_1775147617249.png";
 import slasherImg from "@assets/image_1775147642411.png";
 import strikerImg from "@assets/image_1775250192402.png";
+import modelsShowcaseImg from "@assets/image_1775251282218.png";
 
 const SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
 
@@ -313,6 +314,14 @@ export default function TshirtPage() {
                     </CardTitle>
                   </CardHeader>
                   <CardContent className="space-y-5">
+                    <div className="rounded-xl overflow-hidden border border-border" data-testid="models-showcase">
+                      <img
+                        src={modelsShowcaseImg}
+                        alt="Models wearing the club kit"
+                        className="w-full object-cover"
+                      />
+                    </div>
+
                     <div className="rounded-lg bg-gradient-to-br from-blue-500/5 to-indigo-500/10 border border-blue-500/20 p-4 space-y-2" data-testid="tshirt-info-banner">
                       <h3 className="font-bold text-sm">2025/26 Season Models</h3>
                       <ul className="text-xs text-muted-foreground space-y-1.5">
