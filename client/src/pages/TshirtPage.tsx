@@ -14,15 +14,13 @@ import { Link } from "wouter";
 import { format } from "date-fns";
 import chaoticaImg from "@assets/image_1775147617249.png";
 import slasherImg from "@assets/image_1775147642411.png";
-import strikerImg from "@assets/image_1775250192402.png";
-import modelsShowcaseImg from "@assets/image_1775251282218.png";
+import modelsShowcaseImg from "@assets/Screenshot_20260403_232959_Replit_1775255409511.jpg";
 
 const SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
 
 const MODELS = [
   { id: "chaotica", name: "Chaotica", image: chaoticaImg, description: "Grey camo pattern with red collar" },
   { id: "slasher", name: "Slasher", image: slasherImg, description: "Black and teal tiger stripe design" },
-  { id: "striker", name: "Striker", image: strikerImg, description: "Teal & white duo kit" },
 ];
 
 function statusBadge(status: string) {
