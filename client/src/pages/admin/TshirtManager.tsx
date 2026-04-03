@@ -26,11 +26,13 @@ import { Shirt, Package, MoreHorizontal, CheckCircle2, Eye, Loader2, Plus, Users
 import { format } from "date-fns";
 import chaoticaImg from "@assets/image_1775147617249.png";
 import slasherImg from "@assets/image_1775147642411.png";
+import strikerImg from "@assets/image_1775250192402.png";
 
 const SIZES = ["XS", "S", "M", "L", "XL", "2XL", "3XL"];
 const MODELS = [
   { id: "chaotica", name: "Chaotica", image: chaoticaImg },
   { id: "slasher", name: "Slasher", image: slasherImg },
+  { id: "striker", name: "Striker", image: strikerImg },
 ];
 function modelLabel(m: string) { return MODELS.find(x => x.id === m)?.name || m; }
 function modelImg(m: string) { return MODELS.find(x => x.id === m)?.image || chaoticaImg; }
