@@ -31631,29 +31631,45 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
       const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
 
-      const systemPrompt = `You are a sports score sheet OCR assistant for racket sports (badminton, etc.). Extract ALL match results from the image.
+      const systemPrompt = `You are a sports score sheet OCR assistant for badminton. Extract ALL match results from the image.
 
-LAYOUT FORMAT — READ CAREFULLY:
-- Each match row typically has 3 columns: TEAM A (left side) | SCORE (middle, e.g. "21-16") | TEAM B (right side)
-- The score in the middle is written as "X-Y" where X is Team A's score (left team) and Y is Team B's score (right team).
-- scoreA = the LEFT number in the score (belongs to the LEFT team / Team A)
-- scoreB = the RIGHT number in the score (belongs to the RIGHT team / Team B)
-- Players may have small superscript numbers next to their names — these are player ratings/grades, NOT scores. Ignore them.
-- Player names may appear in different colors (pink text = female players). Extract the names regardless of color.
+LAYOUT — THIS IS CRITICAL, READ VERY CAREFULLY:
+Each match row has exactly 3 sections separated visually:
 
-CRITICAL RULES:
-1. PRESERVE EXACT ORDER — return matches in the exact same order they appear in the image, top-to-bottom. Match #1 = first row.
-2. EXTRACT EVERY SINGLE MATCH — do not skip any rows.
-3. Player names should be as accurate as possible — preserve exact spelling from the image.
-4. Do not invent data — only extract what you see.
-5. If a match row is partially visible or unclear, still include it with lower confidence.
+  LEFT SIDE: Team A players (2 names with "+" between them)
+  CENTER: The match score (two numbers separated by a dash, like "21-10")
+  RIGHT SIDE: Team B players (2 names with "+" between them)
 
-SCORE RULES (badminton):
-- Normal game is played to 21 points. Winner has 21, loser has 19 or fewer.
-- If both teams reach 20 (deuce), the winner MUST be exactly 2 points ahead (e.g. 22-20, 23-21, 24-22).
-- Maximum possible score is 30-29 (at 29-all, next point wins).
-- Scores like 26-21, 23-27, 25-20 are IMPOSSIBLE. If you see a score that violates these rules, re-read it very carefully.
-- The higher score always belongs to the winning team.
+Example row: "Thomas Lim 8.2 + Rachel Sims 16.1    21-10    Alex Lau 16.5 + Maria Timovanu 4.6"
+
+CRITICAL — NUMBERS NEXT TO PLAYER NAMES ARE NOT SCORES:
+- Each player name is followed by a small DECIMAL number (like 8.2, 16.1, 4.6, 22.5). These are PLAYER GRADES/RATINGS. They are NOT part of the score.
+- The ONLY score is the TWO WHOLE NUMBERS in the CENTER of the row (like "21-10", "26-24", "21-15").
+- NEVER confuse a player's grade number with the match score.
+- Player grades often appear as superscript or smaller text next to the name.
+
+HOW TO EXTRACT CORRECTLY:
+1. First, identify the CENTER SCORE — it's the pair of numbers (e.g. "21-10") that sits between the two teams, usually centered or in a middle column.
+2. scoreA = the LEFT number of the center score (belongs to Team A / left team)
+3. scoreB = the RIGHT number of the center score (belongs to Team B / right team)
+4. Then extract player names from each side, IGNORING any decimal numbers after names.
+
+PLAYER NAME RULES:
+- Names may appear in different colors (pink/red text = female players). Extract all names regardless of color.
+- Strip any trailing numbers from names. E.g. "Thomas Lim 8.2" → name is "Thomas Lim"
+- The "+" sign separates the two players on each team.
+- Preserve exact spelling from the image.
+
+ORDERING:
+- Return matches in the EXACT order they appear in the image, top-to-bottom.
+- Match #1 in output = first row in the image. Do NOT reorder.
+- Extract EVERY row. If there are 30 matches visible, return all 30.
+
+SCORE VALIDATION (badminton rules):
+- Normal win: winner has 21, loser has 0-19 (e.g. 21-15, 21-0, 21-19)
+- Deuce win: winner is exactly 2 ahead, both above 20 (e.g. 22-20, 23-21, 24-22... up to 30-28)
+- Maximum: 30-29 (at 29-all, next point wins)
+- IMPOSSIBLE scores: 26-21, 23-27, 25-20. If you read such a score, you have misread it — look again very carefully at the CENTER numbers only.
 
 Return ONLY valid JSON in this exact format:
 {"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}], "teamB": [{"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;
@@ -31699,13 +31715,37 @@ Return ONLY valid JSON in this exact format:
         }
       }
 
-      const extractedMatches = allExtracted.map((m: any) => ({
-        teamA: (m.teamA || []).slice(0, 2),
-        teamB: (m.teamB || []).slice(0, 2),
-        scoreA: Math.max(0, parseInt(m.scoreA) || 0),
-        scoreB: Math.max(0, parseInt(m.scoreB) || 0),
-        confidence: Math.min(1, Math.max(0, parseFloat(m.confidence) || 0.5)),
-      }));
+      const cleanPlayerName = (name: string): string => {
+        return name.replace(/\s+\d+(\.\d+)?\s*$/, '').trim();
+      };
+      const cleanPlayer = (p: any) => ({
+        ...p,
+        name: cleanPlayerName(p.name || ''),
+      });
+
+      const isValidBadmintonScore = (a: number, b: number): boolean => {
+        const hi = Math.max(a, b);
+        const lo = Math.min(a, b);
+        if (hi === 0 && lo === 0) return false;
+        if (hi <= 21) return hi === 21 && lo >= 0 && lo <= 21;
+        if (hi <= 30) return (hi - lo === 2) || (hi === 30 && lo === 29);
+        return false;
+      };
+
+      const extractedMatches = allExtracted.map((m: any) => {
+        const scoreA = Math.max(0, parseInt(m.scoreA) || 0);
+        const scoreB = Math.max(0, parseInt(m.scoreB) || 0);
+        if (!isValidBadmintonScore(scoreA, scoreB)) {
+          console.warn(`[AI Match Extract] Suspicious score: ${scoreA}-${scoreB} — may be misread`);
+        }
+        return {
+          teamA: (m.teamA || []).slice(0, 2).map(cleanPlayer),
+          teamB: (m.teamB || []).slice(0, 2).map(cleanPlayer),
+          scoreA,
+          scoreB,
+          confidence: Math.min(1, Math.max(0, parseFloat(m.confidence) || 0.5)),
+        };
+      });
 
       console.log(`[AI Match Extract] Final: extracted ${extractedMatches.length} matches`);
 
