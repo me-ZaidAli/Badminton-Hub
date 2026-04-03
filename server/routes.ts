@@ -31633,21 +31633,27 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
       const systemPrompt = `You are a sports score sheet OCR assistant for racket sports (badminton, etc.). Extract ALL match results from the image.
 
+LAYOUT FORMAT — READ CAREFULLY:
+- Each match row typically has 3 columns: TEAM A (left side) | SCORE (middle, e.g. "21-16") | TEAM B (right side)
+- The score in the middle is written as "X-Y" where X is Team A's score (left team) and Y is Team B's score (right team).
+- scoreA = the LEFT number in the score (belongs to the LEFT team / Team A)
+- scoreB = the RIGHT number in the score (belongs to the RIGHT team / Team B)
+- Players may have small superscript numbers next to their names — these are player ratings/grades, NOT scores. Ignore them.
+- Player names may appear in different colors (pink text = female players). Extract the names regardless of color.
+
 CRITICAL RULES:
-1. PRESERVE EXACT ORDER — return matches in the exact same order they appear in the image, reading top-to-bottom, left-to-right. Match #1 in your output must be the first match shown in the image.
-2. EXTRACT EVERY SINGLE MATCH — do not skip any rows. If there are 30 matches visible, return all 30.
-3. For each match, return Team A players, Team B players, scores, and confidence.
-4. Player names should be as accurate as possible — preserve exact spelling from the image.
-5. Do not invent data — only extract what you see.
-6. If a match row is partially visible or unclear, still include it with lower confidence.
+1. PRESERVE EXACT ORDER — return matches in the exact same order they appear in the image, top-to-bottom. Match #1 = first row.
+2. EXTRACT EVERY SINGLE MATCH — do not skip any rows.
+3. Player names should be as accurate as possible — preserve exact spelling from the image.
+4. Do not invent data — only extract what you see.
+5. If a match row is partially visible or unclear, still include it with lower confidence.
 
 SCORE RULES (badminton):
-- Normal game is played to 21 points.
+- Normal game is played to 21 points. Winner has 21, loser has 19 or fewer.
 - If both teams reach 20 (deuce), the winner MUST be exactly 2 points ahead (e.g. 22-20, 23-21, 24-22).
 - Maximum possible score is 30-29 (at 29-all, next point wins).
-- So scores like 23-27, 26-21, 25-20 are IMPOSSIBLE. Read the scores very carefully.
-- The winning team's score is always >= 21. The losing team's score must be <= 19 if the winner has exactly 21, or exactly 2 less than the winner if above 21 (up to 30-29).
-- If you read a score that violates these rules, re-examine the image more carefully.
+- Scores like 26-21, 23-27, 25-20 are IMPOSSIBLE. If you see a score that violates these rules, re-read it very carefully.
+- The higher score always belongs to the winning team.
 
 Return ONLY valid JSON in this exact format:
 {"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}], "teamB": [{"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;

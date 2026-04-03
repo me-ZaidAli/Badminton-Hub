@@ -546,6 +546,67 @@ export default function AIMatchInput() {
     }
   }, [selectedSessionId, extractedMatches, toast]);
 
+  const [allPlayersCache, setAllPlayersCache] = useState<PlayerSearchResult[]>([]);
+
+  const { data: sessionPlayers = [] } = useQuery<PlayerSearchResult[]>({
+    queryKey: ["/api/admin/player-search", "*", selectedSessionId],
+    queryFn: async () => {
+      const res = await fetch(`/api/admin/player-search?q=*&sessionId=${selectedSessionId}&limit=500`);
+      if (!res.ok) {
+        const res2 = await fetch(`/api/admin/player-search?q=*&limit=500`);
+        if (!res2.ok) return [];
+        return res2.json();
+      }
+      return res.json();
+    },
+    enabled: !!selectedSessionId,
+  });
+
+  useEffect(() => {
+    if (sessionPlayers.length > 0) setAllPlayersCache(sessionPlayers);
+  }, [sessionPlayers]);
+
+  const getSuggestionsForTeam = useCallback((players: ExtractedPlayer[]): Map<number, { fullName: string; score: number; userId: number; profileId: number | null }> => {
+    const result = new Map<number, { fullName: string; score: number; userId: number; profileId: number | null }>();
+    if (allPlayersCache.length === 0) return result;
+    players.forEach((player, idx) => {
+      if (player.linkedUserId) return;
+      const pName = player.name.toLowerCase().trim();
+      let best: { user: PlayerSearchResult; score: number } | null = null;
+      for (const u of allPlayersCache) {
+        const uName = (u.fullName || "").toLowerCase().trim();
+        if (!uName) continue;
+        if (uName === pName) { best = { user: u, score: 1.0 }; break; }
+        const pParts = pName.split(/\s+/).filter(s => s.length > 0);
+        const uParts = uName.split(/\s+/).filter(s => s.length > 0);
+        let matchParts = 0;
+        for (const pp of pParts) {
+          for (const up of uParts) {
+            if (pp === up) { matchParts++; break; }
+            if (pp.length >= 3 && up.length >= 3 && (up.includes(pp) || pp.includes(up))) { matchParts++; break; }
+          }
+        }
+        const score = matchParts / Math.max(pParts.length, uParts.length);
+        if (score >= 0.5 && (!best || score > best.score)) {
+          best = { user: u, score };
+        }
+      }
+      if (best) {
+        result.set(idx, { fullName: best.user.fullName, score: best.score, userId: best.user.id, profileId: best.user.profileId || null });
+      }
+    });
+    return result;
+  }, [allPlayersCache]);
+
+  const handleAcceptSuggestion = useCallback((matchId: string, teamKey: "teamA" | "teamB", playerIdx: number) => {
+    const match = extractedMatches.find(m => m.id === matchId);
+    if (!match) return;
+    const suggestions = getSuggestionsForTeam(match[teamKey]);
+    const sug = suggestions.get(playerIdx);
+    if (!sug) return;
+    linkPlayerToProfile(matchId, teamKey, playerIdx, { id: sug.userId, fullName: sug.fullName, email: "", profileId: sug.profileId ?? undefined });
+  }, [extractedMatches, getSuggestionsForTeam, linkPlayerToProfile]);
+
   const confidenceColor = (c: number) => {
     if (c >= 0.8) return "text-emerald-600 dark:text-emerald-400";
     if (c >= 0.5) return "text-amber-600 dark:text-amber-400";
@@ -852,7 +913,9 @@ export default function AIMatchInput() {
                               setPlayerSearch("");
                             }}
                             onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamA", playerIdx)}
+                            onAcceptSuggestion={(playerIdx) => handleAcceptSuggestion(match.id, "teamA", playerIdx)}
                             disabled={match.confirmed}
+                            suggestions={getSuggestionsForTeam(match.teamA)}
                           />
                           <TeamCard
                             label="Team B"
@@ -866,7 +929,9 @@ export default function AIMatchInput() {
                               setPlayerSearch("");
                             }}
                             onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamB", playerIdx)}
+                            onAcceptSuggestion={(playerIdx) => handleAcceptSuggestion(match.id, "teamB", playerIdx)}
                             disabled={match.confirmed}
+                            suggestions={getSuggestionsForTeam(match.teamB)}
                           />
                         </div>
 
@@ -1189,7 +1254,9 @@ function TeamCard({
   confidenceBg,
   onLink,
   onUnlink,
+  onAcceptSuggestion,
   disabled,
+  suggestions,
 }: {
   label: string;
   players: ExtractedPlayer[];
@@ -1199,67 +1266,87 @@ function TeamCard({
   confidenceBg: (c: number) => string;
   onLink: (playerIdx: number) => void;
   onUnlink: (playerIdx: number) => void;
+  onAcceptSuggestion?: (playerIdx: number) => void;
   disabled: boolean;
+  suggestions?: Map<number, { fullName: string; score: number }>;
 }) {
   return (
     <div className="space-y-2" data-testid={`team-card-${teamKey}`}>
       <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</Label>
       {players.map((player, pidx) => {
         const isLinked = !!player.linkedUserId || !!player.linkedProfileId;
+        const suggestion = suggestions?.get(pidx);
         return (
           <div
             key={pidx}
-            className={`flex items-center gap-2 p-2 rounded-lg border transition-all ${
+            className={`p-2 rounded-lg border transition-all ${
               isLinked ? confidenceBg(player.confidence) : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30"
             }`}
             data-testid={`player-${teamKey}-${pidx}`}
           >
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-medium truncate">
-                {isLinked ? (
-                  <span className="flex items-center gap-1">
-                    <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
-                    {player.linkedName}
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
-                    <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
-                    {player.name}
-                    <Badge variant="outline" className="text-[10px] ml-1 border-red-300 dark:border-red-500/40 text-red-500">
-                      Unlinked Player
-                    </Badge>
-                  </span>
+            <div className="flex items-center gap-2">
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate">
+                  {isLinked ? (
+                    <span className="flex items-center gap-1">
+                      <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500 flex-shrink-0" />
+                      {player.linkedName}
+                    </span>
+                  ) : (
+                    <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
+                      <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
+                      {player.name}
+                      <Badge variant="outline" className="text-[10px] ml-1 border-red-300 dark:border-red-500/40 text-red-500">
+                        Unlinked
+                      </Badge>
+                    </span>
+                  )}
+                </p>
+                {isLinked && player.name !== player.linkedName && (
+                  <p className="text-xs text-muted-foreground">AI detected: {player.name}</p>
                 )}
-              </p>
-              {isLinked && player.name !== player.linkedName && (
-                <p className="text-xs text-muted-foreground">AI detected: {player.name}</p>
-              )}
-            </div>
-            <span className={`text-[10px] font-medium ${confidenceColor(player.confidence)}`}>
-              {Math.round(player.confidence * 100)}%
-            </span>
-            {!disabled && (
-              <div className="flex items-center gap-1">
-                {isLinked && (
+              </div>
+              <span className={`text-[10px] font-medium ${confidenceColor(player.confidence)}`}>
+                {Math.round(player.confidence * 100)}%
+              </span>
+              {!disabled && (
+                <div className="flex items-center gap-1">
+                  {isLinked && (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                      onClick={() => onUnlink(pidx)}
+                      data-testid={`button-unlink-${teamKey}-${pidx}`}
+                    >
+                      <X className="w-3 h-3 mr-1" /> Unlink
+                    </Button>
+                  )}
                   <Button
                     variant="ghost"
                     size="sm"
-                    className="h-7 text-xs text-amber-600 dark:text-amber-400 hover:bg-amber-100 dark:hover:bg-amber-500/20"
-                    onClick={() => onUnlink(pidx)}
-                    data-testid={`button-unlink-${teamKey}-${pidx}`}
+                    className="h-7 text-xs text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20"
+                    onClick={() => onLink(pidx)}
+                    data-testid={`button-link-${teamKey}-${pidx}`}
                   >
-                    <X className="w-3 h-3 mr-1" /> Unlink
+                    <Link2 className="w-3 h-3 mr-1" /> {isLinked ? "Change" : "Link"}
                   </Button>
-                )}
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="h-7 text-xs text-violet-600 dark:text-violet-400 hover:bg-violet-100 dark:hover:bg-violet-500/20"
-                  onClick={() => onLink(pidx)}
-                  data-testid={`button-link-${teamKey}-${pidx}`}
-                >
-                  <Link2 className="w-3 h-3 mr-1" /> {isLinked ? "Change" : "Link"}
-                </Button>
+                </div>
+              )}
+            </div>
+            {!isLinked && suggestion && !disabled && onAcceptSuggestion && (
+              <div
+                className="mt-1.5 flex items-center gap-2 p-1.5 rounded bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/30 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors"
+                onClick={() => onAcceptSuggestion(pidx)}
+                data-testid={`button-accept-suggestion-${teamKey}-${pidx}`}
+              >
+                <Sparkles className="w-3 h-3 text-violet-500 flex-shrink-0" />
+                <span className="text-xs text-violet-700 dark:text-violet-300 flex-1 truncate">
+                  Suggested: <strong>{suggestion.fullName}</strong>
+                </span>
+                <Badge className="bg-violet-500 text-white text-[10px] h-5 px-1.5">
+                  Accept
+                </Badge>
               </div>
             )}
           </div>
