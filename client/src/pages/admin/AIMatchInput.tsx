@@ -214,18 +214,32 @@ export default function AIMatchInput() {
   };
 
   const linkPlayerToProfile = (matchId: string, teamKey: "teamA" | "teamB", playerIdx: number, profile: PlayerSearchResult) => {
+    const sourceMatch = extractedMatches.find(m => m.id === matchId);
+    const sourcePlayer = sourceMatch?.[teamKey]?.[playerIdx];
+    const aiName = sourcePlayer?.name?.toLowerCase().trim() || "";
+
     setExtractedMatches((prev) =>
       prev.map((m) => {
-        if (m.id !== matchId) return m;
-        const team = [...m[teamKey]];
-        team[playerIdx] = {
-          ...team[playerIdx],
-          linkedUserId: profile.id,
-          linkedProfileId: profile.profileId || null,
-          linkedName: profile.fullName,
-          confidence: 1.0,
-        };
-        return { ...m, [teamKey]: team, edited: true };
+        if (m.confirmed) return m;
+        let changed = false;
+        const newTeamA = m.teamA.map((p) => {
+          if (p.linkedUserId) return p;
+          if (p.name.toLowerCase().trim() === aiName || (m.id === matchId && m.teamA.indexOf(p) === playerIdx && teamKey === "teamA")) {
+            changed = true;
+            return { ...p, linkedUserId: profile.id, linkedProfileId: profile.profileId || null, linkedName: profile.fullName, confidence: 1.0 };
+          }
+          return p;
+        });
+        const newTeamB = m.teamB.map((p) => {
+          if (p.linkedUserId) return p;
+          if (p.name.toLowerCase().trim() === aiName || (m.id === matchId && m.teamB.indexOf(p) === playerIdx && teamKey === "teamB")) {
+            changed = true;
+            return { ...p, linkedUserId: profile.id, linkedProfileId: profile.profileId || null, linkedName: profile.fullName, confidence: 1.0 };
+          }
+          return p;
+        });
+        if (!changed) return m;
+        return { ...m, teamA: newTeamA, teamB: newTeamB, edited: true };
       })
     );
     setLinkDialog(null);
@@ -262,21 +276,39 @@ export default function AIMatchInput() {
     },
     onSuccess: (newUser, _vars) => {
       if (createDialog) {
+        const sourceMatch = extractedMatches.find(m => m.id === createDialog.matchId);
+        const sourcePlayer = sourceMatch?.[createDialog.teamKey]?.[createDialog.playerIdx];
+        const aiName = sourcePlayer?.name?.toLowerCase().trim() || "";
+
         setExtractedMatches((prev) =>
           prev.map((m) => {
-            if (m.id !== createDialog.matchId) return m;
-            const team = [...m[createDialog.teamKey]];
-            team[createDialog.playerIdx] = {
-              ...team[createDialog.playerIdx],
-              linkedUserId: newUser.id,
-              linkedProfileId: newUser.profileId || null,
-              linkedName: newUser.fullName,
-              confidence: 1.0,
-            };
-            return { ...m, [createDialog.teamKey]: team, edited: true };
+            if (m.confirmed) return m;
+            let changed = false;
+            const newTeamA = m.teamA.map((p) => {
+              if (p.linkedUserId) return p;
+              if (p.name.toLowerCase().trim() === aiName) {
+                changed = true;
+                return { ...p, linkedUserId: newUser.id, linkedProfileId: newUser.profileId || null, linkedName: newUser.fullName, confidence: 1.0 };
+              }
+              return p;
+            });
+            const newTeamB = m.teamB.map((p) => {
+              if (p.linkedUserId) return p;
+              if (p.name.toLowerCase().trim() === aiName) {
+                changed = true;
+                return { ...p, linkedUserId: newUser.id, linkedProfileId: newUser.profileId || null, linkedName: newUser.fullName, confidence: 1.0 };
+              }
+              return p;
+            });
+            if (!changed) return m;
+            return { ...m, teamA: newTeamA, teamB: newTeamB, edited: true };
           })
         );
-        toast({ title: "Player Created", description: `${newUser.fullName} added and linked` });
+        const count = extractedMatches.reduce((c, m) => {
+          if (m.confirmed) return c;
+          return c + [...m.teamA, ...m.teamB].filter(p => !p.linkedUserId && p.name.toLowerCase().trim() === aiName).length;
+        }, 0);
+        toast({ title: "Player Created", description: `${newUser.fullName} linked in ${count} place(s)` });
       }
       setCreateDialog(null);
       setNewPlayerName("");
@@ -286,6 +318,21 @@ export default function AIMatchInput() {
     },
   });
 
+  const validateBadmintonScore = useCallback((scoreA: number, scoreB: number): string | null => {
+    if (scoreA < 0 || scoreB < 0) return "Scores cannot be negative";
+    if (scoreA === 0 && scoreB === 0) return "Both scores are 0";
+    const high = Math.max(scoreA, scoreB);
+    const low = Math.min(scoreA, scoreB);
+    if (high < 21) return null;
+    if (high === 21 && low <= 19) return null;
+    if (high > 21 && high <= 30 && (high - low) === 2) return null;
+    if (high === 30 && low === 29) return null;
+    if (high > 30) return `Score ${high} exceeds maximum 30`;
+    if (high === 21 && low === 20) return "At 20-all, winner must lead by 2 (e.g. 22-20)";
+    if (high > 21 && (high - low) !== 2) return `Deuce rule: winner must be exactly 2 ahead (${high}-${high-2} or ${low+2}-${low})`;
+    return `Invalid score: ${scoreA}-${scoreB}`;
+  }, []);
+
   const getMatchValidation = useCallback(
     (match: ExtractedMatch) => {
       const errors: string[] = [];
@@ -293,8 +340,8 @@ export default function AIMatchInput() {
       const allPlayers = [...match.teamA, ...match.teamB];
       const unlinked = allPlayers.filter((p) => !p.linkedProfileId && !p.linkedUserId);
       if (unlinked.length > 0) errors.push(`${unlinked.length} unlinked player(s)`);
-      if (match.scoreA < 0 || match.scoreB < 0) errors.push("Invalid scores");
-      if (match.scoreA === 0 && match.scoreB === 0) errors.push("Both scores are 0");
+      const scoreErr = validateBadmintonScore(match.scoreA, match.scoreB);
+      if (scoreErr) errors.push(scoreErr);
       return errors;
     },
     [selectedSessionId]
@@ -753,9 +800,12 @@ export default function AIMatchInput() {
                       {match.teamA.map((p) => p.linkedName || p.name).join(" & ")} vs{" "}
                       {match.teamB.map((p) => p.linkedName || p.name).join(" & ")}
                     </span>
-                    <Badge variant="outline" className="text-xs">
+                    <Badge variant="outline" className={`text-xs ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 text-red-500" : ""}`}>
                       {match.scoreA} - {match.scoreB}
                     </Badge>
+                    {validateBadmintonScore(match.scoreA, match.scoreB) && (
+                      <AlertTriangle className="w-3.5 h-3.5 text-red-500 flex-shrink-0" />
+                    )}
                   </div>
                   <div className="flex items-center gap-2">
                     {match.confirmed ? (
@@ -820,32 +870,40 @@ export default function AIMatchInput() {
                           />
                         </div>
 
-                        <div className="flex items-center gap-4">
-                          <div className="flex items-center gap-2 flex-1">
-                            <Label className="text-xs text-muted-foreground whitespace-nowrap">Score A</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={match.scoreA}
-                              onChange={(e) => updateMatchScore(match.id, "scoreA", parseInt(e.target.value) || 0)}
-                              className="w-20 h-8 text-center text-sm"
-                              disabled={match.confirmed}
-                              data-testid={`input-score-a-${idx}`}
-                            />
+                        <div className="space-y-1">
+                          <div className="flex items-center gap-4">
+                            <div className="flex items-center gap-2 flex-1">
+                              <Label className="text-xs text-muted-foreground whitespace-nowrap">Score A</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={match.scoreA}
+                                onChange={(e) => updateMatchScore(match.id, "scoreA", parseInt(e.target.value) || 0)}
+                                className={`w-20 h-8 text-center text-sm ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 dark:border-red-500" : ""}`}
+                                disabled={match.confirmed}
+                                data-testid={`input-score-a-${idx}`}
+                              />
+                            </div>
+                            <span className="text-lg font-bold text-muted-foreground">—</span>
+                            <div className="flex items-center gap-2 flex-1 justify-end">
+                              <Label className="text-xs text-muted-foreground whitespace-nowrap">Score B</Label>
+                              <Input
+                                type="number"
+                                min={0}
+                                value={match.scoreB}
+                                onChange={(e) => updateMatchScore(match.id, "scoreB", parseInt(e.target.value) || 0)}
+                                className={`w-20 h-8 text-center text-sm ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 dark:border-red-500" : ""}`}
+                                disabled={match.confirmed}
+                                data-testid={`input-score-b-${idx}`}
+                              />
+                            </div>
                           </div>
-                          <span className="text-lg font-bold text-muted-foreground">—</span>
-                          <div className="flex items-center gap-2 flex-1 justify-end">
-                            <Label className="text-xs text-muted-foreground whitespace-nowrap">Score B</Label>
-                            <Input
-                              type="number"
-                              min={0}
-                              value={match.scoreB}
-                              onChange={(e) => updateMatchScore(match.id, "scoreB", parseInt(e.target.value) || 0)}
-                              className="w-20 h-8 text-center text-sm"
-                              disabled={match.confirmed}
-                              data-testid={`input-score-b-${idx}`}
-                            />
-                          </div>
+                          {validateBadmintonScore(match.scoreA, match.scoreB) && (
+                            <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1" data-testid={`score-warning-${idx}`}>
+                              <AlertTriangle className="w-3 h-3 flex-shrink-0" />
+                              {validateBadmintonScore(match.scoreA, match.scoreB)}
+                            </p>
+                          )}
                         </div>
 
                         <div className="flex items-center gap-2">
@@ -940,6 +998,11 @@ export default function AIMatchInput() {
           {linkDialog && (() => {
             const match = extractedMatches.find((m) => m.id === linkDialog.matchId);
             const player = match?.[linkDialog.teamKey]?.[linkDialog.playerIdx];
+            const aiName = player?.name?.toLowerCase().trim() || "";
+            const sameNameCount = aiName ? extractedMatches.reduce((count, m) => {
+              if (m.confirmed) return count;
+              return count + [...m.teamA, ...m.teamB].filter(p => !p.linkedUserId && p.name.toLowerCase().trim() === aiName).length;
+            }, 0) : 0;
             return (
               <div className="space-y-4">
                 <div className="p-3 rounded-lg bg-muted/50">
@@ -947,6 +1010,11 @@ export default function AIMatchInput() {
                     <span className="text-muted-foreground">AI detected name:</span>{" "}
                     <strong>{player?.name}</strong>
                   </p>
+                  {sameNameCount > 1 && (
+                    <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
+                      This name appears in {sameNameCount} places — linking will apply to all of them
+                    </p>
+                  )}
                 </div>
                 <div>
                   <Label className="text-sm">Search existing players</Label>

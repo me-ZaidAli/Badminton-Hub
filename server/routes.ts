@@ -31631,16 +31631,23 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
       const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
 
-      const systemPrompt = `You are a sports score sheet OCR assistant. Extract ALL match results from the image.
+      const systemPrompt = `You are a sports score sheet OCR assistant for racket sports (badminton, etc.). Extract ALL match results from the image.
 
 CRITICAL RULES:
 1. PRESERVE EXACT ORDER — return matches in the exact same order they appear in the image, reading top-to-bottom, left-to-right. Match #1 in your output must be the first match shown in the image.
 2. EXTRACT EVERY SINGLE MATCH — do not skip any rows. If there are 30 matches visible, return all 30.
 3. For each match, return Team A players, Team B players, scores, and confidence.
-4. Scores must be integers >= 0.
-5. Player names should be as accurate as possible — preserve exact spelling from the image.
-6. Do not invent data — only extract what you see.
-7. If a match row is partially visible or unclear, still include it with lower confidence.
+4. Player names should be as accurate as possible — preserve exact spelling from the image.
+5. Do not invent data — only extract what you see.
+6. If a match row is partially visible or unclear, still include it with lower confidence.
+
+SCORE RULES (badminton):
+- Normal game is played to 21 points.
+- If both teams reach 20 (deuce), the winner MUST be exactly 2 points ahead (e.g. 22-20, 23-21, 24-22).
+- Maximum possible score is 30-29 (at 29-all, next point wins).
+- So scores like 23-27, 26-21, 25-20 are IMPOSSIBLE. Read the scores very carefully.
+- The winning team's score is always >= 21. The losing team's score must be <= 19 if the winner has exactly 21, or exactly 2 less than the winner if above 21 (up to 30-29).
+- If you read a score that violates these rules, re-examine the image more carefully.
 
 Return ONLY valid JSON in this exact format:
 {"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}], "teamB": [{"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;
