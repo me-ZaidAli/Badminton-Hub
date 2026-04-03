@@ -37,6 +37,7 @@ interface ExtractedMatch {
   confidence: number;
   expanded: boolean;
   confirmed: boolean;
+  savedToDb: boolean;
   edited: boolean;
   imageLabel?: string;
 }
@@ -171,6 +172,7 @@ export default function AIMatchInput() {
             confidence: m.confidence ?? 0.5,
             expanded: true,
             confirmed: false,
+            savedToDb: false,
             edited: false,
             imageLabel: totalImages > 1 ? `Image ${imgIdx + 1}` : undefined,
           }));
@@ -217,27 +219,23 @@ export default function AIMatchInput() {
     const sourceMatch = extractedMatches.find(m => m.id === matchId);
     const sourcePlayer = sourceMatch?.[teamKey]?.[playerIdx];
     const aiName = sourcePlayer?.name?.toLowerCase().trim() || "";
+    const oldLinkedId = sourcePlayer?.linkedUserId || null;
 
     setExtractedMatches((prev) =>
       prev.map((m) => {
-        if (m.confirmed) return m;
         let changed = false;
-        const newTeamA = m.teamA.map((p) => {
-          if (p.linkedUserId) return p;
-          if (p.name.toLowerCase().trim() === aiName || (m.id === matchId && m.teamA.indexOf(p) === playerIdx && teamKey === "teamA")) {
+        const updatePlayer = (p: ExtractedPlayer, isTargetSlot: boolean) => {
+          const nameMatch = p.name.toLowerCase().trim() === aiName;
+          const linkedIdMatch = oldLinkedId && p.linkedUserId === oldLinkedId;
+          if (isTargetSlot || nameMatch || linkedIdMatch) {
+            if (p.linkedUserId === profile.id) return p;
             changed = true;
             return { ...p, linkedUserId: profile.id, linkedProfileId: profile.profileId || null, linkedName: profile.fullName, confidence: 1.0 };
           }
           return p;
-        });
-        const newTeamB = m.teamB.map((p) => {
-          if (p.linkedUserId) return p;
-          if (p.name.toLowerCase().trim() === aiName || (m.id === matchId && m.teamB.indexOf(p) === playerIdx && teamKey === "teamB")) {
-            changed = true;
-            return { ...p, linkedUserId: profile.id, linkedProfileId: profile.profileId || null, linkedName: profile.fullName, confidence: 1.0 };
-          }
-          return p;
-        });
+        };
+        const newTeamA = m.teamA.map((p, i) => updatePlayer(p, m.id === matchId && teamKey === "teamA" && i === playerIdx));
+        const newTeamB = m.teamB.map((p, i) => updatePlayer(p, m.id === matchId && teamKey === "teamB" && i === playerIdx));
         if (!changed) return m;
         return { ...m, teamA: newTeamA, teamB: newTeamB, edited: true };
       })
@@ -282,7 +280,6 @@ export default function AIMatchInput() {
 
         setExtractedMatches((prev) =>
           prev.map((m) => {
-            if (m.confirmed) return m;
             let changed = false;
             const newTeamA = m.teamA.map((p) => {
               if (p.linkedUserId) return p;
@@ -305,7 +302,6 @@ export default function AIMatchInput() {
           })
         );
         const count = extractedMatches.reduce((c, m) => {
-          if (m.confirmed) return c;
           return c + [...m.teamA, ...m.teamB].filter(p => !p.linkedUserId && p.name.toLowerCase().trim() === aiName).length;
         }, 0);
         toast({ title: "Player Created", description: `${newUser.fullName} linked in ${count} place(s)` });
@@ -347,12 +343,13 @@ export default function AIMatchInput() {
     [selectedSessionId]
   );
 
-  const unsavedMatches = useMemo(() => extractedMatches.filter((m) => !m.confirmed), [extractedMatches]);
+  const unsavedMatches = useMemo(() => extractedMatches.filter((m) => !m.savedToDb), [extractedMatches]);
 
+  const confirmedUnsaved = useMemo(() => extractedMatches.filter(m => !m.savedToDb && m.confirmed), [extractedMatches]);
   const canSaveUnsaved = useMemo(() => {
-    if (!selectedSessionId || unsavedMatches.length === 0) return false;
-    return unsavedMatches.every((m) => getMatchValidation(m).length === 0);
-  }, [selectedSessionId, unsavedMatches, getMatchValidation]);
+    if (!selectedSessionId || confirmedUnsaved.length === 0) return false;
+    return confirmedUnsaved.every((m) => getMatchValidation(m).length === 0);
+  }, [selectedSessionId, confirmedUnsaved, getMatchValidation]);
 
   const createSessionMutation = useMutation({
     mutationFn: async () => {
@@ -399,7 +396,7 @@ export default function AIMatchInput() {
       const savedSid = data.sessionId;
       setTotalSavedCount((prev) => prev + newSaved);
       const savedIds = new Set(savedMatches.map((m) => m.id));
-      setExtractedMatches((prev) => prev.map((m) => savedIds.has(m.id) ? { ...m, confirmed: true } : m));
+      setExtractedMatches((prev) => prev.map((m) => savedIds.has(m.id) ? { ...m, confirmed: true, savedToDb: true } : m));
       const sessionTitle = allSessions.find((s: any) => String(s.id) === selectedSessionId)?.title || `Session #${savedSid}`;
       setLastSavedSession({ id: savedSid, title: sessionTitle, count: newSaved });
       toast({
@@ -436,10 +433,40 @@ export default function AIMatchInput() {
     );
   };
 
+  const unconfirmMatch = (matchId: string) => {
+    setExtractedMatches((prev) =>
+      prev.map((m) => (m.id === matchId ? { ...m, confirmed: false } : m))
+    );
+  };
+
+  const confirmAllMatches = () => {
+    let confirmedCount = 0;
+    let failedCount = 0;
+    setExtractedMatches((prev) =>
+      prev.map((m) => {
+        if (m.confirmed) return m;
+        const errors = getMatchValidation(m);
+        if (errors.length > 0) { failedCount++; return m; }
+        confirmedCount++;
+        return { ...m, confirmed: true };
+      })
+    );
+    if (confirmedCount > 0) {
+      toast({ title: `${confirmedCount} match(es) confirmed`, description: failedCount > 0 ? `${failedCount} skipped due to issues` : undefined });
+    } else if (failedCount > 0) {
+      toast({ title: "No matches confirmed", description: `${failedCount} match(es) have issues that need fixing first`, variant: "destructive" });
+    }
+  };
+
   const handleSaveAll = () => {
-    const toSave = unsavedMatches.filter((m) => getMatchValidation(m).length === 0);
+    const toSave = extractedMatches.filter((m) => !m.savedToDb && m.confirmed && getMatchValidation(m).length === 0);
     if (toSave.length === 0) {
-      toast({ title: "Nothing to save", description: "No unsaved valid matches", variant: "destructive" });
+      const unconfirmed = extractedMatches.filter(m => !m.savedToDb && !m.confirmed);
+      if (unconfirmed.length > 0) {
+        toast({ title: "Nothing to save", description: `${unconfirmed.length} match(es) need confirming first`, variant: "destructive" });
+      } else {
+        toast({ title: "Nothing to save", description: "No matches ready to save", variant: "destructive" });
+      }
       return;
     }
     saveMatchesMutation.mutate(toSave);
@@ -473,7 +500,6 @@ export default function AIMatchInput() {
 
       setExtractedMatches((prev) =>
         prev.map((match) => {
-          if (match.confirmed) return match;
           const usedIds = new Set<number>();
           const allSlots = [
             ...match.teamA.map((p, i) => ({ team: "teamA" as const, idx: i, player: p })),
@@ -570,7 +596,6 @@ export default function AIMatchInput() {
     const result = new Map<number, { fullName: string; score: number; userId: number; profileId: number | null }>();
     if (allPlayersCache.length === 0) return result;
     players.forEach((player, idx) => {
-      if (player.linkedUserId) return;
       const pName = player.name.toLowerCase().trim();
       let best: { user: PlayerSearchResult; score: number } | null = null;
       for (const u of allPlayersCache) {
@@ -591,7 +616,7 @@ export default function AIMatchInput() {
           best = { user: u, score };
         }
       }
-      if (best) {
+      if (best && best.user.id !== player.linkedUserId) {
         result.set(idx, { fullName: best.user.fullName, score: best.score, userId: best.user.id, profileId: best.user.profileId || null });
       }
     });
@@ -834,8 +859,10 @@ export default function AIMatchInput() {
               )}
               <Card
                 className={`overflow-hidden transition-all ${
-                  match.confirmed
+                  match.savedToDb
                     ? "border-emerald-300 dark:border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-500/5"
+                    : match.confirmed
+                    ? "border-blue-300 dark:border-blue-500/40 bg-blue-50/50 dark:bg-blue-500/5"
                     : isValid
                     ? "border-violet-200 dark:border-violet-500/30"
                     : "border-amber-200 dark:border-amber-500/30"
@@ -869,9 +896,13 @@ export default function AIMatchInput() {
                     )}
                   </div>
                   <div className="flex items-center gap-2">
-                    {match.confirmed ? (
+                    {match.savedToDb ? (
                       <Badge className="bg-emerald-500 text-white text-xs">
-                        <CheckCircle2 className="w-3 h-3 mr-1" /> Confirmed
+                        <CheckCircle2 className="w-3 h-3 mr-1" /> Saved
+                      </Badge>
+                    ) : match.confirmed ? (
+                      <Badge className="bg-blue-500 text-white text-xs">
+                        <Check className="w-3 h-3 mr-1" /> Confirmed
                       </Badge>
                     ) : isValid ? (
                       <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/40 text-xs">
@@ -914,7 +945,7 @@ export default function AIMatchInput() {
                             }}
                             onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamA", playerIdx)}
                             onAcceptSuggestion={(playerIdx) => handleAcceptSuggestion(match.id, "teamA", playerIdx)}
-                            disabled={match.confirmed}
+                            disabled={false}
                             suggestions={getSuggestionsForTeam(match.teamA)}
                           />
                           <TeamCard
@@ -930,7 +961,7 @@ export default function AIMatchInput() {
                             }}
                             onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamB", playerIdx)}
                             onAcceptSuggestion={(playerIdx) => handleAcceptSuggestion(match.id, "teamB", playerIdx)}
-                            disabled={match.confirmed}
+                            disabled={false}
                             suggestions={getSuggestionsForTeam(match.teamB)}
                           />
                         </div>
@@ -945,7 +976,6 @@ export default function AIMatchInput() {
                                 value={match.scoreA}
                                 onChange={(e) => updateMatchScore(match.id, "scoreA", parseInt(e.target.value) || 0)}
                                 className={`w-20 h-8 text-center text-sm ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 dark:border-red-500" : ""}`}
-                                disabled={match.confirmed}
                                 data-testid={`input-score-a-${idx}`}
                               />
                             </div>
@@ -958,7 +988,6 @@ export default function AIMatchInput() {
                                 value={match.scoreB}
                                 onChange={(e) => updateMatchScore(match.id, "scoreB", parseInt(e.target.value) || 0)}
                                 className={`w-20 h-8 text-center text-sm ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 dark:border-red-500" : ""}`}
-                                disabled={match.confirmed}
                                 data-testid={`input-score-b-${idx}`}
                               />
                             </div>
@@ -976,27 +1005,37 @@ export default function AIMatchInput() {
                             <Sparkles className="w-3 h-3 mr-1" /> {Math.round(match.confidence * 100)}% confidence
                           </Badge>
                           <div className="flex-1" />
-                          {!match.confirmed && (
-                            <>
-                              <Button
-                                variant="ghost"
-                                size="sm"
-                                onClick={() => removeMatch(match.id)}
-                                className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-500/10 h-8"
-                                data-testid={`button-remove-match-${idx}`}
-                              >
-                                <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove
-                              </Button>
-                              <Button
-                                size="sm"
-                                disabled={!isValid}
-                                onClick={() => confirmMatch(match.id)}
-                                className="bg-emerald-500 hover:bg-emerald-600 text-white h-8"
-                                data-testid={`button-confirm-match-${idx}`}
-                              >
-                                <Check className="w-3.5 h-3.5 mr-1" /> Confirm
-                              </Button>
-                            </>
+                          {!match.savedToDb && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeMatch(match.id)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50 dark:hover:bg-red-500/10 h-8"
+                              data-testid={`button-remove-match-${idx}`}
+                            >
+                              <Trash2 className="w-3.5 h-3.5 mr-1" /> Remove
+                            </Button>
+                          )}
+                          {match.confirmed ? (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => unconfirmMatch(match.id)}
+                              className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-500/40 h-8"
+                              data-testid={`button-edit-match-${idx}`}
+                            >
+                              <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
+                            </Button>
+                          ) : (
+                            <Button
+                              size="sm"
+                              disabled={!isValid}
+                              onClick={() => confirmMatch(match.id)}
+                              className="bg-emerald-500 hover:bg-emerald-600 text-white h-8"
+                              data-testid={`button-confirm-match-${idx}`}
+                            >
+                              <Check className="w-3.5 h-3.5 mr-1" /> Confirm
+                            </Button>
                           )}
                         </div>
                       </div>
@@ -1013,7 +1052,7 @@ export default function AIMatchInput() {
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{unsavedMatches.length} unsaved, {extractedMatches.length - unsavedMatches.length} saved</span>
+              <span>{unsavedMatches.length} unsaved, {extractedMatches.filter(m => m.savedToDb).length} saved</span>
               {totalSavedCount > 0 && (
                 <Badge className="bg-emerald-500 text-white">
                   <CheckCircle2 className="w-3 h-3 mr-1" /> {totalSavedCount} total saved
@@ -1031,9 +1070,20 @@ export default function AIMatchInput() {
                   <Plus className="w-4 h-4 mr-1" /> Add More Images
                 </Button>
               )}
+              {unsavedMatches.length > 0 && unsavedMatches.some(m => !m.confirmed) && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={confirmAllMatches}
+                  className="border-emerald-300 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                  data-testid="button-confirm-all"
+                >
+                  <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm All
+                </Button>
+              )}
               <Button
                 onClick={handleSaveAll}
-                disabled={!canSaveUnsaved || saveMatchesMutation.isPending || unsavedMatches.length === 0}
+                disabled={!canSaveUnsaved || saveMatchesMutation.isPending || confirmedUnsaved.length === 0}
                 className="bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700"
                 data-testid="button-save-all"
               >
@@ -1041,8 +1091,10 @@ export default function AIMatchInput() {
                   <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
                 ) : unsavedMatches.length === 0 ? (
                   <><CheckCircle2 className="w-4 h-4 mr-2" /> All Saved</>
+                ) : confirmedUnsaved.length > 0 ? (
+                  <><Save className="w-4 h-4 mr-2" /> Save {confirmedUnsaved.length} Confirmed</>
                 ) : (
-                  <><Save className="w-4 h-4 mr-2" /> Save {unsavedMatches.length} Match(es)</>
+                  <><Save className="w-4 h-4 mr-2" /> {unsavedMatches.length} Need Confirming</>
                 )}
               </Button>
             </div>
@@ -1065,7 +1117,6 @@ export default function AIMatchInput() {
             const player = match?.[linkDialog.teamKey]?.[linkDialog.playerIdx];
             const aiName = player?.name?.toLowerCase().trim() || "";
             const sameNameCount = aiName ? extractedMatches.reduce((count, m) => {
-              if (m.confirmed) return count;
               return count + [...m.teamA, ...m.teamB].filter(p => !p.linkedUserId && p.name.toLowerCase().trim() === aiName).length;
             }, 0) : 0;
             return (
@@ -1334,18 +1385,22 @@ function TeamCard({
                 </div>
               )}
             </div>
-            {!isLinked && suggestion && !disabled && onAcceptSuggestion && (
+            {suggestion && !disabled && onAcceptSuggestion && (
               <div
-                className="mt-1.5 flex items-center gap-2 p-1.5 rounded bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/30 cursor-pointer hover:bg-violet-100 dark:hover:bg-violet-500/20 transition-colors"
+                className={`mt-1.5 flex items-center gap-2 p-1.5 rounded cursor-pointer transition-colors ${
+                  isLinked
+                    ? "bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 hover:bg-amber-100 dark:hover:bg-amber-500/20"
+                    : "bg-violet-50 dark:bg-violet-500/10 border border-violet-200 dark:border-violet-500/30 hover:bg-violet-100 dark:hover:bg-violet-500/20"
+                }`}
                 onClick={() => onAcceptSuggestion(pidx)}
                 data-testid={`button-accept-suggestion-${teamKey}-${pidx}`}
               >
-                <Sparkles className="w-3 h-3 text-violet-500 flex-shrink-0" />
-                <span className="text-xs text-violet-700 dark:text-violet-300 flex-1 truncate">
-                  Suggested: <strong>{suggestion.fullName}</strong>
+                <Sparkles className={`w-3 h-3 flex-shrink-0 ${isLinked ? "text-amber-500" : "text-violet-500"}`} />
+                <span className={`text-xs flex-1 truncate ${isLinked ? "text-amber-700 dark:text-amber-300" : "text-violet-700 dark:text-violet-300"}`}>
+                  {isLinked ? "Swap to" : "Suggested"}: <strong>{suggestion.fullName}</strong>
                 </span>
-                <Badge className="bg-violet-500 text-white text-[10px] h-5 px-1.5">
-                  Accept
+                <Badge className={`text-white text-[10px] h-5 px-1.5 ${isLinked ? "bg-amber-500" : "bg-violet-500"}`}>
+                  {isLinked ? "Swap" : "Accept"}
                 </Badge>
               </div>
             )}
