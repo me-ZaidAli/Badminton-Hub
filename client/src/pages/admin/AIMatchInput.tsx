@@ -38,6 +38,7 @@ interface ExtractedMatch {
   expanded: boolean;
   confirmed: boolean;
   edited: boolean;
+  imageLabel?: string;
 }
 
 interface PlayerSearchResult {
@@ -62,6 +63,7 @@ export default function AIMatchInput() {
   const [playerSearch, setPlayerSearch] = useState("");
   const [newPlayerName, setNewPlayerName] = useState("");
   const [lastSavedSession, setLastSavedSession] = useState<{ id: number; title: string; count: number } | null>(null);
+  const [extractionProgress, setExtractionProgress] = useState("");
   const [showCreateSession, setShowCreateSession] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState("");
   const [newSessionDate, setNewSessionDate] = useState("");
@@ -125,52 +127,65 @@ export default function AIMatchInput() {
   const handleExtract = useCallback(async () => {
     if (pendingImages.length === 0) return;
     setIsExtracting(true);
+    setExtractionProgress("");
     let totalNew = 0;
     const timestamp = Date.now();
+    const totalImages = pendingImages.length;
     try {
-      for (let imgIdx = 0; imgIdx < pendingImages.length; imgIdx++) {
+      for (let imgIdx = 0; imgIdx < totalImages; imgIdx++) {
+        const imgLabel = totalImages > 1 ? `Image ${imgIdx + 1} of ${totalImages}` : "Image";
+        setExtractionProgress(`Processing ${imgLabel}...`);
         const img = pendingImages[imgIdx];
         const formData = new FormData();
         formData.append("image", img.file);
-        const res = await fetch("/api/admin/ai-match-extract", {
-          method: "POST",
-          body: formData,
-        });
-        if (!res.ok) {
-          const err = await res.json();
-          toast({ title: `Image ${imgIdx + 1} failed`, description: err.message || "Extraction failed", variant: "destructive" });
-          continue;
+        try {
+          const res = await fetch("/api/admin/ai-match-extract", {
+            method: "POST",
+            body: formData,
+          });
+          if (!res.ok) {
+            let errMsg = "Extraction failed";
+            try { const err = await res.json(); errMsg = err.message || errMsg; } catch {}
+            toast({ title: `${imgLabel} failed`, description: errMsg, variant: "destructive" });
+            continue;
+          }
+          const data = await res.json();
+          const parsed: ExtractedMatch[] = (data.matches || []).map((m: any, i: number) => ({
+            id: `ai-match-${timestamp}-${imgIdx}-${i}`,
+            teamA: (m.teamA || []).map((p: any) => ({
+              name: p.name || "Unknown",
+              linkedProfileId: p.linkedProfileId || null,
+              linkedUserId: p.linkedUserId || null,
+              linkedName: p.linkedName || null,
+              confidence: p.confidence ?? 0.5,
+            })),
+            teamB: (m.teamB || []).map((p: any) => ({
+              name: p.name || "Unknown",
+              linkedProfileId: p.linkedProfileId || null,
+              linkedUserId: p.linkedUserId || null,
+              linkedName: p.linkedName || null,
+              confidence: p.confidence ?? 0.5,
+            })),
+            scoreA: m.scoreA ?? 0,
+            scoreB: m.scoreB ?? 0,
+            confidence: m.confidence ?? 0.5,
+            expanded: true,
+            confirmed: false,
+            edited: false,
+            imageLabel: totalImages > 1 ? `Image ${imgIdx + 1}` : undefined,
+          }));
+          totalNew += parsed.length;
+          setExtractionProgress(`${imgLabel}: found ${parsed.length} matches`);
+          setExtractedMatches((prev) => [...prev, ...parsed]);
+        } catch (imgErr: any) {
+          console.error(`[AI Match Extract] Error processing image ${imgIdx + 1}:`, imgErr);
+          toast({ title: `${imgLabel} error`, description: imgErr.message || "Network error", variant: "destructive" });
         }
-        const data = await res.json();
-        const parsed: ExtractedMatch[] = (data.matches || []).map((m: any, i: number) => ({
-          id: `ai-match-${timestamp}-${imgIdx}-${i}`,
-          teamA: (m.teamA || []).map((p: any) => ({
-            name: p.name || "Unknown",
-            linkedProfileId: p.linkedProfileId || null,
-            linkedUserId: p.linkedUserId || null,
-            linkedName: p.linkedName || null,
-            confidence: p.confidence ?? 0.5,
-          })),
-          teamB: (m.teamB || []).map((p: any) => ({
-            name: p.name || "Unknown",
-            linkedProfileId: p.linkedProfileId || null,
-            linkedUserId: p.linkedUserId || null,
-            linkedName: p.linkedName || null,
-            confidence: p.confidence ?? 0.5,
-          })),
-          scoreA: m.scoreA ?? 0,
-          scoreB: m.scoreB ?? 0,
-          confidence: m.confidence ?? 0.5,
-          expanded: true,
-          confirmed: false,
-          edited: false,
-        }));
-        totalNew += parsed.length;
-        setExtractedMatches((prev) => [...prev, ...parsed]);
       }
       setPendingImages([]);
+      setExtractionProgress("");
       if (totalNew > 0) {
-        toast({ title: "Extraction Complete", description: `Found ${totalNew} new match(es) from ${pendingImages.length} image(s)` });
+        toast({ title: "Extraction Complete", description: `Found ${totalNew} match(es) from ${totalImages} image(s)` });
       } else {
         toast({ title: "No Matches Found", description: "Could not extract any matches from the uploaded images", variant: "destructive" });
       }
@@ -178,6 +193,7 @@ export default function AIMatchInput() {
       toast({ title: "Extraction Failed", description: err.message, variant: "destructive" });
     } finally {
       setIsExtracting(false);
+      setExtractionProgress("");
     }
   }, [pendingImages, toast]);
 
@@ -597,6 +613,9 @@ export default function AIMatchInput() {
                   )}
                 </Button>
               )}
+              {isExtracting && extractionProgress && (
+                <p className="text-sm text-muted-foreground text-center animate-pulse" data-testid="text-extraction-progress">{extractionProgress}</p>
+              )}
             </div>
           </CardContent>
         </Card>
@@ -689,6 +708,7 @@ export default function AIMatchInput() {
         {extractedMatches.map((match, idx) => {
           const errors = getMatchValidation(match);
           const isValid = errors.length === 0;
+          const showImageHeader = match.imageLabel && (idx === 0 || extractedMatches[idx - 1]?.imageLabel !== match.imageLabel);
           return (
             <motion.div
               key={match.id}
@@ -697,6 +717,13 @@ export default function AIMatchInput() {
               exit={{ opacity: 0, y: -20 }}
               transition={{ delay: idx * 0.05 }}
             >
+              {showImageHeader && (
+                <div className="flex items-center gap-2 mb-2 mt-4" data-testid={`header-${match.imageLabel?.replace(/\s/g, "-").toLowerCase()}`}>
+                  <ImageIcon className="w-4 h-4 text-violet-500" />
+                  <span className="text-sm font-semibold text-violet-600 dark:text-violet-400">{match.imageLabel}</span>
+                  <Separator className="flex-1" />
+                </div>
+              )}
               <Card
                 className={`overflow-hidden transition-all ${
                   match.confirmed

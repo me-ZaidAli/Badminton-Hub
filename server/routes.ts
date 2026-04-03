@@ -31629,97 +31629,60 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}` } };
+      const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
 
-      const systemPrompt = `You are a sports score sheet OCR assistant. Extract match results from the image.
+      const systemPrompt = `You are a sports score sheet OCR assistant. Extract ALL match results from the image.
 
-For each match, return:
-- Team A players (1-2 names)
-- Team B players (1-2 names)
-- Score for Team A and Team B
-- Confidence (0.0 to 1.0)
+CRITICAL RULES:
+1. PRESERVE EXACT ORDER — return matches in the exact same order they appear in the image, reading top-to-bottom, left-to-right. Match #1 in your output must be the first match shown in the image.
+2. EXTRACT EVERY SINGLE MATCH — do not skip any rows. If there are 30 matches visible, return all 30.
+3. For each match, return Team A players, Team B players, scores, and confidence.
+4. Scores must be integers >= 0.
+5. Player names should be as accurate as possible — preserve exact spelling from the image.
+6. Do not invent data — only extract what you see.
+7. If a match row is partially visible or unclear, still include it with lower confidence.
 
-Return ONLY valid JSON:
-{"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}], "teamB": [{"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}
+Return ONLY valid JSON in this exact format:
+{"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}], "teamB": [{"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;
 
-Rules:
-- Scores must be integers >= 0
-- Player names should be as accurate as possible
-- Do not invent data - only extract what you see`;
-
-      const countCompletion = await openai.chat.completions.create({
-        model: "gpt-4o",
-        messages: [
-          { role: "system", content: "You are a sports score sheet analyzer. Count the total number of match results (rows) visible in the image. Return ONLY a JSON object like {\"count\": 42}. Count every single row/match visible." },
-          { role: "user", content: [
-            { type: "text", text: "How many match results (rows) are in this image? Count every single one carefully." },
-            imageContent
-          ]}
-        ],
-        max_tokens: 100,
-        temperature: 0.1,
-      });
-
-      const countRaw = countCompletion.choices?.[0]?.message?.content || "{}";
-      let totalCount = 0;
-      try {
-        const countJson = JSON.parse(countRaw.match(/\{[\s\S]*\}/)?.[0] || countRaw);
-        totalCount = parseInt(countJson.count) || 0;
-      } catch { totalCount = 0; }
-
-      console.log(`[AI Match Extract] AI counted ${totalCount} matches in image`);
-
-      const BATCH_SIZE = 15;
-      let allExtracted: any[] = [];
-
-      if (totalCount <= BATCH_SIZE || totalCount === 0) {
+      const extractOnce = async (hint: string): Promise<any[]> => {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
             { role: "system", content: systemPrompt },
             { role: "user", content: [
-              { type: "text", text: `Extract ALL match results from this score sheet. ${totalCount > 0 ? `There should be exactly ${totalCount} matches. Do not stop until you have extracted all ${totalCount}.` : "Extract every single match visible."}` },
+              { type: "text", text: hint },
               imageContent
             ]}
           ],
           max_tokens: 16000,
           temperature: 0.1,
         });
-
         const rawResponse = completion.choices?.[0]?.message?.content || "{}";
+        console.log(`[AI Match Extract] Raw response length: ${rawResponse.length} chars`);
         try {
           const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
           const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawResponse);
-          allExtracted = parsed.matches || [];
-        } catch { allExtracted = []; }
-      } else {
-        const numBatches = Math.ceil(totalCount / BATCH_SIZE);
-        for (let batch = 0; batch < numBatches; batch++) {
-          const startRow = batch * BATCH_SIZE + 1;
-          const endRow = Math.min((batch + 1) * BATCH_SIZE, totalCount);
-          console.log(`[AI Match Extract] Batch ${batch + 1}/${numBatches}: rows ${startRow}-${endRow}`);
+          return parsed.matches || [];
+        } catch (parseErr) {
+          console.error(`[AI Match Extract] JSON parse error:`, parseErr);
+          return [];
+        }
+      };
 
-          const batchCompletion = await openai.chat.completions.create({
-            model: "gpt-4o",
-            messages: [
-              { role: "system", content: systemPrompt },
-              { role: "user", content: [
-                { type: "text", text: `This image contains ${totalCount} match results. Extract ONLY matches #${startRow} through #${endRow} (rows ${startRow} to ${endRow} from the top). Return exactly ${endRow - startRow + 1} matches. Count rows from the top of the table/list.` },
-                imageContent
-              ]}
-            ],
-            max_tokens: 8000,
-            temperature: 0.1,
-          });
+      let allExtracted = await extractOnce(
+        "Extract EVERY match result from this score sheet image. Do NOT skip any rows. Preserve the exact order as shown — first row in the image = first match in output. Include ALL matches visible in the image, even if there are many."
+      );
 
-          const batchRaw = batchCompletion.choices?.[0]?.message?.content || "{}";
-          try {
-            const jsonMatch = batchRaw.match(/\{[\s\S]*\}/);
-            const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : batchRaw);
-            allExtracted.push(...(parsed.matches || []));
-          } catch {
-            console.error(`[AI Match Extract] Failed to parse batch ${batch + 1}`);
-          }
+      console.log(`[AI Match Extract] First pass: extracted ${allExtracted.length} matches`);
+
+      if (allExtracted.length > 0 && allExtracted.length <= 10) {
+        const retryMatches = await extractOnce(
+          `I need ALL matches from this image. On a previous attempt only ${allExtracted.length} were found, but there may be more. Look very carefully at EVERY row/entry in the image. Extract ALL of them in exact top-to-bottom order. Do not stop early.`
+        );
+        if (retryMatches.length > allExtracted.length) {
+          console.log(`[AI Match Extract] Retry found more: ${retryMatches.length} vs ${allExtracted.length}, using retry result`);
+          allExtracted = retryMatches;
         }
       }
 
@@ -31731,7 +31694,7 @@ Rules:
         confidence: Math.min(1, Math.max(0, parseFloat(m.confidence) || 0.5)),
       }));
 
-      console.log(`[AI Match Extract] Extracted ${extractedMatches.length} matches total (counted ${totalCount})`);
+      console.log(`[AI Match Extract] Final: extracted ${extractedMatches.length} matches`);
 
       res.json({ matches: extractedMatches });
     } catch (err: any) {
