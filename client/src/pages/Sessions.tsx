@@ -67,6 +67,52 @@ function computePublishAt(sessionDate: Date | string | null | undefined, weeksBe
   return d;
 }
 
+function GuestClubsPicker({ currentClubId, selectedIds, onChange }: {
+  currentClubId: number | undefined;
+  selectedIds: number[];
+  onChange: (ids: number[]) => void;
+}) {
+  const { data: allClubs } = useQuery<{ id: number; name: string }[]>({
+    queryKey: ["/api/clubs"],
+    enabled: true,
+  });
+  const otherClubs = (allClubs || []).filter(c => c.id !== currentClubId).sort((a, b) => a.name.localeCompare(b.name));
+  if (otherClubs.length === 0) return null;
+
+  const toggle = (clubId: number) => {
+    if (selectedIds.includes(clubId)) {
+      onChange(selectedIds.filter(id => id !== clubId));
+    } else {
+      onChange([...selectedIds, clubId]);
+    }
+  };
+
+  return (
+    <div className="space-y-2">
+      <Label className="flex items-center gap-2 text-sm font-medium">
+        <Users className="h-4 w-4" />
+        Guest Club Access
+      </Label>
+      <p className="text-xs text-muted-foreground">Players from selected clubs can join this session without being members of your club.</p>
+      <div className="max-h-[150px] overflow-y-auto space-y-1 rounded-md border p-2">
+        {otherClubs.map(club => (
+          <label key={club.id} className="flex items-center gap-2 p-1.5 rounded hover:bg-muted/50 cursor-pointer text-sm" data-testid={`guest-club-${club.id}`}>
+            <Checkbox
+              checked={selectedIds.includes(club.id)}
+              onCheckedChange={() => toggle(club.id)}
+              data-testid={`checkbox-guest-club-${club.id}`}
+            />
+            <span>{club.name}</span>
+          </label>
+        ))}
+      </div>
+      {selectedIds.length > 0 && (
+        <p className="text-xs text-muted-foreground">{selectedIds.length} guest club{selectedIds.length !== 1 ? "s" : ""} selected</p>
+      )}
+    </div>
+  );
+}
+
 function StandaloneCrowdControl({ sessionId, open, onOpenChange }: { sessionId: number; open: boolean; onOpenChange: (v: boolean) => void }) {
   const { data: matches = [] } = useQuery<any[]>({
     queryKey: ["/api/sessions", sessionId, "matches"],
@@ -262,7 +308,7 @@ function InvitePlayersModal({
   }, [open, selectedPlayerIds]);
 
   const approvedPlayers = useMemo(() => {
-    return (clubPlayers || []).filter(p => p.membershipStatus === "APPROVED" && p.user?.role === "PLAYER");
+    return (clubPlayers || []).filter(p => p.user?.role === "PLAYER");
   }, [clubPlayers]);
 
   const filteredPlayers = useMemo(() => {
@@ -2902,6 +2948,9 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
   const [selectedInvitees, setSelectedInvitees] = useState<Set<number>>(new Set());
   const [scheduleEnabled, setScheduleEnabled] = useState(false);
   const [weeksBefore, setWeeksBefore] = useState(1);
+  const { data: currentUser } = useUser();
+  const isSuperAdmin = currentUser?.role === "OWNER";
+  const [guestClubIds, setGuestClubIds] = useState<number[]>(prefillData?.guestClubIds || []);
   
   const form = useForm<z.infer<typeof createSessionSchema>>({
     resolver: zodResolver(createSessionSchema),
@@ -2956,12 +3005,14 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       courtNames: courtNamesArray,
       publishAt: publishAt?.toISOString() || null,
       inviteePlayerIds: selectedInvitees.size > 0 ? Array.from(selectedInvitees) : undefined,
+      ...(isSuperAdmin && guestClubIds.length > 0 ? { guestClubIds } : {}),
     };
     create(payload as any, {
       onSuccess: () => {
         setOpen(false);
         form.reset();
         setSelectedInvitees(new Set());
+        setGuestClubIds([]);
         setScheduleEnabled(false);
         setWeeksBefore(1);
         onClose?.();
@@ -3566,6 +3617,13 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
               selectedPlayerIds={selectedInvitees}
               onSelectionChange={setSelectedInvitees}
             />
+            {isSuperAdmin && (
+              <GuestClubsPicker
+                currentClubId={watchClubId}
+                selectedIds={guestClubIds}
+                onChange={setGuestClubIds}
+              />
+            )}
             <Button type="submit" className="w-full" disabled={isPending} data-testid="button-create-session">
               {isPending ? "Creating..." : "Create Session"}
             </Button>
@@ -3623,6 +3681,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editScheduleEnabled, setEditScheduleEnabled] = useState(false);
   const [editWeeksBefore, setEditWeeksBefore] = useState(1);
   const [showSeriesConfirm, setShowSeriesConfirm] = useState(false);
+  const { data: editUser } = useUser();
+  const isEditSuperAdmin = editUser?.role === "OWNER";
+  const [editGuestClubIds, setEditGuestClubIds] = useState<number[]>([]);
 
   const applyToSeriesMutation = useMutation({
     mutationFn: async ({ recurringEventId, fromDate, updates }: { recurringEventId: number; fromDate?: string; updates: any }) => {
@@ -3683,6 +3744,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditSessionDetails(session.sessionDetails || "");
     setEditHallName(session.hallName || "");
     setEditCourtNames(session.courtNames?.join(", ") || "");
+    setEditGuestClubIds(session.guestClubIds || []);
     if (session.publishAt) {
       setEditScheduleEnabled(true);
       const sessionDate = new Date(session.date);
@@ -3751,6 +3813,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       courtNames: editCourtNames ? editCourtNames.split(",").map(s => s.trim()).filter(Boolean) : null,
       publishAt: publishAt?.toISOString() || null,
       scheduleWeeksBefore: editScheduleEnabled ? editWeeksBefore : undefined,
+      ...(isEditSuperAdmin ? { guestClubIds: editGuestClubIds.length > 0 ? editGuestClubIds : null } : {}),
     };
   };
 
@@ -4203,6 +4266,13 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
             selectedPlayerIds={editInvitees}
             onSelectionChange={setEditInvitees}
           />
+          {isEditSuperAdmin && (
+            <GuestClubsPicker
+              currentClubId={editClubId}
+              selectedIds={editGuestClubIds}
+              onChange={setEditGuestClubIds}
+            />
+          )}
           <Button
             className="w-full"
             onClick={handleSave}

@@ -372,6 +372,7 @@ export const sessions = pgTable("sessions", {
   publishAt: timestamp("publish_at"),
   invoiceNumber: text("invoice_number"),
   sessionDetails: text("session_details"),
+  guestClubIds: jsonb("guest_club_ids").$type<number[]>(),
 });
 
 // === SESSION SIGNUPS ===

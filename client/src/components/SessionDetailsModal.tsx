@@ -743,7 +743,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     if (!showAddPlayer) return null;
     const allSignupPlayerIds = new Set(allSignups.map((s: any) => s.playerId));
     const availableMembers = (clubMembers || [])
-      .filter((m: any) => !allSignupPlayerIds.has(m.id) && m.membershipStatus === "APPROVED")
+      .filter((m: any) => !allSignupPlayerIds.has(m.id))
       .filter((m: any) => {
         if (!addPlayerSearch.trim()) return true;
         const name = m.user?.fullName?.toLowerCase() || "";

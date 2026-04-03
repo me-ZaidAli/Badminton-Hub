@@ -2190,31 +2190,39 @@ export async function registerRoutes(
   app.post(api.sessions.create.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const { inviteePlayerIds, ...bodyWithoutInvitees } = req.body;
-      const input = api.sessions.create.input.parse(bodyWithoutInvitees);
+      const { inviteePlayerIds, guestClubIds: guestClubIdsInput, ...bodyWithoutExtras } = req.body;
+      const input = api.sessions.create.input.parse(bodyWithoutExtras);
       
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, input.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
       }
 
+      let finalGuestClubIds: number[] | null = null;
+      if (guestClubIdsInput && Array.isArray(guestClubIdsInput) && guestClubIdsInput.length > 0) {
+        if (req.user!.role !== "OWNER") {
+          return res.status(403).json({ message: "Only super admins can set guest club access" });
+        }
+        finalGuestClubIds = guestClubIdsInput;
+      }
+
       const session = await storage.createSession({ 
         ...input, 
-        createdBy: req.user!.id 
+        createdBy: req.user!.id,
+        ...(finalGuestClubIds ? { guestClubIds: finalGuestClubIds } : {}),
       });
       console.log(`[AUDIT] SESSION_CREATE: sessionId=${session.id} clubId=${input.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
 
       if (inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0) {
         try {
           const clubMembers = await storage.getClubMembers(input.clubId);
-          const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
           const club = await storage.getClub(input.clubId);
           const clubName = club?.name || "your club";
           const existingSignups = await storage.getSessionSignups(session.id);
           const existingPlayerIds = new Set(existingSignups.map(s => s.playerId));
           const selectedPlayerIds = new Set(inviteePlayerIds as number[]);
           
-          for (const member of approvedMembers) {
+          for (const member of clubMembers) {
             if (member.userId === req.user!.id) continue;
             if (existingPlayerIds.has(member.id)) continue;
             if (!selectedPlayerIds.has(member.id)) continue;
@@ -2460,14 +2468,29 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
-    const profile = await storage.getPlayerProfile(req.user!.id, session.clubId);
-    if (!profile) return res.status(403).json({ message: "You must be an accepted member of this club to join this session." });
+    let profile = await storage.getPlayerProfile(req.user!.id, session.clubId);
+    let isGuestPlayer = false;
+
+    if (!profile) {
+      const guestClubIds: number[] = (session as any).guestClubIds || [];
+      if (guestClubIds.length > 0) {
+        for (const guestClubId of guestClubIds) {
+          const guestProfile = await storage.getPlayerProfile(req.user!.id, guestClubId);
+          if (guestProfile && guestProfile.playerStatus !== "BANNED") {
+            profile = guestProfile;
+            isGuestPlayer = true;
+            break;
+          }
+        }
+      }
+      if (!profile) return res.status(403).json({ message: "You must be a member of this club or an invited guest club to join this session." });
+    }
 
     if (profile.playerStatus === "BANNED") {
       return res.status(403).json({ message: "You have been banned from this club and cannot join sessions." });
     }
 
-    if (profile.membershipStatus !== "APPROVED") {
+    if (!isGuestPlayer && profile.membershipStatus !== "APPROVED") {
       const statusMsg = profile.membershipStatus === "PENDING"
         ? "Your membership is pending approval. You cannot join sessions until approved."
         : "You must be an accepted member of this club to join this session.";
@@ -3766,7 +3789,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, hallName } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, hallName, guestClubIds } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -3826,6 +3849,12 @@ export async function registerRoutes(
       }
       if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
       if (sessionDetails !== undefined) updates.sessionDetails = sessionDetails || null;
+      if (guestClubIds !== undefined) {
+        if (req.user!.role !== "OWNER") {
+          return res.status(403).json({ message: "Only super admins can set guest club access" });
+        }
+        updates.guestClubIds = Array.isArray(guestClubIds) && guestClubIds.length > 0 ? guestClubIds : null;
+      }
 
       const updated = await storage.updateSession(sessionId, updates);
       console.log(`[AUDIT] SESSION_UPDATE: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} changes=${JSON.stringify(Object.keys(updates))} at ${new Date().toISOString()}`);
