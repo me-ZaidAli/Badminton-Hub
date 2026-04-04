@@ -1460,9 +1460,12 @@ export default function Sessions() {
                   >
                     {session.title || "Untitled Session"}
                   </h3>
+                  {clubName && (
+                    <p className="text-sm sm:text-base font-semibold text-blue-600 dark:text-blue-400">
+                      {clubName}
+                    </p>
+                  )}
                   <p className="text-xs sm:text-sm text-muted-foreground">
-                    {clubName && <span>{clubName}</span>}
-                    {clubName && <span className="mx-1.5 text-border">•</span>}
                     <span>{formatLabel}</span>
                     {session.durationMinutes && (
                       <>
