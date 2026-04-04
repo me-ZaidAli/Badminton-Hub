@@ -13,14 +13,14 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save, Archive, Pause, Play } from "lucide-react";
+import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save, Archive, Pause, Play, Crown, Search, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Club, PlayerProfile, User as UserType } from "@shared/schema";
 
 type MemberWithUser = PlayerProfile & { user: UserType };
 type UserWithProfile = UserType & { playerProfile: PlayerProfile | null };
-type ClubWithStatus = Club & { status: string };
+type ClubWithStatus = Club & { status: string; ownerUser?: { id: number; fullName: string; email: string } | null };
 
 interface ClubEditState {
   name: string;
@@ -103,6 +103,9 @@ export default function ClubManagement() {
     bankAccountName: "", bankSortCode: "", bankAccountNumber: "",
   });
   const [manageTab, setManageTab] = useState("details");
+  const [ownerSearchQuery, setOwnerSearchQuery] = useState("");
+  const [adminSearchQuery, setAdminSearchQuery] = useState("");
+  const [selectedAdminRole, setSelectedAdminRole] = useState("ADMIN");
 
   const { data: clubs, isLoading } = useQuery<ClubWithStatus[]>({
     queryKey: ["/api/admin/clubs"],
@@ -206,6 +209,43 @@ export default function ClubManagement() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       toast({ title: "User role updated successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const transferOwnerMutation = useMutation({
+    mutationFn: async ({ clubId, userId }: { clubId: number; userId: number }) => {
+      const res = await apiRequest("PATCH", `/api/admin/clubs/${clubId}/owner`, { userId });
+      return res.json();
+    },
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", manageClub?.id, "members"] });
+      const updatedClubs = queryClient.getQueryData<ClubWithStatus[]>(["/api/admin/clubs"]);
+      if (updatedClubs && manageClub) {
+        const updated = updatedClubs.find(c => c.id === manageClub.id);
+        if (updated) setManageClub(updated);
+      }
+      setOwnerSearchQuery("");
+      toast({ title: "Ownership transferred successfully" });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const assignAdminMutation = useMutation({
+    mutationFn: async ({ clubId, userId, clubRole }: { clubId: number; userId: number; clubRole: string }) => {
+      const res = await apiRequest("POST", `/api/admin/clubs/${clubId}/admins`, { userId, clubRole });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/clubs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", manageClub?.id, "members"] });
+      setAdminSearchQuery("");
+      toast({ title: "Admin assigned successfully" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -412,7 +452,20 @@ export default function ClubManagement() {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-sm text-muted-foreground mb-4">{club.description || "No description"}</p>
+                  <p className="text-sm text-muted-foreground mb-2">{club.description || "No description"}</p>
+                  {club.ownerUser && (
+                    <div className="flex items-center gap-2 text-sm mb-2 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-md px-2 py-1.5">
+                      <Crown className="w-3.5 h-3.5 text-amber-500 flex-shrink-0" />
+                      <span className="text-amber-700 dark:text-amber-400 font-medium truncate">{club.ownerUser.fullName}</span>
+                      <span className="text-muted-foreground text-xs truncate">({club.ownerUser.email})</span>
+                    </div>
+                  )}
+                  {!club.ownerUser && (
+                    <div className="flex items-center gap-2 text-sm mb-2 bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded-md px-2 py-1.5">
+                      <Crown className="w-3.5 h-3.5 text-red-400 flex-shrink-0" />
+                      <span className="text-red-600 dark:text-red-400 text-xs">No owner assigned</span>
+                    </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-2 text-sm text-muted-foreground">
                       <Users className="w-4 h-4" />
@@ -525,9 +578,10 @@ export default function ClubManagement() {
           </DialogHeader>
           
           <Tabs value={manageTab} onValueChange={setManageTab} className="mt-2">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="details" data-testid="tab-club-details">Club Details</TabsTrigger>
+            <TabsList className="grid w-full grid-cols-3">
+              <TabsTrigger value="details" data-testid="tab-club-details">Details</TabsTrigger>
               <TabsTrigger value="members" data-testid="tab-club-members">Members</TabsTrigger>
+              <TabsTrigger value="ownership" data-testid="tab-club-ownership">Ownership</TabsTrigger>
             </TabsList>
 
             <TabsContent value="details" className="mt-4 space-y-6">
@@ -933,6 +987,200 @@ export default function ClubManagement() {
                   </TableBody>
                 </Table>
               )}
+            </TabsContent>
+
+            <TabsContent value="ownership" className="mt-4 space-y-6">
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">
+                  <Crown className="w-4 h-4 text-amber-500" />
+                  Current Owner
+                </h3>
+                {manageClub?.ownerUser ? (
+                  <div className="flex items-center gap-3 p-3 bg-amber-50 dark:bg-amber-950/20 border border-amber-200 dark:border-amber-800 rounded-lg">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${manageClub.ownerUser.fullName}`} />
+                      <AvatarFallback>{manageClub.ownerUser.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-semibold">{manageClub.ownerUser.fullName}</p>
+                      <p className="text-sm text-muted-foreground">{manageClub.ownerUser.email}</p>
+                    </div>
+                    <Badge className="ml-auto bg-amber-500">Owner</Badge>
+                  </div>
+                ) : (
+                  <p className="text-sm text-red-500">No owner assigned to this club</p>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">
+                  <Crown className="w-4 h-4" />
+                  Transfer Ownership
+                </h3>
+                <p className="text-xs text-muted-foreground">Search for a user to make the new club owner. The previous owner will be demoted to Admin.</p>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    className="pl-9"
+                    placeholder="Search by name or email..."
+                    value={ownerSearchQuery}
+                    onChange={(e) => setOwnerSearchQuery(e.target.value)}
+                    data-testid="input-owner-search"
+                  />
+                </div>
+                {ownerSearchQuery.trim().length >= 2 && (
+                  <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
+                    {(allUsers || [])
+                      .filter(u => {
+                        const q = ownerSearchQuery.toLowerCase();
+                        return u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+                      })
+                      .slice(0, 10)
+                      .map(u => (
+                        <div key={u.id} className="flex items-center justify-between p-2 hover:bg-muted/50">
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-7 w-7">
+                              <AvatarFallback className="text-xs">{u.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                            </Avatar>
+                            <div>
+                              <p className="text-sm font-medium">{u.fullName}</p>
+                              <p className="text-xs text-muted-foreground">{u.email}</p>
+                            </div>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+                            disabled={transferOwnerMutation.isPending || (manageClub?.ownerUser?.id === u.id)}
+                            onClick={() => {
+                              if (manageClub && confirm(`Transfer ownership of "${manageClub.name}" to ${u.fullName}?`)) {
+                                transferOwnerMutation.mutate({ clubId: manageClub.id, userId: u.id });
+                              }
+                            }}
+                            data-testid={`transfer-owner-${u.id}`}
+                          >
+                            {manageClub?.ownerUser?.id === u.id ? "Current Owner" : (
+                              <><Crown className="w-3.5 h-3.5 mr-1" /> Make Owner</>
+                            )}
+                          </Button>
+                        </div>
+                      ))
+                    }
+                    {(allUsers || []).filter(u => {
+                      const q = ownerSearchQuery.toLowerCase();
+                      return u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+                    }).length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-3">No users found</p>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-4">
+                <h3 className="font-semibold flex items-center gap-2 border-b pb-2">
+                  <UserPlus className="w-4 h-4" />
+                  Assign Club Admin / Organiser
+                </h3>
+                <p className="text-xs text-muted-foreground">Add a user as Admin or Organiser for this club. They will only have access to this club.</p>
+                <div className="flex gap-2">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      className="pl-9"
+                      placeholder="Search by name or email..."
+                      value={adminSearchQuery}
+                      onChange={(e) => setAdminSearchQuery(e.target.value)}
+                      data-testid="input-admin-search"
+                    />
+                  </div>
+                  <Select value={selectedAdminRole} onValueChange={setSelectedAdminRole}>
+                    <SelectTrigger className="w-[140px]" data-testid="select-admin-role">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="ADMIN">Admin</SelectItem>
+                      <SelectItem value="ORGANISER">Organiser</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                {adminSearchQuery.trim().length >= 2 && (
+                  <div className="max-h-48 overflow-y-auto border rounded-lg divide-y">
+                    {(allUsers || [])
+                      .filter(u => {
+                        const q = adminSearchQuery.toLowerCase();
+                        return u.fullName.toLowerCase().includes(q) || u.email.toLowerCase().includes(q);
+                      })
+                      .slice(0, 10)
+                      .map(u => {
+                        const existingMember = clubMembers?.find(m => m.userId === u.id);
+                        const currentRole = existingMember?.clubRole;
+                        return (
+                          <div key={u.id} className="flex items-center justify-between p-2 hover:bg-muted/50">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-7 w-7">
+                                <AvatarFallback className="text-xs">{u.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="text-sm font-medium">{u.fullName}</p>
+                                <p className="text-xs text-muted-foreground">{u.email}</p>
+                              </div>
+                              {currentRole && (
+                                <Badge variant="outline" className="text-xs">{currentRole}</Badge>
+                              )}
+                            </div>
+                            <Button
+                              size="sm"
+                              disabled={assignAdminMutation.isPending}
+                              onClick={() => {
+                                if (manageClub) {
+                                  assignAdminMutation.mutate({ clubId: manageClub.id, userId: u.id, clubRole: selectedAdminRole });
+                                }
+                              }}
+                              data-testid={`assign-admin-${u.id}`}
+                            >
+                              {assignAdminMutation.isPending ? (
+                                <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                              ) : (
+                                <><UserPlus className="w-3.5 h-3.5 mr-1" /> Assign {selectedAdminRole === "ADMIN" ? "Admin" : "Organiser"}</>
+                              )}
+                            </Button>
+                          </div>
+                        );
+                      })
+                    }
+                  </div>
+                )}
+
+                {clubMembers && clubMembers.filter(m => ["OWNER", "ADMIN", "ORGANISER"].includes(m.clubRole)).length > 0 && (
+                  <div className="space-y-2 mt-4">
+                    <h4 className="text-sm font-medium text-muted-foreground">Current Admins & Organisers</h4>
+                    <div className="border rounded-lg divide-y">
+                      {clubMembers
+                        .filter(m => ["OWNER", "ADMIN", "ORGANISER"].includes(m.clubRole))
+                        .map(m => (
+                          <div key={m.id} className="flex items-center justify-between p-2">
+                            <div className="flex items-center gap-2">
+                              <Avatar className="h-7 w-7">
+                                <AvatarFallback className="text-xs">{m.user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <p className="text-sm font-medium">{m.user.fullName}</p>
+                                <p className="text-xs text-muted-foreground">{m.user.email}</p>
+                              </div>
+                            </div>
+                            <Badge className={
+                              m.clubRole === "OWNER" ? "bg-amber-500" :
+                              m.clubRole === "ADMIN" ? "bg-blue-500" : "bg-violet-500"
+                            }>
+                              {m.clubRole}
+                            </Badge>
+                          </div>
+                        ))
+                      }
+                    </div>
+                  </div>
+                )}
+              </div>
             </TabsContent>
           </Tabs>
         </DialogContent>

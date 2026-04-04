@@ -8550,7 +8550,15 @@ export async function registerRoutes(
 
     try {
       const allClubs = await storage.getAllClubsForAdmin();
-      res.json(allClubs);
+      const clubsWithOwner = await Promise.all(allClubs.map(async (club: any) => {
+        let ownerUser = null;
+        if (club.ownerId) {
+          const u = await storage.getUser(club.ownerId);
+          if (u) ownerUser = { id: u.id, fullName: u.fullName, email: u.email };
+        }
+        return { ...club, ownerUser };
+      }));
+      res.json(clubsWithOwner);
     } catch (err: any) {
       console.error("Error fetching all clubs:", err);
       res.status(500).json({ message: err.message || "Failed to fetch clubs" });
@@ -8632,6 +8640,98 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error pausing/resuming club:", err);
       res.status(500).json({ message: err.message || "Failed to update club pause status" });
+    }
+  });
+
+  app.patch("/api/admin/clubs/:id/owner", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const clubId = Number(req.params.id);
+      const { userId } = req.body;
+      if (!userId) return res.status(400).json({ message: "userId is required" });
+
+      const uid = Number(userId);
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+
+      const targetUser = await storage.getUser(uid);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const members = await storage.getClubMembers(clubId);
+      const existingProfile = members.find((m: any) => m.userId === uid);
+
+      if (existingProfile) {
+        await storage.updatePlayerProfileWithFullName(existingProfile.id, { clubRole: "OWNER", membershipStatus: "APPROVED" });
+      } else {
+        await storage.createPlayerProfile({
+          userId: uid,
+          clubId,
+          clubRole: "OWNER" as any,
+          membershipStatus: "APPROVED" as any,
+          playerStatus: "ACTIVE" as any,
+        });
+      }
+
+      if (club.ownerId && club.ownerId !== uid) {
+        const oldOwnerProfile = members.find((m: any) => m.userId === club.ownerId);
+        if (oldOwnerProfile && oldOwnerProfile.clubRole === "OWNER") {
+          await storage.updatePlayerProfileWithFullName(oldOwnerProfile.id, { clubRole: "ADMIN" });
+        }
+      }
+
+      await storage.updateClub(clubId, { ownerId: uid });
+      console.log(`[CLUB] Ownership transferred: clubId=${clubId} newOwner=${uid} by userId=${req.user!.id}`);
+      res.json({ message: "Ownership transferred", clubId, newOwnerId: uid });
+    } catch (err: any) {
+      console.error("Error transferring club ownership:", err);
+      res.status(500).json({ message: err.message || "Failed to transfer ownership" });
+    }
+  });
+
+  app.post("/api/admin/clubs/:id/admins", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") {
+      return res.sendStatus(403);
+    }
+
+    try {
+      const clubId = Number(req.params.id);
+      const { userId, clubRole } = req.body;
+      if (!userId) return res.status(400).json({ message: "userId is required" });
+
+      const uid = Number(userId);
+      const role = clubRole && ["OWNER", "ADMIN", "ORGANISER"].includes(clubRole) ? clubRole : "ADMIN";
+
+      const club = await storage.getClub(clubId);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+
+      const targetUser = await storage.getUser(uid);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+
+      const members = await storage.getClubMembers(clubId);
+      const existingProfile = members.find((m: any) => m.userId === uid);
+
+      if (existingProfile) {
+        await storage.updatePlayerProfileWithFullName(existingProfile.id, { clubRole: role, membershipStatus: "APPROVED" });
+      } else {
+        await storage.createPlayerProfile({
+          userId: uid,
+          clubId,
+          clubRole: role as any,
+          membershipStatus: "APPROVED" as any,
+          playerStatus: "ACTIVE" as any,
+        });
+      }
+
+      console.log(`[CLUB] Admin assigned: clubId=${clubId} userId=${uid} role=${role} by userId=${req.user!.id}`);
+      res.json({ message: `User assigned as ${role}`, clubId, userId: uid, role });
+    } catch (err: any) {
+      console.error("Error assigning club admin:", err);
+      res.status(500).json({ message: err.message || "Failed to assign admin" });
     }
   });
 

@@ -495,7 +495,7 @@ function Router() {
         <PublicRoute component={PublicSession} />
       </Route>
       <Route path="/create-club">
-        <OwnerRoute component={CreateClub} />
+        <PrivateRoute component={CreateClub} />
       </Route>
       <Route path="/clubs">
         <PublicRoute component={Clubs} />
