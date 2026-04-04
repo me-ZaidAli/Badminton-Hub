@@ -1025,16 +1025,7 @@ export default function Sessions() {
           <div className="flex items-center gap-2">
             <MatchAlgorithmInfoButton />
             {canManageSessions && (
-              <>
-                <Button 
-                  variant="outline" 
-                  onClick={() => setLocation("/admin/calendar")}
-                  data-testid="button-import-from-calendar"
-                >
-                  <Calendar className="h-4 w-4 mr-2" /> Import from Calendar
-                </Button>
-                <EventTypeChooser sessionClubs={sessionClubs || []} />
-              </>
+              <EventTypeChooser sessionClubs={sessionClubs || []} />
             )}
           </div>
         }
@@ -1067,27 +1058,31 @@ export default function Sessions() {
       </div>
 
       {sessionsScope === "regular" && (<>
+      {!isPlatformAdmin && (
+        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 w-fit" data-testid="tabs-club-scope">
+          <Button
+            variant={clubScope === "my" ? "default" : "ghost"}
+            size="sm"
+            className={`h-8 px-3 gap-1.5 text-xs ${clubScope === "my" ? "" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
+            data-testid="tab-club-scope-my"
+          >
+            <Building2 className="h-3.5 w-3.5" />
+            My Clubs
+          </Button>
+          <Button
+            variant={clubScope === "all" ? "default" : "ghost"}
+            size="sm"
+            className={`h-8 px-3 gap-1.5 text-xs ${clubScope === "all" ? "" : "text-muted-foreground hover:text-foreground"}`}
+            onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
+            data-testid="tab-club-scope-all"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            All Clubs
+          </Button>
+        </div>
+      )}
       <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
-        {!isPlatformAdmin && (
-          <div className="flex items-center gap-1">
-            <Button
-              variant={clubScope === "my" ? "default" : "outline"}
-              size="sm"
-              onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
-              data-testid="button-sessions-scope-my"
-            >
-              My Clubs
-            </Button>
-            <Button
-              variant={clubScope === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
-              data-testid="button-sessions-scope-all"
-            >
-              All Clubs
-            </Button>
-          </div>
-        )}
         <div className="relative w-full sm:w-[280px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
           <Input
