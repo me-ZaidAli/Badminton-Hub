@@ -24,7 +24,6 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { SessionDetailsModal, SessionFinanceModal } from "@/components/SessionDetailsModal";
 import { MatchAlgorithmInfoButton } from "@/components/MatchAlgorithmInfo";
 import { CrowdControlPanel } from "@/components/CrowdControlPanel";
-import { StartSessionButton } from "@/components/StartSessionButton";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { useVenues } from "@/hooks/use-venues";
@@ -1856,23 +1855,14 @@ export default function Sessions() {
                   </div>
                 )}
 
-                {editableClubIds.has(session.clubId) ? (
-                  <div className="mt-3 pt-3 border-t border-border/30 flex justify-center">
-                    <StartSessionButton
-                      size="sm"
-                      onClick={() => setLocation(`/sessions/${session.id}`)}
-                    />
-                  </div>
-                ) : (
-                  <div className="mt-3 pt-3 border-t border-border/30">
-                    <Link href={`/sessions/${session.id}`}>
-                      <Button variant="outline" className="w-full rounded-xl font-medium gap-2" data-testid={`button-details-session-${session.id}`}>
-                        View Details
-                        <ArrowRight className="h-3.5 w-3.5" />
-                      </Button>
-                    </Link>
-                  </div>
-                )}
+                <div className="mt-3 pt-3 border-t border-border/30">
+                  <Link href={`/sessions/${session.id}`}>
+                    <Button variant="outline" className="w-full rounded-xl font-medium gap-2" data-testid={`button-access-session-${session.id}`}>
+                      Access Session
+                      <ArrowRight className="h-3.5 w-3.5" />
+                    </Button>
+                  </Link>
+                </div>
 
               </CardContent>
             </Card>

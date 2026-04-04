@@ -94,7 +94,7 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
             <span className="truncate">{venueName}{venue?.city ? `, ${venue.city}` : ""}</span>
           </span>
         )}
-        {!venueName && clubName && <span className="truncate">{clubName}</span>}
+        {!venueName && clubName && <span className="truncate font-semibold text-blue-600 dark:text-blue-400">{clubName}</span>}
       </div>
       {adminActions?.editableClubIds.has(session.clubId) && (
         <div className="flex items-center gap-1 mt-1.5 pt-1.5 border-t border-border/30" onClick={(e) => e.stopPropagation()}>
@@ -839,7 +839,7 @@ function TimelineSessionCard({
         </div>
 
         {clubName && (
-          <div className="mt-2 text-[10px] font-medium text-foreground/70 dark:text-white/60">{clubName}</div>
+          <div className="mt-2 text-sm font-semibold text-blue-600 dark:text-blue-400">{clubName}</div>
         )}
 
         {(session as any).waitingCount > 0 && (
@@ -1128,8 +1128,8 @@ function SessionPreviewDialog({
             )}
             {clubName && (
               <div className="flex items-center gap-2 text-sm">
-                <Layers className="h-4 w-4 text-muted-foreground" />
-                <span>{clubName}</span>
+                <Layers className="h-4 w-4 text-blue-500" />
+                <span className="font-semibold text-blue-600 dark:text-blue-400">{clubName}</span>
               </div>
             )}
             {session.courtsAvailable > 0 && (
