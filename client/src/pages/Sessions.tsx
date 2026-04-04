@@ -654,7 +654,7 @@ export default function Sessions() {
   }, [memberships]);
 
   const displayClubs = useMemo(() => {
-    if (isPlatformAdmin || clubScope === "all") return clubs || [];
+    if (clubScope === "all") return clubs || [];
     return (clubs || []).filter(c => myClubIds.has(c.id));
   }, [clubs, clubScope, myClubIds, isPlatformAdmin]);
 
@@ -761,7 +761,7 @@ export default function Sessions() {
     let result = sessions;
     if (!result) return [];
     result = result.filter(s => (s as any).sessionType !== "JUNIORS_ONLY");
-    if (!isPlatformAdmin && clubScope === "my") {
+    if (clubScope === "my") {
       result = result.filter(s => myClubIds.has(s.clubId));
     }
     if (selectedClubId !== "all") {
@@ -782,7 +782,7 @@ export default function Sessions() {
       result = result.filter(s => !(s as any).recurringEventId);
     }
     return result;
-  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isPlatformAdmin, sessionTypeFilter]);
+  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, sessionTypeFilter]);
 
   const scheduledSessions = useMemo(() => {
     let result = sessions;
@@ -811,7 +811,7 @@ export default function Sessions() {
       if (isScheduled) return false;
       return true;
     });
-    if (!isPlatformAdmin && clubScope === "my") {
+    if (clubScope === "my") {
       result = result.filter(s => myClubIds.has(s.clubId));
     }
     if (selectedClubId !== "all") {
@@ -822,7 +822,7 @@ export default function Sessions() {
       result = result.filter(s => s.title.toLowerCase().includes(q));
     }
     return result;
-  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, isPlatformAdmin]);
+  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds]);
 
   const juniorUpcoming = useMemo(() => {
     const n = new Date(); n.setHours(0, 0, 0, 0);
@@ -1058,30 +1058,28 @@ export default function Sessions() {
       </div>
 
       {sessionsScope === "regular" && (<>
-      {!isPlatformAdmin && (
-        <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 w-fit" data-testid="tabs-club-scope">
-          <Button
-            variant={clubScope === "my" ? "default" : "ghost"}
-            size="sm"
-            className={`h-8 px-3 gap-1.5 text-xs ${clubScope === "my" ? "" : "text-muted-foreground hover:text-foreground"}`}
-            onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
-            data-testid="tab-club-scope-my"
-          >
-            <Building2 className="h-3.5 w-3.5" />
-            My Clubs
-          </Button>
-          <Button
-            variant={clubScope === "all" ? "default" : "ghost"}
-            size="sm"
-            className={`h-8 px-3 gap-1.5 text-xs ${clubScope === "all" ? "" : "text-muted-foreground hover:text-foreground"}`}
-            onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
-            data-testid="tab-club-scope-all"
-          >
-            <Layers className="h-3.5 w-3.5" />
-            All Clubs
-          </Button>
-        </div>
-      )}
+      <div className="flex items-center gap-1 bg-muted/50 rounded-lg p-0.5 w-fit" data-testid="tabs-club-scope">
+        <Button
+          variant={clubScope === "my" ? "default" : "ghost"}
+          size="sm"
+          className={`h-8 px-3 gap-1.5 text-xs ${clubScope === "my" ? "" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
+          data-testid="tab-club-scope-my"
+        >
+          <Building2 className="h-3.5 w-3.5" />
+          My Clubs
+        </Button>
+        <Button
+          variant={clubScope === "all" ? "default" : "ghost"}
+          size="sm"
+          className={`h-8 px-3 gap-1.5 text-xs ${clubScope === "all" ? "" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
+          data-testid="tab-club-scope-all"
+        >
+          <Layers className="h-3.5 w-3.5" />
+          All Clubs
+        </Button>
+      </div>
       <div className="flex items-center gap-2 sm:gap-3 flex-wrap">
         <div className="relative w-full sm:w-[280px]">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
