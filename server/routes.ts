@@ -13393,6 +13393,43 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/super-admin/users/:id/send-password-reminder", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    try {
+      const userId = parseInt(req.params.id);
+      const [targetUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!targetUser) return res.status(404).json({ message: "User not found" });
+      if (!targetUser.email) return res.status(400).json({ message: "User has no email address" });
+
+      const token = randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db.update(users).set({ passwordResetToken: token, passwordResetExpiry: expiry }).where(eq(users.id, userId));
+
+      const profiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, userId)).limit(1);
+      let clubName = "Club Master";
+      if (profiles.length > 0) {
+        const club = await storage.getClub(profiles[0].clubId);
+        if (club) clubName = club.name;
+      }
+
+      const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
+        ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
+        : process.env.REPLIT_DEV_DOMAIN
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : "";
+      const resetUrl = `${baseUrl}/reset-password/${token}`;
+      const { sendPasswordResetEmail } = await import("./email");
+      await sendPasswordResetEmail(targetUser.email, targetUser.fullName || "Player", clubName, resetUrl);
+
+      res.json({ success: true, message: "Password reminder email sent" });
+    } catch (err: any) {
+      console.error("Error sending password reminder:", err);
+      res.status(500).json({ message: "Failed to send password reminder" });
+    }
+  });
+
   app.patch("/api/super-admin/clubs/:id/transfer", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if (req.user!.role !== "OWNER") return res.sendStatus(403);

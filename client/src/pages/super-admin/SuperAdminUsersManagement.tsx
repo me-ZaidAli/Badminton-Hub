@@ -17,7 +17,7 @@ import { UnifiedMemberEditDialog, MemberEditData } from "@/components/UnifiedMem
 import {
   Users, Shield, ArrowLeft, Search, Loader2, Trophy, Clock,
   KeyRound, CheckCircle, XCircle, Pencil, Trash2, ChevronRight,
-  Filter, Eye, Lock, UserCheck, Copy, AlertTriangle, Plus, Building2, Ban
+  Filter, Eye, Lock, UserCheck, Copy, AlertTriangle, Plus, Building2, Ban, Mail
 } from "lucide-react";
 
 interface PlayerProfile {
@@ -316,6 +316,19 @@ export default function SuperAdminUsersManagement() {
       setGeneratedLink(window.location.origin + data.resetLink);
       setPasswordMode("link");
       toast({ title: "Reset Link Generated" });
+    },
+  });
+
+  const sendPasswordReminderMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/super-admin/users/${userId}/send-password-reminder`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Email Sent", description: "Password reminder email has been sent to the member." });
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message || "Failed to send password reminder", variant: "destructive" });
     },
   });
 
@@ -960,6 +973,10 @@ export default function SuperAdminUsersManagement() {
                     <Button variant="outline" size="sm" className="gap-2" onClick={() => playerResetLinkMutation.mutate(selectedPlayer.id)} disabled={playerResetLinkMutation.isPending} data-testid="button-player-reset-link">
                       {playerResetLinkMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <KeyRound className="w-3 h-3" />}
                       Generate Reset Link
+                    </Button>
+                    <Button variant="outline" size="sm" className="gap-2 text-blue-600 dark:text-blue-400 border-blue-200 dark:border-blue-800/60" onClick={() => sendPasswordReminderMutation.mutate(selectedPlayer.id)} disabled={sendPasswordReminderMutation.isPending} data-testid="button-send-password-reminder">
+                      {sendPasswordReminderMutation.isPending ? <Loader2 className="w-3 h-3 animate-spin" /> : <Mail className="w-3 h-3" />}
+                      Send Email Password Reminder
                     </Button>
                   </div>
                 )}
