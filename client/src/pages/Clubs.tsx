@@ -307,7 +307,7 @@ function UserDetailDialog({
     },
     onSuccess: (data: any) => {
       setResetToken(data.token || data.resetToken || "Token generated");
-      toast({ title: "Password Reset", description: "A reset token has been generated." });
+      toast({ title: "Password Reminder Sent", description: data.emailSent ? "A password reset email has been sent to the member." : "A reset token has been generated (no email on file)." });
     },
     onError: (err: any) => {
       toast({ title: "Error", description: err.message || "Failed to reset password", variant: "destructive" });
@@ -538,8 +538,13 @@ function UserDetailDialog({
             </div>
 
             {resetToken && (
-              <div className="p-3 border rounded-md bg-muted/30" data-testid="text-reset-token">
-                <div className="text-sm font-semibold mb-1">Password Reset Token</div>
+              <div className="p-3 border rounded-md bg-emerald-50 dark:bg-emerald-950/30 border-emerald-200 dark:border-emerald-800/40" data-testid="text-reset-token">
+                <div className="flex items-center gap-2 mb-1">
+                  <Mail className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                  <div className="text-sm font-semibold text-emerald-700 dark:text-emerald-300">Password Reset Email Sent</div>
+                </div>
+                <p className="text-xs text-muted-foreground mb-2">A password reset link has been emailed to this member. The link expires in 24 hours.</p>
+                <div className="text-xs text-muted-foreground">Backup token:</div>
                 <code className="text-xs break-all">{resetToken}</code>
               </div>
             )}
@@ -589,8 +594,8 @@ function UserDetailDialog({
                 disabled={resetPasswordMutation.isPending}
                 data-testid="button-reset-password"
               >
-                {resetPasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Key className="w-4 h-4 mr-1" />}
-                Reset Password
+                {resetPasswordMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Mail className="w-4 h-4 mr-1" />}
+                Send Password Reminder
               </Button>
               <Button
                 variant="outline"

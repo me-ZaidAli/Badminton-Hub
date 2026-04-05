@@ -110,6 +110,35 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
   console.log(`[EMAIL NOT SENT - No service] ${subject} to ${to}`);
 }
 
+export async function sendPasswordResetEmail(
+  to: string,
+  playerName: string,
+  clubName: string,
+  resetUrl: string
+): Promise<void> {
+  const subject = `Password Reset - ${clubName}`;
+  const htmlContent = `
+    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+      <h2 style="color: #333;">Password Reset Request</h2>
+      <p>Hi ${playerName},</p>
+      <p>Your club admin at <strong>${clubName}</strong> has sent you a password reset link. Click the button below to set a new password:</p>
+      <div style="text-align: center; margin: 30px 0;">
+        <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+          Reset My Password
+        </a>
+      </div>
+      <p style="color: #666; font-size: 14px;">Or copy and paste this link into your browser:</p>
+      <p style="color: #666; font-size: 14px; word-break: break-all;">${resetUrl}</p>
+      <p style="color: #999; font-size: 12px; margin-top: 30px;">This link expires in 24 hours. If you did not request this, you can safely ignore this email.</p>
+    </div>
+  `;
+  try {
+    await sendEmail(to, subject, htmlContent);
+  } catch (e) {
+    console.log(`[EMAIL SKIP] Password reset to ${to}`);
+  }
+}
+
 export async function sendChatNotificationEmail(to: string, subject: string, body: string): Promise<void> {
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">

@@ -16425,7 +16425,21 @@ export async function registerRoutes(
       const token = randomBytes(32).toString("hex");
       const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
       await db.update(users).set({ passwordResetToken: token, passwordResetExpiry: expiry }).where(eq(users.id, targetUserId));
-      res.json({ success: true, resetToken: token });
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
+      const club = await storage.getClub(clubId);
+      if (targetUser?.email && club) {
+        const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
+          ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
+          : process.env.REPLIT_DEV_DOMAIN
+            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+            : "";
+        const resetUrl = `${baseUrl}/reset-password/${token}`;
+        const { sendPasswordResetEmail } = await import("./email");
+        await sendPasswordResetEmail(targetUser.email, targetUser.fullName || "Player", club.name, resetUrl);
+      }
+
+      res.json({ success: true, resetToken: token, emailSent: !!(targetUser?.email) });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to generate reset token" });
     }
