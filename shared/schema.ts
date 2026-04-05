@@ -182,7 +182,7 @@ export const clubMemberships = pgTable("club_memberships", {
   userId: integer("user_id").references(() => users.id).notNull(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
   planId: integer("plan_id").references(() => membershipPlans.id).notNull(),
-  membershipNumber: text("membership_number").unique(),
+  membershipNumber: text("membership_number"),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date").notNull(),
   totalDays: integer("total_days").notNull(),
