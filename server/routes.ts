@@ -28,6 +28,11 @@ import fs from "fs";
 function getAppBaseUrl(): string {
   if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
   if (process.env.REPLIT_DEPLOYMENT_URL) return `https://${process.env.REPLIT_DEPLOYMENT_URL}`;
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) {
+    const prodDomain = domains.split(",").find(d => d.includes(".replit.app")) || domains.split(",")[0];
+    if (prodDomain) return `https://${prodDomain.trim()}`;
+  }
   if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
   return "";
 }

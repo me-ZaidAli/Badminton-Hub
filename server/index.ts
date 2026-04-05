@@ -111,6 +111,7 @@ app.use((req, res, next) => {
     },
     async () => {
       log(`serving on port ${port}`);
+      console.log(`[APP BASE URL] ${process.env.APP_URL || process.env.REPLIT_DEPLOYMENT_URL || process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || 'none detected'}`);
 
       seedJuniorSkills().catch(err => console.error("Seed junior skills failed:", err));
       seedExercises().catch(err => console.error("Seed exercises failed:", err));
