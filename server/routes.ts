@@ -25,6 +25,13 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 
+function getAppBaseUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.REPLIT_DEPLOYMENT_URL) return `https://${process.env.REPLIT_DEPLOYMENT_URL}`;
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  return "";
+}
+
 async function loadClubEngineSettings(clubId: number, modeOverride?: string): Promise<MatchEngineSettings> {
   const club = await storage.getClub(clubId);
   const saved = (club as any)?.matchEngineSettings;
@@ -9419,12 +9426,7 @@ export async function registerRoutes(
         .set({ passwordResetToken: token, passwordResetExpiry: expiry })
         .where(eq(users.id, targetUser.id));
 
-      const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
-        ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
-        : process.env.REPLIT_DEV_DOMAIN
-          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-          : "";
-      const resetUrl = `${baseUrl}/reset-password/${token}`;
+      const resetUrl = `${getAppBaseUrl()}/reset-password/${token}`;
 
       const profiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, targetUser.id)).limit(1);
       let clubName = "Club Master";
@@ -13457,12 +13459,7 @@ export async function registerRoutes(
         if (club) clubName = club.name;
       }
 
-      const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
-        ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
-        : process.env.REPLIT_DEV_DOMAIN
-          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-          : "";
-      const resetUrl = `${baseUrl}/reset-password/${token}`;
+      const resetUrl = `${getAppBaseUrl()}/reset-password/${token}`;
       const { sendPasswordResetEmail } = await import("./email");
       await sendPasswordResetEmail(targetUser.email, targetUser.fullName || "Player", clubName, resetUrl);
 
@@ -16509,12 +16506,7 @@ export async function registerRoutes(
       const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId)).limit(1);
       const club = await storage.getClub(clubId);
       if (targetUser?.email && club) {
-        const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
-          ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
-          : process.env.REPLIT_DEV_DOMAIN
-            ? `https://${process.env.REPLIT_DEV_DOMAIN}`
-            : "";
-        const resetUrl = `${baseUrl}/reset-password/${token}`;
+        const resetUrl = `${getAppBaseUrl()}/reset-password/${token}`;
         const { sendPasswordResetEmail } = await import("./email");
         await sendPasswordResetEmail(targetUser.email, targetUser.fullName || "Player", club.name, resetUrl);
       }
