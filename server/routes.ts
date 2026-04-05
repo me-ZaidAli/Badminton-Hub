@@ -9400,6 +9400,49 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/forgot-password", async (req, res) => {
+    try {
+      const { email } = req.body;
+      if (!email || typeof email !== "string") return res.status(400).json({ message: "Email is required" });
+
+      const [targetUser] = await db.select().from(users)
+        .where(eq(users.email, email.trim().toLowerCase()))
+        .limit(1);
+
+      if (!targetUser) {
+        return res.json({ message: "If an account exists, a reset link has been sent." });
+      }
+
+      const token = randomBytes(32).toString("hex");
+      const expiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+      await db.update(users)
+        .set({ passwordResetToken: token, passwordResetExpiry: expiry })
+        .where(eq(users.id, targetUser.id));
+
+      const baseUrl = process.env.REPLIT_DEPLOYMENT_URL
+        ? `https://${process.env.REPLIT_DEPLOYMENT_URL}`
+        : process.env.REPLIT_DEV_DOMAIN
+          ? `https://${process.env.REPLIT_DEV_DOMAIN}`
+          : "";
+      const resetUrl = `${baseUrl}/reset-password/${token}`;
+
+      const profiles = await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles).where(eq(playerProfiles.userId, targetUser.id)).limit(1);
+      let clubName = "Club Master";
+      if (profiles.length > 0) {
+        const club = await storage.getClub(profiles[0].clubId);
+        if (club) clubName = club.name;
+      }
+
+      const { sendPasswordResetEmail } = await import("./email");
+      await sendPasswordResetEmail(targetUser.email, targetUser.fullName || "Player", clubName, resetUrl);
+
+      res.json({ message: "If an account exists, a reset link has been sent." });
+    } catch (err: any) {
+      console.error("Error in forgot-password:", err);
+      res.json({ message: "If an account exists, a reset link has been sent." });
+    }
+  });
+
   app.post("/api/reset-password", async (req, res) => {
     try {
       const { token, password } = req.body;

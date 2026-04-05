@@ -169,7 +169,7 @@ export async function sendPasswordResetEmail(
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
       <h2 style="color: #333;">Password Reset Request</h2>
       <p>Hi ${playerName},</p>
-      <p>Your club admin at <strong>${clubName}</strong> has sent you a password reset link. Click the button below to set a new password:</p>
+      <p>We received a request to reset your password for <strong>${clubName}</strong>. Click the button below to set a new password:</p>
       <div style="text-align: center; margin: 30px 0;">
         <a href="${resetUrl}" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
           Reset My Password
