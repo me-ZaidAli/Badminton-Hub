@@ -48,7 +48,7 @@ export async function sendClaimAccountEmail(
 
   const brevoTransport = getBrevoTransport();
   if (brevoTransport) {
-    const fromEmail = process.env.SMTP_USER || process.env.SMTP_FROM_EMAIL || process.env.GMAIL_USER || "noreply@clubmaster.app";
+    const fromEmail = process.env.SMTP_FROM_EMAIL || "contact@dragon-bpgbadminton.com";
     await brevoTransport.sendMail({
       from: `"Club Master" <${fromEmail}>`,
       to,
@@ -121,7 +121,7 @@ export async function sendClaimAccountEmail(
 }
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  const fromEmail = process.env.SMTP_USER || process.env.SMTP_FROM_EMAIL || process.env.GMAIL_USER || "noreply@clubmaster.app";
+  const fromEmail = process.env.SMTP_FROM_EMAIL || "contact@dragon-bpgbadminton.com";
 
   const brevoTransport = getBrevoTransport();
   if (brevoTransport) {
