@@ -422,6 +422,47 @@ function applyMixedTeamFilter(teamA: Player[], teamB: Player[], fixedPairs?: Fix
   return true;
 }
 
+function classifyMatchGender(players: Player[]): "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" {
+  const hasMale = players.some(p => getEffectiveGender(p) !== "FEMALE");
+  const hasFemale = players.some(p => getEffectiveGender(p) === "FEMALE");
+  if (hasMale && hasFemale) return "MIXED";
+  if (hasFemale) return "FEMALE_ONLY";
+  return "MALE_ONLY";
+}
+
+function computeMatchTypeSteeringBonus(
+  matchType: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED",
+  typeCounts: { maleOnly: number; femaleOnly: number; mixed: number },
+  cfg: MatchEngineSettings
+): { bonus: number; factor: string | null } {
+  const total = typeCounts.maleOnly + typeCounts.femaleOnly + typeCounts.mixed + 1;
+  const targets = {
+    MALE_ONLY: cfg.maleOnlyTargetRatio,
+    FEMALE_ONLY: cfg.femaleOnlyTargetRatio,
+    MIXED: cfg.mixedTargetRatio,
+  };
+  const currentCounts = {
+    MALE_ONLY: typeCounts.maleOnly,
+    FEMALE_ONLY: typeCounts.femaleOnly,
+    MIXED: typeCounts.mixed,
+  };
+
+  const currentRatio = currentCounts[matchType] / Math.max(total - 1, 1);
+  const targetRatio = targets[matchType];
+
+  if (targetRatio <= 0 && currentRatio <= 0) return { bonus: 0, factor: null };
+
+  const diff = targetRatio - currentRatio;
+  const steerWeight = Math.abs(cfg.spreadWeight) * 0.4;
+  const bonus = Math.round(diff * steerWeight * 100) / 100;
+
+  if (Math.abs(bonus) < 1) return { bonus: 0, factor: null };
+  return {
+    bonus,
+    factor: `typeSteer(${matchType} ${Math.round(currentRatio * 100)}%→${Math.round(targetRatio * 100)}%): ${bonus >= 0 ? "+" : ""}${bonus.toFixed(0)}`,
+  };
+}
+
 function generateNextMatch(
   eligible: Player[],
   matchIndex: number,
@@ -434,8 +475,9 @@ function generateNextMatch(
   playerLastPlayedRound?: Map<number, number>,
   pairWaitTracker?: Map<string, number>,
   genderType?: string,
-  engineConfig?: MatchEngineSettings
-): { match: MatchResult; score: number; teamDiff: number; factors: string[]; isFallback: boolean } | null {
+  engineConfig?: MatchEngineSettings,
+  matchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number }
+): { match: MatchResult; score: number; teamDiff: number; factors: string[]; matchType?: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED"; isFallback: boolean } | null {
   const pool = eligible.filter(p => !usedPlayerIds.has(p.id));
   if (pool.length < 4) return null;
 
@@ -458,11 +500,12 @@ function generateNextMatch(
 
   const pairUnits = windowUnits.filter(u => u.type === "PAIR");
 
-  function tryGenerate(rankSpreadLimit: number, teamDiffLimit: number): { match: MatchResult; score: number; teamDiff: number; factors: string[] } | null {
+  function tryGenerate(rankSpreadLimit: number, teamDiffLimit: number): { match: MatchResult; score: number; teamDiff: number; factors: string[]; matchType?: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" } | null {
     let bestMatch: MatchResult | null = null;
     let bestScore = -Infinity;
     let bestTeamDiff = Infinity;
     let bestFactors: string[] = [];
+    let bestMatchType: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" | undefined;
 
     for (const group of candidateGroups) {
       const ranks = group.map(p => getGradeRank(p.grade));
@@ -505,17 +548,27 @@ function generateNextMatch(
           }
         }
 
+        if (matchTypeCounts) {
+          const mType = classifyMatchGender(group);
+          const { bonus: typeBonus, factor: typeFactor } = computeMatchTypeSteeringBonus(mType, matchTypeCounts, ec);
+          if (typeBonus !== 0) {
+            score += typeBonus;
+            if (typeFactor) factors.push(typeFactor);
+          }
+        }
+
         if (score > bestScore) {
           bestScore = score;
           bestMatch = candidate;
           bestTeamDiff = teamDiff;
           bestFactors = [...factors];
+          bestMatchType = matchTypeCounts ? classifyMatchGender(group) : undefined;
         }
       }
     }
 
     if (bestMatch) {
-      return { match: bestMatch, score: bestScore, teamDiff: bestTeamDiff, factors: bestFactors };
+      return { match: bestMatch, score: bestScore, teamDiff: bestTeamDiff, factors: bestFactors, matchType: bestMatchType };
     }
     return null;
   }
@@ -552,6 +605,10 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
   const playerLastPlayedRound = new Map<number, number>();
   const pairWaitTracker = new Map<string, number>();
 
+  const runningTypeCounts = opts.settings?.existingMatchTypeCounts
+    ? { ...opts.settings.existingMatchTypeCounts }
+    : { maleOnly: 0, femaleOnly: 0, mixed: 0 };
+
   for (const [pid, count] of localCounts) {
     playerLastPlayedRound.set(pid, count > 0 ? 0 : -1);
   }
@@ -561,12 +618,12 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
       eligible, q, fixedPairs || [], localCounts,
       localPairings, localOpponents, usedPlayerIds,
       priorityPlayerIds, playerLastPlayedRound, pairWaitTracker,
-      genderType, ec
+      genderType, ec, runningTypeCounts
     );
 
     if (!result) break;
 
-    const { match, score, teamDiff, factors, isFallback } = result;
+    const { match, score, teamDiff, factors, isFallback, matchType } = result;
     const ids = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
 
     let conflict = false;
@@ -576,6 +633,12 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
     if (conflict) continue;
 
     for (const id of ids) usedPlayerIds.add(id);
+
+    if (matchType) {
+      if (matchType === "MALE_ONLY") runningTypeCounts.maleOnly++;
+      else if (matchType === "FEMALE_ONLY") runningTypeCounts.femaleOnly++;
+      else if (matchType === "MIXED") runningTypeCounts.mixed++;
+    }
 
     const tag = getQualityTag(teamDiff, isFallback);
     const tagFactors = [...factors, `quality:${tag}`];

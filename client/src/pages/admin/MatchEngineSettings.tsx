@@ -112,10 +112,13 @@ const PRIORITY_SLIDERS: SliderConfig[] = [
   { key: "priorityLow", label: "Priority Low Bonus", min: 0, max: 150, step: 10, tooltip: "Score bonus for priority players who have already played. Still gives them some preference." },
 ];
 
-const GENDER_SLIDERS: SliderConfig[] = [
-  { key: "maleOnlyTargetRatio", label: "Male-Only Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of male-only matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
-  { key: "femaleOnlyTargetRatio", label: "Female-Only Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of female-only matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
-  { key: "mixedTargetRatio", label: "Mixed Target Ratio", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of mixed-gender matches. The engine softly steers towards this ratio.", format: (v: number) => `${Math.round(v * 100)}%` },
+const MATCH_TYPE_RATIO_SLIDERS: SliderConfig[] = [
+  { key: "maleOnlyTargetRatio", label: "Men's Doubles Target", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of men's doubles matches. The engine softly steers towards this ratio during sessions.", format: (v: number) => `${Math.round(v * 100)}%` },
+  { key: "femaleOnlyTargetRatio", label: "Women's Doubles Target", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of women's doubles matches. The engine softly steers towards this ratio during sessions.", format: (v: number) => `${Math.round(v * 100)}%` },
+  { key: "mixedTargetRatio", label: "Mixed Doubles Target", min: 0, max: 1, step: 0.05, tooltip: "Target percentage of mixed-gender matches. The engine softly steers towards this ratio during sessions.", format: (v: number) => `${Math.round(v * 100)}%` },
+];
+
+const GENDER_BONUS_SLIDERS: SliderConfig[] = [
   { key: "strongMaleFemaleBonus", label: "Strong Male + Female Bonus", min: 0, max: 50, step: 5, tooltip: "Bonus when a strong male is paired with a female. Encourages protective pairing." },
   { key: "noStrongMaleFemalePenalty", label: "No Strong Male Penalty", min: -80, max: 0, step: 5, tooltip: "Penalty when a mixed match has no strong male player available. Discourages unbalanced mixed games." },
   { key: "maleRotationScaling", label: "Male Rotation Scaling", min: -30, max: 0, step: 5, tooltip: "Per-use penalty for repeatedly including the same male in mixed matches. Encourages rotation." },
@@ -352,13 +355,101 @@ export default function MatchEngineSettingsPage() {
     </Card>
   );
 
+  const renderMatchTypeDistribution = () => {
+    const maleP = Math.round(settings.maleOnlyTargetRatio * 100);
+    const femaleP = Math.round(settings.femaleOnlyTargetRatio * 100);
+    const mixedP = Math.round(settings.mixedTargetRatio * 100);
+    const total = maleP + femaleP + mixedP;
+    const isBalanced = total >= 95 && total <= 105;
+
+    return (
+      <Card className="border-2 border-purple-200 dark:border-purple-800 md:col-span-2" data-testid="match-type-distribution-card">
+        <CardHeader className="pb-3">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <div className="p-1.5 rounded-md bg-purple-100 dark:bg-purple-900/30">
+              <BarChart3 className="h-4 w-4 text-purple-600" />
+            </div>
+            Match Type Distribution
+            {!isBalanced && (
+              <Badge variant="destructive" className="text-[10px] ml-2">
+                {total}% total — should be ~100%
+              </Badge>
+            )}
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-xs text-muted-foreground">
+            Control the percentage of each match type the engine aims for during sessions. The engine will softly steer match generation towards these targets.
+          </p>
+
+          <div className="flex h-6 rounded-full overflow-hidden border" data-testid="ratio-bar">
+            {maleP > 0 && (
+              <div
+                className="bg-blue-500 dark:bg-blue-600 flex items-center justify-center transition-all duration-300"
+                style={{ width: `${(maleP / Math.max(total, 1)) * 100}%` }}
+              >
+                <span className="text-[10px] text-white font-semibold">{maleP}%</span>
+              </div>
+            )}
+            {femaleP > 0 && (
+              <div
+                className="bg-pink-500 dark:bg-pink-600 flex items-center justify-center transition-all duration-300"
+                style={{ width: `${(femaleP / Math.max(total, 1)) * 100}%` }}
+              >
+                <span className="text-[10px] text-white font-semibold">{femaleP}%</span>
+              </div>
+            )}
+            {mixedP > 0 && (
+              <div
+                className="bg-amber-500 dark:bg-amber-600 flex items-center justify-center transition-all duration-300"
+                style={{ width: `${(mixedP / Math.max(total, 1)) * 100}%` }}
+              >
+                <span className="text-[10px] text-white font-semibold">{mixedP}%</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex flex-wrap gap-3 text-xs">
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-blue-500" />
+              <span>Men's Doubles ({maleP}%)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-pink-500" />
+              <span>Women's Doubles ({femaleP}%)</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <div className="w-3 h-3 rounded-sm bg-amber-500" />
+              <span>Mixed Doubles ({mixedP}%)</span>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-5">
+            {MATCH_TYPE_RATIO_SLIDERS.map(config => (
+              <SettingSlider
+                key={config.key}
+                config={config}
+                value={settings[config.key] as number}
+                onChange={(v) => updateSetting(config.key, v)}
+                defaultValue={DEFAULT_SETTINGS[config.key] as number}
+              />
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  };
+
   const renderAdvancedSettings = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {renderMatchTypeDistribution()}
       {renderSliderSection("Fairness Controls", <Shield className="h-4 w-4 text-blue-600" />, FAIRNESS_SLIDERS, "bg-blue-100 dark:bg-blue-900/30")}
       {renderSliderSection("Variety Controls", <ArrowUpDown className="h-4 w-4 text-green-600" />, VARIETY_SLIDERS, "bg-green-100 dark:bg-green-900/30")}
       {renderSliderSection("Match Quality", <Target className="h-4 w-4 text-yellow-600" />, QUALITY_SLIDERS, "bg-yellow-100 dark:bg-yellow-900/30")}
       {renderSliderSection("Priority Controls", <Zap className="h-4 w-4 text-red-600" />, PRIORITY_SLIDERS, "bg-red-100 dark:bg-red-900/30")}
-      {renderSliderSection("Gender Controls", <Users className="h-4 w-4 text-purple-600" />, GENDER_SLIDERS, "bg-purple-100 dark:bg-purple-900/30")}
+      {renderSliderSection("Gender Balance", <Users className="h-4 w-4 text-purple-600" />, GENDER_BONUS_SLIDERS, "bg-purple-100 dark:bg-purple-900/30")}
       {renderSliderSection("Cooldowns & Limits", <Shield className="h-4 w-4 text-orange-600" />, COOLDOWN_SLIDERS, "bg-orange-100 dark:bg-orange-900/30")}
       {renderSliderSection("Advanced", <Gauge className="h-4 w-4 text-gray-600" />, ADVANCED_SLIDERS, "bg-gray-100 dark:bg-gray-900/30")}
 
@@ -391,6 +482,7 @@ export default function MatchEngineSettingsPage() {
 
   const renderHybridSettings = () => (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {renderMatchTypeDistribution()}
       {renderSliderSection("Group Selection", <Layers className="h-4 w-4 text-blue-600" />, HYBRID_SLIDERS, "bg-blue-100 dark:bg-blue-900/30")}
       {renderSliderSection("Fairness Controls", <Shield className="h-4 w-4 text-blue-600" />, FAIRNESS_SLIDERS, "bg-blue-100 dark:bg-blue-900/30")}
       {renderSliderSection("Variety Controls", <ArrowUpDown className="h-4 w-4 text-green-600" />, [
@@ -476,12 +568,15 @@ export default function MatchEngineSettingsPage() {
           </h1>
           <p className="text-sm text-muted-foreground mt-1">
             Configure how the smart matchmaking algorithm behaves
+            {adminClubs && effectiveClubId && (
+              <span className="font-medium text-foreground"> — {adminClubs.find((c: any) => String(c.id) === effectiveClubId)?.name || "Select a club"}</span>
+            )}
           </p>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          {adminClubs && adminClubs.length > 1 && (
-            <Select value={effectiveClubId} onValueChange={setSelectedClubId}>
-              <SelectTrigger className="w-[160px] h-8 text-xs" data-testid="select-club">
+          {adminClubs && adminClubs.length > 0 && (
+            <Select value={effectiveClubId} onValueChange={(v) => { setSelectedClubId(v); setSettingsLoaded(false); }}>
+              <SelectTrigger className="w-[200px] h-8 text-xs" data-testid="select-club">
                 <SelectValue placeholder="Select club" />
               </SelectTrigger>
               <SelectContent>
