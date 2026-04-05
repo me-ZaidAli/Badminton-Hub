@@ -13,7 +13,7 @@ export default function ForgotPassword() {
           </div>
           <CardTitle className="text-2xl font-bold" data-testid="text-forgot-title">Forgot Your Password?</CardTitle>
           <CardDescription className="text-base">
-            To reset your password, please contact your club administrator. They can generate a password reset link for you.
+            To reset your password, please contact your club administrator. They can send a password reset email directly to you.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -21,8 +21,8 @@ export default function ForgotPassword() {
             <p className="font-medium text-foreground">How to get your password reset:</p>
             <ol className="list-decimal list-inside space-y-1">
               <li>Contact your club admin or owner</li>
-              <li>Ask them to reset your password from the admin panel</li>
-              <li>They will share a reset link with you</li>
+              <li>Ask them to send you a password reminder</li>
+              <li>Check your email for the reset link</li>
               <li>Open the link and set your new password</li>
             </ol>
           </div>
