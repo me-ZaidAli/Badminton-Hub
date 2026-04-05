@@ -322,8 +322,10 @@ function scoreMatch(
   teamB: Player[],
   pairHistory: Map<string, number>,
   oppHistory: Map<string, number>,
-  pairUnits?: SelectionUnit[]
+  pairUnits?: SelectionUnit[],
+  cfg?: MatchEngineSettings
 ): { score: number; teamDiff: number; factors: string[] } {
+  const ec = cfg || DEFAULT_SETTINGS;
   const teamDiff = Math.abs(teamAvgRank(teamA) - teamAvgRank(teamB));
 
   let partnerRepeat = 0;
@@ -343,13 +345,16 @@ function scoreMatch(
     }
   }
 
-  const penalty = (teamDiff * 50) + (partnerRepeat * 10) + (opponentRepeat * 5);
+  const qualityPenalty = teamDiff * Math.abs(ec.spreadWeight);
+  const partnerPenalty = partnerRepeat * Math.abs(ec.partnerRepeatWeight);
+  const opponentPenalty = opponentRepeat * Math.abs(ec.opponentRepeatWeight);
+  const penalty = qualityPenalty + partnerPenalty + opponentPenalty;
   let score = -penalty;
 
   const factors: string[] = [];
-  if (teamDiff > 0) factors.push(`teamDiff(${teamDiff.toFixed(1)}): -${(teamDiff * 50).toFixed(0)}`);
-  if (partnerRepeat > 0) factors.push(`partnerRepeat(${partnerRepeat}): -${partnerRepeat * 10}`);
-  if (opponentRepeat > 0) factors.push(`opponentRepeat(${opponentRepeat}): -${opponentRepeat * 5}`);
+  if (teamDiff > 0) factors.push(`teamDiff(${teamDiff.toFixed(1)}): -${qualityPenalty.toFixed(0)}`);
+  if (partnerRepeat > 0) factors.push(`partnerRepeat(${partnerRepeat}): -${partnerPenalty}`);
+  if (opponentRepeat > 0) factors.push(`opponentRepeat(${opponentRepeat}): -${opponentPenalty}`);
 
   if (pairUnits && pairUnits.length > 0) {
     const allIds = [...teamA, ...teamB].map(p => p.id);
@@ -374,8 +379,9 @@ function scoreMatch(
         const hasStrong = team.some(p => getGradeRank(p.grade) >= 6);
         const hasWeak = team.some(p => getGradeRank(p.grade) <= 3);
         if (hasStrong && hasWeak) {
-          score += 15;
-          factors.push(`strongWeakPair: +15`);
+          const bonus = ec.strongMaleFemaleBonus ?? 15;
+          score += bonus;
+          factors.push(`strongWeakPair: +${bonus}`);
         }
       }
     }
@@ -427,7 +433,8 @@ function generateNextMatch(
   priorityPlayerIds?: number[],
   playerLastPlayedRound?: Map<number, number>,
   pairWaitTracker?: Map<string, number>,
-  genderType?: string
+  genderType?: string,
+  engineConfig?: MatchEngineSettings
 ): { match: MatchResult; score: number; teamDiff: number; factors: string[]; isFallback: boolean } | null {
   const pool = eligible.filter(p => !usedPlayerIds.has(p.id));
   if (pool.length < 4) return null;
@@ -438,8 +445,9 @@ function generateNextMatch(
   const units = buildUnits(pool, fixedPairs, playerMatchCounts, matchIndex, lastPlayed, waitTracker);
   const sorted = [...units].sort((a, b) => a.effectiveGames - b.effectiveGames);
 
-  const maxWindow = Math.min(sorted.length, 10);
-  const windowUnits = sorted.slice(0, maxWindow);
+  const ec = engineConfig || DEFAULT_SETTINGS;
+  const windowSize = Math.min(sorted.length, Math.max(10, Math.floor(ec.candidateLimitBase / 10)));
+  const windowUnits = sorted.slice(0, windowSize);
 
   const candidateGroups = selectUnits(windowUnits);
   if (candidateGroups.length === 0) {
@@ -484,14 +492,14 @@ function generateNextMatch(
           teamBPlayer2Id: teamB.length > 1 ? teamB[1].id : null,
         };
 
-        const { score: baseScore, teamDiff, factors } = scoreMatch(teamA, teamB, pairHistory, oppHistory, pairUnits);
+        const { score: baseScore, teamDiff, factors } = scoreMatch(teamA, teamB, pairHistory, oppHistory, pairUnits, ec);
 
         let score = baseScore;
         if (priorityPlayerIds && priorityPlayerIds.length > 0) {
           const ids = group.map(p => p.id);
           const priorityCount = ids.filter(id => priorityPlayerIds.includes(id)).length;
           if (priorityCount > 0) {
-            const bonus = priorityCount * 20;
+            const bonus = priorityCount * ((ec.priorityHigh ?? 100) / 5);
             score += bonus;
             factors.push(`priority(${priorityCount}): +${bonus}`);
           }
@@ -512,10 +520,14 @@ function generateNextMatch(
     return null;
   }
 
-  const primary = tryGenerate(3, 1.5);
+  const primarySpread = ec.gradeSpreadLimit ?? 3;
+  const primaryDiff = ec.teamAvgDiffLimit ?? 1.5;
+  const primary = tryGenerate(primarySpread, primaryDiff);
   if (primary) return { ...primary, isFallback: false };
 
-  const fallback = tryGenerate(4, 2.0);
+  const fallbackSpread = ec.hardGradeSpreadLimit ?? (primarySpread + 1);
+  const fallbackDiff = primaryDiff + 0.5;
+  const fallback = tryGenerate(fallbackSpread, fallbackDiff);
   if (fallback) return { ...fallback, isFallback: true };
 
   return null;
@@ -523,6 +535,7 @@ function generateNextMatch(
 
 function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
   const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, fixedPairs, priorityPlayerIds } = opts;
+  const ec = opts.settings?.engineConfig;
   const eligible = filterByGender(players.filter(p => !p.isPaused), genderType);
   const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
 
@@ -548,7 +561,7 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
       eligible, q, fixedPairs || [], localCounts,
       localPairings, localOpponents, usedPlayerIds,
       priorityPlayerIds, playerLastPlayedRound, pairWaitTracker,
-      genderType
+      genderType, ec
     );
 
     if (!result) break;
@@ -614,6 +627,7 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
 
 function generateSinglesMatches(opts: GenerateOptions): GenerateResult {
   const { players, queueTarget, recentOpponents, playerMatchCounts, genderType } = opts;
+  const ec = opts.settings?.engineConfig || DEFAULT_SETTINGS;
   const eligible = filterByGender(players.filter(p => !p.isPaused), genderType);
 
   if (eligible.length < 2) {
@@ -643,21 +657,25 @@ function generateSinglesMatches(opts: GenerateOptions): GenerateResult {
     let bestTeamDiff = Infinity;
     let isFallback = false;
 
+    const singlesSpread = ec.gradeSpreadLimit ?? 3;
+    const singlesOppWeight = Math.abs(ec.opponentRepeatWeight);
+    const singlesQualityWeight = Math.abs(ec.spreadWeight);
+
     for (let i = 0; i < sorted.length; i++) {
       for (let j = i + 1; j < sorted.length; j++) {
         const pA = sorted[i];
         const pB = sorted[j];
         const gradeDiff = Math.abs(getGradeRank(pA.grade) - getGradeRank(pB.grade));
-        if (gradeDiff > 3) continue;
+        if (gradeDiff > singlesSpread) continue;
 
         const oppKey = pairKey(pA.id, pB.id);
         const oppCount = localOpponents.get(oppKey) || 0;
-        const penalty = (gradeDiff * 50) + (oppCount * 5);
+        const penalty = (gradeDiff * singlesQualityWeight) + (oppCount * singlesOppWeight);
         const score = -penalty;
 
         const factors: string[] = [];
-        if (gradeDiff > 0) factors.push(`gradeDiff(${gradeDiff}): -${gradeDiff * 50}`);
-        if (oppCount > 0) factors.push(`opponentRepeat(${oppCount}): -${oppCount * 5}`);
+        if (gradeDiff > 0) factors.push(`gradeDiff(${gradeDiff}): -${gradeDiff * singlesQualityWeight}`);
+        if (oppCount > 0) factors.push(`opponentRepeat(${oppCount}): -${oppCount * singlesOppWeight}`);
 
         if (score > bestScore) {
           bestScore = score;
@@ -674,23 +692,24 @@ function generateSinglesMatches(opts: GenerateOptions): GenerateResult {
     }
 
     if (!bestMatch) {
+      const fallbackSpread = ec.hardGradeSpreadLimit ?? (singlesSpread + 1);
       for (let i = 0; i < sorted.length; i++) {
         for (let j = i + 1; j < sorted.length; j++) {
           const pA = sorted[i];
           const pB = sorted[j];
           const gradeDiff = Math.abs(getGradeRank(pA.grade) - getGradeRank(pB.grade));
-          if (gradeDiff > 4) continue;
+          if (gradeDiff > fallbackSpread) continue;
 
           isFallback = true;
           const oppKey = pairKey(pA.id, pB.id);
           const oppCount = localOpponents.get(oppKey) || 0;
-          const penalty = (gradeDiff * 50) + (oppCount * 5);
+          const penalty = (gradeDiff * singlesQualityWeight) + (oppCount * singlesOppWeight);
           const score = -penalty;
 
           if (score > bestScore) {
             bestScore = score;
             bestTeamDiff = gradeDiff;
-            bestFactors = [`gradeDiff(${gradeDiff}): -${gradeDiff * 50}`, "fallback"];
+            bestFactors = [`gradeDiff(${gradeDiff}): -${gradeDiff * singlesQualityWeight}`, "fallback"];
             bestMatch = {
               teamAPlayer1Id: pA.id,
               teamAPlayer2Id: null,
