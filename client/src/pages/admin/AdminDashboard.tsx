@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt } from "lucide-react";
+import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -410,6 +410,7 @@ export default function AdminDashboard() {
     ...(!isOrganiserOnly ? [{ href: "/admin/memberships", label: "Memberships", description: "Manage plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" }] : []),
     { href: "/admin/billing", label: "Billing & Plan", description: "Manage your club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
     { href: "/admin/league", label: "League Management", description: "Fixtures, teams, and results", icon: Swords, color: "text-blue-500", bg: "bg-blue-500/10" },
+    ...(!isOrganiserOnly ? [{ href: "/admin/inventory", label: "Inventory & Expenses", description: "Track stock, supplies, and club expenses", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" }] : []),
   ];
 
   const rewardsSections: AdminTile[] = [
