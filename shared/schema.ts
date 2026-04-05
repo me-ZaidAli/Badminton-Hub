@@ -1234,7 +1234,7 @@ export const ticketPriorityEnum = pgEnum("ticket_priority", ["LOW", "MEDIUM", "H
 
 export const tickets = pgTable("tickets", {
   id: serial("id").primaryKey(),
-  ticketNumber: text("ticket_number").notNull().unique(),
+  ticketNumber: text("ticket_number").notNull(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
   createdByUserId: integer("created_by_user_id").references(() => users.id).notNull(),
   assignedToUserId: integer("assigned_to_user_id").references(() => users.id),
@@ -1304,7 +1304,7 @@ export const referralStatusEnum = pgEnum("referral_status", ["ACTIVE", "PENDING"
 
 export const clubReferralSettings = pgTable("club_referral_settings", {
   id: serial("id").primaryKey(),
-  clubId: integer("club_id").references(() => clubs.id).notNull().unique(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   creditAmountPence: integer("credit_amount_pence").default(400).notNull(),
   premiumThresholdPence: integer("premium_threshold_pence").default(800).notNull(),
@@ -1324,7 +1324,7 @@ export type InsertClubReferralSettings = z.infer<typeof insertClubReferralSettin
 export const referrals = pgTable("referrals", {
   id: serial("id").primaryKey(),
   referrerId: integer("referrer_id").references(() => users.id).notNull(),
-  code: text("code").notNull().unique(),
+  code: text("code").notNull(),
   referredName: text("referred_name"),
   referredEmail: text("referred_email"),
   friendLevel: text("friend_level"),
@@ -1480,7 +1480,7 @@ export const notificationLogStatusEnum = pgEnum("notification_log_status", ["SEN
 
 export const notificationScheduleSettings = pgTable("notification_schedule_settings", {
   id: serial("id").primaryKey(),
-  clubId: integer("club_id").references(() => clubs.id).notNull().unique(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
   paymentRemindersEnabled: boolean("payment_reminders_enabled").default(true).notNull(),
   paymentReminderDaysBefore: integer("payment_reminder_days_before").default(2).notNull(),
   paymentReminderDailyAfter: boolean("payment_reminder_daily_after").default(true).notNull(),
@@ -1631,7 +1631,7 @@ export type InsertClubAnniversarySetting = z.infer<typeof insertClubAnniversaryS
 // === CLUB BIRTHDAY SETTINGS ===
 export const clubBirthdaySettings = pgTable("club_birthday_settings", {
   id: serial("id").primaryKey(),
-  clubId: integer("club_id").references(() => clubs.id).notNull().unique(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
   isActive: boolean("is_active").default(false).notNull(),
   credits: integer("credits").default(0).notNull(),
   gifts: text("gifts"),
@@ -1804,7 +1804,7 @@ export type InsertLeagueMatchPlayer = z.infer<typeof insertLeagueMatchPlayerSche
 
 export const leagueMatchResults = pgTable("league_match_results", {
   id: serial("id").primaryKey(),
-  matchId: integer("match_id").references(() => leagueMatches.id, { onDelete: "cascade" }).notNull().unique(),
+  matchId: integer("match_id").references(() => leagueMatches.id, { onDelete: "cascade" }).notNull(),
   dragonScore: integer("dragon_score").notNull(),
   opponentScore: integer("opponent_score").notNull(),
   outcome: leagueMatchOutcomeEnum("outcome").notNull(),
@@ -2435,7 +2435,7 @@ export const incidentStatusEnum = pgEnum("incident_status", ["PENDING_REVIEW", "
 
 export const incidentReports = pgTable("incident_reports", {
   id: serial("id").primaryKey(),
-  reportNumber: text("report_number").notNull().unique(),
+  reportNumber: text("report_number").notNull(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
   sessionId: integer("session_id").references(() => sessions.id),
   reportedByUserId: integer("reported_by_user_id").references(() => users.id).notNull(),
