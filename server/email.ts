@@ -98,16 +98,39 @@ export async function sendClaimAccountEmail(
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
   const transport = getGmailTransport();
   if (transport) {
-    await transport.sendMail({
-      from: `"Club Master" <${process.env.GMAIL_USER}>`,
-      to,
+    try {
+      await transport.sendMail({
+        from: `"Club Master" <${process.env.GMAIL_USER}>`,
+        to,
+        subject,
+        html,
+      });
+      console.log(`[EMAIL SENT] Email sent to ${to} via Gmail`);
+      return;
+    } catch (err) {
+      console.log(`[EMAIL GMAIL FAILED] ${to}: ${err}`);
+    }
+  }
+
+  const resendKey = process.env.RESEND_API_KEY;
+  if (resendKey) {
+    const { Resend } = await import("resend");
+    const resend = new Resend(resendKey);
+    const { error } = await resend.emails.send({
+      from: process.env.RESEND_FROM_EMAIL || "Club Master <onboarding@resend.dev>",
+      to: [to],
       subject,
       html,
     });
-    console.log(`[EMAIL SENT] Email sent to ${to} via Gmail`);
+    if (error) {
+      console.log(`[EMAIL RESEND FAILED] ${to}: ${JSON.stringify(error)}`);
+      throw new Error(`Resend error: ${JSON.stringify(error)}`);
+    }
+    console.log(`[EMAIL SENT] Email sent to ${to} via Resend`);
     return;
   }
-  console.log(`[EMAIL NOT SENT - No service] ${subject} to ${to}`);
+
+  console.log(`[EMAIL NOT SENT - No service configured] ${subject} to ${to}`);
 }
 
 export async function sendPasswordResetEmail(
