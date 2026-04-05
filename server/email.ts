@@ -1,5 +1,17 @@
 import nodemailer from "nodemailer";
 
+function getBrevoTransport() {
+  const user = process.env.SMTP_USER;
+  const pass = process.env.SMTP_PASS;
+  if (!user || !pass) return null;
+  return nodemailer.createTransport({
+    host: "smtp-relay.brevo.com",
+    port: 587,
+    secure: false,
+    auth: { user, pass },
+  });
+}
+
 function getGmailTransport() {
   const user = process.env.GMAIL_USER;
   const pass = process.env.GMAIL_APP_PASSWORD;
@@ -34,9 +46,22 @@ export async function sendClaimAccountEmail(
     </div>
   `;
 
-  const transport = getGmailTransport();
-  if (transport) {
-    await transport.sendMail({
+  const brevoTransport = getBrevoTransport();
+  if (brevoTransport) {
+    const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.GMAIL_USER || "noreply@clubmaster.app";
+    await brevoTransport.sendMail({
+      from: `"Club Master" <${fromEmail}>`,
+      to,
+      subject,
+      html: htmlContent,
+    });
+    console.log(`[EMAIL SENT] Claim account email sent to ${to} via Brevo SMTP`);
+    return;
+  }
+
+  const gmailTransport = getGmailTransport();
+  if (gmailTransport) {
+    await gmailTransport.sendMail({
       from: `"Club Master" <${process.env.GMAIL_USER}>`,
       to,
       subject,
@@ -96,10 +121,28 @@ export async function sendClaimAccountEmail(
 }
 
 export async function sendEmail(to: string, subject: string, html: string): Promise<void> {
-  const transport = getGmailTransport();
-  if (transport) {
+  const fromEmail = process.env.SMTP_FROM_EMAIL || process.env.GMAIL_USER || "noreply@clubmaster.app";
+
+  const brevoTransport = getBrevoTransport();
+  if (brevoTransport) {
     try {
-      await transport.sendMail({
+      await brevoTransport.sendMail({
+        from: `"Club Master" <${fromEmail}>`,
+        to,
+        subject,
+        html,
+      });
+      console.log(`[EMAIL SENT] Email sent to ${to} via Brevo SMTP`);
+      return;
+    } catch (err) {
+      console.log(`[EMAIL BREVO FAILED] ${to}: ${err}`);
+    }
+  }
+
+  const gmailTransport = getGmailTransport();
+  if (gmailTransport) {
+    try {
+      await gmailTransport.sendMail({
         from: `"Club Master" <${process.env.GMAIL_USER}>`,
         to,
         subject,
@@ -110,24 +153,6 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
     } catch (err) {
       console.log(`[EMAIL GMAIL FAILED] ${to}: ${err}`);
     }
-  }
-
-  const resendKey = process.env.RESEND_API_KEY;
-  if (resendKey) {
-    const { Resend } = await import("resend");
-    const resend = new Resend(resendKey);
-    const { error } = await resend.emails.send({
-      from: process.env.RESEND_FROM_EMAIL || "Club Master <onboarding@resend.dev>",
-      to: [to],
-      subject,
-      html,
-    });
-    if (error) {
-      console.log(`[EMAIL RESEND FAILED] ${to}: ${JSON.stringify(error)}`);
-      throw new Error(`Resend error: ${JSON.stringify(error)}`);
-    }
-    console.log(`[EMAIL SENT] Email sent to ${to} via Resend`);
-    return;
   }
 
   console.log(`[EMAIL NOT SENT - No service configured] ${subject} to ${to}`);
