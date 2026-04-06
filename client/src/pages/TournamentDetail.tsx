@@ -2076,7 +2076,11 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
 
   const matches = matchList || [];
   const groupMatches = matches.filter(m => m.groupNumber && m.groupNumber < 100);
-  const knockoutMatches = matches.filter(m => !m.groupNumber || m.round >= 100);
+  const semiMatches = matches.filter(m => m.groupNumber === 100);
+  const finalMatches = matches.filter(m => m.round === 200);
+  const knockoutMatches = matches.filter(m => (!m.groupNumber || m.round >= 100) && m.round !== 200 && m.groupNumber !== 100);
+  const hasSemiFinals = semiMatches.length > 0;
+  const hasFinal = finalMatches.length > 0;
 
   const viewTabs = [];
   if (category.format === "GROUP_KNOCKOUT" || category.format === "ROUND_ROBIN") {
@@ -2120,7 +2124,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 {matches.length > 0 ? "Regenerate Fixtures" : category.format === "GROUP_KNOCKOUT" ? "Generate Group Stage" : "Start Tournament"}
               </span>
             </button>
-            {category.format !== "ROUND_ROBIN" && matches.length > 0 && (
+            {category.format !== "ROUND_ROBIN" && matches.length > 0 && !hasFinal && (
               <button
                 onClick={onAdvanceWinners}
                 disabled={isAdvancing}
@@ -2136,7 +2140,9 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
               >
                 <span className="relative flex items-center gap-2">
                   {isAdvancing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5 drop-shadow-[0_0_4px_rgba(245,158,11,0.6)]" />}
-                  {category.format === "GROUP_KNOCKOUT" ? "Generate Knockout" : "Advance Winners"}
+                  {category.format === "GROUP_KNOCKOUT"
+                    ? (hasSemiFinals ? "Generate Final" : "Generate Semi-Finals")
+                    : "Advance Winners"}
                 </span>
               </button>
             )}
@@ -2212,9 +2218,20 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 }
               }
 
-              if (koMatches.length > 0) {
-                const koRoundMap = new Map<number, typeof koMatches>();
-                koMatches.forEach(m => {
+              const semiDisplayMatches = displayMatches.filter(m => m.groupNumber === 100);
+              if (semiDisplayMatches.length > 0) {
+                sections.push({ key: "semi-finals", label: "Semi-Finals", color: "amber", matches: semiDisplayMatches, groupNumber: 100, subGroupNumber: 1 });
+              }
+
+              const finalDisplayMatches = displayMatches.filter(m => m.round === 200);
+              if (finalDisplayMatches.length > 0) {
+                sections.push({ key: "final", label: "Final", color: "amber", matches: finalDisplayMatches });
+              }
+
+              const otherKoMatches = displayMatches.filter(m => (!m.groupNumber || m.round >= 100) && m.groupNumber !== 100 && m.round !== 200);
+              if (otherKoMatches.length > 0) {
+                const koRoundMap = new Map<number, typeof otherKoMatches>();
+                otherKoMatches.forEach(m => {
                   const r = m.round;
                   if (!koRoundMap.has(r)) koRoundMap.set(r, []);
                   koRoundMap.get(r)!.push(m);
@@ -2613,10 +2630,14 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
 
   const advancePerGroup = category.advancePerGroup || 1;
 
+  const groupStageStandings = standings.filter(s => s.groupNumber < 100);
+  const semiStandings = standings.filter(s => s.groupNumber === 100);
+  const groupStageNumbers = Array.from(new Set(groupStageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
+
   return (
     <div className="space-y-5">
-      {groupNumbers.map(gNum => {
-        const groupStandings = standings.filter(s => s.groupNumber === gNum);
+      {groupStageNumbers.map(gNum => {
+        const groupStandings = groupStageStandings.filter(s => s.groupNumber === gNum);
         const subGroupNumbers = Array.from(new Set(groupStandings.map(s => s.subGroupNumber || 1))).sort((a, b) => a - b);
         const hasMultipleSubGroups = subGroupNumbers.length > 1 || (subGroupNumbers.length === 1 && subGroupNumbers[0] > 1);
 
@@ -2679,6 +2700,34 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
           </div>
         );
       })}
+
+      {semiStandings.length > 0 && (
+        <div className="relative rounded-2xl overflow-hidden">
+          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-amber-500/40 via-orange-500/20 to-slate-800/40 blur-[0.5px]" />
+          <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
+            <div className="bg-gradient-to-r from-amber-600/10 via-orange-600/5 to-transparent px-4 py-3 border-b border-border/30">
+              <div className="flex items-center gap-2">
+                <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                  <Trophy className="h-3 w-3 text-white" />
+                </div>
+                <h4 className="text-sm font-black text-foreground uppercase tracking-wider">Semi-Finals</h4>
+                <Badge className="bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 text-[9px] font-black ml-auto">{semiStandings.length} Teams</Badge>
+              </div>
+            </div>
+            {renderStandingsTable(
+              semiStandings.sort((a, b) => {
+                if (b.points !== a.points) return b.points - a.points;
+                const diffA = a.pointsFor - a.pointsAgainst;
+                const diffB = b.pointsFor - b.pointsAgainst;
+                if (diffB !== diffA) return diffB - diffA;
+                if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+                return a.gamesLost - b.gamesLost;
+              }),
+              2
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3755,7 +3804,8 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
                   <p className="text-sm font-bold text-foreground">{cat.name}</p>
                   <p className="text-[10px] text-muted-foreground">{cat.format?.replace("_", "+")} · {cat.playersPerSide === 1 ? "Singles" : "Doubles"}</p>
                 </div>
-                <Button size="sm" variant="ghost" className="h-7 text-destructive" onClick={async () => {
+                <Button size="sm" variant="ghost" className="h-7 text-destructive" data-testid={`button-delete-category-${cat.id}`} onClick={async () => {
+                  if (!window.confirm(`Delete "${cat.name}"? This will remove all matches, standings, and teams in this category.`)) return;
                   try { await deleteCatMutation.mutateAsync(cat.id); toast({ title: "Category Deleted" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                 }}>
                   <Trash2 className="h-3 w-3" />

@@ -367,6 +367,7 @@ export function useAdvanceWinners() {
     },
     onSuccess: (_data: any, categoryId: number) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", categoryId, "matches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", categoryId, "standings"] });
     },
   });
 }

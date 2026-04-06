@@ -172,8 +172,21 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const catId = Number(req.params.id);
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
+
+      await db.delete(tournamentPlayerStats).where(eq(tournamentPlayerStats.categoryId, catId));
       await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
       await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
+      const catGroups = await db.select({ id: tournamentGroups.id }).from(tournamentGroups).where(eq(tournamentGroups.categoryId, catId));
+      if (catGroups.length > 0) {
+        const groupIds = catGroups.map(g => g.id);
+        await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, groupIds));
+        await db.delete(tournamentGroups).where(eq(tournamentGroups.categoryId, catId));
+      }
+      await db.delete(tournamentPrizes).where(eq(tournamentPrizes.categoryId, catId));
       await db.delete(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
       await db.delete(tournamentCategories).where(eq(tournamentCategories.id, catId));
       res.json({ success: true });
@@ -697,14 +710,52 @@ export function registerTournamentRoutes(app: Express) {
 
       if (cat.format === "GROUP_KNOCKOUT") {
 
-        const standingsList = await db.select().from(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
+        const allMatches = await db.select().from(tournamentMatches)
+          .where(eq(tournamentMatches.categoryId, catId));
+        const semiMatches = allMatches.filter(m => m.groupNumber === 100);
+        const finalMatch = allMatches.filter(m => m.round === 200);
+
+        if (finalMatch.length > 0) {
+          return res.json({ message: "Final already generated" });
+        }
+
+        if (semiMatches.length > 0) {
+          const unfinishedSemis = semiMatches.filter(m => m.status !== "FINISHED");
+          if (unfinishedSemis.length > 0) {
+            return res.status(400).json({ message: `Complete all semi-final matches first (${unfinishedSemis.length} remaining)` });
+          }
+          const semiStandings = await db.select().from(tournamentStandings)
+            .where(and(eq(tournamentStandings.categoryId, catId), eq(tournamentStandings.groupNumber, 100)));
+          const sorted = semiStandings.sort((a, b) => {
+            if (b.points !== a.points) return b.points - a.points;
+            const diffA = a.pointsFor - a.pointsAgainst;
+            const diffB = b.pointsFor - b.pointsAgainst;
+            if (diffB !== diffA) return diffB - diffA;
+            if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+            return a.gamesLost - b.gamesLost;
+          });
+          if (sorted.length < 2) return res.status(400).json({ message: "Not enough teams in semi-finals" });
+          const top2 = sorted.slice(0, 2);
+          const maxOrder = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1);
+          const [match] = await db.insert(tournamentMatches).values({
+            categoryId: catId,
+            teamAId: top2[0].teamId,
+            teamBId: top2[1].teamId,
+            round: 200,
+            matchOrder: maxOrder + 1,
+          }).returning();
+          return res.json({ message: "Final generated", match });
+        }
+
+        const standingsList = await db.select().from(tournamentStandings)
+          .where(and(eq(tournamentStandings.categoryId, catId), sql`${tournamentStandings.groupNumber} < 100`));
         const advancePerGroup = cat.advancePerGroup || 2;
         const subGroupKeys = Array.from(new Set(standingsList.map(s => `${s.groupNumber}-${s.subGroupNumber}`))).sort((a, b) => {
           const [ag, as_] = a.split("-").map(Number);
           const [bg, bs] = b.split("-").map(Number);
           return ag - bg || as_ - bs;
         });
-        const qualifiersBySubgroup: { teamId: number; rank: number; sgKey: string }[] = [];
+        const qualifiers: number[] = [];
         for (const key of subGroupKeys) {
           const [gNum, sgNum] = key.split("-").map(Number);
           const sgStandings = standingsList
@@ -717,121 +768,37 @@ export function registerTournamentRoutes(app: Express) {
               if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
               return a.gamesLost - b.gamesLost;
             });
-          sgStandings.slice(0, advancePerGroup).forEach((s, rank) => {
-            qualifiersBySubgroup.push({ teamId: s.teamId, rank: rank + 1, sgKey: key });
+          sgStandings.slice(0, advancePerGroup).forEach(s => {
+            qualifiers.push(s.teamId);
           });
         }
-        if (qualifiersBySubgroup.length < 2) return res.status(400).json({ message: "Not enough qualifiers" });
+        if (qualifiers.length < 2) return res.status(400).json({ message: "Not enough qualifiers" });
 
-        const existingKO = await db.select().from(tournamentMatches)
-          .where(and(eq(tournamentMatches.categoryId, catId), sql`${tournamentMatches.groupNumber} IS NULL`));
-        if (existingKO.length > 0) return res.json({ message: "Knockout already generated" });
-
-        const directPairings: { teamA: number; teamB: number }[] = [];
-        const unpaired: number[] = [];
-        const winners = qualifiersBySubgroup.filter(q => q.rank === 1);
-        const runnersUp = qualifiersBySubgroup.filter(q => q.rank === 2);
-        const numGroups = subGroupKeys.length;
-
-        if (numGroups === 4 && advancePerGroup === 2 && winners.length === 4 && runnersUp.length === 4) {
-          const w = (sgKey: string) => winners.find(q => q.sgKey === sgKey)!;
-          const r = (sgKey: string) => runnersUp.find(q => q.sgKey === sgKey)!;
-          const [gA, gB, gC, gD] = subGroupKeys;
-          directPairings.push({ teamA: w(gA).teamId, teamB: r(gB).teamId });
-          directPairings.push({ teamA: w(gC).teamId, teamB: r(gD).teamId });
-          directPairings.push({ teamA: w(gB).teamId, teamB: r(gA).teamId });
-          directPairings.push({ teamA: w(gD).teamId, teamB: r(gC).teamId });
-        } else if (numGroups >= 2 && advancePerGroup === 2) {
-          const usedRunners = new Set<number>();
-          for (const w of winners) {
-            const crossIdx = runnersUp.findIndex((r, idx) => r.sgKey !== w.sgKey && !usedRunners.has(idx));
-            if (crossIdx >= 0) {
-              usedRunners.add(crossIdx);
-              directPairings.push({ teamA: w.teamId, teamB: runnersUp[crossIdx].teamId });
-            } else {
-              const anyIdx = runnersUp.findIndex((_, idx) => !usedRunners.has(idx));
-              if (anyIdx >= 0) {
-                usedRunners.add(anyIdx);
-                directPairings.push({ teamA: w.teamId, teamB: runnersUp[anyIdx].teamId });
-              } else {
-                unpaired.push(w.teamId);
-              }
-            }
-          }
-          for (let i = 0; i < runnersUp.length; i++) {
-            if (!usedRunners.has(i)) unpaired.push(runnersUp[i].teamId);
-          }
-        } else {
-          qualifiersBySubgroup.sort((a, b) => a.rank - b.rank || a.sgKey.localeCompare(b.sgKey));
-          const allIds = qualifiersBySubgroup.map(q => q.teamId);
-          for (let i = 0; i < allIds.length; i += 2) {
-            if (i + 1 < allIds.length) {
-              directPairings.push({ teamA: allIds[i], teamB: allIds[i + 1] });
-            } else {
-              unpaired.push(allIds[i]);
-            }
+        let matchIdx = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1) + 1;
+        for (let i = 0; i < qualifiers.length; i++) {
+          for (let j = i + 1; j < qualifiers.length; j++) {
+            await db.insert(tournamentMatches).values({
+              categoryId: catId,
+              teamAId: qualifiers[i],
+              teamBId: qualifiers[j],
+              round: 100,
+              matchOrder: matchIdx++,
+              groupNumber: 100,
+              subGroupNumber: 1,
+            });
           }
         }
 
-        const totalTeams = directPairings.length * 2 + unpaired.length;
-        const totalSlots = Math.pow(2, Math.ceil(Math.log2(totalTeams)));
-        const totalR1Matches = totalSlots / 2;
-        let matchIdx = 0;
-        const round1: any[] = [];
-        let pairIdx = 0;
-        let unpairedIdx = 0;
-        for (let i = 0; i < totalR1Matches; i++) {
-          if (pairIdx < directPairings.length) {
-            const p = directPairings[pairIdx++];
-            const [m] = await db.insert(tournamentMatches).values({
-              categoryId: catId, teamAId: p.teamA, teamBId: p.teamB,
-              round: 100, matchOrder: matchIdx++, bracketPosition: i,
-            }).returning();
-            round1.push(m);
-          } else if (unpairedIdx < unpaired.length) {
-            const [m] = await db.insert(tournamentMatches).values({
-              categoryId: catId, teamAId: unpaired[unpairedIdx++], teamBId: null,
-              round: 100, matchOrder: matchIdx++, bracketPosition: i,
-              isBye: true, winnerId: unpaired[unpairedIdx - 1], status: "FINISHED",
-            }).returning();
-            round1.push(m);
-          } else {
-            round1.push(null);
-          }
+        for (const teamId of qualifiers) {
+          await db.insert(tournamentStandings).values({
+            categoryId: catId,
+            teamId,
+            groupNumber: 100,
+            subGroupNumber: 1,
+          });
         }
 
-        let currentRound = round1;
-        let roundNum = 101;
-        while (currentRound.length > 1) {
-          const nextRound: any[] = [];
-          for (let i = 0; i < currentRound.length; i += 2) {
-            const matchA = currentRound[i];
-            const matchB = currentRound[i + 1];
-            const advancedA = matchA?.winnerId || null;
-            const advancedB = matchB?.winnerId || null;
-            const onlyOneTeam = (advancedA && !advancedB) || (!advancedA && advancedB);
-            const theTeam = advancedA || advancedB;
-            if (onlyOneTeam && theTeam) {
-              const [m] = await db.insert(tournamentMatches).values({
-                categoryId: catId,
-                teamAId: advancedA, teamBId: advancedB,
-                round: roundNum, matchOrder: i / 2, bracketPosition: i / 2,
-                isBye: true, winnerId: theTeam, status: "FINISHED",
-              }).returning();
-              nextRound.push(m);
-            } else {
-              const [m] = await db.insert(tournamentMatches).values({
-                categoryId: catId,
-                teamAId: advancedA, teamBId: advancedB,
-                round: roundNum, matchOrder: i / 2, bracketPosition: i / 2,
-              }).returning();
-              nextRound.push(m);
-            }
-          }
-          currentRound = nextRound;
-          roundNum++;
-        }
-        return res.json({ message: "Knockout stage generated", qualifiers: totalTeams });
+        return res.json({ message: "Semi-finals generated", qualifiers: qualifiers.length });
       }
 
       const allMatches = await db.select().from(tournamentMatches)
