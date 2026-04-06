@@ -346,6 +346,19 @@ export function useScoreMatch() {
   });
 }
 
+export function useAddGroupMatch() {
+  return useMutation({
+    mutationFn: async ({ categoryId, teamAId, teamBId, groupNumber, subGroupNumber }: { categoryId: number; teamAId: number; teamBId: number; groupNumber?: number; subGroupNumber?: number }) => {
+      const res = await apiRequest("POST", `/api/tournament-categories/${categoryId}/add-group-match`, { teamAId, teamBId, groupNumber, subGroupNumber });
+      return res.json();
+    },
+    onSuccess: (_data: any, vars: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", vars.categoryId, "matches"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", vars.categoryId, "standings"] });
+    },
+  });
+}
+
 export function useAdvanceWinners() {
   return useMutation({
     mutationFn: async (categoryId: number) => {

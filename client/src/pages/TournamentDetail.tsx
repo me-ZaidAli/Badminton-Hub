@@ -5,7 +5,7 @@ import {
   useTournament, useTournamentCategories, useTournamentTeams,
   useTournamentMatches, useTournamentStandings,
   useCreateCategory, useDeleteCategory, useRegisterTeam, useDeleteTeam, useUpdateTeam,
-  useGenerateMatches, useScoreMatch, useAdvanceWinners, useUpdateTournament,
+  useGenerateMatches, useScoreMatch, useAdvanceWinners, useAddGroupMatch, useUpdateTournament,
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
@@ -2049,8 +2049,12 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
     category.format === "KNOCKOUT" ? "bracket" : category.format === "GROUP_KNOCKOUT" ? "standings" : "list"
   );
   const scoreMutation = useScoreMatch();
+  const addGroupMatchMutation = useAddGroupMatch();
   const { toast } = useToast();
   const [scoreDialog, setScoreDialog] = useState<any>(null);
+  const [addMatchDialog, setAddMatchDialog] = useState<{ groupNumber: number; subGroupNumber: number } | null>(null);
+  const [addMatchTeamA, setAddMatchTeamA] = useState<number | "">("");
+  const [addMatchTeamB, setAddMatchTeamB] = useState<number | "">("");
 
   const handleAssignCourt = (matchId: number, courtId: number | null) => {
     assignCourtMutation.mutate({ matchId, courtId }, {
@@ -2113,7 +2117,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 ) : (
                   <Zap className="h-4 w-4 drop-shadow-[0_0_6px_rgba(6,182,212,0.8)] group-hover:animate-pulse" />
                 )}
-                {matches.length > 0 ? "Regenerate Fixtures" : "Start Tournament"}
+                {matches.length > 0 ? "Regenerate Fixtures" : category.format === "GROUP_KNOCKOUT" ? "Generate Group Stage" : "Start Tournament"}
               </span>
             </button>
             {category.format !== "ROUND_ROBIN" && matches.length > 0 && (
@@ -2188,7 +2192,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 return `Round ${idx + 1}`;
               }
 
-              const sections: { key: string; label: string; color: string; matches: typeof displayMatches }[] = [];
+              const sections: { key: string; label: string; color: string; matches: typeof displayMatches; groupNumber?: number; subGroupNumber?: number }[] = [];
 
               if (grpMatches.length > 0) {
                 const sgMap = new Map<string, typeof grpMatches>();
@@ -2204,7 +2208,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   const label = hasMultipleSg
                     ? `Group ${String.fromCharCode(64 + g)} · Subgroup ${sg}`
                     : `Group ${String.fromCharCode(64 + g)}`;
-                  sections.push({ key: k, label, color: "violet", matches: sgMap.get(k)! });
+                  sections.push({ key: k, label, color: "violet", matches: sgMap.get(k)!, groupNumber: g, subGroupNumber: sg });
                 }
               }
 
@@ -2230,6 +2234,19 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     <div className={cn("h-px flex-1 bg-gradient-to-r to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
                     <span className={cn("text-[10px] font-black uppercase tracking-[0.15em] px-2", sec.color === "amber" ? "text-amber-400" : "text-violet-400")}>{sec.label}</span>
                     <span className="text-[9px] font-bold text-muted-foreground">{sec.matches.length} {sec.matches.length === 1 ? "match" : "matches"}</span>
+                    {canManage && sec.groupNumber && (
+                      <button
+                        onClick={() => {
+                          setAddMatchTeamA("");
+                          setAddMatchTeamB("");
+                          setAddMatchDialog({ groupNumber: sec.groupNumber!, subGroupNumber: sec.subGroupNumber || 1 });
+                        }}
+                        className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors"
+                        data-testid={`button-add-group-match-${sec.key}`}
+                      >
+                        <Plus className="h-3 w-3" /> Add Match
+                      </button>
+                    )}
                     <div className={cn("h-px flex-1 bg-gradient-to-l to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
                   </div>
                   <div className="space-y-2">
@@ -2258,6 +2275,81 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
             toast({ title: "Error", description: err.message, variant: "destructive" });
           }
         }} isPending={scoreMutation.isPending} />
+      )}
+
+      {addMatchDialog && (
+        <Dialog open={!!addMatchDialog} onOpenChange={(o) => !o && setAddMatchDialog(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Add Group Match</DialogTitle>
+              <DialogDescription>
+                Add a match to Group {String.fromCharCode(64 + addMatchDialog.groupNumber)}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              {(() => {
+                const groupTeams = (teams || []).filter(t =>
+                  t.groupNumber === addMatchDialog.groupNumber &&
+                  (!t.subGroupNumber || t.subGroupNumber === addMatchDialog.subGroupNumber)
+                );
+                return (
+                  <>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Team A</label>
+                      <Select value={String(addMatchTeamA)} onValueChange={v => setAddMatchTeamA(Number(v))}>
+                        <SelectTrigger data-testid="select-add-match-team-a"><SelectValue placeholder="Select team" /></SelectTrigger>
+                        <SelectContent>
+                          {groupTeams.filter(t => t.id !== addMatchTeamB).map(t => (
+                            <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Team B</label>
+                      <Select value={String(addMatchTeamB)} onValueChange={v => setAddMatchTeamB(Number(v))}>
+                        <SelectTrigger data-testid="select-add-match-team-b"><SelectValue placeholder="Select team" /></SelectTrigger>
+                        <SelectContent>
+                          {groupTeams.filter(t => t.id !== addMatchTeamA).map(t => (
+                            <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </>
+                );
+              })()}
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddMatchDialog(null)} data-testid="button-cancel-add-match">Cancel</Button>
+              <Button
+                disabled={!addMatchTeamA || !addMatchTeamB || addGroupMatchMutation.isPending}
+                onClick={() => {
+                  if (!addMatchTeamA || !addMatchTeamB) return;
+                  addGroupMatchMutation.mutate({
+                    categoryId: category.id,
+                    teamAId: addMatchTeamA as number,
+                    teamBId: addMatchTeamB as number,
+                    groupNumber: addMatchDialog.groupNumber,
+                    subGroupNumber: addMatchDialog.subGroupNumber,
+                  }, {
+                    onSuccess: () => {
+                      toast({ title: "Match Added" });
+                      setAddMatchDialog(null);
+                    },
+                    onError: (err: any) => {
+                      toast({ title: "Error", description: err.message, variant: "destructive" });
+                    },
+                  });
+                }}
+                data-testid="button-confirm-add-match"
+              >
+                {addGroupMatchMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Plus className="h-4 w-4 mr-1" />}
+                Add Match
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       )}
     </div>
   );

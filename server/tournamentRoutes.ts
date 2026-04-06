@@ -556,6 +556,52 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post("/api/tournament-categories/:id/add-group-match", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      if (cat.format !== "GROUP_KNOCKOUT" && cat.format !== "ROUND_ROBIN") {
+        return res.status(400).json({ message: "Manual matches can only be added to group/round-robin categories" });
+      }
+      const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
+
+      const { teamAId, teamBId, groupNumber, subGroupNumber } = req.body;
+      if (!teamAId || !teamBId) return res.status(400).json({ message: "Both teams are required" });
+      if (teamAId === teamBId) return res.status(400).json({ message: "Teams must be different" });
+
+      const [teamA] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamAId));
+      const [teamB] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamBId));
+      if (!teamA || !teamB) return res.status(400).json({ message: "One or both teams not found" });
+      if (teamA.categoryId !== catId || teamB.categoryId !== catId) {
+        return res.status(400).json({ message: "Both teams must belong to this category" });
+      }
+
+      const gNum = groupNumber || teamA.groupNumber || 1;
+      const sgNum = subGroupNumber || teamA.subGroupNumber || 1;
+
+      const existingMatches = await db.select().from(tournamentMatches)
+        .where(eq(tournamentMatches.categoryId, catId));
+      const maxOrder = existingMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1);
+
+      const [match] = await db.insert(tournamentMatches).values({
+        categoryId: catId,
+        teamAId,
+        teamBId,
+        round: 1,
+        matchOrder: maxOrder + 1,
+        groupNumber: gNum,
+        subGroupNumber: sgNum,
+      }).returning();
+
+      res.json(match);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.patch("/api/tournament-matches/:id/score", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
