@@ -187,13 +187,26 @@ export async function sendPasswordResetEmail(
   }
 }
 
+function getEmailBaseUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.REPLIT_DEPLOYMENT_URL) return `https://${process.env.REPLIT_DEPLOYMENT_URL}`;
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) {
+    const prodDomain = domains.split(",").find(d => d.includes(".replit.app")) || domains.split(",")[0];
+    if (prodDomain) return `https://${prodDomain.trim()}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  return "";
+}
+
 export async function sendChatNotificationEmail(to: string, subject: string, body: string): Promise<void> {
+  const baseUrl = getEmailBaseUrl();
   const htmlContent = `
     <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-      <h2 style="color: #333;">Club Master - Chat Notification</h2>
+      <h2 style="color: #333;">Club Master</h2>
       <p>${body}</p>
       <div style="text-align: center; margin: 30px 0;">
-        <a href="${process.env.REPLIT_DEV_DOMAIN ? 'https://' + process.env.REPLIT_DEV_DOMAIN : ''}/inbox" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+        <a href="${baseUrl}/inbox" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
           Open Chat
         </a>
       </div>

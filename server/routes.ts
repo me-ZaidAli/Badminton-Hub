@@ -18038,6 +18038,12 @@ export async function registerRoutes(
         ticketNotificationsEnabled: true,
         messageNotificationsEnabled: true,
         emailNotificationsEnabled: true,
+        sessionAvailabilityEnabled: true,
+        sessionReminderEnabled: true,
+        sessionReminderHoursBefore: 24,
+        announcementNotificationsEnabled: true,
+        chatNotificationsEnabled: true,
+        tournamentNotificationsEnabled: true,
       });
     } catch (err: any) {
       res.status(500).json({ message: "Failed to fetch notification settings" });
@@ -18062,6 +18068,12 @@ export async function registerRoutes(
         ticketNotificationsEnabled: z.boolean().optional(),
         messageNotificationsEnabled: z.boolean().optional(),
         emailNotificationsEnabled: z.boolean().optional(),
+        sessionAvailabilityEnabled: z.boolean().optional(),
+        sessionReminderEnabled: z.boolean().optional(),
+        sessionReminderHoursBefore: z.number().int().min(1).max(72).optional(),
+        announcementNotificationsEnabled: z.boolean().optional(),
+        chatNotificationsEnabled: z.boolean().optional(),
+        tournamentNotificationsEnabled: z.boolean().optional(),
       }).parse(req.body);
 
       const [existing] = await db.select().from(notificationScheduleSettings).where(eq(notificationScheduleSettings.clubId, clubId));

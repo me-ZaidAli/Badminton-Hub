@@ -25,6 +25,7 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system, supporting optional hall and court names.
 - **Session Availability Notifications**: Automatic in-app, chat, and email notifications for session spaces, including reminders and admin manual reminders.
+- **Communications Admin Center**: Admin page at `/admin/communications` with per-club notification settings (global channels, session notifications, club notifications) and delivery log viewer with filtering. Email URLs use production-safe `getEmailBaseUrl()` and emails display club name in header.
 - **Session Match Recovery**: Allows recovery of soft-deleted (archived) matches.
 - **Coach Directory & Lesson Booking**: Manages public coach profiles, an interactive map, and an in-app private lesson request system.
 - **Global Account Merge System**: Tool for merging duplicate user accounts (OWNER-only).

@@ -11,6 +11,18 @@ import { sendEmail } from "./email";
 
 const SYSTEM_SENDER_ID = 1;
 
+function getEmailBaseUrl(): string {
+  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/$/, "");
+  if (process.env.REPLIT_DEPLOYMENT_URL) return `https://${process.env.REPLIT_DEPLOYMENT_URL}`;
+  const domains = process.env.REPLIT_DOMAINS;
+  if (domains) {
+    const prodDomain = domains.split(",").find(d => d.includes(".replit.app")) || domains.split(",")[0];
+    if (prodDomain) return `https://${prodDomain.trim()}`;
+  }
+  if (process.env.REPLIT_DEV_DOMAIN) return `https://${process.env.REPLIT_DEV_DOMAIN}`;
+  return "";
+}
+
 function formatDate(date: Date): string {
   return date.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 }
@@ -98,6 +110,7 @@ async function sendMultiChannel(
   linkUrl: string,
   emailEnabled: boolean,
   notificationType: string,
+  clubName?: string,
 ) {
   const alreadySentInApp = await hasBeenSent(recipientUserId, entityType, entityId, scheduleKey, "IN_APP");
   if (!alreadySentInApp) {
@@ -137,16 +150,23 @@ async function sendMultiChannel(
     const alreadySentEmail = await hasBeenSent(recipientUserId, entityType, entityId, scheduleKey, "EMAIL");
     if (!alreadySentEmail) {
       try {
+        const baseUrl = getEmailBaseUrl();
+        let resolvedClubName = clubName;
+        if (!resolvedClubName && clubId) {
+          const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+          if (club) resolvedClubName = club.name;
+        }
+        const displayName = resolvedClubName || "Club Master";
         const htmlContent = `
           <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <h2 style="color: #333;">Club Master</h2>
+            <h2 style="color: #333;">${displayName}</h2>
             <p>${message.replace(/\n/g, "<br/>")}</p>
             <div style="text-align: center; margin: 30px 0;">
-              <a href="${process.env.REPLIT_DEV_DOMAIN ? 'https://' + process.env.REPLIT_DEV_DOMAIN : ''}${linkUrl}" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
+              <a href="${baseUrl}${linkUrl}" style="background-color: #2563eb; color: white; padding: 12px 32px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">
                 View Details
               </a>
             </div>
-            <p style="color: #999; font-size: 12px; margin-top: 30px;">You received this email from Club Master automated notifications.</p>
+            <p style="color: #999; font-size: 12px; margin-top: 30px;">You received this email from ${displayName} via Club Master.</p>
           </div>
         `;
         await sendEmail(recipientEmail, title, htmlContent);

@@ -1489,6 +1489,12 @@ export const notificationScheduleSettings = pgTable("notification_schedule_setti
   ticketNotificationsEnabled: boolean("ticket_notifications_enabled").default(true).notNull(),
   messageNotificationsEnabled: boolean("message_notifications_enabled").default(true).notNull(),
   emailNotificationsEnabled: boolean("email_notifications_enabled").default(true).notNull(),
+  sessionAvailabilityEnabled: boolean("session_availability_enabled").default(true).notNull(),
+  sessionReminderEnabled: boolean("session_reminder_enabled").default(true).notNull(),
+  sessionReminderHoursBefore: integer("session_reminder_hours_before").default(24).notNull(),
+  announcementNotificationsEnabled: boolean("announcement_notifications_enabled").default(true).notNull(),
+  chatNotificationsEnabled: boolean("chat_notifications_enabled").default(true).notNull(),
+  tournamentNotificationsEnabled: boolean("tournament_notifications_enabled").default(true).notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 

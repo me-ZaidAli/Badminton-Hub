@@ -80,6 +80,7 @@ const AdminAnnouncements = lazy(() => import("@/pages/admin/Announcements"));
 const MatchEngineLab = lazy(() => import("@/pages/admin/MatchEngineLab"));
 const MatchEngineSettingsPage = lazy(() => import("@/pages/admin/MatchEngineSettings"));
 const AIMatchInput = lazy(() => import("@/pages/admin/AIMatchInput"));
+const Communications = lazy(() => import("@/pages/admin/Communications"));
 const TshirtManager = lazy(() => import("@/pages/admin/TshirtManager"));
 const TshirtPage = lazy(() => import("@/pages/TshirtPage"));
 const Announcements = lazy(() => import("@/pages/Announcements"));
@@ -610,6 +611,9 @@ function Router() {
       </Route>
       <Route path="/admin/tshirts">
         <AdminRoute component={TshirtManager} />
+      </Route>
+      <Route path="/admin/communications">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><Communications /></Suspense>} />
       </Route>
       <Route path="/tshirt">
         <PrivateRoute component={TshirtPage} />
