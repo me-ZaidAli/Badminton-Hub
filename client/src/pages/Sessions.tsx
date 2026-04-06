@@ -1586,7 +1586,8 @@ export default function Sessions() {
                   const isSignedUp = signup && (signup.signupStatus === "CONFIRMED" || signup.signupStatus === "WAITING");
                   const isNotAttending = signup && signup.signupStatus === "NOT_ATTENDING";
                   const isInvited = signup && signup.signupStatus === "INVITED";
-                  const isPast = new Date(session.date) < now;
+                  const sessionDateNorm = new Date(session.date); sessionDateNorm.setHours(0, 0, 0, 0);
+                  const isPast = sessionDateNorm < now;
                   const isScheduledLater = (session as any).publishAt && new Date((session as any).publishAt) > new Date();
                   const hasAccess = getSessionAccess(session.clubId) === "allowed";
                   const gradeEligible = checkGradeEligibility(session);
