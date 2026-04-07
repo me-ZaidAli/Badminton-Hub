@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
@@ -19,7 +19,7 @@ import {
   Search, Loader2, CheckCircle, Activity, Pencil, Trash2, X,
   UserPlus, UserMinus, Trophy, PartyPopper, Dumbbell, Heart, Flag,
   MoreVertical, CalendarDays, Info, Phone, Shirt, Package, Navigation,
-  AlertTriangle,
+  AlertTriangle, ChevronDown, User,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
@@ -301,6 +301,120 @@ function CreateEditDialog({ open, onClose, editEvent, clubs }: CreateEditDialogP
   );
 }
 
+interface TeamEventSignup {
+  id: number;
+  userId: number;
+  status: string;
+  userName: string | null;
+  createdAt: string;
+}
+
+function ExpandedAttendeesSection({ eventId }: { eventId: number }) {
+  const contentRef = useRef<HTMLDivElement>(null);
+  const [height, setHeight] = useState(0);
+
+  const { data: eventDetail, isLoading, isError } = useQuery<TeamEventData & { signups: TeamEventSignup[] }>({
+    queryKey: ["/api/team-events", eventId],
+    staleTime: 30000,
+  });
+
+  useEffect(() => {
+    if (contentRef.current) {
+      setHeight(contentRef.current.scrollHeight);
+    }
+  }, [eventDetail]);
+
+  const confirmedAttendees = eventDetail?.signups?.filter((s) => s.status === "CONFIRMED") || [];
+
+  return (
+    <div
+      className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
+      style={{ maxHeight: height > 0 ? `${height + 16}px` : "400px" }}
+      role="region"
+      aria-label="Attendees list"
+    >
+      <div ref={contentRef} className="pt-3">
+        <div className="h-px bg-gradient-to-r from-transparent via-border to-transparent mb-3" />
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-4">
+            <div className="w-4 h-4 border-2 border-primary/30 border-t-primary rounded-full animate-spin" />
+            <span className="ml-2 text-xs text-muted-foreground">Loading attendees...</span>
+          </div>
+        ) : isError ? (
+          <div className="flex items-center justify-center py-4 text-xs text-muted-foreground">
+            <span>Unable to load attendees</span>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div className="rounded-xl border border-border/60 bg-muted/20 dark:bg-white/[0.03] p-2.5">
+              <div className="flex items-center gap-1.5 mb-2">
+                <Users className="h-3 w-3 text-blue-500 flex-shrink-0" />
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Attendees ({confirmedAttendees.length}/{eventDetail?.maxParticipants || 0})
+                </span>
+              </div>
+
+              <div className="flex items-center gap-2 mb-2.5">
+                <div className="flex items-center gap-0.5" data-testid={`capacity-bar-event-${eventId}`}>
+                  {(() => {
+                    const totalBlocks = 10;
+                    const max = eventDetail?.maxParticipants || 1;
+                    const fillPercent = Math.min(100, Math.round((confirmedAttendees.length / max) * 100));
+                    const filledBlocks = Math.round((fillPercent / 100) * totalBlocks);
+                    const isFull = confirmedAttendees.length >= max;
+                    const barColor = isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500";
+                    return Array.from({ length: totalBlocks }).map((_, i) => (
+                      <div
+                        key={i}
+                        className={`w-[5px] h-[10px] rounded-[1px] ${
+                          i < filledBlocks ? barColor : "bg-muted/50 dark:bg-muted/40"
+                        }`}
+                      />
+                    ));
+                  })()}
+                </div>
+                <span className={`text-[11px] font-semibold tabular-nums ${
+                  confirmedAttendees.length >= (eventDetail?.maxParticipants || 1) ? "text-red-500" : "text-foreground dark:text-white/80"
+                }`}>
+                  {confirmedAttendees.length}/{eventDetail?.maxParticipants || 0}
+                </span>
+              </div>
+
+              {confirmedAttendees.length === 0 ? (
+                <p className="text-xs text-muted-foreground text-center py-2">No attendees yet</p>
+              ) : (
+                <div className="space-y-1">
+                  {confirmedAttendees.map((attendee, i) => (
+                    <div
+                      key={attendee.id}
+                      className="flex items-center justify-between rounded-md px-2.5 py-1.5 bg-card dark:bg-white/[0.04] border border-border/40"
+                      data-testid={`attendee-row-${attendee.id}`}
+                    >
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex-shrink-0">
+                          {i + 1}
+                        </div>
+                        <User className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+                        <span className="text-[11px] font-medium text-foreground dark:text-white/80 truncate">
+                          {attendee.userName || "Unknown Player"}
+                        </span>
+                      </div>
+                      <span className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
+                        {format(new Date(attendee.createdAt), "dd MMM")}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function TeamEventCard({ event, onEdit, onSignUp, onWithdraw, onDelete, canManage }: {
   event: TeamEventData;
   onEdit: () => void;
@@ -309,13 +423,34 @@ function TeamEventCard({ event, onEdit, onSignUp, onWithdraw, onDelete, canManag
   onDelete: () => void;
   canManage: boolean;
 }) {
+  const [isExpanded, setIsExpanded] = useState(false);
   const typeInfo = getEventTypeInfo(event.eventType);
   const liveStatus = getEventStatus(event);
   const eventDate = new Date(event.date);
   const isFull = event.signupCount >= event.maxParticipants;
+  const fillPercent = Math.min(100, Math.round((event.signupCount / Math.max(1, event.maxParticipants)) * 100));
+
+  const handleCardClick = useCallback(() => {
+    setIsExpanded(prev => !prev);
+  }, []);
 
   return (
-    <Card className="overflow-hidden hover:shadow-md transition-shadow" data-testid={`card-team-event-${event.id}`}>
+    <Card
+      className={`overflow-hidden transition-all duration-300 cursor-pointer group ${
+        isExpanded ? "shadow-lg" : "hover:shadow-md hover:-translate-y-[2px]"
+      }`}
+      data-testid={`card-team-event-${event.id}`}
+      onClick={handleCardClick}
+      role="button"
+      tabIndex={0}
+      aria-expanded={isExpanded}
+      onKeyDown={(e) => {
+        if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) {
+          e.preventDefault();
+          handleCardClick();
+        }
+      }}
+    >
       <CardContent className="p-4">
         <div className="flex items-start justify-between gap-2">
           <div className="flex-1 min-w-0">
@@ -344,24 +479,28 @@ function TeamEventCard({ event, onEdit, onSignUp, onWithdraw, onDelete, canManag
             )}
           </div>
 
-          {canManage && (
-            <DropdownMenu>
-              <DropdownMenuTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" data-testid={`button-event-menu-${event.id}`}>
-                  <MoreVertical className="h-4 w-4" />
-                </Button>
-              </DropdownMenuTrigger>
-              <DropdownMenuContent align="end">
-                <DropdownMenuItem onClick={onEdit} data-testid={`button-edit-event-${event.id}`}>
-                  <Pencil className="h-4 w-4 mr-2" /> Edit
-                </DropdownMenuItem>
-                <DropdownMenuSeparator />
-                <DropdownMenuItem onClick={onDelete} className="text-red-600" data-testid={`button-delete-event-${event.id}`}>
-                  <Trash2 className="h-4 w-4 mr-2" /> Delete
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
-          )}
+          <div className="flex items-center gap-1">
+            {canManage && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0" data-testid={`button-event-menu-${event.id}`}
+                    onClick={(e) => e.stopPropagation()}>
+                    <MoreVertical className="h-4 w-4" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end">
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onEdit(); }} data-testid={`button-edit-event-${event.id}`}>
+                    <Pencil className="h-4 w-4 mr-2" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem onClick={(e) => { e.stopPropagation(); onDelete(); }} className="text-red-600" data-testid={`button-delete-event-${event.id}`}>
+                    <Trash2 className="h-4 w-4 mr-2" /> Delete
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
+            <ChevronDown className={`h-4 w-4 text-muted-foreground transition-transform duration-200 ${isExpanded ? "rotate-180" : ""}`} />
+          </div>
         </div>
 
         <div className="mt-3 space-y-1.5 text-sm text-muted-foreground">
@@ -422,16 +561,30 @@ function TeamEventCard({ event, onEdit, onSignUp, onWithdraw, onDelete, canManag
             <Badge variant="outline" className="text-xs">
               <Building2 className="h-3 w-3 mr-1" /> {event.clubName}
             </Badge>
-            <div className="flex items-center gap-1 text-sm">
-              <Users className="h-3.5 w-3.5" />
-              <span className={`font-medium ${isFull ? "text-red-600" : ""}`}>
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5" data-testid={`battery-bar-event-${event.id}`}>
+                {(() => {
+                  const totalBlocks = 10;
+                  const filledBlocks = Math.round((fillPercent / 100) * totalBlocks);
+                  const barColor = isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500";
+                  return Array.from({ length: totalBlocks }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-[5px] h-[10px] rounded-[1px] ${
+                        i < filledBlocks ? barColor : "bg-muted/50 dark:bg-muted/40"
+                      }`}
+                    />
+                  ));
+                })()}
+              </div>
+              <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-foreground dark:text-white/80"}`}>
                 {event.signupCount}/{event.maxParticipants}
               </span>
             </div>
           </div>
 
           {event.status !== "CANCELLED" && liveStatus !== "past" && (
-            <div>
+            <div onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
               {event.isSignedUp ? (
                 <Button variant="outline" size="sm" onClick={onWithdraw} data-testid={`button-withdraw-event-${event.id}`}>
                   <UserMinus className="h-3.5 w-3.5 mr-1" /> Withdraw
@@ -444,6 +597,8 @@ function TeamEventCard({ event, onEdit, onSignUp, onWithdraw, onDelete, canManag
             </div>
           )}
         </div>
+
+        {isExpanded && <ExpandedAttendeesSection eventId={event.id} />}
       </CardContent>
     </Card>
   );
