@@ -52,6 +52,7 @@ import {
   BarChart3,
   ScanText,
   Shirt,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -167,6 +168,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     { href: "/tshirt", label: "Club T-Shirt", icon: Shirt, group: "club" },
     { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club", badgeKey: "pendingReferrals", premiumOnly: true },
     { href: "/rewards", label: "My Rewards", icon: Award, group: "club", badgeKey: "pendingRewards", premiumOnly: true },
+    { href: "/deals", label: "Deals & Offers", icon: Tag, group: "club" },
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements", premiumOnly: true },
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },

@@ -57,6 +57,7 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Tiered Session Fees**: Sessions support 4 fee tiers (Standard, Premium, Super Premium, Club Member) with dedicated input fields and display in the UI.
 - **Timeline UI Enhancements**: Real-time live/past/upcoming session status, hype indicators, animated capacity bars, glassmorphism dropdown panels, golden crown for top-ranked players, gradient dividers, and enriched match/player insights.
 - **Club T-Shirt System**: Club-scoped t-shirt management with player requests, admin management, and batch ordering, featuring two available models (Chaotica, Slasher) and a models showcase photo.
+- **Deals & Offers System**: Dedicated member-facing page (`/deals`) for browsing club discounts, vouchers, and offers. Supports image URLs, discount percentages, shop links, expiry dates, and copy-to-clipboard codes. Admin management tab for creating, editing, activating/deactivating, and deleting deals. Linked to existing `discount_codes` schema with per-club scoping and assignment system.
 
 ## External Dependencies
 

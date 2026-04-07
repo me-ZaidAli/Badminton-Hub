@@ -16674,6 +16674,7 @@ export async function registerRoutes(
         discountPercent: z.number().int().min(1).max(100).optional(),
         shopName: z.string().optional(),
         shopUrl: z.string().optional(),
+        imageUrl: z.string().optional(),
         validUntil: z.string().optional(),
       }).parse(req.body);
 
@@ -16684,6 +16685,7 @@ export async function registerRoutes(
         discountPercent: body.discountPercent || null,
         shopName: body.shopName || null,
         shopUrl: body.shopUrl || null,
+        imageUrl: body.imageUrl || null,
         validUntil: body.validUntil ? new Date(body.validUntil) : null,
         createdBy: req.user!.id,
       }).returning();
@@ -16713,6 +16715,7 @@ export async function registerRoutes(
         discountPercent: z.number().int().min(1).max(100).optional().nullable(),
         shopName: z.string().optional().nullable(),
         shopUrl: z.string().optional().nullable(),
+        imageUrl: z.string().optional().nullable(),
         validUntil: z.string().optional().nullable(),
         isActive: z.boolean().optional(),
       }).parse(req.body);
@@ -16723,6 +16726,7 @@ export async function registerRoutes(
       if (body.discountPercent !== undefined) updateData.discountPercent = body.discountPercent;
       if (body.shopName !== undefined) updateData.shopName = body.shopName;
       if (body.shopUrl !== undefined) updateData.shopUrl = body.shopUrl;
+      if (body.imageUrl !== undefined) updateData.imageUrl = body.imageUrl;
       if (body.validUntil !== undefined) updateData.validUntil = body.validUntil ? new Date(body.validUntil) : null;
       if (body.isActive !== undefined) updateData.isActive = body.isActive;
 
@@ -16809,6 +16813,7 @@ export async function registerRoutes(
         discountPercent: discountCodes.discountPercent,
         shopName: discountCodes.shopName,
         shopUrl: discountCodes.shopUrl,
+        imageUrl: discountCodes.imageUrl,
         validUntil: discountCodes.validUntil,
         clubId: discountCodes.clubId,
         clubName: clubs.name,
@@ -16833,6 +16838,7 @@ export async function registerRoutes(
           discountPercent: discountCodes.discountPercent,
           shopName: discountCodes.shopName,
           shopUrl: discountCodes.shopUrl,
+          imageUrl: discountCodes.imageUrl,
           validUntil: discountCodes.validUntil,
           clubId: discountCodes.clubId,
           clubName: clubs.name,
