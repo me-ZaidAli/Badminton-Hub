@@ -305,17 +305,34 @@ interface TeamEventSignup {
   id: number;
   userId: number;
   status: string;
+  paymentStatus: string;
   userName: string | null;
   createdAt: string;
 }
 
-function ExpandedAttendeesSection({ eventId }: { eventId: number }) {
+function ExpandedAttendeesSection({ eventId, canManage }: { eventId: number; canManage: boolean }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
+  const { toast } = useToast();
 
   const { data: eventDetail, isLoading, isError } = useQuery<TeamEventData & { signups: TeamEventSignup[] }>({
     queryKey: ["/api/team-events", eventId],
     staleTime: 30000,
+  });
+
+  const paymentMutation = useMutation({
+    mutationFn: async ({ signupId, paymentStatus }: { signupId: number; paymentStatus: string }) => {
+      const res = await apiRequest("PATCH", `/api/team-events/${eventId}/signups/${signupId}/payment`, { paymentStatus });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-events"] });
+      toast({ title: "Payment Updated", description: "Payment status has been updated." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
   });
 
   useEffect(() => {
@@ -325,11 +342,15 @@ function ExpandedAttendeesSection({ eventId }: { eventId: number }) {
   }, [eventDetail]);
 
   const confirmedAttendees = eventDetail?.signups?.filter((s) => s.status === "CONFIRMED") || [];
+  const fee = eventDetail?.fee || 0;
+  const paidCount = confirmedAttendees.filter(a => a.paymentStatus === "PAID").length;
+  const paidRevenue = paidCount * fee;
+  const totalRevenue = confirmedAttendees.length * fee;
 
   return (
     <div
       className="overflow-hidden transition-[max-height] duration-300 ease-in-out"
-      style={{ maxHeight: height > 0 ? `${height + 16}px` : "400px" }}
+      style={{ maxHeight: height > 0 ? `${height + 16}px` : "600px" }}
       role="region"
       aria-label="Attendees list"
     >
@@ -347,6 +368,29 @@ function ExpandedAttendeesSection({ eventId }: { eventId: number }) {
           </div>
         ) : (
           <div className="space-y-3">
+            {canManage && fee > 0 && confirmedAttendees.length > 0 && (
+              <div className="rounded-xl border border-border/60 bg-muted/20 dark:bg-white/[0.03] p-2.5">
+                <div className="flex items-center gap-1.5 mb-2">
+                  <PoundSterling className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Payment Summary</span>
+                </div>
+                <div className="grid grid-cols-3 gap-2">
+                  <div className="rounded-lg bg-card dark:bg-white/[0.04] border border-border/40 p-2 text-center">
+                    <span className="text-lg font-bold text-foreground">£{(totalRevenue / 100).toFixed(2)}</span>
+                    <p className="text-[9px] text-muted-foreground">Expected</p>
+                  </div>
+                  <div className="rounded-lg bg-card dark:bg-white/[0.04] border border-border/40 p-2 text-center">
+                    <span className="text-lg font-bold text-emerald-600">£{(paidRevenue / 100).toFixed(2)}</span>
+                    <p className="text-[9px] text-muted-foreground">Collected</p>
+                  </div>
+                  <div className="rounded-lg bg-card dark:bg-white/[0.04] border border-border/40 p-2 text-center">
+                    <span className="text-lg font-bold text-foreground">{totalRevenue > 0 ? Math.round((paidRevenue / totalRevenue) * 100) : 0}%</span>
+                    <p className="text-[9px] text-muted-foreground">Rate</p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             <div className="rounded-xl border border-border/60 bg-muted/20 dark:bg-white/[0.03] p-2.5">
               <div className="flex items-center gap-1.5 mb-2">
                 <Users className="h-3 w-3 text-blue-500 flex-shrink-0" />
@@ -391,7 +435,7 @@ function ExpandedAttendeesSection({ eventId }: { eventId: number }) {
                       className="flex items-center justify-between rounded-md px-2.5 py-1.5 bg-card dark:bg-white/[0.04] border border-border/40"
                       data-testid={`attendee-row-${attendee.id}`}
                     >
-                      <div className="flex items-center gap-2">
+                      <div className="flex items-center gap-2 min-w-0">
                         <div className="flex items-center justify-center w-5 h-5 rounded-full bg-primary/10 text-primary text-[10px] font-bold flex-shrink-0">
                           {i + 1}
                         </div>
@@ -400,9 +444,55 @@ function ExpandedAttendeesSection({ eventId }: { eventId: number }) {
                           {attendee.userName || "Unknown Player"}
                         </span>
                       </div>
-                      <span className="text-[10px] text-muted-foreground tabular-nums flex-shrink-0">
-                        {format(new Date(attendee.createdAt), "dd MMM")}
-                      </span>
+                      <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
+                        {fee > 0 && (
+                          <Badge
+                            className={`text-[9px] cursor-default ${
+                              attendee.paymentStatus === "PAID" ? "bg-emerald-500 text-white" :
+                              attendee.paymentStatus === "PENDING" ? "bg-amber-500 text-white" :
+                              "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                            }`}
+                            data-testid={`badge-payment-${attendee.id}`}
+                          >
+                            {attendee.paymentStatus === "PAID" ? "£ Paid" :
+                             attendee.paymentStatus === "PENDING" ? "£ Pending" : "£ Unpaid"}
+                          </Badge>
+                        )}
+                        {canManage && fee > 0 && (
+                          <DropdownMenu>
+                            <DropdownMenuTrigger asChild>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" data-testid={`button-payment-menu-${attendee.id}`}>
+                                <MoreVertical className="h-3 w-3" />
+                              </Button>
+                            </DropdownMenuTrigger>
+                            <DropdownMenuContent align="end" className="w-36">
+                              <DropdownMenuItem
+                                onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "PAID" })}
+                                data-testid={`button-mark-paid-${attendee.id}`}
+                              >
+                                <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Mark Paid
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "PENDING" })}
+                                data-testid={`button-mark-pending-${attendee.id}`}
+                              >
+                                <Clock className="h-3.5 w-3.5 mr-2 text-amber-500" /> Mark Pending
+                              </DropdownMenuItem>
+                              <DropdownMenuItem
+                                onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "UNPAID" })}
+                                data-testid={`button-mark-unpaid-${attendee.id}`}
+                              >
+                                <AlertTriangle className="h-3.5 w-3.5 mr-2 text-red-500" /> Mark Unpaid
+                              </DropdownMenuItem>
+                            </DropdownMenuContent>
+                          </DropdownMenu>
+                        )}
+                        {!(canManage && fee > 0) && (
+                          <span className="text-[10px] text-muted-foreground tabular-nums">
+                            {format(new Date(attendee.createdAt), "dd MMM")}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   ))}
                 </div>
@@ -598,7 +688,7 @@ function TeamEventCard({ event, onEdit, onSignUp, onWithdraw, onDelete, canManag
           )}
         </div>
 
-        {isExpanded && <ExpandedAttendeesSection eventId={event.id} />}
+        {isExpanded && <ExpandedAttendeesSection eventId={event.id} canManage={canManage} />}
       </CardContent>
     </Card>
   );

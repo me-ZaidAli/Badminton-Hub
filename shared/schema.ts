@@ -2695,6 +2695,7 @@ export const teamEventSignups = pgTable("team_event_signups", {
   teamEventId: integer("team_event_id").references(() => teamEvents.id).notNull(),
   userId: integer("user_id").references(() => users.id).notNull(),
   status: text("status").default("CONFIRMED").notNull(),
+  paymentStatus: paymentStatusEnum("payment_status").default("UNPAID").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

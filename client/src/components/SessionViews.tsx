@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -58,12 +58,65 @@ type TimelineViewProps = SessionViewProps & {
   onSignUp?: (session: SessionItem) => void;
 };
 
+const TEAM_EVENT_TYPES: Record<string, { label: string; icon: typeof Flag; color: string }> = {
+  SOCIAL: { label: "Social", icon: PartyPopper, color: "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400" },
+  MATCH: { label: "Match", icon: Trophy, color: "bg-blue-100 text-blue-700 dark:bg-blue-900/30 dark:text-blue-400" },
+  TOURNAMENT_PREP: { label: "Tournament Prep", icon: Flag, color: "bg-purple-100 text-purple-700 dark:bg-purple-900/30 dark:text-purple-400" },
+  TRAINING: { label: "Training", icon: Dumbbell, color: "bg-orange-100 text-orange-700 dark:bg-orange-900/30 dark:text-orange-400" },
+  FUNDRAISER: { label: "Fundraiser", icon: Heart, color: "bg-pink-100 text-pink-700 dark:bg-pink-900/30 dark:text-pink-400" },
+  OTHER: { label: "Other", icon: CalendarIcon, color: "bg-gray-100 text-gray-700 dark:bg-gray-900/30 dark:text-gray-400" },
+};
+
+function getTeamEventTypeInfo(type: string) {
+  return TEAM_EVENT_TYPES[type] || TEAM_EVENT_TYPES.OTHER;
+}
+
 function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { session: SessionItem; clubs: any[]; onSessionClick: (s: SessionItem) => void; adminActions?: AdminActions }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date();
   const isLive = session.status === "ACTIVE";
   const venue = (session as any).venue;
   const venueName = venue?.name || "";
+  const isTeamEvent = !!(session as any).isTeamEvent;
+
+  if (isTeamEvent) {
+    const typeInfo = getTeamEventTypeInfo((session as any).eventType || "OTHER");
+    const TypeIcon = typeInfo.icon;
+    return (
+      <div
+        className={`p-2.5 rounded-lg border cursor-pointer transition-all hover:shadow-sm border-amber-400/50 bg-amber-50/30 dark:bg-amber-950/10 hover:border-amber-400/70`}
+        onClick={() => onSessionClick(session)}
+        data-testid={`team-event-mini-${session.id}`}
+      >
+        <div className="flex items-center gap-2 mb-1">
+          <Badge variant="outline" className="text-[9px] font-bold border-amber-500 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20 px-1.5 py-0">
+            <Flag className="h-2.5 w-2.5 mr-0.5" /> EVENT
+          </Badge>
+          <Badge className={`text-[9px] px-1.5 py-0 ${typeInfo.color}`}>
+            <TypeIcon className="h-2.5 w-2.5 mr-0.5" /> {typeInfo.label}
+          </Badge>
+          <span className="font-semibold text-sm truncate">{session.title}</span>
+        </div>
+        <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
+          <span className="flex items-center gap-1">
+            <Clock className="h-3 w-3" />
+            {session.startTime}
+          </span>
+          <span className="flex items-center gap-1">
+            <Users className="h-3 w-3" />
+            {session.signupCount || 0}/{session.maxPlayers}
+          </span>
+          {(session as any).location && (
+            <span className="flex items-center gap-1">
+              <MapPin className="h-3 w-3" />
+              <span className="truncate">{(session as any).location}</span>
+            </span>
+          )}
+          {clubName && <span className="truncate font-semibold text-blue-600 dark:text-blue-400">{clubName}</span>}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -651,6 +704,132 @@ function TimelineSessionCard({
     e.stopPropagation();
     onNavigate();
   }, [onNavigate]);
+
+  if ((session as any).isTeamEvent) {
+    const teTypeInfo = getTeamEventTypeInfo((session as any).eventType || "OTHER");
+    const TeTypeIcon = teTypeInfo.icon;
+    const teEventDate = new Date(session.date);
+    const teLiveStatus = (() => {
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const eDay = new Date(teEventDate.getFullYear(), teEventDate.getMonth(), teEventDate.getDate());
+      if (eDay.getTime() === today.getTime()) return "live";
+      if (eDay > today) return "upcoming";
+      return "past";
+    })();
+    return (
+      <div
+        role="button"
+        tabIndex={0}
+        onClick={handleCardClick}
+        onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); handleCardClick(); } }}
+        className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
+          teLiveStatus === "past" ? "opacity-55" : ""
+        } ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
+        data-testid={`timeline-team-event-${session.id}`}
+      >
+        <div className="absolute left-0 top-0 bottom-0 w-1 bg-amber-500" />
+
+        <div className={`p-4 pl-5 border rounded-xl backdrop-blur-sm shadow-sm ${
+          (session as any).isSignedUp ? "border-emerald-400/50 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
+          isFull ? "border-red-400/40 bg-card dark:bg-card/60" :
+          isExpanded ? "border-amber-400/40 bg-card dark:bg-card/70" :
+          "border-amber-300/40 bg-card dark:bg-card/60 hover:border-amber-400/50"
+        }`}>
+          <div className="flex items-center justify-between gap-2 mb-2.5">
+            <div className="flex items-center gap-2 flex-wrap min-w-0">
+              <Badge variant="outline" className="text-[10px] font-bold border-amber-500 text-amber-700 dark:text-amber-400 bg-amber-50 dark:bg-amber-950/20">
+                <Flag className="h-3 w-3 mr-0.5" /> TEAM EVENT
+              </Badge>
+              <Badge className={`text-[10px] ${teTypeInfo.color}`}>
+                <TeTypeIcon className="h-3 w-3 mr-0.5" /> {teTypeInfo.label}
+              </Badge>
+              {teLiveStatus === "live" && (
+                <Badge className="bg-green-500 text-white text-[10px] animate-pulse">
+                  <Activity className="h-3 w-3 mr-0.5" /> TODAY
+                </Badge>
+              )}
+              {(session as any).isSignedUp && (
+                <Badge className="text-[10px] h-5 bg-emerald-500 text-white">Joined</Badge>
+              )}
+              {isFull && (
+                <Badge className="bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400 text-[10px]">FULL</Badge>
+              )}
+            </div>
+
+            <div className="flex items-center gap-2">
+              <div className="flex items-center gap-0.5" data-testid={`battery-bar-event-${session.id}`}>
+                {(() => {
+                  const totalBlocks = 10;
+                  const filledBlocks = Math.round((fillPercent / 100) * totalBlocks);
+                  const barColor = isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500";
+                  return Array.from({ length: totalBlocks }).map((_, i) => (
+                    <div
+                      key={i}
+                      className={`w-[5px] h-[10px] rounded-[1px] ${
+                        i < filledBlocks ? barColor : "bg-muted/50 dark:bg-muted/40"
+                      }`}
+                    />
+                  ));
+                })()}
+              </div>
+              <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-foreground dark:text-white/80"}`}>
+                {playerCount}/{session.maxPlayers}
+              </span>
+            </div>
+          </div>
+
+          <h4 className="font-bold text-sm sm:text-base">{session.title}</h4>
+          {clubName && (
+            <div className="mt-1 text-sm font-semibold text-blue-600 dark:text-blue-400">{clubName}</div>
+          )}
+
+          <div className="mt-2 flex items-center gap-4 text-xs text-muted-foreground flex-wrap">
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {session.startTime}{(session as any).endTime ? ` - ${(session as any).endTime}` : ""}
+            </span>
+            <span className="flex items-center gap-1">
+              <Clock className="h-3 w-3" />
+              {Math.floor(session.durationMinutes / 60)}h{session.durationMinutes % 60 > 0 ? ` ${session.durationMinutes % 60}m` : ""}
+            </span>
+            {(session as any).location && (
+              <span className="flex items-center gap-1">
+                <MapPin className="h-3 w-3" />
+                <span className="truncate">{(session as any).location}</span>
+              </span>
+            )}
+            {session.sessionFee != null && session.sessionFee > 0 && (
+              <span className="flex items-center gap-1">
+                <PoundSterling className="h-3 w-3" />
+                £{(session.sessionFee / 100).toFixed(2)}
+              </span>
+            )}
+          </div>
+
+          {isExpanded && (
+            <div className="mt-3 pt-3 border-t border-border/30">
+              {(session as any).description && (
+                <p className="text-xs text-muted-foreground mb-2">{(session as any).description}</p>
+              )}
+              {(session as any).meetingPoint && (
+                <p className="text-xs text-muted-foreground mb-1">Meeting: {(session as any).meetingPoint}</p>
+              )}
+              {(session as any).dressCode && (
+                <p className="text-xs text-muted-foreground mb-1">Dress Code: {(session as any).dressCode}</p>
+              )}
+              {(session as any).equipmentRequired && (
+                <p className="text-xs text-muted-foreground mb-1">Equipment: {(session as any).equipmentRequired}</p>
+              )}
+              {(session as any).contactPerson && (
+                <p className="text-xs text-muted-foreground mb-1">Contact: {(session as any).contactPerson}{(session as any).contactPhone ? ` (${(session as any).contactPhone})` : ""}</p>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div

@@ -32653,7 +32653,9 @@ Return ONLY valid JSON in this exact format:
         id: teamEventSignups.id,
         userId: teamEventSignups.userId,
         status: teamEventSignups.status,
+        paymentStatus: teamEventSignups.paymentStatus,
         userName: users.fullName,
+        userEmail: users.email,
         createdAt: teamEventSignups.createdAt,
       })
         .from(teamEventSignups)
@@ -32663,12 +32665,23 @@ Return ONLY valid JSON in this exact format:
 
       const confirmedCount = signups.filter(s => s.status === "CONFIRMED").length;
       const isSignedUp = signups.some(s => s.userId === req.user!.id && s.status === "CONFIRMED");
+      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, event.event.clubId);
+
+      const sanitizedSignups = signups.map(s => ({
+        id: s.id,
+        userId: s.userId,
+        status: s.status,
+        paymentStatus: isAdmin ? s.paymentStatus : undefined,
+        userName: s.userName,
+        userEmail: isAdmin ? s.userEmail : undefined,
+        createdAt: s.createdAt,
+      }));
 
       res.json({
         ...event.event,
         clubName: event.clubName,
         creatorName: event.creatorName,
-        signups,
+        signups: sanitizedSignups,
         signupCount: confirmedCount,
         isSignedUp,
       });
@@ -32809,6 +32822,170 @@ Return ONLY valid JSON in this exact format:
         status: "CONFIRMED",
       }).returning();
       res.json(signup);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.patch("/api/team-events/:id/signups/:signupId/payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const eventId = Number(req.params.id);
+      const signupId = Number(req.params.signupId);
+      const { paymentStatus } = z.object({ paymentStatus: z.enum(["PAID", "UNPAID", "PENDING"]) }).parse(req.body);
+
+      const [event] = await db.select().from(teamEvents).where(eq(teamEvents.id, eventId));
+      if (!event) return res.status(404).json({ message: "Team event not found" });
+
+      const canAccess = await hasAdminAccess(user.id, user.role, event.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const [signup] = await db.select({ id: teamEventSignups.id, teamEventId: teamEventSignups.teamEventId })
+        .from(teamEventSignups).where(eq(teamEventSignups.id, signupId)).limit(1);
+      if (!signup) return res.status(404).json({ message: "Signup not found" });
+      if (signup.teamEventId !== eventId) return res.status(400).json({ message: "Signup does not belong to this event" });
+
+      await db.update(teamEventSignups).set({ paymentStatus }).where(eq(teamEventSignups.id, signupId));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/team-events/:id/financial-overview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const eventId = Number(req.params.id);
+      const [event] = await db.select().from(teamEvents).where(eq(teamEvents.id, eventId));
+      if (!event) return res.status(404).json({ message: "Team event not found" });
+
+      const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, event.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const signups = await db.select({
+        id: teamEventSignups.id,
+        userId: teamEventSignups.userId,
+        status: teamEventSignups.status,
+        paymentStatus: teamEventSignups.paymentStatus,
+        userName: users.fullName,
+        userEmail: users.email,
+        createdAt: teamEventSignups.createdAt,
+      })
+        .from(teamEventSignups)
+        .leftJoin(users, eq(teamEventSignups.userId, users.id))
+        .where(eq(teamEventSignups.teamEventId, eventId))
+        .orderBy(asc(teamEventSignups.createdAt));
+
+      const confirmed = signups.filter(s => s.status === "CONFIRMED");
+      const fee = event.fee || 0;
+      const expectedRevenue = confirmed.length * fee;
+      const paidCount = confirmed.filter(s => s.paymentStatus === "PAID").length;
+      const pendingCount = confirmed.filter(s => s.paymentStatus === "PENDING").length;
+      const unpaidCount = confirmed.filter(s => s.paymentStatus === "UNPAID").length;
+      const paidRevenue = paidCount * fee;
+      const pendingRevenue = pendingCount * fee;
+      const unpaidRevenue = unpaidCount * fee;
+
+      res.json({
+        summary: {
+          expectedRevenue,
+          paidRevenue,
+          pendingRevenue,
+          unpaidRevenue,
+          paidCount,
+          pendingCount,
+          unpaidCount,
+          totalPlayers: confirmed.length,
+          collectionRate: expectedRevenue > 0 ? Math.round((paidRevenue / expectedRevenue) * 100) : 0,
+          fee,
+        },
+        players: confirmed.map(s => ({
+          signupId: s.id,
+          userId: s.userId,
+          fullName: s.userName || "Unknown",
+          email: s.userEmail || "",
+          fee,
+          paymentStatus: s.paymentStatus,
+        })),
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/admin/team-events-financial-summary", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const accessibleClubIds = await getUserAdminClubIds(user.id, user.role);
+    if (accessibleClubIds.length === 0) return res.sendStatus(403);
+
+    try {
+      const conditions: any[] = [inArray(teamEvents.clubId, accessibleClubIds)];
+      const qClubId = req.query.clubId ? Number(req.query.clubId) : null;
+      if (qClubId) conditions.push(eq(teamEvents.clubId, qClubId));
+      const qDateFrom = req.query.dateFrom ? new Date(req.query.dateFrom as string) : null;
+      const qDateTo = req.query.dateTo ? new Date(req.query.dateTo as string) : null;
+      if (qDateFrom) conditions.push(gte(teamEvents.date, qDateFrom));
+      if (qDateTo) {
+        const endOfDay = new Date(qDateTo as any);
+        endOfDay.setHours(23, 59, 59, 999);
+        conditions.push(lte(teamEvents.date, endOfDay));
+      }
+
+      const eventsData = await db.select({
+        eventId: teamEvents.id,
+        eventTitle: teamEvents.title,
+        eventDate: teamEvents.date,
+        eventType: teamEvents.eventType,
+        fee: teamEvents.fee,
+        clubId: teamEvents.clubId,
+        clubName: clubs.name,
+        signupId: teamEventSignups.id,
+        userId: teamEventSignups.userId,
+        signupStatus: teamEventSignups.status,
+        paymentStatus: teamEventSignups.paymentStatus,
+        playerName: sql<string>`COALESCE(${users.fullName}, 'Unknown Player')`,
+        playerEmail: sql<string>`COALESCE(${users.email}, '')`,
+      })
+        .from(teamEvents)
+        .innerJoin(teamEventSignups, eq(teamEventSignups.teamEventId, teamEvents.id))
+        .innerJoin(clubs, eq(teamEvents.clubId, clubs.id))
+        .leftJoin(users, eq(teamEventSignups.userId, users.id))
+        .where(and(...conditions, eq(teamEventSignups.status, "CONFIRMED")))
+        .orderBy(desc(teamEvents.date));
+
+      const entries = eventsData.map(row => ({
+        signupId: row.signupId!,
+        eventId: row.eventId,
+        eventTitle: row.eventTitle,
+        eventDate: row.eventDate,
+        eventType: row.eventType,
+        fee: row.fee || 0,
+        clubId: row.clubId,
+        clubName: row.clubName || "",
+        paymentStatus: row.paymentStatus || "UNPAID",
+        playerName: row.playerName,
+        playerEmail: row.playerEmail,
+        playerUserId: row.userId,
+      }));
+
+      const totalRevenue = entries.reduce((s, e) => s + e.fee, 0);
+      const totalPaid = entries.filter(e => e.paymentStatus === "PAID").reduce((s, e) => s + e.fee, 0);
+      const totalUnpaid = entries.filter(e => e.paymentStatus === "UNPAID").reduce((s, e) => s + e.fee, 0);
+      const totalPending = entries.filter(e => e.paymentStatus === "PENDING").reduce((s, e) => s + e.fee, 0);
+
+      res.json({
+        entries,
+        summary: {
+          totalRevenue,
+          totalPaid,
+          totalUnpaid,
+          totalPending,
+          totalSignups: entries.length,
+          collectionRate: totalRevenue > 0 ? Math.round((totalPaid / totalRevenue) * 100) : 0,
+        },
+      });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

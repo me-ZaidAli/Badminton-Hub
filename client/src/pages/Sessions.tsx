@@ -575,6 +575,12 @@ export default function Sessions() {
   const { data: sessionClubs } = useMySessionClubs(!!user);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
+
+  const { data: teamEventsRaw } = useQuery<any[]>({
+    queryKey: ["/api/team-events"],
+    enabled: !!user,
+  });
+
   const [sessionsScope, setSessionsScope] = useState<"regular" | "juniors" | "team-events">("regular");
   const [clubScope, setClubScope] = useState<"my" | "all">("my");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
@@ -758,6 +764,38 @@ export default function Sessions() {
     },
   });
 
+  const teamEventsAsSessionItems = useMemo(() => {
+    if (!teamEventsRaw || teamEventsRaw.length === 0) return [];
+    return teamEventsRaw.map((te: any) => ({
+      id: te.id + 1_000_000,
+      title: te.title,
+      date: te.date,
+      startTime: te.startTime,
+      durationMinutes: te.durationMinutes || 120,
+      maxPlayers: te.maxParticipants || 20,
+      signupCount: te.signupCount || 0,
+      courtsAvailable: 0,
+      matchMode: "SOCIAL",
+      clubId: te.clubId,
+      sessionFee: te.fee,
+      status: te.status === "CANCELLED" ? "CANCELLED" : te.status === "COMPLETED" ? "COMPLETED" : "UPCOMING",
+      isTeamEvent: true,
+      teamEventId: te.id,
+      eventType: te.eventType,
+      location: te.location,
+      endTime: te.endTime,
+      description: te.description,
+      meetingPoint: te.meetingPoint,
+      dressCode: te.dressCode,
+      equipmentRequired: te.equipmentRequired,
+      contactPerson: te.contactPerson,
+      contactPhone: te.contactPhone,
+      isSignedUp: te.isSignedUp,
+      fee: te.fee,
+      clubName: te.clubName,
+    }));
+  }, [teamEventsRaw]);
+
   const baseFilteredSessions = useMemo(() => {
     let result = sessions;
     if (!result) return [];
@@ -782,8 +820,21 @@ export default function Sessions() {
     } else if (sessionTypeFilter === "single") {
       result = result.filter(s => !(s as any).recurringEventId);
     }
-    return result;
-  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, sessionTypeFilter]);
+
+    let teamItems = teamEventsAsSessionItems;
+    if (clubScope === "my") {
+      teamItems = teamItems.filter((s: any) => myClubIds.has(s.clubId));
+    }
+    if (selectedClubId !== "all") {
+      teamItems = teamItems.filter((s: any) => s.clubId === Number(selectedClubId));
+    }
+    if (searchQuery.trim()) {
+      const q = searchQuery.toLowerCase();
+      teamItems = teamItems.filter((s: any) => s.title.toLowerCase().includes(q));
+    }
+
+    return [...result, ...teamItems];
+  }, [sessions, selectedClubId, searchQuery, clubScope, myClubIds, sessionTypeFilter, teamEventsAsSessionItems]);
 
   const scheduledSessions = useMemo(() => {
     let result = sessions;
@@ -970,6 +1021,7 @@ export default function Sessions() {
   }, [viewMode]);
 
   const handleSessionClickFromView = (session: any) => {
+    if (session.isTeamEvent) return;
     setLocation(`/sessions/${session.id}`);
   };
 
@@ -1400,6 +1452,68 @@ export default function Sessions() {
         {isLoading && [1,2,3].map(i => <div key={i} className="h-64 bg-muted/20 animate-pulse rounded-2xl" />)}
         
         {filteredSessions?.map((session) => {
+          if ((session as any).isTeamEvent) {
+            const teIsFull = (session.signupCount || 0) >= session.maxPlayers;
+            const teFillPercent = Math.min(100, Math.round(((session.signupCount || 0) / Math.max(1, session.maxPlayers)) * 100));
+            const teClubName = (session as any).clubName || clubs?.find(c => c.id === session.clubId)?.name;
+            return (
+              <div key={`te-${session.id}`} className="relative">
+                <Card className="h-full border-amber-300/40 group overflow-visible rounded-2xl shadow-sm hover:shadow-md transition-shadow">
+                  <CardContent className="p-4 sm:p-5">
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-[11px] font-bold tracking-wide uppercase bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">
+                          <Flag className="h-3 w-3 mr-0.5" />TEAM EVENT
+                        </span>
+                      </div>
+                      <span className="text-sm font-semibold text-foreground bg-muted/70 px-2.5 py-1 rounded-lg whitespace-nowrap tabular-nums">
+                        {session.startTime}
+                      </span>
+                    </div>
+                    <div className="mt-3 space-y-0.5">
+                      <h3 className="text-lg sm:text-xl font-bold leading-tight">{session.title}</h3>
+                      {teClubName && <p className="text-sm font-semibold text-blue-600 dark:text-blue-400">{teClubName}</p>}
+                      <p className="text-xs text-muted-foreground">
+                        {session.durationMinutes} min
+                        {(session as any).location && <><span className="mx-1.5 text-border">•</span>{(session as any).location}</>}
+                      </p>
+                    </div>
+                    <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1">
+                        <Calendar className="h-3.5 w-3.5" />
+                        {new Date(session.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                      </span>
+                      {session.sessionFee != null && session.sessionFee > 0 && (
+                        <span className="flex items-center gap-1">
+                          <PoundSterling className="h-3.5 w-3.5" />
+                          £{(session.sessionFee / 100).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                    <div className="mt-3 flex items-center justify-between">
+                      <div className="flex items-center gap-1.5">
+                        <Users className="h-4 w-4" />
+                        <span className={`text-sm font-medium ${teIsFull ? "text-red-600" : ""}`}>
+                          {session.signupCount || 0}/{session.maxPlayers}
+                        </span>
+                        <div className="flex items-center gap-0.5 ml-1">
+                          {Array.from({ length: 10 }).map((_, i) => {
+                            const filledBlocks = Math.round((teFillPercent / 100) * 10);
+                            const barColor = teIsFull ? "bg-red-500" : teFillPercent > 75 ? "bg-amber-500" : "bg-emerald-500";
+                            return <div key={i} className={`w-[5px] h-[10px] rounded-[1px] ${i < filledBlocks ? barColor : "bg-muted/50"}`} />;
+                          })}
+                        </div>
+                      </div>
+                      {(session as any).isSignedUp && (
+                        <Badge className="bg-emerald-500 text-white text-[10px]">Joined</Badge>
+                      )}
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+            );
+          }
+
           const canManageThis = isPlatformAdmin || managedClubIds.has(session.clubId);
           const clubName = clubs?.find(c => c.id === session.clubId)?.name;
           const formatLabel = session.playersPerSide === 1 ? "Singles" : "Doubles";

@@ -63,6 +63,7 @@ import {
   Star,
   RotateCcw,
   MessageCircle,
+  Flag,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -762,6 +763,38 @@ export default function Financials() {
     rewardsIssued?: number;
     rewardsUsed?: number;
   }>({ queryKey: [creditSummaryUrl] });
+
+  const teamEventsFinUrl = useMemo(() => {
+    const params = new URLSearchParams();
+    if (selectedClubId !== "all") params.append("clubId", selectedClubId);
+    const qs = params.toString();
+    return `/api/admin/team-events-financial-summary${qs ? `?${qs}` : ""}`;
+  }, [selectedClubId]);
+
+  const { data: teamEventsFinData } = useQuery<{
+    summary: {
+      totalRevenue: number;
+      totalPaid: number;
+      totalUnpaid: number;
+      totalPending: number;
+      totalSignups: number;
+      collectionRate: number;
+    };
+    entries: Array<{
+      signupId: number;
+      eventId: number;
+      eventTitle: string;
+      eventDate: string;
+      eventType: string;
+      fee: number;
+      clubId: number;
+      clubName: string;
+      paymentStatus: string;
+      playerName: string;
+      playerEmail: string;
+      playerUserId: number | null;
+    }>;
+  }>({ queryKey: [teamEventsFinUrl] });
 
   interface CreditHistoryEntry {
     id: number;
@@ -3737,6 +3770,7 @@ export default function Financials() {
                 Sessions: {"\u00A3"}{formatPounds(dashboardData.sessionIncome)}
                 {dashboardData.inventorySales > 0 && <><br />Sales: {"\u00A3"}{formatPounds(dashboardData.inventorySales)}</>}
                 {dashboardData.membershipPaid > 0 && <><br />Memberships: {"\u00A3"}{formatPounds(dashboardData.membershipPaid)}</>}
+                {teamEventsFinData && teamEventsFinData.summary.totalPaid > 0 && <><br />Team Events: {"\u00A3"}{formatPounds(teamEventsFinData.summary.totalPaid)}</>}
               </p>
             </CardContent>
           </Card>
@@ -3841,6 +3875,68 @@ export default function Financials() {
                 {dashboardData.membershipOverdue}
               </div>
               <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Unpaid past due</p>
+            </CardContent>
+          </Card>
+        </div>
+      )}
+
+      {teamEventsFinData && teamEventsFinData.summary.totalSignups > 0 && (
+        <div className="grid gap-2 grid-cols-2 md:grid-cols-4">
+          <Card className="hover-elevate min-w-0" data-testid="card-te-revenue">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">Team Events Rev.</CardTitle>
+              <Flag className="h-3 w-3 shrink-0 text-amber-500" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold text-amber-600" data-testid="text-te-revenue">
+                {"\u00A3"}{formatPounds(teamEventsFinData.summary.totalRevenue)}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">
+                {teamEventsFinData.summary.totalSignups} signups
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-elevate min-w-0" data-testid="card-te-collected">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">TE Collected</CardTitle>
+              <CheckCircle className="h-3 w-3 shrink-0 text-green-500" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold text-green-600" data-testid="text-te-collected">
+                {"\u00A3"}{formatPounds(teamEventsFinData.summary.totalPaid)}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">
+                {teamEventsFinData.entries.filter(e => e.paymentStatus === "PAID").length} paid
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-elevate min-w-0" data-testid="card-te-outstanding">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">TE Outstanding</CardTitle>
+              <AlertCircle className="h-3 w-3 shrink-0 text-orange-500" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold text-orange-600" data-testid="text-te-outstanding">
+                {"\u00A3"}{formatPounds(teamEventsFinData.summary.totalUnpaid + teamEventsFinData.summary.totalPending)}
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">
+                {teamEventsFinData.entries.filter(e => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING").length} unpaid
+              </p>
+            </CardContent>
+          </Card>
+
+          <Card className="hover-elevate min-w-0" data-testid="card-te-collection-rate">
+            <CardHeader className="flex flex-row items-center justify-between gap-1 pb-1 space-y-0 px-3 pt-3">
+              <CardTitle className="text-[10px] sm:text-xs font-medium text-muted-foreground">TE Collection</CardTitle>
+              <Percent className="h-3 w-3 shrink-0 text-muted-foreground" />
+            </CardHeader>
+            <CardContent className="px-3 pb-3">
+              <div className="text-sm sm:text-xl font-bold" data-testid="text-te-collection-rate">
+                {teamEventsFinData.summary.collectionRate}%
+              </div>
+              <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">Paid vs total</p>
             </CardContent>
           </Card>
         </div>
@@ -7198,6 +7294,12 @@ export default function Financials() {
                 <div className="flex items-center justify-between p-3 bg-purple-50 dark:bg-purple-900/20 rounded-lg">
                   <span className="text-sm font-medium">Membership Paid</span>
                   <span className="text-lg font-bold text-purple-600">{"\u00A3"}{formatPounds(dashboardData.membershipPaid)}</span>
+                </div>
+              )}
+              {teamEventsFinData && teamEventsFinData.summary.totalPaid > 0 && (
+                <div className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-900/20 rounded-lg">
+                  <span className="text-sm font-medium">Team Events</span>
+                  <span className="text-lg font-bold text-amber-600">{"\u00A3"}{formatPounds(teamEventsFinData.summary.totalPaid)}</span>
                 </div>
               )}
             </div>
