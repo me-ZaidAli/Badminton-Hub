@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Shield, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell, ShieldCheck, ShieldX, CircleDollarSign } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Shield, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flag } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -34,6 +34,7 @@ import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { CalendarView, TimelineView, GroupedView } from "@/components/SessionViews";
 import { addWeeks, addMonths } from "date-fns";
+import TeamEventsTab from "@/components/TeamEventsTab";
 
 const CATEGORIES = [
   { value: "A1", label: "A1 (Elite)" },
@@ -574,7 +575,7 @@ export default function Sessions() {
   const { data: sessionClubs } = useMySessionClubs(!!user);
   const { toast } = useToast();
   const [, setLocation] = useLocation();
-  const [sessionsScope, setSessionsScope] = useState<"regular" | "juniors">("regular");
+  const [sessionsScope, setSessionsScope] = useState<"regular" | "juniors" | "team-events">("regular");
   const [clubScope, setClubScope] = useState<"my" | "all">("my");
   const [selectedClubId, setSelectedClubId] = useState<string>("all");
   const [sessionTypeFilter, setSessionTypeFilter] = useState<"all" | "grouped" | "single">("all");
@@ -1054,6 +1055,16 @@ export default function Sessions() {
           {juniorFilteredSessions.length > 0 && (
             <Badge variant="secondary" className="h-4 px-1 text-[9px] ml-0.5">{juniorFilteredSessions.length}</Badge>
           )}
+        </Button>
+        <Button
+          variant={sessionsScope === "team-events" ? "default" : "ghost"}
+          size="sm"
+          className={`h-8 px-3 gap-1.5 text-xs ${sessionsScope === "team-events" ? "" : "text-muted-foreground hover:text-foreground"}`}
+          onClick={() => setSessionsScope("team-events")}
+          data-testid="tab-sessions-team-events"
+        >
+          <Flag className="h-3.5 w-3.5" />
+          Team Events
         </Button>
       </div>
 
@@ -2023,6 +2034,10 @@ export default function Sessions() {
             </div>
           )}
         </div>
+      )}
+
+      {sessionsScope === "team-events" && (
+        <TeamEventsTab canManageEvents={canManageSessions} />
       )}
 
       <Dialog open={bulkDeleteOpen} onOpenChange={setBulkDeleteOpen}>

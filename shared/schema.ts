@@ -2663,3 +2663,56 @@ export type InsertTshirtRequest = z.infer<typeof insertTshirtRequestSchema>;
 export const insertTshirtBatchSchema = createInsertSchema(tshirtBatches).omit({ id: true, createdAt: true });
 export type TshirtBatch = typeof tshirtBatches.$inferSelect;
 export type InsertTshirtBatch = z.infer<typeof insertTshirtBatchSchema>;
+
+export const teamEvents = pgTable("team_events", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  location: text("location"),
+  date: timestamp("date").notNull(),
+  startTime: text("start_time").notNull(),
+  endTime: text("end_time"),
+  durationMinutes: integer("duration_minutes").default(120).notNull(),
+  maxParticipants: integer("max_participants").default(20).notNull(),
+  eventType: text("event_type").default("SOCIAL").notNull(),
+  status: text("status").default("UPCOMING").notNull(),
+  meetingPoint: text("meeting_point"),
+  transportInfo: text("transport_info"),
+  dressCode: text("dress_code"),
+  equipmentRequired: text("equipment_required"),
+  contactPerson: text("contact_person"),
+  contactPhone: text("contact_phone"),
+  isPublic: boolean("is_public").default(true).notNull(),
+  fee: integer("fee").default(0),
+  notes: text("notes"),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const teamEventSignups = pgTable("team_event_signups", {
+  id: serial("id").primaryKey(),
+  teamEventId: integer("team_event_id").references(() => teamEvents.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  status: text("status").default("CONFIRMED").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const teamEventsRelations = relations(teamEvents, ({ one, many }) => ({
+  club: one(clubs, { fields: [teamEvents.clubId], references: [clubs.id] }),
+  creator: one(users, { fields: [teamEvents.createdBy], references: [users.id] }),
+  signups: many(teamEventSignups),
+}));
+
+export const teamEventSignupsRelations = relations(teamEventSignups, ({ one }) => ({
+  teamEvent: one(teamEvents, { fields: [teamEventSignups.teamEventId], references: [teamEvents.id] }),
+  user: one(users, { fields: [teamEventSignups.userId], references: [users.id] }),
+}));
+
+export const insertTeamEventSchema = createInsertSchema(teamEvents).omit({ id: true, createdAt: true });
+export type TeamEvent = typeof teamEvents.$inferSelect;
+export type InsertTeamEvent = z.infer<typeof insertTeamEventSchema>;
+
+export const insertTeamEventSignupSchema = createInsertSchema(teamEventSignups).omit({ id: true, createdAt: true });
+export type TeamEventSignup = typeof teamEventSignups.$inferSelect;
+export type InsertTeamEventSignup = z.infer<typeof insertTeamEventSignupSchema>;

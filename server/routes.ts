@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches, teamEvents, teamEventSignups } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -32568,6 +32568,260 @@ Return ONLY valid JSON in this exact format:
           inArray(tshirts.collectionStatus, ["ready", "player_confirmed"])
         ));
       res.json(uncollected.map(r => ({ ...r.tshirt, playerName: r.playerName })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // ============================================================
+  // TEAM EVENTS
+  // ============================================================
+
+  app.get("/api/team-events", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const status = req.query.status as string | undefined;
+      const conditions: any[] = [];
+      if (clubId) conditions.push(eq(teamEvents.clubId, clubId));
+      if (status) conditions.push(eq(teamEvents.status, status));
+
+      const events = await db.select({
+        event: teamEvents,
+        clubName: clubs.name,
+        creatorName: users.fullName,
+      })
+        .from(teamEvents)
+        .leftJoin(clubs, eq(teamEvents.clubId, clubs.id))
+        .leftJoin(users, eq(teamEvents.createdBy, users.id))
+        .where(conditions.length > 0 ? and(...conditions) : undefined)
+        .orderBy(desc(teamEvents.date));
+
+      const eventIds = events.map(e => e.event.id);
+      let signupCounts: Record<number, number> = {};
+      let userSignups: Set<number> = new Set();
+      if (eventIds.length > 0) {
+        const counts = await db.select({
+          teamEventId: teamEventSignups.teamEventId,
+          count: sql<number>`count(*)::int`,
+        }).from(teamEventSignups)
+          .where(and(
+            inArray(teamEventSignups.teamEventId, eventIds),
+            eq(teamEventSignups.status, "CONFIRMED")
+          ))
+          .groupBy(teamEventSignups.teamEventId);
+        for (const c of counts) signupCounts[c.teamEventId] = c.count;
+
+        const mySignups = await db.select({ teamEventId: teamEventSignups.teamEventId })
+          .from(teamEventSignups)
+          .where(and(
+            inArray(teamEventSignups.teamEventId, eventIds),
+            eq(teamEventSignups.userId, req.user!.id),
+            eq(teamEventSignups.status, "CONFIRMED")
+          ));
+        userSignups = new Set(mySignups.map(s => s.teamEventId));
+      }
+
+      res.json(events.map(e => ({
+        ...e.event,
+        clubName: e.clubName,
+        creatorName: e.creatorName,
+        signupCount: signupCounts[e.event.id] || 0,
+        isSignedUp: userSignups.has(e.event.id),
+      })));
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.get("/api/team-events/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const id = Number(req.params.id);
+      const [event] = await db.select({
+        event: teamEvents,
+        clubName: clubs.name,
+        creatorName: users.fullName,
+      })
+        .from(teamEvents)
+        .leftJoin(clubs, eq(teamEvents.clubId, clubs.id))
+        .leftJoin(users, eq(teamEvents.createdBy, users.id))
+        .where(eq(teamEvents.id, id));
+      if (!event) return res.status(404).json({ message: "Team event not found" });
+
+      const signups = await db.select({
+        id: teamEventSignups.id,
+        userId: teamEventSignups.userId,
+        status: teamEventSignups.status,
+        userName: users.fullName,
+        createdAt: teamEventSignups.createdAt,
+      })
+        .from(teamEventSignups)
+        .leftJoin(users, eq(teamEventSignups.userId, users.id))
+        .where(eq(teamEventSignups.teamEventId, id))
+        .orderBy(asc(teamEventSignups.createdAt));
+
+      const confirmedCount = signups.filter(s => s.status === "CONFIRMED").length;
+      const isSignedUp = signups.some(s => s.userId === req.user!.id && s.status === "CONFIRMED");
+
+      res.json({
+        ...event.event,
+        clubName: event.clubName,
+        creatorName: event.creatorName,
+        signups,
+        signupCount: confirmedCount,
+        isSignedUp,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/team-events", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const body = z.object({
+        clubId: z.number().int(),
+        title: z.string().min(1),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        date: z.string(),
+        startTime: z.string(),
+        endTime: z.string().optional(),
+        durationMinutes: z.number().int().min(15).max(720).optional(),
+        maxParticipants: z.number().int().min(1).max(500).optional(),
+        eventType: z.enum(["SOCIAL", "MATCH", "TOURNAMENT_PREP", "TRAINING", "FUNDRAISER", "OTHER"]).optional(),
+        meetingPoint: z.string().optional(),
+        transportInfo: z.string().optional(),
+        dressCode: z.string().optional(),
+        equipmentRequired: z.string().optional(),
+        contactPerson: z.string().optional(),
+        contactPhone: z.string().optional(),
+        isPublic: z.boolean().optional(),
+        fee: z.number().int().min(0).optional(),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      const canAccess = await hasAdminAccess(user.id, user.role, body.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const [created] = await db.insert(teamEvents).values({
+        ...body,
+        date: new Date(body.date),
+        createdBy: user.id,
+      }).returning();
+      res.json(created);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/team-events/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(teamEvents).where(eq(teamEvents.id, id));
+      if (!existing) return res.status(404).json({ message: "Team event not found" });
+
+      const canAccess = await hasAdminAccess(user.id, user.role, existing.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const body = z.object({
+        title: z.string().min(1).optional(),
+        description: z.string().optional(),
+        location: z.string().optional(),
+        date: z.string().optional(),
+        startTime: z.string().optional(),
+        endTime: z.string().optional(),
+        durationMinutes: z.number().int().min(15).max(720).optional(),
+        maxParticipants: z.number().int().min(1).max(500).optional(),
+        eventType: z.enum(["SOCIAL", "MATCH", "TOURNAMENT_PREP", "TRAINING", "FUNDRAISER", "OTHER"]).optional(),
+        status: z.enum(["UPCOMING", "ACTIVE", "COMPLETED", "CANCELLED"]).optional(),
+        meetingPoint: z.string().optional(),
+        transportInfo: z.string().optional(),
+        dressCode: z.string().optional(),
+        equipmentRequired: z.string().optional(),
+        contactPerson: z.string().optional(),
+        contactPhone: z.string().optional(),
+        isPublic: z.boolean().optional(),
+        fee: z.number().int().min(0).optional(),
+        notes: z.string().optional(),
+      }).parse(req.body);
+
+      const updates: any = { ...body };
+      if (body.date) updates.date = new Date(body.date);
+
+      const [updated] = await db.update(teamEvents).set(updates).where(eq(teamEvents.id, id)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/team-events/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const id = Number(req.params.id);
+      const [existing] = await db.select().from(teamEvents).where(eq(teamEvents.id, id));
+      if (!existing) return res.status(404).json({ message: "Team event not found" });
+
+      const canAccess = await hasAdminAccess(user.id, user.role, existing.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      await db.delete(teamEventSignups).where(eq(teamEventSignups.teamEventId, id));
+      await db.delete(teamEvents).where(eq(teamEvents.id, id));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.post("/api/team-events/:id/signup", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const eventId = Number(req.params.id);
+      const [event] = await db.select().from(teamEvents).where(eq(teamEvents.id, eventId));
+      if (!event) return res.status(404).json({ message: "Team event not found" });
+
+      const [existingSignup] = await db.select().from(teamEventSignups)
+        .where(and(eq(teamEventSignups.teamEventId, eventId), eq(teamEventSignups.userId, user.id)));
+      if (existingSignup) {
+        if (existingSignup.status === "CONFIRMED") return res.status(400).json({ message: "Already signed up" });
+        const [updated] = await db.update(teamEventSignups).set({ status: "CONFIRMED" })
+          .where(eq(teamEventSignups.id, existingSignup.id)).returning();
+        return res.json(updated);
+      }
+
+      const [confirmedCount] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(teamEventSignups)
+        .where(and(eq(teamEventSignups.teamEventId, eventId), eq(teamEventSignups.status, "CONFIRMED")));
+      if ((confirmedCount?.count || 0) >= event.maxParticipants) {
+        return res.status(400).json({ message: "Event is full" });
+      }
+
+      const [signup] = await db.insert(teamEventSignups).values({
+        teamEventId: eventId,
+        userId: user.id,
+        status: "CONFIRMED",
+      }).returning();
+      res.json(signup);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.delete("/api/team-events/:id/signup", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const eventId = Number(req.params.id);
+      await db.update(teamEventSignups).set({ status: "CANCELLED" })
+        .where(and(eq(teamEventSignups.teamEventId, eventId), eq(teamEventSignups.userId, user.id)));
+      res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }
