@@ -168,8 +168,15 @@ function buildUnits(
     });
   }
 
+  const pairedPlayerIds = new Set<number>();
+  for (const [p1Id, p2Id] of fixedPairs) {
+    pairedPlayerIds.add(p1Id);
+    pairedPlayerIds.add(p2Id);
+  }
+
   for (const p of eligible) {
     if (assignedIds.has(p.id)) continue;
+    if (pairedPlayerIds.has(p.id)) continue;
     const gamesPlayed = playerMatchCounts.get(p.id) || 0;
     units.push({
       type: "SINGLE",
@@ -613,7 +620,11 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
     playerLastPlayedRound.set(pid, count > 0 ? 0 : -1);
   }
 
-  for (let q = 0; q < queueTarget; q++) {
+  let q = 0;
+  let attempts = 0;
+  const maxAttempts = queueTarget * 3;
+  while (q < queueTarget && attempts < maxAttempts) {
+    attempts++;
     const result = generateNextMatch(
       eligible, q, fixedPairs || [], localCounts,
       localPairings, localOpponents, usedPlayerIds,
@@ -633,6 +644,7 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
     if (conflict) continue;
 
     for (const id of ids) usedPlayerIds.add(id);
+    q++;
 
     if (matchType) {
       if (matchType === "MALE_ONLY") runningTypeCounts.maleOnly++;
