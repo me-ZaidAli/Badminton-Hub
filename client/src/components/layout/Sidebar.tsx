@@ -165,7 +165,7 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     // { href: "/my-lessons", label: "My Lessons", icon: GraduationCap, group: "activity", premiumOnly: true },
 
     { href: "/clubs", label: "Clubs", icon: Building2, group: "club", badgeKey: "pendingMemberships" },
-    { href: "/tshirt", label: "Club T-Shirt", icon: Shirt, group: "club" },
+    { href: "/merchandise", label: "Club Merchandise", icon: Shirt, group: "club" },
     { href: "/referrals", label: "Refer & Earn", icon: Gift, group: "club", badgeKey: "pendingReferrals", premiumOnly: true },
     { href: "/rewards", label: "My Rewards", icon: Award, group: "club", badgeKey: "pendingRewards", premiumOnly: true },
     { href: "/deals", label: "Deals & Offers", icon: Tag, group: "club" },

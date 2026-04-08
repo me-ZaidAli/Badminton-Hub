@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, dealCategories, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches, teamEvents, teamEventSignups } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, dealCategories, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches, merchandiseCategories, merchandiseProducts, merchandiseOrderItems, teamEvents, teamEventSignups } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -32323,6 +32323,392 @@ Return ONLY valid JSON in this exact format:
     } catch (err: any) {
       console.error("[AI Match Save] Error:", err);
       res.status(500).json({ message: err.message || "Failed to save matches" });
+    }
+  });
+
+  // ==================== CLUB MERCHANDISE SYSTEM ====================
+
+  app.get("/api/merchandise-categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const cats = await db.select().from(merchandiseCategories)
+        .where(eq(merchandiseCategories.isActive, true))
+        .orderBy(asc(merchandiseCategories.sortOrder), asc(merchandiseCategories.name));
+      res.json(cats);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch merchandise categories" });
+    }
+  });
+
+  app.get("/api/merchandise-categories/all", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") {
+        const adminCheck = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
+        if (adminCheck.length === 0) return res.sendStatus(403);
+      }
+      const cats = await db.select().from(merchandiseCategories)
+        .orderBy(asc(merchandiseCategories.sortOrder), asc(merchandiseCategories.name));
+      res.json(cats);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch merchandise categories" });
+    }
+  });
+
+  app.post("/api/merchandise-categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const isGlobalAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isGlobalAdmin) {
+        const allowed = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])))
+          .limit(1);
+        if (allowed.length === 0) return res.sendStatus(403);
+      }
+      const body = z.object({
+        name: z.string().min(1).max(50),
+        emoji: z.string().max(10).optional(),
+        gradient: z.string().max(100).optional(),
+        imageUrl: z.string().optional(),
+        clubId: z.number().optional(),
+        sortOrder: z.number().int().optional(),
+      }).parse(req.body);
+      const [newCat] = await db.insert(merchandiseCategories).values({
+        name: body.name, emoji: body.emoji || "🛍️", gradient: body.gradient || "from-purple-500 to-fuchsia-600",
+        imageUrl: body.imageUrl || null, clubId: body.clubId || null, sortOrder: body.sortOrder ?? 99, isDefault: false,
+      }).returning();
+      res.json(newCat);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to create category" });
+    }
+  });
+
+  app.patch("/api/merchandise-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [existing] = await db.select().from(merchandiseCategories).where(eq(merchandiseCategories.id, catId));
+      if (!existing) return res.status(404).json({ message: "Category not found" });
+      const isGlobalAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isGlobalAdmin) {
+        if (existing.clubId) {
+          const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", existing.clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else return res.sendStatus(403);
+      }
+      const body = z.object({
+        name: z.string().min(1).max(50).optional(), emoji: z.string().max(10).optional(),
+        gradient: z.string().max(100).optional(), imageUrl: z.string().optional().nullable(),
+        sortOrder: z.number().int().optional(), isActive: z.boolean().optional(),
+      }).parse(req.body);
+      const updateData: any = {};
+      if (body.name !== undefined) updateData.name = body.name;
+      if (body.emoji !== undefined) updateData.emoji = body.emoji;
+      if (body.gradient !== undefined) updateData.gradient = body.gradient;
+      if (body.imageUrl !== undefined) updateData.imageUrl = body.imageUrl;
+      if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder;
+      if (body.isActive !== undefined) updateData.isActive = body.isActive;
+      const [updated] = await db.update(merchandiseCategories).set(updateData).where(eq(merchandiseCategories.id, catId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to update category" });
+    }
+  });
+
+  app.delete("/api/merchandise-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [existing] = await db.select().from(merchandiseCategories).where(eq(merchandiseCategories.id, catId));
+      if (!existing) return res.status(404).json({ message: "Category not found" });
+      const isGlobalAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isGlobalAdmin) return res.sendStatus(403);
+      if (existing.isDefault) return res.status(400).json({ message: "Cannot delete a default category. Deactivate it instead." });
+      const reassignWhere = existing.clubId
+        ? and(eq(merchandiseProducts.categoryName, existing.name), eq(merchandiseProducts.clubId, existing.clubId))
+        : eq(merchandiseProducts.categoryName, existing.name);
+      await db.update(merchandiseProducts).set({ categoryName: "Other" }).where(reassignWhere);
+      await db.delete(merchandiseCategories).where(eq(merchandiseCategories.id, catId));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to delete category" });
+    }
+  });
+
+  app.post("/api/merchandise-categories/seed-defaults", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const existing = await db.select({ id: merchandiseCategories.id }).from(merchandiseCategories).where(eq(merchandiseCategories.isDefault, true)).limit(1);
+      if (existing.length > 0) return res.json({ message: "Defaults already seeded", seeded: false });
+      const defaults = [
+        { name: "Apparel", emoji: "👕", gradient: "from-blue-500 to-indigo-600", sortOrder: 1 },
+        { name: "Equipment", emoji: "🏸", gradient: "from-amber-500 to-orange-600", sortOrder: 2 },
+        { name: "Accessories", emoji: "🎒", gradient: "from-emerald-500 to-teal-600", sortOrder: 3 },
+        { name: "Footwear", emoji: "👟", gradient: "from-violet-500 to-purple-600", sortOrder: 4 },
+        { name: "Training Gear", emoji: "💪", gradient: "from-red-500 to-rose-600", sortOrder: 5 },
+        { name: "Other", emoji: "🛍️", gradient: "from-slate-500 to-zinc-600", sortOrder: 99 },
+      ];
+      const results = await db.insert(merchandiseCategories).values(defaults.map(d => ({ ...d, isDefault: true, clubId: null }))).returning();
+      res.json({ message: "Default categories seeded", seeded: true, categories: results });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to seed categories" });
+    }
+  });
+
+  // --- Merchandise Products ---
+
+  app.get("/api/merchandise/products", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profiles = await db.select().from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED")));
+      const clubIds = profiles.map(p => p.clubId);
+      if (clubIds.length === 0) return res.json([]);
+      const products = await db.select().from(merchandiseProducts)
+        .where(and(inArray(merchandiseProducts.clubId, clubIds), eq(merchandiseProducts.status, "active")))
+        .orderBy(asc(merchandiseProducts.sortOrder), desc(merchandiseProducts.createdAt));
+      res.json(products);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  app.get("/api/clubs/:clubId/merchandise/products", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+      const products = await db.select().from(merchandiseProducts)
+        .where(eq(merchandiseProducts.clubId, clubId))
+        .orderBy(asc(merchandiseProducts.sortOrder), desc(merchandiseProducts.createdAt));
+      res.json(products);
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch products" });
+    }
+  });
+
+  app.post("/api/clubs/:clubId/merchandise/products", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+      const body = z.object({
+        name: z.string().min(1).max(100),
+        description: z.string().optional(),
+        shortDescription: z.string().max(200).optional(),
+        imageUrl: z.string().optional(),
+        price: z.number().int().optional(),
+        categoryName: z.string().optional(),
+        sizes: z.array(z.string()).optional(),
+        genders: z.array(z.string()).optional(),
+        styles: z.array(z.string()).optional(),
+        materials: z.string().optional(),
+        specifications: z.string().optional(),
+        tags: z.array(z.string()).optional(),
+        status: z.enum(["active", "draft", "out_of_stock", "discontinued"]).optional(),
+        isFeatured: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+      }).parse(req.body);
+      const [product] = await db.insert(merchandiseProducts).values({
+        clubId,
+        name: body.name,
+        description: body.description || null,
+        shortDescription: body.shortDescription || null,
+        imageUrl: body.imageUrl || null,
+        price: body.price ?? null,
+        categoryName: body.categoryName || "Other",
+        sizes: body.sizes || [],
+        genders: body.genders || ["Unisex"],
+        styles: body.styles || [],
+        materials: body.materials || null,
+        specifications: body.specifications || null,
+        tags: body.tags || [],
+        status: body.status || "active",
+        isFeatured: body.isFeatured || false,
+        sortOrder: body.sortOrder ?? 0,
+        createdBy: req.user!.id,
+      }).returning();
+      res.json(product);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to create product" });
+    }
+  });
+
+  app.patch("/api/merchandise/products/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const productId = Number(req.params.id);
+      const [product] = await db.select().from(merchandiseProducts).where(eq(merchandiseProducts.id, productId));
+      if (!product) return res.status(404).json({ message: "Product not found" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", product.clubId);
+      if (!allowed) return res.sendStatus(403);
+      const body = z.object({
+        name: z.string().min(1).max(100).optional(),
+        description: z.string().optional().nullable(),
+        shortDescription: z.string().max(200).optional().nullable(),
+        imageUrl: z.string().optional().nullable(),
+        price: z.number().int().optional().nullable(),
+        categoryName: z.string().optional(),
+        sizes: z.array(z.string()).optional(),
+        genders: z.array(z.string()).optional(),
+        styles: z.array(z.string()).optional(),
+        materials: z.string().optional().nullable(),
+        specifications: z.string().optional().nullable(),
+        tags: z.array(z.string()).optional(),
+        status: z.enum(["active", "draft", "out_of_stock", "discontinued"]).optional(),
+        isFeatured: z.boolean().optional(),
+        sortOrder: z.number().int().optional(),
+      }).parse(req.body);
+      const updates: any = { updatedAt: new Date() };
+      for (const [k, v] of Object.entries(body)) { if (v !== undefined) updates[k] = v; }
+      const [updated] = await db.update(merchandiseProducts).set(updates).where(eq(merchandiseProducts.id, productId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to update product" });
+    }
+  });
+
+  app.delete("/api/merchandise/products/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const productId = Number(req.params.id);
+      const [product] = await db.select().from(merchandiseProducts).where(eq(merchandiseProducts.id, productId));
+      if (!product) return res.status(404).json({ message: "Product not found" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", product.clubId);
+      if (!allowed) return res.sendStatus(403);
+      await db.delete(merchandiseOrderItems).where(eq(merchandiseOrderItems.productId, productId));
+      await db.delete(merchandiseProducts).where(eq(merchandiseProducts.id, productId));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to delete product" });
+    }
+  });
+
+  // --- Merchandise Orders ---
+
+  app.post("/api/merchandise/orders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({
+        productId: z.number().int(),
+        size: z.string().optional(),
+        gender: z.string().optional(),
+        style: z.string().optional(),
+        quantity: z.number().int().min(1).max(50).optional(),
+        notes: z.string().max(500).optional(),
+      }).parse(req.body);
+      const [product] = await db.select().from(merchandiseProducts).where(eq(merchandiseProducts.id, body.productId));
+      if (!product) return res.status(404).json({ message: "Product not found" });
+      if (product.status !== "active") return res.status(400).json({ message: "Product is not available" });
+      const memberCheck = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, product.clubId), eq(playerProfiles.membershipStatus, "APPROVED")))
+        .limit(1);
+      if (memberCheck.length === 0) return res.status(403).json({ message: "You must be a member of this club to order" });
+      const [order] = await db.insert(merchandiseOrderItems).values({
+        clubId: product.clubId,
+        productId: body.productId,
+        userId: req.user!.id,
+        size: body.size || null,
+        gender: body.gender || null,
+        style: body.style || null,
+        quantity: body.quantity || 1,
+        notes: body.notes || null,
+      }).returning();
+      res.json(order);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to create order" });
+    }
+  });
+
+  app.get("/api/merchandise/my-orders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const orders = await db.select({
+        order: merchandiseOrderItems,
+        productName: merchandiseProducts.name,
+        productImage: merchandiseProducts.imageUrl,
+        productCategory: merchandiseProducts.categoryName,
+      }).from(merchandiseOrderItems)
+        .innerJoin(merchandiseProducts, eq(merchandiseOrderItems.productId, merchandiseProducts.id))
+        .where(eq(merchandiseOrderItems.userId, req.user!.id))
+        .orderBy(desc(merchandiseOrderItems.createdAt));
+      res.json(orders.map(r => ({ ...r.order, productName: r.productName, productImage: r.productImage, productCategory: r.productCategory })));
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
+  app.get("/api/clubs/:clubId/merchandise/orders", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.params.clubId);
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
+      if (!allowed) return res.sendStatus(403);
+      const orders = await db.select({
+        order: merchandiseOrderItems,
+        productName: merchandiseProducts.name,
+        productImage: merchandiseProducts.imageUrl,
+        productCategory: merchandiseProducts.categoryName,
+        userName: users.fullName,
+      }).from(merchandiseOrderItems)
+        .innerJoin(merchandiseProducts, eq(merchandiseOrderItems.productId, merchandiseProducts.id))
+        .innerJoin(users, eq(merchandiseOrderItems.userId, users.id))
+        .where(eq(merchandiseOrderItems.clubId, clubId))
+        .orderBy(desc(merchandiseOrderItems.createdAt));
+      res.json(orders.map(r => ({ ...r.order, productName: r.productName, productImage: r.productImage, productCategory: r.productCategory, userName: r.userName })));
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch orders" });
+    }
+  });
+
+  app.patch("/api/merchandise/orders/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const orderId = Number(req.params.id);
+      const [order] = await db.select().from(merchandiseOrderItems).where(eq(merchandiseOrderItems.id, orderId));
+      if (!order) return res.status(404).json({ message: "Order not found" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", order.clubId);
+      if (!allowed) return res.sendStatus(403);
+      const body = z.object({
+        status: z.enum(["pending", "approved", "ready", "collected", "cancelled"]).optional(),
+        size: z.string().optional(),
+        gender: z.string().optional(),
+        style: z.string().optional(),
+        quantity: z.number().int().min(1).optional(),
+        notes: z.string().optional(),
+        adminNotes: z.string().optional(),
+      }).parse(req.body);
+      const updates: any = { updatedAt: new Date() };
+      for (const [k, v] of Object.entries(body)) { if (v !== undefined) updates[k] = v; }
+      const [updated] = await db.update(merchandiseOrderItems).set(updates).where(eq(merchandiseOrderItems.id, orderId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to update order" });
+    }
+  });
+
+  app.delete("/api/merchandise/orders/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const orderId = Number(req.params.id);
+      const [order] = await db.select().from(merchandiseOrderItems).where(eq(merchandiseOrderItems.id, orderId));
+      if (!order) return res.status(404).json({ message: "Order not found" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", order.clubId);
+      if (!allowed) return res.sendStatus(403);
+      await db.delete(merchandiseOrderItems).where(eq(merchandiseOrderItems.id, orderId));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to delete order" });
     }
   });
 

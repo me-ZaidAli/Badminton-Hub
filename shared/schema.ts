@@ -2682,6 +2682,66 @@ export const insertTshirtBatchSchema = createInsertSchema(tshirtBatches).omit({ 
 export type TshirtBatch = typeof tshirtBatches.$inferSelect;
 export type InsertTshirtBatch = z.infer<typeof insertTshirtBatchSchema>;
 
+// === MERCHANDISE SYSTEM ===
+export const merchandiseCategories = pgTable("merchandise_categories", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id),
+  name: text("name").notNull(),
+  emoji: text("emoji").default("🛍️"),
+  gradient: text("gradient").default("from-purple-500 to-fuchsia-600"),
+  imageUrl: text("image_url"),
+  sortOrder: integer("sort_order").default(0),
+  isDefault: boolean("is_default").default(false).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type MerchandiseCategory = typeof merchandiseCategories.$inferSelect;
+
+export const merchandiseProductStatusEnum = pgEnum("merchandise_product_status", ["active", "draft", "out_of_stock", "discontinued"]);
+
+export const merchandiseProducts = pgTable("merchandise_products", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  categoryName: text("category_name").default("Other"),
+  name: text("name").notNull(),
+  description: text("description"),
+  shortDescription: text("short_description"),
+  imageUrl: text("image_url"),
+  price: integer("price"),
+  sizes: text("sizes").array(),
+  genders: text("genders").array(),
+  styles: text("styles").array(),
+  materials: text("materials"),
+  specifications: text("specifications"),
+  tags: text("tags").array(),
+  status: merchandiseProductStatusEnum("status").default("active").notNull(),
+  isFeatured: boolean("is_featured").default(false).notNull(),
+  sortOrder: integer("sort_order").default(0),
+  createdBy: integer("created_by").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type MerchandiseProduct = typeof merchandiseProducts.$inferSelect;
+
+export const merchandiseOrderStatusEnum = pgEnum("merchandise_order_status", ["pending", "approved", "ready", "collected", "cancelled"]);
+
+export const merchandiseOrderItems = pgTable("merchandise_order_items", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  productId: integer("product_id").references(() => merchandiseProducts.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  size: text("size"),
+  gender: text("gender"),
+  style: text("style"),
+  quantity: integer("quantity").default(1).notNull(),
+  notes: text("notes"),
+  status: merchandiseOrderStatusEnum("merchandise_order_status").default("pending").notNull(),
+  adminNotes: text("admin_notes"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type MerchandiseOrderItem = typeof merchandiseOrderItems.$inferSelect;
+
 export const teamEvents = pgTable("team_events", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
