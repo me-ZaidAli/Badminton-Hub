@@ -32599,11 +32599,11 @@ Return ONLY valid JSON in this exact format:
     try {
       const body = z.object({
         productId: z.number().int(),
-        size: z.string().optional(),
-        gender: z.string().optional(),
-        style: z.string().optional(),
-        quantity: z.number().int().min(1).max(50).optional(),
-        notes: z.string().max(500).optional(),
+        size: z.string().nullable().optional(),
+        gender: z.string().nullable().optional(),
+        style: z.string().nullable().optional(),
+        quantity: z.number().int().min(1).max(50).nullable().optional(),
+        notes: z.string().max(500).nullable().optional(),
       }).parse(req.body);
       const [product] = await db.select().from(merchandiseProducts).where(eq(merchandiseProducts.id, body.productId));
       if (!product) return res.status(404).json({ message: "Product not found" });
