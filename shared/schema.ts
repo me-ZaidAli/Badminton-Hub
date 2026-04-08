@@ -1142,6 +1142,22 @@ export const profileMergeLogs = pgTable("profile_merge_logs", {
 
 export type ProfileMergeLog = typeof profileMergeLogs.$inferSelect;
 
+// === DEAL CATEGORIES ===
+export const dealCategories = pgTable("deal_categories", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id),
+  name: text("name").notNull(),
+  emoji: text("emoji").default("🎁"),
+  gradient: text("gradient").default("from-purple-500 to-fuchsia-600"),
+  imageUrl: text("image_url"),
+  sortOrder: integer("sort_order").default(0),
+  isDefault: boolean("is_default").default(false).notNull(),
+  isActive: boolean("is_active").default(true).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export type DealCategory = typeof dealCategories.$inferSelect;
+
 // === DISCOUNT CODES ===
 export const discountCodes = pgTable("discount_codes", {
   id: serial("id").primaryKey(),
@@ -1152,7 +1168,7 @@ export const discountCodes = pgTable("discount_codes", {
   shopName: text("shop_name"),
   shopUrl: text("shop_url"),
   imageUrl: text("image_url"),
-  category: text("category").default("other"),
+  category: text("category").default("Other"),
   validUntil: timestamp("valid_until"),
   isActive: boolean("is_active").default(true).notNull(),
   createdBy: integer("created_by").references(() => users.id),

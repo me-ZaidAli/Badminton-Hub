@@ -1,5 +1,52 @@
 uploads = []
-generated = []
+
+[[generated]]
+id = "yopQYW3Fa-n4Nwhl3VJrT"
+uri = "file://attached_assets/generated_images/deal_cat_food.png"
+type = "image"
+title = "food deals category"
+
+[[generated]]
+id = "uE819uoQCIhNK1YyutLmb"
+uri = "file://attached_assets/generated_images/deal_cat_fitness.png"
+type = "image"
+title = "fitness deals category"
+
+[[generated]]
+id = "HE-FbCuNEmM2IKHsT7r3d"
+uri = "file://attached_assets/generated_images/deal_cat_services.png"
+type = "image"
+title = "services deals category"
+
+[[generated]]
+id = "uDSq0qYzFvSzjZI3a2aNp"
+uri = "file://attached_assets/generated_images/deal_cat_equipment.png"
+type = "image"
+title = "equipment deals category"
+
+[[generated]]
+id = "gCjXaMtO8QGcwvQKG1lB_"
+uri = "file://attached_assets/generated_images/deal_cat_wellness.png"
+type = "image"
+title = "wellness deals category"
+
+[[generated]]
+id = "f68_XaM1IAVzv9AVuy-e5"
+uri = "file://attached_assets/generated_images/deal_cat_travel.png"
+type = "image"
+title = "travel deals category"
+
+[[generated]]
+id = "bW7ucWKN50vMb_S4pA77f"
+uri = "file://attached_assets/generated_images/deal_cat_beauty.png"
+type = "image"
+title = "beauty deals category"
+
+[[generated]]
+id = "GC0D2XptpaE8CwwWU2OfW"
+uri = "file://attached_assets/generated_images/deal_cat_fashion.png"
+type = "image"
+title = "fashion deals category"
 
 [[outputs]]
 id = "_DTq5o-onEE6_4AMQp_uJ"

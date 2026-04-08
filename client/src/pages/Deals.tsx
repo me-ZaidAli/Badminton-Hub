@@ -18,12 +18,47 @@ import {
   Tag, Search, Plus, Pencil, Trash2, ExternalLink, Clock, Building2,
   Percent, Copy, Check, Loader2, X, ShoppingBag, Gift,
   Calendar, AlertTriangle, MoreVertical, Eye, EyeOff,
-  Utensils, Dumbbell, Wrench, ShoppingCart, Star, Flame, Sparkles,
-  Timer, Heart, ChevronLeft, Zap, Crown, ArrowRight,
+  Flame, Sparkles, Timer, Heart, ChevronLeft, Crown, ArrowRight,
+  FolderOpen, GripVertical, ImageIcon,
 } from "lucide-react";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format, isPast, differenceInDays, differenceInHours, differenceInMinutes } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
+
+import dealCatFoodImg from "@assets/generated_images/deal_cat_food.png";
+import dealCatFitnessImg from "@assets/generated_images/deal_cat_fitness.png";
+import dealCatServicesImg from "@assets/generated_images/deal_cat_services.png";
+import dealCatEquipmentImg from "@assets/generated_images/deal_cat_equipment.png";
+import dealCatWellnessImg from "@assets/generated_images/deal_cat_wellness.png";
+import dealCatTravelImg from "@assets/generated_images/deal_cat_travel.png";
+import dealCatBeautyImg from "@assets/generated_images/deal_cat_beauty.png";
+import dealCatFashionImg from "@assets/generated_images/deal_cat_fashion.png";
+
+const DEFAULT_CATEGORY_IMAGES: Record<string, string> = {
+  "Food & Drink": dealCatFoodImg,
+  "Fitness": dealCatFitnessImg,
+  "Services": dealCatServicesImg,
+  "Equipment": dealCatEquipmentImg,
+  "Wellness": dealCatWellnessImg,
+  "Travel": dealCatTravelImg,
+  "Beauty": dealCatBeautyImg,
+  "Fashion": dealCatFashionImg,
+};
+
+const GRADIENT_OPTIONS = [
+  { value: "from-orange-500 to-red-600", label: "Warm Sunset" },
+  { value: "from-emerald-500 to-teal-600", label: "Forest Green" },
+  { value: "from-blue-500 to-cyan-600", label: "Ocean Blue" },
+  { value: "from-amber-500 to-orange-600", label: "Golden Amber" },
+  { value: "from-pink-500 to-rose-600", label: "Soft Pink" },
+  { value: "from-violet-500 to-purple-600", label: "Royal Violet" },
+  { value: "from-indigo-500 to-violet-600", label: "Deep Indigo" },
+  { value: "from-sky-500 to-blue-600", label: "Sky Blue" },
+  { value: "from-purple-500 to-fuchsia-600", label: "Neon Purple" },
+  { value: "from-red-500 to-pink-600", label: "Hot Red" },
+  { value: "from-teal-500 to-emerald-600", label: "Cool Teal" },
+  { value: "from-slate-600 to-zinc-700", label: "Dark Slate" },
+];
 
 function isSafeUrl(url: string | null | undefined): boolean {
   if (!url) return false;
@@ -35,17 +70,6 @@ function isSafeUrl(url: string | null | undefined): boolean {
   }
 }
 
-const DEAL_CATEGORIES = [
-  { id: "all", label: "All Deals", icon: ShoppingBag, gradient: "from-violet-600 to-indigo-700", emoji: "🛍️" },
-  { id: "food", label: "Food & Drink", icon: Utensils, gradient: "from-orange-500 to-red-600", emoji: "🍕" },
-  { id: "fitness", label: "Fitness", icon: Dumbbell, gradient: "from-emerald-500 to-teal-600", emoji: "💪" },
-  { id: "services", label: "Services", icon: Wrench, gradient: "from-blue-500 to-cyan-600", emoji: "🔧" },
-  { id: "equipment", label: "Equipment", icon: ShoppingCart, gradient: "from-amber-500 to-orange-600", emoji: "🏸" },
-  { id: "wellness", label: "Wellness", icon: Heart, gradient: "from-pink-500 to-rose-600", emoji: "🧘" },
-  { id: "travel", label: "Travel", icon: Star, gradient: "from-sky-500 to-blue-600", emoji: "✈️" },
-  { id: "other", label: "Other", icon: Gift, gradient: "from-purple-500 to-fuchsia-600", emoji: "🎁" },
-] as const;
-
 const FILTER_CHIPS = [
   { id: "all", label: "All" },
   { id: "10plus", label: "10%+" },
@@ -54,6 +78,19 @@ const FILTER_CHIPS = [
   { id: "expiring", label: "Expiring Soon" },
   { id: "new", label: "New" },
 ] as const;
+
+interface DealCategoryItem {
+  id: number;
+  clubId: number | null;
+  name: string;
+  emoji: string | null;
+  gradient: string | null;
+  imageUrl: string | null;
+  sortOrder: number | null;
+  isDefault: boolean;
+  isActive: boolean;
+  createdAt: string;
+}
 
 interface DiscountCodeItem {
   id: number;
@@ -90,6 +127,11 @@ interface MemberDiscountGroup {
   clubId: number;
   clubName: string;
   codes: MemberDeal[];
+}
+
+function getCategoryImage(cat: DealCategoryItem): string | null {
+  if (isSafeUrl(cat.imageUrl)) return cat.imageUrl!;
+  return DEFAULT_CATEGORY_IMAGES[cat.name] || null;
 }
 
 function CountdownTimer({ validUntil }: { validUntil: string }) {
@@ -149,14 +191,31 @@ export default function Deals() {
   const [formShopName, setFormShopName] = useState("");
   const [formShopUrl, setFormShopUrl] = useState("");
   const [formImageUrl, setFormImageUrl] = useState("");
-  const [formCategory, setFormCategory] = useState("other");
+  const [formCategory, setFormCategory] = useState("Other");
   const [formValidUntil, setFormValidUntil] = useState("");
   const [formIsActive, setFormIsActive] = useState(true);
   const [formClubId, setFormClubId] = useState<string>("");
   const [formAppliesToAll, setFormAppliesToAll] = useState(true);
 
+  const [catDialogOpen, setCatDialogOpen] = useState(false);
+  const [editingCategory, setEditingCategory] = useState<DealCategoryItem | null>(null);
+  const [deleteCatConfirmId, setDeleteCatConfirmId] = useState<number | null>(null);
+  const [catFormName, setCatFormName] = useState("");
+  const [catFormEmoji, setCatFormEmoji] = useState("🎁");
+  const [catFormGradient, setCatFormGradient] = useState("from-purple-500 to-fuchsia-600");
+  const [catFormImageUrl, setCatFormImageUrl] = useState("");
+  const [catFormSortOrder, setCatFormSortOrder] = useState("99");
+
   const canManage = adminClubs && adminClubs.length > 0;
-  const managedClubIds = useMemo(() => new Set(adminClubs?.map((c: any) => c.id) || []), [adminClubs]);
+
+  const { data: categories = [], isLoading: catsLoading } = useQuery<DealCategoryItem[]>({
+    queryKey: ["/api/deal-categories"],
+  });
+
+  const { data: allCategories = [], isLoading: allCatsLoading } = useQuery<DealCategoryItem[]>({
+    queryKey: ["/api/deal-categories/all"],
+    enabled: activeTab === "categories" && !!canManage,
+  });
 
   const { data: memberDeals = [], isLoading: memberLoading } = useQuery<MemberDiscountGroup[]>({
     queryKey: ["/api/my-discount-codes"],
@@ -168,6 +227,72 @@ export default function Deals() {
   const { data: adminDeals = [], isLoading: adminLoading } = useQuery<DiscountCodeItem[]>({
     queryKey: [adminQueryUrl],
     enabled: !!adminQueryUrl && activeTab === "manage",
+  });
+
+  const seedDefaultsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/deal-categories/seed-defaults");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories/all"] });
+      if (data.seeded) {
+        toast({ title: "Categories Seeded", description: "Default categories have been created." });
+      } else {
+        toast({ title: "Already Seeded", description: "Default categories already exist." });
+      }
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const createCatMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest("POST", "/api/deal-categories", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories/all"] });
+      toast({ title: "Category Created", description: "New category has been added." });
+      closeCatDialog();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const updateCatMutation = useMutation({
+    mutationFn: async ({ id, ...data }: any) => {
+      const res = await apiRequest("PATCH", `/api/deal-categories/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories/all"] });
+      toast({ title: "Category Updated", description: "Category has been updated." });
+      closeCatDialog();
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const deleteCatMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/deal-categories/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/deal-categories/all"] });
+      toast({ title: "Category Deleted", description: "Category has been removed." });
+      setDeleteCatConfirmId(null);
+    },
+    onError: (err: any) => {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    },
   });
 
   const createMutation = useMutation({
@@ -240,11 +365,21 @@ export default function Deals() {
     setFormShopName("");
     setFormShopUrl("");
     setFormImageUrl("");
-    setFormCategory("other");
+    setFormCategory("Other");
     setFormValidUntil("");
     setFormIsActive(true);
     setFormClubId("");
     setFormAppliesToAll(true);
+  };
+
+  const closeCatDialog = () => {
+    setCatDialogOpen(false);
+    setEditingCategory(null);
+    setCatFormName("");
+    setCatFormEmoji("🎁");
+    setCatFormGradient("from-purple-500 to-fuchsia-600");
+    setCatFormImageUrl("");
+    setCatFormSortOrder("99");
   };
 
   const openCreate = () => {
@@ -263,11 +398,26 @@ export default function Deals() {
     setFormShopName(deal.shopName || "");
     setFormShopUrl(deal.shopUrl || "");
     setFormImageUrl(deal.imageUrl || "");
-    setFormCategory(deal.category || "other");
+    setFormCategory(deal.category || "Other");
     setFormValidUntil(deal.validUntil ? format(new Date(deal.validUntil), "yyyy-MM-dd") : "");
     setFormIsActive(deal.isActive);
     setFormClubId(String(deal.clubId));
     setDialogOpen(true);
+  };
+
+  const openCreateCategory = () => {
+    closeCatDialog();
+    setCatDialogOpen(true);
+  };
+
+  const openEditCategory = (cat: DealCategoryItem) => {
+    setEditingCategory(cat);
+    setCatFormName(cat.name);
+    setCatFormEmoji(cat.emoji || "🎁");
+    setCatFormGradient(cat.gradient || "from-purple-500 to-fuchsia-600");
+    setCatFormImageUrl(cat.imageUrl || "");
+    setCatFormSortOrder(String(cat.sortOrder ?? 99));
+    setCatDialogOpen(true);
   };
 
   const handleSave = () => {
@@ -300,6 +450,26 @@ export default function Deals() {
     }
   };
 
+  const handleSaveCategory = () => {
+    if (!catFormName.trim()) {
+      toast({ title: "Error", description: "Category name is required.", variant: "destructive" });
+      return;
+    }
+    const payload: any = {
+      name: catFormName.trim(),
+      emoji: catFormEmoji.trim() || "🎁",
+      gradient: catFormGradient,
+      sortOrder: parseInt(catFormSortOrder) || 99,
+    };
+    if (catFormImageUrl.trim()) payload.imageUrl = catFormImageUrl.trim();
+    if (editingCategory) {
+      if (!catFormImageUrl.trim()) payload.imageUrl = null;
+      updateCatMutation.mutate({ id: editingCategory.id, ...payload });
+    } else {
+      createCatMutation.mutate(payload);
+    }
+  };
+
   const copyCode = useCallback((code: string, id: number) => {
     navigator.clipboard.writeText(code);
     setCopiedCode(id);
@@ -323,7 +493,7 @@ export default function Deals() {
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { all: allMemberCodes.length };
     allMemberCodes.forEach(c => {
-      const cat = c.category || "other";
+      const cat = c.category || "Other";
       counts[cat] = (counts[cat] || 0) + 1;
     });
     return counts;
@@ -332,7 +502,7 @@ export default function Deals() {
   const filteredMemberCodes = useMemo(() => {
     let codes = allMemberCodes;
     if (selectedCategory && selectedCategory !== "all") {
-      codes = codes.filter(c => (c.category || "other") === selectedCategory);
+      codes = codes.filter(c => (c.category || "Other") === selectedCategory);
     }
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
@@ -375,6 +545,13 @@ export default function Deals() {
     );
   }, [adminDeals, searchQuery]);
 
+  const findCatInfo = useCallback((categoryName: string | null) => {
+    const name = categoryName || "Other";
+    const found = categories.find(c => c.name === name);
+    if (found) return found;
+    return { id: 0, name, emoji: "🎁", gradient: "from-purple-500 to-fuchsia-600", imageUrl: null, clubId: null, sortOrder: 99, isDefault: false, isActive: true, createdAt: "" };
+  }, [categories]);
+
   if (selectedCategory === null && activeTab === "browse") {
     return (
       <div className="min-h-screen bg-gradient-to-b from-background via-background to-muted/20">
@@ -404,11 +581,11 @@ export default function Deals() {
             </div>
           </motion.div>
 
-          {memberLoading ? (
+          {(memberLoading || catsLoading) ? (
             <div className="flex items-center justify-center py-20">
               <Loader2 className="h-10 w-10 animate-spin text-primary/60" />
             </div>
-          ) : allMemberCodes.length === 0 ? (
+          ) : categories.length === 0 ? (
             <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.2 }}>
               <Card className="border-dashed border-2">
                 <CardContent className="flex flex-col items-center justify-center py-20 text-center">
@@ -416,57 +593,107 @@ export default function Deals() {
                     animate={{ y: [0, -8, 0] }}
                     transition={{ duration: 3, repeat: Infinity, ease: "easeInOut" }}
                   >
-                    <Gift className="h-16 w-16 text-muted-foreground/30 mb-4" />
+                    <FolderOpen className="h-16 w-16 text-muted-foreground/30 mb-4" />
                   </motion.div>
-                  <h3 className="text-xl font-bold">No Deals Available</h3>
+                  <h3 className="text-xl font-bold">No Categories Yet</h3>
                   <p className="text-sm text-muted-foreground mt-2 max-w-sm">
-                    There are no active discounts or offers for your clubs right now. Check back later!
+                    {canManage
+                      ? "Set up deal categories to organise your offers. Go to Manage → Categories to get started."
+                      : "No deal categories have been set up yet. Check back later!"}
                   </p>
+                  {canManage && (
+                    <Button
+                      onClick={() => { setActiveTab("categories"); setSelectedCategory("all"); }}
+                      className="mt-4 bg-gradient-to-r from-primary to-violet-600"
+                      data-testid="button-setup-categories"
+                    >
+                      <Plus className="h-4 w-4 mr-1" /> Set Up Categories
+                    </Button>
+                  )}
                 </CardContent>
               </Card>
             </motion.div>
           ) : (
             <div className="grid grid-cols-2 gap-4">
-              {DEAL_CATEGORIES.map((cat, index) => {
-                const count = categoryCounts[cat.id] || 0;
-                if (cat.id !== "all" && count === 0) return null;
+              <motion.div
+                initial={{ opacity: 0, y: 30, scale: 0.95 }}
+                animate={{ opacity: 1, y: 0, scale: 1 }}
+                transition={{ duration: 0.4, delay: 0 }}
+                whileHover={{ scale: 1.03 }}
+                whileTap={{ scale: 0.97 }}
+              >
+                <button
+                  className="relative w-full h-40 sm:h-48 rounded-3xl overflow-hidden bg-gradient-to-br from-violet-600 to-indigo-700 shadow-lg hover:shadow-xl transition-shadow group cursor-pointer"
+                  onClick={() => setSelectedCategory("all")}
+                  data-testid="button-category-all"
+                >
+                  <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+                  <motion.div
+                    className="absolute top-3 right-3 text-4xl sm:text-5xl opacity-30 group-hover:opacity-50 transition-opacity"
+                    animate={{ y: [0, -5, 0], rotate: [0, 5, 0] }}
+                    transition={{ duration: 4, repeat: Infinity, ease: "easeInOut" }}
+                  >
+                    🛍️
+                  </motion.div>
+                  <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5">
+                    <div className="flex items-center gap-2 mb-1">
+                      <ShoppingBag className="h-4 w-4 sm:h-5 sm:w-5 text-white/90" />
+                      <span className="text-white font-bold text-base sm:text-lg">All Deals</span>
+                    </div>
+                    <p className="text-white/70 text-xs sm:text-sm">{allMemberCodes.length} deals available</p>
+                  </div>
+                  <div className="absolute top-3 left-3">
+                    <div className="backdrop-blur-sm bg-white/15 rounded-full px-2.5 py-1 flex items-center gap-1">
+                      <Sparkles className="h-3 w-3 text-white/90" />
+                      <span className="text-white text-[10px] font-semibold uppercase tracking-wider">Browse</span>
+                    </div>
+                  </div>
+                </button>
+              </motion.div>
+
+              {categories.map((cat, index) => {
+                const count = categoryCounts[cat.name] || 0;
+                const bgImage = getCategoryImage(cat);
                 return (
                   <motion.div
                     key={cat.id}
                     initial={{ opacity: 0, y: 30, scale: 0.95 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    transition={{ duration: 0.4, delay: index * 0.08 }}
+                    transition={{ duration: 0.4, delay: (index + 1) * 0.08 }}
                     whileHover={{ scale: 1.03 }}
                     whileTap={{ scale: 0.97 }}
                   >
                     <button
-                      className={`relative w-full h-40 sm:h-48 rounded-3xl overflow-hidden bg-gradient-to-br ${cat.gradient} shadow-lg hover:shadow-xl transition-shadow group cursor-pointer`}
-                      onClick={() => setSelectedCategory(cat.id)}
+                      className={`relative w-full h-40 sm:h-48 rounded-3xl overflow-hidden bg-gradient-to-br ${cat.gradient || "from-purple-500 to-fuchsia-600"} shadow-lg hover:shadow-xl transition-shadow group cursor-pointer`}
+                      onClick={() => setSelectedCategory(cat.name)}
                       data-testid={`button-category-${cat.id}`}
                     >
+                      {bgImage && (
+                        <img
+                          src={bgImage}
+                          alt={cat.name}
+                          className="absolute inset-0 w-full h-full object-cover opacity-50 group-hover:opacity-60 transition-opacity"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      )}
                       <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
                       <motion.div
                         className="absolute top-3 right-3 text-4xl sm:text-5xl opacity-30 group-hover:opacity-50 transition-opacity"
                         animate={{ y: [0, -5, 0], rotate: [0, 5, 0] }}
-                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: index * 0.3 }}
+                        transition={{ duration: 4, repeat: Infinity, ease: "easeInOut", delay: (index + 1) * 0.3 }}
                       >
-                        {cat.emoji}
+                        {cat.emoji || "🎁"}
                       </motion.div>
                       <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-5">
                         <div className="flex items-center gap-2 mb-1">
-                          <cat.icon className="h-4 w-4 sm:h-5 sm:w-5 text-white/90" />
-                          <span className="text-white font-bold text-base sm:text-lg">{cat.label}</span>
+                          <span className="text-white font-bold text-base sm:text-lg">{cat.name}</span>
                         </div>
-                        <p className="text-white/70 text-xs sm:text-sm">
-                          {cat.id === "all" ? `${count} deals available` : `${count} deal${count !== 1 ? "s" : ""}`}
-                        </p>
+                        <p className="text-white/70 text-xs sm:text-sm">{count} deal{count !== 1 ? "s" : ""}</p>
                       </div>
                       <div className="absolute top-3 left-3">
                         <div className="backdrop-blur-sm bg-white/15 rounded-full px-2.5 py-1 flex items-center gap-1">
                           <Sparkles className="h-3 w-3 text-white/90" />
-                          <span className="text-white text-[10px] font-semibold uppercase tracking-wider">
-                            {cat.id === "all" ? "Browse" : "Explore"}
-                          </span>
+                          <span className="text-white text-[10px] font-semibold uppercase tracking-wider">Explore</span>
                         </div>
                       </div>
                     </button>
@@ -505,14 +732,14 @@ export default function Deals() {
                   className="text-2xl font-extrabold bg-gradient-to-r from-primary via-violet-500 to-purple-600 bg-clip-text text-transparent"
                   data-testid="text-deals-title"
                 >
-                  {activeTab === "manage" ? "Manage Deals" : (
+                  {activeTab === "manage" ? "Manage Deals" : activeTab === "categories" ? "Manage Categories" : (
                     selectedCategory && selectedCategory !== "all"
-                      ? DEAL_CATEGORIES.find(c => c.id === selectedCategory)?.label || "Deals"
+                      ? selectedCategory
                       : "All Deals"
                   )}
                 </motion.h1>
               </div>
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 flex-wrap">
                 <TabsList className="bg-muted/50 backdrop-blur-sm" data-testid="tabs-deals">
                   <TabsTrigger value="browse" data-testid="tab-browse">
                     <ShoppingBag className="h-3.5 w-3.5 mr-1" />
@@ -520,13 +747,23 @@ export default function Deals() {
                   </TabsTrigger>
                   <TabsTrigger value="manage" data-testid="tab-manage">
                     <Pencil className="h-3.5 w-3.5 mr-1" />
-                    Manage
+                    Deals
+                  </TabsTrigger>
+                  <TabsTrigger value="categories" data-testid="tab-categories">
+                    <FolderOpen className="h-3.5 w-3.5 mr-1" />
+                    Categories
                   </TabsTrigger>
                 </TabsList>
                 {activeTab === "manage" && (
                   <Button onClick={openCreate} size="sm" className="bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-600/90 shadow-md" data-testid="button-add-deal">
                     <Plus className="h-4 w-4 mr-1" />
                     Add Deal
+                  </Button>
+                )}
+                {activeTab === "categories" && (
+                  <Button onClick={openCreateCategory} size="sm" className="bg-gradient-to-r from-primary to-violet-600 hover:from-primary/90 hover:to-violet-600/90 shadow-md" data-testid="button-add-category">
+                    <Plus className="h-4 w-4 mr-1" />
+                    Add Category
                   </Button>
                 )}
               </div>
@@ -545,6 +782,8 @@ export default function Deals() {
                 savedDeals={savedDeals}
                 toggleSaved={toggleSaved}
                 featuredDeal={featuredDeal}
+                findCatInfo={findCatInfo}
+                categories={categories}
               />
             </TabsContent>
 
@@ -568,6 +807,19 @@ export default function Deals() {
                 onEdit={openEdit}
                 onDelete={setDeleteConfirmId}
                 onToggleActive={(deal) => updateMutation.mutate({ id: deal.id, isActive: !deal.isActive })}
+                categories={categories}
+              />
+            </TabsContent>
+
+            <TabsContent value="categories" className="mt-4 space-y-4">
+              <CategoryManagement
+                categories={allCategories}
+                isLoading={allCatsLoading}
+                onEdit={openEditCategory}
+                onDelete={setDeleteCatConfirmId}
+                onToggleActive={(cat) => updateCatMutation.mutate({ id: cat.id, isActive: !cat.isActive })}
+                onSeedDefaults={() => seedDefaultsMutation.mutate()}
+                isSeedingDefaults={seedDefaultsMutation.isPending}
               />
             </TabsContent>
           </Tabs>
@@ -590,9 +842,7 @@ export default function Deals() {
                 className="text-2xl font-extrabold bg-gradient-to-r from-primary via-violet-500 to-purple-600 bg-clip-text text-transparent"
                 data-testid="text-deals-title"
               >
-                {selectedCategory && selectedCategory !== "all"
-                  ? DEAL_CATEGORIES.find(c => c.id === selectedCategory)?.label || "Deals"
-                  : "All Deals"}
+                {selectedCategory && selectedCategory !== "all" ? selectedCategory : "All Deals"}
               </motion.h1>
             </div>
             <StickySearchBar searchQuery={searchQuery} setSearchQuery={setSearchQuery} />
@@ -607,6 +857,8 @@ export default function Deals() {
               savedDeals={savedDeals}
               toggleSaved={toggleSaved}
               featuredDeal={featuredDeal}
+              findCatInfo={findCatInfo}
+              categories={categories}
             />
           </>
         )}
@@ -666,14 +918,22 @@ export default function Deals() {
                   <SelectValue placeholder="Select category" />
                 </SelectTrigger>
                 <SelectContent>
-                  {DEAL_CATEGORIES.filter(c => c.id !== "all").map(cat => (
-                    <SelectItem key={cat.id} value={cat.id}>
+                  {categories.map(cat => (
+                    <SelectItem key={cat.id} value={cat.name}>
                       <span className="flex items-center gap-2">
-                        <span>{cat.emoji}</span>
-                        <span>{cat.label}</span>
+                        <span>{cat.emoji || "🎁"}</span>
+                        <span>{cat.name}</span>
                       </span>
                     </SelectItem>
                   ))}
+                  {categories.length === 0 && (
+                    <SelectItem value="Other">
+                      <span className="flex items-center gap-2">
+                        <span>🎁</span>
+                        <span>Other</span>
+                      </span>
+                    </SelectItem>
+                  )}
                 </SelectContent>
               </Select>
             </div>
@@ -786,6 +1046,115 @@ export default function Deals() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={catDialogOpen} onOpenChange={(open) => { if (!open) closeCatDialog(); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{editingCategory ? "Edit Category" : "Add New Category"}</DialogTitle>
+            <DialogDescription>
+              {editingCategory ? "Update category details." : "Create a new deal category for organising offers."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-3 gap-3">
+              <div className="col-span-2 space-y-1.5">
+                <Label>Name *</Label>
+                <Input
+                  placeholder="e.g. Electronics"
+                  value={catFormName}
+                  onChange={(e) => setCatFormName(e.target.value)}
+                  data-testid="input-cat-name"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label>Emoji</Label>
+                <Input
+                  placeholder="🎁"
+                  value={catFormEmoji}
+                  onChange={(e) => setCatFormEmoji(e.target.value)}
+                  data-testid="input-cat-emoji"
+                  className="text-center text-lg"
+                />
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Colour Theme</Label>
+              <Select value={catFormGradient} onValueChange={setCatFormGradient}>
+                <SelectTrigger data-testid="select-cat-gradient">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {GRADIENT_OPTIONS.map(g => (
+                    <SelectItem key={g.value} value={g.value}>
+                      <span className="flex items-center gap-2">
+                        <span className={`inline-block w-4 h-4 rounded-full bg-gradient-to-r ${g.value}`} />
+                        <span>{g.label}</span>
+                      </span>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <div className={`mt-2 h-12 rounded-xl bg-gradient-to-r ${catFormGradient} flex items-center justify-center`}>
+                <span className="text-white text-lg">{catFormEmoji} {catFormName || "Preview"}</span>
+              </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Image URL (optional)</Label>
+              <Input
+                placeholder="https://... (background image for category card)"
+                value={catFormImageUrl}
+                onChange={(e) => setCatFormImageUrl(e.target.value)}
+                data-testid="input-cat-image-url"
+              />
+              {isSafeUrl(catFormImageUrl) && (
+                <div className="relative mt-2 rounded-2xl overflow-hidden border border-border/50 h-24">
+                  <img
+                    src={catFormImageUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                  />
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="absolute top-1 right-1 h-6 w-6 bg-background/80"
+                    onClick={() => setCatFormImageUrl("")}
+                    data-testid="button-clear-cat-image"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
+            </div>
+            <div className="space-y-1.5">
+              <Label>Sort Order</Label>
+              <Input
+                type="number"
+                min={0}
+                placeholder="0"
+                value={catFormSortOrder}
+                onChange={(e) => setCatFormSortOrder(e.target.value)}
+                data-testid="input-cat-sort-order"
+              />
+              <p className="text-[10px] text-muted-foreground">Lower numbers appear first</p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={closeCatDialog} data-testid="button-cancel-category">
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSaveCategory}
+              disabled={createCatMutation.isPending || updateCatMutation.isPending}
+              className="bg-gradient-to-r from-primary to-violet-600"
+              data-testid="button-save-category"
+            >
+              {(createCatMutation.isPending || updateCatMutation.isPending) && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              {editingCategory ? "Update" : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={deleteConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteConfirmId(null); }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
@@ -805,6 +1174,31 @@ export default function Deals() {
               data-testid="button-confirm-delete"
             >
               {deleteMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Delete
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteCatConfirmId !== null} onOpenChange={(open) => { if (!open) setDeleteCatConfirmId(null); }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Delete Category</DialogTitle>
+            <DialogDescription>
+              Are you sure? Deals in this category will be moved to "Other".
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setDeleteCatConfirmId(null)} data-testid="button-cancel-delete-cat">
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteCatConfirmId && deleteCatMutation.mutate(deleteCatConfirmId)}
+              disabled={deleteCatMutation.isPending}
+              data-testid="button-confirm-delete-cat"
+            >
+              {deleteCatMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Delete
             </Button>
           </DialogFooter>
@@ -871,7 +1265,153 @@ function FilterChips({ activeFilter, setActiveFilter }: { activeFilter: string; 
   );
 }
 
-function PremiumDealsGrid({ codes, isLoading, copiedCode, onCopy, flippedCard, setFlippedCard, savedDeals, toggleSaved, featuredDeal }: {
+function CategoryManagement({ categories, isLoading, onEdit, onDelete, onToggleActive, onSeedDefaults, isSeedingDefaults }: {
+  categories: DealCategoryItem[];
+  isLoading: boolean;
+  onEdit: (cat: DealCategoryItem) => void;
+  onDelete: (id: number) => void;
+  onToggleActive: (cat: DealCategoryItem) => void;
+  onSeedDefaults: () => void;
+  isSeedingDefaults: boolean;
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const hasDefaults = categories.some(c => c.isDefault);
+
+  return (
+    <div className="space-y-4">
+      {!hasDefaults && (
+        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+          <Card className="border-dashed border-2 border-primary/30 bg-primary/5 rounded-2xl">
+            <CardContent className="p-5 flex items-center justify-between gap-4 flex-wrap">
+              <div className="space-y-1">
+                <h3 className="font-semibold text-sm flex items-center gap-2">
+                  <Sparkles className="h-4 w-4 text-primary" />
+                  Quick Start
+                </h3>
+                <p className="text-xs text-muted-foreground">
+                  Seed default categories (Food, Fitness, Equipment, Beauty, etc.) with AI-generated images to get started instantly.
+                </p>
+              </div>
+              <Button
+                onClick={onSeedDefaults}
+                disabled={isSeedingDefaults}
+                size="sm"
+                className="bg-gradient-to-r from-primary to-violet-600 shadow-md"
+                data-testid="button-seed-defaults"
+              >
+                {isSeedingDefaults ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sparkles className="h-4 w-4 mr-1" />}
+                Seed Defaults
+              </Button>
+            </CardContent>
+          </Card>
+        </motion.div>
+      )}
+
+      {categories.length === 0 && hasDefaults === false && (
+        <Card className="border-dashed border-2 rounded-3xl">
+          <CardContent className="flex flex-col items-center justify-center py-16 text-center">
+            <FolderOpen className="h-12 w-12 text-muted-foreground/40 mb-3" />
+            <h3 className="text-lg font-semibold">No Categories</h3>
+            <p className="text-sm text-muted-foreground mt-1">
+              Create categories to organise your deals, or seed defaults above.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
+      <div className="space-y-2">
+        {categories.map((cat, index) => {
+          const bgImage = getCategoryImage(cat);
+          return (
+            <motion.div
+              key={cat.id}
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: index * 0.03 }}
+            >
+              <Card className={`rounded-2xl border border-border/30 overflow-hidden ${!cat.isActive ? "opacity-50" : ""}`} data-testid={`card-category-${cat.id}`}>
+                <CardContent className="p-3 sm:p-4">
+                  <div className="flex items-center gap-3">
+                    <div className="flex items-center text-muted-foreground/40">
+                      <GripVertical className="h-4 w-4" />
+                    </div>
+                    <div className={`w-12 h-12 rounded-xl flex-shrink-0 bg-gradient-to-br ${cat.gradient || "from-purple-500 to-fuchsia-600"} flex items-center justify-center shadow-sm overflow-hidden relative`}>
+                      {bgImage && (
+                        <img
+                          src={bgImage}
+                          alt={cat.name}
+                          className="absolute inset-0 w-full h-full object-cover opacity-60"
+                          onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                        />
+                      )}
+                      <span className="text-xl relative z-10">{cat.emoji || "🎁"}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="font-semibold text-sm">{cat.name}</span>
+                        {cat.isDefault && (
+                          <Badge variant="outline" className="text-[9px] h-4 px-1.5 rounded-full text-primary border-primary/30">Default</Badge>
+                        )}
+                        {!cat.isActive && (
+                          <Badge variant="secondary" className="text-[10px]">
+                            <EyeOff className="h-3 w-3 mr-0.5" />Hidden
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">
+                        <span>Order: {cat.sortOrder ?? 0}</span>
+                        {cat.clubId && <span>• Club-specific</span>}
+                        {isSafeUrl(cat.imageUrl) && (
+                          <span className="flex items-center gap-0.5">
+                            <ImageIcon className="h-2.5 w-2.5" />Custom image
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-xl" data-testid={`button-cat-menu-${cat.id}`}>
+                          <MoreVertical className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-40 rounded-xl">
+                        <DropdownMenuItem onClick={() => onEdit(cat)} data-testid={`button-edit-cat-${cat.id}`}>
+                          <Pencil className="h-3.5 w-3.5 mr-2" />Edit
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => onToggleActive(cat)} data-testid={`button-toggle-cat-${cat.id}`}>
+                          {cat.isActive ? <EyeOff className="h-3.5 w-3.5 mr-2" /> : <Eye className="h-3.5 w-3.5 mr-2" />}
+                          {cat.isActive ? "Hide" : "Show"}
+                        </DropdownMenuItem>
+                        {!cat.isDefault && (
+                          <DropdownMenuItem
+                            onClick={() => onDelete(cat.id)}
+                            className="text-red-600"
+                            data-testid={`button-delete-cat-${cat.id}`}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" />Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function PremiumDealsGrid({ codes, isLoading, copiedCode, onCopy, flippedCard, setFlippedCard, savedDeals, toggleSaved, featuredDeal, findCatInfo, categories }: {
   codes: MemberDeal[];
   isLoading: boolean;
   copiedCode: number | null;
@@ -881,6 +1421,8 @@ function PremiumDealsGrid({ codes, isLoading, copiedCode, onCopy, flippedCard, s
   savedDeals: Set<number>;
   toggleSaved: (id: number) => void;
   featuredDeal: MemberDeal | null;
+  findCatInfo: (name: string | null) => DealCategoryItem;
+  categories: DealCategoryItem[];
 }) {
   if (isLoading) {
     return (
@@ -929,6 +1471,7 @@ function PremiumDealsGrid({ codes, isLoading, copiedCode, onCopy, flippedCard, s
             onCopy={onCopy}
             isSaved={savedDeals.has(featuredDeal.codeId)}
             onToggleSave={() => toggleSaved(featuredDeal.codeId)}
+            catInfo={findCatInfo(featuredDeal.category)}
           />
         </motion.div>
       )}
@@ -952,6 +1495,7 @@ function PremiumDealsGrid({ codes, isLoading, copiedCode, onCopy, flippedCard, s
                 onFlip={() => setFlippedCard(flippedCard === deal.codeId ? null : deal.codeId)}
                 isSaved={savedDeals.has(deal.codeId)}
                 onToggleSave={() => toggleSaved(deal.codeId)}
+                catInfo={findCatInfo(deal.category)}
               />
             </motion.div>
           ))}
@@ -961,19 +1505,19 @@ function PremiumDealsGrid({ codes, isLoading, copiedCode, onCopy, flippedCard, s
   );
 }
 
-function FeaturedDealCard({ deal, copiedCode, onCopy, isSaved, onToggleSave }: {
+function FeaturedDealCard({ deal, copiedCode, onCopy, isSaved, onToggleSave, catInfo }: {
   deal: MemberDeal;
   copiedCode: number | null;
   onCopy: (code: string, id: number) => void;
   isSaved: boolean;
   onToggleSave: () => void;
+  catInfo: DealCategoryItem;
 }) {
   const isExpired = deal.validUntil && isPast(new Date(deal.validUntil));
-  const catInfo = DEAL_CATEGORIES.find(c => c.id === (deal.category || "other")) || DEAL_CATEGORIES[DEAL_CATEGORIES.length - 1];
 
   return (
     <Card className="overflow-hidden rounded-3xl border-0 shadow-xl relative group" data-testid={`card-featured-deal-${deal.codeId}`}>
-      <div className={`absolute inset-0 bg-gradient-to-br ${catInfo.gradient} opacity-90`} />
+      <div className={`absolute inset-0 bg-gradient-to-br ${catInfo.gradient || "from-purple-500 to-fuchsia-600"} opacity-90`} />
       <div className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
       {isSafeUrl(deal.imageUrl) && (
         <div className="absolute inset-0">
@@ -1071,7 +1615,7 @@ function FeaturedDealCard({ deal, copiedCode, onCopy, isSaved, onToggleSave }: {
   );
 }
 
-function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSaved, onToggleSave }: {
+function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSaved, onToggleSave, catInfo }: {
   deal: MemberDeal;
   copiedCode: number | null;
   onCopy: (code: string, id: number) => void;
@@ -1079,9 +1623,9 @@ function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSave
   onFlip: () => void;
   isSaved: boolean;
   onToggleSave: () => void;
+  catInfo: DealCategoryItem;
 }) {
   const isExpired = deal.validUntil && isPast(new Date(deal.validUntil));
-  const catInfo = DEAL_CATEGORIES.find(c => c.id === (deal.category || "other")) || DEAL_CATEGORIES[DEAL_CATEGORIES.length - 1];
   const daysLeft = deal.validUntil && !isExpired ? differenceInDays(new Date(deal.validUntil), new Date()) : null;
 
   return (
@@ -1113,7 +1657,7 @@ function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSave
                   <motion.div
                     initial={{ scale: 0 }}
                     animate={{ scale: 1 }}
-                    className={`absolute top-3 right-3 bg-gradient-to-r ${catInfo.gradient} text-white rounded-2xl px-3 py-1.5 text-sm font-black shadow-lg`}
+                    className={`absolute top-3 right-3 bg-gradient-to-r ${catInfo.gradient || "from-purple-500 to-fuchsia-600"} text-white rounded-2xl px-3 py-1.5 text-sm font-black shadow-lg`}
                   >
                     {deal.discountPercent}% OFF
                   </motion.div>
@@ -1130,9 +1674,9 @@ function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSave
             )}
 
             {!isSafeUrl(deal.imageUrl) && (
-              <div className={`relative h-20 bg-gradient-to-br ${catInfo.gradient} overflow-hidden`}>
-                <div className="absolute inset-0 flex items-center justify-center opacity-20 text-white">
-                  <catInfo.icon className="h-16 w-16" />
+              <div className={`relative h-20 bg-gradient-to-br ${catInfo.gradient || "from-purple-500 to-fuchsia-600"} overflow-hidden`}>
+                <div className="absolute inset-0 flex items-center justify-center opacity-30 text-white text-4xl">
+                  {catInfo.emoji || "🎁"}
                 </div>
                 {deal.discountPercent && (
                   <motion.div
@@ -1166,7 +1710,7 @@ function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSave
                       {deal.clubName}
                     </Badge>
                     <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 rounded-full">
-                      {catInfo.emoji} {catInfo.label}
+                      {catInfo.emoji || "🎁"} {catInfo.name}
                     </Badge>
                   </div>
                 </div>
@@ -1257,7 +1801,7 @@ function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSave
           style={{ backfaceVisibility: "hidden", transform: "rotateY(180deg)" }}
         >
           <Card className="overflow-hidden rounded-3xl border border-border/30 bg-card/95 backdrop-blur-xl shadow-lg h-full" data-testid={`card-deal-back-${deal.codeId}`}>
-            <div className={`h-2 bg-gradient-to-r ${catInfo.gradient}`} />
+            <div className={`h-2 bg-gradient-to-r ${catInfo.gradient || "from-purple-500 to-fuchsia-600"}`} />
             <CardContent className="p-5 space-y-4">
               <div className="flex items-start justify-between">
                 <div>
@@ -1291,7 +1835,7 @@ function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSave
                 </div>
                 <div className="flex items-center gap-2 text-muted-foreground">
                   <Tag className="h-3.5 w-3.5" />
-                  <span>{catInfo.emoji} {catInfo.label}</span>
+                  <span>{catInfo.emoji || "🎁"} {catInfo.name}</span>
                 </div>
                 {deal.validUntil && (
                   <div className="flex items-center gap-2 text-muted-foreground">
@@ -1338,13 +1882,19 @@ function FlippableDealCard({ deal, copiedCode, onCopy, isFlipped, onFlip, isSave
   );
 }
 
-function AdminDealsView({ deals, isLoading, onEdit, onDelete, onToggleActive }: {
+function AdminDealsView({ deals, isLoading, onEdit, onDelete, onToggleActive, categories }: {
   deals: DiscountCodeItem[];
   isLoading: boolean;
   onEdit: (deal: DiscountCodeItem) => void;
   onDelete: (id: number) => void;
   onToggleActive: (deal: DiscountCodeItem) => void;
+  categories: DealCategoryItem[];
 }) {
+  const findCat = useCallback((name: string | null) => {
+    const n = name || "Other";
+    return categories.find(c => c.name === n) || { id: 0, name: n, emoji: "🎁", gradient: "from-purple-500 to-fuchsia-600", imageUrl: null, clubId: null, sortOrder: 99, isDefault: false, isActive: true, createdAt: "" };
+  }, [categories]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -1373,7 +1923,7 @@ function AdminDealsView({ deals, isLoading, onEdit, onDelete, onToggleActive }: 
         const isExpired = deal.validUntil && isPast(new Date(deal.validUntil));
         const assignedTo = deal.assignments?.filter(a => a.appliesToAll) || [];
         const isGlobal = assignedTo.length > 0;
-        const catInfo = DEAL_CATEGORIES.find(c => c.id === (deal.category || "other")) || DEAL_CATEGORIES[DEAL_CATEGORIES.length - 1];
+        const catInfo = findCat(deal.category);
         return (
           <motion.div
             key={deal.id}
@@ -1397,8 +1947,8 @@ function AdminDealsView({ deals, isLoading, onEdit, onDelete, onToggleActive }: 
                       />
                     </div>
                   ) : (
-                    <div className={`w-14 h-14 rounded-xl flex-shrink-0 bg-gradient-to-br ${catInfo.gradient} flex items-center justify-center shadow-sm`}>
-                      <catInfo.icon className="h-6 w-6 text-white/80" />
+                    <div className={`w-14 h-14 rounded-xl flex-shrink-0 bg-gradient-to-br ${catInfo.gradient || "from-purple-500 to-fuchsia-600"} flex items-center justify-center shadow-sm`}>
+                      <span className="text-xl">{catInfo.emoji || "🎁"}</span>
                     </div>
                   )}
                   <div className="flex-1 min-w-0">
@@ -1408,7 +1958,7 @@ function AdminDealsView({ deals, isLoading, onEdit, onDelete, onToggleActive }: 
                         <Badge className="bg-gradient-to-r from-primary to-violet-600 text-white border-0 text-[10px]">{deal.discountPercent}% OFF</Badge>
                       )}
                       <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 rounded-full">
-                        {catInfo.emoji} {catInfo.label}
+                        {catInfo.emoji || "🎁"} {catInfo.name}
                       </Badge>
                       {!deal.isActive && (
                         <Badge variant="secondary" className="text-[10px]">

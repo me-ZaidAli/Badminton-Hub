@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches, teamEvents, teamEventSignups } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, dealCategories, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches, teamEvents, teamEventSignups } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -16630,6 +16630,191 @@ export async function registerRoutes(
   });
 
   // === DISCOUNT CODES ===
+
+  // ==================== DEAL CATEGORIES ====================
+
+  // GET /api/deal-categories - Get all active categories (global defaults + club-scoped)
+  app.get("/api/deal-categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const cats = await db.select().from(dealCategories)
+        .where(eq(dealCategories.isActive, true))
+        .orderBy(asc(dealCategories.sortOrder), asc(dealCategories.name));
+      res.json(cats);
+    } catch (err: any) {
+      console.error("Error fetching deal categories:", err);
+      res.status(500).json({ message: "Failed to fetch deal categories" });
+    }
+  });
+
+  // GET /api/deal-categories/all - Get ALL categories including inactive (admin)
+  app.get("/api/deal-categories/all", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") {
+        const adminClubsList = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+          .where(and(
+            eq(playerProfiles.userId, req.user!.id),
+            eq(playerProfiles.membershipStatus, "APPROVED"),
+            inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])
+          ));
+        if (adminClubsList.length === 0) return res.sendStatus(403);
+      }
+      const cats = await db.select().from(dealCategories)
+        .orderBy(asc(dealCategories.sortOrder), asc(dealCategories.name));
+      res.json(cats);
+    } catch (err: any) {
+      console.error("Error fetching all deal categories:", err);
+      res.status(500).json({ message: "Failed to fetch deal categories" });
+    }
+  });
+
+  // POST /api/deal-categories - Create a new category (admin)
+  app.post("/api/deal-categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const isGlobalAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isGlobalAdmin) {
+        const allowed = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])))
+          .limit(1);
+        if (allowed.length === 0) return res.sendStatus(403);
+      }
+
+      const body = z.object({
+        name: z.string().min(1).max(50),
+        emoji: z.string().max(10).optional(),
+        gradient: z.string().max(100).optional(),
+        imageUrl: z.string().optional(),
+        clubId: z.number().optional(),
+        sortOrder: z.number().int().optional(),
+      }).parse(req.body);
+
+      const [newCat] = await db.insert(dealCategories).values({
+        name: body.name,
+        emoji: body.emoji || "🎁",
+        gradient: body.gradient || "from-purple-500 to-fuchsia-600",
+        imageUrl: body.imageUrl || null,
+        clubId: body.clubId || null,
+        sortOrder: body.sortOrder ?? 99,
+        isDefault: false,
+      }).returning();
+
+      res.json(newCat);
+    } catch (err: any) {
+      console.error("Error creating deal category:", err);
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to create deal category" });
+    }
+  });
+
+  // PATCH /api/deal-categories/:id - Update a category (admin)
+  app.patch("/api/deal-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [existing] = await db.select().from(dealCategories).where(eq(dealCategories.id, catId));
+      if (!existing) return res.status(404).json({ message: "Category not found" });
+
+      const isGlobalAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isGlobalAdmin) {
+        if (existing.clubId) {
+          const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", existing.clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else {
+          return res.sendStatus(403);
+        }
+      }
+
+      const body = z.object({
+        name: z.string().min(1).max(50).optional(),
+        emoji: z.string().max(10).optional(),
+        gradient: z.string().max(100).optional(),
+        imageUrl: z.string().optional().nullable(),
+        sortOrder: z.number().int().optional(),
+        isActive: z.boolean().optional(),
+      }).parse(req.body);
+
+      const updateData: any = {};
+      if (body.name !== undefined) updateData.name = body.name;
+      if (body.emoji !== undefined) updateData.emoji = body.emoji;
+      if (body.gradient !== undefined) updateData.gradient = body.gradient;
+      if (body.imageUrl !== undefined) updateData.imageUrl = body.imageUrl;
+      if (body.sortOrder !== undefined) updateData.sortOrder = body.sortOrder;
+      if (body.isActive !== undefined) updateData.isActive = body.isActive;
+
+      const [updated] = await db.update(dealCategories).set(updateData).where(eq(dealCategories.id, catId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating deal category:", err);
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      res.status(500).json({ message: err.message || "Failed to update deal category" });
+    }
+  });
+
+  // DELETE /api/deal-categories/:id - Delete a category (admin)
+  app.delete("/api/deal-categories/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [existing] = await db.select().from(dealCategories).where(eq(dealCategories.id, catId));
+      if (!existing) return res.status(404).json({ message: "Category not found" });
+
+      const isGlobalAdmin = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (!isGlobalAdmin) {
+        if (existing.clubId) {
+          const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", existing.clubId);
+          if (!allowed) return res.sendStatus(403);
+        } else {
+          return res.sendStatus(403);
+        }
+      }
+
+      if (existing.isDefault) {
+        return res.status(400).json({ message: "Cannot delete a default category. Deactivate it instead." });
+      }
+
+      await db.update(discountCodes).set({ category: "Other" }).where(eq(discountCodes.category, existing.name));
+      await db.delete(dealCategories).where(eq(dealCategories.id, catId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting deal category:", err);
+      res.status(500).json({ message: err.message || "Failed to delete deal category" });
+    }
+  });
+
+  // POST /api/deal-categories/seed-defaults - Seed default categories (admin)
+  app.post("/api/deal-categories/seed-defaults", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const existing = await db.select({ id: dealCategories.id }).from(dealCategories).where(eq(dealCategories.isDefault, true)).limit(1);
+      if (existing.length > 0) {
+        return res.json({ message: "Defaults already seeded", seeded: false });
+      }
+
+      const defaults = [
+        { name: "Food & Drink", emoji: "🍕", gradient: "from-orange-500 to-red-600", sortOrder: 1 },
+        { name: "Fitness", emoji: "💪", gradient: "from-emerald-500 to-teal-600", sortOrder: 2 },
+        { name: "Equipment", emoji: "🏸", gradient: "from-amber-500 to-orange-600", sortOrder: 3 },
+        { name: "Services", emoji: "🔧", gradient: "from-blue-500 to-cyan-600", sortOrder: 4 },
+        { name: "Beauty", emoji: "💄", gradient: "from-pink-500 to-rose-600", sortOrder: 5 },
+        { name: "Wellness", emoji: "🧘", gradient: "from-violet-500 to-purple-600", sortOrder: 6 },
+        { name: "Fashion", emoji: "👕", gradient: "from-indigo-500 to-violet-600", sortOrder: 7 },
+        { name: "Travel", emoji: "✈️", gradient: "from-sky-500 to-blue-600", sortOrder: 8 },
+        { name: "Other", emoji: "🎁", gradient: "from-purple-500 to-fuchsia-600", sortOrder: 99 },
+      ];
+
+      const results = await db.insert(dealCategories).values(
+        defaults.map(d => ({ ...d, isDefault: true, clubId: null }))
+      ).returning();
+
+      res.json({ message: "Default categories seeded", seeded: true, categories: results });
+    } catch (err: any) {
+      console.error("Error seeding deal categories:", err);
+      res.status(500).json({ message: err.message || "Failed to seed default categories" });
+    }
+  });
 
   // GET /api/clubs/:clubId/discount-codes - List discount codes for a club (admin)
   app.get("/api/clubs/:clubId/discount-codes", async (req, res) => {
