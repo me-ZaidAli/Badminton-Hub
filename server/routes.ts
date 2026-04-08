@@ -5040,7 +5040,7 @@ export async function registerRoutes(
       const existingMatches = await storage.getSessionMatches(match.sessionId);
       const busyPlayerIds = new Set<number>();
       existingMatches
-        .filter(m => m.status === "LIVE")
+        .filter(m => m.status === "LIVE" || m.status === "QUEUED")
         .forEach(m => {
           if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
           if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
@@ -5208,7 +5208,7 @@ export async function registerRoutes(
 
       const busyPlayerIds = new Set<number>();
       existingMatches
-        .filter(m => m.status === "LIVE")
+        .filter(m => m.status === "LIVE" || m.status === "QUEUED")
         .forEach(m => {
           if (m.teamAPlayer1Id) busyPlayerIds.add(m.teamAPlayer1Id);
           if (m.teamAPlayer2Id) busyPlayerIds.add(m.teamAPlayer2Id);
