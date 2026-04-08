@@ -119,12 +119,18 @@ export function useSwapPlayer() {
         body: JSON.stringify({ position, newPlayerId }),
         credentials: "include",
       });
-      if (!res.ok) throw new Error("Failed to swap player");
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || "Failed to swap player");
+      }
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
       toast({ title: "Player Swapped", description: "Match lineup updated." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Cannot Swap Player", description: error.message, variant: "destructive" });
     },
   });
 }
