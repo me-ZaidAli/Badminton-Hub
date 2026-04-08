@@ -1152,6 +1152,7 @@ export const discountCodes = pgTable("discount_codes", {
   shopName: text("shop_name"),
   shopUrl: text("shop_url"),
   imageUrl: text("image_url"),
+  category: text("category").default("other"),
   validUntil: timestamp("valid_until"),
   isActive: boolean("is_active").default(true).notNull(),
   createdBy: integer("created_by").references(() => users.id),

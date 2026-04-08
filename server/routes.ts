@@ -16675,6 +16675,7 @@ export async function registerRoutes(
         shopName: z.string().optional(),
         shopUrl: z.string().optional(),
         imageUrl: z.string().optional(),
+        category: z.string().optional(),
         validUntil: z.string().optional(),
       }).parse(req.body);
 
@@ -16686,6 +16687,7 @@ export async function registerRoutes(
         shopName: body.shopName || null,
         shopUrl: body.shopUrl || null,
         imageUrl: body.imageUrl || null,
+        category: body.category || "other",
         validUntil: body.validUntil ? new Date(body.validUntil) : null,
         createdBy: req.user!.id,
       }).returning();
@@ -16716,6 +16718,7 @@ export async function registerRoutes(
         shopName: z.string().optional().nullable(),
         shopUrl: z.string().optional().nullable(),
         imageUrl: z.string().optional().nullable(),
+        category: z.string().optional().nullable(),
         validUntil: z.string().optional().nullable(),
         isActive: z.boolean().optional(),
       }).parse(req.body);
@@ -16727,6 +16730,7 @@ export async function registerRoutes(
       if (body.shopName !== undefined) updateData.shopName = body.shopName;
       if (body.shopUrl !== undefined) updateData.shopUrl = body.shopUrl;
       if (body.imageUrl !== undefined) updateData.imageUrl = body.imageUrl;
+      if (body.category !== undefined) updateData.category = body.category || "other";
       if (body.validUntil !== undefined) updateData.validUntil = body.validUntil ? new Date(body.validUntil) : null;
       if (body.isActive !== undefined) updateData.isActive = body.isActive;
 
@@ -16814,6 +16818,7 @@ export async function registerRoutes(
         shopName: discountCodes.shopName,
         shopUrl: discountCodes.shopUrl,
         imageUrl: discountCodes.imageUrl,
+        category: discountCodes.category,
         validUntil: discountCodes.validUntil,
         clubId: discountCodes.clubId,
         clubName: clubs.name,
@@ -16839,6 +16844,7 @@ export async function registerRoutes(
           shopName: discountCodes.shopName,
           shopUrl: discountCodes.shopUrl,
           imageUrl: discountCodes.imageUrl,
+          category: discountCodes.category,
           validUntil: discountCodes.validUntil,
           clubId: discountCodes.clubId,
           clubName: clubs.name,
