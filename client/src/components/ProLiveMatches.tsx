@@ -506,8 +506,8 @@ function CourtView({ match, sessionMatchCounts, achievements, isOrganiser, avail
   const courtColor = getCourtColor(match.courtNumber || 1);
   const canSwap = !!isOrganiser && !!onSwapPlayer;
 
-  const labelCls = "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md bg-slate-900/80 backdrop-blur-sm border text-sm sm:text-base font-bold truncate block";
-  const fontCls = "text-sm sm:text-base font-bold";
+  const labelCls = "px-1 py-0.5 sm:px-1.5 rounded-md bg-slate-900/80 backdrop-blur-sm border text-[10px] sm:text-xs font-bold truncate block";
+  const fontCls = "text-[10px] sm:text-xs font-bold";
   return (
     <div className="relative w-full aspect-[2/1.2] pro-court-aspect rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-court-view-${match.id}`}>
       <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/40 via-emerald-800/30 to-emerald-900/40" />
@@ -609,20 +609,20 @@ function CourtCard({
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-white/[0.02] overflow-hidden">
-      <div className="flex items-center gap-2 px-4 pt-3 pb-2 court-card-header">
-        <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: courtColor.ring }} />
-        <span className="text-xs font-bold text-gray-500 dark:text-white/60 uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 px-3 pt-2 pb-1 court-card-header">
+        <span className="w-2 h-2 rounded-full" style={{ backgroundColor: courtColor.ring }} />
+        <span className="text-[10px] font-bold text-gray-500 dark:text-white/60 uppercase tracking-wider">
           {match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court"}
         </span>
         <div className="flex-1" />
         {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
-      <div className="px-3 pb-1 court-card-court-wrap">
+      <div className="px-2 pb-1 court-card-court-wrap">
         <CourtView match={match} sessionMatchCounts={sessionMatchCounts} achievements={achievements}
           isOrganiser={isOrganiser} availablePlayers={availablePlayers} onSwapPlayer={onSwapPlayer} busyPlayerIds={busyPlayerIds} />
       </div>
       {isOrganiser && (
-        <div className="px-4 pb-2 court-card-controls">
+        <div className="px-3 pb-1.5 court-card-controls">
           <div className="flex items-center justify-center gap-3">
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
               <Target className="w-3 h-3 text-gray-400 dark:text-white/25" />
@@ -773,41 +773,41 @@ function InlineScorePanel({
   }
 
   return (
-    <div className="border-t border-gray-100 dark:border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
-      <p className="text-xs font-bold text-gray-500 dark:text-white/40 text-center uppercase tracking-wider">Scores</p>
-      <div className="flex items-center gap-3">
+    <div className="border-t border-gray-100 dark:border-white/[0.05] px-3 py-2.5 space-y-2" onClick={(e) => e.stopPropagation()}>
+      <p className="text-[10px] font-bold text-gray-500 dark:text-white/40 text-center uppercase tracking-wider">Scores</p>
+      <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
-          <label className="text-[10px] uppercase tracking-widest mb-1 block font-bold" style={{ color: courtColor.ring }}>Team A</label>
-          <div className="flex items-center gap-1.5">
-            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+          <label className="text-[9px] uppercase tracking-widest mb-0.5 block font-bold" style={{ color: courtColor.ring }}>Team A</label>
+          <div className="flex items-center gap-1">
+            <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1)))} data-testid={`pro-inline-a-minus-${match.id}`}>
-              <Minus className="w-4 h-4" />
+              <Minus className="w-3.5 h-3.5" />
             </button>
             <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
-              className="bg-gray-50 dark:bg-slate-800/80 text-gray-900 dark:text-white text-center text-2xl font-mono h-12 focus:ring-emerald-400/20"
+              className="bg-gray-50 dark:bg-slate-800/80 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:ring-emerald-400/20"
               style={{ fontFamily: "'Orbitron', monospace", borderColor: courtColor.ring + '30' }}
               placeholder="0" data-testid={`pro-inline-a-score-${match.id}`} />
-            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String((parseInt(scoreA) || 0) + 1))} data-testid={`pro-inline-a-plus-${match.id}`}>
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
-        <div className="text-gray-300 dark:text-white/15 font-bold text-sm mt-5">-</div>
+        <div className="text-gray-300 dark:text-white/15 font-bold text-xs mt-4">-</div>
         <div className="flex-1 min-w-0">
-          <label className="text-[10px] uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1 block font-bold">Team B</label>
-          <div className="flex items-center gap-1.5">
-            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+          <label className="text-[9px] uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-0.5 block font-bold">Team B</label>
+          <div className="flex items-center gap-1">
+            <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1)))} data-testid={`pro-inline-b-minus-${match.id}`}>
-              <Minus className="w-4 h-4" />
+              <Minus className="w-3.5 h-3.5" />
             </button>
             <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
-              className="bg-gray-50 dark:bg-slate-800/80 border-blue-500/20 text-gray-900 dark:text-white text-center text-2xl font-mono h-12 focus:border-blue-400/40 focus:ring-blue-400/20"
+              className="bg-gray-50 dark:bg-slate-800/80 border-blue-500/20 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:border-blue-400/40 focus:ring-blue-400/20"
               style={{ fontFamily: "'Orbitron', monospace" }}
               placeholder="0" data-testid={`pro-inline-b-score-${match.id}`} />
-            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreB(String((parseInt(scoreB) || 0) + 1))} data-testid={`pro-inline-b-plus-${match.id}`}>
-              <Plus className="w-4 h-4" />
+              <Plus className="w-3.5 h-3.5" />
             </button>
           </div>
         </div>
@@ -817,17 +817,17 @@ function InlineScorePanel({
       )}
       <div className="flex gap-2">
         {isOrganiser && onCancelMatch && (
-          <button className="px-3 py-2 text-xs font-medium rounded-full border border-red-500/20 text-red-400/80 bg-red-500/5 hover:bg-red-500/10 active:scale-95 transition-all duration-300"
+          <button className="px-2.5 py-1.5 text-[11px] font-medium rounded-full border border-red-500/20 text-red-400/80 bg-red-500/5 hover:bg-red-500/10 active:scale-95 transition-all duration-300"
             onClick={() => onCancelMatch(match.id)} data-testid={`pro-inline-cancel-${match.id}`}>
-            <XCircle className="w-3 h-3 mr-1 inline" />Cancel
+            <XCircle className="w-3 h-3 mr-0.5 inline" />Cancel
           </button>
         )}
-        <button className="flex-1 px-3 py-2.5 text-xs font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 animate-pulse active:scale-95 transition-all duration-300"
+        <button className="flex-1 px-2.5 py-1.5 text-[11px] font-semibold rounded-full bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20 animate-pulse active:scale-95 transition-all duration-300"
           style={{ animationDuration: '3s' }}
           onClick={handleSubmitScore}
           disabled={!scoreA || !scoreB || scoreA === scoreB || submitting}
           data-testid={`pro-inline-end-${match.id}`}>
-          <Trophy className="w-3 h-3 mr-1 inline" />
+          <Trophy className="w-3 h-3 mr-0.5 inline" />
           {isMultiSet ? `End Set ${currentSet}` : "End Match"}
         </button>
       </div>
@@ -847,7 +847,7 @@ function BroadcastTimer({ startedAt }: { startedAt: string }) {
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
   return (
-    <span className="font-mono text-3xl sm:text-4xl font-black tracking-tight text-white tabular-nums" style={{ textShadow: '0 0 15px rgba(255,255,255,0.3)' }}>
+    <span className="font-mono text-xl sm:text-2xl font-black tracking-tight text-white tabular-nums" style={{ textShadow: '0 0 15px rgba(255,255,255,0.3)' }}>
       {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
     </span>
   );
@@ -913,90 +913,90 @@ function BroadcastCard({
       <div className="relative" style={{ background: 'linear-gradient(135deg, #0c1a0c 0%, #0a1e1e 30%, #0d1a0d 60%, #0a1a10 100%)' }}>
         <div className="absolute inset-0 opacity-[0.06]" style={{ backgroundImage: 'repeating-linear-gradient(90deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px), repeating-linear-gradient(0deg, transparent, transparent 20px, rgba(255,255,255,0.03) 20px, rgba(255,255,255,0.03) 21px)' }} />
 
-        <div className="relative z-10 px-4 sm:px-6 py-3">
+        <div className="relative z-10 px-3 sm:px-4 py-2">
           <div className="flex items-start justify-between">
-            <div className="flex items-center gap-2 flex-1 min-w-0">
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0" style={{ backgroundColor: `${courtColor.ring}20`, border: `2px solid ${courtColor.ring}40`, color: courtColor.ring }}>
+            <div className="flex items-center gap-1.5 flex-1 min-w-0">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0" style={{ backgroundColor: `${courtColor.ring}20`, border: `2px solid ${courtColor.ring}40`, color: courtColor.ring }}>
                 A
               </div>
               <div className="min-w-0">
                 <div className="flex gap-0.5 mb-0.5">
                   {gameIndicatorsA.map((won, i) => (
-                    <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? courtColor.ring : 'rgba(255,255,255,0.08)' }} />
+                    <div key={i} className="w-4 h-1 rounded-sm transition-all" style={{ backgroundColor: won ? courtColor.ring : 'rgba(255,255,255,0.08)' }} />
                   ))}
                 </div>
-                <span className="text-base sm:text-lg font-black uppercase tracking-wide truncate block" style={{ color: courtColor.ring }} data-testid={`broadcast-team-a-${match.id}`}>{teamALabel}</span>
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wide truncate block" style={{ color: courtColor.ring }} data-testid={`broadcast-team-a-${match.id}`}>{teamALabel}</span>
                 <div className="flex flex-col">
                   <ClickablePlayerName player={match.teamAPlayer1 || null} matchId={match.id} position="teamAPlayer1Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamAPlayer1 ? sessionMatchCounts?.[match.teamAPlayer1.id] : undefined}
-                    className="text-sm sm:text-base font-bold truncate block" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
+                    className="text-[10px] sm:text-xs font-bold truncate block" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
                     style={{ color: `${courtColor.ring}cc` }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                   <ClickablePlayerName player={match.teamAPlayer2 || null} matchId={match.id} position="teamAPlayer2Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamAPlayer2 ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
-                    className="text-sm sm:text-base font-bold truncate block" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
+                    className="text-[10px] sm:text-xs font-bold truncate block" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
                     style={{ color: `${courtColor.ring}cc` }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                 </div>
               </div>
             </div>
 
-            <div className="flex flex-col items-center px-2 sm:px-4 shrink-0">
+            <div className="flex flex-col items-center px-1.5 sm:px-2 shrink-0">
               {match.startedAt ? <BroadcastTimer startedAt={match.startedAt} /> : (
-                <span className="font-mono text-3xl sm:text-4xl font-black text-white/30 tabular-nums">00:00</span>
+                <span className="font-mono text-xl sm:text-2xl font-black text-white/30 tabular-nums">00:00</span>
               )}
             </div>
 
-            <div className="flex items-center gap-2 flex-1 min-w-0 justify-end">
+            <div className="flex items-center gap-1.5 flex-1 min-w-0 justify-end">
               <div className="min-w-0 text-right">
                 <div className="flex gap-0.5 justify-end mb-0.5">
                   {gameIndicatorsB.map((won, i) => (
-                    <div key={i} className="w-5 h-1.5 rounded-sm transition-all" style={{ backgroundColor: won ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.08)' }} />
+                    <div key={i} className="w-4 h-1 rounded-sm transition-all" style={{ backgroundColor: won ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.08)' }} />
                   ))}
                 </div>
-                <span className="text-base sm:text-lg font-black uppercase tracking-wide truncate block text-blue-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
+                <span className="text-xs sm:text-sm font-black uppercase tracking-wide truncate block text-blue-400" data-testid={`broadcast-team-b-${match.id}`}>{teamBLabel}</span>
                 <div className="flex flex-col items-end">
                   <ClickablePlayerName player={match.teamBPlayer1 || null} matchId={match.id} position="teamBPlayer1Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamBPlayer1 ? sessionMatchCounts?.[match.teamBPlayer1.id] : undefined}
-                    className="text-sm sm:text-base font-bold text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+                    className="text-[10px] sm:text-xs font-bold text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                   <ClickablePlayerName player={match.teamBPlayer2 || null} matchId={match.id} position="teamBPlayer2Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamBPlayer2 ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
-                    className="text-sm sm:text-base font-bold text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+                    className="text-[10px] sm:text-xs font-bold text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                 </div>
               </div>
-              <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-blue-400/20 border-2 border-blue-400/40 text-blue-400">
+              <div className="w-6 h-6 sm:w-7 sm:h-7 rounded-full flex items-center justify-center text-[10px] font-black shrink-0 bg-blue-400/20 border-2 border-blue-400/40 text-blue-400">
                 B
               </div>
             </div>
           </div>
         </div>
 
-        <div className="relative z-10 px-4 sm:px-6 pb-4">
+        <div className="relative z-10 px-3 sm:px-4 pb-2.5">
           <div className="flex items-center justify-between">
             <div className="flex-1 flex items-center justify-start">
-              <span className="font-mono font-black tabular-nums leading-none text-5xl sm:text-7xl" style={{ color: courtColor.ring, textShadow: `0 0 30px ${courtColor.glow}, 0 4px 20px rgba(0,0,0,0.5)` }} data-testid={`broadcast-score-a-${match.id}`}>{scoreA}</span>
+              <span className="font-mono font-black tabular-nums leading-none text-3xl sm:text-5xl" style={{ color: courtColor.ring, textShadow: `0 0 20px ${courtColor.glow}, 0 2px 10px rgba(0,0,0,0.5)` }} data-testid={`broadcast-score-a-${match.id}`}>{scoreA}</span>
             </div>
 
-            <div className="flex flex-col items-center px-3 sm:px-5 shrink-0">
-              <div className="relative w-16 h-16 sm:w-20 sm:h-20 rounded-full border-[3px] flex flex-col items-center justify-center" style={{ borderColor: `${courtColor.ring}40`, background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.95) 0%, rgba(240,240,240,0.9) 100%)', boxShadow: `0 0 20px ${courtColor.ring}15, inset 0 2px 4px rgba(255,255,255,0.5)` }}>
-                <span className="text-[8px] sm:text-[10px] font-bold uppercase tracking-[0.15em] text-gray-500">Game</span>
-                <span className="text-2xl sm:text-3xl font-black text-gray-900 leading-none tabular-nums" data-testid={`broadcast-game-${match.id}`}>{isMultiSet ? currentSet : 1}</span>
+            <div className="flex flex-col items-center px-2 sm:px-3 shrink-0">
+              <div className="relative w-10 h-10 sm:w-14 sm:h-14 rounded-full border-2 flex flex-col items-center justify-center" style={{ borderColor: `${courtColor.ring}40`, background: 'radial-gradient(circle at 50% 30%, rgba(255,255,255,0.95) 0%, rgba(240,240,240,0.9) 100%)', boxShadow: `0 0 12px ${courtColor.ring}15, inset 0 1px 3px rgba(255,255,255,0.5)` }}>
+                <span className="text-[7px] sm:text-[8px] font-bold uppercase tracking-[0.1em] text-gray-500">Game</span>
+                <span className="text-lg sm:text-xl font-black text-gray-900 leading-none tabular-nums" data-testid={`broadcast-game-${match.id}`}>{isMultiSet ? currentSet : 1}</span>
               </div>
-              <div className="flex items-center gap-3 mt-1.5">
+              <div className="flex items-center gap-2 mt-1">
                 <div className="flex items-center">
-                  <svg width="8" height="10" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreA > scoreB ? courtColor.ring : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
+                  <svg width="6" height="8" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreA > scoreB ? courtColor.ring : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
                 </div>
-                <span className="text-[8px] font-bold text-white/20 uppercase tracking-widest">lead</span>
+                <span className="text-[7px] font-bold text-white/20 uppercase tracking-widest">lead</span>
                 <div className="flex items-center">
-                  <svg width="8" height="10" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreB > scoreA ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
+                  <svg width="6" height="8" viewBox="0 0 8 10" className="rotate-180" style={{ color: scoreB > scoreA ? 'rgb(96,165,250)' : 'rgba(255,255,255,0.1)' }}><path d="M0 10L4 0L8 10H0Z" fill="currentColor" /></svg>
                 </div>
               </div>
             </div>
 
             <div className="flex-1 flex items-center justify-end">
-              <span className="font-mono font-black tabular-nums leading-none text-5xl sm:text-7xl text-blue-400" style={{ textShadow: '0 0 30px rgba(96,165,250,0.4), 0 4px 20px rgba(0,0,0,0.5)' }} data-testid={`broadcast-score-b-${match.id}`}>{scoreB}</span>
+              <span className="font-mono font-black tabular-nums leading-none text-3xl sm:text-5xl text-blue-400" style={{ textShadow: '0 0 20px rgba(96,165,250,0.4), 0 2px 10px rgba(0,0,0,0.5)' }} data-testid={`broadcast-score-b-${match.id}`}>{scoreB}</span>
             </div>
           </div>
         </div>
@@ -1127,89 +1127,89 @@ function ScoreboardCard({
 
   return (
     <div className="rounded-xl border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-white/[0.02] overflow-hidden" data-testid={`pro-scoreboard-${match.id}`}>
-      <div className="flex items-center justify-between px-4 pt-3 pb-2">
-        <div className="flex items-center gap-2">
-          <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: courtColor.ring }} />
-          <span className="text-xs font-bold text-gray-500 dark:text-white/60 uppercase tracking-wider">{courtName}</span>
+      <div className="flex items-center justify-between px-3 pt-2 pb-1">
+        <div className="flex items-center gap-1.5">
+          <span className="w-2 h-2 rounded-full" style={{ backgroundColor: courtColor.ring }} />
+          <span className="text-[10px] font-bold text-gray-500 dark:text-white/60 uppercase tracking-wider">{courtName}</span>
         </div>
         {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
       </div>
 
-      <div className="flex items-start justify-between px-4 pb-2 gap-2">
+      <div className="flex items-start justify-between px-3 pb-1.5 gap-1.5">
         <div className="flex flex-col min-w-0 max-w-[45%]">
           <ClickablePlayerName player={match.teamAPlayer1 || null} matchId={match.id} position="teamAPlayer1Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamAPlayer1 ? sessionMatchCounts?.[match.teamAPlayer1.id] : undefined}
-            className="text-sm sm:text-base font-bold truncate" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
+            className="text-xs sm:text-sm font-bold truncate" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
             style={{ color: courtColor.ring }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
           <ClickablePlayerName player={match.teamAPlayer2 || null} matchId={match.id} position="teamAPlayer2Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamAPlayer2 ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
-            className="text-sm sm:text-base font-bold truncate" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
+            className="text-xs sm:text-sm font-bold truncate" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
             style={{ color: courtColor.ring }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
         </div>
         <div className="flex flex-col items-end min-w-0 max-w-[45%]">
           <ClickablePlayerName player={match.teamBPlayer1 || null} matchId={match.id} position="teamBPlayer1Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamBPlayer1 ? sessionMatchCounts?.[match.teamBPlayer1.id] : undefined}
-            className="text-sm sm:text-base font-bold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+            className="text-xs sm:text-sm font-bold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
           <ClickablePlayerName player={match.teamBPlayer2 || null} matchId={match.id} position="teamBPlayer2Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamBPlayer2 ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
-            className="text-sm sm:text-base font-bold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+            className="text-xs sm:text-sm font-bold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
         </div>
       </div>
 
-      <div className="mx-3 mb-3 relative rounded-xl overflow-hidden border border-white/10" style={{ background: 'linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%)' }}>
-        <div className="absolute inset-x-0 top-0 h-[3px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
+      <div className="mx-2 mb-2 relative rounded-lg overflow-hidden border border-white/10" style={{ background: 'linear-gradient(180deg, #1a1a2e 0%, #0f0f1a 100%)' }}>
+        <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-white/10 to-transparent" />
 
-        <div className="flex items-center justify-center py-4 px-3">
-          <div className="flex items-center gap-1.5">
+        <div className="flex items-center justify-center py-2.5 px-2">
+          <div className="flex items-center gap-1">
             {scoreADigits.map((d, i) => (
-              <div key={`a-${i}`} className="relative w-12 h-16 sm:w-16 sm:h-[5.5rem] rounded-lg overflow-hidden flex items-center justify-center" style={{ backgroundColor: courtColor.bg, border: `1px solid ${courtColor.ring}30` }}>
+              <div key={`a-${i}`} className="relative w-9 h-12 sm:w-11 sm:h-14 rounded-md overflow-hidden flex items-center justify-center" style={{ backgroundColor: courtColor.bg, border: `1px solid ${courtColor.ring}30` }}>
                 <div className="absolute inset-x-0 top-1/2 h-px bg-black/40" />
-                <span className={cn(digitStyle, "text-4xl sm:text-6xl")} style={{ color: courtColor.ring, textShadow: `0 0 20px ${courtColor.glow}` }}>{d}</span>
+                <span className={cn(digitStyle, "text-2xl sm:text-4xl")} style={{ color: courtColor.ring, textShadow: `0 0 20px ${courtColor.glow}` }}>{d}</span>
               </div>
             ))}
           </div>
 
-          <div className="flex flex-col items-center justify-center px-2 sm:px-3 gap-1">
+          <div className="flex flex-col items-center justify-center px-1.5 sm:px-2 gap-0.5">
             {isMultiSet ? (
               <>
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-md bg-red-500/15 border border-red-500/25 flex items-center justify-center">
-                  <span className="text-sm sm:text-base font-black text-red-400 tabular-nums leading-none">{setsWonA}</span>
+                <div className="w-6 h-6 rounded-md bg-red-500/15 border border-red-500/25 flex items-center justify-center">
+                  <span className="text-xs font-black text-red-400 tabular-nums leading-none">{setsWonA}</span>
                 </div>
-                <span className="text-[9px] font-bold text-white/25 uppercase tracking-widest">vs</span>
-                <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-md bg-red-500/15 border border-red-500/25 flex items-center justify-center">
-                  <span className="text-sm sm:text-base font-black text-red-400 tabular-nums leading-none">{setsWonB}</span>
+                <span className="text-[8px] font-bold text-white/25 uppercase tracking-widest">vs</span>
+                <div className="w-6 h-6 rounded-md bg-red-500/15 border border-red-500/25 flex items-center justify-center">
+                  <span className="text-xs font-black text-red-400 tabular-nums leading-none">{setsWonB}</span>
                 </div>
               </>
             ) : (
-              <span className="text-xs font-bold text-gray-300 dark:text-white/20 uppercase tracking-widest">vs</span>
+              <span className="text-[10px] font-bold text-gray-300 dark:text-white/20 uppercase tracking-widest">vs</span>
             )}
           </div>
 
           <div className="flex items-center gap-1.5">
             {scoreBDigits.map((d, i) => (
-              <div key={`b-${i}`} className="relative w-12 h-16 sm:w-16 sm:h-[5.5rem] rounded-lg overflow-hidden flex items-center justify-center bg-blue-400/10 border border-blue-400/20">
+              <div key={`b-${i}`} className="relative w-9 h-12 sm:w-11 sm:h-14 rounded-md overflow-hidden flex items-center justify-center bg-blue-400/10 border border-blue-400/20">
                 <div className="absolute inset-x-0 top-1/2 h-px bg-black/40" />
-                <span className={cn(digitStyle, "text-4xl sm:text-6xl text-blue-400")} style={{ textShadow: '0 0 20px rgba(96,165,250,0.5)' }}>{d}</span>
+                <span className={cn(digitStyle, "text-2xl sm:text-4xl text-blue-400")} style={{ textShadow: '0 0 20px rgba(96,165,250,0.5)' }}>{d}</span>
               </div>
             ))}
           </div>
         </div>
 
         {isMultiSet && match.setScores && match.setScores.length > 0 && (
-          <div className="flex items-center justify-center gap-2 pb-3">
+          <div className="flex items-center justify-center gap-1.5 pb-2">
             {match.setScores.map((s: any, i: number) => (
-              <span key={i} className="text-[10px] font-mono text-white/30 bg-white/[0.04] px-2 py-0.5 rounded" data-testid={`scoreboard-set-${i}`}>{s.scoreA}-{s.scoreB}</span>
+              <span key={i} className="text-[9px] font-mono text-white/30 bg-white/[0.04] px-1.5 py-0.5 rounded" data-testid={`scoreboard-set-${i}`}>{s.scoreA}-{s.scoreB}</span>
             ))}
           </div>
         )}
       </div>
 
       {isOrganiser && (
-        <div className="px-4 pb-2">
+        <div className="px-3 pb-1.5">
           <div className="flex items-center justify-center gap-3">
             <div className="flex items-center gap-1.5" onClick={(e) => e.stopPropagation()}>
               <Target className="w-3 h-3 text-gray-400 dark:text-white/25" />
@@ -1298,7 +1298,7 @@ function ManagerCourtCard({
 
     return (
       <div
-        className="flex items-center px-4 py-3 rounded-lg border transition-all min-h-[56px]"
+        className="flex items-center px-2.5 py-1.5 rounded-md border transition-all"
         style={{
           borderColor: isFemale ? 'rgba(236,72,153,0.3)' : name ? `${teamColor}30` : 'rgba(255,255,255,0.1)',
           backgroundColor: isFemale ? 'rgba(236,72,153,0.06)' : name ? teamBg : 'rgba(255,255,255,0.02)',
@@ -1314,7 +1314,7 @@ function ManagerCourtCard({
           onSwapPlayer={onSwapPlayer}
           showMatchCount
           sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
-          className="text-base font-bold truncate flex-1"
+          className="text-sm font-bold truncate flex-1"
           style={{ color: isFemale ? '#ec4899' : name ? teamColor : undefined }}
           isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
           achievements={achievements}
@@ -1331,53 +1331,53 @@ function ManagerCourtCard({
       style={{ borderColor: `${courtColor.ring}40` }}
       data-testid={`manager-court-${match.id}`}
     >
-      <div className="flex items-center justify-between px-5 py-3 border-b" style={{ borderColor: `${courtColor.ring}20`, backgroundColor: courtColor.bg }}>
-        <div className="flex items-center gap-3">
-          <div className="w-3 h-3 rounded-full animate-pulse" style={{ backgroundColor: courtColor.ring, boxShadow: `0 0 8px ${courtColor.glow}` }} />
-          <span className="text-base font-bold" style={{ color: courtColor.ring }}>{courtLabel}</span>
+      <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: `${courtColor.ring}20`, backgroundColor: courtColor.bg }}>
+        <div className="flex items-center gap-2">
+          <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: courtColor.ring, boxShadow: `0 0 8px ${courtColor.glow}` }} />
+          <span className="text-sm font-bold" style={{ color: courtColor.ring }}>{courtLabel}</span>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2">
           {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-full bg-white/10 dark:bg-black/30">
-            <span className="text-lg font-black tabular-nums" style={{ color: courtColor.ring }}>{match.scoreA || 0}</span>
-            <span className="text-sm text-gray-400 dark:text-white/30 font-bold">-</span>
-            <span className="text-lg font-black text-blue-400 tabular-nums">{match.scoreB || 0}</span>
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 dark:bg-black/30">
+            <span className="text-base font-black tabular-nums" style={{ color: courtColor.ring }}>{match.scoreA || 0}</span>
+            <span className="text-xs text-gray-400 dark:text-white/30 font-bold">-</span>
+            <span className="text-base font-black text-blue-400 tabular-nums">{match.scoreB || 0}</span>
           </div>
           {isOrganiser && onCancelMatch && (
             <button
               onClick={() => onCancelMatch(match.id)}
-              className="p-1.5 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
+              className="p-1 rounded-lg hover:bg-red-500/10 text-gray-400 hover:text-red-400 transition-colors"
               title="Cancel match"
               data-testid={`manager-cancel-${match.id}`}
             >
-              <X className="w-4 h-4" />
+              <X className="w-3.5 h-3.5" />
             </button>
           )}
         </div>
       </div>
 
-      <div className="p-4 space-y-3">
+      <div className="px-3 py-2 space-y-1.5">
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider mb-2 px-1" style={{ color: courtColor.ring }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5" style={{ color: courtColor.ring }}>
             Team A
           </p>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <PlayerSlot player={match.teamAPlayer1} position="teamAPlayer1Id" team="A" />
             <PlayerSlot player={match.teamAPlayer2} position="teamAPlayer2Id" team="A" />
           </div>
         </div>
 
-        <div className="flex items-center gap-3 px-2">
+        <div className="flex items-center gap-2 px-1">
           <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-          <span className="text-xs font-bold text-gray-400 dark:text-white/25 uppercase tracking-widest">vs</span>
+          <span className="text-[10px] font-bold text-gray-400 dark:text-white/25 uppercase tracking-widest">vs</span>
           <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
         </div>
 
         <div>
-          <p className="text-xs font-bold uppercase tracking-wider mb-2 px-1 text-blue-400">
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5 text-blue-400">
             Team B
           </p>
-          <div className="space-y-2">
+          <div className="space-y-1">
             <PlayerSlot player={match.teamBPlayer1} position="teamBPlayer1Id" team="B" />
             <PlayerSlot player={match.teamBPlayer2} position="teamBPlayer2Id" team="B" />
           </div>
@@ -1800,7 +1800,7 @@ export function ProLiveMatches({
         </div>
 
         {subView === "manager" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {liveMatches.map(match => (
               <ManagerCourtCard
                 key={match.id}
@@ -1882,7 +1882,7 @@ export function ProLiveMatches({
         )}
 
         {subView === "court" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5 landscape-court-grid">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 landscape-court-grid">
             {liveMatches.map(match => (
               <CourtCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} courtNames={courtNames}
@@ -1896,7 +1896,7 @@ export function ProLiveMatches({
         )}
 
         {subView === "score" && (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {liveMatches.map(match => (
               <ScoreboardCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
@@ -1909,7 +1909,7 @@ export function ProLiveMatches({
         )}
 
         {subView === "broadcast" && (
-          <div className="grid grid-cols-1 gap-5">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
             {liveMatches.map(match => (
               <BroadcastCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
