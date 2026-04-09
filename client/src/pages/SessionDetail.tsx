@@ -29,7 +29,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell, Bug, ShieldCheck, ShieldX, CircleDollarSign } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell, Bug, ShieldCheck, ShieldX, CircleDollarSign, XCircle, Mail } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -88,6 +88,7 @@ export default function SessionDetail() {
   const [addDialogOpen, setAddDialogOpen] = useState(false);
   const [addGuestDialogOpen, setAddGuestDialogOpen] = useState(false);
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
+  const [rsvpSearchQuery, setRsvpSearchQuery] = useState("");
   const [addingPlayerIds, setAddingPlayerIds] = useState<Set<number>>(new Set());
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [editTitle, setEditTitle] = useState("");
@@ -335,7 +336,9 @@ export default function SessionDetail() {
   const userProfileForClub = user?.playerProfiles?.find((p: any) => session && p.clubId === session.clubId) || user?.playerProfiles?.[0];
   const userSignup = signups?.find(s => s.playerId === userProfileForClub?.id);
   const isSignedUp = userSignup && ((userSignup as any).signupStatus === "CONFIRMED" || !(userSignup as any).signupStatus);
+  const isOnWaitingList = userSignup && (userSignup as any).signupStatus === "WAITING";
   const isInvited = userSignup && (userSignup as any).signupStatus === "INVITED";
+  const sessionIsFull = (signups?.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus) || []).length >= (session?.maxPlayers || 0);
   const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
   const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
   const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
@@ -1339,6 +1342,24 @@ export default function SessionDetail() {
                   {isWithdrawing ? "Withdrawing..." : "Withdraw"}
                 </Button>
               </div>
+            ) : isOnWaitingList ? (
+              <div className="space-y-2">
+                <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/40 px-3.5 py-2.5">
+                  <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+                  <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
+                    You're on the waiting list (#{(userSignup as any)?.waitingListPosition || "?"})
+                  </span>
+                </div>
+                <Button 
+                  variant="destructive" 
+                  className="w-full" 
+                  onClick={() => withdraw(id)}
+                  disabled={isWithdrawing}
+                  data-testid="button-withdraw-waiting"
+                >
+                  {isWithdrawing ? "Withdrawing..." : "Leave Waiting List"}
+                </Button>
+              </div>
             ) : isInvited ? (
               <div className="space-y-2">
                 <Badge variant="secondary" className="w-full justify-center py-2 text-base bg-blue-50 text-blue-700 dark:bg-blue-950 dark:text-blue-300">
@@ -1347,10 +1368,10 @@ export default function SessionDetail() {
                 <Button 
                   className="w-full shadow-lg shadow-primary/25" 
                   onClick={() => join(id)}
-                  disabled={isJoining || confirmedSignups.length >= session.maxPlayers}
+                  disabled={isJoining}
                   data-testid="button-accept-invitation"
                 >
-                  {isJoining ? "Joining..." : "Accept & Join"}
+                  {isJoining ? "Joining..." : sessionIsFull ? "Accept & Join Waiting List" : "Accept & Join"}
                 </Button>
               </div>
             ) : session.isPrivate ? (
@@ -1392,10 +1413,10 @@ export default function SessionDetail() {
                     join(id);
                   }
                 }}
-                disabled={isJoining || confirmedSignups.length >= session.maxPlayers}
+                disabled={isJoining}
                 data-testid="button-join-session"
               >
-                {isJoining ? "Joining..." : "Join Session"}
+                {isJoining ? "Joining..." : sessionIsFull ? "Join Waiting List" : "Join Session"}
               </Button>
             )}
             {isOrganiser && session.status !== "COMPLETED" && (
@@ -2043,6 +2064,104 @@ export default function SessionDetail() {
             );
           })}
         </div>
+
+        {(() => {
+          const waitingSignups = (signups || []).filter((s: any) => s.signupStatus === "WAITING").sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+          const notAttendingSignups = (signups || []).filter((s: any) => s.signupStatus === "NOT_ATTENDING");
+          const invitedSignups = (signups || []).filter((s: any) => s.signupStatus === "INVITED");
+          const rsvpQ = rsvpSearchQuery.toLowerCase();
+          const filteredInvited = rsvpQ ? invitedSignups.filter((s: any) => (s.player?.user?.fullName || "").toLowerCase().includes(rsvpQ)) : invitedSignups;
+          return (
+            <>
+              {waitingSignups.length > 0 && (
+                <div className="mt-6" data-testid="section-waiting-list">
+                  <h4 className="text-sm font-semibold flex items-center gap-2 mb-3 text-amber-700 dark:text-amber-400">
+                    <Clock className="w-4 h-4" />
+                    Waiting List ({waitingSignups.length})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {waitingSignups.map((signup: any) => (
+                      <div key={signup.id} className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200/50 dark:border-amber-800/30" data-testid={`waiting-signup-${signup.id}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player?.user?.fullName || "?"}`} />
+                            <AvatarFallback>{(signup.player?.user?.fullName || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                            <p className="text-xs text-muted-foreground">Position #{signup.waitingListPosition || "?"}</p>
+                          </div>
+                        </div>
+                        {isOrganiser && (
+                          <Button size="sm" variant="outline" className="shrink-0 text-xs" onClick={() => promoteMutation.mutate(signup.id)} disabled={promoteMutation.isPending} data-testid={`button-promote-${signup.id}`}>
+                            Promote
+                          </Button>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {notAttendingSignups.length > 0 && (
+                <div className="mt-6" data-testid="section-not-coming">
+                  <h4 className="text-sm font-semibold flex items-center gap-2 mb-3 text-red-600 dark:text-red-400">
+                    <XCircle className="w-4 h-4" />
+                    Not Coming ({notAttendingSignups.length})
+                  </h4>
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {notAttendingSignups.map((signup: any) => (
+                      <div key={signup.id} className="flex items-center justify-between p-3 bg-red-50/50 dark:bg-red-950/10 rounded-xl border border-red-200/40 dark:border-red-800/20 opacity-60" data-testid={`not-attending-signup-${signup.id}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player?.user?.fullName || "?"}`} />
+                            <AvatarFallback>{(signup.player?.user?.fullName || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs text-red-600 dark:text-red-400 border-red-300 dark:border-red-700">Withdrawn</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {invitedSignups.length > 0 && (
+                <div className="mt-6" data-testid="section-invited">
+                  <h4 className="text-sm font-semibold flex items-center gap-2 mb-3 text-blue-600 dark:text-blue-400">
+                    <Mail className="w-4 h-4" />
+                    Invited ({invitedSignups.length})
+                  </h4>
+                  {invitedSignups.length > 5 && (
+                    <div className="mb-3">
+                      <Input
+                        placeholder="Search invited players..."
+                        value={rsvpSearchQuery}
+                        onChange={(e) => setRsvpSearchQuery(e.target.value)}
+                        className="max-w-sm h-9"
+                        data-testid="input-search-invited"
+                      />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                    {filteredInvited.map((signup: any) => (
+                      <div key={signup.id} className="flex items-center justify-between p-3 bg-blue-50/50 dark:bg-blue-950/10 rounded-xl border border-blue-200/40 dark:border-blue-800/20" data-testid={`invited-signup-${signup.id}`}>
+                        <div className="flex items-center gap-3 min-w-0">
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player?.user?.fullName || "?"}`} />
+                            <AvatarFallback>{(signup.player?.user?.fullName || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
+                          </Avatar>
+                          <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                        </div>
+                        <Badge variant="outline" className="text-xs text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700">Invited</Badge>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </>
+          );
+        })()}
 
         <AlertDialog open={!!removeConfirm} onOpenChange={(open) => { if (!open) setRemoveConfirm(null); }}>
           <AlertDialogContent>

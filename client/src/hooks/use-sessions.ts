@@ -191,11 +191,15 @@ export function useJoinSession() {
       }
       return api.sessions.join.responses[201].parse(await res.json());
     },
-    onSuccess: (_, sessionId) => {
+    onSuccess: (data: any, sessionId) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
-      toast({ title: "Joined!", description: "You are signed up for this session." });
+      if (data?.addedToWaitingList) {
+        toast({ title: "Added to Waiting List", description: "You'll be notified when a spot opens up." });
+      } else {
+        toast({ title: "Joined!", description: "You are signed up for this session." });
+      }
     },
     onError: (err) => {
       toast({ title: "Could not join", description: err.message, variant: "destructive" });
