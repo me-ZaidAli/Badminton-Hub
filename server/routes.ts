@@ -4730,6 +4730,12 @@ export async function registerRoutes(
       const allMatches = await storage.getSessionMatches(match.sessionId);
       const positions = ["teamAPlayer1Id", "teamAPlayer2Id", "teamBPlayer1Id", "teamBPlayer2Id"] as const;
 
+      for (const pos of positions) {
+        if (pos !== position && (match as any)[pos] === newPlayerId) {
+          return res.status(400).json({ message: "This player is already in this match at another position." });
+        }
+      }
+
       const isTargetQueued = match.status === "QUEUED";
       for (const existingMatch of allMatches) {
         if (existingMatch.id === matchId) continue;

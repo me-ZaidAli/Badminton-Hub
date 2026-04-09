@@ -3906,18 +3906,14 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   })();
 
   const busyPlayerIds = (() => {
-    const playerMatchCount = new Map<number, number>();
+    const ids = new Set<number>();
     const liveAndQueued = typedMatches.filter(m => m.status === "LIVE" || m.status === "QUEUED");
     for (const m of liveAndQueued) {
       for (const p of [m.teamAPlayer1, m.teamAPlayer2, m.teamBPlayer1, m.teamBPlayer2]) {
-        if (p?.id) playerMatchCount.set(p.id, (playerMatchCount.get(p.id) || 0) + 1);
+        if (p?.id) ids.add(p.id);
       }
     }
-    const dupes = new Set<number>();
-    for (const [id, count] of playerMatchCount) {
-      if (count > 1) dupes.add(id);
-    }
-    return dupes;
+    return ids;
   })();
   
   const occupiedCourts = new Set(liveMatches.map(m => m.courtNumber));
