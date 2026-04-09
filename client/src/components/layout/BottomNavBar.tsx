@@ -39,6 +39,9 @@ import {
   RotateCcw,
   Shield,
   UserCheck,
+  Lightbulb,
+  Shirt,
+  Tag,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -49,16 +52,21 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { useNavGroups, useBadgeCounts } from "@/components/layout/Sidebar";
 
 const ALL_NAV_OPTIONS: { id: string; label: string; href: string; icon: any }[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
+  { id: "my-insights", label: "My Insights", href: "/my-insights", icon: Lightbulb },
   { id: "sessions", label: "Sessions", href: "/sessions", icon: Calendar },
   { id: "my-sessions", label: "My Sessions", href: "/my-sessions", icon: CalendarCheck },
   { id: "clubs", label: "Clubs", href: "/clubs", icon: Building2 },
+  { id: "merchandise", label: "Merchandise", href: "/merchandise", icon: Shirt },
+  { id: "deals", label: "Deals & Offers", href: "/deals", icon: Tag },
   { id: "notifications", label: "Notifications", href: "/notifications", icon: Bell },
   { id: "announcements", label: "Announcements", href: "/announcements", icon: Megaphone },
   { id: "inbox", label: "Inbox", href: "/inbox", icon: Mail },
   { id: "tickets", label: "Tickets", href: "/tickets", icon: Ticket },
+  { id: "incidents", label: "Incidents", href: "/incidents", icon: Shield },
   { id: "rankings", label: "Rankings", href: "/rankings", icon: Trophy },
   { id: "tournaments", label: "Tournaments", href: "/tournaments", icon: Award },
   { id: "league", label: "League", href: "/league", icon: Swords },
@@ -210,157 +218,10 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const { data: badgeCounts } = useQuery<any>({
-    queryKey: ["/api/badge-counts"],
-    enabled: !!user,
-  });
-  const { data: trialData } = useQuery({
-    queryKey: ["/api/trial-players/me"],
-    enabled: !!user,
-    queryFn: async () => {
-      const res = await fetch("/api/trial-players/me", { credentials: "include" });
-      if (!res.ok) return null;
-      return res.json();
-    },
-  });
-
-  const isAdminOrOwner = user?.role === "OWNER" || user?.role === "ADMIN";
-
-  const { data: myEnrollments } = useQuery<any[]>({
-    queryKey: ["/api/my/player-analytics-enrollment"],
-    enabled: !!user && !isAdminOrOwner,
-  });
-  const isEnrolledInSkills = isAdminOrOwner || (myEnrollments && myEnrollments.length > 0);
+  const { groups: navGroups } = useNavGroups();
+  const { data: badgeCounts } = useBadgeCounts();
 
   if (!user) return null;
-
-  const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
-
-  if (isActiveTrial) {
-    const trialSections = [
-      {
-        label: "Trial Onboarding",
-        items: [
-          { href: "/trial-dashboard", label: "Trial Dashboard", icon: LayoutDashboard },
-        ],
-      },
-      {
-        label: "Communication",
-        items: [
-          { href: "/notifications", label: "Notifications", icon: Bell },
-        ],
-      },
-    ];
-
-    return (
-      <div className="flex flex-col h-full">
-        <SheetHeader className="px-4 pb-3 border-b border-border/40">
-          <SheetTitle className="text-left text-lg font-bold">Menu</SheetTitle>
-          <SheetDescription className="sr-only">Navigation menu</SheetDescription>
-        </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-2 py-3">
-          {trialSections.map((section) => (
-            <div key={section.label} className="mb-4">
-              <p className="px-3 mb-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60">{section.label}</p>
-              {section.items.map((item) => {
-                const isActive = location === item.href;
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <button
-                      onClick={onClose}
-                      className={cn(
-                        "flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm transition-colors",
-                        isActive ? "bg-primary/10 text-primary font-semibold" : "text-foreground hover:bg-muted"
-                      )}
-                      data-testid={`mobile-menu-${item.href.replace(/\//g, "-")}`}
-                    >
-                      <item.icon className="w-5 h-5" />
-                      <span>{item.label}</span>
-                    </button>
-                  </Link>
-                );
-              })}
-            </div>
-          ))}
-        </div>
-        <div className="border-t border-border/40 p-4">
-          <Button variant="outline" className="w-full" onClick={() => { logout(); onClose(); }} data-testid="button-mobile-logout">
-            <LogOut className="w-4 h-4 mr-2" />
-            Logout
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
-  const sections = [
-    {
-      label: "Activity",
-      items: [
-        { href: "/dashboard", label: "Dashboard", icon: LayoutDashboard },
-        { href: "/sessions", label: "Sessions", icon: Calendar, badge: badgeCounts?.upcomingSessions },
-        { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, badge: badgeCounts?.myOutstandingPayments },
-        { href: "/juniors", label: "Juniors", icon: Baby },
-        { href: "/tournaments", label: "Tournaments", icon: Award },
-        { href: "/league", label: "League", icon: Swords },
-        { href: "/rankings", label: "Rankings", icon: Trophy },
-        ...(isEnrolledInSkills ? [{ href: "/player-intelligence", label: "Player Intel", icon: Activity }] : []),
-      ],
-    },
-    {
-      label: "My Club",
-      items: [
-        { href: "/clubs", label: "Clubs", icon: Building2, badge: badgeCounts?.pendingMemberships },
-        { href: "/referrals", label: "Refer & Earn", icon: Gift, badge: badgeCounts?.pendingReferrals },
-        { href: "/rewards", label: "My Rewards", icon: Award, badge: badgeCounts?.pendingRewards },
-      ],
-    },
-    {
-      label: "Communication",
-      items: [
-        { href: "/announcements", label: "Announcements", icon: Megaphone, badge: badgeCounts?.announcements },
-        { href: "/notifications", label: "Notifications", icon: Bell, badge: badgeCounts?.notifications },
-        { href: "/inbox", label: "Inbox", icon: Mail, badge: badgeCounts?.messages },
-        { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, badge: badgeCounts?.tickets },
-        { href: "/incidents", label: "Incidents", icon: Shield, badge: badgeCounts?.pendingIncidents },
-      ],
-    },
-    {
-      label: "Design",
-      items: [
-        { href: "/themes", label: "Themes", icon: Palette },
-        { href: "/backgrounds", label: "Backgrounds", icon: ImageIcon },
-        { href: "/typography", label: "Typography", icon: Type },
-        { href: "/social-media", label: "Social Media", icon: Share2 },
-      ],
-    },
-    {
-      label: "Help & Info",
-      items: [
-        { href: "/guide", label: "User Guide", icon: BookOpen },
-        { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText },
-      ],
-    },
-  ];
-
-  if (isAdminOrOwner) {
-    const adminItems: any[] = [
-      { href: "/admin", label: "Admin Panel", icon: ShieldCheck, badge: (badgeCounts?.pendingMemberships || 0) + (badgeCounts?.outstandingPayments || 0) },
-      { href: "/admin/trials", label: "Trial Players", icon: UserCheck },
-      { href: "/admin/recognition-cards", label: "Recognition Cards", icon: Award },
-    ];
-    if (user.role === "ADMIN" || user.role === "OWNER") {
-      adminItems.push({ href: "/admin/billing", label: "Billing & Plan", icon: CreditCard });
-    }
-    sections.push({ label: "Management", items: adminItems });
-
-    if (user.role === "OWNER") {
-      sections.push({
-        label: "Super Admin",
-        items: [{ href: "/super-admin/god-mode", label: "God Mode", icon: Zap }],
-      });
-    }
-  }
 
   return (
     <div className="flex flex-col h-full">
@@ -370,40 +231,103 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
       </SheetHeader>
 
       <div className="flex-1 overflow-y-auto px-3 py-3 space-y-4">
-        {sections.map((section) => (
-          <div key={section.label}>
-            <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-2">
-              {section.label}
-            </span>
-            <div className="mt-1 space-y-0.5">
-              {section.items.map((item) => {
-                const isActive =
-                  location === item.href ||
-                  (item.href !== "/" && item.href !== "/dashboard" && location.startsWith(`${item.href}/`));
-                return (
-                  <Link key={item.href} href={item.href}>
-                    <button
-                      onClick={onClose}
-                      className={cn(
-                        "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors",
-                        isActive
-                          ? "bg-primary/10 text-primary font-semibold"
-                          : "text-foreground hover:bg-muted/50"
-                      )}
-                      data-testid={`menu-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
-                    >
-                      <item.icon className="h-4.5 w-4.5 shrink-0" />
-                      <span className="flex-1 text-left">{item.label}</span>
-                      {item.badge > 0 && (
-                        <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
-                          {item.badge > 99 ? "99+" : item.badge}
-                        </span>
-                      )}
-                    </button>
-                  </Link>
-                );
-              })}
-            </div>
+        {navGroups.map((group) => (
+          <div key={group.key || group.label}>
+            {group.key === "admin" ? (
+              <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2">
+                <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+                  <ShieldCheck className="w-3 h-3" /> {group.label}
+                </span>
+                {group.items.map((item) => {
+                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                  const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                  const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
+                  const badgeCount = primaryCount + secondaryCount;
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <button
+                        onClick={onClose}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors",
+                          isActive ? "bg-emerald-600 text-white font-semibold" : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"
+                        )}
+                        data-testid={`menu-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <item.icon className="h-4.5 w-4.5 shrink-0" />
+                        <span className="flex-1 text-left">{item.label}</span>
+                        {badgeCount > 0 && (
+                          <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-emerald-600 text-white px-1.5 text-[10px] font-bold">
+                            {badgeCount > 99 ? "99+" : badgeCount}
+                          </span>
+                        )}
+                      </button>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : group.key === "godmode" ? (
+              <div className="rounded-xl border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2">
+                <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
+                  <Zap className="w-3 h-3" /> Super Admin
+                </span>
+                {group.items.map((item) => {
+                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
+                  return (
+                    <Link key={item.href} href={item.href}>
+                      <button
+                        onClick={onClose}
+                        className={cn(
+                          "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors",
+                          isActive ? "bg-destructive text-destructive-foreground font-semibold" : "text-destructive hover:bg-destructive/15"
+                        )}
+                        data-testid={`menu-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                      >
+                        <item.icon className="h-4.5 w-4.5 shrink-0" />
+                        <span className="flex-1 text-left">{item.label}</span>
+                      </button>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <>
+                {group.label && (
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/60 px-2">
+                    {group.label}
+                  </span>
+                )}
+                <div className="mt-1 space-y-0.5">
+                  {group.items.map((item) => {
+                    const isActive = location === item.href || (item.href !== "/" && item.href !== "/dashboard" && location.startsWith(`${item.href}/`));
+                    const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                    const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
+                    const badgeCount = primaryCount + secondaryCount;
+                    return (
+                      <Link key={item.href} href={item.href}>
+                        <button
+                          onClick={onClose}
+                          className={cn(
+                            "w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm transition-colors",
+                            isActive
+                              ? "bg-primary/10 text-primary font-semibold"
+                              : "text-foreground hover:bg-muted/50"
+                          )}
+                          data-testid={`menu-${item.label.toLowerCase().replace(/\s+/g, "-")}`}
+                        >
+                          <item.icon className="h-4.5 w-4.5 shrink-0" />
+                          <span className="flex-1 text-left">{item.label}</span>
+                          {badgeCount > 0 && (
+                            <span className="flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                              {badgeCount > 99 ? "99+" : badgeCount}
+                            </span>
+                          )}
+                        </button>
+                      </Link>
+                    );
+                  })}
+                </div>
+              </>
+            )}
           </div>
         ))}
       </div>

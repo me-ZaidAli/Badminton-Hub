@@ -97,7 +97,7 @@ interface NavGroup {
   items: NavItem[];
 }
 
-function useBadgeCounts() {
+export function useBadgeCounts() {
   const { data: user } = useUser();
   return useQuery<BadgeCounts>({
     queryKey: ["/api/badge-counts"],
@@ -106,7 +106,7 @@ function useBadgeCounts() {
   });
 }
 
-function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: string } {
+export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: string } {
   const { data: user } = useUser();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
@@ -142,8 +142,8 @@ function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: s
     ];
 
     const groups: NavGroup[] = [
-      { label: "Trial Onboarding", items: trialItems.filter(i => i.group === "main") },
-      { label: "Communication", items: trialItems.filter(i => i.group === "comms") },
+      { key: "main", label: "Trial Onboarding", items: trialItems.filter(i => i.group === "main") },
+      { key: "comms", label: "Communication", items: trialItems.filter(i => i.group === "comms") },
     ];
 
     return { groups, isPremium: false, planStatus: "FREE" };
