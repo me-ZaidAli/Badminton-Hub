@@ -699,7 +699,6 @@ function InlineScorePanel({
   const matchSets = match.numberOfSets || 1;
   const isMultiSet = matchSets > 1;
   const currentSet = match.currentSet || 1;
-  const courtColor = getCourtColor(match.courtNumber || 1);
 
   const isPlayerInMatch = currentPlayerProfileId && (
     match.teamAPlayer1?.id === currentPlayerProfileId ||
@@ -755,14 +754,14 @@ function InlineScorePanel({
         <div className="flex items-center justify-center gap-6">
           <div className="text-center">
             <p className="text-[9px] text-gray-400 dark:text-white/30 mb-0.5 truncate max-w-[90px]">{teamANames.join(" & ")}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider mb-1" style={{ color: courtColor.ring }}>Team A</p>
-            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-emerald-600 dark:text-white" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace", ...(parseInt(scoreA) > parseInt(scoreB) ? { color: courtColor.ring } : {}) }}>{scoreA}</div>
+            <p className="text-[10px] font-bold uppercase tracking-wider mb-1 text-gray-500 dark:text-white/50">Team A</p>
+            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreA) > parseInt(scoreB) ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreA}</div>
           </div>
           <Swords className="w-4 h-4 text-gray-300 dark:text-white/20" />
           <div className="text-center">
             <p className="text-[9px] text-gray-400 dark:text-white/30 mb-0.5 truncate max-w-[90px]">{teamBNames.join(" & ")}</p>
-            <p className="text-[10px] font-bold uppercase tracking-wider text-blue-600 dark:text-blue-400 mb-1">Team B</p>
-            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-blue-600 dark:text-blue-400" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
+            <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/50 mb-1">Team B</p>
+            <div className={cn("text-2xl font-bold font-mono tabular-nums", parseInt(scoreB) > parseInt(scoreA) ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-white/60")} style={{ fontFamily: "'Orbitron', monospace" }}>{scoreB}</div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -782,7 +781,7 @@ function InlineScorePanel({
       <p className="text-[10px] font-bold text-gray-500 dark:text-white/40 text-center uppercase tracking-wider">Scores</p>
       <div className="flex items-center gap-2">
         <div className="flex-1 min-w-0">
-          <label className="text-[9px] uppercase tracking-widest mb-0.5 block font-bold" style={{ color: courtColor.ring }}>Team A</label>
+          <label className="text-[9px] uppercase tracking-widest mb-0.5 block font-bold text-gray-500 dark:text-white/50">Team A</label>
           <div className="flex items-center gap-1">
             <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1)))} data-testid={`pro-inline-a-minus-${match.id}`}>
@@ -790,7 +789,7 @@ function InlineScorePanel({
             </button>
             <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
               className="bg-gray-50 dark:bg-slate-800/80 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:ring-emerald-400/20"
-              style={{ fontFamily: "'Orbitron', monospace", borderColor: courtColor.ring + '30' }}
+              style={{ fontFamily: "'Orbitron', monospace" }}
               placeholder="0" data-testid={`pro-inline-a-score-${match.id}`} />
             <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String((parseInt(scoreA) || 0) + 1))} data-testid={`pro-inline-a-plus-${match.id}`}>
@@ -800,14 +799,14 @@ function InlineScorePanel({
         </div>
         <div className="text-gray-300 dark:text-white/15 font-bold text-xs mt-4">-</div>
         <div className="flex-1 min-w-0">
-          <label className="text-[9px] uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-0.5 block font-bold">Team B</label>
+          <label className="text-[9px] uppercase tracking-widest text-gray-500 dark:text-white/50 mb-0.5 block font-bold">Team B</label>
           <div className="flex items-center gap-1">
             <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1)))} data-testid={`pro-inline-b-minus-${match.id}`}>
               <Minus className="w-3.5 h-3.5" />
             </button>
             <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
-              className="bg-gray-50 dark:bg-slate-800/80 border-blue-500/20 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:border-blue-400/40 focus:ring-blue-400/20"
+              className="bg-gray-50 dark:bg-slate-800/80 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:ring-emerald-400/20"
               style={{ fontFamily: "'Orbitron', monospace" }}
               placeholder="0" data-testid={`pro-inline-b-score-${match.id}`} />
             <button className="w-8 h-9 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
@@ -1293,23 +1292,15 @@ function ManagerCourtCard({
   onEndSet?: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
   defaultPointsToPlayTo?: number;
 }) {
-  const courtColor = getCourtColor(match.courtNumber || 1);
   const courtLabel = match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court";
-  const getPlayerName = (player: any) => player?.user?.fullName || null;
 
-  const PlayerSlot = ({ player, position, team }: { player: any; position: string; team: "A" | "B" }) => {
-    const teamColor = team === "A" ? courtColor.ring : "rgb(96,165,250)";
-    const teamBg = team === "A" ? courtColor.bg : "rgba(96,165,250,0.08)";
-    const name = getPlayerName(player);
+  const PlayerSlot = ({ player, position }: { player: any; position: string }) => {
     const isFemale = player?.gender === "FEMALE";
 
     return (
       <div
-        className="flex items-center px-2.5 py-1.5 rounded-md border transition-all"
-        style={{
-          borderColor: isFemale ? 'rgba(236,72,153,0.3)' : name ? `${teamColor}30` : 'rgba(255,255,255,0.1)',
-          backgroundColor: isFemale ? 'rgba(236,72,153,0.06)' : name ? teamBg : 'rgba(255,255,255,0.02)',
-        }}
+        className="flex items-center px-2.5 py-1.5 rounded-md border transition-all border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03]"
+        style={isFemale ? { borderColor: 'rgba(236,72,153,0.3)', backgroundColor: 'rgba(236,72,153,0.06)' } : undefined}
         data-testid={`manager-slot-${position}-${match.id}`}
       >
         <ClickablePlayerName
@@ -1322,7 +1313,7 @@ function ManagerCourtCard({
           showMatchCount
           sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
           className="text-sm font-bold truncate flex-1"
-          style={{ color: isFemale ? '#ec4899' : name ? teamColor : undefined }}
+          style={{ color: isFemale ? '#ec4899' : undefined }}
           isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
           achievements={achievements}
           busyPlayerIds={busyPlayerIds}
@@ -1334,21 +1325,20 @@ function ManagerCourtCard({
 
   return (
     <div
-      className="rounded-2xl border-2 bg-white dark:bg-slate-900/80 overflow-hidden transition-all"
-      style={{ borderColor: `${courtColor.ring}40` }}
+      className="rounded-2xl border bg-white dark:bg-slate-900/80 overflow-hidden transition-all border-gray-300 dark:border-white/15"
       data-testid={`manager-court-${match.id}`}
     >
-      <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: `${courtColor.ring}20`, backgroundColor: courtColor.bg }}>
+      <div className="flex items-center justify-between px-3 py-2 border-b border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04]">
         <div className="flex items-center gap-2">
-          <div className="w-2.5 h-2.5 rounded-full animate-pulse" style={{ backgroundColor: courtColor.ring, boxShadow: `0 0 8px ${courtColor.glow}` }} />
-          <span className="text-sm font-bold" style={{ color: courtColor.ring }}>{courtLabel}</span>
+          <div className="w-2.5 h-2.5 rounded-full animate-pulse bg-emerald-500" style={{ boxShadow: '0 0 8px rgba(52,211,153,0.5)' }} />
+          <span className="text-sm font-bold text-gray-900 dark:text-white">{courtLabel}</span>
         </div>
         <div className="flex items-center gap-2">
           {match.startedAt && <LiveTimer startedAt={match.startedAt} />}
-          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 dark:bg-black/30">
-            <span className="text-base font-black tabular-nums" style={{ color: courtColor.ring }}>{match.scoreA || 0}</span>
+          <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-black/30">
+            <span className="text-base font-black tabular-nums text-gray-900 dark:text-white">{match.scoreA || 0}</span>
             <span className="text-xs text-gray-400 dark:text-white/30 font-bold">-</span>
-            <span className="text-base font-black text-blue-400 tabular-nums">{match.scoreB || 0}</span>
+            <span className="text-base font-black tabular-nums text-gray-900 dark:text-white">{match.scoreB || 0}</span>
           </div>
           {isOrganiser && onCancelMatch && (
             <button
@@ -1365,12 +1355,12 @@ function ManagerCourtCard({
 
       <div className="px-3 py-2 space-y-1.5">
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5" style={{ color: courtColor.ring }}>
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5 text-gray-500 dark:text-white/40">
             Team A
           </p>
           <div className="space-y-1">
-            <PlayerSlot player={match.teamAPlayer1} position="teamAPlayer1Id" team="A" />
-            <PlayerSlot player={match.teamAPlayer2} position="teamAPlayer2Id" team="A" />
+            <PlayerSlot player={match.teamAPlayer1} position="teamAPlayer1Id" />
+            <PlayerSlot player={match.teamAPlayer2} position="teamAPlayer2Id" />
           </div>
         </div>
 
@@ -1381,12 +1371,12 @@ function ManagerCourtCard({
         </div>
 
         <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5 text-blue-400">
+          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5 text-gray-500 dark:text-white/40">
             Team B
           </p>
           <div className="space-y-1">
-            <PlayerSlot player={match.teamBPlayer1} position="teamBPlayer1Id" team="B" />
-            <PlayerSlot player={match.teamBPlayer2} position="teamBPlayer2Id" team="B" />
+            <PlayerSlot player={match.teamBPlayer1} position="teamBPlayer1Id" />
+            <PlayerSlot player={match.teamBPlayer2} position="teamBPlayer2Id" />
           </div>
         </div>
       </div>
