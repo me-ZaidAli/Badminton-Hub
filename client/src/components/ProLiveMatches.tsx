@@ -1,15 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { type CourtMatch } from "@/components/BadmintonCourt";
 import { Input } from "@/components/ui/input";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { cn } from "@/lib/utils";
 import {
-  List, LayoutGrid, Clock, Trophy, CheckCircle, XCircle,
-  Swords, ChevronDown, ChevronLeft, ChevronRight, Pencil, Users, Target, Check, Minus, Plus,
+  List, LayoutGrid, Trophy, CheckCircle, XCircle,
+  Swords, ChevronDown, ChevronLeft, ChevronRight, Pencil, Target, Check, Minus, Plus,
   CircleDot, Hash, Monitor, Maximize2, X, Flame, Lightbulb, ClipboardList
 } from "lucide-react";
 
@@ -117,7 +115,7 @@ function PlayerAchievementIcons({ playerId, achievements }: { playerId?: number;
 function ClickablePlayerName({
   player, matchId, position, availablePlayers, canSwap, onSwapPlayer, sessionMatchCount, showMatchCount, className, isBusy, style, achievements, busyPlayerIds, sessionMatchCounts,
 }: {
-  player: { id: number; user?: { fullName?: string } | null; category?: string | null; matchesPlayed?: number | null } | null;
+  player: { id: number; user?: { fullName?: string } | null; category?: string | null; gender?: string | null; matchesPlayed?: number | null } | null;
   matchId: number;
   position: string;
   availablePlayers: Player[];
@@ -134,6 +132,9 @@ function ClickablePlayerName({
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
   const name = player ? (player.user?.fullName || "Unknown") : "Empty";
+  const isFemale = player?.gender === "FEMALE";
+  const femaleStyle: React.CSSProperties = isFemale ? { color: '#ec4899' } : {};
+  const mergedStyle = { ...style, ...femaleStyle };
   const nameWithCount = (
     <>
       {name}
@@ -145,11 +146,11 @@ function ClickablePlayerName({
   );
   const busyClass = isBusy ? "text-red-400 animate-pulse" : "";
   const emptyClass = !player ? "opacity-50 italic" : "";
-  if (!canSwap || !onSwapPlayer) return <span className={cn(className, busyClass, emptyClass)} style={style}>{nameWithCount}</span>;
+  if (!canSwap || !onSwapPlayer) return <span className={cn(className, busyClass, emptyClass, isFemale && "!text-pink-500")} style={mergedStyle}>{nameWithCount}</span>;
   return (
     <>
-      <span role="button" tabIndex={0} className={cn(className, busyClass, "cursor-pointer hover:underline hover:text-amber-400 active:text-amber-300 transition-colors")}
-        style={style}
+      <span role="button" tabIndex={0} className={cn(className, busyClass, isFemale && "!text-pink-500", "cursor-pointer hover:underline hover:text-amber-400 active:text-amber-300 transition-colors")}
+        style={mergedStyle}
         onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
         onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
         data-testid={`pro-swap-${position}-${matchId}`}
@@ -308,13 +309,13 @@ function LiveMatchRow({
             <ClickablePlayerName player={match.teamAPlayer1} matchId={match.id} position="teamAPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
-              className="text-sm sm:text-base font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+              className="text-base sm:text-lg font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
             <>
               <span className="text-gray-300 dark:text-white/20 text-xs">&</span>
               <ClickablePlayerName player={match.teamAPlayer2 || null} matchId={match.id} position="teamAPlayer2Id"
                 availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                 showMatchCount sessionMatchCount={match.teamAPlayer2 ? sessionMatchCounts?.[match.teamAPlayer2?.id] : undefined}
-                className="text-sm sm:text-base font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+                className="text-base sm:text-lg font-bold text-emerald-700 dark:text-white" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
             </>
           </div>
           <span className="text-gray-300 dark:text-white/20 text-[10px] font-bold uppercase tracking-widest shrink-0">vs</span>
@@ -323,13 +324,13 @@ function LiveMatchRow({
             <ClickablePlayerName player={match.teamBPlayer1} matchId={match.id} position="teamBPlayer1Id"
               availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
               showMatchCount sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
-              className="text-sm sm:text-base font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+              className="text-base sm:text-lg font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
             <>
               <span className="text-gray-300 dark:text-white/20 text-xs">&</span>
               <ClickablePlayerName player={match.teamBPlayer2 || null} matchId={match.id} position="teamBPlayer2Id"
                 availablePlayers={availablePlayers} canSwap={canSwapPlayers} onSwapPlayer={onSwapPlayer}
                 showMatchCount sessionMatchCount={match.teamBPlayer2 ? sessionMatchCounts?.[match.teamBPlayer2?.id] : undefined}
-                className="text-sm sm:text-base font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+                className="text-base sm:text-lg font-bold text-blue-600 dark:text-white/80" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
             </>
           </div>
         </div>
@@ -505,8 +506,8 @@ function CourtView({ match, sessionMatchCounts, achievements, isOrganiser, avail
   const courtColor = getCourtColor(match.courtNumber || 1);
   const canSwap = !!isOrganiser && !!onSwapPlayer;
 
-  const labelCls = "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md bg-slate-900/80 backdrop-blur-sm border text-xs sm:text-sm font-semibold truncate block";
-  const fontCls = "text-xs sm:text-sm font-semibold";
+  const labelCls = "px-1.5 py-0.5 sm:px-2 sm:py-1 rounded-md bg-slate-900/80 backdrop-blur-sm border text-sm sm:text-base font-bold truncate block";
+  const fontCls = "text-sm sm:text-base font-bold";
   return (
     <div className="relative w-full aspect-[2/1.2] pro-court-aspect rounded-xl overflow-hidden border border-white/[0.07]" data-testid={`pro-court-view-${match.id}`}>
       <div className="absolute inset-0 bg-gradient-to-b from-emerald-900/40 via-emerald-800/30 to-emerald-900/40" />
@@ -589,7 +590,6 @@ function CourtCard({
   sessionMatchCounts?: Record<number, number>;
   achievements?: PlayerAchievements;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
@@ -668,21 +668,9 @@ function CourtCard({
         </div>
       )}
       {canInteract && (
-        <>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 court-card-expand border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
-            data-testid={`pro-court-expand-${match.id}`}
-          >
-            <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
-            <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
-          </button>
-          {expanded && (
-            <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
-              currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-              onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
-          )}
-        </>
+        <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+          currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+          onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
       )}
     </div>
   );
@@ -786,41 +774,40 @@ function InlineScorePanel({
 
   return (
     <div className="border-t border-gray-100 dark:border-white/[0.05] px-4 py-4 space-y-3" onClick={(e) => e.stopPropagation()}>
+      <p className="text-xs font-bold text-gray-500 dark:text-white/40 text-center uppercase tracking-wider">Scores</p>
       <div className="flex items-center gap-3">
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] text-gray-400 dark:text-white/40 truncate mb-0.5">{teamANames.join(" & ")}</p>
-          <label className="text-[9px] uppercase tracking-widest mb-1 block font-bold" style={{ color: courtColor.ring }}>Team A</label>
-          <div className="flex items-center gap-1">
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+          <label className="text-[10px] uppercase tracking-widest mb-1 block font-bold" style={{ color: courtColor.ring }}>Team A</label>
+          <div className="flex items-center gap-1.5">
+            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1)))} data-testid={`pro-inline-a-minus-${match.id}`}>
-              <Minus className="w-3 h-3" />
+              <Minus className="w-4 h-4" />
             </button>
             <Input type="number" min="0" value={scoreA} onChange={(e) => setScoreA(e.target.value)}
-              className="bg-gray-50 dark:bg-slate-800/80 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:ring-emerald-400/20"
+              className="bg-gray-50 dark:bg-slate-800/80 text-gray-900 dark:text-white text-center text-2xl font-mono h-12 focus:ring-emerald-400/20"
               style={{ fontFamily: "'Orbitron', monospace", borderColor: courtColor.ring + '30' }}
               placeholder="0" data-testid={`pro-inline-a-score-${match.id}`} />
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreA(String((parseInt(scoreA) || 0) + 1))} data-testid={`pro-inline-a-plus-${match.id}`}>
-              <Plus className="w-3 h-3" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
         </div>
-        <div className="text-gray-300 dark:text-white/15 font-bold text-xs mt-4">vs</div>
+        <div className="text-gray-300 dark:text-white/15 font-bold text-sm mt-5">-</div>
         <div className="flex-1 min-w-0">
-          <p className="text-[9px] text-gray-400 dark:text-white/40 truncate mb-0.5">{teamBNames.join(" & ")}</p>
-          <label className="text-[9px] uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1 block font-bold">Team B</label>
-          <div className="flex items-center gap-1">
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+          <label className="text-[10px] uppercase tracking-widest text-blue-600 dark:text-blue-400 mb-1 block font-bold">Team B</label>
+          <div className="flex items-center gap-1.5">
+            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1)))} data-testid={`pro-inline-b-minus-${match.id}`}>
-              <Minus className="w-3 h-3" />
+              <Minus className="w-4 h-4" />
             </button>
             <Input type="number" min="0" value={scoreB} onChange={(e) => setScoreB(e.target.value)}
-              className="bg-gray-50 dark:bg-slate-800/80 border-blue-500/20 text-gray-900 dark:text-white text-center text-lg font-mono h-9 focus:border-blue-400/40 focus:ring-blue-400/20"
+              className="bg-gray-50 dark:bg-slate-800/80 border-blue-500/20 text-gray-900 dark:text-white text-center text-2xl font-mono h-12 focus:border-blue-400/40 focus:ring-blue-400/20"
               style={{ fontFamily: "'Orbitron', monospace" }}
               placeholder="0" data-testid={`pro-inline-b-score-${match.id}`} />
-            <button className="w-8 h-9 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
+            <button className="w-10 h-12 flex items-center justify-center rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03] text-gray-400 dark:text-white/40 hover:text-gray-700 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.06] active:scale-95 transition-all duration-300"
               onClick={() => setScoreB(String((parseInt(scoreB) || 0) + 1))} data-testid={`pro-inline-b-plus-${match.id}`}>
-              <Plus className="w-3 h-3" />
+              <Plus className="w-4 h-4" />
             </button>
           </div>
         </div>
@@ -887,7 +874,6 @@ function BroadcastCard({
   sessionMatchCounts?: Record<number, number>;
   achievements?: PlayerAchievements;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
@@ -944,12 +930,12 @@ function BroadcastCard({
                   <ClickablePlayerName player={match.teamAPlayer1 || null} matchId={match.id} position="teamAPlayer1Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamAPlayer1 ? sessionMatchCounts?.[match.teamAPlayer1.id] : undefined}
-                    className="text-xs sm:text-sm font-medium truncate block" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
+                    className="text-sm sm:text-base font-bold truncate block" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
                     style={{ color: `${courtColor.ring}cc` }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                   <ClickablePlayerName player={match.teamAPlayer2 || null} matchId={match.id} position="teamAPlayer2Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamAPlayer2 ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
-                    className="text-xs sm:text-sm font-medium truncate block" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
+                    className="text-sm sm:text-base font-bold truncate block" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
                     style={{ color: `${courtColor.ring}cc` }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                 </div>
               </div>
@@ -973,11 +959,11 @@ function BroadcastCard({
                   <ClickablePlayerName player={match.teamBPlayer1 || null} matchId={match.id} position="teamBPlayer1Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamBPlayer1 ? sessionMatchCounts?.[match.teamBPlayer1.id] : undefined}
-                    className="text-xs sm:text-sm font-medium text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+                    className="text-sm sm:text-base font-bold text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                   <ClickablePlayerName player={match.teamBPlayer2 || null} matchId={match.id} position="teamBPlayer2Id"
                     availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
                     showMatchCount sessionMatchCount={match.teamBPlayer2 ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
-                    className="text-xs sm:text-sm font-medium text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+                    className="text-sm sm:text-base font-bold text-blue-400/80 truncate block text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
                 </div>
               </div>
               <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full flex items-center justify-center text-xs font-black shrink-0 bg-blue-400/20 border-2 border-blue-400/40 text-blue-400">
@@ -1079,21 +1065,9 @@ function BroadcastCard({
       </div>
 
       {canInteract && (
-        <>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 bg-gray-50 dark:bg-white/[0.03] border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 transition-all duration-300 hover-elevate"
-            data-testid={`pro-broadcast-expand-${match.id}`}
-          >
-            <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
-            <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
-          </button>
-          {expanded && (
-            <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
-              currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-              onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
-          )}
-        </>
+        <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+          currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+          onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
       )}
     </div>
   );
@@ -1120,7 +1094,6 @@ function ScoreboardCard({
   sessionMatchCounts?: Record<number, number>;
   achievements?: PlayerAchievements;
 }) {
-  const [expanded, setExpanded] = useState(false);
   const [editingPoints, setEditingPoints] = useState(false);
   const courtColor = getCourtColor(match.courtNumber || 1);
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
@@ -1167,23 +1140,23 @@ function ScoreboardCard({
           <ClickablePlayerName player={match.teamAPlayer1 || null} matchId={match.id} position="teamAPlayer1Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamAPlayer1 ? sessionMatchCounts?.[match.teamAPlayer1.id] : undefined}
-            className="text-xs sm:text-sm font-semibold truncate" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
+            className="text-sm sm:text-base font-bold truncate" isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
             style={{ color: courtColor.ring }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
           <ClickablePlayerName player={match.teamAPlayer2 || null} matchId={match.id} position="teamAPlayer2Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamAPlayer2 ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
-            className="text-xs sm:text-sm font-semibold truncate" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
+            className="text-sm sm:text-base font-bold truncate" isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
             style={{ color: courtColor.ring }} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
         </div>
         <div className="flex flex-col items-end min-w-0 max-w-[45%]">
           <ClickablePlayerName player={match.teamBPlayer1 || null} matchId={match.id} position="teamBPlayer1Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamBPlayer1 ? sessionMatchCounts?.[match.teamBPlayer1.id] : undefined}
-            className="text-xs sm:text-sm font-semibold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+            className="text-sm sm:text-base font-bold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
           <ClickablePlayerName player={match.teamBPlayer2 || null} matchId={match.id} position="teamBPlayer2Id"
             availablePlayers={availablePlayers || []} canSwap={isOrganiser} onSwapPlayer={onSwapPlayer}
             showMatchCount sessionMatchCount={match.teamBPlayer2 ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
-            className="text-xs sm:text-sm font-semibold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+            className="text-sm sm:text-base font-bold text-blue-400 truncate text-right" isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)} achievements={achievements} busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
         </div>
       </div>
 
@@ -1283,21 +1256,9 @@ function ScoreboardCard({
       )}
 
       {canInteract && (
-        <>
-          <button
-            onClick={() => setExpanded(!expanded)}
-            className="w-full flex items-center justify-center gap-2 py-2.5 border-t border-gray-100 dark:border-white/[0.05] text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/60 transition-all duration-300 active:scale-[0.98]"
-            data-testid={`pro-scoreboard-expand-${match.id}`}
-          >
-            <span className="text-[11px] font-semibold uppercase tracking-wider">{expanded ? "Hide Controls" : "Score & End Match"}</span>
-            <ChevronDown className={cn("w-4 h-4 transition-transform duration-300", expanded && "rotate-180")} />
-          </button>
-          {expanded && (
-            <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
-              currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-              onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
-          )}
-        </>
+        <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+          currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+          onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
       )}
     </div>
   );
@@ -1306,11 +1267,14 @@ function ScoreboardCard({
 type SubView = "overview" | "court" | "list" | "score" | "broadcast" | "manager";
 
 function ManagerCourtCard({
-  match, isOrganiser, availablePlayers, onSwapPlayer, busyPlayerIds,
+  match, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers, onSwapPlayer, busyPlayerIds,
   sessionMatchCounts, courtNames, onCancelMatch, achievements,
+  onCompleteMatch, onEndSet, defaultPointsToPlayTo = 21,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
+  isSignedUp?: boolean;
+  currentPlayerProfileId?: number | null;
   availablePlayers: Player[];
   onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
   busyPlayerIds?: Set<number>;
@@ -1318,6 +1282,9 @@ function ManagerCourtCard({
   courtNames?: string[];
   onCancelMatch?: (matchId: number) => void;
   achievements?: PlayerAchievements;
+  onCompleteMatch?: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onEndSet?: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  defaultPointsToPlayTo?: number;
 }) {
   const courtColor = getCourtColor(match.courtNumber || 1);
   const courtLabel = match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court";
@@ -1327,13 +1294,14 @@ function ManagerCourtCard({
     const teamColor = team === "A" ? courtColor.ring : "rgb(96,165,250)";
     const teamBg = team === "A" ? courtColor.bg : "rgba(96,165,250,0.08)";
     const name = getPlayerName(player);
+    const isFemale = player?.gender === "FEMALE";
 
     return (
       <div
-        className="flex items-center px-4 py-3 rounded-lg border transition-all min-h-[52px]"
+        className="flex items-center px-4 py-3 rounded-lg border transition-all min-h-[56px]"
         style={{
-          borderColor: name ? `${teamColor}30` : 'rgba(255,255,255,0.1)',
-          backgroundColor: name ? teamBg : 'rgba(255,255,255,0.02)',
+          borderColor: isFemale ? 'rgba(236,72,153,0.3)' : name ? `${teamColor}30` : 'rgba(255,255,255,0.1)',
+          backgroundColor: isFemale ? 'rgba(236,72,153,0.06)' : name ? teamBg : 'rgba(255,255,255,0.02)',
         }}
         data-testid={`manager-slot-${position}-${match.id}`}
       >
@@ -1346,8 +1314,8 @@ function ManagerCourtCard({
           onSwapPlayer={onSwapPlayer}
           showMatchCount
           sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
-          className="text-sm font-semibold truncate flex-1"
-          style={{ color: name ? teamColor : undefined }}
+          className="text-base font-bold truncate flex-1"
+          style={{ color: isFemale ? '#ec4899' : name ? teamColor : undefined }}
           isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
           achievements={achievements}
           busyPlayerIds={busyPlayerIds}
@@ -1415,6 +1383,12 @@ function ManagerCourtCard({
           </div>
         </div>
       </div>
+
+      {onCompleteMatch && onEndSet && (
+        <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={!!isSignedUp}
+          currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
+          onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+      )}
     </div>
   );
 }
@@ -1443,22 +1417,22 @@ function MiniCourtTile({
       <div className="absolute right-[8%] left-1/2 top-[32%] bottom-[32%] border border-gray-200 dark:border-white/10" />
 
       <div className="absolute left-[12%] top-[14%] z-10 max-w-[38%]">
-        <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: courtColor.ring }}>
+        <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: match.teamAPlayer1?.gender === "FEMALE" ? '#ec4899' : courtColor.ring }}>
           {firstName(match.teamAPlayer1?.user?.fullName) || <span className="opacity-50 italic">Empty</span>}
         </span>
       </div>
       <div className="absolute left-[12%] bottom-[14%] z-10 max-w-[38%]">
-        <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: courtColor.ring }}>
+        <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: match.teamAPlayer2?.gender === "FEMALE" ? '#ec4899' : courtColor.ring }}>
           {firstName(match.teamAPlayer2?.user?.fullName) || <span className="opacity-50 italic">Empty</span>}
         </span>
       </div>
       <div className="absolute right-[12%] top-[14%] z-10 max-w-[38%] text-right">
-        <span className="text-[10px] sm:text-xs font-bold text-blue-400 truncate block">
+        <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: match.teamBPlayer1?.gender === "FEMALE" ? '#ec4899' : 'rgb(96,165,250)' }}>
           {firstName(match.teamBPlayer1?.user?.fullName) || <span className="opacity-50 italic">Empty</span>}
         </span>
       </div>
       <div className="absolute right-[12%] bottom-[14%] z-10 max-w-[38%] text-right">
-        <span className="text-[10px] sm:text-xs font-bold text-blue-400 truncate block">
+        <span className="text-[10px] sm:text-xs font-bold truncate block" style={{ color: match.teamBPlayer2?.gender === "FEMALE" ? '#ec4899' : 'rgb(96,165,250)' }}>
           {firstName(match.teamBPlayer2?.user?.fullName) || <span className="opacity-50 italic">Empty</span>}
         </span>
       </div>
@@ -1832,6 +1806,8 @@ export function ProLiveMatches({
                 key={match.id}
                 match={match}
                 isOrganiser={isOrganiser}
+                isSignedUp={isSignedUp}
+                currentPlayerProfileId={currentPlayerProfileId}
                 availablePlayers={availablePlayers}
                 onSwapPlayer={onSwapPlayer}
                 busyPlayerIds={busyPlayerIds}
@@ -1839,6 +1815,9 @@ export function ProLiveMatches({
                 courtNames={courtNames}
                 onCancelMatch={onCancelMatch}
                 achievements={achievements}
+                onCompleteMatch={onCompleteMatch}
+                onEndSet={onEndSet}
+                defaultPointsToPlayTo={defaultPointsToPlayTo}
               />
             ))}
           </div>

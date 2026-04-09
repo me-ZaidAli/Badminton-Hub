@@ -20,6 +20,7 @@ type MatchPlayer = {
   id: number;
   user: { fullName: string };
   category: string | null;
+  gender?: string | null;
   matchesPlayed?: number | null;
 };
 
