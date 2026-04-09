@@ -591,6 +591,7 @@ function CourtCard({
   achievements?: PlayerAchievements;
 }) {
   const [editingPoints, setEditingPoints] = useState(false);
+  useEffect(() => { setEditingPoints(false); }, [match.id]);
   const courtColor = getCourtColor(match.courtNumber || 1);
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
   const matchSets = match.numberOfSets || 1;
@@ -714,6 +715,10 @@ function InlineScorePanel({
   useEffect(() => {
     return () => { if (successTimerRef.current) clearTimeout(successTimerRef.current); };
   }, []);
+
+  useEffect(() => {
+    setScoreA(""); setScoreB(""); setStep("input"); setSubmitting(false);
+  }, [match.id]);
 
   const resetForm = () => { setStep("input"); setScoreA(""); setScoreB(""); };
 
@@ -875,6 +880,7 @@ function BroadcastCard({
   achievements?: PlayerAchievements;
 }) {
   const [editingPoints, setEditingPoints] = useState(false);
+  useEffect(() => { setEditingPoints(false); }, [match.id]);
   const courtColor = getCourtColor(match.courtNumber || 1);
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
   const matchSets = match.numberOfSets || 1;
@@ -1095,6 +1101,7 @@ function ScoreboardCard({
   achievements?: PlayerAchievements;
 }) {
   const [editingPoints, setEditingPoints] = useState(false);
+  useEffect(() => { setEditingPoints(false); }, [match.id]);
   const courtColor = getCourtColor(match.courtNumber || 1);
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
   const matchSets = match.numberOfSets || 1;
@@ -1639,6 +1646,58 @@ function CourtDetailDialog({
   );
 }
 
+function EmptyCourtSlot({ courtNumber, courtName, variant = "default" }: { courtNumber: number; courtName: string; variant?: "default" | "mini" | "broadcast" }) {
+  const courtColor = getCourtColor(courtNumber);
+
+  if (variant === "mini") {
+    return (
+      <div
+        className="relative w-full aspect-[1/1.15] rounded-xl overflow-hidden border border-gray-200 dark:border-white/[0.08] bg-gray-50 dark:bg-slate-900/50 shadow-inner"
+        data-testid={`empty-court-tile-${courtNumber}`}
+      >
+        <div className="absolute inset-[8%] border border-dashed border-gray-200 dark:border-white/10 rounded-sm" />
+        <div className="absolute left-1/2 top-[8%] bottom-[8%] w-px bg-gray-200 dark:bg-white/[0.06]" style={{ transform: 'translateX(-50%)' }} />
+        <div className="absolute inset-0 flex items-center justify-center z-10">
+          <div className="flex flex-col items-center gap-1">
+            <div className="w-8 h-8 rounded-full border-2 border-dashed flex items-center justify-center" style={{ borderColor: `${courtColor.ring}30` }}>
+              <span className="text-xs font-black tabular-nums" style={{ color: `${courtColor.ring}50` }}>{courtNumber}</span>
+            </div>
+            <span className="text-[9px] font-bold uppercase tracking-wider" style={{ color: `${courtColor.ring}40` }}>{courtName}</span>
+            <span className="text-[8px] text-gray-400 dark:text-white/20">Available</span>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (variant === "broadcast") {
+    return (
+      <div className="rounded-xl overflow-hidden border border-white/[0.07] bg-slate-900/40 shadow-inner" data-testid={`empty-court-broadcast-${courtNumber}`}>
+        <div className="flex flex-col items-center justify-center py-8 gap-2">
+          <div className="w-10 h-10 rounded-full border-2 border-dashed flex items-center justify-center" style={{ borderColor: `${courtColor.ring}30` }}>
+            <span className="text-sm font-black" style={{ color: `${courtColor.ring}50` }}>{courtNumber}</span>
+          </div>
+          <span className="text-xs font-bold uppercase tracking-wider" style={{ color: `${courtColor.ring}40` }}>{courtName}</span>
+          <span className="text-[10px] text-white/20">No active match</span>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.015] shadow-inner flex flex-col items-center justify-center py-8 gap-2"
+      data-testid={`empty-court-slot-${courtNumber}`}
+    >
+      <div className="w-10 h-10 rounded-full border-2 border-dashed flex items-center justify-center" style={{ borderColor: `${courtColor.ring}30` }}>
+        <span className="text-sm font-black tabular-nums" style={{ color: `${courtColor.ring}50` }}>{courtNumber}</span>
+      </div>
+      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: `${courtColor.ring}40` }}>{courtName}</span>
+      <span className="text-[10px] text-gray-400 dark:text-white/20">No active match</span>
+    </div>
+  );
+}
+
 type ProLiveMatchesProps = {
   liveMatches: CourtMatch[];
   isOrganiser: boolean;
@@ -1646,6 +1705,7 @@ type ProLiveMatchesProps = {
   currentPlayerProfileId?: number | null;
   availablePlayers: Player[];
   courtNames?: string[];
+  totalCourts?: number;
   defaultPointsToPlayTo?: number;
   sessionMatchCounts?: Record<number, number>;
   achievements?: PlayerAchievements;
@@ -1661,7 +1721,7 @@ type ProLiveMatchesProps = {
 
 export function ProLiveMatches({
   liveMatches, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers,
-  courtNames, defaultPointsToPlayTo = 21, sessionMatchCounts, achievements,
+  courtNames, totalCourts, defaultPointsToPlayTo = 21, sessionMatchCounts, achievements,
   onCompleteMatch, onEndSet, onCancelMatch, onSwapPlayer,
   onCourtNameChange, onUpdatePointsTarget, onUpdateSets, busyPlayerIds,
 }: ProLiveMatchesProps) {
@@ -1706,7 +1766,17 @@ export function ProLiveMatches({
     { key: "broadcast", label: "Broadcast", icon: Monitor },
   ];
 
-  if (liveMatches.length === 0) {
+  const maxCourtFromMatches = liveMatches.reduce((max, m) => Math.max(max, m.courtNumber || 0), 0);
+  const numCourts = Math.max(totalCourts || 0, courtNames?.length || 0, maxCourtFromMatches);
+  const matchByCourtNumber = new Map<number, CourtMatch>();
+  liveMatches.forEach(m => { if (m.courtNumber) matchByCourtNumber.set(m.courtNumber, m); });
+  const courtSlots = Array.from({ length: numCourts }, (_, i) => ({
+    courtNumber: i + 1,
+    match: matchByCourtNumber.get(i + 1) || null,
+    courtName: courtNames?.[i] || `Court ${i + 1}`,
+  }));
+
+  if (liveMatches.length === 0 && numCourts === 0) {
     return (
       <div className="relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-8 overflow-hidden" data-testid="pro-live-matches-empty">
         <div className="absolute inset-0 pointer-events-none hidden dark:block" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
@@ -1801,10 +1871,10 @@ export function ProLiveMatches({
 
         {subView === "manager" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {liveMatches.map(match => (
+            {courtSlots.map(slot => slot.match ? (
               <ManagerCourtCard
-                key={match.id}
-                match={match}
+                key={`court-${slot.courtNumber}`}
+                match={slot.match}
                 isOrganiser={isOrganiser}
                 isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId}
@@ -1819,6 +1889,8 @@ export function ProLiveMatches({
                 onEndSet={onEndSet}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
               />
+            ) : (
+              <EmptyCourtSlot key={`court-${slot.courtNumber}`} courtNumber={slot.courtNumber} courtName={slot.courtName} />
             ))}
           </div>
         )}
@@ -1826,9 +1898,11 @@ export function ProLiveMatches({
         {subView === "overview" && (
           <>
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-              {liveMatches.map(match => (
-                <MiniCourtTile key={match.id} match={match} courtNames={courtNames}
-                  onClick={() => setSelectedMatchId(match.id)} />
+              {courtSlots.map(slot => slot.match ? (
+                <MiniCourtTile key={`court-${slot.courtNumber}`} match={slot.match} courtNames={courtNames}
+                  onClick={() => setSelectedMatchId(slot.match!.id)} />
+              ) : (
+                <EmptyCourtSlot key={`court-${slot.courtNumber}`} courtNumber={slot.courtNumber} courtName={slot.courtName} variant="mini" />
               ))}
             </div>
             <CourtDetailDialog
@@ -1883,40 +1957,46 @@ export function ProLiveMatches({
 
         {subView === "court" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3 landscape-court-grid">
-            {liveMatches.map(match => (
-              <CourtCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+            {courtSlots.map(slot => slot.match ? (
+              <CourtCard key={`court-${slot.courtNumber}`} match={slot.match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} courtNames={courtNames}
                 defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
                 onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
                 onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds}
                 sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+            ) : (
+              <EmptyCourtSlot key={`court-${slot.courtNumber}`} courtNumber={slot.courtNumber} courtName={slot.courtName} />
             ))}
           </div>
         )}
 
         {subView === "score" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {liveMatches.map(match => (
-              <ScoreboardCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+            {courtSlots.map(slot => slot.match ? (
+              <ScoreboardCard key={`court-${slot.courtNumber}`} match={slot.match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
                 onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
                 onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds}
                 sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+            ) : (
+              <EmptyCourtSlot key={`court-${slot.courtNumber}`} courtNumber={slot.courtNumber} courtName={slot.courtName} />
             ))}
           </div>
         )}
 
         {subView === "broadcast" && (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-            {liveMatches.map(match => (
-              <BroadcastCard key={match.id} match={match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
+            {courtSlots.map(slot => slot.match ? (
+              <BroadcastCard key={`court-${slot.courtNumber}`} match={slot.match} isOrganiser={isOrganiser} isSignedUp={isSignedUp}
                 currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
                 onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch}
                 onUpdatePointsTarget={onUpdatePointsTarget} onUpdateSets={onUpdateSets}
                 onSwapPlayer={onSwapPlayer} availablePlayers={availablePlayers} busyPlayerIds={busyPlayerIds}
                 sessionMatchCounts={sessionMatchCounts} achievements={achievements} />
+            ) : (
+              <EmptyCourtSlot key={`court-${slot.courtNumber}`} courtNumber={slot.courtNumber} courtName={slot.courtName} variant="broadcast" />
             ))}
           </div>
         )}

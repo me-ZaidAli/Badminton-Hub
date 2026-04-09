@@ -5033,6 +5033,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
               currentPlayerProfileId={currentPlayerProfileId}
               availablePlayers={availablePlayers}
               courtNames={courtNamesState}
+              totalCourts={courtsToUse}
               defaultPointsToPlayTo={defaultPointsToPlayTo}
               sessionMatchCounts={sessionMatchCounts}
               achievements={playerAchievements}
