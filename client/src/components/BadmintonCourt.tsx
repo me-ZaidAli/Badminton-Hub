@@ -73,6 +73,7 @@ type BadmintonCourtProps = {
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
   defaultPointsToPlayTo?: number;
+  sessionMatchCounts?: Record<number, number>;
 };
 
 function formatTime(seconds: number): string {
@@ -121,6 +122,7 @@ export function BadmintonCourt({
   onUpdatePointsTarget,
   onUpdateSets,
   defaultPointsToPlayTo = 21,
+  sessionMatchCounts,
 }: BadmintonCourtProps) {
   const [showScoreDialog, setShowScoreDialog] = useState(false);
   const [teamScoreA, setTeamScoreA] = useState<string>("");
@@ -400,6 +402,7 @@ export function BadmintonCourt({
                       onSwap={onSwapPlayer}
                       variant="court"
                       team="A"
+                      sessionMatchCounts={sessionMatchCounts}
                     />
                     <PlayerSlotEditable
                       player={match.teamAPlayer2 || null}
@@ -410,6 +413,7 @@ export function BadmintonCourt({
                       onSwap={onSwapPlayer}
                       variant="court"
                       team="A"
+                      sessionMatchCounts={sessionMatchCounts}
                     />
                   </div>
 
@@ -455,6 +459,7 @@ export function BadmintonCourt({
                       onSwap={onSwapPlayer}
                       variant="court"
                       team="B"
+                      sessionMatchCounts={sessionMatchCounts}
                     />
                     <PlayerSlotEditable
                       player={match.teamBPlayer2 || null}
@@ -465,6 +470,7 @@ export function BadmintonCourt({
                       onSwap={onSwapPlayer}
                       variant="court"
                       team="B"
+                      sessionMatchCounts={sessionMatchCounts}
                     />
                   </div>
                 </div>

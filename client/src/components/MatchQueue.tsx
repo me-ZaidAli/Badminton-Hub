@@ -380,6 +380,7 @@ export function MatchQueue({
                             isBusy={isPlayerBusy(match.teamAPlayer1?.id)}
                             sessionMatchCount={match.teamAPlayer1?.id ? sessionMatchCounts?.[match.teamAPlayer1.id] : undefined}
                             achievements={achievements}
+                            sessionMatchCounts={sessionMatchCounts}
                           />
                           <PlayerSlotEditable
                             player={match.teamAPlayer2 || null}
@@ -392,6 +393,7 @@ export function MatchQueue({
                             isBusy={isPlayerBusy(match.teamAPlayer2?.id)}
                             sessionMatchCount={match.teamAPlayer2?.id ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
                             achievements={achievements}
+                            sessionMatchCounts={sessionMatchCounts}
                           />
                         </div>
 
@@ -413,6 +415,7 @@ export function MatchQueue({
                             isBusy={isPlayerBusy(match.teamBPlayer1?.id)}
                             sessionMatchCount={match.teamBPlayer1?.id ? sessionMatchCounts?.[match.teamBPlayer1.id] : undefined}
                             achievements={achievements}
+                            sessionMatchCounts={sessionMatchCounts}
                           />
                           <PlayerSlotEditable
                             player={match.teamBPlayer2 || null}
@@ -425,6 +428,7 @@ export function MatchQueue({
                             isBusy={isPlayerBusy(match.teamBPlayer2?.id)}
                             sessionMatchCount={match.teamBPlayer2?.id ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
                             achievements={achievements}
+                            sessionMatchCounts={sessionMatchCounts}
                           />
                         </div>
                       </div>

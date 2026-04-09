@@ -33,6 +33,7 @@ export type PlayerSlotEditableProps = {
   achievements?: Record<number, { trophy?: boolean; fire?: boolean }>;
   className?: string;
   showMatchCount?: boolean;
+  sessionMatchCounts?: Record<number, number>;
 };
 
 export function PlayerSlotEditable({
@@ -49,6 +50,7 @@ export function PlayerSlotEditable({
   achievements,
   className,
   showMatchCount,
+  sessionMatchCounts,
 }: PlayerSlotEditableProps) {
   const [open, setOpen] = useState(false);
   const [search, setSearch] = useState("");
@@ -59,6 +61,8 @@ export function PlayerSlotEditable({
 
   const playerName = player?.user?.fullName || player?.fullName || null;
   const playerId = player?.id;
+
+  const sortedFilteredPlayers = [...filteredPlayers].sort((a, b) => (sessionMatchCounts?.[a.id] ?? 0) - (sessionMatchCounts?.[b.id] ?? 0));
 
   if (variant === "court") {
     return <CourtVariant
@@ -71,10 +75,11 @@ export function PlayerSlotEditable({
       setOpen={setOpen}
       search={search}
       setSearch={setSearch}
-      filteredPlayers={filteredPlayers}
+      filteredPlayers={sortedFilteredPlayers}
       playerId={playerId}
       matchId={matchId}
       onSwap={onSwap}
+      sessionMatchCounts={sessionMatchCounts}
     />;
   }
 
@@ -89,13 +94,14 @@ export function PlayerSlotEditable({
       setOpen={setOpen}
       search={search}
       setSearch={setSearch}
-      filteredPlayers={filteredPlayers}
+      filteredPlayers={sortedFilteredPlayers}
       playerId={playerId}
       onSwap={onSwap}
       isBusy={isBusy}
       sessionMatchCount={sessionMatchCount}
       showMatchCount={showMatchCount}
       className={className}
+      sessionMatchCounts={sessionMatchCounts}
     />;
   }
 
@@ -109,12 +115,13 @@ export function PlayerSlotEditable({
     setOpen={setOpen}
     search={search}
     setSearch={setSearch}
-    filteredPlayers={filteredPlayers}
+    filteredPlayers={sortedFilteredPlayers}
     playerId={playerId}
     onSwap={onSwap}
     isBusy={isBusy}
     sessionMatchCount={sessionMatchCount}
     achievements={achievements}
+    sessionMatchCounts={sessionMatchCounts}
   />;
 }
 
@@ -129,6 +136,7 @@ function PlayerSearchDialog({
   matchId,
   position,
   onSwap,
+  sessionMatchCounts,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -140,6 +148,7 @@ function PlayerSearchDialog({
   matchId: number;
   position: string;
   onSwap: (matchId: number, position: string, newPlayerId: number) => void;
+  sessionMatchCounts?: Record<number, number>;
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -165,7 +174,8 @@ function PlayerSearchDialog({
                   data-testid={`select-player-${p.id}`}
                 >
                   <Check className={cn("mr-2 h-4 w-4", currentPlayerId === p.id ? "opacity-100" : "opacity-0")} />
-                  {p.fullName} ({p.category || "?"})
+                  <span className="flex-1">{p.fullName} ({p.category || "?"})</span>
+                  <span className="text-xs text-muted-foreground ml-2 tabular-nums" data-testid={`swap-count-${p.id}`}>{sessionMatchCounts?.[p.id] ?? 0}g</span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -190,6 +200,7 @@ function CourtVariant({
   playerId,
   matchId,
   onSwap,
+  sessionMatchCounts,
 }: any) {
   const teamStyles = team === "A"
     ? "bg-blue-50 dark:bg-blue-950/60 border-blue-200 dark:border-blue-800 text-blue-900 dark:text-blue-100"
@@ -226,6 +237,7 @@ function CourtVariant({
           matchId={matchId}
           position={position}
           onSwap={onSwap}
+          sessionMatchCounts={sessionMatchCounts}
         />
       </>
     );
@@ -256,6 +268,7 @@ function CourtVariant({
         matchId={matchId}
         position={position}
         onSwap={onSwap}
+        sessionMatchCounts={sessionMatchCounts}
       />
     </>
   );
@@ -277,6 +290,7 @@ function QueueVariant({
   isBusy,
   sessionMatchCount,
   achievements,
+  sessionMatchCounts,
 }: any) {
   if (!player) {
     return (
@@ -302,6 +316,7 @@ function QueueVariant({
           matchId={matchId}
           position={position}
           onSwap={onSwap}
+          sessionMatchCounts={sessionMatchCounts}
         />
       </>
     );
@@ -336,6 +351,7 @@ function QueueVariant({
         matchId={matchId}
         position={position}
         onSwap={onSwap}
+        sessionMatchCounts={sessionMatchCounts}
       />
     </>
   );
@@ -358,6 +374,7 @@ function CompactVariant({
   sessionMatchCount,
   showMatchCount,
   className,
+  sessionMatchCounts,
 }: any) {
   const busyClass = isBusy ? "text-red-500 dark:text-red-400 animate-pulse" : "";
 
@@ -389,6 +406,7 @@ function CompactVariant({
           matchId={matchId}
           position={position}
           onSwap={onSwap}
+          sessionMatchCounts={sessionMatchCounts}
         />
       </>
     );
@@ -426,6 +444,7 @@ function CompactVariant({
         matchId={matchId}
         position={position}
         onSwap={onSwap}
+        sessionMatchCounts={sessionMatchCounts}
       />
     </>
   );

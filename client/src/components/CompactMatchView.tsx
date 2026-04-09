@@ -313,6 +313,7 @@ function MatchCard({
         sessionMatchCount={sessionMatchCounts?.[match.teamAPlayer1?.id]}
         className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamAPlayer1?.id && busyPlayerIds?.has(match.teamAPlayer1.id)}
+        sessionMatchCounts={sessionMatchCounts}
       />
       <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
       <PlayerSlotEditable
@@ -327,6 +328,7 @@ function MatchCard({
         sessionMatchCount={match.teamAPlayer2?.id ? sessionMatchCounts?.[match.teamAPlayer2.id] : undefined}
         className="text-sm sm:text-base font-semibold text-gray-900 dark:text-white truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamAPlayer2?.id && busyPlayerIds?.has(match.teamAPlayer2.id)}
+        sessionMatchCounts={sessionMatchCounts}
       />
     </div>
   );
@@ -346,6 +348,7 @@ function MatchCard({
         sessionMatchCount={sessionMatchCounts?.[match.teamBPlayer1?.id]}
         className="text-sm sm:text-base font-semibold text-gray-800 dark:text-zinc-200 truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamBPlayer1?.id && busyPlayerIds?.has(match.teamBPlayer1.id)}
+        sessionMatchCounts={sessionMatchCounts}
       />
       <span className="text-gray-400 dark:text-zinc-600 text-xs">&</span>
       <PlayerSlotEditable
@@ -360,6 +363,7 @@ function MatchCard({
         sessionMatchCount={match.teamBPlayer2?.id ? sessionMatchCounts?.[match.teamBPlayer2.id] : undefined}
         className="text-sm sm:text-base font-semibold text-gray-800 dark:text-zinc-200 truncate max-w-[40%] sm:max-w-none"
         isBusy={!!match.teamBPlayer2?.id && busyPlayerIds?.has(match.teamBPlayer2.id)}
+        sessionMatchCounts={sessionMatchCounts}
       />
     </div>
   );

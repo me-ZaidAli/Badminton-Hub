@@ -324,14 +324,28 @@ function buildAllSplits(group: Player[]): [Player[], Player[]][] {
   ];
 }
 
+type ScoreMatchContext = {
+  pairUnits?: SelectionUnit[];
+  cfg?: MatchEngineSettings;
+  playerMatchCounts?: Map<number, number>;
+  sessionAvgGames?: number;
+  groupHistory?: Map<string, number>;
+  matchIndex?: number;
+  playerLastPlayedRound?: Map<number, number>;
+};
+
+function groupKey(players: Player[]): string {
+  return [...players].map(p => p.id).sort((a, b) => a - b).join("-");
+}
+
 function scoreMatch(
   teamA: Player[],
   teamB: Player[],
   pairHistory: Map<string, number>,
   oppHistory: Map<string, number>,
-  pairUnits?: SelectionUnit[],
-  cfg?: MatchEngineSettings
+  ctx: ScoreMatchContext = {}
 ): { score: number; teamDiff: number; factors: string[] } {
+  const { pairUnits, cfg, playerMatchCounts, sessionAvgGames, groupHistory, matchIndex, playerLastPlayedRound } = ctx;
   const ec = cfg || DEFAULT_SETTINGS;
   const teamDiff = Math.abs(teamAvgRank(teamA) - teamAvgRank(teamB));
 
@@ -363,8 +377,75 @@ function scoreMatch(
   if (partnerRepeat > 0) factors.push(`partnerRepeat(${partnerRepeat}): -${partnerPenalty}`);
   if (opponentRepeat > 0) factors.push(`opponentRepeat(${opponentRepeat}): -${opponentPenalty}`);
 
+  const allPlayers = [...teamA, ...teamB];
+
+  if (playerMatchCounts && sessionAvgGames !== undefined) {
+    let fairnessPenalty = 0;
+    for (const p of allPlayers) {
+      const games = playerMatchCounts.get(p.id) || 0;
+      const deficit = games - sessionAvgGames;
+      if (deficit > 0) {
+        const defPen = Math.min(deficit * Math.abs(ec.deficitWeight), Math.abs(ec.deficitCap));
+        fairnessPenalty += defPen;
+      }
+      fairnessPenalty += games * Math.abs(ec.gamesPlayedWeight);
+    }
+    if (fairnessPenalty > 0) {
+      score -= fairnessPenalty;
+      factors.push(`fairness(avgDelta): -${fairnessPenalty.toFixed(0)}`);
+    }
+  }
+
+  const allRanks = allPlayers.map(p => getGradeRank(p.grade));
+  const rankSpread = Math.max(...allRanks) - Math.min(...allRanks);
+  if (rankSpread <= 2) {
+    const likeBonus = Math.abs(ec.spreadWeight) * 1.5;
+    score += likeBonus;
+    factors.push(`likePlayLike(spread:${rankSpread}): +${likeBonus.toFixed(0)}`);
+  } else if (rankSpread <= 3) {
+    const likeBonus = Math.abs(ec.spreadWeight) * 0.5;
+    score += likeBonus;
+    factors.push(`likePlayLike(spread:${rankSpread}): +${likeBonus.toFixed(0)}`);
+  }
+
+  if (groupHistory) {
+    const gk = groupKey(allPlayers);
+    const groupRepeats = groupHistory.get(gk) || 0;
+    if (groupRepeats > 0) {
+      const grpPenalty = groupRepeats * Math.abs(ec.groupRepeatPenalty);
+      score -= grpPenalty;
+      factors.push(`groupRepeat(${groupRepeats}): -${grpPenalty}`);
+    }
+  }
+
+  if (ec.opponentCooldownWindow > 0) {
+    for (const a of teamA) {
+      for (const b of teamB) {
+        const oppCount = oppHistory.get(pairKey(a.id, b.id)) || 0;
+        if (oppCount >= ec.opponentCooldownThreshold) {
+          const softPen = Math.abs(ec.softOpponentPenalty) * (oppCount - ec.opponentCooldownThreshold + 1);
+          score -= softPen;
+          factors.push(`oppCooldown(${a.id}v${b.id},${oppCount}): -${softPen}`);
+        }
+      }
+    }
+  }
+
+  if (playerMatchCounts && playerLastPlayedRound && matchIndex !== undefined) {
+    const males = allPlayers.filter(p => getEffectiveGender(p) !== "FEMALE");
+    for (const m of males) {
+      const lastRound = playerLastPlayedRound.get(m.id) ?? -1;
+      const consecutiveGap = matchIndex - lastRound;
+      if (consecutiveGap <= 1 && (playerMatchCounts.get(m.id) || 0) > (sessionAvgGames || 0)) {
+        const rotPen = Math.abs(ec.maleRotationScaling);
+        score -= rotPen;
+        factors.push(`maleRotation(${m.id}): -${rotPen}`);
+      }
+    }
+  }
+
   if (pairUnits && pairUnits.length > 0) {
-    const allIds = [...teamA, ...teamB].map(p => p.id);
+    const allIds = allPlayers.map(p => p.id);
     for (const unit of pairUnits) {
       if (unit.type === "PAIR" && unit.pairWait && unit.pairWait > 0) {
         const pairInMatch = unit.players.every(p => allIds.includes(p.id));
@@ -377,7 +458,6 @@ function scoreMatch(
     }
   }
 
-  const allPlayers = [...teamA, ...teamB];
   const strongPlayers = allPlayers.filter(p => getGradeRank(p.grade) >= 6);
   const weakPlayers = allPlayers.filter(p => getGradeRank(p.grade) <= 3);
   if (strongPlayers.length > 0 && weakPlayers.length > 0) {
@@ -390,6 +470,32 @@ function scoreMatch(
           score += bonus;
           factors.push(`strongWeakPair: +${bonus}`);
         }
+      }
+    }
+  }
+
+  if (teamA.length === 2 && teamB.length === 2) {
+    const rankA1 = getGradeRank(teamA[0].grade);
+    const rankA2 = getGradeRank(teamA[1].grade);
+    const rankB1 = getGradeRank(teamB[0].grade);
+    const rankB2 = getGradeRank(teamB[1].grade);
+    const internalDiffA = Math.abs(rankA1 - rankA2);
+    const internalDiffB = Math.abs(rankB1 - rankB2);
+    if (internalDiffA >= 2 && internalDiffB >= 2) {
+      const balanceBonus = Math.abs(ec.spreadWeight) * 0.3;
+      score += balanceBonus;
+      factors.push(`balancedSplit: +${balanceBonus.toFixed(0)}`);
+    }
+  }
+
+  const females = allPlayers.filter(p => getEffectiveGender(p) === "FEMALE");
+  if (females.length > 0 && playerMatchCounts && sessionAvgGames !== undefined) {
+    for (const f of females) {
+      const fGames = playerMatchCounts.get(f.id) || 0;
+      if (fGames > sessionAvgGames + 1) {
+        const genderPen = Math.abs(ec.noStrongMaleFemalePenalty) * (fGames - sessionAvgGames);
+        score -= genderPen;
+        factors.push(`genderLoad(${f.id},${fGames}): -${genderPen.toFixed(0)}`);
       }
     }
   }
@@ -483,7 +589,8 @@ function generateNextMatch(
   pairWaitTracker?: Map<string, number>,
   genderType?: string,
   engineConfig?: MatchEngineSettings,
-  matchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number }
+  matchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number },
+  groupHistory?: Map<string, number>
 ): { match: MatchResult; score: number; teamDiff: number; factors: string[]; matchType?: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED"; isFallback: boolean } | null {
   const pool = eligible.filter(p => !usedPlayerIds.has(p.id));
   if (pool.length < 4) return null;
@@ -491,21 +598,44 @@ function generateNextMatch(
   const lastPlayed = playerLastPlayedRound || new Map<number, number>();
   const waitTracker = pairWaitTracker || new Map<string, number>();
 
-  const units = buildUnits(pool, fixedPairs, playerMatchCounts, matchIndex, lastPlayed, waitTracker);
-  const sorted = [...units].sort((a, b) => a.effectiveGames - b.effectiveGames);
-
   const ec = engineConfig || DEFAULT_SETTINGS;
-  const windowSize = Math.min(sorted.length, Math.max(10, Math.floor(ec.candidateLimitBase / 10)));
-  const windowUnits = sorted.slice(0, windowSize);
 
-  const candidateGroups = selectUnits(windowUnits);
+  const allCounts = Array.from(playerMatchCounts.values());
+  const sessionAvgGames = allCounts.length > 0 ? allCounts.reduce((a, b) => a + b, 0) / allCounts.length : 0;
+  const matchCountCap = sessionAvgGames + 2;
+
+  const units = buildUnits(pool, fixedPairs, playerMatchCounts, matchIndex, lastPlayed, waitTracker);
+
+  const sorted = [...units].sort((a, b) => {
+    const aGames = a.players.reduce((sum, p) => sum + (playerMatchCounts.get(p.id) || 0), 0) / a.players.length;
+    const bGames = b.players.reduce((sum, p) => sum + (playerMatchCounts.get(p.id) || 0), 0) / b.players.length;
+    const aDeficit = aGames - sessionAvgGames;
+    const bDeficit = bGames - sessionAvgGames;
+    const aWait = matchIndex - (a.players.reduce((max, p) => Math.max(max, lastPlayed.get(p.id) ?? -1), -1));
+    const bWait = matchIndex - (b.players.reduce((max, p) => Math.max(max, lastPlayed.get(p.id) ?? -1), -1));
+    const aComposite = aDeficit - (aWait * 0.5);
+    const bComposite = bDeficit - (bWait * 0.5);
+    return aComposite - bComposite;
+  });
+
+  const maxUnitsForWindow = Math.min(sorted.length, Math.max(10, Math.floor(Math.sqrt(ec.candidateLimitBase * 2))));
+  const windowUnits = sorted.slice(0, maxUnitsForWindow);
+
+  let candidateGroups = selectUnits(windowUnits);
   if (candidateGroups.length === 0) {
     return null;
+  }
+
+  const maxCandidateGroups = ec.candidateLimitBase * 10;
+  if (candidateGroups.length > maxCandidateGroups) {
+    candidateGroups = candidateGroups.slice(0, maxCandidateGroups);
   }
 
   const genderMode = determineGenderMode(pool, matchIndex, genderType);
 
   const pairUnits = windowUnits.filter(u => u.type === "PAIR");
+
+  const localGroupHistory = groupHistory || new Map<string, number>();
 
   function tryGenerate(rankSpreadLimit: number, teamDiffLimit: number): { match: MatchResult; score: number; teamDiff: number; factors: string[]; matchType?: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" } | null {
     let bestMatch: MatchResult | null = null;
@@ -515,6 +645,9 @@ function generateNextMatch(
     let bestMatchType: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" | undefined;
 
     for (const group of candidateGroups) {
+      const overCap = group.some(p => (playerMatchCounts.get(p.id) || 0) >= matchCountCap && matchCountCap > 2);
+      if (overCap) continue;
+
       const ranks = group.map(p => getGradeRank(p.grade));
       const spread = Math.max(...ranks) - Math.min(...ranks);
 
@@ -542,7 +675,17 @@ function generateNextMatch(
           teamBPlayer2Id: teamB.length > 1 ? teamB[1].id : null,
         };
 
-        const { score: baseScore, teamDiff, factors } = scoreMatch(teamA, teamB, pairHistory, oppHistory, pairUnits, ec);
+        const scoreCtx: ScoreMatchContext = {
+          pairUnits,
+          cfg: ec,
+          playerMatchCounts,
+          sessionAvgGames,
+          groupHistory: localGroupHistory,
+          matchIndex,
+          playerLastPlayedRound: lastPlayed,
+        };
+
+        const { score: baseScore, teamDiff, factors } = scoreMatch(teamA, teamB, pairHistory, oppHistory, scoreCtx);
 
         let score = baseScore;
         if (priorityPlayerIds && priorityPlayerIds.length > 0) {
@@ -593,6 +736,14 @@ function generateNextMatch(
   return null;
 }
 
+function parseFactorValue(factor: string): number {
+  const match = factor.match(/([+-]?\d+(?:\.\d+)?)\s*$/);
+  if (match) return parseFloat(match[1]);
+  const signedMatch = factor.match(/:\s*([+-]?\d+(?:\.\d+)?)/);
+  if (signedMatch) return parseFloat(signedMatch[1]);
+  return 0;
+}
+
 function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
   const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, fixedPairs, priorityPlayerIds } = opts;
   const ec = opts.settings?.engineConfig;
@@ -611,6 +762,7 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
   const usedPlayerIds = new Set<number>();
   const playerLastPlayedRound = new Map<number, number>();
   const pairWaitTracker = new Map<string, number>();
+  const localGroupHistory = new Map<string, number>();
 
   const runningTypeCounts = opts.settings?.existingMatchTypeCounts
     ? { ...opts.settings.existingMatchTypeCounts }
@@ -629,7 +781,7 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
       eligible, q, fixedPairs || [], localCounts,
       localPairings, localOpponents, usedPlayerIds,
       priorityPlayerIds, playerLastPlayedRound, pairWaitTracker,
-      genderType, ec, runningTypeCounts
+      genderType, ec, runningTypeCounts, localGroupHistory
     );
 
     if (!result) break;
@@ -657,13 +809,38 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
     if (isFallback) tagFactors.push("fallback");
 
     match.qualityScore = score;
+
+    let fairnessScore = 0;
+    let varietyScore = 0;
+    let qualityScore = Math.round(-teamDiff * 50);
+    let priorityScore = 0;
+    let genderScore = 0;
+    for (const f of tagFactors) {
+      if (f.startsWith("fairness") || f.startsWith("genderLoad") || f.startsWith("maleRotation")) {
+        const val = parseFactorValue(f);
+        fairnessScore += val;
+      } else if (f.startsWith("partnerRepeat") || f.startsWith("opponentRepeat") || f.startsWith("oppCooldown") || f.startsWith("groupRepeat")) {
+        const val = parseFactorValue(f);
+        varietyScore += val;
+      } else if (f.startsWith("likePlayLike") || f.startsWith("balancedSplit") || f.startsWith("strongWeakPair")) {
+        const val = parseFactorValue(f);
+        qualityScore += val;
+      } else if (f.startsWith("priority")) {
+        const val = parseFactorValue(f);
+        priorityScore += val;
+      } else if (f.startsWith("typeSteer")) {
+        const val = parseFactorValue(f);
+        genderScore += val;
+      }
+    }
+
     match.breakdown = {
-      fairness: 0,
-      variety: 0,
-      quality: Math.round(-teamDiff * 50),
-      priority: 0,
-      gender: 0,
-      total: score,
+      fairness: Math.round(fairnessScore),
+      variety: Math.round(varietyScore),
+      quality: Math.round(qualityScore),
+      priority: Math.round(priorityScore),
+      gender: Math.round(genderScore),
+      total: Math.round(score),
     };
 
     results.push(match);
@@ -695,6 +872,9 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
       localCounts.set(id, (localCounts.get(id) || 0) + 1);
       playerLastPlayedRound.set(id, q);
     }
+
+    const gk = [...ids].sort((a, b) => a - b).join("-");
+    localGroupHistory.set(gk, (localGroupHistory.get(gk) || 0) + 1);
   }
 
   return { matches: results, scoringLogs };
