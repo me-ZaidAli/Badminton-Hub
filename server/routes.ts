@@ -32105,7 +32105,7 @@ Return ONLY valid JSON in this exact format:
             { role: "system", content: systemPrompt },
             { role: "user", content: userContent }
           ],
-          max_tokens: 32000,
+          max_tokens: 16384,
           temperature: 0.1,
         });
         const rawResponse = completion.choices?.[0]?.message?.content || "{}";
