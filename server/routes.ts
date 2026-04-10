@@ -32038,26 +32038,18 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      const imageContents = files.map(file => {
-        const base64Image = file.buffer.toString("base64");
-        const mimeType = file.mimetype || "image/png";
-        return { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
-      });
+      console.log(`[AI Match Extract] Processing ${files.length} image(s) individually`);
 
-      console.log(`[AI Match Extract] Processing ${files.length} image(s)`);
-
-      const systemPrompt = `You are a sports score sheet OCR assistant for badminton. Extract ALL match results from the image(s).
-
-IMPORTANT: You may receive MULTIPLE images that are screenshots of the SAME match list (scrolled down). Together they form ONE continuous list. Extract ALL matches from ALL images combined, in order from earliest/top to latest/bottom. Do NOT duplicate matches that may appear in overlapping regions between screenshots.
+      const systemPrompt = `You are a sports score sheet OCR assistant for badminton. Extract ALL match results from the image.
 
 LAYOUT — THIS IS CRITICAL, READ VERY CAREFULLY:
 Each match row has exactly 3 sections separated visually:
 
-  LEFT SIDE: Team A players (2 names with "+" between them)
+  LEFT SIDE: Team A players (the "Winners" column — 2 names with "+" between them)
   CENTER: The match score (two numbers separated by a dash, like "21-10")
-  RIGHT SIDE: Team B players (2 names with "+" between them)
+  RIGHT SIDE: Team B players (the "Opponents" column — 2 names with "+" between them)
 
-There is usually also a "Type" column (MMMM, LMLM, LMMM etc) on the far left, and time/duration columns on the far right. Ignore those — just extract the teams, scores.
+There is usually also a "Type" column (MMMM, LMLM, LMMM etc) on the far left, and time/duration columns on the far right. Ignore those — just extract the teams and scores.
 
 Example row: "Thomas Lim 8.2 + Rachel Sims 16.1    21-10    Alex Lau 16.5 + Maria Timovanu 4.6"
 
@@ -32080,11 +32072,10 @@ PLAYER NAME RULES:
 - Preserve exact spelling from the image.
 
 ORDERING:
-- Return matches in the EXACT order they appear in the image(s), top-to-bottom.
-- If multiple images, process them in order: image 1 first, then image 2, etc.
-- Match #1 in output = first row in the first image. Do NOT reorder.
-- Extract EVERY row. If there are 50 matches visible across all images, return all 50.
-- Do NOT stop early. Keep going until you have extracted every single match row.
+- Return matches in the EXACT order they appear in the image, top-to-bottom.
+- Match #1 in output = first row in the image. Do NOT reorder.
+- Extract EVERY SINGLE ROW. If there are 30+ matches visible, return ALL of them. Do NOT stop early.
+- Count the rows first before extracting. If you count 31 rows, your output must have exactly 31 matches.
 
 SCORE VALIDATION (badminton rules):
 - Normal win: winner has 21, loser has 0-19 (e.g. 21-15, 21-0, 21-19)
@@ -32095,15 +32086,15 @@ SCORE VALIDATION (badminton rules):
 Return ONLY valid JSON in this exact format:
 {"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}, {"name": "Player Name", "confidence": 0.85}], "teamB": [{"name": "Player Name", "confidence": 0.9}, {"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;
 
-      const extractOnce = async (hint: string): Promise<any[]> => {
-        const userContent: any[] = [{ type: "text", text: hint }];
-        for (const img of imageContents) userContent.push(img);
-
+      const extractFromImage = async (imageContent: any, hint: string): Promise<any[]> => {
         const completion = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: userContent }
+            { role: "user", content: [
+              { type: "text", text: hint },
+              imageContent
+            ]}
           ],
           max_tokens: 16384,
           temperature: 0.1,
@@ -32120,22 +32111,6 @@ Return ONLY valid JSON in this exact format:
         }
       };
 
-      let allExtracted = await extractOnce(
-        `Extract EVERY match result from ${files.length > 1 ? "these " + files.length + " score sheet images (they are consecutive screenshots of the same list)" : "this score sheet image"}. Do NOT skip any rows. Preserve the exact order as shown — first row in the first image = first match in output. Include ALL matches visible across all images, even if there are many (30, 40, 50+). Do not stop early.`
-      );
-
-      console.log(`[AI Match Extract] First pass: extracted ${allExtracted.length} matches`);
-
-      if (allExtracted.length > 0 && allExtracted.length < 40) {
-        const retryMatches = await extractOnce(
-          `IMPORTANT: On a previous attempt only ${allExtracted.length} matches were found, but there are likely MORE. Look very carefully at EVERY row/entry in ALL ${files.length} image(s). Count the rows first, then extract ALL of them in exact top-to-bottom order. Do NOT stop early. If you see 50 rows, return all 50. Extract until the very last row visible in the last image.`
-        );
-        if (retryMatches.length > allExtracted.length) {
-          console.log(`[AI Match Extract] Retry found more: ${retryMatches.length} vs ${allExtracted.length}, using retry result`);
-          allExtracted = retryMatches;
-        }
-      }
-
       const cleanPlayerName = (name: string): string => {
         return name.replace(/\s+\d+(\.\d+)?\s*$/, '').trim();
       };
@@ -32143,7 +32118,6 @@ Return ONLY valid JSON in this exact format:
         ...p,
         name: cleanPlayerName(p.name || ''),
       });
-
       const isValidBadmintonScore = (a: number, b: number): boolean => {
         const hi = Math.max(a, b);
         const lo = Math.min(a, b);
@@ -32152,6 +32126,54 @@ Return ONLY valid JSON in this exact format:
         if (hi <= 30) return (hi - lo === 2) || (hi === 30 && lo === 29);
         return false;
       };
+
+      const getMatchFingerprint = (m: any): string => {
+        const names = [
+          ...(m.teamA || []).map((p: any) => cleanPlayerName(p.name || '').toLowerCase()),
+          ...(m.teamB || []).map((p: any) => cleanPlayerName(p.name || '').toLowerCase()),
+        ].sort().join('|');
+        return `${names}::${m.scoreA}-${m.scoreB}`;
+      };
+
+      let allExtracted: any[] = [];
+      const seenFingerprints = new Set<string>();
+
+      for (let imgIdx = 0; imgIdx < files.length; imgIdx++) {
+        const file = files[imgIdx];
+        const base64Image = file.buffer.toString("base64");
+        const mimeType = file.mimetype || "image/png";
+        const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
+
+        console.log(`[AI Match Extract] Processing image ${imgIdx + 1} of ${files.length}`);
+
+        let extracted = await extractFromImage(imageContent,
+          "Extract EVERY match result from this score sheet image. Count the total number of match rows first, then extract ALL of them. Do NOT skip any rows. Do NOT stop early. If you see 30 rows, output 30 matches. If you see 19 rows, output 19 matches. Preserve exact top-to-bottom order."
+        );
+
+        console.log(`[AI Match Extract] Image ${imgIdx + 1} first pass: ${extracted.length} matches`);
+
+        if (extracted.length > 0 && extracted.length <= 20) {
+          const retryMatches = await extractFromImage(imageContent,
+            `CRITICAL: On a previous attempt only ${extracted.length} matches were found from this image, but there are likely MORE rows. Please count EVERY row in the image very carefully. Scroll your attention from the VERY FIRST row at the top to the VERY LAST row at the bottom. Extract ALL of them. Do NOT stop after ${extracted.length}. Output every single match row visible in the image.`
+          );
+          if (retryMatches.length > extracted.length) {
+            console.log(`[AI Match Extract] Image ${imgIdx + 1} retry found more: ${retryMatches.length} vs ${extracted.length}`);
+            extracted = retryMatches;
+          }
+        }
+
+        for (const m of extracted) {
+          const fp = getMatchFingerprint(m);
+          if (!seenFingerprints.has(fp)) {
+            seenFingerprints.add(fp);
+            allExtracted.push(m);
+          } else {
+            console.log(`[AI Match Extract] Skipping duplicate match: ${fp}`);
+          }
+        }
+
+        console.log(`[AI Match Extract] After image ${imgIdx + 1}: ${allExtracted.length} unique matches total`);
+      }
 
       const extractedMatches = allExtracted.map((m: any) => {
         const scoreA = Math.max(0, parseInt(m.scoreA) || 0);
@@ -32168,7 +32190,7 @@ Return ONLY valid JSON in this exact format:
         };
       });
 
-      console.log(`[AI Match Extract] Final: extracted ${extractedMatches.length} matches`);
+      console.log(`[AI Match Extract] Final: extracted ${extractedMatches.length} unique matches from ${files.length} image(s)`);
 
       res.json({ matches: extractedMatches });
     } catch (err: any) {
