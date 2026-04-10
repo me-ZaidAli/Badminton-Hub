@@ -129,65 +129,54 @@ export default function AIMatchInput() {
     if (pendingImages.length === 0) return;
     setIsExtracting(true);
     setExtractionProgress("");
-    let totalNew = 0;
     const timestamp = Date.now();
     const totalImages = pendingImages.length;
     try {
-      for (let imgIdx = 0; imgIdx < totalImages; imgIdx++) {
-        const imgLabel = totalImages > 1 ? `Image ${imgIdx + 1} of ${totalImages}` : "Image";
-        setExtractionProgress(`Processing ${imgLabel}...`);
-        const img = pendingImages[imgIdx];
-        const formData = new FormData();
-        formData.append("image", img.file);
-        try {
-          const res = await fetch("/api/admin/ai-match-extract", {
-            method: "POST",
-            body: formData,
-          });
-          if (!res.ok) {
-            let errMsg = "Extraction failed";
-            try { const err = await res.json(); errMsg = err.message || errMsg; } catch {}
-            toast({ title: `${imgLabel} failed`, description: errMsg, variant: "destructive" });
-            continue;
-          }
-          const data = await res.json();
-          const parsed: ExtractedMatch[] = (data.matches || []).map((m: any, i: number) => ({
-            id: `ai-match-${timestamp}-${imgIdx}-${i}`,
-            teamA: (m.teamA || []).map((p: any) => ({
-              name: p.name || "Unknown",
-              linkedProfileId: p.linkedProfileId || null,
-              linkedUserId: p.linkedUserId || null,
-              linkedName: p.linkedName || null,
-              confidence: p.confidence ?? 0.5,
-            })),
-            teamB: (m.teamB || []).map((p: any) => ({
-              name: p.name || "Unknown",
-              linkedProfileId: p.linkedProfileId || null,
-              linkedUserId: p.linkedUserId || null,
-              linkedName: p.linkedName || null,
-              confidence: p.confidence ?? 0.5,
-            })),
-            scoreA: m.scoreA ?? 0,
-            scoreB: m.scoreB ?? 0,
-            confidence: m.confidence ?? 0.5,
-            expanded: true,
-            confirmed: false,
-            savedToDb: false,
-            edited: false,
-            imageLabel: totalImages > 1 ? `Image ${imgIdx + 1}` : undefined,
-          }));
-          totalNew += parsed.length;
-          setExtractionProgress(`${imgLabel}: found ${parsed.length} matches`);
-          setExtractedMatches((prev) => [...prev, ...parsed]);
-        } catch (imgErr: any) {
-          console.error(`[AI Match Extract] Error processing image ${imgIdx + 1}:`, imgErr);
-          toast({ title: `${imgLabel} error`, description: imgErr.message || "Network error", variant: "destructive" });
-        }
+      setExtractionProgress(`Sending ${totalImages} image${totalImages > 1 ? "s" : ""} to AI for extraction...`);
+      const formData = new FormData();
+      for (const img of pendingImages) {
+        formData.append("images", img.file);
       }
+      const res = await fetch("/api/admin/ai-match-extract", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        let errMsg = "Extraction failed";
+        try { const err = await res.json(); errMsg = err.message || errMsg; } catch {}
+        toast({ title: "Extraction failed", description: errMsg, variant: "destructive" });
+        return;
+      }
+      const data = await res.json();
+      const parsed: ExtractedMatch[] = (data.matches || []).map((m: any, i: number) => ({
+        id: `ai-match-${timestamp}-0-${i}`,
+        teamA: (m.teamA || []).map((p: any) => ({
+          name: p.name || "Unknown",
+          linkedProfileId: p.linkedProfileId || null,
+          linkedUserId: p.linkedUserId || null,
+          linkedName: p.linkedName || null,
+          confidence: p.confidence ?? 0.5,
+        })),
+        teamB: (m.teamB || []).map((p: any) => ({
+          name: p.name || "Unknown",
+          linkedProfileId: p.linkedProfileId || null,
+          linkedUserId: p.linkedUserId || null,
+          linkedName: p.linkedName || null,
+          confidence: p.confidence ?? 0.5,
+        })),
+        scoreA: m.scoreA ?? 0,
+        scoreB: m.scoreB ?? 0,
+        confidence: m.confidence ?? 0.5,
+        expanded: true,
+        confirmed: false,
+        savedToDb: false,
+        edited: false,
+      }));
       setPendingImages([]);
       setExtractionProgress("");
-      if (totalNew > 0) {
-        toast({ title: "Extraction Complete", description: `Found ${totalNew} match(es) from ${totalImages} image(s)` });
+      if (parsed.length > 0) {
+        setExtractedMatches((prev) => [...prev, ...parsed]);
+        toast({ title: "Extraction Complete", description: `Found ${parsed.length} match(es) from ${totalImages} image(s)` });
       } else {
         toast({ title: "No Matches Found", description: "Could not extract any matches from the uploaded images", variant: "destructive" });
       }

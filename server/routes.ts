@@ -32010,7 +32010,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   // ============================================
   // AI MATCH INPUT - Image upload + OCR extraction
   // ============================================
-  const aiMatchUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024 } });
+  const aiMatchUpload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 10 * 1024 * 1024, files: 10 } });
 
   function hasAdminAccessToClub(user: any, clubId: number): boolean {
     if (user.role === "OWNER") return true;
@@ -32019,7 +32019,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     return profiles.some((p: any) => p.clubId === clubId && ["ADMIN","OWNER","ORGANISER"].includes(p.clubRole));
   }
 
-  app.post("/api/admin/ai-match-extract", aiMatchUpload.single("image"), async (req, res) => {
+  app.post("/api/admin/ai-match-extract", aiMatchUpload.array("images", 10), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const currentUser = req.user as any;
     const isAdminOrOwner = currentUser.role === "OWNER" || currentUser.role === "ADMIN";
@@ -32027,11 +32027,10 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     if (!isAdminOrOwner && adminProfiles.length === 0) return res.status(403).json({ message: "Admin/Organiser access required" });
 
     try {
-      const file = req.file;
-      if (!file) return res.status(400).json({ message: "No image uploaded" });
-
-      const base64Image = file.buffer.toString("base64");
-      const mimeType = file.mimetype || "image/png";
+      const files = (req.files as Express.Multer.File[]) || [];
+      const singleFile = (req as any).file;
+      if (files.length === 0 && singleFile) files.push(singleFile);
+      if (files.length === 0) return res.status(400).json({ message: "No images uploaded" });
 
       const OpenAI = (await import("openai")).default;
       const openai = new OpenAI({
@@ -32039,9 +32038,17 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
       });
 
-      const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
+      const imageContents = files.map(file => {
+        const base64Image = file.buffer.toString("base64");
+        const mimeType = file.mimetype || "image/png";
+        return { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
+      });
 
-      const systemPrompt = `You are a sports score sheet OCR assistant for badminton. Extract ALL match results from the image.
+      console.log(`[AI Match Extract] Processing ${files.length} image(s)`);
+
+      const systemPrompt = `You are a sports score sheet OCR assistant for badminton. Extract ALL match results from the image(s).
+
+IMPORTANT: You may receive MULTIPLE images that are screenshots of the SAME match list (scrolled down). Together they form ONE continuous list. Extract ALL matches from ALL images combined, in order from earliest/top to latest/bottom. Do NOT duplicate matches that may appear in overlapping regions between screenshots.
 
 LAYOUT — THIS IS CRITICAL, READ VERY CAREFULLY:
 Each match row has exactly 3 sections separated visually:
@@ -32049,6 +32056,8 @@ Each match row has exactly 3 sections separated visually:
   LEFT SIDE: Team A players (2 names with "+" between them)
   CENTER: The match score (two numbers separated by a dash, like "21-10")
   RIGHT SIDE: Team B players (2 names with "+" between them)
+
+There is usually also a "Type" column (MMMM, LMLM, LMMM etc) on the far left, and time/duration columns on the far right. Ignore those — just extract the teams, scores.
 
 Example row: "Thomas Lim 8.2 + Rachel Sims 16.1    21-10    Alex Lau 16.5 + Maria Timovanu 4.6"
 
@@ -32060,8 +32069,8 @@ CRITICAL — NUMBERS NEXT TO PLAYER NAMES ARE NOT SCORES:
 
 HOW TO EXTRACT CORRECTLY:
 1. First, identify the CENTER SCORE — it's the pair of numbers (e.g. "21-10") that sits between the two teams, usually centered or in a middle column.
-2. scoreA = the LEFT number of the center score (belongs to Team A / left team)
-3. scoreB = the RIGHT number of the center score (belongs to Team B / right team)
+2. scoreA = the LEFT number of the center score (belongs to Team A / left team / Winners column)
+3. scoreB = the RIGHT number of the center score (belongs to Team B / right team / Opponents column)
 4. Then extract player names from each side, IGNORING any decimal numbers after names.
 
 PLAYER NAME RULES:
@@ -32071,9 +32080,11 @@ PLAYER NAME RULES:
 - Preserve exact spelling from the image.
 
 ORDERING:
-- Return matches in the EXACT order they appear in the image, top-to-bottom.
-- Match #1 in output = first row in the image. Do NOT reorder.
-- Extract EVERY row. If there are 30 matches visible, return all 30.
+- Return matches in the EXACT order they appear in the image(s), top-to-bottom.
+- If multiple images, process them in order: image 1 first, then image 2, etc.
+- Match #1 in output = first row in the first image. Do NOT reorder.
+- Extract EVERY row. If there are 50 matches visible across all images, return all 50.
+- Do NOT stop early. Keep going until you have extracted every single match row.
 
 SCORE VALIDATION (badminton rules):
 - Normal win: winner has 21, loser has 0-19 (e.g. 21-15, 21-0, 21-19)
@@ -32082,19 +32093,19 @@ SCORE VALIDATION (badminton rules):
 - IMPOSSIBLE scores: 26-21, 23-27, 25-20. If you read such a score, you have misread it — look again very carefully at the CENTER numbers only.
 
 Return ONLY valid JSON in this exact format:
-{"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}], "teamB": [{"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;
+{"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}, {"name": "Player Name", "confidence": 0.85}], "teamB": [{"name": "Player Name", "confidence": 0.9}, {"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;
 
       const extractOnce = async (hint: string): Promise<any[]> => {
+        const userContent: any[] = [{ type: "text", text: hint }];
+        for (const img of imageContents) userContent.push(img);
+
         const completion = await openai.chat.completions.create({
           model: "gpt-4o",
           messages: [
             { role: "system", content: systemPrompt },
-            { role: "user", content: [
-              { type: "text", text: hint },
-              imageContent
-            ]}
+            { role: "user", content: userContent }
           ],
-          max_tokens: 16000,
+          max_tokens: 32000,
           temperature: 0.1,
         });
         const rawResponse = completion.choices?.[0]?.message?.content || "{}";
@@ -32110,14 +32121,14 @@ Return ONLY valid JSON in this exact format:
       };
 
       let allExtracted = await extractOnce(
-        "Extract EVERY match result from this score sheet image. Do NOT skip any rows. Preserve the exact order as shown — first row in the image = first match in output. Include ALL matches visible in the image, even if there are many."
+        `Extract EVERY match result from ${files.length > 1 ? "these " + files.length + " score sheet images (they are consecutive screenshots of the same list)" : "this score sheet image"}. Do NOT skip any rows. Preserve the exact order as shown — first row in the first image = first match in output. Include ALL matches visible across all images, even if there are many (30, 40, 50+). Do not stop early.`
       );
 
       console.log(`[AI Match Extract] First pass: extracted ${allExtracted.length} matches`);
 
-      if (allExtracted.length > 0 && allExtracted.length <= 10) {
+      if (allExtracted.length > 0 && allExtracted.length < 40) {
         const retryMatches = await extractOnce(
-          `I need ALL matches from this image. On a previous attempt only ${allExtracted.length} were found, but there may be more. Look very carefully at EVERY row/entry in the image. Extract ALL of them in exact top-to-bottom order. Do not stop early.`
+          `IMPORTANT: On a previous attempt only ${allExtracted.length} matches were found, but there are likely MORE. Look very carefully at EVERY row/entry in ALL ${files.length} image(s). Count the rows first, then extract ALL of them in exact top-to-bottom order. Do NOT stop early. If you see 50 rows, return all 50. Extract until the very last row visible in the last image.`
         );
         if (retryMatches.length > allExtracted.length) {
           console.log(`[AI Match Extract] Retry found more: ${retryMatches.length} vs ${allExtracted.length}, using retry result`);
