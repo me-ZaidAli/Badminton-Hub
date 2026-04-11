@@ -919,9 +919,75 @@ export function registerTournamentRoutes(app: Express) {
       const isOwner = reg.userId === userId;
       const canManage = await isTournamentAdmin(userId, reg.tournamentId);
       if (!isOwner && !canManage) return res.status(403).json({ message: "Not authorized" });
+
+      const removedUserId = reg.userId;
+      const partnerUserId = reg.partnerId;
+
+      const pairRequests = await db.select().from(tournamentPairRequests)
+        .where(and(
+          eq(tournamentPairRequests.tournamentId, reg.tournamentId),
+          or(
+            eq(tournamentPairRequests.fromUserId, removedUserId),
+            eq(tournamentPairRequests.toUserId, removedUserId),
+            ...(partnerUserId ? [eq(tournamentPairRequests.fromUserId, partnerUserId), eq(tournamentPairRequests.toUserId, partnerUserId)] : [])
+          )
+        ));
+
+      if (pairRequests.length > 0) {
+        const prIds = pairRequests.map(pr => pr.id);
+        await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.pairRequestId!, prIds));
+        await db.delete(tournamentPairRequests).where(inArray(tournamentPairRequests.id, prIds));
+      }
+
+      const profiles = await db.select().from(playerProfiles)
+        .where(or(
+          eq(playerProfiles.userId, removedUserId),
+          ...(partnerUserId ? [eq(playerProfiles.userId, partnerUserId)] : [])
+        ));
+      const profileIds = profiles.map(p => p.id);
+
+      if (profileIds.length > 0) {
+        const categories = await db.select().from(tournamentCategories)
+          .where(eq(tournamentCategories.tournamentId, reg.tournamentId));
+        const catIds = categories.map(c => c.id);
+        if (catIds.length > 0) {
+          const teams = await db.select().from(tournamentTeams)
+            .where(and(
+              inArray(tournamentTeams.categoryId, catIds),
+              or(
+                inArray(tournamentTeams.player1Id, profileIds),
+                inArray(tournamentTeams.player2Id!, profileIds)
+              )
+            ));
+
+          if (teams.length > 0) {
+            const teamIds = teams.map(t => t.id);
+            await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.teamId!, teamIds));
+            await db.delete(tournamentStandings).where(inArray(tournamentStandings.teamId, teamIds));
+            await db.delete(tournamentMatches).where(or(
+              inArray(tournamentMatches.teamAId!, teamIds),
+              inArray(tournamentMatches.teamBId!, teamIds)
+            ));
+            await db.delete(tournamentTeams).where(inArray(tournamentTeams.id, teamIds));
+          }
+        }
+      }
+
       await db.delete(tournamentRegistrations).where(eq(tournamentRegistrations.id, regId));
+
+      if (partnerUserId) {
+        await db.delete(tournamentRegistrations).where(and(
+          eq(tournamentRegistrations.tournamentId, reg.tournamentId),
+          or(
+            eq(tournamentRegistrations.userId, partnerUserId),
+            eq(tournamentRegistrations.partnerId!, partnerUserId)
+          )
+        ));
+      }
+
       res.json({ success: true });
     } catch (e: any) {
+      console.error("[Tournament Remove Registration] Error:", e);
       res.status(500).json({ message: e.message });
     }
   });
