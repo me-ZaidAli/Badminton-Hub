@@ -337,7 +337,10 @@ function DashboardContent({
 
               {tournament.myGroups && tournament.myGroups.length > 0 && (
                 <div className="space-y-3">
-                  {tournament.myGroups.map((group: any) => (
+                  {tournament.myGroups.map((group: any) => {
+                    const myPair = group.pairs?.find((p: any) => p.isMe);
+                    const opponents = group.pairs?.filter((p: any) => !p.isMe) || [];
+                    return (
                     <div key={group.groupId} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
@@ -345,6 +348,7 @@ function DashboardContent({
                             <Medal className="h-4 w-4 text-amber-300" />
                           </div>
                           <div>
+                            <p className="text-[10px] text-sky-300 uppercase tracking-wider font-medium">Your Group</p>
                             <span className="text-sm font-bold text-white">{group.groupName}</span>
                             {group.categoryName && (
                               <span className="text-xs text-sky-300 ml-2">({group.categoryName})</span>
@@ -364,31 +368,46 @@ function DashboardContent({
                           {[group.hallName, group.courtName].filter(Boolean).join(" - ")}
                         </div>
                       )}
-                      <div className="space-y-1.5">
-                        {group.pairs && group.pairs.length > 0 && group.pairs.map((pair: any, idx: number) => (
-                          <div
-                            key={pair.teamId || idx}
-                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
-                              pair.isMe
-                                ? "bg-amber-400/20 border border-amber-400/30 text-white font-bold"
-                                : "bg-white/5 text-sky-100"
-                            }`}
-                            data-testid={`tournament-group-pair-${pair.teamId}`}
-                          >
-                            {pair.isMe && <Star className="h-3.5 w-3.5 text-amber-300 shrink-0" />}
-                            <span className={pair.isMe ? "" : "ml-5.5"}>
-                              {pair.player1}{pair.player2 ? ` & ${pair.player2}` : ""}
-                            </span>
-                            {pair.seedNumber && (
-                              <Badge className="ml-auto bg-white/10 text-sky-200 border-0 text-[10px]">
-                                Seed #{pair.seedNumber}
-                              </Badge>
+
+                      {myPair && (
+                        <div className="mb-3">
+                          <p className="text-[10px] text-sky-300 uppercase tracking-wider font-medium mb-1.5">Your Pair</p>
+                          <div className="flex items-center gap-2 rounded-lg px-3 py-2.5 text-sm bg-amber-400/20 border border-amber-400/30 text-white font-bold" data-testid={`tournament-my-pair-${myPair.teamId}`}>
+                            <Star className="h-3.5 w-3.5 text-amber-300 shrink-0" />
+                            <span>{myPair.player1}{myPair.player2 ? ` & ${myPair.player2}` : ""}</span>
+                            {myPair.seedNumber && (
+                              <Badge className="ml-auto bg-white/10 text-sky-200 border-0 text-[10px]">Seed #{myPair.seedNumber}</Badge>
                             )}
                           </div>
-                        ))}
-                      </div>
+                        </div>
+                      )}
+
+                      {opponents.length > 0 && (
+                        <div>
+                          <p className="text-[10px] text-sky-300 uppercase tracking-wider font-medium mb-1.5">
+                            <Swords className="h-3 w-3 inline mr-1 -mt-0.5" />
+                            Your opponents at group stage
+                          </p>
+                          <div className="space-y-1.5">
+                            {opponents.map((pair: any, idx: number) => (
+                              <div
+                                key={pair.teamId || idx}
+                                className="flex items-center gap-2 rounded-lg px-3 py-2 text-sm bg-white/5 text-sky-100"
+                                data-testid={`tournament-opponent-pair-${pair.teamId}`}
+                              >
+                                <Users className="h-3.5 w-3.5 text-sky-300 shrink-0" />
+                                <span>{pair.player1}{pair.player2 ? ` & ${pair.player2}` : ""}</span>
+                                {pair.seedNumber && (
+                                  <Badge className="ml-auto bg-white/10 text-sky-200 border-0 text-[10px]">Seed #{pair.seedNumber}</Badge>
+                                )}
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
