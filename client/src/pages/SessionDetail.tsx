@@ -2126,7 +2126,7 @@ export default function SessionDetail() {
                 </div>
               )}
 
-              {invitedSignups.length > 0 && isOrganiser && (
+              {false && invitedSignups.length > 0 && (
                 <div className="mt-6" data-testid="section-invited">
                   <h4 className="text-sm font-semibold flex items-center gap-2 mb-3 text-blue-600 dark:text-blue-400">
                     <Mail className="w-4 h-4" />
