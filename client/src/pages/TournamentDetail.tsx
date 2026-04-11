@@ -8,7 +8,7 @@ import {
   useGenerateMatches, useScoreMatch, useAdvanceWinners, useAddGroupMatch, useUpdateTournament,
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
-  useRegisterForTournament, useUpdateRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
+  useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
   useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
@@ -4266,6 +4266,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   onApprove: (id: number) => void; onReject: (id: number) => void; onPayment: (id: number, confirmed: boolean) => void;
 }) {
   const updateRegMutation = useUpdateRegistration();
+  const deleteRegMutation = useDeleteRegistration();
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
 
@@ -4382,9 +4383,10 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                 </Button>
                 <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
                   data-testid={`button-remove-player-${reg.id}`}
+                  disabled={deleteRegMutation.isPending}
                   onClick={async () => {
                     try {
-                      await updateRegMutation.mutateAsync({ id: reg.id, status: "REJECTED" });
+                      await deleteRegMutation.mutateAsync(reg.id);
                       toast({ title: "Player Removed" });
                     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                   }}>

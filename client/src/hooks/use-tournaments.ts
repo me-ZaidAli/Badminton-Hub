@@ -398,6 +398,18 @@ export function useUpdateRegistration() {
   });
 }
 
+export function useDeleteRegistration() {
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/tournament-registrations/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+    },
+  });
+}
+
 export function useSendPairRequest() {
   return useMutation({
     mutationFn: async ({ tournamentId, ...data }: any) => {
