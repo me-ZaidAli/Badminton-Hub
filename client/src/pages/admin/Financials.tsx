@@ -64,6 +64,8 @@ import {
   RotateCcw,
   MessageCircle,
   Flag,
+  Receipt,
+  Minus,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -598,6 +600,10 @@ export default function Financials() {
   const [invoiceEditValue, setInvoiceEditValue] = useState("");
   const [sortPlayersAlpha, setSortPlayersAlpha] = useState(false);
   const [sessionPaymentView, setSessionPaymentView] = useState<"all" | "paid" | "unpaid" | "grouped">("all");
+  const [sessionContentTab, setSessionContentTab] = useState<"players" | "expenses" | "profit">("players");
+  const [expenseName, setExpenseName] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseNotes, setExpenseNotes] = useState("");
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
 
   const [creditSearchQuery, setCreditSearchQuery] = useState("");
@@ -5604,6 +5610,31 @@ export default function Financials() {
                   </CardHeader>
                   {isExpanded && (
                     <CardContent>
+                      <div className="flex items-center gap-2 mb-4 border-b pb-2">
+                        <Button size="sm" variant={sessionContentTab === "players" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionContentTab("players"); }} data-testid={`tab-players-${sessionId}`}>
+                          <Users className="h-3.5 w-3.5 mr-1.5" />
+                          Players
+                        </Button>
+                        <Button size="sm" variant={sessionContentTab === "expenses" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionContentTab("expenses"); }} data-testid={`tab-expenses-${sessionId}`}>
+                          <Receipt className="h-3.5 w-3.5 mr-1.5" />
+                          Expenses
+                        </Button>
+                        <Button size="sm" variant={sessionContentTab === "profit" ? "default" : "ghost"} onClick={(e) => { e.stopPropagation(); setSessionContentTab("profit"); }} data-testid={`tab-profit-${sessionId}`}>
+                          <TrendingUp className="h-3.5 w-3.5 mr-1.5" />
+                          Profit
+                        </Button>
+                      </div>
+
+                      {sessionContentTab === "expenses" && (
+                        <SessionExpensesTab sessionId={sessionId} clubId={first.clubId} />
+                      )}
+
+                      {sessionContentTab === "profit" && (
+                        <SessionProfitTab sessionId={sessionId} clubId={first.clubId} sessionPaid={sessionPaid} sessionTotal={sessionTotal} />
+                      )}
+
+                      {sessionContentTab === "players" && (
+                      <>
                       <div className="flex items-center justify-between gap-3 mb-3 flex-wrap">
                         <div className="flex items-center gap-2 flex-wrap">
                           <div className="flex items-center gap-1 border rounded-md p-0.5" data-testid={`filter-payment-view-${sessionId}`}>
@@ -5861,6 +5892,8 @@ export default function Financials() {
                           </TableBody>
                         </Table>
                       </div>
+                      </>
+                      )}
                     </CardContent>
                   )}
                 </Card>
@@ -7531,6 +7564,198 @@ export default function Financials() {
           <p>All credits that have been used by members towards session payments.</p>
         </div>
       </KpiDetailDialog>
+    </div>
+  );
+}
+
+function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: number }) {
+  const { toast } = useToast();
+  const [name, setName] = useState("");
+  const [amount, setAmount] = useState("");
+  const [notes, setNotes] = useState("");
+  const [editingId, setEditingId] = useState<number | null>(null);
+  const [editName, setEditName] = useState("");
+  const [editAmount, setEditAmount] = useState("");
+  const [editNotes, setEditNotes] = useState("");
+
+  const { data: expensesList = [], isLoading } = useQuery<any[]>({
+    queryKey: ["/api/expenses", { sessionId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/expenses?clubId=${clubId}&sessionId=${sessionId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async () => {
+      const pence = Math.round(parseFloat(amount) * 100);
+      if (isNaN(pence) || pence <= 0) throw new Error("Enter a valid amount");
+      const res = await apiRequest("POST", "/api/expenses", { clubId, sessionId, name, amount: pence, notes: notes || undefined });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses", { sessionId }] });
+      setName(""); setAmount(""); setNotes("");
+      toast({ title: "Expense Added" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const updateMutation = useMutation({
+    mutationFn: async (id: number) => {
+      const pence = Math.round(parseFloat(editAmount) * 100);
+      if (isNaN(pence) || pence <= 0) throw new Error("Enter a valid amount");
+      const res = await apiRequest("PATCH", `/api/expenses/${id}`, { name: editName, amount: pence, notes: editNotes || undefined });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses", { sessionId }] });
+      setEditingId(null);
+      toast({ title: "Expense Updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/expenses/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expenses", { sessionId }] });
+      toast({ title: "Expense Deleted" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const totalExpenses = expensesList.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-3 flex-wrap border rounded-lg p-3 bg-muted/30" onClick={(e) => e.stopPropagation()}>
+        <Input placeholder="Expense name" value={name} onChange={(e) => setName(e.target.value)} className="flex-1 min-w-[120px]" data-testid={`input-expense-name-${sessionId}`} />
+        <div className="flex items-center gap-1">
+          <span className="text-sm text-muted-foreground">£</span>
+          <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-[100px]" data-testid={`input-expense-amount-${sessionId}`} />
+        </div>
+        <Input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} className="flex-1 min-w-[120px]" data-testid={`input-expense-notes-${sessionId}`} />
+        <Button size="sm" disabled={!name.trim() || !amount || createMutation.isPending} onClick={() => createMutation.mutate()} data-testid={`button-add-expense-${sessionId}`}>
+          <Plus className="h-3 w-3 mr-1" />Add
+        </Button>
+      </div>
+
+      {isLoading ? (
+        <div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin text-muted-foreground" /></div>
+      ) : expensesList.length === 0 ? (
+        <div className="text-center py-6 text-muted-foreground text-sm" data-testid={`text-no-expenses-${sessionId}`}>
+          <Receipt className="h-8 w-8 mx-auto mb-2 opacity-40" />
+          No expenses recorded for this session yet.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {expensesList.map((exp: any) => (
+            <div key={exp.id} className="flex items-center justify-between p-3 border rounded-lg hover:bg-muted/20 transition-colors" data-testid={`expense-row-${exp.id}`}>
+              {editingId === exp.id ? (
+                <div className="flex items-center gap-2 flex-1 flex-wrap" onClick={(e) => e.stopPropagation()}>
+                  <Input value={editName} onChange={(e) => setEditName(e.target.value)} className="flex-1 min-w-[100px] h-8" />
+                  <div className="flex items-center gap-1">
+                    <span className="text-sm text-muted-foreground">£</span>
+                    <Input type="number" value={editAmount} onChange={(e) => setEditAmount(e.target.value)} className="w-[80px] h-8" />
+                  </div>
+                  <Input value={editNotes} onChange={(e) => setEditNotes(e.target.value)} placeholder="Notes" className="flex-1 min-w-[80px] h-8" />
+                  <Button size="sm" variant="default" className="h-7" disabled={updateMutation.isPending} onClick={() => updateMutation.mutate(exp.id)}>Save</Button>
+                  <Button size="sm" variant="ghost" className="h-7" onClick={() => setEditingId(null)}>Cancel</Button>
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <Receipt className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium text-sm truncate">{exp.name}</p>
+                      {exp.notes && <p className="text-xs text-muted-foreground truncate">{exp.notes}</p>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    <span className="font-semibold text-sm text-red-600 dark:text-red-400">-£{(exp.amount / 100).toFixed(2)}</span>
+                    <Button size="icon" variant="ghost" className="h-7 w-7" onClick={(e) => { e.stopPropagation(); setEditingId(exp.id); setEditName(exp.name); setEditAmount((exp.amount / 100).toFixed(2)); setEditNotes(exp.notes || ""); }} data-testid={`button-edit-expense-${exp.id}`}>
+                      <Pencil className="h-3 w-3" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-destructive" onClick={(e) => { e.stopPropagation(); deleteMutation.mutate(exp.id); }} disabled={deleteMutation.isPending} data-testid={`button-delete-expense-${exp.id}`}>
+                      <Trash2 className="h-3 w-3" />
+                    </Button>
+                  </div>
+                </>
+              )}
+            </div>
+          ))}
+          <div className="flex justify-end pt-2 border-t">
+            <span className="text-sm font-semibold text-red-600 dark:text-red-400" data-testid={`text-total-expenses-${sessionId}`}>
+              Total Expenses: £{(totalExpenses / 100).toFixed(2)}
+            </span>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function SessionProfitTab({ sessionId, clubId, sessionPaid, sessionTotal }: { sessionId: number; clubId: number; sessionPaid: number; sessionTotal: number }) {
+  const { data: expensesList = [] } = useQuery<any[]>({
+    queryKey: ["/api/expenses", { sessionId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/expenses?clubId=${clubId}&sessionId=${sessionId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+  });
+
+  const totalExpenses = expensesList.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
+  const profit = sessionPaid - totalExpenses;
+  const isProfit = profit >= 0;
+
+  return (
+    <div className="space-y-4">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        <div className="border rounded-lg p-4 text-center" data-testid={`profit-revenue-${sessionId}`}>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Payments Received</p>
+          <p className="text-2xl font-bold text-green-600 dark:text-green-400">£{(sessionPaid / 100).toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">of £{(sessionTotal / 100).toFixed(2)} total fees</p>
+        </div>
+        <div className="border rounded-lg p-4 text-center" data-testid={`profit-expenses-${sessionId}`}>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Expenses</p>
+          <p className="text-2xl font-bold text-red-600 dark:text-red-400">£{(totalExpenses / 100).toFixed(2)}</p>
+          <p className="text-xs text-muted-foreground mt-1">{expensesList.length} expense{expensesList.length !== 1 ? "s" : ""}</p>
+        </div>
+        <div className={`border-2 rounded-lg p-4 text-center ${isProfit ? "border-green-500/30 bg-green-50 dark:bg-green-950/20" : "border-red-500/30 bg-red-50 dark:bg-red-950/20"}`} data-testid={`profit-net-${sessionId}`}>
+          <p className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Session Profit</p>
+          <p className={`text-2xl font-bold ${isProfit ? "text-green-600 dark:text-green-400" : "text-red-600 dark:text-red-400"}`}>
+            {isProfit ? "" : "-"}£{Math.abs(profit / 100).toFixed(2)}
+          </p>
+          <div className="flex items-center justify-center gap-1 mt-1">
+            {isProfit ? <TrendingUp className="h-3 w-3 text-green-500" /> : <TrendingDown className="h-3 w-3 text-red-500" />}
+            <span className="text-xs text-muted-foreground">{isProfit ? "Profit" : "Loss"}</span>
+          </div>
+        </div>
+      </div>
+
+      {expensesList.length > 0 && (
+        <div className="border rounded-lg overflow-hidden">
+          <div className="bg-muted/30 px-4 py-2 border-b">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Expense Breakdown</p>
+          </div>
+          <div className="divide-y">
+            {expensesList.map((exp: any) => (
+              <div key={exp.id} className="flex items-center justify-between px-4 py-2.5">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Minus className="h-3 w-3 text-red-500 shrink-0" />
+                  <span className="text-sm truncate">{exp.name}</span>
+                </div>
+                <span className="text-sm font-medium text-red-600 dark:text-red-400 shrink-0">-£{(exp.amount / 100).toFixed(2)}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

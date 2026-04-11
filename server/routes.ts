@@ -15050,9 +15050,13 @@ export async function registerRoutes(
         conditions.push(lte(expenses.createdAt, endOfDay));
       }
 
+      const qSessionId = req.query.sessionId ? Number(req.query.sessionId) : null;
+      if (qSessionId) conditions.push(eq(expenses.sessionId, qSessionId));
+
       const expensesData = await db.select({
         id: expenses.id,
         clubId: expenses.clubId,
+        sessionId: expenses.sessionId,
         name: expenses.name,
         amount: expenses.amount,
         notes: expenses.notes,
@@ -15079,6 +15083,7 @@ export async function registerRoutes(
     try {
       const body = z.object({
         clubId: z.number().int(),
+        sessionId: z.number().int().optional(),
         name: z.string().min(1),
         amount: z.number().int().min(1),
         notes: z.string().optional(),
@@ -15089,6 +15094,7 @@ export async function registerRoutes(
 
       const [expense] = await db.insert(expenses).values({
         clubId: body.clubId,
+        sessionId: body.sessionId || null,
         name: body.name,
         amount: body.amount,
         notes: body.notes || null,

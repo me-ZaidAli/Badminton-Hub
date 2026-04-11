@@ -273,6 +273,7 @@ export const inventoryMovements = pgTable("inventory_movements", {
 export const expenses = pgTable("expenses", {
   id: serial("id").primaryKey(),
   clubId: integer("club_id").references(() => clubs.id).notNull(),
+  sessionId: integer("session_id").references(() => sessions.id),
   name: text("name").notNull(),
   amount: integer("amount").notNull(),
   notes: text("notes"),
