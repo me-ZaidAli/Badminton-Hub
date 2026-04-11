@@ -2659,4 +2659,137 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       res.status(500).json({ message: e.message });
     }
   });
+
+  app.get("/api/my-tournament-dashboard", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const userId = req.user!.id;
+
+      const regs = await db.select().from(tournamentRegistrations)
+        .where(and(
+          or(eq(tournamentRegistrations.userId, userId), eq(tournamentRegistrations.partnerId!, userId)),
+          eq(tournamentRegistrations.status, "APPROVED")
+        ));
+
+      if (regs.length === 0) return res.json([]);
+
+      const tournamentIds = [...new Set(regs.map(r => r.tournamentId))];
+      if (tournamentIds.length === 0) return res.json([]);
+
+      const allTournaments = await db.select().from(tournaments).where(inArray(tournaments.id, tournamentIds));
+      const now = new Date();
+      const activeTournaments = allTournaments.filter(t =>
+        t.status !== "CANCELLED" && new Date(t.endDate) >= now
+      );
+
+      if (activeTournaments.length === 0) return res.json([]);
+
+      const activeTournamentIds = activeTournaments.map(t => t.id);
+
+      const venueIds = activeTournaments.map(t => t.venueId).filter(Boolean) as number[];
+      const allVenues = venueIds.length > 0
+        ? await db.select().from(venues).where(inArray(venues.id, venueIds))
+        : [];
+
+      const allCategories = await db.select().from(tournamentCategories)
+        .where(inArray(tournamentCategories.tournamentId, activeTournamentIds));
+      const categoryIds = allCategories.map(c => c.id);
+
+      const allTeams = categoryIds.length > 0
+        ? await db.select().from(tournamentTeams).where(inArray(tournamentTeams.categoryId, categoryIds))
+        : [];
+
+      const profileIds = [...new Set(allTeams.flatMap(t => [t.player1Id, t.player2Id].filter(Boolean) as number[]))];
+      const allProfiles = profileIds.length > 0
+        ? await db.select().from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
+        : [];
+      const profileUserIds = [...new Set(allProfiles.map(p => p.userId))];
+      const allUsers = profileUserIds.length > 0
+        ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, profileUserIds))
+        : [];
+
+      const userMap = new Map(allUsers.map(u => [u.id, u.fullName]));
+      const profileMap = new Map(allProfiles.map(p => [p.id, p]));
+
+      const getPlayerName = (profileId: number | null | undefined): string | null => {
+        if (!profileId) return null;
+        const profile = profileMap.get(profileId);
+        if (!profile) return null;
+        return userMap.get(profile.userId) || null;
+      };
+
+      const userProfileIds = allProfiles.filter(p => p.userId === userId).map(p => p.id);
+
+      const myTeamIds = allTeams
+        .filter(t => userProfileIds.includes(t.player1Id) || (t.player2Id && userProfileIds.includes(t.player2Id)))
+        .map(t => t.id);
+
+      const allGroups = activeTournamentIds.length > 0
+        ? await db.select().from(tournamentGroups).where(inArray(tournamentGroups.tournamentId, activeTournamentIds))
+        : [];
+      const groupIds = allGroups.map(g => g.id);
+
+      const allGroupPairs = groupIds.length > 0
+        ? await db.select().from(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, groupIds))
+        : [];
+
+      const result = activeTournaments.map(tournament => {
+        const venue = allVenues.find(v => v.id === tournament.venueId);
+        const tCategories = allCategories.filter(c => c.tournamentId === tournament.id);
+        const tGroups = allGroups.filter(g => g.tournamentId === tournament.id);
+
+        const myGroupInfo: any[] = [];
+
+        for (const group of tGroups) {
+          const groupPairs = allGroupPairs.filter(gp => gp.groupId === group.id);
+          const isMyGroup = groupPairs.some(gp => gp.teamId && myTeamIds.includes(gp.teamId));
+
+          if (isMyGroup) {
+            const pairsInGroup = groupPairs.map(gp => {
+              const team = allTeams.find(t => t.id === gp.teamId);
+              if (!team) return null;
+              return {
+                teamId: team.id,
+                player1: getPlayerName(team.player1Id),
+                player2: getPlayerName(team.player2Id),
+                isMe: userProfileIds.includes(team.player1Id) || (team.player2Id ? userProfileIds.includes(team.player2Id) : false),
+                seedNumber: team.seedNumber,
+              };
+            }).filter(Boolean);
+
+            const category = tCategories.find(c => c.id === group.categoryId);
+
+            myGroupInfo.push({
+              groupId: group.id,
+              groupName: group.name,
+              groupOrder: group.groupOrder,
+              startTime: group.startTime,
+              hallName: group.hallName,
+              courtName: group.courtName,
+              categoryName: category?.name || null,
+              pairs: pairsInGroup,
+            });
+          }
+        }
+
+        return {
+          tournamentId: tournament.id,
+          name: tournament.name,
+          type: tournament.type,
+          status: tournament.status,
+          startDate: tournament.startDate,
+          endDate: tournament.endDate,
+          location: tournament.location || venue?.address || venue?.name || null,
+          venueName: venue?.name || null,
+          bannerUrl: tournament.bannerUrl,
+          myGroups: myGroupInfo.sort((a: any, b: any) => a.groupOrder - b.groupOrder),
+        };
+      });
+
+      res.json(result);
+    } catch (e: any) {
+      console.error("[My Tournament Dashboard] Error:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
 }

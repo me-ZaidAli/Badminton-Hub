@@ -17,6 +17,7 @@ import { format, isPast, isFuture, subMonths, startOfMonth, endOfMonth, isWithin
 import {
   Calendar, Trophy, Zap, Users, Clock, Loader2, ChevronRight, Activity, Megaphone, User, LogOut, Eye, Gift,
   MapPin, Swords, CreditCard, Crown, Shield, Star, ArrowUpRight, ArrowDownRight, Shirt, CheckCircle2, Package,
+  Medal, MapPinned, Timer,
 } from "lucide-react";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -150,6 +151,11 @@ function DashboardContent({
   const readyTshirt = myTshirts?.find((t: any) => t.isActive && t.collectionStatus === "ready");
   const activeTshirt = myTshirts?.find((t: any) => t.isActive && (t.collectionStatus === "ready" || t.collectionStatus === "player_confirmed" || t.collectionStatus === "collected"));
 
+  const { data: myTournaments } = useQuery<any[]>({
+    queryKey: ["/api/my-tournament-dashboard"],
+    enabled: !!user,
+  });
+
   const nextLeagueMatch = useMemo(() => {
     if (!upcomingLeagueMatches || upcomingLeagueMatches.length === 0) return null;
     const now = new Date();
@@ -273,6 +279,122 @@ function DashboardContent({
       </div>
 
       <>
+
+      {myTournaments && myTournaments.length > 0 && myTournaments.map((tournament: any) => (
+        <Link key={tournament.tournamentId} href={`/tournaments/${tournament.tournamentId}`}>
+          <div
+            className="relative overflow-hidden rounded-xl cursor-pointer group transition-all duration-300 hover:shadow-2xl hover:scale-[1.01]"
+            data-testid={`banner-tournament-${tournament.tournamentId}`}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 dark:from-violet-800 dark:via-purple-900 dark:to-indigo-950" />
+            <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
+            <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
+            <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-400/10 rounded-full translate-y-1/2 -translate-x-1/4 blur-2xl" />
+
+            <div className="relative z-10 p-5 sm:p-6">
+              <div className="flex items-start justify-between mb-4">
+                <div className="flex items-center gap-3">
+                  <div className="p-2.5 rounded-xl bg-white/15 backdrop-blur-sm shadow-inner">
+                    <Trophy className="h-6 w-6 text-amber-300" />
+                  </div>
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight">{tournament.name}</h3>
+                    </div>
+                    <p className="text-xs text-purple-200 mt-0.5 font-medium">You're registered for this tournament</p>
+                  </div>
+                </div>
+                <Badge className="bg-amber-400/20 text-amber-200 border-amber-400/30 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 shrink-0">
+                  {tournament.status === "REGISTRATION_OPEN" ? "Registration Open" : tournament.status === "IN_PROGRESS" ? "Live" : tournament.status}
+                </Badge>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+                <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2.5">
+                  <Calendar className="h-4 w-4 text-purple-200 shrink-0" />
+                  <div>
+                    <p className="text-[10px] text-purple-300 uppercase tracking-wider font-medium">Date</p>
+                    <p className="text-sm text-white font-semibold">{format(new Date(tournament.startDate), "EEE, d MMM yyyy")}</p>
+                  </div>
+                </div>
+                <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2.5">
+                  <Clock className="h-4 w-4 text-purple-200 shrink-0" />
+                  <div>
+                    <p className="text-[10px] text-purple-300 uppercase tracking-wider font-medium">Time</p>
+                    <p className="text-sm text-white font-semibold">{format(new Date(tournament.startDate), "h:mm a")}</p>
+                  </div>
+                </div>
+                {tournament.location && (
+                  <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2.5">
+                    <MapPinned className="h-4 w-4 text-purple-200 shrink-0" />
+                    <div>
+                      <p className="text-[10px] text-purple-300 uppercase tracking-wider font-medium">Venue</p>
+                      <p className="text-sm text-white font-semibold truncate">{tournament.venueName || tournament.location}</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {tournament.myGroups && tournament.myGroups.length > 0 && (
+                <div className="space-y-3">
+                  {tournament.myGroups.map((group: any) => (
+                    <div key={group.groupId} className="bg-white/10 backdrop-blur-sm rounded-xl p-4 border border-white/10">
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <div className="p-1.5 rounded-lg bg-amber-400/20">
+                            <Medal className="h-4 w-4 text-amber-300" />
+                          </div>
+                          <div>
+                            <span className="text-sm font-bold text-white">{group.groupName}</span>
+                            {group.categoryName && (
+                              <span className="text-xs text-purple-300 ml-2">({group.categoryName})</span>
+                            )}
+                          </div>
+                        </div>
+                        {group.startTime && (
+                          <div className="flex items-center gap-1.5 bg-white/10 rounded-full px-3 py-1">
+                            <Timer className="h-3 w-3 text-amber-300" />
+                            <span className="text-xs text-white font-semibold">{format(new Date(group.startTime), "h:mm a")}</span>
+                          </div>
+                        )}
+                      </div>
+                      {(group.hallName || group.courtName) && (
+                        <div className="flex items-center gap-1.5 mb-3 text-xs text-purple-200">
+                          <MapPin className="h-3 w-3" />
+                          {[group.hallName, group.courtName].filter(Boolean).join(" - ")}
+                        </div>
+                      )}
+                      <div className="space-y-1.5">
+                        {group.pairs && group.pairs.length > 0 && group.pairs.map((pair: any, idx: number) => (
+                          <div
+                            key={pair.teamId || idx}
+                            className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
+                              pair.isMe
+                                ? "bg-amber-400/20 border border-amber-400/30 text-white font-bold"
+                                : "bg-white/5 text-purple-100"
+                            }`}
+                            data-testid={`tournament-group-pair-${pair.teamId}`}
+                          >
+                            {pair.isMe && <Star className="h-3.5 w-3.5 text-amber-300 shrink-0" />}
+                            <span className={pair.isMe ? "" : "ml-5.5"}>
+                              {pair.player1}{pair.player2 ? ` & ${pair.player2}` : ""}
+                            </span>
+                            {pair.seedNumber && (
+                              <Badge className="ml-auto bg-white/10 text-purple-200 border-0 text-[10px]">
+                                Seed #{pair.seedNumber}
+                              </Badge>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </Link>
+      ))}
 
       {(user?.role === "ADMIN" || user?.role === "OWNER") && !isSuperAdmin && (
         <Card className={`border ${

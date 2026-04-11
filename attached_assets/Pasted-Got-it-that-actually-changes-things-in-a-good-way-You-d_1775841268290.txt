@@ -1,0 +1,188 @@
+Got it — that actually changes things (in a good way). You don’t need a full app, you need a **clean, premium module/feature** that plugs into your existing system.
+
+Here’s the **correct Replit prompt for adding a new section inside your current app**:
+
+---
+
+Add a new **admin-only section** to an existing badminton club management app called:
+
+👉 **“Session Cost Calculator”**
+
+This is NOT a standalone app. It must integrate cleanly into the current system.
+
+---
+
+INTEGRATION REQUIREMENTS
+
+* Add a new route/page: `/admin/session-calculator`
+* Only visible to: Admins and Super Admins
+* Reuse existing:
+
+  * Layout (sidebar, navbar)
+  * Authentication system
+  * Theme (dark mode if available)
+* Follow current app design system (fonts, spacing, components)
+
+---
+
+UI LAYOUT (WITHIN EXISTING DASHBOARD)
+
+Keep it clean, premium, and not cluttered.
+
+1. TOP KPI STRIP (STICKY)
+
+* Profit (highlighted, color dynamic)
+* Revenue
+* Total Cost
+* Margin %
+
+---
+
+2. MAIN CONTENT (2-COLUMN GRID)
+
+LEFT SIDE → INPUT SECTION (stacked cards)
+
+A. VENUE
+
+* Cost per hour
+* Hours per session
+* Days per week
+* Number of weeks
+* Show live total venue cost
+
+B. PLAYERS / REVENUE
+
+* Fee per player (with presets if system has pricing tiers)
+* Number of players
+* Show total revenue
+
+C. SHUTTLES
+
+* Cost per tube
+* Tubes per session
+* Toggle: tube vs unit
+* Show total cost
+
+D. ADDITIONAL EXPENSES
+
+* Dynamic list:
+
+  * Name
+  * Cost
+* Add/remove rows
+* Show total extras
+
+---
+
+RIGHT SIDE → SUMMARY PANEL (VISUAL FOCUS)
+
+* Large Profit number
+* Revenue vs Cost visual bar
+* Breakdown:
+
+  * Venue
+  * Shuttles
+  * Extras
+* Cost per player
+* Break-even players
+
+Add chart:
+
+* Profit vs Players (line chart, updates live)
+
+---
+
+CALCULATION LOGIC (REAL-TIME)
+
+* venue_total = cost_per_hour × hours × days × weeks
+* revenue_total = fee_per_player × players × days × weeks
+* shuttle_total = tubes × cost_per_tube × days × weeks
+* total_cost = venue + shuttle + extras
+* profit = revenue - total_cost
+* cost_per_player = total_cost / (players × sessions)
+* break_even_players = total_cost / fee_per_player
+
+All values must update instantly when inputs change.
+
+---
+
+DATA STORAGE (INTEGRATED)
+
+Extend existing backend:
+
+Create new model/table:
+
+* session_calculations
+
+Fields:
+
+* id
+* name
+* all input values
+* computed totals
+* created_by (admin id)
+* created_at
+
+API endpoints:
+
+* POST /session-calculations
+* GET /session-calculations
+* GET /session-calculations/:id
+* PUT /session-calculations/:id
+* DELETE /session-calculations/:id
+
+---
+
+FEATURES
+
+* Save calculation (modal with name)
+* Load previous calculations
+* Duplicate calculation
+* Delete calculation
+
+Optional:
+
+* Auto-save draft locally
+* Pre-fill with last used values
+
+---
+
+UX DETAILS (MAKE IT PREMIUM)
+
+* Smooth transitions when values change
+* Animated numbers for totals
+* Color logic:
+
+  * Profit → green
+  * Loss → red
+* Subtle hover effects on cards
+* Clean spacing, not crowded
+* Fast input (no lag)
+
+---
+
+GOAL
+
+This should feel like a **premium internal tool**, not a basic form.
+
+Admins should:
+
+* Open it
+* Input values in seconds
+* Instantly understand profitability
+* Make confident decisions
+
+Keep it simple, powerful, and visually excellent.
+
+---
+
+This is now **perfect for your situation**:
+
+* plugs into your app
+* respects your existing system
+* still feels premium
+
+If you want next step, I can:
+
+* Map this to your **exact current app structure (routes/components)**
+* Or design it specifically for your **Dragon Badminton Club workflow (real numbers, real use cases)**
