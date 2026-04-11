@@ -7576,6 +7576,8 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
   const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
+  const [quantity, setQuantity] = useState("1");
+  const [unitPrice, setUnitPrice] = useState("");
   const [notes, setNotes] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editName, setEditName] = useState("");
@@ -7617,12 +7619,26 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
     },
   });
 
+  const recalcTotal = (qty: string, price: string) => {
+    const q = parseFloat(qty) || 0;
+    const p = parseFloat(price) || 0;
+    setAmount((q * p).toFixed(2));
+  };
+
+  const handleQuantityChange = (val: string) => {
+    setQuantity(val);
+    if (unitPrice) recalcTotal(val, unitPrice);
+  };
+
   const handleVenueSelect = (venueId: string) => {
     setSelectedVenueId(venueId);
     const venue = venuesList.find((v: any) => v.id === Number(venueId));
     if (venue) {
       setName(venue.name);
-      setAmount(venue.pricePerUnit ? (venue.pricePerUnit / 100).toFixed(2) : "");
+      const price = venue.pricePerUnit ? (venue.pricePerUnit / 100).toFixed(2) : "";
+      setUnitPrice(price);
+      setQuantity("1");
+      setAmount(price);
       setNotes(venue.address || "");
     }
   };
@@ -7632,13 +7648,16 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
     const material = materialsList.find((m: any) => m.id === Number(materialId));
     if (material) {
       setName(material.name);
-      setAmount(material.pricePerUnit ? (material.pricePerUnit / 100).toFixed(2) : "");
+      const price = material.pricePerUnit ? (material.pricePerUnit / 100).toFixed(2) : "";
+      setUnitPrice(price);
+      setQuantity("1");
+      setAmount(price);
       setNotes(material.notes || "");
     }
   };
 
   const resetForm = () => {
-    setName(""); setAmount(""); setNotes("");
+    setName(""); setAmount(""); setNotes(""); setQuantity("1"); setUnitPrice("");
     setSelectedVenueId(""); setSelectedMaterialId("");
   };
 
@@ -7778,9 +7797,20 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
           )}
 
           <div className="flex items-center gap-1">
-            <span className="text-sm text-muted-foreground">£</span>
-            <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-[100px]" data-testid={`input-expense-amount-${sessionId}`} />
+            <span className="text-xs text-muted-foreground whitespace-nowrap">Qty</span>
+            <Input type="number" min="1" step="1" placeholder="1" value={quantity} onChange={(e) => handleQuantityChange(e.target.value)} className="w-[60px]" data-testid={`input-expense-qty-${sessionId}`} />
           </div>
+          <div className="flex items-center gap-1">
+            <span className="text-xs text-muted-foreground">×</span>
+            <span className="text-sm text-muted-foreground">£</span>
+            <Input type="number" min="0" step="0.01" placeholder="0.00" value={unitPrice || amount} onChange={(e) => { const val = e.target.value; setUnitPrice(val); recalcTotal(quantity, val); }} className="w-[80px]" data-testid={`input-expense-unitprice-${sessionId}`} />
+          </div>
+          {(unitPrice && parseFloat(quantity) > 1) ? (
+            <div className="flex items-center gap-1">
+              <span className="text-xs text-muted-foreground">=</span>
+              <span className="text-sm font-medium">£{amount}</span>
+            </div>
+          ) : null}
           <Input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} className="flex-1 min-w-[100px]" data-testid={`input-expense-notes-${sessionId}`} />
           <Button size="sm" disabled={!name.trim() || !amount || createMutation.isPending} onClick={() => createMutation.mutate()} data-testid={`button-add-expense-${sessionId}`}>
             {createMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}Add
