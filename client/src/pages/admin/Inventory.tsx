@@ -71,6 +71,15 @@ interface ExpenseEntry {
   createdByName: string;
 }
 
+interface ExpenseMaterial {
+  id: number;
+  clubId: number;
+  name: string;
+  pricePerUnit: number;
+  notes: string | null;
+  createdAt: string;
+}
+
 const MOVEMENT_LABELS: Record<string, string> = {
   RECEIPT: "Stock Received",
   USAGE: "Session Usage",
@@ -209,7 +218,10 @@ export default function Inventory() {
 
   const [showAddExpense, setShowAddExpense] = useState(false);
   const [editingExpense, setEditingExpense] = useState<ExpenseEntry | null>(null);
-  const [deleteConfirm, setDeleteConfirm] = useState<{ type: "item" | "movement" | "expense"; id: number; name: string } | null>(null);
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [editingMaterial, setEditingMaterial] = useState<ExpenseMaterial | null>(null);
+  const [materialForm, setMaterialForm] = useState({ name: "", pricePerUnit: "", notes: "" });
+  const [deleteConfirm, setDeleteConfirm] = useState<{ type: "item" | "movement" | "expense" | "material"; id: number; name: string } | null>(null);
 
   const [itemForm, setItemForm] = useState({
     name: "", supplier: "", unitPrice: "", stockAvailable: "0",
@@ -238,9 +250,24 @@ export default function Inventory() {
     return `/api/expenses${params.toString() ? `?${params}` : ""}`;
   }, [selectedClubId]);
 
+  const materialsQueryUrl = useMemo(() => {
+    if (selectedClubId !== "all") return `/api/expense-materials?clubId=${selectedClubId}`;
+    return null;
+  }, [selectedClubId]);
+
   const { data: items = [], isLoading: loadingItems } = useQuery<InventoryItem[]>({ queryKey: [itemsQueryUrl] });
   const { data: movements = [], isLoading: loadingMovements } = useQuery<InventoryMovement[]>({ queryKey: [movementsQueryUrl] });
   const { data: expensesList = [], isLoading: loadingExpenses } = useQuery<ExpenseEntry[]>({ queryKey: [expensesQueryUrl] });
+  const { data: materialsList = [], isLoading: loadingMaterials } = useQuery<ExpenseMaterial[]>({
+    queryKey: ["/api/expense-materials", { clubId: selectedClubId }],
+    queryFn: async () => {
+      if (!materialsQueryUrl) return [];
+      const res = await fetch(materialsQueryUrl);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: selectedClubId !== "all",
+  });
 
   const filteredItems = useMemo(() => {
     if (!searchQuery.trim()) return items;
@@ -365,6 +392,43 @@ export default function Inventory() {
     onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to delete expense", variant: "destructive" }); },
   });
 
+  const createMaterial = useMutation({
+    mutationFn: async (data: any) => { await apiRequest("POST", "/api/expense-materials", data); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/expense-materials") });
+      toast({ title: "Material Added" });
+      setShowAddMaterial(false);
+      setMaterialForm({ name: "", pricePerUnit: "", notes: "" });
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to add material", variant: "destructive" }); },
+  });
+
+  const updateMaterial = useMutation({
+    mutationFn: async ({ id, ...data }: any) => { await apiRequest("PATCH", `/api/expense-materials/${id}`, data); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/expense-materials") });
+      toast({ title: "Material Updated" });
+      setEditingMaterial(null);
+      setMaterialForm({ name: "", pricePerUnit: "", notes: "" });
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to update material", variant: "destructive" }); },
+  });
+
+  const deleteMaterial = useMutation({
+    mutationFn: async (id: number) => { await apiRequest("DELETE", `/api/expense-materials/${id}`); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/expense-materials") });
+      toast({ title: "Material Deleted" });
+      setDeleteConfirm(null);
+    },
+    onError: (err: any) => { toast({ title: "Error", description: err.message || "Failed to delete material", variant: "destructive" }); },
+  });
+
+  function openEditMaterial(material: ExpenseMaterial) {
+    setEditingMaterial(material);
+    setMaterialForm({ name: material.name, pricePerUnit: penceToPounds(material.pricePerUnit), notes: material.notes || "" });
+  }
+
   function resetItemForm() {
     setItemForm({ name: "", supplier: "", unitPrice: "", stockAvailable: "0", isSessionLinked: false, canBeSold: false, isActive: true, notes: "" });
   }
@@ -477,6 +541,7 @@ export default function Inventory() {
           <TabsTrigger value="items" data-testid="tab-items">Items</TabsTrigger>
           <TabsTrigger value="movements" data-testid="tab-movements">Stock Log</TabsTrigger>
           <TabsTrigger value="expenses" data-testid="tab-expenses">Expenses</TabsTrigger>
+          <TabsTrigger value="materials" data-testid="tab-materials">Materials</TabsTrigger>
         </TabsList>
 
         <TabsContent value="items" className="space-y-4">
@@ -660,6 +725,64 @@ export default function Inventory() {
                 </TableBody>
               </Table>
             </div>
+          )}
+        </TabsContent>
+
+        <TabsContent value="materials" className="space-y-4">
+          {selectedClubId === "all" ? (
+            <Card><CardContent className="py-12 text-center text-muted-foreground">Select a club to manage materials</CardContent></Card>
+          ) : (
+            <>
+              <div className="flex justify-end">
+                <Button onClick={() => { setMaterialForm({ name: "", pricePerUnit: "", notes: "" }); setShowAddMaterial(true); }} data-testid="button-add-material">
+                  <Plus className="w-4 h-4 mr-2" /> Add Material
+                </Button>
+              </div>
+
+              {loadingMaterials ? (
+                <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-muted-foreground" /></div>
+              ) : materialsList.length === 0 ? (
+                <Card><CardContent className="py-12 text-center text-muted-foreground">
+                  <Package className="h-10 w-10 mx-auto mb-3 opacity-40" />
+                  <p>No materials added yet</p>
+                  <p className="text-xs mt-1">Add materials here and they will appear as dropdown options in session expenses</p>
+                </CardContent></Card>
+              ) : (
+                <div className="rounded-md border overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Material</TableHead>
+                        <TableHead className="text-right">Price Per Unit</TableHead>
+                        <TableHead>Notes</TableHead>
+                        <TableHead>Added</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {materialsList.map(m => (
+                        <TableRow key={m.id} data-testid={`row-material-${m.id}`}>
+                          <TableCell className="font-medium" data-testid={`text-material-name-${m.id}`}>{m.name}</TableCell>
+                          <TableCell className="text-right font-medium">{formatPounds(m.pricePerUnit)}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{m.notes || "-"}</TableCell>
+                          <TableCell className="text-sm text-muted-foreground">{format(new Date(m.createdAt), "dd MMM yyyy")}</TableCell>
+                          <TableCell>
+                            <div className="flex justify-end gap-1">
+                              <Button size="sm" variant="ghost" onClick={() => openEditMaterial(m)} data-testid={`button-edit-material-${m.id}`}>
+                                <Pencil className="w-3 h-3" />
+                              </Button>
+                              <Button size="sm" variant="ghost" onClick={() => setDeleteConfirm({ type: "material", id: m.id, name: m.name })} data-testid={`button-delete-material-${m.id}`} title="Delete material">
+                                <Trash2 className="w-3 h-3" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </>
           )}
         </TabsContent>
       </Tabs>
@@ -947,10 +1070,54 @@ export default function Inventory() {
         </DialogContent>
       </Dialog>
 
+      <Dialog open={showAddMaterial || !!editingMaterial} onOpenChange={(o) => { if (!o) { setShowAddMaterial(false); setEditingMaterial(null); setMaterialForm({ name: "", pricePerUnit: "", notes: "" }); } }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{editingMaterial ? "Edit Material" : "Add Material"}</DialogTitle>
+            <DialogDescription>{editingMaterial ? "Update material details" : "Add a reusable material with its price per unit"}</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div>
+              <Label>Name</Label>
+              <Input value={materialForm.name} onChange={e => setMaterialForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g., Shuttlecocks, Balls" data-testid="input-material-name" />
+            </div>
+            <div>
+              <Label>Price Per Unit (&pound;)</Label>
+              <Input type="text" inputMode="decimal" value={materialForm.pricePerUnit} onChange={e => { const v = e.target.value; if (/^\d*\.?\d{0,2}$/.test(v) || v === "") setMaterialForm(f => ({ ...f, pricePerUnit: v })); }} placeholder="0.00" data-testid="input-material-price" />
+            </div>
+            <div>
+              <Label>Notes (optional)</Label>
+              <Textarea value={materialForm.notes} onChange={e => setMaterialForm(f => ({ ...f, notes: e.target.value }))} className="resize-none" data-testid="input-material-notes" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowAddMaterial(false); setEditingMaterial(null); }}>Cancel</Button>
+            <Button
+              disabled={createMaterial.isPending || updateMaterial.isPending}
+              data-testid="button-save-material"
+              onClick={() => {
+                const clubId = editingMaterial?.clubId || effectiveClubId;
+                if (!clubId) { toast({ title: "Select a club", variant: "destructive" }); return; }
+                if (!materialForm.name.trim()) { toast({ title: "Name required", variant: "destructive" }); return; }
+                const pricePerUnit = poundsToPence(materialForm.pricePerUnit);
+                if (editingMaterial) {
+                  updateMaterial.mutate({ id: editingMaterial.id, name: materialForm.name, pricePerUnit, notes: materialForm.notes || null });
+                } else {
+                  createMaterial.mutate({ clubId, name: materialForm.name, pricePerUnit, notes: materialForm.notes || undefined });
+                }
+              }}
+            >
+              {(createMaterial.isPending || updateMaterial.isPending) && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+              {editingMaterial ? "Save Changes" : "Add Material"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <AlertDialog open={!!deleteConfirm} onOpenChange={(o) => { if (!o) setDeleteConfirm(null); }}>
         <AlertDialogContent>
           <AlertDialogHeader>
-            <AlertDialogTitle>Delete {deleteConfirm?.type === "item" ? "Item" : deleteConfirm?.type === "movement" ? "Stock Log Entry" : "Expense"}</AlertDialogTitle>
+            <AlertDialogTitle>Delete {deleteConfirm?.type === "item" ? "Item" : deleteConfirm?.type === "movement" ? "Stock Log Entry" : deleteConfirm?.type === "material" ? "Material" : "Expense"}</AlertDialogTitle>
             <AlertDialogDescription>
               Are you sure you want to delete "{deleteConfirm?.name}"? This action cannot be undone.
               {deleteConfirm?.type === "item" && " All associated stock log entries will also be removed."}
@@ -967,6 +1134,7 @@ export default function Inventory() {
                 if (deleteConfirm.type === "item") deleteItem.mutate(deleteConfirm.id);
                 else if (deleteConfirm.type === "movement") deleteMovement.mutate(deleteConfirm.id);
                 else if (deleteConfirm.type === "expense") deleteExpense.mutate(deleteConfirm.id);
+                else if (deleteConfirm.type === "material") deleteMaterial.mutate(deleteConfirm.id);
               }}
             >
               <Trash2 className="w-4 h-4 mr-1" /> Delete

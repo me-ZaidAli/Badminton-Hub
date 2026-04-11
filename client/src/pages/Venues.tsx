@@ -27,6 +27,7 @@ const venueFormSchema = z.object({
   googleMapsUrl: z.string().url("Must be a valid URL").optional().or(z.literal("")),
   isDefault: z.boolean().optional(),
   courtNames: z.string().optional(),
+  pricePerUnit: z.string().optional(),
 });
 
 type VenueFormValues = z.infer<typeof venueFormSchema>;
@@ -63,6 +64,7 @@ export default function Venues() {
       googleMapsUrl: "",
       isDefault: false,
       courtNames: "",
+      pricePerUnit: "",
     },
   });
 
@@ -70,6 +72,7 @@ export default function Venues() {
     const courtNamesArray = values.courtNames 
       ? values.courtNames.split(',').map(n => n.trim()).filter(n => n)
       : null;
+    const pricePence = values.pricePerUnit ? Math.round(parseFloat(values.pricePerUnit) * 100) : 0;
     createVenueMutation.mutate(
       {
         name: values.name,
@@ -79,6 +82,7 @@ export default function Venues() {
         googleMapsUrl: values.googleMapsUrl || null,
         isDefault: values.isDefault || false,
         courtNames: courtNamesArray,
+        pricePerUnit: isNaN(pricePence) ? 0 : pricePence,
       },
       {
         onSuccess: () => {
@@ -98,6 +102,7 @@ export default function Venues() {
     const courtNamesArray = values.courtNames 
       ? values.courtNames.split(',').map(n => n.trim()).filter(n => n)
       : null;
+    const pricePence = values.pricePerUnit ? Math.round(parseFloat(values.pricePerUnit) * 100) : 0;
     updateVenueMutation.mutate(
       {
         venueId: editingVenue.id,
@@ -109,6 +114,7 @@ export default function Venues() {
           googleMapsUrl: values.googleMapsUrl || null,
           isDefault: values.isDefault || false,
           courtNames: courtNamesArray,
+          pricePerUnit: isNaN(pricePence) ? 0 : pricePence,
         },
       },
       {
@@ -147,6 +153,7 @@ export default function Venues() {
       googleMapsUrl: venue.googleMapsUrl || "",
       isDefault: venue.isDefault,
       courtNames: venue.courtNames ? venue.courtNames.join(', ') : "",
+      pricePerUnit: venue.pricePerUnit ? (venue.pricePerUnit / 100).toFixed(2) : "",
     });
   };
 
@@ -265,6 +272,20 @@ export default function Venues() {
                   />
                   <FormField
                     control={form.control}
+                    name="pricePerUnit"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Price Per Session (£)</FormLabel>
+                        <FormControl>
+                          <Input type="number" min="0" step="0.01" placeholder="0.00" {...field} data-testid="input-venue-price" />
+                        </FormControl>
+                        <p className="text-xs text-muted-foreground">Auto-fills when adding venue as session expense</p>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
                     name="isDefault"
                     render={({ field }) => (
                       <FormItem className="flex items-center gap-2">
@@ -341,6 +362,7 @@ export default function Venues() {
                     <TableHead>City</TableHead>
                     <TableHead>Postcode</TableHead>
                     <TableHead>Maps</TableHead>
+                    <TableHead className="text-right">Price</TableHead>
                     <TableHead>Default</TableHead>
                     <TableHead>Actions</TableHead>
                   </TableRow>
@@ -365,6 +387,9 @@ export default function Venues() {
                         ) : (
                           "-"
                         )}
+                      </TableCell>
+                      <TableCell className="text-right font-medium">
+                        {venue.pricePerUnit ? `£${(venue.pricePerUnit / 100).toFixed(2)}` : "-"}
                       </TableCell>
                       <TableCell>
                         {venue.isDefault ? (
@@ -484,6 +509,20 @@ export default function Venues() {
                       <Input placeholder="Court 1, Main Court, Back Court" {...field} data-testid="input-edit-venue-court-names" />
                     </FormControl>
                     <p className="text-xs text-muted-foreground">Separate court names with commas</p>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="pricePerUnit"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Price Per Session (£)</FormLabel>
+                    <FormControl>
+                      <Input type="number" min="0" step="0.01" placeholder="0.00" {...field} data-testid="input-edit-venue-price" />
+                    </FormControl>
+                    <p className="text-xs text-muted-foreground">Auto-fills when adding venue as session expense</p>
                     <FormMessage />
                   </FormItem>
                 )}
