@@ -2699,19 +2699,29 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         ? await db.select().from(tournamentTeams).where(inArray(tournamentTeams.categoryId, categoryIds))
         : [];
 
-      const profileIds = [...new Set(allTeams.flatMap(t => [t.player1Id, t.player2Id].filter(Boolean) as number[]))];
-      const allProfiles = profileIds.length > 0
-        ? await db.select().from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
+      const allPairRequests = await db.select().from(tournamentPairRequests)
+        .where(inArray(tournamentPairRequests.tournamentId, activeTournamentIds));
+
+      const teamProfileIds = [...new Set(allTeams.flatMap(t => [t.player1Id, t.player2Id].filter(Boolean) as number[]))];
+      const allProfiles = teamProfileIds.length > 0
+        ? await db.select().from(playerProfiles).where(inArray(playerProfiles.id, teamProfileIds))
         : [];
-      const profileUserIds = [...new Set(allProfiles.map(p => p.userId))];
-      const allUsers = profileUserIds.length > 0
-        ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, profileUserIds))
+
+      const pairRequestUserIds = [...new Set(allPairRequests.flatMap(pr => [pr.fromUserId, pr.toUserId].filter(Boolean) as number[]))];
+      const allRelevantUserIds = [...new Set([
+        ...allProfiles.map(p => p.userId),
+        ...pairRequestUserIds,
+        userId,
+      ])];
+      const allUsers = allRelevantUserIds.length > 0
+        ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, allRelevantUserIds))
         : [];
 
       const userMap = new Map(allUsers.map(u => [u.id, u.fullName]));
       const profileMap = new Map(allProfiles.map(p => [p.id, p]));
+      const pairRequestMap = new Map(allPairRequests.map(pr => [pr.id, pr]));
 
-      const getPlayerName = (profileId: number | null | undefined): string | null => {
+      const getPlayerNameByProfileId = (profileId: number | null | undefined): string | null => {
         if (!profileId) return null;
         const profile = profileMap.get(profileId);
         if (!profile) return null;
@@ -2723,6 +2733,10 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const myTeamIds = allTeams
         .filter(t => userProfileIds.includes(t.player1Id) || (t.player2Id && userProfileIds.includes(t.player2Id)))
         .map(t => t.id);
+
+      const myPairRequestIds = allPairRequests
+        .filter(pr => pr.fromUserId === userId || pr.toUserId === userId)
+        .map(pr => pr.id);
 
       const allGroups = activeTournamentIds.length > 0
         ? await db.select().from(tournamentGroups).where(inArray(tournamentGroups.tournamentId, activeTournamentIds))
@@ -2742,19 +2756,37 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
 
         for (const group of tGroups) {
           const groupPairs = allGroupPairs.filter(gp => gp.groupId === group.id);
-          const isMyGroup = groupPairs.some(gp => gp.teamId && myTeamIds.includes(gp.teamId));
+          const isMyGroup = groupPairs.some(gp =>
+            (gp.teamId && myTeamIds.includes(gp.teamId)) ||
+            (gp.pairRequestId && myPairRequestIds.includes(gp.pairRequestId))
+          );
 
           if (isMyGroup) {
             const pairsInGroup = groupPairs.map(gp => {
-              const team = allTeams.find(t => t.id === gp.teamId);
-              if (!team) return null;
-              return {
-                teamId: team.id,
-                player1: getPlayerName(team.player1Id),
-                player2: getPlayerName(team.player2Id),
-                isMe: userProfileIds.includes(team.player1Id) || (team.player2Id ? userProfileIds.includes(team.player2Id) : false),
-                seedNumber: team.seedNumber,
-              };
+              if (gp.teamId) {
+                const team = allTeams.find(t => t.id === gp.teamId);
+                if (!team) return null;
+                return {
+                  teamId: team.id,
+                  player1: getPlayerNameByProfileId(team.player1Id),
+                  player2: getPlayerNameByProfileId(team.player2Id),
+                  isMe: userProfileIds.includes(team.player1Id) || (team.player2Id ? userProfileIds.includes(team.player2Id) : false),
+                  seedNumber: team.seedNumber,
+                };
+              }
+              if (gp.pairRequestId) {
+                const pr = pairRequestMap.get(gp.pairRequestId);
+                if (!pr) return null;
+                return {
+                  teamId: `pr-${pr.id}`,
+                  player1: userMap.get(pr.fromUserId) || null,
+                  player2: userMap.get(pr.toUserId) || null,
+                  isMe: pr.fromUserId === userId || pr.toUserId === userId,
+                  seedNumber: null,
+                  pairName: pr.pairName || null,
+                };
+              }
+              return null;
             }).filter(Boolean);
 
             const category = tCategories.find(c => c.id === group.categoryId);
