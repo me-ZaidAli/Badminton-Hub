@@ -182,7 +182,7 @@ export default function Venues() {
                 <Plus className="h-4 w-4 mr-2" /> Add Venue
               </Button>
             </DialogTrigger>
-            <DialogContent>
+            <DialogContent className="max-h-[90vh] overflow-y-auto">
               <DialogHeader>
                 <DialogTitle>Add New Venue</DialogTitle>
                 <DialogDescription>Add a new location for your club sessions.</DialogDescription>
@@ -426,9 +426,10 @@ export default function Venues() {
       </Card>
 
       <Dialog open={!!editingVenue} onOpenChange={(open) => !open && setEditingVenue(null)}>
-        <DialogContent>
+        <DialogContent className="max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>Edit Venue</DialogTitle>
+            <DialogDescription>Update venue details and pricing</DialogDescription>
           </DialogHeader>
           <Form {...form}>
             <form onSubmit={form.handleSubmit(handleUpdate)} className="space-y-4">
