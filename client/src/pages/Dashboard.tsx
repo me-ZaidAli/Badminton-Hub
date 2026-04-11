@@ -286,7 +286,7 @@ function DashboardContent({
             className="relative overflow-hidden rounded-xl cursor-pointer group transition-all duration-300 hover:shadow-2xl hover:scale-[1.01]"
             data-testid={`banner-tournament-${tournament.tournamentId}`}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-violet-600 via-purple-600 to-indigo-700 dark:from-violet-800 dark:via-purple-900 dark:to-indigo-950" />
+            <div className="absolute inset-0 bg-gradient-to-br from-sky-500 via-cyan-500 to-blue-600 dark:from-sky-700 dark:via-cyan-800 dark:to-blue-900" />
             <div className="absolute inset-0 opacity-10" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.4\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
             <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full -translate-y-1/2 translate-x-1/3 blur-3xl" />
             <div className="absolute bottom-0 left-0 w-48 h-48 bg-amber-400/10 rounded-full translate-y-1/2 -translate-x-1/4 blur-2xl" />
@@ -301,7 +301,7 @@ function DashboardContent({
                     <div className="flex items-center gap-2">
                       <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight">{tournament.name}</h3>
                     </div>
-                    <p className="text-xs text-purple-200 mt-0.5 font-medium">You're registered for this tournament</p>
+                    <p className="text-xs text-sky-200 mt-0.5 font-medium">You're registered for this tournament</p>
                   </div>
                 </div>
                 <Badge className="bg-amber-400/20 text-amber-200 border-amber-400/30 text-[10px] font-semibold uppercase tracking-wider px-2.5 py-1 shrink-0">
@@ -311,24 +311,24 @@ function DashboardContent({
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
                 <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2.5">
-                  <Calendar className="h-4 w-4 text-purple-200 shrink-0" />
+                  <Calendar className="h-4 w-4 text-sky-200 shrink-0" />
                   <div>
-                    <p className="text-[10px] text-purple-300 uppercase tracking-wider font-medium">Date</p>
+                    <p className="text-[10px] text-sky-300 uppercase tracking-wider font-medium">Date</p>
                     <p className="text-sm text-white font-semibold">{format(new Date(tournament.startDate), "EEE, d MMM yyyy")}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2.5">
-                  <Clock className="h-4 w-4 text-purple-200 shrink-0" />
+                  <Clock className="h-4 w-4 text-sky-200 shrink-0" />
                   <div>
-                    <p className="text-[10px] text-purple-300 uppercase tracking-wider font-medium">Time</p>
+                    <p className="text-[10px] text-sky-300 uppercase tracking-wider font-medium">Time</p>
                     <p className="text-sm text-white font-semibold">{format(new Date(tournament.startDate), "h:mm a")}</p>
                   </div>
                 </div>
                 {tournament.location && (
                   <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2.5">
-                    <MapPinned className="h-4 w-4 text-purple-200 shrink-0" />
+                    <MapPinned className="h-4 w-4 text-sky-200 shrink-0" />
                     <div>
-                      <p className="text-[10px] text-purple-300 uppercase tracking-wider font-medium">Venue</p>
+                      <p className="text-[10px] text-sky-300 uppercase tracking-wider font-medium">Venue</p>
                       <p className="text-sm text-white font-semibold truncate">{tournament.venueName || tournament.location}</p>
                     </div>
                   </div>
@@ -347,7 +347,7 @@ function DashboardContent({
                           <div>
                             <span className="text-sm font-bold text-white">{group.groupName}</span>
                             {group.categoryName && (
-                              <span className="text-xs text-purple-300 ml-2">({group.categoryName})</span>
+                              <span className="text-xs text-sky-300 ml-2">({group.categoryName})</span>
                             )}
                           </div>
                         </div>
@@ -359,7 +359,7 @@ function DashboardContent({
                         )}
                       </div>
                       {(group.hallName || group.courtName) && (
-                        <div className="flex items-center gap-1.5 mb-3 text-xs text-purple-200">
+                        <div className="flex items-center gap-1.5 mb-3 text-xs text-sky-200">
                           <MapPin className="h-3 w-3" />
                           {[group.hallName, group.courtName].filter(Boolean).join(" - ")}
                         </div>
@@ -371,7 +371,7 @@ function DashboardContent({
                             className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm transition-colors ${
                               pair.isMe
                                 ? "bg-amber-400/20 border border-amber-400/30 text-white font-bold"
-                                : "bg-white/5 text-purple-100"
+                                : "bg-white/5 text-sky-100"
                             }`}
                             data-testid={`tournament-group-pair-${pair.teamId}`}
                           >
@@ -380,7 +380,7 @@ function DashboardContent({
                               {pair.player1}{pair.player2 ? ` & ${pair.player2}` : ""}
                             </span>
                             {pair.seedNumber && (
-                              <Badge className="ml-auto bg-white/10 text-purple-200 border-0 text-[10px]">
+                              <Badge className="ml-auto bg-white/10 text-sky-200 border-0 text-[10px]">
                                 Seed #{pair.seedNumber}
                               </Badge>
                             )}
