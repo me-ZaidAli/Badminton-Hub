@@ -316,7 +316,18 @@ export const venues = pgTable("venues", {
   postcode: text("postcode"),
   googleMapsUrl: text("google_maps_url"),
   isDefault: boolean("is_default").default(false).notNull(),
-  courtNames: jsonb("court_names").$type<string[]>(), // e.g. ["Court 1", "Main Court", "Back Court"]
+  courtNames: jsonb("court_names").$type<string[]>(),
+  pricePerUnit: integer("price_per_unit").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// === EXPENSE MATERIALS ===
+export const expenseMaterials = pgTable("expense_materials", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  name: text("name").notNull(),
+  pricePerUnit: integer("price_per_unit").default(0).notNull(),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

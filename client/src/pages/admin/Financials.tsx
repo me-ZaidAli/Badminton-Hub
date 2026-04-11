@@ -66,6 +66,7 @@ import {
   Flag,
   Receipt,
   Minus,
+  MapPin,
 } from "lucide-react";
 import FinancialAnalyticsView from "@/components/FinancialAnalyticsView";
 import ProfitabilityView from "@/components/financial/ProfitabilityView";
@@ -7570,6 +7571,9 @@ export default function Financials() {
 
 function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: number }) {
   const { toast } = useToast();
+  const [expenseType, setExpenseType] = useState<"venue" | "material" | "custom">("custom");
+  const [selectedVenueId, setSelectedVenueId] = useState<string>("");
+  const [selectedMaterialId, setSelectedMaterialId] = useState<string>("");
   const [name, setName] = useState("");
   const [amount, setAmount] = useState("");
   const [notes, setNotes] = useState("");
@@ -7577,6 +7581,14 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
   const [editName, setEditName] = useState("");
   const [editAmount, setEditAmount] = useState("");
   const [editNotes, setEditNotes] = useState("");
+  const [showAddVenue, setShowAddVenue] = useState(false);
+  const [showAddMaterial, setShowAddMaterial] = useState(false);
+  const [newVenueName, setNewVenueName] = useState("");
+  const [newVenueAddress, setNewVenueAddress] = useState("");
+  const [newVenuePrice, setNewVenuePrice] = useState("");
+  const [newMaterialName, setNewMaterialName] = useState("");
+  const [newMaterialPrice, setNewMaterialPrice] = useState("");
+  const [newMaterialNotes, setNewMaterialNotes] = useState("");
 
   const { data: expensesList = [], isLoading } = useQuery<any[]>({
     queryKey: ["/api/expenses", { sessionId }],
@@ -7587,6 +7599,49 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
     },
   });
 
+  const { data: venuesList = [] } = useQuery<any[]>({
+    queryKey: ["/api/clubs", clubId, "venues"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${clubId}/venues`);
+      if (!res.ok) throw new Error("Failed to fetch venues");
+      return res.json();
+    },
+  });
+
+  const { data: materialsList = [] } = useQuery<any[]>({
+    queryKey: ["/api/expense-materials", { clubId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/expense-materials?clubId=${clubId}`);
+      if (!res.ok) throw new Error("Failed to fetch materials");
+      return res.json();
+    },
+  });
+
+  const handleVenueSelect = (venueId: string) => {
+    setSelectedVenueId(venueId);
+    const venue = venuesList.find((v: any) => v.id === Number(venueId));
+    if (venue) {
+      setName(venue.name);
+      setAmount(venue.pricePerUnit ? (venue.pricePerUnit / 100).toFixed(2) : "");
+      setNotes(venue.address || "");
+    }
+  };
+
+  const handleMaterialSelect = (materialId: string) => {
+    setSelectedMaterialId(materialId);
+    const material = materialsList.find((m: any) => m.id === Number(materialId));
+    if (material) {
+      setName(material.name);
+      setAmount(material.pricePerUnit ? (material.pricePerUnit / 100).toFixed(2) : "");
+      setNotes(material.notes || "");
+    }
+  };
+
+  const resetForm = () => {
+    setName(""); setAmount(""); setNotes("");
+    setSelectedVenueId(""); setSelectedMaterialId("");
+  };
+
   const createMutation = useMutation({
     mutationFn: async () => {
       const pence = Math.round(parseFloat(amount) * 100);
@@ -7596,7 +7651,7 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/expenses", { sessionId }] });
-      setName(""); setAmount(""); setNotes("");
+      resetForm();
       toast({ title: "Expense Added" });
     },
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
@@ -7628,20 +7683,109 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
     onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
+  const addVenueMutation = useMutation({
+    mutationFn: async () => {
+      const pence = Math.round(parseFloat(newVenuePrice) * 100);
+      const res = await apiRequest("POST", `/api/clubs/${clubId}/venues`, {
+        name: newVenueName, address: newVenueAddress || "N/A", pricePerUnit: isNaN(pence) ? 0 : pence,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/clubs", clubId, "venues"] });
+      setShowAddVenue(false); setNewVenueName(""); setNewVenueAddress(""); setNewVenuePrice("");
+      toast({ title: "Venue Added" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const addMaterialMutation = useMutation({
+    mutationFn: async () => {
+      const pence = Math.round(parseFloat(newMaterialPrice) * 100);
+      const res = await apiRequest("POST", "/api/expense-materials", {
+        clubId, name: newMaterialName, pricePerUnit: isNaN(pence) ? 0 : pence, notes: newMaterialNotes || undefined,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/expense-materials", { clubId }] });
+      setShowAddMaterial(false); setNewMaterialName(""); setNewMaterialPrice(""); setNewMaterialNotes("");
+      toast({ title: "Material Added" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
   const totalExpenses = expensesList.reduce((sum: number, e: any) => sum + (e.amount || 0), 0);
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center gap-3 flex-wrap border rounded-lg p-3 bg-muted/30" onClick={(e) => e.stopPropagation()}>
-        <Input placeholder="Expense name" value={name} onChange={(e) => setName(e.target.value)} className="flex-1 min-w-[120px]" data-testid={`input-expense-name-${sessionId}`} />
-        <div className="flex items-center gap-1">
-          <span className="text-sm text-muted-foreground">£</span>
-          <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-[100px]" data-testid={`input-expense-amount-${sessionId}`} />
+      <div className="border rounded-lg p-3 bg-muted/30 space-y-3" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-center gap-2">
+          <Button size="sm" variant={expenseType === "venue" ? "default" : "outline"} onClick={() => { setExpenseType("venue"); resetForm(); }} data-testid={`btn-type-venue-${sessionId}`}>
+            <MapPin className="h-3 w-3 mr-1" />Venue
+          </Button>
+          <Button size="sm" variant={expenseType === "material" ? "default" : "outline"} onClick={() => { setExpenseType("material"); resetForm(); }} data-testid={`btn-type-material-${sessionId}`}>
+            <Package className="h-3 w-3 mr-1" />Material
+          </Button>
+          <Button size="sm" variant={expenseType === "custom" ? "default" : "outline"} onClick={() => { setExpenseType("custom"); resetForm(); }} data-testid={`btn-type-custom-${sessionId}`}>
+            <Receipt className="h-3 w-3 mr-1" />Custom
+          </Button>
         </div>
-        <Input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} className="flex-1 min-w-[120px]" data-testid={`input-expense-notes-${sessionId}`} />
-        <Button size="sm" disabled={!name.trim() || !amount || createMutation.isPending} onClick={() => createMutation.mutate()} data-testid={`button-add-expense-${sessionId}`}>
-          <Plus className="h-3 w-3 mr-1" />Add
-        </Button>
+
+        <div className="flex items-center gap-3 flex-wrap">
+          {expenseType === "venue" && (
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <Select value={selectedVenueId} onValueChange={handleVenueSelect}>
+                <SelectTrigger className="flex-1" data-testid={`select-venue-${sessionId}`}>
+                  <SelectValue placeholder="Select venue..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {venuesList.map((v: any) => (
+                    <SelectItem key={v.id} value={String(v.id)}>
+                      {v.name} {v.pricePerUnit ? `(£${(v.pricePerUnit / 100).toFixed(2)})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={() => setShowAddVenue(true)} data-testid={`btn-add-venue-${sessionId}`}>
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+
+          {expenseType === "material" && (
+            <div className="flex items-center gap-2 flex-1 min-w-[200px]">
+              <Select value={selectedMaterialId} onValueChange={handleMaterialSelect}>
+                <SelectTrigger className="flex-1" data-testid={`select-material-${sessionId}`}>
+                  <SelectValue placeholder="Select material..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {materialsList.map((m: any) => (
+                    <SelectItem key={m.id} value={String(m.id)}>
+                      {m.name} {m.pricePerUnit ? `(£${(m.pricePerUnit / 100).toFixed(2)})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button size="sm" variant="outline" onClick={() => setShowAddMaterial(true)} data-testid={`btn-add-material-${sessionId}`}>
+                <Plus className="h-3 w-3" />
+              </Button>
+            </div>
+          )}
+
+          {expenseType === "custom" && (
+            <Input placeholder="Expense name" value={name} onChange={(e) => setName(e.target.value)} className="flex-1 min-w-[120px]" data-testid={`input-expense-name-${sessionId}`} />
+          )}
+
+          <div className="flex items-center gap-1">
+            <span className="text-sm text-muted-foreground">£</span>
+            <Input type="number" min="0" step="0.01" placeholder="0.00" value={amount} onChange={(e) => setAmount(e.target.value)} className="w-[100px]" data-testid={`input-expense-amount-${sessionId}`} />
+          </div>
+          <Input placeholder="Notes (optional)" value={notes} onChange={(e) => setNotes(e.target.value)} className="flex-1 min-w-[100px]" data-testid={`input-expense-notes-${sessionId}`} />
+          <Button size="sm" disabled={!name.trim() || !amount || createMutation.isPending} onClick={() => createMutation.mutate()} data-testid={`button-add-expense-${sessionId}`}>
+            {createMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <Plus className="h-3 w-3 mr-1" />}Add
+          </Button>
+        </div>
       </div>
 
       {isLoading ? (
@@ -7695,6 +7839,52 @@ function SessionExpensesTab({ sessionId, clubId }: { sessionId: number; clubId: 
           </div>
         </div>
       )}
+
+      <Dialog open={showAddVenue} onOpenChange={setShowAddVenue}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Add New Venue</DialogTitle>
+            <DialogDescription>Add a venue with its price per session</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Venue name" value={newVenueName} onChange={(e) => setNewVenueName(e.target.value)} data-testid="input-new-venue-name" />
+            <Input placeholder="Address" value={newVenueAddress} onChange={(e) => setNewVenueAddress(e.target.value)} data-testid="input-new-venue-address" />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Price £</span>
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={newVenuePrice} onChange={(e) => setNewVenuePrice(e.target.value)} data-testid="input-new-venue-price" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddVenue(false)}>Cancel</Button>
+            <Button disabled={!newVenueName.trim() || addVenueMutation.isPending} onClick={() => addVenueMutation.mutate()} data-testid="btn-save-new-venue">
+              {addVenueMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}Add Venue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAddMaterial} onOpenChange={setShowAddMaterial}>
+        <DialogContent onClick={(e) => e.stopPropagation()}>
+          <DialogHeader>
+            <DialogTitle>Add New Material</DialogTitle>
+            <DialogDescription>Add a material with its price per unit</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Material name" value={newMaterialName} onChange={(e) => setNewMaterialName(e.target.value)} data-testid="input-new-material-name" />
+            <div className="flex items-center gap-2">
+              <span className="text-sm text-muted-foreground">Price £</span>
+              <Input type="number" min="0" step="0.01" placeholder="0.00" value={newMaterialPrice} onChange={(e) => setNewMaterialPrice(e.target.value)} data-testid="input-new-material-price" />
+            </div>
+            <Input placeholder="Notes (optional)" value={newMaterialNotes} onChange={(e) => setNewMaterialNotes(e.target.value)} data-testid="input-new-material-notes" />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddMaterial(false)}>Cancel</Button>
+            <Button disabled={!newMaterialName.trim() || addMaterialMutation.isPending} onClick={() => addMaterialMutation.mutate()} data-testid="btn-save-new-material">
+              {addMaterialMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : null}Add Material
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

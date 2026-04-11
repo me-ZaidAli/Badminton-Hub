@@ -3,7 +3,7 @@ import { createServer, type Server } from "http";
 import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { db } from "./db";
-import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, dealCategories, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches, merchandiseCategories, merchandiseProducts, merchandiseOrderItems, teamEvents, teamEventSignups } from "@shared/schema";
+import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coaches, coachSeekerMemberships, insertCoachSchema, notifications, creditLedger, membershipPlans, clubMemberships, membershipRequests, merchandise, merchandiseOrders, inventoryItems, inventoryMovements, expenses, internalMessages, recurringEvents, insertRecurringEventSchema, insertSessionSchema, venues, dealCategories, discountCodes, discountCodeAssignments, profileMergeLogs, tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings, chats, tickets, ticketReplies, ticketInternalNotes, ticketAuditLogs, announcements, announcementArchives, announcementComments, referrals, clubReferralSettings, notificationScheduleSettings, notificationLogs, referralPrograms, sessionAttendanceRewards, playerRewardLedger, clubAnniversarySettings, clubBirthdaySettings, pointsMilestoneRewards, badgeAchievementRewards, adminAuditLogs, leagues, leagueTeams, leagueMatches, leagueMatchPlayers, leagueMatchResults, leagueGameScores, leagueOpponents, insertLeagueOpponentSchema, clubHomeVenues, insertClubHomeVenueSchema, juniorSkillCategories, juniorSkills, juniorProfiles, juniorSkillProgress, juniorAchievements, juniorVideos, juniorRankings, juniorProgressHistory, juniorExercises, juniorWeeklyChallenges, juniorChallengeDays, juniorChallengeCompletions, juniorExerciseVideos, donations, generatedReports, cards, userCards, cardCreditTransactions, leagueSquadPlayers, leagueMatchAvailability, playerSkillCategories, playerSkills, playerSkillReviewRequests, playerSkillEvaluations, playerCoachNotes, playerAvatarSelections, playerAchievements, incidentReports, incidentAffectedMembers, trialPlayers, trialEvaluations, lessonRequests, playerAnalyticsEnrollments, playerSkillProgress, playerSkillProgressHistory, wallets, walletTransactions, tshirts, tshirtRequests, tshirtBatches, merchandiseCategories, merchandiseProducts, merchandiseOrderItems, teamEvents, teamEventSignups, expenseMaterials } from "@shared/schema";
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
@@ -4123,7 +4123,7 @@ export async function registerRoutes(
     }
 
     try {
-      const { name, address, city, postcode, googleMapsUrl, isDefault, courtNames } = req.body;
+      const { name, address, city, postcode, googleMapsUrl, isDefault, courtNames, pricePerUnit } = req.body;
       
       if (!name || !address) {
         return res.status(400).json({ message: "Name and address are required" });
@@ -4138,6 +4138,7 @@ export async function registerRoutes(
         googleMapsUrl: googleMapsUrl || null,
         isDefault: isDefault || false,
         courtNames: courtNames || null,
+        pricePerUnit: pricePerUnit || 0,
       });
       res.status(201).json(venue);
     } catch (err: any) {
@@ -4159,7 +4160,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { name, address, city, postcode, googleMapsUrl, isDefault, courtNames } = req.body;
+      const { name, address, city, postcode, googleMapsUrl, isDefault, courtNames, pricePerUnit } = req.body;
       const updates: any = {};
       if (name !== undefined) updates.name = name;
       if (address !== undefined) updates.address = address;
@@ -4168,6 +4169,7 @@ export async function registerRoutes(
       if (googleMapsUrl !== undefined) updates.googleMapsUrl = googleMapsUrl;
       if (isDefault !== undefined) updates.isDefault = isDefault;
       if (courtNames !== undefined) updates.courtNames = courtNames;
+      if (pricePerUnit !== undefined) updates.pricePerUnit = pricePerUnit;
 
       const updated = await storage.updateVenue(venueId, updates);
       res.json(updated);
@@ -15151,6 +15153,78 @@ export async function registerRoutes(
     } catch (err: any) {
       console.error("Error deleting expense:", err);
       res.status(500).json({ message: "Failed to delete expense" });
+    }
+  });
+
+  // === EXPENSE MATERIALS ===
+  app.get("/api/expense-materials", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const clubId = Number(req.query.clubId);
+      if (!clubId) return res.status(400).json({ message: "clubId required" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", clubId);
+      if (!allowed) return res.sendStatus(403);
+      const list = await db.select().from(expenseMaterials).where(eq(expenseMaterials.clubId, clubId)).orderBy(asc(expenseMaterials.name));
+      res.json(list);
+    } catch (err: any) {
+      console.error("Error fetching expense materials:", err);
+      res.status(500).json({ message: "Failed to fetch expense materials" });
+    }
+  });
+
+  app.post("/api/expense-materials", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { clubId, name, pricePerUnit, notes } = req.body;
+      if (!clubId || !name) return res.status(400).json({ message: "clubId and name required" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", clubId);
+      if (!allowed) return res.sendStatus(403);
+      const [material] = await db.insert(expenseMaterials).values({
+        clubId,
+        name,
+        pricePerUnit: pricePerUnit || 0,
+        notes: notes || null,
+      }).returning();
+      res.json(material);
+    } catch (err: any) {
+      console.error("Error creating expense material:", err);
+      res.status(500).json({ message: "Failed to create expense material" });
+    }
+  });
+
+  app.patch("/api/expense-materials/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const materialId = Number(req.params.id);
+      const [existing] = await db.select().from(expenseMaterials).where(eq(expenseMaterials.id, materialId));
+      if (!existing) return res.status(404).json({ message: "Material not found" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", existing.clubId);
+      if (!allowed) return res.sendStatus(403);
+      const updates: any = {};
+      if (req.body.name !== undefined) updates.name = req.body.name;
+      if (req.body.pricePerUnit !== undefined) updates.pricePerUnit = req.body.pricePerUnit;
+      if (req.body.notes !== undefined) updates.notes = req.body.notes;
+      const [updated] = await db.update(expenseMaterials).set(updates).where(eq(expenseMaterials.id, materialId)).returning();
+      res.json(updated);
+    } catch (err: any) {
+      console.error("Error updating expense material:", err);
+      res.status(500).json({ message: "Failed to update expense material" });
+    }
+  });
+
+  app.delete("/api/expense-materials/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const materialId = Number(req.params.id);
+      const [existing] = await db.select().from(expenseMaterials).where(eq(expenseMaterials.id, materialId));
+      if (!existing) return res.status(404).json({ message: "Material not found" });
+      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_INVENTORY", existing.clubId);
+      if (!allowed) return res.sendStatus(403);
+      await db.delete(expenseMaterials).where(eq(expenseMaterials.id, materialId));
+      res.json({ success: true });
+    } catch (err: any) {
+      console.error("Error deleting expense material:", err);
+      res.status(500).json({ message: "Failed to delete expense material" });
     }
   });
 
