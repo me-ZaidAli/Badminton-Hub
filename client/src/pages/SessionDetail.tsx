@@ -1347,7 +1347,16 @@ export default function SessionDetail() {
                 <div className="flex items-center gap-2 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200/70 dark:border-amber-800/40 px-3.5 py-2.5">
                   <Clock className="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
                   <span className="text-xs font-semibold text-amber-700 dark:text-amber-300">
-                    You're on the waiting list (#{(userSignup as any)?.waitingListPosition || "?"})
+                    You're on the waiting list (#{(() => {
+                      const allWaiting = (signups || []).filter((s: any) => s.signupStatus === "WAITING").sort((a: any, b: any) => {
+                        const posA = a.waitingListPosition || 999;
+                        const posB = b.waitingListPosition || 999;
+                        if (posA !== posB) return posA - posB;
+                        return new Date(a.signupTime || 0).getTime() - new Date(b.signupTime || 0).getTime();
+                      });
+                      const idx = allWaiting.findIndex((s: any) => s.id === (userSignup as any)?.id);
+                      return idx >= 0 ? idx + 1 : "?";
+                    })()})
                   </span>
                 </div>
                 <Button 
@@ -2066,7 +2075,12 @@ export default function SessionDetail() {
         </div>
 
         {(() => {
-          const waitingSignups = (signups || []).filter((s: any) => s.signupStatus === "WAITING").sort((a: any, b: any) => (a.waitingListPosition || 0) - (b.waitingListPosition || 0));
+          const waitingSignups = (signups || []).filter((s: any) => s.signupStatus === "WAITING").sort((a: any, b: any) => {
+            const posA = a.waitingListPosition || 999;
+            const posB = b.waitingListPosition || 999;
+            if (posA !== posB) return posA - posB;
+            return new Date(a.signupTime || 0).getTime() - new Date(b.signupTime || 0).getTime();
+          });
           const notAttendingSignups = (signups || []).filter((s: any) => s.signupStatus === "NOT_ATTENDING");
           const invitedSignups = (signups || []).filter((s: any) => s.signupStatus === "INVITED");
           const rsvpQ = rsvpSearchQuery.toLowerCase();
@@ -2080,7 +2094,7 @@ export default function SessionDetail() {
                     Waiting List ({waitingSignups.length})
                   </h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                    {waitingSignups.map((signup: any) => (
+                    {waitingSignups.map((signup: any, idx: number) => (
                       <div key={signup.id} className="flex items-center justify-between p-3 bg-amber-50 dark:bg-amber-950/20 rounded-xl border border-amber-200/50 dark:border-amber-800/30" data-testid={`waiting-signup-${signup.id}`}>
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar className="h-8 w-8">
@@ -2089,7 +2103,14 @@ export default function SessionDetail() {
                           </Avatar>
                           <div className="min-w-0">
                             <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
-                            <p className="text-xs text-muted-foreground">Position #{signup.waitingListPosition || "?"}</p>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-medium text-amber-700 dark:text-amber-400">#{idx + 1}</span>
+                              {signup.signupTime && (
+                                <span className="text-[10px] text-muted-foreground">
+                                  {new Date(signup.signupTime).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} {new Date(signup.signupTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                                </span>
+                              )}
+                            </div>
                           </div>
                         </div>
                         {isOrganiser && (
@@ -2117,7 +2138,14 @@ export default function SessionDetail() {
                             <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player?.user?.fullName || "?"}`} />
                             <AvatarFallback>{(signup.player?.user?.fullName || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
-                          <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                          <div className="min-w-0">
+                            <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                            {signup.signupTime && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {new Date(signup.signupTime).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} {new Date(signup.signupTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                              </span>
+                            )}
+                          </div>
                         </div>
                         <Badge variant="outline" className="text-xs text-red-600 dark:text-red-400 border-red-300 dark:border-red-700">Withdrawn</Badge>
                       </div>
@@ -2454,7 +2482,14 @@ export default function SessionDetail() {
                       <span className="text-sm font-mono text-muted-foreground w-6">{idx + 1}.</span>
                       <div className="flex-1">
                         <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
-                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                        <div className="flex items-center gap-2">
+                          <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                          {s.signupTime && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(s.signupTime).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} {new Date(s.signupTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Button size="sm" variant="outline" onClick={() => promoteMutation.mutate(s.id)} disabled={promoteMutation.isPending} data-testid={`button-promote-${s.id}`}>
                         <ChevronUp className="w-4 h-4 mr-1" /> Promote
@@ -2468,7 +2503,14 @@ export default function SessionDetail() {
                     <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md opacity-60">
                       <div className="flex-1">
                         <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
-                        <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                        <div className="flex items-center gap-2">
+                          <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
+                          {s.signupTime && (
+                            <span className="text-[10px] text-muted-foreground">
+                              {new Date(s.signupTime).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} {new Date(s.signupTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                            </span>
+                          )}
+                        </div>
                       </div>
                       <Button size="sm" variant="outline" onClick={() => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: "CONFIRMED" })} data-testid={`button-reinstate-${s.id}`}>
                         Reinstate
