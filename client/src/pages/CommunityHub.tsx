@@ -208,7 +208,7 @@ export default function CommunityHub() {
     <div
       key={event.id}
       className={`group relative overflow-hidden rounded-2xl shadow-lg cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-[1.02] ${featured ? "min-w-[300px] sm:min-w-[340px]" : "w-full"}`}
-      onClick={() => event._isTeamEvent ? navigate("/sessions?tab=team-events") : navigate(`/community/event/${event.id}`)}
+      onClick={() => event._isTeamEvent ? navigate(`/community/team-event/${event._teamEventId}`) : navigate(`/community/event/${event.id}`)}
       data-testid={`event-card-${event.id}`}
     >
       <div className={`${featured ? "h-48 sm:h-56" : "h-40 sm:h-48"} bg-gradient-to-br ${eventTypeColors[event.eventType] || "from-slate-600 to-slate-800"} relative`}>

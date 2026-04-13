@@ -33508,8 +33508,16 @@ Return ONLY valid JSON in this exact format:
       const [event] = await db.select().from(teamEvents).where(eq(teamEvents.id, eventId));
       if (!event) return res.status(404).json({ message: "Team event not found" });
 
+      let targetUserId = user.id;
+      const bodyUserId = req.body.userId ? Number(req.body.userId) : null;
+      if (bodyUserId && !isNaN(bodyUserId) && bodyUserId !== user.id) {
+        const canAccess = await hasAdminAccess(user.id, user.role, event.clubId);
+        if (!canAccess) return res.sendStatus(403);
+        targetUserId = bodyUserId;
+      }
+
       const [existingSignup] = await db.select().from(teamEventSignups)
-        .where(and(eq(teamEventSignups.teamEventId, eventId), eq(teamEventSignups.userId, user.id)));
+        .where(and(eq(teamEventSignups.teamEventId, eventId), eq(teamEventSignups.userId, targetUserId)));
       if (existingSignup) {
         if (existingSignup.status === "CONFIRMED") return res.status(400).json({ message: "Already signed up" });
         const [updated] = await db.update(teamEventSignups).set({ status: "CONFIRMED" })
@@ -33526,7 +33534,7 @@ Return ONLY valid JSON in this exact format:
 
       const [signup] = await db.insert(teamEventSignups).values({
         teamEventId: eventId,
-        userId: user.id,
+        userId: targetUserId,
         status: "CONFIRMED",
       }).returning();
       res.json(signup);

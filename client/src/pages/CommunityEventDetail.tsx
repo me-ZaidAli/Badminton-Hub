@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
   Star, Users, Heart, Trash2, Send, Plus, MapPin, Calendar, Loader2,
-  ChevronLeft, Clock, Utensils, MessageCircle, Check, X, ArrowLeft, Image, UserPlus, Search
+  ChevronLeft, Clock, Utensils, MessageCircle, Check, X, ArrowLeft, Image, UserPlus, Search, Edit
 } from "lucide-react";
 
 function getInitials(name: string) {
@@ -59,6 +59,7 @@ export default function CommunityEventDetail() {
   const eventId = Number(params?.id);
   const [activeTab, setActiveTab] = useState("overview");
   const [showAddUser, setShowAddUser] = useState(false);
+  const [showEditEvent, setShowEditEvent] = useState(false);
   const [showAddFood, setShowAddFood] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
@@ -263,6 +264,15 @@ export default function CommunityEventDetail() {
         >
           <ArrowLeft className="h-5 w-5" />
         </button>
+        {isAdmin && (
+          <button
+            className="absolute top-4 right-4 bg-black/30 backdrop-blur-sm rounded-full p-2 text-white"
+            onClick={() => setShowEditEvent(true)}
+            data-testid="btn-edit-event"
+          >
+            <Edit className="h-5 w-5" />
+          </button>
+        )}
         <div className="absolute bottom-4 left-4 right-4">
           <h1 className="text-white font-bold text-xl sm:text-2xl">{event.title}</h1>
           <div className="flex items-center gap-3 mt-2 flex-wrap">
@@ -742,6 +752,15 @@ export default function CommunityEventDetail() {
           isPending={addUserMutation.isPending}
         />
       )}
+
+      {isAdmin && event && (
+        <EditCommunityEventDialog
+          open={showEditEvent}
+          onOpenChange={setShowEditEvent}
+          event={event}
+          eventId={eventId}
+        />
+      )}
     </div>
   );
 }
@@ -823,6 +842,125 @@ function AddMembersDialog({ open, onOpenChange, clubId, existingUserIds, onAdd, 
             })
           )}
         </div>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function EditCommunityEventDialog({ open, onOpenChange, event, eventId }: {
+  open: boolean; onOpenChange: (v: boolean) => void; event: any; eventId: number;
+}) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  const [form, setForm] = useState({
+    title: event.title || "",
+    description: event.description || "",
+    eventType: event.eventType || "social",
+    eventDate: event.eventDate ? format(new Date(event.eventDate), "yyyy-MM-dd'T'HH:mm") : "",
+    location: event.location || "",
+    maxParticipants: String(event.maxParticipants || ""),
+    coverImage: event.coverImage || "",
+    isFoodEnabled: event.isFoodEnabled || false,
+    isFeatured: event.isFeatured || false,
+    tags: (event.tags || []).join(", "),
+  });
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const body: any = {
+        title: form.title,
+        description: form.description || null,
+        eventType: form.eventType,
+        location: form.location || null,
+        coverImage: form.coverImage || null,
+        isFoodEnabled: form.isFoodEnabled,
+        isFeatured: form.isFeatured,
+        maxParticipants: form.maxParticipants ? Number(form.maxParticipants) : null,
+        tags: form.tags ? form.tags.split(",").map((t: string) => t.trim()).filter(Boolean) : null,
+      };
+      if (form.eventDate) body.eventDate = form.eventDate;
+      const res = await apiRequest("PATCH", `/api/community/events/${eventId}`, body);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/community/events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/community/events"] });
+      onOpenChange(false);
+      toast({ title: "Event Updated" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle>Edit Event</DialogTitle>
+          <DialogDescription>Update event details and cover image</DialogDescription>
+        </DialogHeader>
+        <div className="space-y-4">
+          <div>
+            <Label>Title</Label>
+            <Input value={form.title} onChange={e => setForm(p => ({ ...p, title: e.target.value }))} data-testid="input-edit-title" />
+          </div>
+          <div>
+            <Label>Description</Label>
+            <Textarea value={form.description} onChange={e => setForm(p => ({ ...p, description: e.target.value }))} data-testid="input-edit-desc" />
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label>Type</Label>
+              <Select value={form.eventType} onValueChange={v => setForm(p => ({ ...p, eventType: v }))}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="social">Social</SelectItem>
+                  <SelectItem value="team">Team</SelectItem>
+                  <SelectItem value="food">Food</SelectItem>
+                  <SelectItem value="tournament">Tournament</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Date & Time</Label>
+              <Input type="datetime-local" value={form.eventDate} onChange={e => setForm(p => ({ ...p, eventDate: e.target.value }))} data-testid="input-edit-date" />
+            </div>
+          </div>
+          <div>
+            <Label>Location</Label>
+            <Input value={form.location} onChange={e => setForm(p => ({ ...p, location: e.target.value }))} data-testid="input-edit-location" />
+          </div>
+          <div>
+            <Label>Max Participants</Label>
+            <Input type="number" value={form.maxParticipants} onChange={e => setForm(p => ({ ...p, maxParticipants: e.target.value }))} placeholder="Unlimited" />
+          </div>
+          <div>
+            <Label className="flex items-center gap-2"><Image className="h-4 w-4" /> Cover Image URL</Label>
+            <Input value={form.coverImage} onChange={e => setForm(p => ({ ...p, coverImage: e.target.value }))} placeholder="https://..." data-testid="input-edit-cover" />
+            {form.coverImage && (
+              <div className="mt-2 rounded-lg overflow-hidden border border-border/40 h-32">
+                <img src={form.coverImage} alt="Preview" className="w-full h-full object-cover" />
+              </div>
+            )}
+          </div>
+          <div>
+            <Label>Tags (comma separated)</Label>
+            <Input value={form.tags} onChange={e => setForm(p => ({ ...p, tags: e.target.value }))} placeholder="fun, social, weekend" />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label>Enable Food Experience</Label>
+            <Switch checked={form.isFoodEnabled} onCheckedChange={v => setForm(p => ({ ...p, isFoodEnabled: v }))} />
+          </div>
+          <div className="flex items-center justify-between">
+            <Label>Featured Event</Label>
+            <Switch checked={form.isFeatured} onCheckedChange={v => setForm(p => ({ ...p, isFeatured: v }))} />
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={() => mutation.mutate()} disabled={!form.title.trim() || mutation.isPending} data-testid="btn-save-edit">
+            {mutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+            Save Changes
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   );

@@ -52,6 +52,7 @@ const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
 const MyInsights = lazy(() => import("@/pages/MyInsights"));
 const CommunityHub = lazy(() => import("@/pages/CommunityHub"));
 const CommunityEventDetail = lazy(() => import("@/pages/CommunityEventDetail"));
+const CommunityTeamEventDetail = lazy(() => import("@/pages/CommunityTeamEventDetail"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 
@@ -589,6 +590,9 @@ function Router() {
       </Route>
       <Route path="/community/event/:id">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><CommunityEventDetail /></Suspense>} />
+      </Route>
+      <Route path="/community/team-event/:id">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><CommunityTeamEventDetail /></Suspense>} />
       </Route>
 
       {/* Admin Routes */}
