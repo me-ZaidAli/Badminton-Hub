@@ -186,6 +186,46 @@ export function registerCommunityRoutes(app: Express) {
     res.status(201).json(participant);
   });
 
+  app.post("/api/community/events/:id/add-user", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const eventId = Number(req.params.id);
+    const { userId } = req.body;
+    if (!userId) return res.status(400).json({ message: "userId required" });
+
+    const [event] = await db.select().from(communityEvents).where(eq(communityEvents.id, eventId));
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", event.clubId);
+    if (!allowed) return res.status(403).json({ message: "Not authorized" });
+
+    const existing = await db.select().from(communityEventParticipants)
+      .where(and(eq(communityEventParticipants.eventId, eventId), eq(communityEventParticipants.userId, userId)));
+    if (existing.length > 0) return res.status(400).json({ message: "User already added" });
+
+    const [participant] = await db.insert(communityEventParticipants).values({
+      eventId,
+      userId,
+    }).returning();
+
+    res.status(201).json(participant);
+  });
+
+  app.delete("/api/community/events/:id/remove-user/:userId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const eventId = Number(req.params.id);
+    const userId = Number(req.params.userId);
+
+    const [event] = await db.select().from(communityEvents).where(eq(communityEvents.id, eventId));
+    if (!event) return res.status(404).json({ message: "Event not found" });
+
+    const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", event.clubId);
+    if (!allowed) return res.status(403).json({ message: "Not authorized" });
+
+    await db.delete(communityEventParticipants)
+      .where(and(eq(communityEventParticipants.eventId, eventId), eq(communityEventParticipants.userId, userId)));
+    res.json({ message: "Removed" });
+  });
+
   app.delete("/api/community/events/:id/leave", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const eventId = Number(req.params.id);

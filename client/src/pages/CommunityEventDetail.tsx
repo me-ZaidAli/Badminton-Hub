@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
   Star, Users, Heart, Trash2, Send, Plus, MapPin, Calendar, Loader2,
-  ChevronLeft, Clock, Utensils, MessageCircle, Check, X, ArrowLeft, Image
+  ChevronLeft, Clock, Utensils, MessageCircle, Check, X, ArrowLeft, Image, UserPlus, Search
 } from "lucide-react";
 
 function getInitials(name: string) {
@@ -58,6 +58,7 @@ export default function CommunityEventDetail() {
   const [, params] = useRoute("/community/event/:id");
   const eventId = Number(params?.id);
   const [activeTab, setActiveTab] = useState("overview");
+  const [showAddUser, setShowAddUser] = useState(false);
   const [showAddFood, setShowAddFood] = useState(false);
   const [showReview, setShowReview] = useState(false);
   const [reviewRating, setReviewRating] = useState(0);
@@ -208,6 +209,29 @@ export default function CommunityEventDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/community/posts"] });
     },
+  });
+
+  const addUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      const res = await apiRequest("POST", `/api/community/events/${eventId}/add-user`, { userId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/community/events", eventId] });
+      toast({ title: "Member Added" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+  });
+
+  const removeUserMutation = useMutation({
+    mutationFn: async (userId: number) => {
+      await apiRequest("DELETE", `/api/community/events/${eventId}/remove-user/${userId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/community/events", eventId] });
+      toast({ title: "Member Removed" });
+    },
+    onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
   });
 
   if (isLoading) {
@@ -370,11 +394,29 @@ export default function CommunityEventDetail() {
             )}
           </TabsContent>
 
-          <TabsContent value="people" className="mt-4">
+          <TabsContent value="people" className="mt-4 space-y-4">
+            {isAdmin && (
+              <div className="flex items-center justify-between">
+                <h3 className="font-semibold text-sm">{event.participantCount} Participant{event.participantCount !== 1 ? "s" : ""}</h3>
+                <Button size="sm" onClick={() => setShowAddUser(true)} data-testid="btn-add-user">
+                  <UserPlus className="h-3.5 w-3.5 mr-1" /> Add Members
+                </Button>
+              </div>
+            )}
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
               {(event.participants || []).map((p: any) => (
                 <Card key={p.id} className="rounded-xl border-border/40" data-testid={`participant-${p.id}`}>
-                  <CardContent className="p-4 flex flex-col items-center text-center">
+                  <CardContent className="p-4 flex flex-col items-center text-center relative">
+                    {isAdmin && (
+                      <Button
+                        size="icon" variant="ghost"
+                        className="absolute top-1 right-1 h-6 w-6 text-muted-foreground hover:text-destructive"
+                        onClick={() => removeUserMutation.mutate(p.userId)}
+                        data-testid={`remove-user-${p.userId}`}
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
                     <Avatar className="h-14 w-14 mb-2">
                       <AvatarFallback className="text-lg font-semibold bg-primary/10 text-primary">{getInitials(p.fullName || "?")}</AvatarFallback>
                     </Avatar>
@@ -689,6 +731,99 @@ export default function CommunityEventDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {isAdmin && event && (
+        <AddMembersDialog
+          open={showAddUser}
+          onOpenChange={setShowAddUser}
+          clubId={event.clubId}
+          existingUserIds={(event.participants || []).map((p: any) => p.userId)}
+          onAdd={(userId: number) => addUserMutation.mutate(userId)}
+          isPending={addUserMutation.isPending}
+        />
+      )}
     </div>
+  );
+}
+
+function AddMembersDialog({ open, onOpenChange, clubId, existingUserIds, onAdd, isPending }: {
+  open: boolean; onOpenChange: (v: boolean) => void; clubId: number;
+  existingUserIds: number[]; onAdd: (userId: number) => void; isPending: boolean;
+}) {
+  const [search, setSearch] = useState("");
+
+  const { data: members = [] } = useQuery<any[]>({
+    queryKey: ["/api/clubs", clubId, "members"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${clubId}/members`);
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: open && !!clubId,
+  });
+
+  const available = members.filter((m: any) => {
+    const userId = m.userId;
+    if (!userId || existingUserIds.includes(userId)) return false;
+    if (!search) return true;
+    const name = (m.user?.fullName || "").toLowerCase();
+    return name.includes(search.toLowerCase());
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-h-[85vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2"><UserPlus className="h-4 w-4" /> Add Members</DialogTitle>
+          <DialogDescription>Select club members to add to this event</DialogDescription>
+        </DialogHeader>
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search members..."
+            className="pl-9"
+            data-testid="input-search-members"
+          />
+        </div>
+        <div className="space-y-1 max-h-[50vh] overflow-y-auto">
+          {available.length === 0 ? (
+            <p className="text-center text-sm text-muted-foreground py-6">
+              {members.length === 0 ? "No club members found" : "All members already added"}
+            </p>
+          ) : (
+            available.map((m: any) => {
+              const userId = m.userId;
+              const name = m.user?.fullName || "Unknown";
+              return (
+                <div key={userId} className="flex items-center justify-between p-3 rounded-lg hover:bg-muted/50 transition-colors">
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-9 w-9">
+                      <AvatarFallback className="text-xs bg-primary/10 text-primary font-semibold">
+                        {getInitials(name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium text-sm">{name}</p>
+                      {m.grade && <p className="text-[10px] text-muted-foreground">Grade: {m.grade}</p>}
+                    </div>
+                  </div>
+                  <Button
+                    size="sm" variant="outline"
+                    onClick={() => onAdd(userId)}
+                    disabled={isPending}
+                    data-testid={`btn-add-member-${userId}`}
+                  >
+                    {isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Plus className="h-3.5 w-3.5 mr-1" />}
+                    Add
+                  </Button>
+                </div>
+              );
+            })
+          )}
+        </div>
+      </DialogContent>
+    </Dialog>
   );
 }
