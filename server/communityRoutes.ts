@@ -101,6 +101,9 @@ export function registerCommunityRoutes(app: Express) {
     const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_SESSIONS", clubId);
     if (!allowed) return res.status(403).json({ message: "Not authorized" });
 
+    if (data.eventDate) {
+      data.eventDate = new Date(data.eventDate);
+    }
     const [event] = await db.insert(communityEvents).values({
       clubId,
       ...data,
@@ -120,6 +123,9 @@ export function registerCommunityRoutes(app: Express) {
     if (!allowed) return res.status(403).json({ message: "Not authorized" });
 
     const { id, createdAt, createdBy, clubId, ...updates } = req.body;
+    if (updates.eventDate) {
+      updates.eventDate = new Date(updates.eventDate);
+    }
     const [updated] = await db.update(communityEvents).set(updates).where(eq(communityEvents.id, eventId)).returning();
     res.json(updated);
   });
