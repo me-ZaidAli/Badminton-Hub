@@ -198,7 +198,13 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
   ] : (signups || []);
 
   const confirmed = isAdmin ? (manageData?.confirmed || []) : (signups?.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED") || []);
-  const waiting = isAdmin ? (manageData?.waiting || []) : (signups?.filter((s: any) => s.signupStatus === "WAITING") || []);
+  const waitingUnsorted = isAdmin ? (manageData?.waiting || []) : (signups?.filter((s: any) => s.signupStatus === "WAITING") || []);
+  const waiting = [...waitingUnsorted].sort((a: any, b: any) => {
+    const posA = a.waitingListPosition || 999;
+    const posB = b.waitingListPosition || 999;
+    if (posA !== posB) return posA - posB;
+    return new Date(a.signupTime || 0).getTime() - new Date(b.signupTime || 0).getTime();
+  });
   const invited = isAdmin ? (manageData?.invited || []) : (signups?.filter((s: any) => s.signupStatus === "INVITED") || []);
   const notAttending = isAdmin ? (manageData?.notAttending || []) : (signups?.filter((s: any) => s.signupStatus === "NOT_ATTENDING") || []);
 
@@ -286,7 +292,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     </div>
   );
 
-  const renderPlayerRow = (signup: any) => {
+  const renderPlayerRow = (signup: any, waitingPosition?: number) => {
     const name = getPlayerName(signup);
     const grade = getPlayerGrade(signup);
     const isMe = getPlayerUserId(signup) === user?.id;
@@ -295,6 +301,12 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     const isConfirmedStatus = status === "CONFIRMED";
     const showPayment = isAdmin && isConfirmedStatus;
     const isPending = statusMutation.isPending || removeMutation.isPending;
+
+    const timeStamp = signup.signupTime ? (
+      <span className="text-[10px] text-muted-foreground">
+        {new Date(signup.signupTime).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} {new Date(signup.signupTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+      </span>
+    ) : null;
 
     const playerInfo = (
       <>
@@ -308,10 +320,11 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             <span className="font-medium text-xs sm:text-sm truncate" data-testid={`text-player-name-${signup.id}`}>{name}</span>
             {isMe && <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">You</Badge>}
             {grade && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{grade}</Badge>}
-            {signup.signupStatus === "WAITING" && signup.waitingListPosition && (
-              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">#{signup.waitingListPosition}</Badge>
+            {signup.signupStatus === "WAITING" && waitingPosition && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">#{waitingPosition}</Badge>
             )}
           </div>
+          {timeStamp}
         </div>
       </>
     );
@@ -424,7 +437,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
               <p className="text-sm text-muted-foreground py-2">No players</p>
             ) : (
               <div className="space-y-0.5">
-                {players.map((s: any) => renderPlayerRow(s))}
+                {players.map((s: any, idx: number) => renderPlayerRow(s, key === "waiting" ? idx + 1 : undefined))}
               </div>
             )}
           </div>
@@ -491,9 +504,10 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           <div className="flex items-center gap-2 min-w-0">
             <Clock className="h-4 w-4 text-yellow-600 shrink-0" />
             <span className="text-sm font-medium truncate">On waiting list</span>
-            {mySignup?.waitingListPosition && (
-              <Badge variant="secondary" className="text-xs">#{mySignup.waitingListPosition}</Badge>
-            )}
+            {(() => {
+              const myIdx = waiting.findIndex((s: any) => s.id === mySignup?.id);
+              return myIdx >= 0 ? <Badge variant="secondary" className="text-xs">#{myIdx + 1}</Badge> : null;
+            })()}
           </div>
           <Button size="sm" variant="outline" onClick={() => playerStatusMutation.mutate({ action: "decline" })} disabled={isPending} data-testid="button-player-leave-waiting">
             {isPending ? <Loader2 className="h-3 w-3 animate-spin mr-1" /> : <XCircle className="h-3 w-3 mr-1" />}
