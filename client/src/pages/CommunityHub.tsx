@@ -82,6 +82,16 @@ export default function CommunityHub() {
     enabled: !!clubId,
   });
 
+  const { data: teamEventsData = [] } = useQuery<any[]>({
+    queryKey: ["/api/team-events", { clubId }],
+    queryFn: async () => {
+      const res = await fetch(`/api/team-events?clubId=${clubId}`);
+      if (!res.ok) throw new Error("Failed to fetch");
+      return res.json();
+    },
+    enabled: !!clubId,
+  });
+
   const { data: posts = [], isLoading: postsLoading } = useQuery<any[]>({
     queryKey: ["/api/community/posts", { clubId }],
     queryFn: async () => {
@@ -159,9 +169,32 @@ export default function CommunityHub() {
     },
   });
 
+  const normalizedTeamEvents = teamEventsData.map((te: any) => ({
+    id: `team-${te.id}`,
+    _teamEventId: te.id,
+    _isTeamEvent: true,
+    title: te.title,
+    description: te.description,
+    eventType: "team",
+    eventDate: te.date,
+    location: te.location || te.meetingPoint,
+    coverImage: null,
+    tags: [te.eventType?.toLowerCase() || "social"],
+    isFoodEnabled: false,
+    isFeatured: false,
+    isVisible: true,
+    participantCount: te.signupCount || 0,
+    maxParticipants: te.maxParticipants,
+    rating: { avg: 0, count: 0 },
+    creatorName: te.creatorName || "Unknown",
+    status: te.status,
+  }));
+
+  const allEvents = [...events, ...normalizedTeamEvents];
   const featured = events.filter((e: any) => e.isFeatured);
   const foodEvents = events.filter((e: any) => e.isFoodEnabled);
-  const teamEvents = events.filter((e: any) => e.eventType === "team");
+  const communityTeamEvents = events.filter((e: any) => e.eventType === "team");
+  const teamActivities = [...communityTeamEvents, ...normalizedTeamEvents];
   const socialEvents = events.filter((e: any) => e.eventType === "social");
 
   const eventTypeColors: Record<string, string> = {
@@ -175,7 +208,7 @@ export default function CommunityHub() {
     <div
       key={event.id}
       className={`group relative overflow-hidden rounded-2xl shadow-lg cursor-pointer transition-all duration-300 hover:shadow-xl hover:scale-[1.02] ${featured ? "min-w-[300px] sm:min-w-[340px]" : "w-full"}`}
-      onClick={() => navigate(`/community/event/${event.id}`)}
+      onClick={() => event._isTeamEvent ? navigate("/sessions?tab=team-events") : navigate(`/community/event/${event.id}`)}
       data-testid={`event-card-${event.id}`}
     >
       <div className={`${featured ? "h-48 sm:h-56" : "h-40 sm:h-48"} bg-gradient-to-br ${eventTypeColors[event.eventType] || "from-slate-600 to-slate-800"} relative`}>
@@ -192,6 +225,16 @@ export default function CommunityHub() {
           {event.isFoodEnabled && (
             <Badge className="text-[10px] bg-amber-500/80 backdrop-blur-sm border-0 text-white">
               <Utensils className="h-2.5 w-2.5 mr-0.5" /> Food
+            </Badge>
+          )}
+          {event._isTeamEvent && (
+            <Badge className="text-[10px] bg-blue-500/80 backdrop-blur-sm border-0 text-white">
+              <Users className="h-2.5 w-2.5 mr-0.5" /> Team Event
+            </Badge>
+          )}
+          {event._isTeamEvent && event.status && (
+            <Badge className={`text-[10px] backdrop-blur-sm border-0 text-white ${event.status === "UPCOMING" ? "bg-green-500/80" : event.status === "COMPLETED" ? "bg-gray-500/80" : "bg-yellow-500/80"}`}>
+              {event.status}
             </Badge>
           )}
         </div>
@@ -331,13 +374,13 @@ export default function CommunityHub() {
           </section>
         )}
 
-        {teamEvents.length > 0 && (
+        {teamActivities.length > 0 && (
           <section>
             <h2 className="text-base font-bold flex items-center gap-2 mb-3">
               <Users className="h-4 w-4 text-blue-500" /> Team Activities
             </h2>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              {teamEvents.slice(0, 4).map((e: any) => renderEventCard(e))}
+              {teamActivities.slice(0, 4).map((e: any) => renderEventCard(e))}
             </div>
           </section>
         )}
@@ -353,7 +396,7 @@ export default function CommunityHub() {
           </section>
         )}
 
-        {events.length === 0 && !eventsLoading && (
+        {events.length === 0 && teamActivities.length === 0 && !eventsLoading && (
           <div className="text-center py-10">
             <PartyPopper className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
             <p className="text-sm text-muted-foreground">No community events yet.</p>
