@@ -50,6 +50,8 @@ const PlaySessions = lazy(() => import("@/pages/PlaySessions"));
 const Demo = lazy(() => import("@/pages/Demo"));
 const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
 const MyInsights = lazy(() => import("@/pages/MyInsights"));
+const CommunityHub = lazy(() => import("@/pages/CommunityHub"));
+const CommunityEventDetail = lazy(() => import("@/pages/CommunityEventDetail"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
 
@@ -581,6 +583,12 @@ function Router() {
       </Route>
       <Route path="/deals">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Deals /></Suspense>} />
+      </Route>
+      <Route path="/community">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><CommunityHub /></Suspense>} />
+      </Route>
+      <Route path="/community/event/:id">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><CommunityEventDetail /></Suspense>} />
       </Route>
 
       {/* Admin Routes */}

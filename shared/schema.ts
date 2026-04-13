@@ -2807,3 +2807,111 @@ export type InsertTeamEvent = z.infer<typeof insertTeamEventSchema>;
 export const insertTeamEventSignupSchema = createInsertSchema(teamEventSignups).omit({ id: true, createdAt: true });
 export type TeamEventSignup = typeof teamEventSignups.$inferSelect;
 export type InsertTeamEventSignup = z.infer<typeof insertTeamEventSignupSchema>;
+
+export const communityEvents = pgTable("community_events", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  title: text("title").notNull(),
+  description: text("description"),
+  coverImage: text("cover_image"),
+  eventType: text("event_type").notNull().default("social"),
+  eventDate: timestamp("event_date"),
+  location: text("location"),
+  maxParticipants: integer("max_participants"),
+  isFoodEnabled: boolean("is_food_enabled").notNull().default(false),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  isVisible: boolean("is_visible").notNull().default(true),
+  tags: text("tags").array(),
+  createdBy: integer("created_by").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityEventParticipants = pgTable("community_event_participants", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").references(() => communityEvents.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const foodEntries = pgTable("food_entries", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").references(() => communityEvents.id).notNull(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  dishName: text("dish_name").notNull(),
+  country: text("country"),
+  countryFlag: text("country_flag"),
+  category: text("category"),
+  imageUrl: text("image_url"),
+  isHalal: boolean("is_halal").notNull().default(false),
+  isVegetarian: boolean("is_vegetarian").notNull().default(false),
+  isVegan: boolean("is_vegan").notNull().default(false),
+  containsAlcohol: boolean("contains_alcohol").notNull().default(false),
+  allergens: text("allergens").array(),
+  ingredients: text("ingredients"),
+  isApproved: boolean("is_approved").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const foodInterests = pgTable("food_interests", {
+  id: serial("id").primaryKey(),
+  foodEntryId: integer("food_entry_id").references(() => foodEntries.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityPosts = pgTable("community_posts", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  eventId: integer("event_id").references(() => communityEvents.id),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  images: text("images").array(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityComments = pgTable("community_comments", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").references(() => communityPosts.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  content: text("content").notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityLikes = pgTable("community_likes", {
+  id: serial("id").primaryKey(),
+  postId: integer("post_id").references(() => communityPosts.id).notNull(),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const communityReviews = pgTable("community_reviews", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id).notNull(),
+  eventId: integer("event_id").references(() => communityEvents.id),
+  foodEntryId: integer("food_entry_id").references(() => foodEntries.id),
+  userId: integer("user_id").references(() => users.id).notNull(),
+  rating: integer("rating").notNull(),
+  comment: text("comment"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertCommunityEventSchema = createInsertSchema(communityEvents).omit({ id: true, createdAt: true });
+export type CommunityEvent = typeof communityEvents.$inferSelect;
+export type InsertCommunityEvent = z.infer<typeof insertCommunityEventSchema>;
+
+export const insertFoodEntrySchema = createInsertSchema(foodEntries).omit({ id: true, createdAt: true });
+export type FoodEntry = typeof foodEntries.$inferSelect;
+export type InsertFoodEntry = z.infer<typeof insertFoodEntrySchema>;
+
+export const insertCommunityPostSchema = createInsertSchema(communityPosts).omit({ id: true, createdAt: true });
+export type CommunityPost = typeof communityPosts.$inferSelect;
+export type InsertCommunityPost = z.infer<typeof insertCommunityPostSchema>;
+
+export const insertCommunityCommentSchema = createInsertSchema(communityComments).omit({ id: true, createdAt: true });
+export type CommunityComment = typeof communityComments.$inferSelect;
+export type InsertCommunityComment = z.infer<typeof insertCommunityCommentSchema>;
+
+export const insertCommunityReviewSchema = createInsertSchema(communityReviews).omit({ id: true, createdAt: true });
+export type CommunityReview = typeof communityReviews.$inferSelect;
+export type InsertCommunityReview = z.infer<typeof insertCommunityReviewSchema>;

@@ -42,6 +42,7 @@ import {
   Lightbulb,
   Shirt,
   Tag,
+  Sparkles,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
@@ -78,6 +79,7 @@ const ALL_NAV_OPTIONS: { id: string; label: string; href: string; icon: any }[] 
   { id: "backgrounds", label: "Backgrounds", href: "/backgrounds", icon: ImageIcon },
   { id: "typography", label: "Typography", href: "/typography", icon: Type },
   { id: "social-media", label: "Social Media", href: "/social-media", icon: Share2 },
+  { id: "community", label: "Community Hub", href: "/community", icon: Sparkles },
   { id: "profile", label: "Profile", href: "/profile", icon: User },
   { id: "admin", label: "Admin Panel", href: "/admin", icon: ShieldCheck },
   { id: "guide", label: "User Guide", href: "/guide", icon: BookOpen },
