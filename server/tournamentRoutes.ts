@@ -2516,6 +2516,55 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
     }
   });
 
+  app.patch("/api/tournament-matches/:id/scheduled-time", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const matchId = Number(req.params.id);
+      const [match] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!match) return res.status(404).json({ message: "Match not found" });
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, match.categoryId));
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      const { scheduledTime } = req.body;
+      const value = scheduledTime ? new Date(scheduledTime) : null;
+      const [updated] = await db.update(tournamentMatches).set({ scheduledTime: value })
+        .where(eq(tournamentMatches.id, matchId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Bulk update scheduled time across many matches at once.
+  // Body: { matchIds: number[], scheduledTime: string | null }
+  app.post("/api/tournament-matches/bulk-scheduled-time", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const { matchIds, scheduledTime } = req.body || {};
+      if (!Array.isArray(matchIds) || matchIds.length === 0) {
+        return res.status(400).json({ message: "matchIds required" });
+      }
+      const ids = matchIds.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n));
+      if (ids.length === 0) return res.status(400).json({ message: "matchIds required" });
+      // Authorize via the first match's tournament
+      const rows = await db.select().from(tournamentMatches).where(inArray(tournamentMatches.id, ids));
+      if (rows.length === 0) return res.status(404).json({ message: "No matches found" });
+      const catIds = Array.from(new Set(rows.map(r => r.categoryId)));
+      const cats = await db.select().from(tournamentCategories).where(inArray(tournamentCategories.id, catIds));
+      const tournamentIds = Array.from(new Set(cats.map(c => c.tournamentId)));
+      for (const tid of tournamentIds) {
+        const ok = await isTournamentAdmin(req.user!.id, tid);
+        if (!ok) return res.status(403).json({ message: "Not authorized" });
+      }
+      const value = scheduledTime ? new Date(scheduledTime) : null;
+      await db.update(tournamentMatches).set({ scheduledTime: value })
+        .where(inArray(tournamentMatches.id, ids));
+      res.json({ success: true, updated: ids.length });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.patch("/api/tournament-matches/:id/swap-players", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

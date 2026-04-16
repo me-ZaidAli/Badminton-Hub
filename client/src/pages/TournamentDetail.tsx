@@ -18,7 +18,7 @@ import {
   useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
   useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
-  useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames,
+  useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames, useUpdateMatchScheduledTime, useBulkUpdateMatchScheduledTime,
   useTournamentPlayerStats, useRecalculateStats,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
@@ -2045,6 +2045,9 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const categoryGroups = (allGroups as any[]).filter((g: any) => g.categoryId === category.id);
   const assignCourtMutation = useAssignMatchCourt();
   const updateStatusMutation = useUpdateMatchStatus();
+  const updateTimeMutation = useUpdateMatchScheduledTime();
+  const bulkUpdateTimeMutation = useBulkUpdateMatchScheduledTime();
+  const [bulkTimeBySection, setBulkTimeBySection] = useState<Record<string, string>>({});
   const [activeView, setActiveView] = useState<"bracket" | "standings" | "list">(
     category.format === "KNOCKOUT" ? "bracket" : category.format === "GROUP_KNOCKOUT" ? "standings" : "list"
   );
@@ -2323,9 +2326,82 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     )}
                     <div className={cn("h-px flex-1 bg-gradient-to-l to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
                   </div>
+                  {canManage && (
+                    <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/30">
+                      <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <span className="text-[10px] font-bold text-muted-foreground">Bulk set time:</span>
+                      <Input
+                        type="datetime-local"
+                        value={bulkTimeBySection[sec.key] || ""}
+                        onChange={(e) => setBulkTimeBySection(prev => ({ ...prev, [sec.key]: e.target.value }))}
+                        className="h-7 text-xs flex-1 min-w-[180px] max-w-[240px]"
+                        data-testid={`input-bulk-time-${sec.key}`}
+                      />
+                      <Button
+                        size="sm"
+                        className="h-7 text-[10px] font-bold"
+                        disabled={!bulkTimeBySection[sec.key] || bulkUpdateTimeMutation.isPending}
+                        onClick={() => {
+                          const val = bulkTimeBySection[sec.key];
+                          if (!val) return;
+                          const iso = new Date(val).toISOString();
+                          bulkUpdateTimeMutation.mutate(
+                            { matchIds: sec.matches.map(m => m.id), scheduledTime: iso, tournamentId },
+                            {
+                              onSuccess: () => {
+                                toast({ title: `Updated ${sec.matches.length} matches` });
+                                queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+                              },
+                              onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+                            }
+                          );
+                        }}
+                        data-testid={`button-apply-bulk-time-${sec.key}`}
+                      >
+                        Apply to all
+                      </Button>
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-[10px]"
+                        disabled={bulkUpdateTimeMutation.isPending}
+                        onClick={() => {
+                          bulkUpdateTimeMutation.mutate(
+                            { matchIds: sec.matches.map(m => m.id), scheduledTime: null, tournamentId },
+                            {
+                              onSuccess: () => {
+                                toast({ title: "Cleared times" });
+                                queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+                              },
+                            }
+                          );
+                        }}
+                        data-testid={`button-clear-bulk-time-${sec.key}`}
+                      >
+                        Clear
+                      </Button>
+                    </div>
+                  )}
                   <div className="space-y-2">
                     {sec.matches.map(match => (
-                      <MatchCard key={match.id} match={match} canManage={canManage} onScore={() => setScoreDialog(match)} courts={courts || []} onAssignCourt={handleAssignCourt} onUpdateStatus={handleUpdateStatus} />
+                      <MatchCard
+                        key={match.id}
+                        match={match}
+                        canManage={canManage}
+                        onScore={() => setScoreDialog(match)}
+                        courts={courts || []}
+                        onAssignCourt={handleAssignCourt}
+                        onUpdateStatus={handleUpdateStatus}
+                        onUpdateTime={(matchId, scheduledTime) => {
+                          updateTimeMutation.mutate({ matchId, scheduledTime, tournamentId }, {
+                            onSuccess: () => {
+                              queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+                              toast({ title: scheduledTime ? "Time updated" : "Time cleared" });
+                            },
+                            onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+                          });
+                        }}
+                      />
                     ))}
                   </div>
                 </div>
@@ -2429,11 +2505,24 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   );
 }
 
-function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateStatus }: {
+function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateStatus, onUpdateTime }: {
   match: any; canManage: boolean; onScore: () => void;
   courts?: any[]; onAssignCourt?: (matchId: number, courtId: number | null) => void;
   onUpdateStatus?: (matchId: number, status: string) => void;
+  onUpdateTime?: (matchId: number, scheduledTime: string | null) => void;
 }) {
+  const [editingTime, setEditingTime] = useState(false);
+  const toLocalInput = (d: any) => {
+    if (!d) return "";
+    const dt = new Date(d);
+    if (isNaN(dt.getTime())) return "";
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+  };
+  const [timeDraft, setTimeDraft] = useState<string>(() => toLocalInput(match.scheduledTime));
+  const scheduledLabel = match.scheduledTime
+    ? new Date(match.scheduledTime).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    : "";
   const teamAName = match.teamA ? getTeamName(match.teamA) : "TBD";
   const teamBName = match.teamB ? getTeamName(match.teamB) : "TBD";
   const isFinished = match.status === "FINISHED";
@@ -2471,6 +2560,59 @@ function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateS
             </Badge>
           )}
           {match.isBye && <Badge className="bg-muted text-muted-foreground border border-border/30 text-[9px] font-bold ml-auto">BYE</Badge>}
+          {!match.isBye && (
+            canManage ? (
+              editingTime ? (
+                <div className="ml-auto flex items-center gap-1">
+                  <Input
+                    type="datetime-local"
+                    value={timeDraft}
+                    onChange={(e) => setTimeDraft(e.target.value)}
+                    className="h-6 text-[10px] px-1 w-[160px]"
+                    data-testid={`input-match-time-${match.id}`}
+                  />
+                  <Button
+                    size="icon"
+                    className="h-6 w-6 bg-violet-600 hover:bg-violet-700 text-white"
+                    onClick={() => {
+                      const iso = timeDraft ? new Date(timeDraft).toISOString() : null;
+                      onUpdateTime?.(match.id, iso);
+                      setEditingTime(false);
+                    }}
+                    data-testid={`button-save-match-time-${match.id}`}
+                  >
+                    <Check className="h-3 w-3" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-6 w-6"
+                    onClick={() => {
+                      setEditingTime(false);
+                      setTimeDraft(toLocalInput(match.scheduledTime));
+                    }}
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              ) : (
+                <button
+                  onClick={() => { setTimeDraft(toLocalInput(match.scheduledTime)); setEditingTime(true); }}
+                  className="ml-auto flex items-center gap-1 text-[10px] font-bold text-muted-foreground hover:text-violet-400 transition-colors"
+                  data-testid={`button-edit-match-time-${match.id}`}
+                >
+                  <Clock className="h-3 w-3" />
+                  {scheduledLabel || "Set time"}
+                </button>
+              )
+            ) : (
+              scheduledLabel ? (
+                <span className="ml-auto flex items-center gap-1 text-[10px] font-bold text-muted-foreground">
+                  <Clock className="h-3 w-3" />{scheduledLabel}
+                </span>
+              ) : null
+            )
+          )}
         </div>
 
         <div className="flex items-stretch">
@@ -3296,15 +3438,16 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
-  async function handleAddPair(groupId: number) {
-    if (!selectedTeamId) return;
+  async function handleAddPair(groupId: number, valueOverride?: string) {
+    const value = valueOverride ?? selectedTeamId;
+    if (!value) return;
     try {
-      const isPairReq = selectedTeamId.startsWith("pr-");
+      const isPairReq = value.startsWith("pr-");
       const payload: any = { groupId, tournamentId };
       if (isPairReq) {
-        payload.pairRequestId = Number(selectedTeamId.replace("pr-", ""));
+        payload.pairRequestId = Number(value.replace("pr-", ""));
       } else {
-        payload.teamId = Number(selectedTeamId);
+        payload.teamId = Number(value);
       }
       await addPairMutation.mutateAsync(payload);
       toast({ title: "Pair Added" });
@@ -3488,41 +3631,30 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                   )}
 
                   {canManage && !isFull && (
-                    addPairOpen === group.id ? (
-                      <div className="flex items-center gap-2 pt-1">
-                        <Select value={selectedTeamId} onValueChange={setSelectedTeamId}>
-                          <SelectTrigger className="h-8 text-xs flex-1" data-testid={`select-add-pair-${group.id}`}>
-                            <SelectValue placeholder="Select a pair..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {availablePairs.length === 0 ? (
-                              <div className="px-3 py-2 text-xs text-muted-foreground italic">All pairs assigned</div>
-                            ) : (
-                              availablePairs.map((p: any) => (
-                                <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
-                                  {`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
-                                </SelectItem>
-                              ))
-                            )}
-                          </SelectContent>
-                        </Select>
-                        <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold"
-                          data-testid={`button-confirm-add-pair-${group.id}`}
-                          disabled={!selectedTeamId || addPairMutation.isPending}
-                          onClick={() => handleAddPair(group.id)}>
-                          {addPairMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3" />}
-                        </Button>
-                        <Button size="sm" variant="ghost" className="h-8 text-xs" onClick={() => { setAddPairOpen(null); setSelectedTeamId(""); }}>
-                          <X className="h-3 w-3" />
-                        </Button>
-                      </div>
-                    ) : (
-                      <Button size="sm" variant="outline" className="w-full h-8 text-xs font-bold text-violet-500 border-violet-500/30 hover:bg-violet-500/10"
-                        data-testid={`button-add-pair-to-group-${group.id}`}
-                        onClick={() => setAddPairOpen(group.id)}>
-                        <Plus className="h-3 w-3 mr-1" /> Add Pair
-                      </Button>
-                    )
+                    <div className="flex items-center gap-2 pt-1">
+                      <Select
+                        value=""
+                        onValueChange={(val) => {
+                          if (val) handleAddPair(group.id, val);
+                        }}
+                        disabled={addPairMutation.isPending}
+                      >
+                        <SelectTrigger className="h-8 text-xs flex-1" data-testid={`select-add-pair-${group.id}`}>
+                          <SelectValue placeholder={addPairMutation.isPending ? "Adding..." : "+ Add pair to this group"} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availablePairs.length === 0 ? (
+                            <div className="px-3 py-2 text-xs text-muted-foreground italic">All pairs assigned</div>
+                          ) : (
+                            availablePairs.map((p: any) => (
+                              <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
+                                {`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
+                              </SelectItem>
+                            ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   )}
                   {isFull && (
                     <Badge className="bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[9px] font-black">

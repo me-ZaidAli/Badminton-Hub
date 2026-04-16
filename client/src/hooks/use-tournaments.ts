@@ -715,6 +715,32 @@ export function useUpdateMatchStatus() {
   });
 }
 
+export function useUpdateMatchScheduledTime() {
+  return useMutation({
+    mutationFn: async ({ matchId, scheduledTime, tournamentId }: { matchId: number; scheduledTime: string | null; tournamentId: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-matches/${matchId}/scheduled-time`, { scheduledTime });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories"] });
+    },
+  });
+}
+
+export function useBulkUpdateMatchScheduledTime() {
+  return useMutation({
+    mutationFn: async ({ matchIds, scheduledTime }: { matchIds: number[]; scheduledTime: string | null; tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournament-matches/bulk-scheduled-time`, { matchIds, scheduledTime });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories"] });
+    },
+  });
+}
+
 export function useUpdateMatchTeamNames() {
   return useMutation({
     mutationFn: async ({ matchId, teamAName, teamBName, tournamentId }: { matchId: number; teamAName?: string; teamBName?: string; tournamentId: number }) => {

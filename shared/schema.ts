@@ -458,7 +458,7 @@ export const matches = pgTable("matches", {
 // === TOURNAMENTS ===
 export const tournamentRegistrationStatusEnum = pgEnum("tournament_registration_status", ["PENDING", "APPROVED", "REJECTED", "WAITLISTED"]);
 export const tournamentRegistrationTypeEnum = pgEnum("tournament_registration_type", ["PAIR", "INDIVIDUAL"]);
-export const tournamentPairRequestStatusEnum = pgEnum("tournament_pair_request_status", ["PENDING", "ACCEPTED", "DECLINED"]);
+export const tournamentPairRequestStatusEnum = pgEnum("tournament_pair_request_status", ["PENDING", "ACCEPTED", "DECLINED", "DISSOLVED"]);
 export const tournamentPaymentStatusEnum = pgEnum("tournament_payment_status", ["UNPAID", "PENDING", "PAID"]);
 
 export const tournaments = pgTable("tournaments", {
