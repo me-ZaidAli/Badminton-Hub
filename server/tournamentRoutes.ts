@@ -34,6 +34,59 @@ function generateRoundRobinSchedule(teamIds: number[]): [number, number][] {
   return rounds;
 }
 
+// Removes any tournament_teams in this category whose two players are no longer in a
+// valid mutual PAIR registration (doubles) or APPROVED registration (singles), along
+// with their group slots, matches, and standings rows.
+async function purgeOrphanTeamsForCategory(cat: any) {
+  const isDoublesCat = (cat.playersPerSide || 1) >= 2;
+  const allRegs = await db.select().from(tournamentRegistrations)
+    .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.status, "APPROVED")));
+  const validProfilePairKeys = new Set<string>();
+  const validSoloProfileIds = new Set<number>();
+  if (isDoublesCat) {
+    const pairRegsByUser = new Map<number, number>();
+    for (const reg of allRegs) {
+      if (reg.registrationType === "PAIR" && reg.partnerId) pairRegsByUser.set(reg.userId, reg.partnerId);
+    }
+    for (const [uid, pid] of pairRegsByUser.entries()) {
+      if (pairRegsByUser.get(pid) !== uid) continue;
+      const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, uid));
+      const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pid));
+      if (!p1 || !p2) continue;
+      const [a, b] = [p1.id, p2.id].sort((x, y) => x - y);
+      validProfilePairKeys.add(`${a}-${b}`);
+    }
+  } else {
+    for (const reg of allRegs) {
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+      if (profile) validSoloProfileIds.add(profile.id);
+    }
+  }
+  const teamsInCat = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, cat.id));
+  const orphanIds: number[] = [];
+  for (const t of teamsInCat) {
+    let keep = false;
+    if (isDoublesCat) {
+      if (t.player1Id && t.player2Id) {
+        const [a, b] = [t.player1Id, t.player2Id].sort((x, y) => x - y);
+        keep = validProfilePairKeys.has(`${a}-${b}`);
+      }
+    } else {
+      keep = !!(t.player1Id && validSoloProfileIds.has(t.player1Id));
+    }
+    if (!keep) orphanIds.push(t.id);
+  }
+  if (orphanIds.length > 0) {
+    await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.teamId, orphanIds));
+    await db.delete(tournamentMatches).where(or(
+      inArray(tournamentMatches.teamAId, orphanIds),
+      inArray(tournamentMatches.teamBId, orphanIds),
+    ));
+    await db.delete(tournamentStandings).where(inArray(tournamentStandings.teamId, orphanIds));
+    await db.delete(tournamentTeams).where(inArray(tournamentTeams.id, orphanIds));
+  }
+}
+
 export function registerTournamentRoutes(app: Express) {
 
   app.get("/api/tournaments", async (req, res) => {
@@ -706,12 +759,40 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post("/api/tournament-categories/:id/clear-matches", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
+      await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
+      await db.delete(tournamentPlayerStats).where(eq(tournamentPlayerStats.categoryId, catId));
+
+      // Also purge any orphan teams (whose players are no longer in a valid mutual PAIR
+      // registration) and their group slots, so dissolved pairs disappear automatically.
+      await purgeOrphanTeamsForCategory(cat);
+
+      res.json({ success: true, message: "All matches and standings cleared. Click Regenerate Fixtures to rebuild." });
+    } catch (e: any) {
+      console.error("[CLEAR MATCHES]", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/tournament-categories/:id/generate-matches", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const catId = Number(req.params.id);
       const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
       if (!cat) return res.status(404).json({ message: "Category not found" });
+
+      // Auto-purge orphan teams (whose players are no longer mutually paired) BEFORE
+      // pulling the team list — otherwise the auto-fill below could re-seat a ghost pair.
+      await purgeOrphanTeamsForCategory(cat);
 
       const teams = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId)).orderBy(asc(tournamentTeams.seedNumber));
       if (teams.length < 2) return res.status(400).json({ message: "Need at least 2 teams" });

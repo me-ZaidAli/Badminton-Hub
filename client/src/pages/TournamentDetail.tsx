@@ -2153,15 +2153,13 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
             )}
             <button
               onClick={async () => {
-                if (!window.confirm("Reset & Rebuild will WIPE all teams, groups, fixtures, and standings for this category, then rebuild teams from accepted pair requests only. Continue?")) return;
+                if (!window.confirm("Clear all matches and standings for this category? Groups and pair assignments will be kept. You can then click Regenerate Fixtures to rebuild matches for every group.")) return;
                 try {
-                  const res = await apiRequest("POST", `/api/tournament-categories/${category.id}/reset-and-rebuild`);
+                  const res = await apiRequest("POST", `/api/tournament-categories/${category.id}/clear-matches`);
                   const data = await res.json();
-                  toast({ title: "Reset Complete", description: data.message || `Rebuilt ${data.teamsCreated} teams.` });
-                  queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "teams"] });
+                  toast({ title: "Matches Cleared", description: data.message || "All matches and standings have been cleared." });
                   queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
                   queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "standings"] });
-                  queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "groups"] });
                 } catch (e: any) {
                   toast({ title: "Error", description: e.message, variant: "destructive" });
                 }
@@ -2172,11 +2170,11 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 "hover:shadow-[0_0_25px_rgba(244,63,94,0.25)] hover:border-rose-400/70",
                 "hover:scale-[1.02] active:scale-[0.98]",
               )}
-              data-testid="button-reset-rebuild"
+              data-testid="button-clear-matches"
             >
               <span className="relative flex items-center gap-2">
                 <RotateCcw className="h-3.5 w-3.5" />
-                Reset &amp; Rebuild
+                Clear All Matches
               </span>
             </button>
             {teams && teams.length > 0 && (
