@@ -188,8 +188,6 @@ export default function TournamentDetail() {
 
   const tabs: { key: SubPage; label: string; icon: any }[] = [
     { key: "overview", label: "Overview", icon: LayoutGrid },
-    { key: "players", label: "All Players", icon: Users },
-    { key: "pairs", label: "Pairs", icon: UserPlus },
     { key: "signup", label: "Sign Up", icon: Zap },
     { key: "matches", label: "Matches", icon: Swords },
     { key: "groups", label: "Groups", icon: LayoutGrid },
@@ -333,8 +331,6 @@ export default function TournamentDetail() {
       )}
 
       {subPage === "overview" && <OverviewTab tournament={tournament} categories={categories} tournamentId={tournamentId} />}
-      {subPage === "players" && <PlayersTab tournamentId={tournamentId} />}
-      {subPage === "pairs" && <PairsTab tournamentId={tournamentId} />}
       {subPage === "signup" && <SignUpTab tournamentId={tournamentId} tournament={tournament} />}
       {subPage === "matches" && activeCategory && <MatchesTab category={activeCategory} canManage={canManage} tournamentId={tournamentId} onGenerateMatches={async () => {
         try {
@@ -3469,7 +3465,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const restartMutation = useRestartTournament();
   const [confirmRestart, setConfirmRestart] = useState(false);
   const { toast } = useToast();
-  const [adminView, setAdminView] = useState<"registrations" | "pairs" | "groups" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
+  const [adminView, setAdminView] = useState<"registrations" | "all-players" | "pairs" | "groups" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
   const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
   const { data: playerPool } = useTournamentPlayerPool(tournamentId);
   const updateTeamMutation = useUpdateTeam();
@@ -3563,11 +3559,20 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
       </Dialog>
 
       <div className="flex gap-1 bg-muted/30 dark:bg-muted/10 rounded-xl p-1 overflow-x-auto">
-        {["registrations", "pairs", "groups", "waitlist", "finance", "prizes", "settings"].map(view => (
-          <button key={view} onClick={() => setAdminView(view as any)}
-            className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all capitalize whitespace-nowrap",
-              adminView === view ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
-            {view}
+        {[
+          { key: "registrations", label: "Registrations" },
+          { key: "all-players", label: "All Players" },
+          { key: "pairs", label: "Pairs" },
+          { key: "groups", label: "Groups" },
+          { key: "waitlist", label: "Waitlist" },
+          { key: "finance", label: "Finance" },
+          { key: "prizes", label: "Prizes" },
+          { key: "settings", label: "Settings" },
+        ].map(view => (
+          <button key={view.key} onClick={() => setAdminView(view.key as any)}
+            className={cn("flex-1 px-3 py-2 rounded-lg text-xs font-bold transition-all whitespace-nowrap",
+              adminView === view.key ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground")}>
+            {view.label}
           </button>
         ))}
       </div>
@@ -3575,6 +3580,10 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
       {adminView === "registrations" && (
         <AdminRegistrationsView registrations={registrations} regsLoading={regsLoading}
           tournamentId={tournamentId} onApprove={handleApprove} onReject={handleReject} onPayment={handlePayment} />
+      )}
+
+      {adminView === "all-players" && (
+        <PlayersTab tournamentId={tournamentId} />
       )}
 
       {adminView === "pairs" && (
@@ -4368,7 +4377,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
-                {reg.status === "PENDING" && (
+                {(reg.status === "PENDING" || reg.status === "WAITLISTED") && (
                   <>
                     <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold" onClick={() => onApprove(reg.id)}>
                       <Check className="h-3 w-3 mr-1" />Approve

@@ -885,14 +885,29 @@ export function registerTournamentRoutes(app: Express) {
       const updates: any = {};
       if (status) updates.status = status;
       if (paymentConfirmed !== undefined) updates.paymentConfirmed = paymentConfirmed;
+
+      const [oldReg] = await db.select().from(tournamentRegistrations)
+        .where(eq(tournamentRegistrations.id, Number(req.params.id)));
+      if (!oldReg) return res.status(404).json({ message: "Registration not found" });
+      const previousStatus = oldReg.status;
+
       const [reg] = await db.update(tournamentRegistrations).set(updates)
         .where(eq(tournamentRegistrations.id, Number(req.params.id))).returning();
 
-      if (status === "REJECTED") {
+      if (previousStatus === "WAITLISTED" && (status === "APPROVED" || status === "REJECTED")) {
+        await db.delete(tournamentWaitlist).where(
+          and(eq(tournamentWaitlist.tournamentId, reg.tournamentId), eq(tournamentWaitlist.userId, reg.userId))
+        );
+      }
+
+      if (status === "REJECTED" && previousStatus !== "WAITLISTED") {
         const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, reg.tournamentId));
         if (tournament?.maxPlayers) {
           const waitlistEntries = await db.select().from(tournamentWaitlist)
-            .where(eq(tournamentWaitlist.tournamentId, reg.tournamentId))
+            .where(and(
+              eq(tournamentWaitlist.tournamentId, reg.tournamentId),
+              ne(tournamentWaitlist.userId, reg.userId)
+            ))
             .orderBy(asc(tournamentWaitlist.position)).limit(1);
           if (waitlistEntries.length > 0) {
             const entry = waitlistEntries[0];
@@ -1016,7 +1031,7 @@ export function registerTournamentRoutes(app: Express) {
           if (teamIds.length > 0) {
             const tMatches = await db.select().from(tournamentMatches)
               .where(and(
-                eq(tournamentMatches.status, "COMPLETED"),
+                eq(tournamentMatches.status, "FINISHED"),
                 or(inArray(tournamentMatches.teamAId, teamIds), inArray(tournamentMatches.teamBId, teamIds))
               ));
             for (const m of tMatches) {
@@ -1495,7 +1510,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           if (teamIds.length > 0) {
             const tMatches = await db.select().from(tournamentMatches)
               .where(and(
-                eq(tournamentMatches.status, "COMPLETED"),
+                eq(tournamentMatches.status, "FINISHED"),
                 or(inArray(tournamentMatches.teamAId, teamIds), inArray(tournamentMatches.teamBId, teamIds))
               ));
             for (const m of tMatches) {
