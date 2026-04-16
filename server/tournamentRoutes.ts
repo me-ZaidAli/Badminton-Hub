@@ -11,6 +11,29 @@ import {
   notifications, clubMemberships, internalMessages
 } from "@shared/schema";
 
+function generateRoundRobinSchedule(teamIds: number[]): [number, number][] {
+  const n = teamIds.length;
+  if (n < 2) return [];
+  const ids = [...teamIds];
+  if (n % 2 !== 0) ids.push(-1);
+  const total = ids.length;
+  const rounds: [number, number][] = [];
+  const fixed = ids[0];
+  const rotating = ids.slice(1);
+  for (let r = 0; r < total - 1; r++) {
+    const current = [fixed, ...rotating];
+    for (let i = 0; i < total / 2; i++) {
+      const a = current[i];
+      const b = current[total - 1 - i];
+      if (a !== -1 && b !== -1) {
+        rounds.push([a, b]);
+      }
+    }
+    rotating.push(rotating.shift()!);
+  }
+  return rounds;
+}
+
 export function registerTournamentRoutes(app: Express) {
 
   app.get("/api/tournaments", async (req, res) => {
@@ -441,13 +464,12 @@ export function registerTournamentRoutes(app: Express) {
 
       if (cat.format === "ROUND_ROBIN") {
         let order = 0;
-        for (let i = 0; i < teams.length; i++) {
-          for (let j = i + 1; j < teams.length; j++) {
-            await db.insert(tournamentMatches).values({
-              categoryId: catId, teamAId: teams[i].id, teamBId: teams[j].id,
-              round: 1, matchOrder: order++, groupNumber: 1,
-            });
-          }
+        const rrSchedule = generateRoundRobinSchedule(teams.map(t => t.id));
+        for (const [aId, bId] of rrSchedule) {
+          await db.insert(tournamentMatches).values({
+            categoryId: catId, teamAId: aId, teamBId: bId,
+            round: 1, matchOrder: order++, groupNumber: 1,
+          });
         }
         for (const team of teams) {
           await db.insert(tournamentStandings).values({ categoryId: catId, teamId: team.id, groupNumber: 1 });
@@ -497,13 +519,12 @@ export function registerTournamentRoutes(app: Express) {
           const groupTeams = teamIdsInGroup.map(id => teams.find(t => t.id === id)).filter(Boolean) as typeof teams;
           if (groupTeams.length < 2) continue;
 
-          for (let i = 0; i < groupTeams.length; i++) {
-            for (let j = i + 1; j < groupTeams.length; j++) {
-              await db.insert(tournamentMatches).values({
-                categoryId: catId, teamAId: groupTeams[i].id, teamBId: groupTeams[j].id,
-                round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
-              });
-            }
+          const grpSchedule = generateRoundRobinSchedule(groupTeams.map(t => t.id));
+          for (const [aId, bId] of grpSchedule) {
+            await db.insert(tournamentMatches).values({
+              categoryId: catId, teamAId: aId, teamBId: bId,
+              round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
+            });
           }
           for (const t of groupTeams) {
             await db.insert(tournamentStandings).values({ categoryId: catId, teamId: t.id, groupNumber: gNum, subGroupNumber: 1 });
@@ -784,13 +805,12 @@ export function registerTournamentRoutes(app: Express) {
           let matchIdx = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1) + 1;
           if (semiQualifiers.length <= 4) {
             const semiGNum = 300;
-            for (let i = 0; i < semiQualifiers.length; i++) {
-              for (let j = i + 1; j < semiQualifiers.length; j++) {
-                await db.insert(tournamentMatches).values({
-                  categoryId: catId, teamAId: semiQualifiers[i], teamBId: semiQualifiers[j],
-                  round: 300, matchOrder: matchIdx++, groupNumber: semiGNum, subGroupNumber: 1,
-                });
-              }
+            const semiSchedule = generateRoundRobinSchedule(semiQualifiers);
+            for (const [aId, bId] of semiSchedule) {
+              await db.insert(tournamentMatches).values({
+                categoryId: catId, teamAId: aId, teamBId: bId,
+                round: 300, matchOrder: matchIdx++, groupNumber: semiGNum, subGroupNumber: 1,
+              });
             }
             for (const teamId of semiQualifiers) {
               await db.insert(tournamentStandings).values({ categoryId: catId, teamId, groupNumber: semiGNum, subGroupNumber: 1 });
@@ -802,13 +822,12 @@ export function registerTournamentRoutes(app: Express) {
             for (let g = 0; g < semiGroups.length; g++) {
               const semiGNum = 300 + g + 1;
               const gTeams = semiGroups[g];
-              for (let i = 0; i < gTeams.length; i++) {
-                for (let j = i + 1; j < gTeams.length; j++) {
-                  await db.insert(tournamentMatches).values({
-                    categoryId: catId, teamAId: gTeams[i], teamBId: gTeams[j],
-                    round: 300, matchOrder: matchIdx++, groupNumber: semiGNum, subGroupNumber: 1,
-                  });
-                }
+              const sgSchedule = generateRoundRobinSchedule(gTeams);
+              for (const [aId, bId] of sgSchedule) {
+                await db.insert(tournamentMatches).values({
+                  categoryId: catId, teamAId: aId, teamBId: bId,
+                  round: 300, matchOrder: matchIdx++, groupNumber: semiGNum, subGroupNumber: 1,
+                });
               }
               for (const teamId of gTeams) {
                 await db.insert(tournamentStandings).values({ categoryId: catId, teamId, groupNumber: semiGNum, subGroupNumber: 1 });
@@ -874,13 +893,12 @@ export function registerTournamentRoutes(app: Express) {
         for (let g = 0; g < qfGroups.length; g++) {
           const qfGNum = 200 + g + 1;
           const gTeamIds = qfGroups[g].map(q => q.teamId);
-          for (let i = 0; i < gTeamIds.length; i++) {
-            for (let j = i + 1; j < gTeamIds.length; j++) {
-              await db.insert(tournamentMatches).values({
-                categoryId: catId, teamAId: gTeamIds[i], teamBId: gTeamIds[j],
-                round: 200, matchOrder: matchIdx++, groupNumber: qfGNum, subGroupNumber: 1,
-              });
-            }
+          const qfSchedule = generateRoundRobinSchedule(gTeamIds);
+          for (const [aId, bId] of qfSchedule) {
+            await db.insert(tournamentMatches).values({
+              categoryId: catId, teamAId: aId, teamBId: bId,
+              round: 200, matchOrder: matchIdx++, groupNumber: qfGNum, subGroupNumber: 1,
+            });
           }
           for (const teamId of gTeamIds) {
             await db.insert(tournamentStandings).values({ categoryId: catId, teamId, groupNumber: qfGNum, subGroupNumber: 1 });
