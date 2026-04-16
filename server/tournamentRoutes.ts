@@ -459,20 +459,28 @@ export function registerTournamentRoutes(app: Express) {
       const isDoublesCat = (cat.playersPerSide || 1) >= 2;
       const validProfilePairKeys = new Set<string>();
       const validSoloProfileIds = new Set<number>();
+      // SOURCE OF TRUTH = tournament_registrations. A pair is valid ONLY when BOTH players
+      // have an APPROVED PAIR registration for this tournament with partnerId pointing at
+      // each other. This catches ghosts even if the legacy pair_request row was never marked
+      // DISSOLVED (which is what was keeping "Huy & Quan" stuck in the groups).
+      const allRegs = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.status, "APPROVED")));
       if (isDoublesCat) {
-        const acceptedPRs = await db.select().from(tournamentPairRequests)
-          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
-        for (const pr of acceptedPRs) {
-          const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
-          const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
+        const pairRegsByUser = new Map<number, number>(); // userId -> partnerId
+        for (const reg of allRegs) {
+          if (reg.registrationType === "PAIR" && reg.partnerId) pairRegsByUser.set(reg.userId, reg.partnerId);
+        }
+        for (const [uid, pid] of pairRegsByUser.entries()) {
+          // both sides must mutually point at each other
+          if (pairRegsByUser.get(pid) !== uid) continue;
+          const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, uid));
+          const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pid));
           if (!p1 || !p2) continue;
           const [a, b] = [p1.id, p2.id].sort((x, y) => x - y);
           validProfilePairKeys.add(`${a}-${b}`);
         }
       } else {
-        const approvedRegs = await db.select().from(tournamentRegistrations)
-          .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.status, "APPROVED")));
-        for (const reg of approvedRegs) {
+        for (const reg of allRegs) {
           const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
           if (profile) validSoloProfileIds.add(profile.id);
         }
