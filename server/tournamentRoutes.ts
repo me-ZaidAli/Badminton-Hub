@@ -499,30 +499,45 @@ export function registerTournamentRoutes(app: Express) {
         return res.json({ success: true, teamsCreated: 0, groupsCreated: 0, message: "No accepted pairs/registrations found" });
       }
 
-      // For GROUP_KNOCKOUT, create fresh groups (4 teams each) and distribute evenly
+      // For GROUP_KNOCKOUT, create fresh groups and pack them full (no half-empty groups of 3)
       let groupsCreated = 0;
       if (cat.format === "GROUP_KNOCKOUT") {
-        const groupSize = 4;
-        const numGroups = Math.max(1, Math.ceil(newTeams.length / groupSize));
+        const targetSize = 4;
+        const N = newTeams.length;
+        // Use floor so all base groups are full at 4; leftover (1..3) gets spread across the first groups
+        let numGroups = Math.max(1, Math.floor(N / targetSize));
+        // Compute per-group sizes: first `remainder` groups are size targetSize+1, rest are targetSize
+        const remainder = N - numGroups * targetSize;
+        const sizes: number[] = [];
+        if (N <= targetSize) {
+          sizes.push(N); // single group with whatever we have
+        } else {
+          for (let g = 0; g < numGroups; g++) {
+            sizes.push(targetSize + (g < remainder ? 1 : 0));
+          }
+        }
         const newGroups: any[] = [];
-        for (let g = 0; g < numGroups; g++) {
+        for (let g = 0; g < sizes.length; g++) {
           const [grp] = await db.insert(tournamentGroups).values({
             tournamentId: cat.tournamentId,
             categoryId: catId,
             name: `Group ${String.fromCharCode(65 + g)}`,
             groupOrder: g + 1,
-            maxPairs: groupSize,
+            maxPairs: sizes[g],
           }).returning();
           newGroups.push(grp);
         }
         groupsCreated = newGroups.length;
-        // Distribute teams round-robin style across groups
-        for (let i = 0; i < newTeams.length; i++) {
-          const grp = newGroups[i % numGroups];
-          const order = Math.floor(i / numGroups) + 1;
-          await db.insert(tournamentGroupPairs).values({
-            groupId: grp.id, teamId: newTeams[i].id, pairOrder: order,
-          });
+        // Fill each group sequentially to its size
+        let teamIdx = 0;
+        for (let g = 0; g < newGroups.length; g++) {
+          for (let pos = 0; pos < sizes[g]; pos++) {
+            if (teamIdx >= newTeams.length) break;
+            await db.insert(tournamentGroupPairs).values({
+              groupId: newGroups[g].id, teamId: newTeams[teamIdx].id, pairOrder: pos + 1,
+            });
+            teamIdx++;
+          }
         }
       }
 
