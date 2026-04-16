@@ -475,18 +475,83 @@ export function registerTournamentRoutes(app: Express) {
           await db.insert(tournamentStandings).values({ categoryId: catId, teamId: team.id, groupNumber: 1 });
         }
       } else if (cat.format === "GROUP_KNOCKOUT") {
-        const tGroups = await db.select().from(tournamentGroups)
+        let tGroups = await db.select().from(tournamentGroups)
           .where(and(
             eq(tournamentGroups.tournamentId, cat.tournamentId),
             or(eq(tournamentGroups.categoryId, catId), isNull(tournamentGroups.categoryId))
           ))
           .orderBy(asc(tournamentGroups.groupOrder));
 
-        if (tGroups.length === 0) {
-          return res.status(400).json({ message: "No groups found. Please create groups and assign pairs in the Groups tab first." });
+        let allGroupPairs = await db.select().from(tournamentGroupPairs);
+
+        // Auto-distribute any unassigned teams: fill existing groups first, then create new groups as needed
+        const groupIds = tGroups.map(g => g.id);
+        const assignedTeamIds = new Set<number>();
+        for (const gp of allGroupPairs) {
+          if (!groupIds.includes(gp.groupId)) continue;
+          if (gp.teamId) {
+            assignedTeamIds.add(gp.teamId);
+          } else if (gp.pairRequestId) {
+            const pairReqs = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, gp.pairRequestId));
+            if (pairReqs.length > 0) {
+              const pr = pairReqs[0];
+              const p1 = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
+              const p2 = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
+              if (p1.length > 0 && p2.length > 0) {
+                const team = teams.find(t =>
+                  (t.player1Id === p1[0].id && t.player2Id === p2[0].id) ||
+                  (t.player1Id === p2[0].id && t.player2Id === p1[0].id)
+                );
+                if (team) assignedTeamIds.add(team.id);
+              }
+            }
+          }
         }
 
-        const allGroupPairs = await db.select().from(tournamentGroupPairs);
+        const unassignedTeams = teams.filter(t => !assignedTeamIds.has(t.id));
+        if (unassignedTeams.length > 0) {
+          const defaultMax = tGroups[0]?.maxPairs || 4;
+          // Fill existing groups up to maxPairs
+          let cursor = 0;
+          for (const grp of tGroups) {
+            if (cursor >= unassignedTeams.length) break;
+            const currentCount = allGroupPairs.filter(gp => gp.groupId === grp.id).length;
+            const slots = Math.max(0, (grp.maxPairs || defaultMax) - currentCount);
+            for (let s = 0; s < slots && cursor < unassignedTeams.length; s++) {
+              const t = unassignedTeams[cursor++];
+              const [inserted] = await db.insert(tournamentGroupPairs).values({
+                groupId: grp.id, teamId: t.id, pairOrder: currentCount + s + 1,
+              }).returning();
+              allGroupPairs.push(inserted);
+            }
+          }
+          // Create additional groups for any remaining unassigned teams
+          let nextOrder = (tGroups[tGroups.length - 1]?.groupOrder || 0) + 1;
+          let nameIndex = tGroups.length;
+          while (cursor < unassignedTeams.length) {
+            const groupName = `Group ${String.fromCharCode(65 + nameIndex)}`;
+            const [newGrp] = await db.insert(tournamentGroups).values({
+              tournamentId: cat.tournamentId,
+              categoryId: catId,
+              name: groupName,
+              groupOrder: nextOrder++,
+              maxPairs: defaultMax,
+            }).returning();
+            tGroups.push(newGrp);
+            nameIndex++;
+            for (let s = 0; s < defaultMax && cursor < unassignedTeams.length; s++) {
+              const t = unassignedTeams[cursor++];
+              const [inserted] = await db.insert(tournamentGroupPairs).values({
+                groupId: newGrp.id, teamId: t.id, pairOrder: s + 1,
+              }).returning();
+              allGroupPairs.push(inserted);
+            }
+          }
+        }
+
+        if (tGroups.length === 0) {
+          return res.status(400).json({ message: "No groups found and no teams to distribute." });
+        }
 
         let order = 0;
         for (let gi = 0; gi < tGroups.length; gi++) {
