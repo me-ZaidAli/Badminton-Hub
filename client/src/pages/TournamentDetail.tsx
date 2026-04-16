@@ -3523,6 +3523,55 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     </Dialog>
   );
 
+  const [bulkGroupTime, setBulkGroupTime] = useState("");
+  const [perGroupTime, setPerGroupTime] = useState<Record<number, string>>({});
+
+  async function applyBulkGroupTime() {
+    if (!bulkGroupTime) return;
+    const iso = new Date(bulkGroupTime).toISOString();
+    try {
+      await Promise.all(
+        groups.map((g: any) => updateGroupMutation.mutateAsync({
+          groupId: g.id, tournamentId,
+          name: g.name, maxPairs: g.maxPairs,
+          startTime: iso, hallName: g.hallName ?? null, courtName: g.courtName ?? null,
+          categoryId: g.categoryId ?? null,
+        }))
+      );
+      toast({ title: `Updated ${groups.length} groups` });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function clearAllGroupTimes() {
+    try {
+      await Promise.all(
+        groups.map((g: any) => updateGroupMutation.mutateAsync({
+          groupId: g.id, tournamentId,
+          name: g.name, maxPairs: g.maxPairs,
+          startTime: null, hallName: g.hallName ?? null, courtName: g.courtName ?? null,
+          categoryId: g.categoryId ?? null,
+        }))
+      );
+      toast({ title: "Cleared all group times" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function saveGroupTime(group: any) {
+    const val = perGroupTime[group.id];
+    if (val === undefined) return;
+    const iso = val ? new Date(val).toISOString() : null;
+    try {
+      await updateGroupMutation.mutateAsync({
+        groupId: group.id, tournamentId,
+        name: group.name, maxPairs: group.maxPairs,
+        startTime: iso, hallName: group.hallName ?? null, courtName: group.courtName ?? null,
+        categoryId: group.categoryId ?? null,
+      });
+      toast({ title: iso ? "Group time updated" : "Group time cleared" });
+      setPerGroupTime(prev => { const n = { ...prev }; delete n[group.id]; return n; });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -3538,6 +3587,32 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
           </Button>
         )}
       </div>
+
+      {canManage && groups.length > 0 && (
+        <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/30 flex-wrap">
+          <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Bulk set start time:</span>
+          <Input
+            type="datetime-local"
+            value={bulkGroupTime}
+            onChange={(e) => setBulkGroupTime(e.target.value)}
+            className="h-8 text-xs flex-1 min-w-[200px] max-w-[260px]"
+            data-testid="input-bulk-group-time"
+          />
+          <Button size="sm" className="h-8 text-[11px] font-bold bg-violet-600 hover:bg-violet-700 text-white"
+            disabled={!bulkGroupTime || updateGroupMutation.isPending}
+            onClick={applyBulkGroupTime}
+            data-testid="button-apply-bulk-group-time">
+            Apply to all groups
+          </Button>
+          <Button size="sm" variant="ghost" className="h-8 text-[11px]"
+            disabled={updateGroupMutation.isPending}
+            onClick={clearAllGroupTimes}
+            data-testid="button-clear-bulk-group-time">
+            Clear all
+          </Button>
+        </div>
+      )}
 
       {groups.length === 0 ? (
         <EmptyState icon={LayoutGrid} title="No Groups" description="Create round robin groups and assign pairs to get started." />
