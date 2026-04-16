@@ -483,104 +483,126 @@ export function registerTournamentRoutes(app: Express) {
           .orderBy(asc(tournamentGroups.groupOrder));
 
         let allGroupPairs = await db.select().from(tournamentGroupPairs);
+        const groupIds = new Set(tGroups.map(g => g.id));
 
-        // Auto-distribute any unassigned teams: fill existing groups first, then create new groups as needed
-        const groupIds = tGroups.map(g => g.id);
-        const assignedTeamIds = new Set<number>();
-        for (const gp of allGroupPairs) {
-          if (!groupIds.includes(gp.groupId)) continue;
-          if (gp.teamId) {
-            assignedTeamIds.add(gp.teamId);
-          } else if (gp.pairRequestId) {
-            const pairReqs = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, gp.pairRequestId));
-            if (pairReqs.length > 0) {
-              const pr = pairReqs[0];
-              const p1 = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
-              const p2 = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
-              if (p1.length > 0 && p2.length > 0) {
-                const team = teams.find(t =>
-                  (t.player1Id === p1[0].id && t.player2Id === p2[0].id) ||
-                  (t.player1Id === p2[0].id && t.player2Id === p1[0].id)
-                );
-                if (team) assignedTeamIds.add(team.id);
-              }
-            }
+        // Helper: resolve a group_pair entry to a teamId (creating a team if needed for pairRequestId pairs)
+        const resolvePairToTeamId = async (gp: typeof allGroupPairs[number]): Promise<number | null> => {
+          if (gp.teamId) return gp.teamId;
+          if (!gp.pairRequestId) return null;
+          const [pr] = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, gp.pairRequestId));
+          if (!pr) return null;
+          const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
+          const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
+          if (!p1 || !p2) return null;
+          let team = teams.find(t =>
+            (t.player1Id === p1.id && t.player2Id === p2.id) ||
+            (t.player1Id === p2.id && t.player2Id === p1.id)
+          );
+          if (!team) {
+            const [newTeam] = await db.insert(tournamentTeams).values({
+              categoryId: catId, player1Id: p1.id, player2Id: p2.id,
+            }).returning();
+            teams.push(newTeam);
+            team = newTeam;
           }
+          // Persist the teamId on the group_pair so future runs find it directly
+          await db.update(tournamentGroupPairs).set({ teamId: team.id }).where(eq(tournamentGroupPairs.id, gp.id));
+          gp.teamId = team.id;
+          return team.id;
+        };
+
+        // Build canonical group → team-ids map. If a team appears in multiple groups
+        // (e.g., from prior duplicate auto-distribute runs), keep only the FIRST occurrence
+        // and delete the duplicate pair entries from later groups.
+        const groupTeamMap = new Map<number, number[]>();
+        const assignedTeamIds = new Set<number>();
+        for (const grp of tGroups) {
+          const entries = allGroupPairs.filter(gp => gp.groupId === grp.id);
+          const ids: number[] = [];
+          for (const gp of entries) {
+            const tid = await resolvePairToTeamId(gp);
+            if (!tid) continue;
+            if (assignedTeamIds.has(tid)) {
+              // Team already in an earlier group — remove this duplicate entry
+              await db.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.id, gp.id));
+              continue;
+            }
+            ids.push(tid);
+            assignedTeamIds.add(tid);
+          }
+          groupTeamMap.set(grp.id, ids);
         }
 
+        // Remove any groups that ended up empty (typically leftover phantom auto-groups)
+        const nonEmptyGroups: typeof tGroups = [];
+        for (const grp of tGroups) {
+          const ids = groupTeamMap.get(grp.id) || [];
+          if (ids.length === 0) {
+            await db.delete(tournamentGroups).where(eq(tournamentGroups.id, grp.id));
+            groupTeamMap.delete(grp.id);
+          } else {
+            nonEmptyGroups.push(grp);
+          }
+        }
+        tGroups = nonEmptyGroups;
+
+        // Fill existing group slots ONLY (do NOT create new groups — that caused phantom duplicate groups).
         const unassignedTeams = teams.filter(t => !assignedTeamIds.has(t.id));
-        if (unassignedTeams.length > 0) {
-          const defaultMax = tGroups[0]?.maxPairs || 4;
-          // Fill existing groups up to maxPairs
+        if (unassignedTeams.length > 0 && tGroups.length > 0) {
+          const defaultMax = tGroups[0].maxPairs || 4;
           let cursor = 0;
           for (const grp of tGroups) {
             if (cursor >= unassignedTeams.length) break;
-            const currentCount = allGroupPairs.filter(gp => gp.groupId === grp.id).length;
-            const slots = Math.max(0, (grp.maxPairs || defaultMax) - currentCount);
+            const currentIds = groupTeamMap.get(grp.id) || [];
+            const slots = Math.max(0, (grp.maxPairs || defaultMax) - currentIds.length);
             for (let s = 0; s < slots && cursor < unassignedTeams.length; s++) {
               const t = unassignedTeams[cursor++];
-              const [inserted] = await db.insert(tournamentGroupPairs).values({
-                groupId: grp.id, teamId: t.id, pairOrder: currentCount + s + 1,
-              }).returning();
-              allGroupPairs.push(inserted);
+              await db.insert(tournamentGroupPairs).values({
+                groupId: grp.id, teamId: t.id, pairOrder: currentIds.length + s + 1,
+              });
+              currentIds.push(t.id);
+              assignedTeamIds.add(t.id);
             }
-          }
-          // Create additional groups for any remaining unassigned teams
-          let nextOrder = (tGroups[tGroups.length - 1]?.groupOrder || 0) + 1;
-          let nameIndex = tGroups.length;
-          while (cursor < unassignedTeams.length) {
-            const groupName = `Group ${String.fromCharCode(65 + nameIndex)}`;
-            const [newGrp] = await db.insert(tournamentGroups).values({
-              tournamentId: cat.tournamentId,
-              categoryId: catId,
-              name: groupName,
-              groupOrder: nextOrder++,
-              maxPairs: defaultMax,
-            }).returning();
-            tGroups.push(newGrp);
-            nameIndex++;
-            for (let s = 0; s < defaultMax && cursor < unassignedTeams.length; s++) {
-              const t = unassignedTeams[cursor++];
-              const [inserted] = await db.insert(tournamentGroupPairs).values({
-                groupId: newGrp.id, teamId: t.id, pairOrder: s + 1,
-              }).returning();
-              allGroupPairs.push(inserted);
-            }
+            groupTeamMap.set(grp.id, currentIds);
           }
         }
 
+        // If there are NO groups at all yet, create some fresh ones based on team count
         if (tGroups.length === 0) {
-          return res.status(400).json({ message: "No groups found and no teams to distribute." });
+          const groupSize = 4;
+          const numGroups = Math.max(1, Math.ceil(teams.length / groupSize));
+          for (let g = 0; g < numGroups; g++) {
+            const [newGrp] = await db.insert(tournamentGroups).values({
+              tournamentId: cat.tournamentId,
+              categoryId: catId,
+              name: `Group ${String.fromCharCode(65 + g)}`,
+              groupOrder: g + 1,
+              maxPairs: groupSize,
+            }).returning();
+            tGroups.push(newGrp);
+            groupTeamMap.set(newGrp.id, []);
+          }
+          teams.forEach((t, i) => {
+            const grp = tGroups[i % numGroups];
+            const ids = groupTeamMap.get(grp.id)!;
+            ids.push(t.id);
+            groupTeamMap.set(grp.id, ids);
+          });
+          for (const grp of tGroups) {
+            const ids = groupTeamMap.get(grp.id) || [];
+            for (let i = 0; i < ids.length; i++) {
+              await db.insert(tournamentGroupPairs).values({
+                groupId: grp.id, teamId: ids[i], pairOrder: i + 1,
+              });
+            }
+          }
         }
 
         let order = 0;
         for (let gi = 0; gi < tGroups.length; gi++) {
           const group = tGroups[gi];
           const gNum = gi + 1;
-          const groupPairEntries = allGroupPairs.filter(gp => gp.groupId === group.id);
-
-          const teamIdsInGroup: number[] = [];
-          for (const gp of groupPairEntries) {
-            if (gp.teamId) {
-              teamIdsInGroup.push(gp.teamId);
-            } else if (gp.pairRequestId) {
-              const pairReqs = await db.select().from(tournamentPairRequests)
-                .where(eq(tournamentPairRequests.id, gp.pairRequestId));
-              if (pairReqs.length > 0) {
-                const pr = pairReqs[0];
-                const p1Profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
-                const p2Profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
-                if (p1Profiles.length > 0 && p2Profiles.length > 0) {
-                  const team = teams.find(t =>
-                    (t.player1Id === p1Profiles[0].id && t.player2Id === p2Profiles[0].id) ||
-                    (t.player1Id === p2Profiles[0].id && t.player2Id === p1Profiles[0].id)
-                  );
-                  if (team) teamIdsInGroup.push(team.id);
-                }
-              }
-            }
-          }
-
+          const teamIdsInGroup = groupTeamMap.get(group.id) || [];
           const groupTeams = teamIdsInGroup.map(id => teams.find(t => t.id === id)).filter(Boolean) as typeof teams;
           if (groupTeams.length < 2) continue;
 
