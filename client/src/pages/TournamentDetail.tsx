@@ -41,7 +41,7 @@ import {
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, UserMinus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
-  Monitor, Square, CircleDot, ArrowUpDown, BarChart,
+  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -2145,6 +2145,34 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 </span>
               </button>
             )}
+            <button
+              onClick={async () => {
+                if (!window.confirm("Reset & Rebuild will WIPE all teams, groups, fixtures, and standings for this category, then rebuild teams from accepted pair requests only. Continue?")) return;
+                try {
+                  const res = await apiRequest("POST", `/api/tournament-categories/${category.id}/reset-and-rebuild`);
+                  const data = await res.json();
+                  toast({ title: "Reset Complete", description: data.message || `Rebuilt ${data.teamsCreated} teams.` });
+                  queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "teams"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "standings"] });
+                  queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "groups"] });
+                } catch (e: any) {
+                  toast({ title: "Error", description: e.message, variant: "destructive" });
+                }
+              }}
+              className={cn(
+                "group relative px-4 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300",
+                "bg-slate-900/80 border border-rose-500/40 text-rose-400",
+                "hover:shadow-[0_0_25px_rgba(244,63,94,0.25)] hover:border-rose-400/70",
+                "hover:scale-[1.02] active:scale-[0.98]",
+              )}
+              data-testid="button-reset-rebuild"
+            >
+              <span className="relative flex items-center gap-2">
+                <RotateCcw className="h-3.5 w-3.5" />
+                Reset &amp; Rebuild
+              </span>
+            </button>
             {teams && teams.length > 0 && (
               <span className="text-[10px] font-bold text-slate-500 ml-auto">{teams.length} teams ready</span>
             )}

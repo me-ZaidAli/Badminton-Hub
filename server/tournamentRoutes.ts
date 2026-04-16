@@ -441,6 +441,98 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  app.post("/api/tournament-categories/:id/reset-and-rebuild", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      // Wipe everything for this category
+      await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
+      await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
+      await db.delete(tournamentPlayerStats).where(eq(tournamentPlayerStats.categoryId, catId));
+      const oldGroups = await db.select({ id: tournamentGroups.id }).from(tournamentGroups)
+        .where(or(eq(tournamentGroups.categoryId, catId), and(eq(tournamentGroups.tournamentId, cat.tournamentId), isNull(tournamentGroups.categoryId))));
+      if (oldGroups.length > 0) {
+        const ogIds = oldGroups.map(g => g.id);
+        await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, ogIds));
+        await db.delete(tournamentGroups).where(inArray(tournamentGroups.id, ogIds));
+      }
+      await db.delete(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
+
+      // Rebuild teams from ACCEPTED pair_requests (or APPROVED registrations for singles)
+      const isDoubles = (cat.playersPerSide || 1) >= 2;
+      const newTeams: any[] = [];
+      const seenPlayerIds = new Set<number>();
+
+      if (isDoubles) {
+        const pairs = await db.select().from(tournamentPairRequests)
+          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
+        for (const pair of pairs) {
+          const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.fromUserId));
+          const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.toUserId));
+          if (!p1 || !p2) continue;
+          if (seenPlayerIds.has(p1.id) || seenPlayerIds.has(p2.id)) continue;
+          const [team] = await db.insert(tournamentTeams).values({
+            categoryId: catId, player1Id: p1.id, player2Id: p2.id,
+          }).returning();
+          newTeams.push(team);
+          seenPlayerIds.add(p1.id);
+          seenPlayerIds.add(p2.id);
+        }
+      } else {
+        const regs = await db.select().from(tournamentRegistrations)
+          .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.status, "APPROVED")));
+        for (const reg of regs) {
+          const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+          if (!profile || seenPlayerIds.has(profile.id)) continue;
+          const [team] = await db.insert(tournamentTeams).values({ categoryId: catId, player1Id: profile.id }).returning();
+          newTeams.push(team);
+          seenPlayerIds.add(profile.id);
+        }
+      }
+
+      if (newTeams.length === 0) {
+        return res.json({ success: true, teamsCreated: 0, groupsCreated: 0, message: "No accepted pairs/registrations found" });
+      }
+
+      // For GROUP_KNOCKOUT, create fresh groups (4 teams each) and distribute evenly
+      let groupsCreated = 0;
+      if (cat.format === "GROUP_KNOCKOUT") {
+        const groupSize = 4;
+        const numGroups = Math.max(1, Math.ceil(newTeams.length / groupSize));
+        const newGroups: any[] = [];
+        for (let g = 0; g < numGroups; g++) {
+          const [grp] = await db.insert(tournamentGroups).values({
+            tournamentId: cat.tournamentId,
+            categoryId: catId,
+            name: `Group ${String.fromCharCode(65 + g)}`,
+            groupOrder: g + 1,
+            maxPairs: groupSize,
+          }).returning();
+          newGroups.push(grp);
+        }
+        groupsCreated = newGroups.length;
+        // Distribute teams round-robin style across groups
+        for (let i = 0; i < newTeams.length; i++) {
+          const grp = newGroups[i % numGroups];
+          const order = Math.floor(i / numGroups) + 1;
+          await db.insert(tournamentGroupPairs).values({
+            groupId: grp.id, teamId: newTeams[i].id, pairOrder: order,
+          });
+        }
+      }
+
+      res.json({ success: true, teamsCreated: newTeams.length, groupsCreated, message: `Rebuilt ${newTeams.length} teams${groupsCreated ? ` into ${groupsCreated} groups` : ""}. Click Regenerate Fixtures to create matches.` });
+    } catch (e: any) {
+      console.error("[RESET REBUILD]", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/tournament-categories/:id/generate-matches", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
