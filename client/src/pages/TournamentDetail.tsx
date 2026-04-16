@@ -2040,6 +2040,9 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const { data: matchList } = useTournamentMatches(category.id);
   const { data: standings } = useTournamentStandings(category.id);
   const { data: courts } = useTournamentCourts(tournamentId);
+  const { data: allGroups = [] } = useTournamentGroups(tournamentId);
+  // Restrict to this category — the Groups section is the single source of truth for group membership
+  const categoryGroups = (allGroups as any[]).filter((g: any) => g.categoryId === category.id);
   const assignCourtMutation = useAssignMatchCourt();
   const updateStatusMutation = useUpdateMatchStatus();
   const [activeView, setActiveView] = useState<"bracket" | "standings" | "list">(
@@ -2192,8 +2195,8 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
         ))}
       </div>
 
-      {activeView === "standings" && standings && standings.length > 0 && (
-        <StandingsView standings={standings} teams={teams || []} category={category} />
+      {activeView === "standings" && (
+        <StandingsView standings={standings || []} teams={teams || []} category={category} groups={categoryGroups} />
       )}
 
       {activeView === "list" && (
@@ -2623,8 +2626,20 @@ function ScoreDialog({ match, onClose, onSubmit, isPending }: { match: any; onCl
   );
 }
 
-function StandingsView({ standings, teams, category }: { standings: any[]; teams: any[]; category: any }) {
+function StandingsView({ standings, teams, category, groups = [] }: { standings: any[]; teams: any[]; category: any; groups?: any[] }) {
   const teamMap = new Map(teams.map(t => [t.id, t]));
+
+  // Stat lookup keyed by teamId — Groups section is the source of truth for membership; standings only contributes stats.
+  const statsByTeamId = new Map<number, any>();
+  for (const s of standings) {
+    if (s.teamId && s.groupNumber < 100) statsByTeamId.set(s.teamId, s);
+  }
+  const emptyStats = (teamId: number, groupNumber: number) => ({
+    id: `empty-${groupNumber}-${teamId}`,
+    teamId, groupNumber, subGroupNumber: 1,
+    matchesPlayed: 0, matchesWon: 0, matchesLost: 0,
+    gamesWon: 0, gamesLost: 0, pointsFor: 0, pointsAgainst: 0, points: 0,
+  });
 
   const hasSubGroups = standings.some(s => s.subGroupNumber && s.subGroupNumber > 0);
   const groupNumbers = Array.from(new Set(standings.map(s => s.groupNumber))).sort((a, b) => a - b);
@@ -2724,15 +2739,23 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
     });
   };
 
+  // CANONICAL group rendering: derive from the Groups section (tournament_groups) — never invent groups from standings.
+  const sortedGroups = [...groups].sort((a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0));
+
   return (
     <div className="space-y-5">
-      {groupStageNumbers.map(gNum => {
-        const groupStandings = groupStageStandings.filter(s => s.groupNumber === gNum);
-        const subGroupNumbers = Array.from(new Set(groupStandings.map(s => s.subGroupNumber || 1))).sort((a, b) => a - b);
-        const hasMultipleSubGroups = subGroupNumbers.length > 1 || (subGroupNumbers.length === 1 && subGroupNumbers[0] > 1);
+      {sortedGroups.length === 0 && groupStageNumbers.length > 0 && (
+        <div className="text-xs text-muted-foreground italic px-2">No groups defined yet — add groups in the Groups section.</div>
+      )}
+      {sortedGroups.map((grp: any, gi: number) => {
+        const gNum = gi + 1;
+        const teamIdsInGroup: number[] = (grp.pairs || [])
+          .map((p: any) => p.teamId)
+          .filter((x: any): x is number => typeof x === "number");
+        const rows = teamIdsInGroup.map(tid => statsByTeamId.get(tid) || emptyStats(tid, gNum));
 
         return (
-          <div key={gNum} className="relative rounded-2xl overflow-hidden">
+          <div key={`grp-${grp.id}`} className="relative rounded-2xl overflow-hidden">
             <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
             <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
               <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
@@ -2740,35 +2763,11 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
                   <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
                     <LayoutGrid className="h-3 w-3 text-white" />
                   </div>
-                  <h4 className="text-sm font-black text-foreground uppercase tracking-wider">Group {String.fromCharCode(64 + gNum)}</h4>
-                  <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{groupStandings.length} Teams</Badge>
+                  <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{grp.name || `Group ${String.fromCharCode(64 + gNum)}`}</h4>
+                  <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{rows.length} Teams</Badge>
                 </div>
               </div>
-
-              {hasMultipleSubGroups ? (
-                <div className="divide-y divide-border/20">
-                  {subGroupNumbers.map(sgNum => {
-                    const sgStandings = groupStandings
-                      .filter(s => (s.subGroupNumber || 1) === sgNum)
-                      .sort(sortFn);
-                    return (
-                      <div key={sgNum}>
-                        <div className="bg-cyan-500/5 px-4 py-2 border-b border-border/20">
-                          <div className="flex items-center gap-2">
-                            <Badge className="bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30 text-[9px] font-black">
-                              Subgroup {sgNum}
-                            </Badge>
-                            <span className="text-[10px] text-muted-foreground font-bold">{sgStandings.length} teams</span>
-                          </div>
-                        </div>
-                        {renderStandingsTable(sgStandings, advancePerGroup)}
-                      </div>
-                    );
-                  })}
-                </div>
-              ) : (
-                renderStandingsTable(groupStandings.sort(sortFn), advancePerGroup)
-              )}
+              {renderStandingsTable(rows.sort(sortFn), advancePerGroup)}
             </div>
           </div>
         );
