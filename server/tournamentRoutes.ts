@@ -772,9 +772,13 @@ export function registerTournamentRoutes(app: Express) {
           const qfStandings = allStandings.filter(s => s.groupNumber >= 200 && s.groupNumber < 300);
           const qfGroupKeys = Array.from(new Set(qfStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
           const semiQualifiers: number[] = [];
+          const seenSemiIds = new Set<number>();
           for (const gNum of qfGroupKeys) {
             const gStandings = sortStandings(qfStandings.filter(s => s.groupNumber === gNum));
-            if (gStandings.length > 0) semiQualifiers.push(gStandings[0].teamId);
+            if (gStandings.length > 0 && !seenSemiIds.has(gStandings[0].teamId)) {
+              seenSemiIds.add(gStandings[0].teamId);
+              semiQualifiers.push(gStandings[0].teamId);
+            }
           }
           if (semiQualifiers.length < 2) return res.status(400).json({ message: "Not enough qualifiers for semi-finals" });
           let matchIdx = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1) + 1;
@@ -823,39 +827,66 @@ export function registerTournamentRoutes(app: Express) {
 
         const advancePerGroup = cat.advancePerGroup || 2;
         const groupKeys = Array.from(new Set(groupStageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
-        const qualifiers: number[] = [];
+        const qualifiersWithOrigin: { teamId: number; sourceGroup: number; rank: number }[] = [];
+        const seenTeamIds = new Set<number>();
         for (const gNum of groupKeys) {
           const gStandings = sortStandings(groupStageStandings.filter(s => s.groupNumber === gNum));
-          gStandings.slice(0, advancePerGroup).forEach(s => qualifiers.push(s.teamId));
+          gStandings.slice(0, advancePerGroup).forEach((s, rank) => {
+            if (!seenTeamIds.has(s.teamId)) {
+              seenTeamIds.add(s.teamId);
+              qualifiersWithOrigin.push({ teamId: s.teamId, sourceGroup: gNum, rank });
+            }
+          });
         }
-        if (qualifiers.length < 4) return res.status(400).json({ message: "Not enough qualifiers for quarter-finals" });
+        if (qualifiersWithOrigin.length < 4) return res.status(400).json({ message: "Not enough qualifiers for quarter-finals" });
 
-        const numQFGroups = Math.max(2, Math.min(Math.floor(qualifiers.length / 2), 4));
-        const qfGroups: number[][] = Array.from({ length: numQFGroups }, () => []);
-        const shuffled = [...qualifiers];
-        for (let i = shuffled.length - 1; i > 0; i--) {
-          const j = Math.floor(Math.random() * (i + 1));
-          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        const totalQ = qualifiersWithOrigin.length;
+        let numQFGroups: number;
+        if (totalQ <= 4) numQFGroups = 1;
+        else if (totalQ <= 8) numQFGroups = 2;
+        else if (totalQ <= 12) numQFGroups = 3;
+        else numQFGroups = 4;
+        const targetSize = Math.ceil(totalQ / numQFGroups);
+
+        const qfGroups: typeof qualifiersWithOrigin[] = Array.from({ length: numQFGroups }, () => []);
+        const sorted = [...qualifiersWithOrigin].sort((a, b) => a.rank - b.rank);
+
+        for (const q of sorted) {
+          let bestGroup = -1;
+          let bestScore = -Infinity;
+          for (let g = 0; g < numQFGroups; g++) {
+            if (qfGroups[g].length >= targetSize) continue;
+            const hasSameSource = qfGroups[g].some(p => p.sourceGroup === q.sourceGroup);
+            const sizeScore = targetSize - qfGroups[g].length;
+            const sourceBonus = hasSameSource ? 0 : 10;
+            const score = sizeScore + sourceBonus;
+            if (score > bestScore) { bestScore = score; bestGroup = g; }
+          }
+          if (bestGroup === -1) {
+            const smallest = qfGroups.reduce((minIdx, g, idx) =>
+              g.length < qfGroups[minIdx].length ? idx : minIdx, 0);
+            bestGroup = smallest;
+          }
+          qfGroups[bestGroup].push(q);
         }
-        shuffled.forEach((tid, i) => qfGroups[i % numQFGroups].push(tid));
 
         let matchIdx = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1) + 1;
         for (let g = 0; g < qfGroups.length; g++) {
           const qfGNum = 200 + g + 1;
-          const gTeams = qfGroups[g];
-          for (let i = 0; i < gTeams.length; i++) {
-            for (let j = i + 1; j < gTeams.length; j++) {
+          const gTeamIds = qfGroups[g].map(q => q.teamId);
+          for (let i = 0; i < gTeamIds.length; i++) {
+            for (let j = i + 1; j < gTeamIds.length; j++) {
               await db.insert(tournamentMatches).values({
-                categoryId: catId, teamAId: gTeams[i], teamBId: gTeams[j],
+                categoryId: catId, teamAId: gTeamIds[i], teamBId: gTeamIds[j],
                 round: 200, matchOrder: matchIdx++, groupNumber: qfGNum, subGroupNumber: 1,
               });
             }
           }
-          for (const teamId of gTeams) {
+          for (const teamId of gTeamIds) {
             await db.insert(tournamentStandings).values({ categoryId: catId, teamId, groupNumber: qfGNum, subGroupNumber: 1 });
           }
         }
-        return res.json({ message: "Quarter-finals generated", qualifiers: qualifiers.length, groups: numQFGroups });
+        return res.json({ message: "Quarter-finals generated", qualifiers: totalQ, groups: numQFGroups });
       }
 
       const allMatches = await db.select().from(tournamentMatches)
