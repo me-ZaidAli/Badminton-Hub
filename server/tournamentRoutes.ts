@@ -469,8 +469,23 @@ export function registerTournamentRoutes(app: Express) {
       const seenPlayerIds = new Set<number>();
 
       if (isDoubles) {
-        const pairs = await db.select().from(tournamentPairRequests)
-          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
+        const pairsRaw = await db.select().from(tournamentPairRequests)
+          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")))
+          .orderBy(desc(tournamentPairRequests.createdAt));
+        // Defensive dedup: if a player appears in multiple ACCEPTED pair_requests (legacy bad data),
+        // keep only the MOST RECENT pair and dissolve the older ones so they never resurface.
+        const usedUserIds = new Set<number>();
+        const pairs: typeof pairsRaw = [];
+        for (const pr of pairsRaw) {
+          if (usedUserIds.has(pr.fromUserId) || usedUserIds.has(pr.toUserId)) {
+            await db.update(tournamentPairRequests).set({ status: "DISSOLVED" })
+              .where(eq(tournamentPairRequests.id, pr.id));
+            continue;
+          }
+          pairs.push(pr);
+          usedUserIds.add(pr.fromUserId);
+          usedUserIds.add(pr.toUserId);
+        }
         for (const pair of pairs) {
           const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.fromUserId));
           const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.toUserId));
@@ -1421,6 +1436,18 @@ export function registerTournamentRoutes(app: Express) {
       const [reg2] = await db.select().from(tournamentRegistrations)
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, player2Id), eq(tournamentRegistrations.status, "APPROVED")));
       if (!reg1 || !reg2) return res.status(400).json({ message: "Both players must be approved registrants in this tournament" });
+      // Invalidate any prior ACCEPTED pair_requests involving either player so we never end up
+      // with the same player tied to multiple "active" pairs.
+      await db.update(tournamentPairRequests).set({ status: "DISSOLVED" }).where(and(
+        eq(tournamentPairRequests.tournamentId, tournamentId),
+        eq(tournamentPairRequests.status, "ACCEPTED"),
+        or(
+          eq(tournamentPairRequests.fromUserId, player1Id),
+          eq(tournamentPairRequests.toUserId, player1Id),
+          eq(tournamentPairRequests.fromUserId, player2Id),
+          eq(tournamentPairRequests.toUserId, player2Id),
+        ),
+      ));
       const [pr] = await db.insert(tournamentPairRequests).values({
         tournamentId,
         fromUserId: player1Id,
@@ -1511,6 +1538,19 @@ export function registerTournamentRoutes(app: Express) {
         .where(eq(tournamentPairRequests.id, Number(req.params.id))).returning();
 
       if (status === "ACCEPTED") {
+        // Invalidate any older ACCEPTED pair_requests involving either user so the same
+        // person can never appear in two "active" pairs at once.
+        await db.update(tournamentPairRequests).set({ status: "DISSOLVED" }).where(and(
+          eq(tournamentPairRequests.tournamentId, pr.tournamentId),
+          eq(tournamentPairRequests.status, "ACCEPTED"),
+          or(
+            eq(tournamentPairRequests.fromUserId, pr.fromUserId),
+            eq(tournamentPairRequests.toUserId, pr.fromUserId),
+            eq(tournamentPairRequests.fromUserId, pr.toUserId),
+            eq(tournamentPairRequests.toUserId, pr.toUserId),
+          ),
+          ne(tournamentPairRequests.id, pr.id),
+        ));
         await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.toUserId })
           .where(and(eq(tournamentRegistrations.tournamentId, pr.tournamentId), eq(tournamentRegistrations.userId, pr.fromUserId)));
         await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.fromUserId })
@@ -1619,6 +1659,17 @@ export function registerTournamentRoutes(app: Express) {
           eq(tournamentRegistrations.tournamentId, tournamentId),
           eq(tournamentRegistrations.userId, partnerId),
         ));
+
+      // CRITICAL: also dissolve any ACCEPTED pair_requests linking these two users so
+      // Reset & Rebuild won't resurrect this defunct pair.
+      await db.update(tournamentPairRequests).set({ status: "DISSOLVED" }).where(and(
+        eq(tournamentPairRequests.tournamentId, tournamentId),
+        eq(tournamentPairRequests.status, "ACCEPTED"),
+        or(
+          and(eq(tournamentPairRequests.fromUserId, userId), eq(tournamentPairRequests.toUserId, partnerId)),
+          and(eq(tournamentPairRequests.fromUserId, partnerId), eq(tournamentPairRequests.toUserId, userId)),
+        ),
+      ));
 
       res.json({ message: "Pair has been dissolved. Both players are now registered as individuals." });
     } catch (e: any) {
