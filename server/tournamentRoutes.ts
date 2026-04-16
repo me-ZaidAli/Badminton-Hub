@@ -450,10 +450,61 @@ export function registerTournamentRoutes(app: Express) {
       const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
       if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
 
+      // === PURGE ORPHAN TEAMS FIRST ===
+      // Any team whose players are no longer in an ACCEPTED pair_request (doubles) or an
+      // APPROVED registration (singles) is a ghost from a previous state. Wipe it (and any
+      // group slot, match, or standing row pointing at it) BEFORE deciding whether to
+      // preserve the remaining groups. This is what removes dissolved pairs like "Huy & Quan"
+      // from the Groups/Standings views automatically.
+      const isDoublesCat = (cat.playersPerSide || 1) >= 2;
+      const validProfilePairKeys = new Set<string>();
+      const validSoloProfileIds = new Set<number>();
+      if (isDoublesCat) {
+        const acceptedPRs = await db.select().from(tournamentPairRequests)
+          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
+        for (const pr of acceptedPRs) {
+          const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
+          const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
+          if (!p1 || !p2) continue;
+          const [a, b] = [p1.id, p2.id].sort((x, y) => x - y);
+          validProfilePairKeys.add(`${a}-${b}`);
+        }
+      } else {
+        const approvedRegs = await db.select().from(tournamentRegistrations)
+          .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.status, "APPROVED")));
+        for (const reg of approvedRegs) {
+          const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+          if (profile) validSoloProfileIds.add(profile.id);
+        }
+      }
+      const allTeamsInCat = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
+      const orphanTeamIds: number[] = [];
+      for (const t of allTeamsInCat) {
+        let keep = false;
+        if (isDoublesCat) {
+          if (t.player1Id && t.player2Id) {
+            const [a, b] = [t.player1Id, t.player2Id].sort((x, y) => x - y);
+            keep = validProfilePairKeys.has(`${a}-${b}`);
+          }
+        } else {
+          keep = !!(t.player1Id && validSoloProfileIds.has(t.player1Id));
+        }
+        if (!keep) orphanTeamIds.push(t.id);
+      }
+      if (orphanTeamIds.length > 0) {
+        await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.teamId, orphanTeamIds));
+        await db.delete(tournamentMatches).where(or(
+          inArray(tournamentMatches.teamAId, orphanTeamIds),
+          inArray(tournamentMatches.teamBId, orphanTeamIds),
+        ));
+        await db.delete(tournamentStandings).where(inArray(tournamentStandings.teamId, orphanTeamIds));
+        await db.delete(tournamentTeams).where(inArray(tournamentTeams.id, orphanTeamIds));
+      }
+
       // === PROTECT EXISTING GROUP ASSIGNMENTS ===
-      // If this category already has groups with assigned pairs, DO NOT touch those assignments.
-      // Admins have intentionally placed pairs; Reset & Rebuild must only refresh the derived
-      // matches/standings against the current groups — never reshuffle them.
+      // If this category already has groups with assigned pairs (after orphan purge above),
+      // DO NOT reshuffle those placements. Admins placed them intentionally. Only refresh
+      // the derived matches/standings against the surviving group assignments.
       const existingGroups = await db.select().from(tournamentGroups)
         .where(eq(tournamentGroups.categoryId, catId))
         .orderBy(asc(tournamentGroups.groupOrder));
