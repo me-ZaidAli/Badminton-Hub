@@ -450,7 +450,61 @@ export function registerTournamentRoutes(app: Express) {
       const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
       if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
 
-      // Wipe everything for this category
+      // === PROTECT EXISTING GROUP ASSIGNMENTS ===
+      // If this category already has groups with assigned pairs, DO NOT touch those assignments.
+      // Admins have intentionally placed pairs; Reset & Rebuild must only refresh the derived
+      // matches/standings against the current groups — never reshuffle them.
+      const existingGroups = await db.select().from(tournamentGroups)
+        .where(eq(tournamentGroups.categoryId, catId))
+        .orderBy(asc(tournamentGroups.groupOrder));
+      const existingGroupIds = existingGroups.map(g => g.id);
+      const existingGP = existingGroupIds.length > 0
+        ? await db.select().from(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, existingGroupIds))
+        : [];
+      const hasLockedGroups = existingGP.length > 0;
+
+      if (hasLockedGroups) {
+        // Non-destructive refresh: wipe only derived data and regenerate matches + standings
+        // from the EXACT group assignments already in place.
+        await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
+        await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
+        await db.delete(tournamentPlayerStats).where(eq(tournamentPlayerStats.categoryId, catId));
+
+        let matchesCreated = 0;
+        let order = 0;
+        for (let gi = 0; gi < existingGroups.length; gi++) {
+          const grp = existingGroups[gi];
+          const gNum = gi + 1;
+          const teamIdsInGroup = existingGP
+            .filter(gp => gp.groupId === grp.id)
+            .map(gp => gp.teamId)
+            .filter((x): x is number => !!x);
+          if (teamIdsInGroup.length < 2) continue;
+          const sched = generateRoundRobinSchedule(teamIdsInGroup);
+          for (const [aId, bId] of sched) {
+            await db.insert(tournamentMatches).values({
+              categoryId: catId, teamAId: aId, teamBId: bId,
+              round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
+            });
+            matchesCreated++;
+          }
+          for (const tid of teamIdsInGroup) {
+            await db.insert(tournamentStandings).values({ categoryId: catId, teamId: tid, groupNumber: gNum, subGroupNumber: 1 });
+          }
+        }
+
+        return res.json({
+          success: true,
+          teamsCreated: 0,
+          groupsCreated: 0,
+          matchesCreated,
+          preservedGroups: true,
+          message: `Preserved ${existingGroups.length} groups as-is. Refreshed ${matchesCreated} matches from current pair assignments.`,
+        });
+      }
+
+      // === INITIAL BUILD ONLY ===
+      // Reached only when there are no existing group assignments. Safe to build from scratch.
       await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
       await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
       await db.delete(tournamentPlayerStats).where(eq(tournamentPlayerStats.categoryId, catId));
