@@ -3671,6 +3671,26 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                     </div>
                   )}
 
+                  {canManage && (
+                    <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/20">
+                      <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Start time</span>
+                      <Input
+                        type="datetime-local"
+                        value={perGroupTime[group.id] ?? (group.startTime ? new Date(group.startTime).toISOString().slice(0, 16) : "")}
+                        onChange={(e) => setPerGroupTime(prev => ({ ...prev, [group.id]: e.target.value }))}
+                        className="h-7 text-xs flex-1 min-w-[180px] max-w-[240px]"
+                        data-testid={`input-group-time-${group.id}`}
+                      />
+                      <Button size="sm" className="h-7 text-[10px] font-bold"
+                        disabled={perGroupTime[group.id] === undefined || updateGroupMutation.isPending}
+                        onClick={() => saveGroupTime(group)}
+                        data-testid={`button-save-group-time-${group.id}`}>
+                        Save
+                      </Button>
+                    </div>
+                  )}
+
                   {group.pairs && group.pairs.length > 0 ? (
                     <div className="space-y-1.5">
                       {group.pairs.map((pair: any, idx: number) => {
