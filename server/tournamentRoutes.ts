@@ -541,7 +541,37 @@ export function registerTournamentRoutes(app: Express) {
         }
       }
 
-      res.json({ success: true, teamsCreated: newTeams.length, groupsCreated, message: `Rebuilt ${newTeams.length} teams${groupsCreated ? ` into ${groupsCreated} groups` : ""}. Click Regenerate Fixtures to create matches.` });
+      // Auto-generate matches + standings so the standings/bracket views stay in sync immediately.
+      // (Previously the user had to click "Regenerate Fixtures" separately, which left stale data
+      // in the standings table if they forgot, causing different teams to appear in different views.)
+      let matchesCreated = 0;
+      if (cat.format === "GROUP_KNOCKOUT") {
+        const tGroups = await db.select().from(tournamentGroups)
+          .where(and(eq(tournamentGroups.tournamentId, cat.tournamentId), eq(tournamentGroups.categoryId, catId)))
+          .orderBy(asc(tournamentGroups.groupOrder));
+        const allGP = await db.select().from(tournamentGroupPairs)
+          .where(inArray(tournamentGroupPairs.groupId, tGroups.map(g => g.id).length > 0 ? tGroups.map(g => g.id) : [-1]));
+        let order = 0;
+        for (let gi = 0; gi < tGroups.length; gi++) {
+          const grp = tGroups[gi];
+          const gNum = gi + 1;
+          const teamIdsInGroup = allGP.filter(gp => gp.groupId === grp.id).map(gp => gp.teamId).filter((x): x is number => !!x);
+          if (teamIdsInGroup.length < 2) continue;
+          const sched = generateRoundRobinSchedule(teamIdsInGroup);
+          for (const [aId, bId] of sched) {
+            await db.insert(tournamentMatches).values({
+              categoryId: catId, teamAId: aId, teamBId: bId,
+              round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
+            });
+            matchesCreated++;
+          }
+          for (const tid of teamIdsInGroup) {
+            await db.insert(tournamentStandings).values({ categoryId: catId, teamId: tid, groupNumber: gNum, subGroupNumber: 1 });
+          }
+        }
+      }
+
+      res.json({ success: true, teamsCreated: newTeams.length, groupsCreated, matchesCreated, message: `Rebuilt ${newTeams.length} teams into ${groupsCreated} groups with ${matchesCreated} matches.` });
     } catch (e: any) {
       console.error("[RESET REBUILD]", e);
       res.status(500).json({ message: e.message });
@@ -582,10 +612,11 @@ export function registerTournamentRoutes(app: Express) {
           await db.insert(tournamentStandings).values({ categoryId: catId, teamId: team.id, groupNumber: 1 });
         }
       } else if (cat.format === "GROUP_KNOCKOUT") {
+        // Scope strictly to this category to avoid pulling in phantom groups from other categories/tournaments
         let tGroups = await db.select().from(tournamentGroups)
           .where(and(
             eq(tournamentGroups.tournamentId, cat.tournamentId),
-            or(eq(tournamentGroups.categoryId, catId), isNull(tournamentGroups.categoryId))
+            eq(tournamentGroups.categoryId, catId),
           ))
           .orderBy(asc(tournamentGroups.groupOrder));
 
