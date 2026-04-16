@@ -3209,10 +3209,32 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const { data: allPairs = [] } = useTournamentPairs(tournamentId);
   const acceptedPairs = allPairs.filter((p: any) => !!p.pairRequestId);
 
-  const assignedTeamIds = new Set(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.teamId).filter(Boolean) || []));
-  const assignedPairRequestIds = new Set(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.pairRequestId).filter(Boolean) || []));
-  const availableTeams = allTeams.filter((t: any) => !assignedTeamIds.has(t.id));
-  const availablePairs = acceptedPairs.filter((p: any) => !assignedPairRequestIds.has(p.pairRequestId));
+  const assignedTeamIds = new Set<number>(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.teamId).filter(Boolean) || []));
+  const assignedPairRequestIds = new Set<number>(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.pairRequestId).filter(Boolean) || []));
+
+  // Map: "minProfileId-maxProfileId" -> teamId, so we can cross-check pairs against team assignments
+  const teamIdByPlayerKey = new Map<string, number>();
+  for (const t of allTeams as any[]) {
+    if (t.player1Id && t.player2Id) {
+      const key = [Math.min(t.player1Id, t.player2Id), Math.max(t.player1Id, t.player2Id)].join("-");
+      teamIdByPlayerKey.set(key, t.id);
+    }
+  }
+
+  // De-dupe pairs by pairRequestId, then exclude any pair already assigned (via pairRequestId OR via its mapped teamId)
+  const seenPrIds = new Set<number>();
+  const availablePairs = acceptedPairs.filter((p: any) => {
+    if (!p.pairRequestId) return false;
+    if (seenPrIds.has(p.pairRequestId)) return false;
+    seenPrIds.add(p.pairRequestId);
+    if (assignedPairRequestIds.has(p.pairRequestId)) return false;
+    if (p.profile1?.id && p.profile2?.id) {
+      const key = [Math.min(p.profile1.id, p.profile2.id), Math.max(p.profile1.id, p.profile2.id)].join("-");
+      const tid = teamIdByPlayerKey.get(key);
+      if (tid && assignedTeamIds.has(tid)) return false;
+    }
+    return true;
+  });
   const hasPairs = acceptedPairs.length > 0;
 
   function resetForm() {
@@ -3474,14 +3496,15 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                             <SelectValue placeholder="Select a pair..." />
                           </SelectTrigger>
                           <SelectContent>
-                            {availablePairs.map((p: any) => (
-                              <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
-                                {`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
-                              </SelectItem>
-                            ))}
-                            {availableTeams.map((t: any) => (
-                              <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
-                            ))}
+                            {availablePairs.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-muted-foreground italic">All pairs assigned</div>
+                            ) : (
+                              availablePairs.map((p: any) => (
+                                <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
+                                  {`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
+                                </SelectItem>
+                              ))
+                            )}
                           </SelectContent>
                         </Select>
                         <Button size="sm" className="h-8 bg-violet-600 hover:bg-violet-700 text-white text-xs font-bold"
