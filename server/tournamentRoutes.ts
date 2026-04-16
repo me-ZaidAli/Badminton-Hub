@@ -1725,7 +1725,36 @@ export function registerTournamentRoutes(app: Express) {
         ),
       ));
 
-      res.json({ message: "Pair has been dissolved. Both players are now registered as individuals." });
+      // Also tear down any existing team + group assignment for this pair, otherwise the
+      // old team row keeps showing the dissolved pair in the Groups/Standings views forever.
+      const [p1Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      const [p2Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, partnerId));
+      if (p1Profile && p2Profile) {
+        const tournCats = await db.select({ id: tournamentCategories.id }).from(tournamentCategories)
+          .where(eq(tournamentCategories.tournamentId, tournamentId));
+        const catIds = tournCats.map(c => c.id);
+        if (catIds.length > 0) {
+          const staleTeams = await db.select().from(tournamentTeams).where(and(
+            inArray(tournamentTeams.categoryId, catIds),
+            or(
+              and(eq(tournamentTeams.player1Id, p1Profile.id), eq(tournamentTeams.player2Id, p2Profile.id)),
+              and(eq(tournamentTeams.player1Id, p2Profile.id), eq(tournamentTeams.player2Id, p1Profile.id)),
+            ),
+          ));
+          if (staleTeams.length > 0) {
+            const teamIds = staleTeams.map(t => t.id);
+            await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.teamId, teamIds));
+            await db.delete(tournamentMatches).where(or(
+              inArray(tournamentMatches.teamAId, teamIds),
+              inArray(tournamentMatches.teamBId, teamIds),
+            ));
+            await db.delete(tournamentStandings).where(inArray(tournamentStandings.teamId, teamIds));
+            await db.delete(tournamentTeams).where(inArray(tournamentTeams.id, teamIds));
+          }
+        }
+      }
+
+      res.json({ message: "Pair has been dissolved. Both players are now registered as individuals, and removed from any groups." });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
