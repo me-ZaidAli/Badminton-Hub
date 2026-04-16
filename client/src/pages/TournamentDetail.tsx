@@ -134,7 +134,7 @@ export default function TournamentDetail() {
   const { data: tournamentClubs } = useMyTournamentClubs(!!user);
   const { toast } = useToast();
 
-  const [subPage, setSubPage] = useState<SubPage>("overview");
+  const [subPage, setSubPage] = useState<SubPage>("players");
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
 
@@ -187,13 +187,12 @@ export default function TournamentDetail() {
   }
 
   const tabs: { key: SubPage; label: string; icon: any }[] = [
-    { key: "overview", label: "Overview", icon: LayoutGrid },
+    { key: "players", label: "Players", icon: Users },
+    { key: "pairs", label: "Pairs", icon: Users },
     { key: "signup", label: "Sign Up", icon: Zap },
     { key: "matches", label: "Matches", icon: Swords },
     { key: "groups", label: "Groups", icon: LayoutGrid },
     { key: "courts", label: "Courts", icon: Monitor },
-    { key: "stats", label: "Stats", icon: BarChart },
-    { key: "prizes", label: "Prizes", icon: Trophy },
     ...(canManage ? [{ key: "admin" as SubPage, label: "Admin", icon: Settings }] : []),
   ];
 
@@ -331,6 +330,8 @@ export default function TournamentDetail() {
       )}
 
       {subPage === "overview" && <OverviewTab tournament={tournament} categories={categories} tournamentId={tournamentId} />}
+      {subPage === "players" && <PlayersTab tournamentId={tournamentId} />}
+      {subPage === "pairs" && <PairsTab tournamentId={tournamentId} />}
       {subPage === "signup" && <SignUpTab tournamentId={tournamentId} tournament={tournament} />}
       {subPage === "matches" && activeCategory && <MatchesTab category={activeCategory} canManage={canManage} tournamentId={tournamentId} onGenerateMatches={async () => {
         try {
@@ -1516,7 +1517,7 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                         ) : (
                           <>
                             <h3 className="text-lg font-black tracking-wide truncate flex-1" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${idx}`}>
-                              {pair.pairName || `Pair ${idx + 1}`}
+                              {p1Name} & {p2Name}
                             </h3>
                             {(isMyPair || isAdmin) && (
                               <button
@@ -3367,7 +3368,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                       {group.pairs.map((pair: any, idx: number) => {
                         let pairLabel = "";
                         if (pair.pairRequest) {
-                          pairLabel = pair.pairRequest.pairName || `${pair.pairRequest.fromUserName} & ${pair.pairRequest.toUserName}`;
+                          pairLabel = `${pair.pairRequest.fromUserName} & ${pair.pairRequest.toUserName}`;
                         } else if (pair.team) {
                           pairLabel = `${pair.team.player1Name}${pair.team.player2Name ? ` & ${pair.team.player2Name}` : ""}`;
                         }
@@ -3406,7 +3407,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                           <SelectContent>
                             {availablePairs.map((p: any) => (
                               <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
-                                {p.pairName || `${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
+                                {`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
                               </SelectItem>
                             ))}
                             {availableTeams.map((t: any) => (
@@ -3465,7 +3466,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const restartMutation = useRestartTournament();
   const [confirmRestart, setConfirmRestart] = useState(false);
   const { toast } = useToast();
-  const [adminView, setAdminView] = useState<"registrations" | "all-players" | "pairs" | "groups" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
+  const [adminView, setAdminView] = useState<"registrations" | "pairs" | "waitlist" | "finance" | "prizes" | "settings">("registrations");
   const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
   const { data: playerPool } = useTournamentPlayerPool(tournamentId);
   const updateTeamMutation = useUpdateTeam();
@@ -3561,9 +3562,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
       <div className="flex gap-1 bg-muted/30 dark:bg-muted/10 rounded-xl p-1 overflow-x-auto">
         {[
           { key: "registrations", label: "Registrations" },
-          { key: "all-players", label: "All Players" },
           { key: "pairs", label: "Pairs" },
-          { key: "groups", label: "Groups" },
           { key: "waitlist", label: "Waitlist" },
           { key: "finance", label: "Finance" },
           { key: "prizes", label: "Prizes" },
@@ -3580,10 +3579,6 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
       {adminView === "registrations" && (
         <AdminRegistrationsView registrations={registrations} regsLoading={regsLoading}
           tournamentId={tournamentId} onApprove={handleApprove} onReject={handleReject} onPayment={handlePayment} />
-      )}
-
-      {adminView === "all-players" && (
-        <PlayersTab tournamentId={tournamentId} />
       )}
 
       {adminView === "pairs" && (
@@ -3771,11 +3766,6 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
             </div>
           )}
         </div>
-      )}
-
-      {adminView === "groups" && activeCatId && (
-        <AdminGroupsView categoryId={activeCatId} teams={catTeams || []} categories={categories}
-          selectedCatId={activeCatId} onSelectCat={setSelectedCatId} toast={toast} />
       )}
 
       {adminView === "waitlist" && (
