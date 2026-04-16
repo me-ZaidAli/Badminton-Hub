@@ -638,9 +638,6 @@ export function registerTournamentRoutes(app: Express) {
 
       if (match.groupNumber && match.winnerId) {
         const loserId = match.teamAId === match.winnerId ? match.teamBId : match.teamAId;
-        const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, match.categoryId));
-        const ppw = cat?.pointsPerWin || 2;
-        const ppl = cat?.pointsPerLoss || 0;
         let totalA = 0, totalB = 0;
         if (scores && scores.length > 0) {
           for (const s of scores) { totalA += s.scoreA; totalB += s.scoreB; }
@@ -660,7 +657,7 @@ export function registerTournamentRoutes(app: Express) {
             games_lost = games_lost + ${gamesWonByLoser},
             points_for = points_for + ${winnerPF},
             points_against = points_against + ${winnerPA},
-            points = points + ${ppw}
+            points = points + ${winnerPF}
           WHERE category_id = ${match.categoryId} AND team_id = ${match.winnerId}
         `);
         if (loserId) {
@@ -672,7 +669,7 @@ export function registerTournamentRoutes(app: Express) {
               games_lost = games_lost + ${gamesWonByWinner},
               points_for = points_for + ${loserPF},
               points_against = points_against + ${loserPA},
-              points = points + ${ppl}
+              points = points + ${loserPF}
             WHERE category_id = ${match.categoryId} AND team_id = ${loserId}
           `);
         }
@@ -2768,6 +2765,9 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
 
       const alreadyInGroup = existingPairs.find(p => p.teamId === teamId);
       if (alreadyInGroup) return res.status(400).json({ message: "Team already in this group" });
+
+      const inAnyGroup = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, teamId));
+      if (inAnyGroup.length > 0) return res.status(400).json({ message: "Team already assigned to another group" });
 
       const [pair] = await db.insert(tournamentGroupPairs).values({
         groupId,
