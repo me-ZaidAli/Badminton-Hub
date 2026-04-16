@@ -453,56 +453,60 @@ export function registerTournamentRoutes(app: Express) {
           await db.insert(tournamentStandings).values({ categoryId: catId, teamId: team.id, groupNumber: 1 });
         }
       } else if (cat.format === "GROUP_KNOCKOUT") {
-        const assignedTeams = teams.filter(t => t.groupNumber && t.subGroupNumber);
-        const unassignedTeams = teams.filter(t => !t.groupNumber || !t.subGroupNumber);
+        const tGroups = await db.select().from(tournamentGroups)
+          .where(and(
+            eq(tournamentGroups.tournamentId, cat.tournamentId),
+            or(eq(tournamentGroups.categoryId, catId), isNull(tournamentGroups.categoryId))
+          ))
+          .orderBy(asc(tournamentGroups.groupOrder));
 
-        if (assignedTeams.length > 0 && unassignedTeams.length > 0) {
-          return res.status(400).json({ message: `${unassignedTeams.length} team(s) not assigned to a group/subgroup. Please assign all teams before generating matches.` });
+        if (tGroups.length === 0) {
+          return res.status(400).json({ message: "No groups found. Please create groups and assign pairs in the Groups tab first." });
         }
 
-        if (unassignedTeams.length > 0 && assignedTeams.length === 0) {
-          const groupCount = cat.groupCount || 2;
-          const groups: typeof teams[] = Array.from({ length: groupCount }, () => []);
-          teams.forEach((t, i) => groups[i % groupCount].push(t));
-          let order = 0;
-          for (let g = 0; g < groups.length; g++) {
-            const gNum = g + 1;
-            for (const t of groups[g]) {
-              await db.update(tournamentTeams).set({ groupNumber: gNum, subGroupNumber: 1 }).where(eq(tournamentTeams.id, t.id));
-            }
-            for (let i = 0; i < groups[g].length; i++) {
-              for (let j = i + 1; j < groups[g].length; j++) {
-                await db.insert(tournamentMatches).values({
-                  categoryId: catId, teamAId: groups[g][i].id, teamBId: groups[g][j].id,
-                  round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
-                });
+        const allGroupPairs = await db.select().from(tournamentGroupPairs);
+
+        let order = 0;
+        for (let gi = 0; gi < tGroups.length; gi++) {
+          const group = tGroups[gi];
+          const gNum = gi + 1;
+          const groupPairEntries = allGroupPairs.filter(gp => gp.groupId === group.id);
+
+          const teamIdsInGroup: number[] = [];
+          for (const gp of groupPairEntries) {
+            if (gp.teamId) {
+              teamIdsInGroup.push(gp.teamId);
+            } else if (gp.pairRequestId) {
+              const pairReqs = await db.select().from(tournamentPairRequests)
+                .where(eq(tournamentPairRequests.id, gp.pairRequestId));
+              if (pairReqs.length > 0) {
+                const pr = pairReqs[0];
+                const p1Profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
+                const p2Profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
+                if (p1Profiles.length > 0 && p2Profiles.length > 0) {
+                  const team = teams.find(t =>
+                    (t.player1Id === p1Profiles[0].id && t.player2Id === p2Profiles[0].id) ||
+                    (t.player1Id === p2Profiles[0].id && t.player2Id === p1Profiles[0].id)
+                  );
+                  if (team) teamIdsInGroup.push(team.id);
+                }
               }
             }
-            for (const t of groups[g]) {
-              await db.insert(tournamentStandings).values({ categoryId: catId, teamId: t.id, groupNumber: gNum, subGroupNumber: 1 });
+          }
+
+          const groupTeams = teamIdsInGroup.map(id => teams.find(t => t.id === id)).filter(Boolean) as typeof teams;
+          if (groupTeams.length < 2) continue;
+
+          for (let i = 0; i < groupTeams.length; i++) {
+            for (let j = i + 1; j < groupTeams.length; j++) {
+              await db.insert(tournamentMatches).values({
+                categoryId: catId, teamAId: groupTeams[i].id, teamBId: groupTeams[j].id,
+                round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
+              });
             }
           }
-        } else {
-          const subGroupMap = new Map<string, typeof teams>();
-          for (const t of assignedTeams) {
-            const key = `${t.groupNumber}-${t.subGroupNumber}`;
-            if (!subGroupMap.has(key)) subGroupMap.set(key, []);
-            subGroupMap.get(key)!.push(t);
-          }
-          let order = 0;
-          for (const [key, sgTeams] of subGroupMap) {
-            const [gNum, sgNum] = key.split("-").map(Number);
-            for (let i = 0; i < sgTeams.length; i++) {
-              for (let j = i + 1; j < sgTeams.length; j++) {
-                await db.insert(tournamentMatches).values({
-                  categoryId: catId, teamAId: sgTeams[i].id, teamBId: sgTeams[j].id,
-                  round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: sgNum,
-                });
-              }
-            }
-            for (const t of sgTeams) {
-              await db.insert(tournamentStandings).values({ categoryId: catId, teamId: t.id, groupNumber: gNum, subGroupNumber: sgNum });
-            }
+          for (const t of groupTeams) {
+            await db.insert(tournamentStandings).values({ categoryId: catId, teamId: t.id, groupNumber: gNum, subGroupNumber: 1 });
           }
         }
       } else {
@@ -708,97 +712,153 @@ export function registerTournamentRoutes(app: Express) {
       const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
       if (!canManage) return res.status(403).json({ message: "Not authorized" });
 
-      if (cat.format === "GROUP_KNOCKOUT") {
+      const sortStandings = (arr: any[]) => arr.sort((a, b) => {
+        if (b.points !== a.points) return b.points - a.points;
+        const diffA = a.pointsFor - a.pointsAgainst;
+        const diffB = b.pointsFor - b.pointsAgainst;
+        if (diffB !== diffA) return diffB - diffA;
+        if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+        return a.gamesLost - b.gamesLost;
+      });
 
+      if (cat.format === "GROUP_KNOCKOUT") {
         const allMatches = await db.select().from(tournamentMatches)
           .where(eq(tournamentMatches.categoryId, catId));
-        const semiMatches = allMatches.filter(m => m.groupNumber === 100);
-        const finalMatch = allMatches.filter(m => m.round === 200);
+        const allStandings = await db.select().from(tournamentStandings)
+          .where(eq(tournamentStandings.categoryId, catId));
 
-        if (finalMatch.length > 0) {
+        const finalMatches = allMatches.filter(m => m.round === 400);
+        if (finalMatches.length > 0) {
           return res.json({ message: "Final already generated" });
         }
 
+        const semiMatches = allMatches.filter(m => m.round === 300);
         if (semiMatches.length > 0) {
-          const unfinishedSemis = semiMatches.filter(m => m.status !== "FINISHED");
-          if (unfinishedSemis.length > 0) {
-            return res.status(400).json({ message: `Complete all semi-final matches first (${unfinishedSemis.length} remaining)` });
+          const unfinished = semiMatches.filter(m => m.status !== "FINISHED");
+          if (unfinished.length > 0) {
+            return res.status(400).json({ message: `Complete all semi-final matches first (${unfinished.length} remaining)` });
           }
-          const semiStandings = await db.select().from(tournamentStandings)
-            .where(and(eq(tournamentStandings.categoryId, catId), eq(tournamentStandings.groupNumber, 100)));
-          const sorted = semiStandings.sort((a, b) => {
-            if (b.points !== a.points) return b.points - a.points;
-            const diffA = a.pointsFor - a.pointsAgainst;
-            const diffB = b.pointsFor - b.pointsAgainst;
-            if (diffB !== diffA) return diffB - diffA;
-            if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
-            return a.gamesLost - b.gamesLost;
-          });
-          if (sorted.length < 2) return res.status(400).json({ message: "Not enough teams in semi-finals" });
-          const top2 = sorted.slice(0, 2);
+          const semiGroupNums = Array.from(new Set(semiMatches.map(m => m.groupNumber).filter(Boolean)));
+          const semiStandings = allStandings.filter(s => s.groupNumber >= 300 && s.groupNumber < 400);
+          const semiGroupKeys = Array.from(new Set(semiStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
+          const finalists: number[] = [];
+          for (const gNum of semiGroupKeys) {
+            const gStandings = sortStandings(semiStandings.filter(s => s.groupNumber === gNum));
+            if (gStandings.length > 0) finalists.push(gStandings[0].teamId);
+          }
+          if (finalists.length < 2) {
+            const allSemiStandings = sortStandings(semiStandings);
+            while (finalists.length < 2 && allSemiStandings.length > finalists.length) {
+              const next = allSemiStandings.find(s => !finalists.includes(s.teamId));
+              if (next) finalists.push(next.teamId);
+              else break;
+            }
+          }
+          if (finalists.length < 2) return res.status(400).json({ message: "Not enough teams for finals" });
+          const top2 = finalists.slice(0, 2);
           const maxOrder = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1);
-          const [match] = await db.insert(tournamentMatches).values({
-            categoryId: catId,
-            teamAId: top2[0].teamId,
-            teamBId: top2[1].teamId,
-            round: 200,
-            matchOrder: maxOrder + 1,
-          }).returning();
-          return res.json({ message: "Final generated", match });
+          await db.insert(tournamentMatches).values({
+            categoryId: catId, teamAId: top2[0], teamBId: top2[1],
+            round: 400, matchOrder: maxOrder + 1, groupNumber: 400,
+          });
+          await db.insert(tournamentStandings).values({ categoryId: catId, teamId: top2[0], groupNumber: 400, subGroupNumber: 1 });
+          await db.insert(tournamentStandings).values({ categoryId: catId, teamId: top2[1], groupNumber: 400, subGroupNumber: 1 });
+          return res.json({ message: "Final generated" });
         }
 
-        const standingsList = await db.select().from(tournamentStandings)
-          .where(and(eq(tournamentStandings.categoryId, catId), sql`${tournamentStandings.groupNumber} < 100`));
-        const advancePerGroup = cat.advancePerGroup || 2;
-        const subGroupKeys = Array.from(new Set(standingsList.map(s => `${s.groupNumber}-${s.subGroupNumber}`))).sort((a, b) => {
-          const [ag, as_] = a.split("-").map(Number);
-          const [bg, bs] = b.split("-").map(Number);
-          return ag - bg || as_ - bs;
-        });
-        const qualifiers: number[] = [];
-        for (const key of subGroupKeys) {
-          const [gNum, sgNum] = key.split("-").map(Number);
-          const sgStandings = standingsList
-            .filter(s => s.groupNumber === gNum && s.subGroupNumber === sgNum)
-            .sort((a, b) => {
-              if (b.points !== a.points) return b.points - a.points;
-              const diffA = a.pointsFor - a.pointsAgainst;
-              const diffB = b.pointsFor - b.pointsAgainst;
-              if (diffB !== diffA) return diffB - diffA;
-              if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
-              return a.gamesLost - b.gamesLost;
-            });
-          sgStandings.slice(0, advancePerGroup).forEach(s => {
-            qualifiers.push(s.teamId);
-          });
+        const qfMatches = allMatches.filter(m => m.round === 200);
+        if (qfMatches.length > 0) {
+          const unfinished = qfMatches.filter(m => m.status !== "FINISHED");
+          if (unfinished.length > 0) {
+            return res.status(400).json({ message: `Complete all quarter-final matches first (${unfinished.length} remaining)` });
+          }
+          const qfStandings = allStandings.filter(s => s.groupNumber >= 200 && s.groupNumber < 300);
+          const qfGroupKeys = Array.from(new Set(qfStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
+          const semiQualifiers: number[] = [];
+          for (const gNum of qfGroupKeys) {
+            const gStandings = sortStandings(qfStandings.filter(s => s.groupNumber === gNum));
+            if (gStandings.length > 0) semiQualifiers.push(gStandings[0].teamId);
+          }
+          if (semiQualifiers.length < 2) return res.status(400).json({ message: "Not enough qualifiers for semi-finals" });
+          let matchIdx = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1) + 1;
+          if (semiQualifiers.length <= 4) {
+            const semiGNum = 300;
+            for (let i = 0; i < semiQualifiers.length; i++) {
+              for (let j = i + 1; j < semiQualifiers.length; j++) {
+                await db.insert(tournamentMatches).values({
+                  categoryId: catId, teamAId: semiQualifiers[i], teamBId: semiQualifiers[j],
+                  round: 300, matchOrder: matchIdx++, groupNumber: semiGNum, subGroupNumber: 1,
+                });
+              }
+            }
+            for (const teamId of semiQualifiers) {
+              await db.insert(tournamentStandings).values({ categoryId: catId, teamId, groupNumber: semiGNum, subGroupNumber: 1 });
+            }
+          } else {
+            const numSemiGroups = Math.max(2, Math.ceil(semiQualifiers.length / 4));
+            const semiGroups: number[][] = Array.from({ length: numSemiGroups }, () => []);
+            semiQualifiers.forEach((tid, i) => semiGroups[i % numSemiGroups].push(tid));
+            for (let g = 0; g < semiGroups.length; g++) {
+              const semiGNum = 300 + g + 1;
+              const gTeams = semiGroups[g];
+              for (let i = 0; i < gTeams.length; i++) {
+                for (let j = i + 1; j < gTeams.length; j++) {
+                  await db.insert(tournamentMatches).values({
+                    categoryId: catId, teamAId: gTeams[i], teamBId: gTeams[j],
+                    round: 300, matchOrder: matchIdx++, groupNumber: semiGNum, subGroupNumber: 1,
+                  });
+                }
+              }
+              for (const teamId of gTeams) {
+                await db.insert(tournamentStandings).values({ categoryId: catId, teamId, groupNumber: semiGNum, subGroupNumber: 1 });
+              }
+            }
+          }
+          return res.json({ message: "Semi-finals generated", qualifiers: semiQualifiers.length });
         }
-        if (qualifiers.length < 2) return res.status(400).json({ message: "Not enough qualifiers" });
+
+        const groupStageStandings = allStandings.filter(s => s.groupNumber < 100);
+        const groupStageMatches = allMatches.filter(m => m.round === 1 && m.groupNumber && m.groupNumber < 100);
+        const unfinishedGroupMatches = groupStageMatches.filter(m => m.status !== "FINISHED");
+        if (unfinishedGroupMatches.length > 0) {
+          return res.status(400).json({ message: `Complete all group stage matches first (${unfinishedGroupMatches.length} remaining)` });
+        }
+
+        const advancePerGroup = cat.advancePerGroup || 2;
+        const groupKeys = Array.from(new Set(groupStageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
+        const qualifiers: number[] = [];
+        for (const gNum of groupKeys) {
+          const gStandings = sortStandings(groupStageStandings.filter(s => s.groupNumber === gNum));
+          gStandings.slice(0, advancePerGroup).forEach(s => qualifiers.push(s.teamId));
+        }
+        if (qualifiers.length < 4) return res.status(400).json({ message: "Not enough qualifiers for quarter-finals" });
+
+        const numQFGroups = Math.max(2, Math.min(Math.floor(qualifiers.length / 2), 4));
+        const qfGroups: number[][] = Array.from({ length: numQFGroups }, () => []);
+        const shuffled = [...qualifiers];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        shuffled.forEach((tid, i) => qfGroups[i % numQFGroups].push(tid));
 
         let matchIdx = allMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1) + 1;
-        for (let i = 0; i < qualifiers.length; i++) {
-          for (let j = i + 1; j < qualifiers.length; j++) {
-            await db.insert(tournamentMatches).values({
-              categoryId: catId,
-              teamAId: qualifiers[i],
-              teamBId: qualifiers[j],
-              round: 100,
-              matchOrder: matchIdx++,
-              groupNumber: 100,
-              subGroupNumber: 1,
-            });
+        for (let g = 0; g < qfGroups.length; g++) {
+          const qfGNum = 200 + g + 1;
+          const gTeams = qfGroups[g];
+          for (let i = 0; i < gTeams.length; i++) {
+            for (let j = i + 1; j < gTeams.length; j++) {
+              await db.insert(tournamentMatches).values({
+                categoryId: catId, teamAId: gTeams[i], teamBId: gTeams[j],
+                round: 200, matchOrder: matchIdx++, groupNumber: qfGNum, subGroupNumber: 1,
+              });
+            }
+          }
+          for (const teamId of gTeams) {
+            await db.insert(tournamentStandings).values({ categoryId: catId, teamId, groupNumber: qfGNum, subGroupNumber: 1 });
           }
         }
-
-        for (const teamId of qualifiers) {
-          await db.insert(tournamentStandings).values({
-            categoryId: catId,
-            teamId,
-            groupNumber: 100,
-            subGroupNumber: 1,
-          });
-        }
-
-        return res.json({ message: "Semi-finals generated", qualifiers: qualifiers.length });
+        return res.json({ message: "Quarter-finals generated", qualifiers: qualifiers.length, groups: numQFGroups });
       }
 
       const allMatches = await db.select().from(tournamentMatches)

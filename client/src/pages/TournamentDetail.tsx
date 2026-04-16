@@ -2073,9 +2073,11 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
 
   const matches = matchList || [];
   const groupMatches = matches.filter(m => m.groupNumber && m.groupNumber < 100);
-  const semiMatches = matches.filter(m => m.groupNumber === 100);
-  const finalMatches = matches.filter(m => m.round === 200);
-  const knockoutMatches = matches.filter(m => (!m.groupNumber || m.round >= 100) && m.round !== 200 && m.groupNumber !== 100);
+  const qfMatches = matches.filter(m => m.round === 200);
+  const semiMatches = matches.filter(m => m.round === 300);
+  const finalMatches = matches.filter(m => m.round === 400);
+  const knockoutMatches = matches.filter(m => m.round >= 200);
+  const hasQF = qfMatches.length > 0;
   const hasSemiFinals = semiMatches.length > 0;
   const hasFinal = finalMatches.length > 0;
 
@@ -2138,7 +2140,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 <span className="relative flex items-center gap-2">
                   {isAdvancing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <GitBranch className="h-3.5 w-3.5 drop-shadow-[0_0_4px_rgba(245,158,11,0.6)]" />}
                   {category.format === "GROUP_KNOCKOUT"
-                    ? (hasSemiFinals ? "Generate Final" : "Generate Semi-Finals")
+                    ? (hasSemiFinals ? "Generate Final" : hasQF ? "Generate Semi-Finals" : "Generate Quarter-Finals")
                     : "Advance Winners"}
                 </span>
               </button>
@@ -2215,17 +2217,44 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 }
               }
 
-              const semiDisplayMatches = displayMatches.filter(m => m.groupNumber === 100);
+              const qfDisplayMatches = displayMatches.filter(m => m.round === 200);
+              if (qfDisplayMatches.length > 0) {
+                const qfGroupMap = new Map<number, typeof qfDisplayMatches>();
+                qfDisplayMatches.forEach(m => {
+                  const g = m.groupNumber || 200;
+                  if (!qfGroupMap.has(g)) qfGroupMap.set(g, []);
+                  qfGroupMap.get(g)!.push(m);
+                });
+                const qfGroupKeys = Array.from(qfGroupMap.keys()).sort((a, b) => a - b);
+                qfGroupKeys.forEach((gNum, idx) => {
+                  const label = qfGroupKeys.length > 1 ? `Quarter-Finals · Group ${String.fromCharCode(65 + idx)}` : "Quarter-Finals";
+                  sections.push({ key: `qf-${gNum}`, label, color: "amber", matches: qfGroupMap.get(gNum)!, groupNumber: gNum, subGroupNumber: 1 });
+                });
+              }
+
+              const semiDisplayMatches = displayMatches.filter(m => m.round === 300);
               if (semiDisplayMatches.length > 0) {
-                sections.push({ key: "semi-finals", label: "Semi-Finals", color: "amber", matches: semiDisplayMatches, groupNumber: 100, subGroupNumber: 1 });
+                const semiGroupMap = new Map<number, typeof semiDisplayMatches>();
+                semiDisplayMatches.forEach(m => {
+                  const g = m.groupNumber || 300;
+                  if (!semiGroupMap.has(g)) semiGroupMap.set(g, []);
+                  semiGroupMap.get(g)!.push(m);
+                });
+                const semiGroupKeys = Array.from(semiGroupMap.keys()).sort((a, b) => a - b);
+                semiGroupKeys.forEach((gNum, idx) => {
+                  const label = semiGroupKeys.length > 1 ? `Semi-Finals · Group ${String.fromCharCode(65 + idx)}` : "Semi-Finals";
+                  sections.push({ key: `semi-${gNum}`, label, color: "amber", matches: semiGroupMap.get(gNum)!, groupNumber: gNum, subGroupNumber: 1 });
+                });
               }
 
-              const finalDisplayMatches = displayMatches.filter(m => m.round === 200);
+              const finalDisplayMatches = displayMatches.filter(m => m.round === 400);
               if (finalDisplayMatches.length > 0) {
-                sections.push({ key: "final", label: "Final", color: "amber", matches: finalDisplayMatches });
+                sections.push({ key: "final", label: "Final", color: "amber", matches: finalDisplayMatches, groupNumber: 400 });
               }
 
-              const otherKoMatches = displayMatches.filter(m => (!m.groupNumber || m.round >= 100) && m.groupNumber !== 100 && m.round !== 200);
+              const otherKoMatches = displayMatches.filter(m =>
+                m.round >= 100 && m.round !== 200 && m.round !== 300 && m.round !== 400 && (!m.groupNumber || m.groupNumber >= 100)
+              );
               if (otherKoMatches.length > 0) {
                 const koRoundMap = new Map<number, typeof otherKoMatches>();
                 otherKoMatches.forEach(m => {
@@ -2628,8 +2657,44 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
   const advancePerGroup = category.advancePerGroup || 1;
 
   const groupStageStandings = standings.filter(s => s.groupNumber < 100);
-  const semiStandings = standings.filter(s => s.groupNumber === 100);
+  const qfStandings = standings.filter(s => s.groupNumber >= 200 && s.groupNumber < 300);
+  const semiStandings = standings.filter(s => s.groupNumber >= 300 && s.groupNumber < 400);
+  const finalStandings = standings.filter(s => s.groupNumber >= 400);
   const groupStageNumbers = Array.from(new Set(groupStageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
+
+  const sortFn = (a: any, b: any) => {
+    if (b.points !== a.points) return b.points - a.points;
+    const diffA = a.pointsFor - a.pointsAgainst;
+    const diffB = b.pointsFor - b.pointsAgainst;
+    if (diffB !== diffA) return diffB - diffA;
+    if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
+    return a.gamesLost - b.gamesLost;
+  };
+
+  const renderStageSection = (stageStandings: any[], stageLabel: string, colorFrom: string, colorTo: string, badgeColor: string, advCount: number) => {
+    const stageGroupNums = Array.from(new Set(stageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
+    return stageGroupNums.map((gNum, idx) => {
+      const gStandings = stageStandings.filter(s => s.groupNumber === gNum).sort(sortFn);
+      const groupLabel = stageGroupNums.length > 1 ? `${stageLabel} · Group ${String.fromCharCode(65 + idx)}` : stageLabel;
+      return (
+        <div key={`stage-${gNum}`} className="relative rounded-2xl overflow-hidden">
+          <div className={`absolute -inset-[1px] rounded-2xl bg-gradient-to-br ${colorFrom} via-purple-500/20 to-slate-800/40 blur-[0.5px]`} />
+          <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
+            <div className={`bg-gradient-to-r ${colorTo} via-transparent to-transparent px-4 py-3 border-b border-border/30`}>
+              <div className="flex items-center gap-2">
+                <div className={`h-6 w-6 rounded-lg bg-gradient-to-br ${colorFrom.replace('/40', '')} flex items-center justify-center`}>
+                  <Trophy className="h-3 w-3 text-white" />
+                </div>
+                <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{groupLabel}</h4>
+                <Badge className={`${badgeColor} text-[9px] font-black ml-auto`}>{gStandings.length} Teams</Badge>
+              </div>
+            </div>
+            {renderStandingsTable(gStandings, advCount)}
+          </div>
+        </div>
+      );
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -2657,14 +2722,7 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
                   {subGroupNumbers.map(sgNum => {
                     const sgStandings = groupStandings
                       .filter(s => (s.subGroupNumber || 1) === sgNum)
-                      .sort((a, b) => {
-                        if (b.points !== a.points) return b.points - a.points;
-                        const diffA = a.pointsFor - a.pointsAgainst;
-                        const diffB = b.pointsFor - b.pointsAgainst;
-                        if (diffB !== diffA) return diffB - diffA;
-                        if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
-                        return a.gamesLost - b.gamesLost;
-                      });
+                      .sort(sortFn);
                     return (
                       <div key={sgNum}>
                         <div className="bg-cyan-500/5 px-4 py-2 border-b border-border/20">
@@ -2681,49 +2739,32 @@ function StandingsView({ standings, teams, category }: { standings: any[]; teams
                   })}
                 </div>
               ) : (
-                renderStandingsTable(
-                  groupStandings.sort((a, b) => {
-                    if (b.points !== a.points) return b.points - a.points;
-                    const diffA = a.pointsFor - a.pointsAgainst;
-                    const diffB = b.pointsFor - b.pointsAgainst;
-                    if (diffB !== diffA) return diffB - diffA;
-                    if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
-                    return a.gamesLost - b.gamesLost;
-                  }),
-                  advancePerGroup
-                )
+                renderStandingsTable(groupStandings.sort(sortFn), advancePerGroup)
               )}
             </div>
           </div>
         );
       })}
 
-      {semiStandings.length > 0 && (
-        <div className="relative rounded-2xl overflow-hidden">
-          <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-amber-500/40 via-orange-500/20 to-slate-800/40 blur-[0.5px]" />
-          <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
-            <div className="bg-gradient-to-r from-amber-600/10 via-orange-600/5 to-transparent px-4 py-3 border-b border-border/30">
-              <div className="flex items-center gap-2">
-                <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-                  <Trophy className="h-3 w-3 text-white" />
-                </div>
-                <h4 className="text-sm font-black text-foreground uppercase tracking-wider">Semi-Finals</h4>
-                <Badge className="bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 text-[9px] font-black ml-auto">{semiStandings.length} Teams</Badge>
-              </div>
-            </div>
-            {renderStandingsTable(
-              semiStandings.sort((a, b) => {
-                if (b.points !== a.points) return b.points - a.points;
-                const diffA = a.pointsFor - a.pointsAgainst;
-                const diffB = b.pointsFor - b.pointsAgainst;
-                if (diffB !== diffA) return diffB - diffA;
-                if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
-                return a.gamesLost - b.gamesLost;
-              }),
-              2
-            )}
-          </div>
-        </div>
+      {qfStandings.length > 0 && renderStageSection(
+        qfStandings, "Quarter-Finals",
+        "from-cyan-500/40", "from-cyan-600/10",
+        "bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30",
+        1
+      )}
+
+      {semiStandings.length > 0 && renderStageSection(
+        semiStandings, "Semi-Finals",
+        "from-amber-500/40", "from-amber-600/10",
+        "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30",
+        1
+      )}
+
+      {finalStandings.length > 0 && renderStageSection(
+        finalStandings, "Final",
+        "from-yellow-500/40", "from-yellow-600/10",
+        "bg-yellow-500/15 text-yellow-500 dark:text-yellow-400 border border-yellow-500/30",
+        1
       )}
     </div>
   );
