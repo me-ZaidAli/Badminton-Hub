@@ -151,7 +151,10 @@ export function registerMerchandiseAdminRoutes(app: Express) {
       if (filterClubIds.length === 0) return res.json([]);
 
       const products = await db.select().from(merchandiseProducts)
-        .where(inArray(merchandiseProducts.clubId, filterClubIds))
+        .where(or(
+          inArray(merchandiseProducts.clubId, filterClubIds),
+          sql`${merchandiseProducts.assignedClubIds} && ARRAY[${sql.raw(filterClubIds.map(Number).join(','))}]::integer[]`,
+        ))
         .orderBy(desc(merchandiseProducts.createdAt));
 
       const productIds = products.map(p => p.id);
