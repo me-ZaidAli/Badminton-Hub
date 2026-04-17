@@ -32631,7 +32631,10 @@ Return ONLY valid JSON in this exact format:
       const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", clubId);
       if (!allowed) return res.sendStatus(403);
       const products = await db.select().from(merchandiseProducts)
-        .where(eq(merchandiseProducts.clubId, clubId))
+        .where(or(
+          eq(merchandiseProducts.clubId, clubId),
+          sql`${merchandiseProducts.assignedClubIds} && ARRAY[${sql.raw(String(Number(clubId)))}]::integer[]`,
+        ))
         .orderBy(asc(merchandiseProducts.sortOrder), desc(merchandiseProducts.createdAt));
       res.json(products);
     } catch (err: any) {
