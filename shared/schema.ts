@@ -2915,3 +2915,52 @@ export type InsertCommunityComment = z.infer<typeof insertCommunityCommentSchema
 export const insertCommunityReviewSchema = createInsertSchema(communityReviews).omit({ id: true, createdAt: true });
 export type CommunityReview = typeof communityReviews.$inferSelect;
 export type InsertCommunityReview = z.infer<typeof insertCommunityReviewSchema>;
+
+// =====================================================
+// Debt & Payments Management
+// =====================================================
+export const debtCharges = pgTable("debt_charges", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  clubId: integer("club_id").notNull(),
+  amount: integer("amount").notNull(),
+  description: text("description").notNull(),
+  category: text("category").notNull().default("OTHER"),
+  chargeDate: timestamp("charge_date").notNull().defaultNow(),
+  createdById: integer("created_by_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const debtPayments = pgTable("debt_payments", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  clubId: integer("club_id").notNull(),
+  amount: integer("amount").notNull(),
+  method: text("method").notNull().default("CASH"),
+  paymentDate: timestamp("payment_date").notNull().defaultNow(),
+  chargeId: integer("charge_id"),
+  notes: text("notes"),
+  createdById: integer("created_by_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const playerDebtNotes = pgTable("player_debt_notes", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull(),
+  clubId: integer("club_id").notNull(),
+  note: text("note").notNull(),
+  createdById: integer("created_by_id").notNull(),
+  createdAt: timestamp("created_at").notNull().defaultNow(),
+});
+
+export const insertDebtChargeSchema = createInsertSchema(debtCharges).omit({ id: true, createdAt: true, createdById: true });
+export type DebtCharge = typeof debtCharges.$inferSelect;
+export type InsertDebtCharge = z.infer<typeof insertDebtChargeSchema>;
+
+export const insertDebtPaymentSchema = createInsertSchema(debtPayments).omit({ id: true, createdAt: true, createdById: true });
+export type DebtPayment = typeof debtPayments.$inferSelect;
+export type InsertDebtPayment = z.infer<typeof insertDebtPaymentSchema>;
+
+export const insertPlayerDebtNoteSchema = createInsertSchema(playerDebtNotes).omit({ id: true, createdAt: true, createdById: true });
+export type PlayerDebtNote = typeof playerDebtNotes.$inferSelect;
+export type InsertPlayerDebtNote = z.infer<typeof insertPlayerDebtNoteSchema>;
