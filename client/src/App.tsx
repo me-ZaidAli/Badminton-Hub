@@ -70,6 +70,7 @@ const ClubBilling = lazy(() => import("@/pages/ClubBilling"));
 const PlayerManagement = lazy(() => import("@/pages/admin/PlayerManagement"));
 const Financials = lazy(() => import("@/pages/admin/Financials"));
 const Debts = lazy(() => import("@/pages/admin/Debts"));
+const MerchandiseAdmin = lazy(() => import("@/pages/admin/MerchandiseAdmin"));
 const MembershipBoard = lazy(() => import("@/pages/admin/MembershipBoard"));
 const AdminInventory = lazy(() => import("@/pages/admin/Inventory"));
 const Memberships = lazy(() => import("@/pages/Memberships"));
@@ -617,6 +618,9 @@ function Router() {
       </Route>
       <Route path="/admin/debts">
         <NonOrganiserAdminRoute component={Debts} />
+      </Route>
+      <Route path="/admin/merchandise">
+        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><MerchandiseAdmin /></Suspense>} />
       </Route>
       <Route path="/admin/membership-board">
         <NonOrganiserAdminRoute component={MembershipBoard} />

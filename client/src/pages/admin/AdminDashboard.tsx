@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle } from "lucide-react";
+import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle, ShoppingBag } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -403,6 +403,7 @@ export default function AdminDashboard() {
     ...(!isOrganiserOnly ? [{ href: "/admin/inactive-members", label: "Inactive Members", description: "Re-engage or manage inactive players", icon: Users, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/import-members", label: "Import Members", description: "Bulk upload members via CSV", icon: Upload, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/tshirts", label: "T-Shirt Manager", description: "Manage club t-shirts, requests, and batch orders", icon: Shirt, color: "text-blue-500", bg: "bg-blue-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/merchandise", label: "Merchandise Manager", description: "Products, orders, stock, and payments", icon: ShoppingBag, color: "text-violet-500", bg: "bg-violet-500/10" }] : []),
   ];
 
   const financeSections: AdminTile[] = [

@@ -2729,6 +2729,10 @@ export const merchandiseProducts = pgTable("merchandise_products", {
   status: merchandiseProductStatusEnum("status").default("active").notNull(),
   isFeatured: boolean("is_featured").default(false).notNull(),
   sortOrder: integer("sort_order").default(0),
+  stock: integer("stock").default(0).notNull(),
+  lowStockThreshold: integer("low_stock_threshold").default(5).notNull(),
+  variations: jsonb("variations").default([]).notNull(),
+  assignedClubIds: integer("assigned_club_ids").array().default([]).notNull(),
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
@@ -2749,10 +2753,27 @@ export const merchandiseOrderItems = pgTable("merchandise_order_items", {
   notes: text("notes"),
   status: merchandiseOrderStatusEnum("merchandise_order_status").default("pending").notNull(),
   adminNotes: text("admin_notes"),
+  paymentStatus: text("payment_status").default("Unpaid").notNull(),
+  unitPrice: integer("unit_price"),
+  viewedByAdminAt: timestamp("viewed_by_admin_at"),
+  stockDeducted: boolean("stock_deducted").default(false).notNull(),
+  variationLabel: text("variation_label"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 export type MerchandiseOrderItem = typeof merchandiseOrderItems.$inferSelect;
+
+export const merchandiseOrderHistory = pgTable("merchandise_order_history", {
+  id: serial("id").primaryKey(),
+  orderId: integer("order_id").references(() => merchandiseOrderItems.id, { onDelete: "cascade" }).notNull(),
+  fromStatus: text("from_status"),
+  toStatus: text("to_status").notNull(),
+  paymentChange: text("payment_change"),
+  changedById: integer("changed_by_id").references(() => users.id),
+  note: text("note"),
+  changedAt: timestamp("changed_at").defaultNow().notNull(),
+});
+export type MerchandiseOrderHistory = typeof merchandiseOrderHistory.$inferSelect;
 
 export const teamEvents = pgTable("team_events", {
   id: serial("id").primaryKey(),

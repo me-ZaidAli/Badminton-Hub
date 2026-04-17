@@ -23,6 +23,7 @@ import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, remove
 import { registerTournamentRoutes } from "./tournamentRoutes";
 import { registerCommunityRoutes } from "./communityRoutes";
 import { registerDebtRoutes } from "./debtRoutes";
+import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -15737,6 +15738,17 @@ export async function registerRoutes(
         ));
       myOutstandingPayments = myOutstandingResult[0]?.count || 0;
 
+      // New (unviewed) merchandise orders for admins
+      let merchandiseNewOrders = 0;
+      if (isOwner || adminClubIds.length > 0) {
+        const merchFilter = isOwner
+          ? sql`${merchandiseOrderItems.viewedByAdminAt} IS NULL`
+          : and(sql`${merchandiseOrderItems.viewedByAdminAt} IS NULL`, inArray(merchandiseOrderItems.clubId, adminClubIds));
+        const merchResult = await db.select({ count: sql<number>`count(*)::int` })
+          .from(merchandiseOrderItems).where(merchFilter!);
+        merchandiseNewOrders = merchResult[0]?.count || 0;
+      }
+
       res.json({
         notifications: notificationsCount,
         tickets: ticketsCount,
@@ -15750,10 +15762,11 @@ export async function registerRoutes(
         outstandingPayments,
         myOutstandingPayments,
         pendingReferrals,
+        merchandiseNewOrders,
       });
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
-      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0 });
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0, merchandiseNewOrders: 0 });
     }
   });
 
@@ -29721,6 +29734,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   registerTournamentRoutes(app);
   registerCommunityRoutes(app);
   registerDebtRoutes(app);
+  registerMerchandiseAdminRoutes(app);
 
   // === INCIDENT REPORTS ===
   const incidentUploadsDir = path.join(process.cwd(), "public", "uploads", "incidents");
@@ -32739,6 +32753,10 @@ Return ONLY valid JSON in this exact format:
         .where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, product.clubId), eq(playerProfiles.membershipStatus, "APPROVED")))
         .limit(1);
       if (memberCheck.length === 0) return res.status(403).json({ message: "You must be a member of this club to order" });
+      const qty = body.quantity || 1;
+      if ((product.stock ?? 0) <= 0) return res.status(400).json({ message: "Out of stock" });
+      if ((product.stock ?? 0) < qty) return res.status(400).json({ message: `Only ${product.stock} left in stock` });
+      const variationLabelParts = [body.size, body.gender, body.style].filter(Boolean);
       const [order] = await db.insert(merchandiseOrderItems).values({
         clubId: product.clubId,
         productId: body.productId,
@@ -32746,8 +32764,10 @@ Return ONLY valid JSON in this exact format:
         size: body.size || null,
         gender: body.gender || null,
         style: body.style || null,
-        quantity: body.quantity || 1,
+        quantity: qty,
         notes: body.notes || null,
+        unitPrice: product.price ?? 0,
+        variationLabel: variationLabelParts.length ? variationLabelParts.join(" / ") : null,
       }).returning();
       res.json(order);
     } catch (err: any) {
