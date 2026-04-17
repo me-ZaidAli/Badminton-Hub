@@ -1,0 +1,159 @@
+Create a Debt & Payments Management Section inside my existing badminton app.
+
+This section must be fully functional, production-ready, and only accessible based on user roles.
+
+USER ROLES & ACCESS CONTROL
+GOD MODE (Super Admin)
+Can see and manage all clubs and all users across the platform
+Full control over all debts, payments, and financial records
+Admin (Club Level)
+Can ONLY see and manage users within their assigned club(s)
+Cannot access or modify other clubs
+Regular Users
+No access to this section
+
+Implement strict role-based access control in both UI and backend.
+
+CORE FEATURES
+1. Dashboard Overview (Top Section)
+
+Display summary cards:
+
+Total Outstanding Debt (£)
+Total Collected This Month (£)
+Total Overdue Payments (£)
+Number of Players with Debt
+Average Debt per Player
+
+Include:
+
+Date filter (This week / Month / Custom range)
+Club filter (visible only to GOD MODE)
+2. Player Debt Table (Main Section)
+
+Create a modern, clean table UI with:
+
+Columns:
+
+Player Name
+Club
+Total Owed (£)
+Overdue Amount (£)
+Last Payment Date
+Status (Paid / Partial / Overdue)
+Actions
+
+Features:
+
+Search by name
+Filter by:
+Club
+Status
+Debt range
+Sort by any column
+Pagination
+3. Player Financial Profile (Click Row)
+
+When clicking a player, open a side panel or modal showing:
+
+Full payment history
+List of all charges (sessions, memberships, etc.)
+Outstanding balance
+Notes / comments from admin
+ADMIN ACTIONS (FULLY FUNCTIONAL BUTTONS)
+
+Each action must be connected to backend logic (no dummy buttons):
+
+Add Charge
+Add custom charge:
+Amount
+Description
+Category (Session / Membership / Other)
+Date
+Record Payment
+Log payment:
+Amount
+Payment method (Cash / Bank Transfer / Other)
+Date
+Automatically update outstanding balance
+Edit Charge / Payment
+Allow editing existing entries
+Delete Charge / Payment
+With confirmation modal
+Mark as Paid
+Clears outstanding balance (with confirmation)
+Add Note
+Internal admin notes per player
+BULK ACTIONS (IMPORTANT)
+Select multiple players
+Apply:
+Add charge
+Mark as paid
+Send reminder (prepare backend hook, no need for messaging integration yet)
+STATUS SYSTEM
+
+Automatically calculate and display:
+
+Paid → £0 balance
+Partial → some balance remaining
+Overdue → unpaid after X days (configurable, default 7 or 14 days)
+UI / DESIGN REQUIREMENTS
+Modern dashboard style (dark mode compatible)
+Clean spacing, no clutter
+Card-based layout for summary
+Smooth transitions (modals / side panels)
+Clear visual hierarchy
+
+Use:
+
+Tabs or sections:
+Overview
+Players
+Transactions
+DATA STRUCTURE (IMPORTANT)
+
+Create proper backend models:
+
+Users
+Clubs
+Charges
+Payments
+Notes
+
+Each charge/payment must:
+
+Be linked to a user
+Be linked to a club
+Have timestamps
+
+Ensure:
+
+Accurate balance calculation
+No duplicate or inconsistent states
+PERMISSIONS LOGIC
+GOD MODE → full access to all data
+Admin → restricted to their club
+Enforce this on:
+API level
+UI level
+EXTRA (HIGH VALUE FEATURES)
+
+Add if possible:
+
+Export to CSV (filtered data)
+Payment history timeline view
+Highlight high-debt players visually
+Quick “Add Payment” button directly from table
+IMPORTANT RULES
+Do NOT create placeholder buttons
+Do NOT include features that are not functional
+Every action must update the database correctly
+UI must reflect real-time changes immediately
+GOAL
+
+This section should feel like a professional financial admin tool, allowing me to:
+
+Track all player debts
+Manage payments easily
+Control finances across multiple clubs
+Operate efficiently as a super admin
