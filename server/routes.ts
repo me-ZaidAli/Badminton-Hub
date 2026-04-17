@@ -32610,7 +32610,13 @@ Return ONLY valid JSON in this exact format:
       const clubIds = profiles.map(p => p.clubId);
       if (clubIds.length === 0) return res.json([]);
       const products = await db.select().from(merchandiseProducts)
-        .where(and(inArray(merchandiseProducts.clubId, clubIds), eq(merchandiseProducts.status, "active")))
+        .where(and(
+          eq(merchandiseProducts.status, "active"),
+          or(
+            inArray(merchandiseProducts.clubId, clubIds),
+            sql`${merchandiseProducts.assignedClubIds} && ARRAY[${sql.raw(clubIds.map(Number).join(','))}]::integer[]`,
+          ),
+        ))
         .orderBy(asc(merchandiseProducts.sortOrder), desc(merchandiseProducts.createdAt));
       res.json(products);
     } catch (err: any) {
