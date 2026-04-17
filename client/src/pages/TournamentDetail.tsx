@@ -3342,6 +3342,8 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const [formHallName, setFormHallName] = useState("");
   const [formCourtName, setFormCourtName] = useState("");
   const [formCategoryId, setFormCategoryId] = useState<string>("");
+  const [bulkGroupTime, setBulkGroupTime] = useState("");
+  const [perGroupTime, setPerGroupTime] = useState<Record<number, string>>({});
 
   const activeCatId = formCategoryId ? Number(formCategoryId) : (categories.length > 0 ? categories[0].id : 0);
   const { data: allTeams = [] } = useTournamentTeams(activeCatId);
@@ -3520,9 +3522,6 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
       </DialogContent>
     </Dialog>
   );
-
-  const [bulkGroupTime, setBulkGroupTime] = useState("");
-  const [perGroupTime, setPerGroupTime] = useState<Record<number, string>>({});
 
   async function applyBulkGroupTime() {
     if (!bulkGroupTime) return;
