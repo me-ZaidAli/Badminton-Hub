@@ -2600,7 +2600,7 @@ export default function Profile() {
 
       {/* STATS BAR */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3">
-        <MetricCard icon={Wallet} label="Credit Balance" value={`${totalCredits < 0 ? "-" : ""}£${(Math.abs(totalCredits) / 100).toFixed(2)}`}
+        <MetricCard icon={Wallet} label="Credit Balance" value={`£${(Math.max(0, totalCredits) / 100).toFixed(2)}`}
           subtext={creditBalances && creditBalances.length > 0 ? `Across ${creditBalances.length} club${creditBalances.length > 1 ? "s" : ""}` : "No credits yet"}
           onClick={() => setCreditsModalOpen(true)} />
         <MetricCard icon={AlertCircle} label="Outstanding" value={`£${(totalOutstanding / 100).toFixed(2)}`}

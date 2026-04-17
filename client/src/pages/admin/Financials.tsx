@@ -2182,13 +2182,21 @@ export default function Financials() {
         <div className="flex items-center gap-1">
           {(() => {
             const bal = getCreditBalance(entry.playerUserId, entry.clubId);
-            return bal > 0 ? (
-              <span className="font-semibold text-green-400" data-testid={`text-credit-balance-${entry.signupId}`}>
-                {"\u00A3"}{formatPounds(bal)}
-              </span>
-            ) : (
-              <span className="text-muted-foreground text-sm" data-testid={`text-credit-balance-${entry.signupId}`}>-</span>
-            );
+            if (bal > 0) {
+              return (
+                <span className="font-semibold text-green-400" data-testid={`text-credit-balance-${entry.signupId}`}>
+                  {"\u00A3"}{formatPounds(bal)}
+                </span>
+              );
+            }
+            if (bal < 0) {
+              return (
+                <span className="font-semibold text-red-500" data-testid={`text-credit-balance-${entry.signupId}`} title="Negative wallet balance — click reset icon to clear">
+                  -{"\u00A3"}{formatPounds(Math.abs(bal))}
+                </span>
+              );
+            }
+            return <span className="text-muted-foreground text-sm" data-testid={`text-credit-balance-${entry.signupId}`}>-</span>;
           })()}
           <Button
             size="icon"
