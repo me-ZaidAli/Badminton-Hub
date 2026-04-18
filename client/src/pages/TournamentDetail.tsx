@@ -2055,9 +2055,10 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const addGroupMatchMutation = useAddGroupMatch();
   const { toast } = useToast();
   const [scoreDialog, setScoreDialog] = useState<any>(null);
-  const [addMatchDialog, setAddMatchDialog] = useState<{ groupNumber: number; subGroupNumber: number } | null>(null);
+  const [addMatchDialog, setAddMatchDialog] = useState<{ groupNumber?: number; subGroupNumber?: number } | null>(null);
   const [addMatchTeamA, setAddMatchTeamA] = useState<number | "">("");
   const [addMatchTeamB, setAddMatchTeamB] = useState<number | "">("");
+  const [addMatchGroupNumber, setAddMatchGroupNumber] = useState<number | "">("");
 
   const handleAssignCourt = (matchId: number, courtId: number | null) => {
     assignCourtMutation.mutate({ matchId, courtId }, {
@@ -2177,6 +2178,28 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 Clear All Matches
               </span>
             </button>
+            {(category.format === "GROUP_KNOCKOUT" || category.format === "ROUND_ROBIN") && (
+              <button
+                onClick={() => {
+                  setAddMatchTeamA("");
+                  setAddMatchTeamB("");
+                  setAddMatchGroupNumber("");
+                  setAddMatchDialog({});
+                }}
+                className={cn(
+                  "group relative px-4 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300",
+                  "bg-slate-900/80 border border-cyan-500/40 text-cyan-300",
+                  "hover:shadow-[0_0_25px_rgba(6,182,212,0.25)] hover:border-cyan-400/70",
+                  "hover:scale-[1.02] active:scale-[0.98]",
+                )}
+                data-testid="button-add-match-manual"
+              >
+                <span className="relative flex items-center gap-2">
+                  <Plus className="h-3.5 w-3.5" />
+                  Add Match Manually
+                </span>
+              </button>
+            )}
             {teams && teams.length > 0 && (
               <span className="text-[10px] font-bold text-slate-500 ml-auto">{teams.length} teams ready</span>
             )}
@@ -2429,36 +2452,62 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
         <Dialog open={!!addMatchDialog} onOpenChange={(o) => !o && setAddMatchDialog(null)}>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>Add Group Match</DialogTitle>
+              <DialogTitle>Add Match</DialogTitle>
               <DialogDescription>
-                Add a match to Group {String.fromCharCode(64 + addMatchDialog.groupNumber)}
+                Pick a group and the two pairs that will play.
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4">
               {(() => {
-                const groupTeams = (teams || []).filter(t =>
-                  t.groupNumber === addMatchDialog.groupNumber &&
-                  (!t.subGroupNumber || t.subGroupNumber === addMatchDialog.subGroupNumber)
-                );
+                const presetGroup = addMatchDialog.groupNumber;
+                const effectiveGroupNumber: number | "" = presetGroup ?? addMatchGroupNumber;
+                const effectiveSubGroup = addMatchDialog.subGroupNumber ?? 1;
+                const allCategoryTeams = (teams || []) as any[];
                 return (
                   <>
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Team A</label>
-                      <Select value={String(addMatchTeamA)} onValueChange={v => setAddMatchTeamA(Number(v))}>
-                        <SelectTrigger data-testid="select-add-match-team-a"><SelectValue placeholder="Select team" /></SelectTrigger>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Group</label>
+                      <Select
+                        value={effectiveGroupNumber === "" ? "" : String(effectiveGroupNumber)}
+                        onValueChange={v => setAddMatchGroupNumber(Number(v))}
+                        disabled={!!presetGroup}
+                      >
+                        <SelectTrigger data-testid="select-add-match-group">
+                          <SelectValue placeholder={categoryGroups.length === 0 ? "No groups — create one first" : "Select group"} />
+                        </SelectTrigger>
                         <SelectContent>
-                          {groupTeams.filter(t => t.id !== addMatchTeamB).map(t => (
+                          {categoryGroups.length === 0 ? (
+                            <SelectItem value="1">Group A</SelectItem>
+                          ) : (
+                            (categoryGroups as any[])
+                              .slice()
+                              .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0))
+                              .map((g: any) => (
+                                <SelectItem key={g.id} value={String(g.groupOrder)}>
+                                  {g.name || `Group ${String.fromCharCode(64 + (g.groupOrder ?? 1))}`}
+                                </SelectItem>
+                              ))
+                          )}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pair A</label>
+                      <Select value={addMatchTeamA === "" ? "" : String(addMatchTeamA)} onValueChange={v => setAddMatchTeamA(Number(v))}>
+                        <SelectTrigger data-testid="select-add-match-team-a"><SelectValue placeholder="Select pair" /></SelectTrigger>
+                        <SelectContent>
+                          {allCategoryTeams.filter(t => t.id !== addMatchTeamB).map(t => (
                             <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
-                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Team B</label>
-                      <Select value={String(addMatchTeamB)} onValueChange={v => setAddMatchTeamB(Number(v))}>
-                        <SelectTrigger data-testid="select-add-match-team-b"><SelectValue placeholder="Select team" /></SelectTrigger>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pair B</label>
+                      <Select value={addMatchTeamB === "" ? "" : String(addMatchTeamB)} onValueChange={v => setAddMatchTeamB(Number(v))}>
+                        <SelectTrigger data-testid="select-add-match-team-b"><SelectValue placeholder="Select pair" /></SelectTrigger>
                         <SelectContent>
-                          {groupTeams.filter(t => t.id !== addMatchTeamA).map(t => (
+                          {allCategoryTeams.filter(t => t.id !== addMatchTeamA).map(t => (
                             <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
                           ))}
                         </SelectContent>
@@ -2471,15 +2520,23 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
             <DialogFooter>
               <Button variant="outline" onClick={() => setAddMatchDialog(null)} data-testid="button-cancel-add-match">Cancel</Button>
               <Button
-                disabled={!addMatchTeamA || !addMatchTeamB || addGroupMatchMutation.isPending}
+                disabled={
+                  !addMatchTeamA ||
+                  !addMatchTeamB ||
+                  (!addMatchDialog.groupNumber && !addMatchGroupNumber) ||
+                  addGroupMatchMutation.isPending
+                }
                 onClick={() => {
                   if (!addMatchTeamA || !addMatchTeamB) return;
+                  const gNum = addMatchDialog.groupNumber ?? (addMatchGroupNumber as number);
+                  const sgNum = addMatchDialog.subGroupNumber ?? 1;
+                  if (!gNum) return;
                   addGroupMatchMutation.mutate({
                     categoryId: category.id,
                     teamAId: addMatchTeamA as number,
                     teamBId: addMatchTeamB as number,
-                    groupNumber: addMatchDialog.groupNumber,
-                    subGroupNumber: addMatchDialog.subGroupNumber,
+                    groupNumber: gNum,
+                    subGroupNumber: sgNum,
                   }, {
                     onSuccess: () => {
                       toast({ title: "Match Added" });
