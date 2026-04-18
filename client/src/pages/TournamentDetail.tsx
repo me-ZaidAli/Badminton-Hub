@@ -2463,19 +2463,38 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 const effectiveGroupNumber: number | "" = presetGroup ?? addMatchGroupNumber;
                 const effectiveSubGroup = addMatchDialog.subGroupNumber ?? 1;
                 const allCategoryTeams = (teams || []) as any[];
-                // Resolve selected group → its assigned team IDs (from the Groups tab membership)
+                // Build a user-pair lookup so we can resolve pair-request group entries to a team in this category.
+                const teamIdByUserKey = new Map<string, number>();
+                for (const t of allCategoryTeams) {
+                  const u1 = t.player1?.user?.id;
+                  const u2 = t.player2?.user?.id;
+                  if (u1 && u2) {
+                    const key = [Math.min(u1, u2), Math.max(u1, u2)].join("-");
+                    teamIdByUserKey.set(key, t.id);
+                  }
+                }
+                // Resolve selected group → its assigned team IDs (covers both teamId and pairRequestId entries)
                 const selectedGroup = (allGroups as any[])
                   .slice()
                   .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0))
                   .find((g: any) => g.groupOrder === effectiveGroupNumber);
-                const groupTeamIds = new Set<number>(
-                  (selectedGroup?.pairs || [])
-                    .map((p: any) => p.teamId)
-                    .filter((x: any): x is number => typeof x === "number")
-                );
+                const groupTeamIds = new Set<number>();
+                for (const p of (selectedGroup?.pairs || [])) {
+                  if (typeof p.teamId === "number") {
+                    groupTeamIds.add(p.teamId);
+                  } else if (p.pairRequest) {
+                    const u1 = p.pairRequest.fromUserId;
+                    const u2 = p.pairRequest.toUserId;
+                    if (u1 && u2) {
+                      const key = [Math.min(u1, u2), Math.max(u1, u2)].join("-");
+                      const tid = teamIdByUserKey.get(key);
+                      if (tid) groupTeamIds.add(tid);
+                    }
+                  }
+                }
                 const pairOptions = effectiveGroupNumber !== "" && groupTeamIds.size > 0
                   ? allCategoryTeams.filter(t => groupTeamIds.has(t.id))
-                  : allCategoryTeams;
+                  : (effectiveGroupNumber !== "" ? [] : allCategoryTeams);
                 return (
                   <>
                     <div>
