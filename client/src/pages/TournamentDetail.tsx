@@ -2473,13 +2473,13 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                         disabled={!!presetGroup}
                       >
                         <SelectTrigger data-testid="select-add-match-group">
-                          <SelectValue placeholder={categoryGroups.length === 0 ? "No groups — create one first" : "Select group"} />
+                          <SelectValue placeholder={(allGroups as any[]).length === 0 ? "No groups — create one first" : "Select group"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {categoryGroups.length === 0 ? (
+                          {(allGroups as any[]).length === 0 ? (
                             <SelectItem value="1">Group A</SelectItem>
                           ) : (
-                            (categoryGroups as any[])
+                            (allGroups as any[])
                               .slice()
                               .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0))
                               .map((g: any) => (
