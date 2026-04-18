@@ -3362,6 +3362,57 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         prUsers.forEach(u => { prUserMap[u.id] = u.fullName; });
       }
 
+      // SELF-HEAL: for any group_pair that only references a pairRequest, try to find an
+      // existing team in the same category whose two players match the pair-request's two users,
+      // and back-fill the teamId. This keeps standings (which key by teamId) in sync with the groups.
+      const groupPairsNeedingTeamId = pairs.filter(p => !p.teamId && p.pairRequestId);
+      if (groupPairsNeedingTeamId.length > 0) {
+        const categoryIds = [...new Set(groups.map(g => g.categoryId).filter(Boolean))] as number[];
+        if (categoryIds.length > 0) {
+          const allCategoryTeams = await db.select().from(tournamentTeams).where(inArray(tournamentTeams.categoryId, categoryIds));
+          const allTeamProfileIds = [...new Set(allCategoryTeams.flatMap(t => [t.player1Id, t.player2Id].filter(Boolean)))] as number[];
+          const teamProfiles = allTeamProfileIds.length > 0
+            ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, allTeamProfileIds))
+            : [];
+          const profileToUser: Record<number, number> = {};
+          for (const pp of teamProfiles) profileToUser[pp.id] = pp.userId;
+
+          const groupIdToCategoryId = new Map(groups.map(g => [g.id, g.categoryId]));
+
+          for (const gp of groupPairsNeedingTeamId) {
+            const pr = pairRequests.find(r => r.id === gp.pairRequestId);
+            if (!pr) continue;
+            const wanted = new Set([pr.fromUserId, pr.toUserId].filter(Boolean));
+            if (wanted.size < 2) continue;
+            const targetCatId = groupIdToCategoryId.get(gp.groupId);
+            const match = allCategoryTeams.find(t => {
+              if (t.categoryId !== targetCatId) return false;
+              const u1 = profileToUser[t.player1Id];
+              const u2 = t.player2Id ? profileToUser[t.player2Id] : null;
+              return u1 && u2 && wanted.has(u1) && wanted.has(u2);
+            });
+            if (match) {
+              await db.update(tournamentGroupPairs).set({ teamId: match.id }).where(eq(tournamentGroupPairs.id, gp.id));
+              gp.teamId = match.id;
+              if (!teams.some(t => t.id === match.id)) teams.push(match);
+            }
+          }
+
+          // Re-resolve profile names for any newly added teams.
+          const newProfileIds = teams.flatMap(t => [t.player1Id, t.player2Id].filter(Boolean)).filter(id => !(id in profileMap)) as number[];
+          if (newProfileIds.length > 0) {
+            const extraProfiles = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId })
+              .from(playerProfiles).where(inArray(playerProfiles.id, newProfileIds));
+            const extraUserIds = extraProfiles.map(p => p.userId).filter(uid => !(uid in userMap));
+            if (extraUserIds.length > 0) {
+              const extraUsers = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, extraUserIds));
+              extraUsers.forEach(u => { userMap[u.id] = u.fullName; });
+            }
+            extraProfiles.forEach(p => { profileMap[p.id] = userMap[p.userId] || "Unknown"; });
+          }
+        }
+      }
+
       let venueIds = [...new Set(groups.map(g => g.venueId).filter(Boolean))] as number[];
       let venueMap: Record<number, any> = {};
       if (venueIds.length > 0) {

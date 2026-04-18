@@ -2918,16 +2918,23 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
 
     return (grp.pairs || []).map((p: any, pi: number) => {
       const key = pairKey(p);
+      // Always render pair names with " & " for visual consistency, regardless of source.
+      const formatPair = (a?: string | null, b?: string | null) => [a, b].filter(Boolean).join(" & ");
       let displayName = "Unknown Pair";
       if (p.teamId) {
         const team = teamMap.get(p.teamId);
-        displayName = team
-          ? getTeamName(team)
-          : (p.team
-            ? [p.team.player1Name, p.team.player2Name].filter(Boolean).join(" / ")
-            : `Team #${p.teamId}`);
+        if (team) {
+          displayName = formatPair(
+            team.player1?.user?.fullName,
+            team.player2?.user?.fullName,
+          ) || getTeamName(team);
+        } else if (p.team) {
+          displayName = formatPair(p.team.player1Name, p.team.player2Name) || `Team #${p.teamId}`;
+        } else {
+          displayName = `Team #${p.teamId}`;
+        }
       } else if (p.pairRequest) {
-        displayName = [p.pairRequest.fromUserName, p.pairRequest.toUserName].filter(Boolean).join(" / ")
+        displayName = formatPair(p.pairRequest.fromUserName, p.pairRequest.toUserName)
           || p.pairRequest.pairName
           || "Pair";
       }
@@ -2994,6 +3001,14 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
     return a.setsLost - b.setsLost;
   };
 
+  // Rank styling — gold / silver / bronze / 4th highlights so the leaderboard reads at a glance.
+  const rankStyles = [
+    { row: "bg-yellow-500/[0.10]", badge: "bg-gradient-to-br from-yellow-400 to-amber-500 text-white shadow-md shadow-yellow-500/30" },
+    { row: "bg-slate-300/[0.10]", badge: "bg-gradient-to-br from-slate-300 to-slate-400 text-slate-900 shadow-md shadow-slate-400/30" },
+    { row: "bg-orange-500/[0.07]", badge: "bg-gradient-to-br from-orange-400 to-orange-600 text-white shadow-md shadow-orange-500/30" },
+    { row: "bg-muted/30", badge: "bg-muted text-muted-foreground" },
+  ];
+
   // Render a per-pair table that columns out each match's points-for plus a Total column.
   const renderStandingsTable = (rows: any[], advanceCount: number) => {
     const matchCount = Math.max(1, ...rows.map(r => r.snapshots.length));
@@ -3002,32 +3017,40 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
         <table className="w-full text-sm">
           <thead>
             <tr className="bg-muted/40">
-              <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">#</th>
+              <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Pos</th>
               <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Pair</th>
               {Array.from({ length: matchCount }).map((_, i) => (
                 <th key={`mh-${i}`} className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">M{i + 1}</th>
               ))}
               <th className="text-center px-2 py-2.5 text-[10px] font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-wider">W</th>
               <th className="text-center px-2 py-2.5 text-[10px] font-black text-red-500 dark:text-red-400 uppercase tracking-wider">L</th>
-              <th className="text-center px-2 py-2.5 text-[10px] font-black text-violet-500 dark:text-violet-400 uppercase tracking-wider">Total PF</th>
+              <th className="text-center px-2 py-2.5 text-[11px] font-black bg-violet-500/15 text-violet-600 dark:text-violet-300 uppercase tracking-wider border-l border-violet-500/30">Total</th>
             </tr>
           </thead>
           <tbody>
             {rows.map((s: any, si: number) => {
+              const rank = rankStyles[Math.min(si, 3)];
               const isQualifying = si < advanceCount;
+              const positionLabels = ["1st", "2nd", "3rd", "4th"];
               return (
                 <tr key={s.id} data-testid={`row-standing-${s.key}`} className={cn(
-                  "border-t border-border/30 transition-colors hover:bg-muted/30",
-                  isQualifying && "bg-emerald-500/[0.04]"
+                  "border-t border-border/30 transition-colors hover:bg-muted/40",
+                  rank.row
                 )}>
                   <td className="px-4 py-2.5">
                     <div className={cn(
-                      "h-5 w-5 rounded flex items-center justify-center text-[10px] font-black",
-                      isQualifying ? "bg-emerald-500/20 text-emerald-500 dark:text-emerald-400" : "bg-muted text-muted-foreground"
-                    )}>{si + 1}</div>
+                      "inline-flex items-center justify-center h-7 min-w-[34px] px-2 rounded-full text-[10px] font-black uppercase tracking-wider",
+                      rank.badge
+                    )}>{positionLabels[si] || `${si + 1}th`}</div>
                   </td>
                   <td className="px-4 py-2.5">
-                    <span className="font-bold text-foreground" data-testid={`text-pair-${s.key}`}>{s.displayName}</span>
+                    <span className={cn(
+                      "font-bold",
+                      si === 0 ? "text-yellow-600 dark:text-yellow-300" : "text-foreground"
+                    )} data-testid={`text-pair-${s.key}`}>{s.displayName}</span>
+                    {isQualifying && (
+                      <Badge className="ml-2 bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-500/30 text-[8px] font-black uppercase">Adv</Badge>
+                    )}
                   </td>
                   {Array.from({ length: matchCount }).map((_, i) => {
                     const snap = s.snapshots[i];
@@ -3039,14 +3062,17 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
                     }
                     return (
                       <td key={`m-${i}`} className={cn(
-                        "text-center px-2 py-2.5 font-bold",
+                        "text-center px-2 py-2.5 font-bold tabular-nums",
                         snap.won ? "text-emerald-500 dark:text-emerald-400" : "text-foreground"
                       )} data-testid={`cell-pf-${s.key}-${i}`}>{snap.pf}</td>
                     );
                   })}
-                  <td className="text-center px-2 py-2.5 font-bold text-emerald-500 dark:text-emerald-400">{s.matchesWon}</td>
-                  <td className="text-center px-2 py-2.5 text-red-500 dark:text-red-400">{s.matchesLost}</td>
-                  <td className="text-center px-2 py-2.5 font-black text-violet-500 dark:text-violet-400" data-testid={`text-total-pf-${s.key}`}>{s.pointsFor}</td>
+                  <td className="text-center px-2 py-2.5 font-bold text-emerald-500 dark:text-emerald-400 tabular-nums">{s.matchesWon}</td>
+                  <td className="text-center px-2 py-2.5 text-red-500 dark:text-red-400 tabular-nums">{s.matchesLost}</td>
+                  <td className={cn(
+                    "text-center px-3 py-2.5 font-black text-base tabular-nums border-l border-violet-500/30 bg-violet-500/[0.06]",
+                    si === 0 ? "text-yellow-500 dark:text-yellow-300" : "text-violet-600 dark:text-violet-300"
+                  )} data-testid={`text-total-pf-${s.key}`}>{s.pointsFor}</td>
                 </tr>
               );
             })}
