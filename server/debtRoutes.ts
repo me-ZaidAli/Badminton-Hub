@@ -3,7 +3,7 @@ import { db } from "./db";
 import {
   debtCharges, debtPayments, playerDebtNotes,
   insertDebtChargeSchema, insertDebtPaymentSchema, insertPlayerDebtNoteSchema,
-  users, clubs, playerProfiles,
+  users, clubs, playerProfiles, sessionSignups, sessions,
 } from "@shared/schema";
 import { eq, and, inArray, desc, sql, gte, lte, or } from "drizzle-orm";
 
@@ -32,6 +32,41 @@ async function requireAdmin(req: any, res: any): Promise<boolean> {
   return true;
 }
 
+// Pulls outstanding session signups (UNPAID/PENDING + CONFIRMED + past or today + fee>0)
+// and converts them into virtual "session charge" rows so they appear alongside manual debts.
+async function getSessionCharges(filterClubIds: number[]) {
+  if (filterClubIds.length === 0) return [] as Array<{ id: number; userId: number; clubId: number; amount: number; chargeDate: Date; description: string; category: string; sessionId: number }>;
+  const now = new Date();
+  const rows = await db.select({
+    signupId: sessionSignups.id,
+    userId: playerProfiles.userId,
+    clubId: sessions.clubId,
+    fee: sessionSignups.fee,
+    sessionDate: sessions.date,
+    sessionId: sessions.id,
+    sessionTitle: sessions.title,
+  })
+    .from(sessionSignups)
+    .innerJoin(sessions, eq(sessions.id, sessionSignups.sessionId))
+    .innerJoin(playerProfiles, eq(playerProfiles.id, sessionSignups.playerId))
+    .where(and(
+      inArray(sessions.clubId, filterClubIds),
+      sql`${sessionSignups.paymentStatus} != 'PAID'`,
+      eq(sessionSignups.signupStatus, "CONFIRMED"),
+      lte(sessions.date, now),
+    ));
+  return rows.filter(r => (r.fee ?? 0) > 0).map(r => ({
+    id: r.signupId,
+    userId: r.userId,
+    clubId: r.clubId,
+    amount: r.fee ?? 0,
+    chargeDate: r.sessionDate,
+    description: `Session: ${r.sessionTitle || `#${r.sessionId}`}`,
+    category: "SESSION",
+    sessionId: r.sessionId,
+  }));
+}
+
 export function registerDebtRoutes(app: Express) {
   // -------- Summary cards --------
   app.get("/api/debts/summary", async (req, res) => {
@@ -48,7 +83,9 @@ export function registerDebtRoutes(app: Express) {
         ? [clubFilterId] : allowedClubIds;
       if (filterClubIds.length === 0) return res.json({ totalOutstanding: 0, totalCollectedThisMonth: 0, totalOverdue: 0, playersWithDebt: 0, averageDebt: 0 });
 
-      const charges = await db.select().from(debtCharges).where(inArray(debtCharges.clubId, filterClubIds));
+      const manualCharges = await db.select().from(debtCharges).where(inArray(debtCharges.clubId, filterClubIds));
+      const sessionCharges = await getSessionCharges(filterClubIds);
+      const charges = [...manualCharges, ...sessionCharges];
       const payments = await db.select().from(debtPayments).where(inArray(debtPayments.clubId, filterClubIds));
 
       const balanceByPlayer = new Map<string, { charges: number; payments: number; overdue: number }>();
@@ -108,7 +145,9 @@ export function registerDebtRoutes(app: Express) {
         ? [clubFilterId] : allowedClubIds;
       if (filterClubIds.length === 0) return res.json([]);
 
-      const charges = await db.select().from(debtCharges).where(inArray(debtCharges.clubId, filterClubIds));
+      const manualCharges = await db.select().from(debtCharges).where(inArray(debtCharges.clubId, filterClubIds));
+      const sessionCharges = await getSessionCharges(filterClubIds);
+      const charges = [...manualCharges, ...sessionCharges];
       const payments = await db.select().from(debtPayments).where(inArray(debtPayments.clubId, filterClubIds));
 
       const map = new Map<string, { userId: number; clubId: number; charges: number; payments: number; overdueAmount: number; lastPaymentDate: Date | null; lastChargeDate: Date | null }>();
@@ -187,13 +226,32 @@ export function registerDebtRoutes(app: Express) {
         if (!hasCharge && !hasPayment) return res.sendStatus(404);
       }
 
-      const [charges, payments, notes, [user], [club]] = await Promise.all([
+      const [manualChargesRows, payments, notes, [user], [club], sessionChargesAll] = await Promise.all([
         db.select().from(debtCharges).where(and(eq(debtCharges.userId, userId), eq(debtCharges.clubId, clubId))).orderBy(desc(debtCharges.chargeDate)),
         db.select().from(debtPayments).where(and(eq(debtPayments.userId, userId), eq(debtPayments.clubId, clubId))).orderBy(desc(debtPayments.paymentDate)),
         db.select().from(playerDebtNotes).where(and(eq(playerDebtNotes.userId, userId), eq(playerDebtNotes.clubId, clubId))).orderBy(desc(playerDebtNotes.createdAt)),
         db.select().from(users).where(eq(users.id, userId)),
         db.select().from(clubs).where(eq(clubs.id, clubId)),
+        getSessionCharges([clubId]),
       ]);
+      const sessionChargesForPlayer = sessionChargesAll.filter(s => s.userId === userId);
+      const charges = [
+        ...manualChargesRows,
+        ...sessionChargesForPlayer.map(s => ({
+          id: -s.id, // negative to avoid id collision with manual charges
+          userId: s.userId,
+          clubId: s.clubId,
+          amount: s.amount,
+          chargeDate: s.chargeDate,
+          description: s.description,
+          category: s.category,
+          notes: null,
+          createdBy: null,
+          createdAt: s.chargeDate,
+          isSessionCharge: true,
+          sessionId: s.sessionId,
+        } as any)),
+      ].sort((a: any, b: any) => new Date(b.chargeDate).getTime() - new Date(a.chargeDate).getTime());
 
       const totalCharges = charges.reduce((s, c) => s + c.amount, 0);
       const totalPayments = payments.reduce((s, p) => s + p.amount, 0);
@@ -425,7 +483,9 @@ export function registerDebtRoutes(app: Express) {
       const filterClubIds = clubFilterId && allowedClubIds.includes(clubFilterId) ? [clubFilterId] : allowedClubIds;
       if (filterClubIds.length === 0) return res.json([]);
 
-      const charges = await db.select().from(debtCharges).where(inArray(debtCharges.clubId, filterClubIds));
+      const manualCharges = await db.select().from(debtCharges).where(inArray(debtCharges.clubId, filterClubIds));
+      const sessionCharges = await getSessionCharges(filterClubIds);
+      const charges = [...manualCharges, ...sessionCharges];
       const payments = await db.select().from(debtPayments).where(inArray(debtPayments.clubId, filterClubIds));
       const userIds = [...new Set([...charges.map(c => c.userId), ...payments.map(p => p.userId)])];
       const userRows = userIds.length > 0 ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds)) : [];
@@ -434,7 +494,8 @@ export function registerDebtRoutes(app: Express) {
       const clubById = new Map(clubRows.map(r => [r.id, r.name]));
 
       const out = [
-        ...charges.map(c => ({ id: `c-${c.id}`, type: "CHARGE", date: c.chargeDate, amount: c.amount, userId: c.userId, clubId: c.clubId, playerName: userById.get(c.userId) || `User ${c.userId}`, clubName: clubById.get(c.clubId) || `Club ${c.clubId}`, description: c.description, category: c.category, method: null, refId: c.id })),
+        ...manualCharges.map(c => ({ id: `c-${c.id}`, type: "CHARGE", date: c.chargeDate, amount: c.amount, userId: c.userId, clubId: c.clubId, playerName: userById.get(c.userId) || `User ${c.userId}`, clubName: clubById.get(c.clubId) || `Club ${c.clubId}`, description: c.description, category: c.category, method: null, refId: c.id })),
+        ...sessionCharges.map(c => ({ id: `s-${c.id}`, type: "CHARGE", date: c.chargeDate, amount: c.amount, userId: c.userId, clubId: c.clubId, playerName: userById.get(c.userId) || `User ${c.userId}`, clubName: clubById.get(c.clubId) || `Club ${c.clubId}`, description: c.description, category: c.category, method: null, refId: c.id })),
         ...payments.map(p => ({ id: `p-${p.id}`, type: "PAYMENT", date: p.paymentDate, amount: p.amount, userId: p.userId, clubId: p.clubId, playerName: userById.get(p.userId) || `User ${p.userId}`, clubName: clubById.get(p.clubId) || `Club ${p.clubId}`, description: p.notes || "Payment", category: null, method: p.method, refId: p.id })),
       ].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
       res.json(out);
