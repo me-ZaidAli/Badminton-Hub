@@ -1093,6 +1093,15 @@ export function registerTournamentRoutes(app: Express) {
         subGroupNumber: sgNum,
       }).returning();
 
+      // Ensure standings rows exist for both pairs in this group, otherwise score updates are silently dropped.
+      const existingStandings = await db.select().from(tournamentStandings)
+        .where(and(eq(tournamentStandings.categoryId, catId), eq(tournamentStandings.groupNumber, gNum)));
+      const haveTeam = new Set(existingStandings.map(s => s.teamId));
+      const toInsert: any[] = [];
+      if (!haveTeam.has(teamAId)) toInsert.push({ categoryId: catId, teamId: teamAId, groupNumber: gNum, subGroupNumber: sgNum });
+      if (!haveTeam.has(teamBId)) toInsert.push({ categoryId: catId, teamId: teamBId, groupNumber: gNum, subGroupNumber: sgNum });
+      if (toInsert.length) await db.insert(tournamentStandings).values(toInsert);
+
       res.json(match);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
