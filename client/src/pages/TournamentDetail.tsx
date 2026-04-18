@@ -2888,7 +2888,7 @@ function StandingsView({ standings, teams, category, groups = [] }: { standings:
                   )}>{si + 1}</div>
                 </td>
                 <td className="px-4 py-2.5">
-                  <span className="font-bold text-foreground">{team ? getTeamName(team) : `Team #${s.teamId}`}</span>
+                  <span className="font-bold text-foreground">{s.displayName || (team ? getTeamName(team) : `Team #${s.teamId}`)}</span>
                 </td>
                 <td className="text-center px-2 py-2.5 text-muted-foreground font-medium">{s.matchesPlayed}</td>
                 <td className="text-center px-2 py-2.5 font-bold text-emerald-500 dark:text-emerald-400">{s.matchesWon}</td>
@@ -2959,10 +2959,31 @@ function StandingsView({ standings, teams, category, groups = [] }: { standings:
       )}
       {sortedGroups.map((grp: any, gi: number) => {
         const gNum = gi + 1;
-        const teamIdsInGroup: number[] = (grp.pairs || [])
-          .map((p: any) => p.teamId)
-          .filter((x: any): x is number => typeof x === "number");
-        const rows = teamIdsInGroup.map(tid => statsByTeamId.get(tid) || emptyStats(tid, gNum));
+        // Build one row per pair in the group — covers both team-based and pairRequest-based assignments.
+        const rows = (grp.pairs || []).map((p: any, pi: number) => {
+          let teamId: number | null = null;
+          let displayName = "Unknown Pair";
+          if (p.teamId) {
+            teamId = p.teamId;
+            const team = teamMap.get(p.teamId);
+            displayName = team
+              ? getTeamName(team)
+              : (p.team
+                ? [p.team.player1Name, p.team.player2Name].filter(Boolean).join(" / ")
+                : `Team #${p.teamId}`);
+          } else if (p.pairRequest) {
+            displayName = p.pairRequest.pairName
+              || [p.pairRequest.fromUserName, p.pairRequest.toUserName].filter(Boolean).join(" / ")
+              || "Pair";
+          }
+          const stats = teamId ? statsByTeamId.get(teamId) : null;
+          return {
+            ...(stats || emptyStats(teamId ?? -(p.id || pi + 1), gNum)),
+            id: stats?.id ?? `pair-${grp.id}-${p.id || pi}`,
+            teamId: teamId ?? -(p.id || pi + 1),
+            displayName,
+          };
+        });
 
         return (
           <div key={`grp-${grp.id}`} className="relative rounded-2xl overflow-hidden">
