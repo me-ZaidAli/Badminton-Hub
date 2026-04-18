@@ -1043,20 +1043,32 @@ export function registerTournamentRoutes(app: Express) {
       const { teamAId: rawTeamAId, teamBId: rawTeamBId, pairARequestId, pairBRequestId, groupNumber, subGroupNumber } = req.body;
 
       // Helper: resolve a pair-request to a team in this category, creating it if needed.
+      // Auto-creates a player profile in the tournament's club if one doesn't exist for either user,
+      // so manual match creation never fails just because a profile is missing.
+      const [tournamentForPair] = await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
+      async function ensureProfile(userId: number): Promise<number | null> {
+        const [existing] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+        if (existing) return existing.id;
+        if (!tournamentForPair?.clubId) return null;
+        const [created] = await db.insert(playerProfiles).values({
+          userId, clubId: tournamentForPair.clubId,
+        }).returning();
+        return created.id;
+      }
       async function resolvePairRequestToTeam(prId: number): Promise<number | null> {
         const [pr] = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, prId));
         if (!pr) return null;
-        const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
-        const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
-        if (!p1 || !p2) return null;
+        const p1Id = await ensureProfile(pr.fromUserId);
+        const p2Id = await ensureProfile(pr.toUserId);
+        if (!p1Id || !p2Id) return null;
         const existing = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
         const found = existing.find(t =>
-          (t.player1Id === p1.id && t.player2Id === p2.id) ||
-          (t.player1Id === p2.id && t.player2Id === p1.id)
+          (t.player1Id === p1Id && t.player2Id === p2Id) ||
+          (t.player1Id === p2Id && t.player2Id === p1Id)
         );
         if (found) return found.id;
         const [created] = await db.insert(tournamentTeams).values({
-          categoryId: catId, player1Id: p1.id, player2Id: p2.id,
+          categoryId: catId, player1Id: p1Id, player2Id: p2Id,
         }).returning();
         return created.id;
       }

@@ -2483,9 +2483,10 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                       return { value: `team-${p.teamId}`, label };
                     }
                     if (p.pairRequest) {
-                      const label = p.pairRequest.pairName
-                        || [p.pairRequest.fromUserName, p.pairRequest.toUserName].filter(Boolean).join(" / ")
-                        || `Pair #${p.id}`;
+                      // Always use the players' real names, never the pair-name nickname,
+                      // so the dropdown source matches what the rest of the UI shows.
+                      const label = [p.pairRequest.fromUserName, p.pairRequest.toUserName]
+                        .filter(Boolean).join(" / ") || `Pair #${p.id}`;
                       return { value: `pr-${p.pairRequestId}`, label };
                     }
                     return { value: `unknown-${p.id}`, label: `Pair #${p.id}` };
