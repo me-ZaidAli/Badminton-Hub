@@ -2041,8 +2041,8 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const { data: standings } = useTournamentStandings(category.id);
   const { data: courts } = useTournamentCourts(tournamentId);
   const { data: allGroups = [] } = useTournamentGroups(tournamentId);
-  // Restrict to this category — the Groups section is the single source of truth for group membership
-  const categoryGroups = (allGroups as any[]).filter((g: any) => g.categoryId === category.id);
+  // Show every group from the Groups tab (groups without a category are also included).
+  const categoryGroups = (allGroups as any[]).filter((g: any) => !g.categoryId || g.categoryId === category.id);
   const assignCourtMutation = useAssignMatchCourt();
   const updateStatusMutation = useUpdateMatchStatus();
   const updateTimeMutation = useUpdateMatchScheduledTime();
@@ -2463,6 +2463,19 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 const effectiveGroupNumber: number | "" = presetGroup ?? addMatchGroupNumber;
                 const effectiveSubGroup = addMatchDialog.subGroupNumber ?? 1;
                 const allCategoryTeams = (teams || []) as any[];
+                // Resolve selected group → its assigned team IDs (from the Groups tab membership)
+                const selectedGroup = (allGroups as any[])
+                  .slice()
+                  .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0))
+                  .find((g: any) => g.groupOrder === effectiveGroupNumber);
+                const groupTeamIds = new Set<number>(
+                  (selectedGroup?.pairs || [])
+                    .map((p: any) => p.teamId)
+                    .filter((x: any): x is number => typeof x === "number")
+                );
+                const pairOptions = effectiveGroupNumber !== "" && groupTeamIds.size > 0
+                  ? allCategoryTeams.filter(t => groupTeamIds.has(t.id))
+                  : allCategoryTeams;
                 return (
                   <>
                     <div>
@@ -2494,9 +2507,9 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pair A</label>
                       <Select value={addMatchTeamA === "" ? "" : String(addMatchTeamA)} onValueChange={v => setAddMatchTeamA(Number(v))}>
-                        <SelectTrigger data-testid="select-add-match-team-a"><SelectValue placeholder="Select pair" /></SelectTrigger>
+                        <SelectTrigger data-testid="select-add-match-team-a"><SelectValue placeholder={effectiveGroupNumber === "" ? "Select group first" : "Select pair"} /></SelectTrigger>
                         <SelectContent>
-                          {allCategoryTeams.filter(t => t.id !== addMatchTeamB).map(t => (
+                          {pairOptions.filter(t => t.id !== addMatchTeamB).map(t => (
                             <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
                           ))}
                         </SelectContent>
@@ -2505,9 +2518,9 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pair B</label>
                       <Select value={addMatchTeamB === "" ? "" : String(addMatchTeamB)} onValueChange={v => setAddMatchTeamB(Number(v))}>
-                        <SelectTrigger data-testid="select-add-match-team-b"><SelectValue placeholder="Select pair" /></SelectTrigger>
+                        <SelectTrigger data-testid="select-add-match-team-b"><SelectValue placeholder={effectiveGroupNumber === "" ? "Select group first" : "Select pair"} /></SelectTrigger>
                         <SelectContent>
-                          {allCategoryTeams.filter(t => t.id !== addMatchTeamA).map(t => (
+                          {pairOptions.filter(t => t.id !== addMatchTeamA).map(t => (
                             <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
                           ))}
                         </SelectContent>
