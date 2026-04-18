@@ -2221,7 +2221,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
       </div>
 
       {activeView === "standings" && (
-        <StandingsView standings={standings || []} teams={teams || []} category={category} groups={categoryGroups} />
+        <StandingsView standings={standings || []} teams={teams || []} category={category} groups={categoryGroups} matches={matches} />
       )}
 
       {activeView === "list" && (
@@ -2893,155 +2893,237 @@ function ScoreDialog({ match, onClose, onSubmit, isPending }: { match: any; onCl
   );
 }
 
-function StandingsView({ standings, teams, category, groups = [] }: { standings: any[]; teams: any[]; category: any; groups?: any[] }) {
+function StandingsView({ standings, teams, category, groups = [], matches = [] }: { standings: any[]; teams: any[]; category: any; groups?: any[]; matches?: any[] }) {
   const teamMap = new Map(teams.map(t => [t.id, t]));
-
-  // Stat lookup keyed by teamId — Groups section is the source of truth for membership; standings only contributes stats.
-  const statsByTeamId = new Map<number, any>();
-  for (const s of standings) {
-    if (s.teamId && s.groupNumber < 100) statsByTeamId.set(s.teamId, s);
-  }
-  const emptyStats = (teamId: number, groupNumber: number) => ({
-    id: `empty-${groupNumber}-${teamId}`,
-    teamId, groupNumber, subGroupNumber: 1,
-    matchesPlayed: 0, matchesWon: 0, matchesLost: 0,
-    gamesWon: 0, gamesLost: 0, pointsFor: 0, pointsAgainst: 0, points: 0,
-  });
-
-  const hasSubGroups = standings.some(s => s.subGroupNumber && s.subGroupNumber > 0);
-  const groupNumbers = Array.from(new Set(standings.map(s => s.groupNumber))).sort((a, b) => a - b);
-
-  const renderStandingsTable = (rows: any[], advanceCount: number) => (
-    <div className="overflow-x-auto">
-      <table className="w-full text-sm">
-        <thead>
-          <tr className="bg-muted/40">
-            <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">#</th>
-            <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Team</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">P</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">W</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">L</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GW</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">GL</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">PF</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">PA</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-cyan-500 dark:text-cyan-400 uppercase tracking-wider">+/-</th>
-            <th className="text-center px-2 py-2.5 text-[10px] font-black text-violet-500 dark:text-violet-400 uppercase tracking-wider">PTS</th>
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((s: any, si: number) => {
-            const team = teamMap.get(s.teamId);
-            const isQualifying = si < advanceCount;
-            return (
-              <tr key={s.id} className={cn(
-                "border-t border-border/30 transition-colors hover:bg-muted/30",
-                isQualifying && "bg-emerald-500/[0.04]"
-              )}>
-                <td className="px-4 py-2.5">
-                  <div className={cn(
-                    "h-5 w-5 rounded flex items-center justify-center text-[10px] font-black",
-                    isQualifying ? "bg-emerald-500/20 text-emerald-500 dark:text-emerald-400" : "bg-muted text-muted-foreground"
-                  )}>{si + 1}</div>
-                </td>
-                <td className="px-4 py-2.5">
-                  <span className="font-bold text-foreground">{s.displayName || (team ? getTeamName(team) : `Team #${s.teamId}`)}</span>
-                </td>
-                <td className="text-center px-2 py-2.5 text-muted-foreground font-medium">{s.matchesPlayed}</td>
-                <td className="text-center px-2 py-2.5 font-bold text-emerald-500 dark:text-emerald-400">{s.matchesWon}</td>
-                <td className="text-center px-2 py-2.5 text-red-500 dark:text-red-400">{s.matchesLost}</td>
-                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesWon}</td>
-                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.gamesLost}</td>
-                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.pointsFor}</td>
-                <td className="text-center px-2 py-2.5 text-muted-foreground">{s.pointsAgainst}</td>
-                <td className={cn("text-center px-2 py-2.5 font-bold", (s.pointsFor - s.pointsAgainst) > 0 ? "text-emerald-500" : (s.pointsFor - s.pointsAgainst) < 0 ? "text-red-400" : "text-muted-foreground")}>{(s.pointsFor - s.pointsAgainst) > 0 ? "+" : ""}{s.pointsFor - s.pointsAgainst}</td>
-                <td className="text-center px-2 py-2.5 font-black text-violet-500 dark:text-violet-400">{s.points}</td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
-    </div>
-  );
-
   const advancePerGroup = category.advancePerGroup || 1;
 
-  const groupStageStandings = standings.filter(s => s.groupNumber < 100);
-  const qfStandings = standings.filter(s => s.groupNumber >= 200 && s.groupNumber < 300);
-  const semiStandings = standings.filter(s => s.groupNumber >= 300 && s.groupNumber < 400);
-  const finalStandings = standings.filter(s => s.groupNumber >= 400);
-  const groupStageNumbers = Array.from(new Set(groupStageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
+  // Build a stable identifier for each pair (team-based or pair-request-based)
+  // so we can match stats from matches even when a team hasn't been linked back to a group_pair yet.
+  const pairKey = (p: any) => p.teamId ? `t-${p.teamId}` : (p.pairRequestId ? `pr-${p.pairRequestId}` : `gp-${p.id}`);
+
+  // For a match, return the keys of the two pairs it represents.
+  // teamA/teamB is the canonical link, but if a match was created from a pair-request side
+  // (pairARequestId / pairBRequestId stored as metadata), we honour that too.
+  const matchPairKey = (m: any, side: "A" | "B"): string | null => {
+    const teamId = side === "A" ? m.teamAId : m.teamBId;
+    if (teamId) return `t-${teamId}`;
+    const prId = side === "A" ? m.pairARequestId : m.pairBRequestId;
+    if (prId) return `pr-${prId}`;
+    return null;
+  };
+
+  // Compute per-pair stats for a single group, directly from the matches list.
+  function computeGroupRows(grp: any, gNum: number) {
+    const groupMatches = matches.filter(m => m.groupNumber === gNum && !m.isBye);
+
+    return (grp.pairs || []).map((p: any, pi: number) => {
+      const key = pairKey(p);
+      let displayName = "Unknown Pair";
+      if (p.teamId) {
+        const team = teamMap.get(p.teamId);
+        displayName = team
+          ? getTeamName(team)
+          : (p.team
+            ? [p.team.player1Name, p.team.player2Name].filter(Boolean).join(" / ")
+            : `Team #${p.teamId}`);
+      } else if (p.pairRequest) {
+        displayName = [p.pairRequest.fromUserName, p.pairRequest.toUserName].filter(Boolean).join(" / ")
+          || p.pairRequest.pairName
+          || "Pair";
+      }
+
+      // Find this pair's matches in this group — and on which side they played.
+      const pairMatches = groupMatches
+        .map(m => {
+          const aKey = matchPairKey(m, "A");
+          const bKey = matchPairKey(m, "B");
+          let side: "A" | "B" | null = null;
+          if (aKey === key) side = "A";
+          else if (bKey === key) side = "B";
+          return side ? { match: m, side } : null;
+        })
+        .filter((x): x is { match: any; side: "A" | "B" } => x !== null)
+        .sort((a, b) => (a.match.matchOrder || 0) - (b.match.matchOrder || 0));
+
+      // Build per-match snapshot: list of points-for the pair scored across the sets of each match.
+      const matchSnapshots = pairMatches.map(({ match, side }) => {
+        const sets: { scoreA: number; scoreB: number }[] = match.scores || [];
+        let pf = 0, pa = 0, setsWon = 0, setsLost = 0;
+        for (const s of sets) {
+          const my = side === "A" ? s.scoreA : s.scoreB;
+          const opp = side === "A" ? s.scoreB : s.scoreA;
+          pf += my; pa += opp;
+          if (my > opp) setsWon++; else if (opp > my) setsLost++;
+        }
+        const finished = match.status === "completed" || !!match.winnerId;
+        const won = finished && match.winnerId
+          ? ((side === "A" && match.teamAId === match.winnerId) || (side === "B" && match.teamBId === match.winnerId))
+          : false;
+        return { matchId: match.id, finished, pf, pa, setsWon, setsLost, won };
+      });
+
+      const finishedSnaps = matchSnapshots.filter(s => s.finished);
+      const totalPF = finishedSnaps.reduce((acc, s) => acc + s.pf, 0);
+      const totalPA = finishedSnaps.reduce((acc, s) => acc + s.pa, 0);
+      const matchesWon = finishedSnaps.filter(s => s.won).length;
+      const matchesLost = finishedSnaps.length - matchesWon;
+      const setsWon = finishedSnaps.reduce((acc, s) => acc + s.setsWon, 0);
+      const setsLost = finishedSnaps.reduce((acc, s) => acc + s.setsLost, 0);
+
+      return {
+        id: `pair-${grp.id}-${p.id || pi}`,
+        key,
+        displayName,
+        snapshots: matchSnapshots,
+        matchesPlayed: finishedSnaps.length,
+        matchesWon, matchesLost,
+        setsWon, setsLost,
+        pointsFor: totalPF, pointsAgainst: totalPA,
+        points: totalPF, // 1 point per point scored — same convention as before
+      };
+    });
+  }
 
   const sortFn = (a: any, b: any) => {
+    if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
     if (b.points !== a.points) return b.points - a.points;
     const diffA = a.pointsFor - a.pointsAgainst;
     const diffB = b.pointsFor - b.pointsAgainst;
     if (diffB !== diffA) return diffB - diffA;
-    if (b.gamesWon !== a.gamesWon) return b.gamesWon - a.gamesWon;
-    return a.gamesLost - b.gamesLost;
+    if (b.setsWon !== a.setsWon) return b.setsWon - a.setsWon;
+    return a.setsLost - b.setsLost;
   };
 
-  const renderStageSection = (stageStandings: any[], stageLabel: string, colorFrom: string, colorTo: string, badgeColor: string, advCount: number) => {
-    const stageGroupNums = Array.from(new Set(stageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
-    return stageGroupNums.map((gNum, idx) => {
-      const gStandings = stageStandings.filter(s => s.groupNumber === gNum).sort(sortFn);
-      const groupLabel = stageGroupNums.length > 1 ? `${stageLabel} · Group ${String.fromCharCode(65 + idx)}` : stageLabel;
-      return (
-        <div key={`stage-${gNum}`} className="relative rounded-2xl overflow-hidden">
-          <div className={`absolute -inset-[1px] rounded-2xl bg-gradient-to-br ${colorFrom} via-purple-500/20 to-slate-800/40 blur-[0.5px]`} />
-          <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
-            <div className={`bg-gradient-to-r ${colorTo} via-transparent to-transparent px-4 py-3 border-b border-border/30`}>
-              <div className="flex items-center gap-2">
-                <div className={`h-6 w-6 rounded-lg bg-gradient-to-br ${colorFrom.replace('/40', '')} flex items-center justify-center`}>
-                  <Trophy className="h-3 w-3 text-white" />
-                </div>
-                <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{groupLabel}</h4>
-                <Badge className={`${badgeColor} text-[9px] font-black ml-auto`}>{gStandings.length} Teams</Badge>
+  // Render a per-pair table that columns out each match's points-for plus a Total column.
+  const renderStandingsTable = (rows: any[], advanceCount: number) => {
+    const matchCount = Math.max(1, ...rows.map(r => r.snapshots.length));
+    return (
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead>
+            <tr className="bg-muted/40">
+              <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">#</th>
+              <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Pair</th>
+              {Array.from({ length: matchCount }).map((_, i) => (
+                <th key={`mh-${i}`} className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">M{i + 1}</th>
+              ))}
+              <th className="text-center px-2 py-2.5 text-[10px] font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-wider">W</th>
+              <th className="text-center px-2 py-2.5 text-[10px] font-black text-red-500 dark:text-red-400 uppercase tracking-wider">L</th>
+              <th className="text-center px-2 py-2.5 text-[10px] font-black text-violet-500 dark:text-violet-400 uppercase tracking-wider">Total PF</th>
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((s: any, si: number) => {
+              const isQualifying = si < advanceCount;
+              return (
+                <tr key={s.id} data-testid={`row-standing-${s.key}`} className={cn(
+                  "border-t border-border/30 transition-colors hover:bg-muted/30",
+                  isQualifying && "bg-emerald-500/[0.04]"
+                )}>
+                  <td className="px-4 py-2.5">
+                    <div className={cn(
+                      "h-5 w-5 rounded flex items-center justify-center text-[10px] font-black",
+                      isQualifying ? "bg-emerald-500/20 text-emerald-500 dark:text-emerald-400" : "bg-muted text-muted-foreground"
+                    )}>{si + 1}</div>
+                  </td>
+                  <td className="px-4 py-2.5">
+                    <span className="font-bold text-foreground" data-testid={`text-pair-${s.key}`}>{s.displayName}</span>
+                  </td>
+                  {Array.from({ length: matchCount }).map((_, i) => {
+                    const snap = s.snapshots[i];
+                    if (!snap) {
+                      return <td key={`m-${i}`} className="text-center px-2 py-2.5 text-muted-foreground/40">—</td>;
+                    }
+                    if (!snap.finished) {
+                      return <td key={`m-${i}`} className="text-center px-2 py-2.5 text-muted-foreground/60 italic text-[11px]">…</td>;
+                    }
+                    return (
+                      <td key={`m-${i}`} className={cn(
+                        "text-center px-2 py-2.5 font-bold",
+                        snap.won ? "text-emerald-500 dark:text-emerald-400" : "text-foreground"
+                      )} data-testid={`cell-pf-${s.key}-${i}`}>{snap.pf}</td>
+                    );
+                  })}
+                  <td className="text-center px-2 py-2.5 font-bold text-emerald-500 dark:text-emerald-400">{s.matchesWon}</td>
+                  <td className="text-center px-2 py-2.5 text-red-500 dark:text-red-400">{s.matchesLost}</td>
+                  <td className="text-center px-2 py-2.5 font-black text-violet-500 dark:text-violet-400" data-testid={`text-total-pf-${s.key}`}>{s.pointsFor}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+    );
+  };
+
+  // CANONICAL group rendering: derive groups from tournament_groups (the source of truth for membership).
+  const sortedGroups = [...groups].sort((a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0));
+
+  // Knockout/QF/SF/Final standings — render compact tables for any matches that exist beyond the group stage.
+  const stageMatches = (lo: number, hi: number) => matches.filter(m => !m.isBye && m.groupNumber != null && m.groupNumber >= lo && m.groupNumber < hi);
+  const qfMatches = stageMatches(200, 300);
+  const semiMatches = stageMatches(300, 400);
+  const finalMatches = stageMatches(400, 500);
+
+  const renderKoStage = (label: string, ms: any[], colorClass: string) => {
+    if (ms.length === 0) return null;
+    return (
+      <div className="relative rounded-2xl overflow-hidden">
+        <div className={`absolute -inset-[1px] rounded-2xl bg-gradient-to-br ${colorClass} via-purple-500/20 to-slate-800/40 blur-[0.5px]`} />
+        <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
+          <div className={`bg-gradient-to-r ${colorClass.replace('/40', '/10')} via-transparent to-transparent px-4 py-3 border-b border-border/30`}>
+            <div className="flex items-center gap-2">
+              <div className={`h-6 w-6 rounded-lg bg-gradient-to-br ${colorClass.replace('/40', '')} flex items-center justify-center`}>
+                <Trophy className="h-3 w-3 text-white" />
               </div>
+              <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{label}</h4>
+              <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto">{ms.length} Matches</Badge>
             </div>
-            {renderStandingsTable(gStandings, advCount)}
+          </div>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm">
+              <thead>
+                <tr className="bg-muted/40">
+                  <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Match</th>
+                  <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Pair A</th>
+                  <th className="text-left px-4 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Pair B</th>
+                  <th className="text-center px-2 py-2.5 text-[10px] font-black text-muted-foreground uppercase tracking-wider">Score</th>
+                  <th className="text-center px-2 py-2.5 text-[10px] font-black text-emerald-500 dark:text-emerald-400 uppercase tracking-wider">Winner</th>
+                </tr>
+              </thead>
+              <tbody>
+                {ms.map(m => {
+                  const ta = m.teamAId ? teamMap.get(m.teamAId) : null;
+                  const tb = m.teamBId ? teamMap.get(m.teamBId) : null;
+                  const sets: { scoreA: number; scoreB: number }[] = m.scores || [];
+                  const scoreStr = sets.length ? sets.map(s => `${s.scoreA}-${s.scoreB}`).join(", ") : "—";
+                  const winner = m.winnerId === m.teamAId ? (ta ? getTeamName(ta) : "A") : m.winnerId === m.teamBId ? (tb ? getTeamName(tb) : "B") : "—";
+                  return (
+                    <tr key={m.id} className="border-t border-border/30">
+                      <td className="px-4 py-2.5 text-muted-foreground">#{m.matchOrder || m.id}</td>
+                      <td className="px-4 py-2.5 font-bold text-foreground">{ta ? getTeamName(ta) : "TBD"}</td>
+                      <td className="px-4 py-2.5 font-bold text-foreground">{tb ? getTeamName(tb) : "TBD"}</td>
+                      <td className="text-center px-2 py-2.5 text-muted-foreground">{scoreStr}</td>
+                      <td className="text-center px-2 py-2.5 font-black text-emerald-500 dark:text-emerald-400">{winner}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         </div>
-      );
-    });
+      </div>
+    );
   };
-
-  // CANONICAL group rendering: derive from the Groups section (tournament_groups) — never invent groups from standings.
-  const sortedGroups = [...groups].sort((a: any, b: any) => (a.groupOrder || 0) - (b.groupOrder || 0));
 
   return (
     <div className="space-y-5">
-      {sortedGroups.length === 0 && groupStageNumbers.length > 0 && (
+      {sortedGroups.length === 0 && (
         <div className="text-xs text-muted-foreground italic px-2">No groups defined yet — add groups in the Groups section.</div>
       )}
       {sortedGroups.map((grp: any, gi: number) => {
         const gNum = gi + 1;
-        // Build one row per pair in the group — covers both team-based and pairRequest-based assignments.
-        const rows = (grp.pairs || []).map((p: any, pi: number) => {
-          let teamId: number | null = null;
-          let displayName = "Unknown Pair";
-          if (p.teamId) {
-            teamId = p.teamId;
-            const team = teamMap.get(p.teamId);
-            displayName = team
-              ? getTeamName(team)
-              : (p.team
-                ? [p.team.player1Name, p.team.player2Name].filter(Boolean).join(" / ")
-                : `Team #${p.teamId}`);
-          } else if (p.pairRequest) {
-            displayName = p.pairRequest.pairName
-              || [p.pairRequest.fromUserName, p.pairRequest.toUserName].filter(Boolean).join(" / ")
-              || "Pair";
-          }
-          const stats = teamId ? statsByTeamId.get(teamId) : null;
-          return {
-            ...(stats || emptyStats(teamId ?? -(p.id || pi + 1), gNum)),
-            id: stats?.id ?? `pair-${grp.id}-${p.id || pi}`,
-            teamId: teamId ?? -(p.id || pi + 1),
-            displayName,
-          };
-        });
-
+        const rows = computeGroupRows(grp, gNum).sort(sortFn);
         return (
           <div key={`grp-${grp.id}`} className="relative rounded-2xl overflow-hidden">
             <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
@@ -3052,35 +3134,18 @@ function StandingsView({ standings, teams, category, groups = [] }: { standings:
                     <LayoutGrid className="h-3 w-3 text-white" />
                   </div>
                   <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{grp.name || `Group ${String.fromCharCode(64 + gNum)}`}</h4>
-                  <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{rows.length} Teams</Badge>
+                  <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{rows.length} Pairs</Badge>
                 </div>
               </div>
-              {renderStandingsTable(rows.sort(sortFn), advancePerGroup)}
+              {renderStandingsTable(rows, advancePerGroup)}
             </div>
           </div>
         );
       })}
 
-      {qfStandings.length > 0 && renderStageSection(
-        qfStandings, "Quarter-Finals",
-        "from-cyan-500/40", "from-cyan-600/10",
-        "bg-cyan-500/15 text-cyan-500 dark:text-cyan-400 border border-cyan-500/30",
-        1
-      )}
-
-      {semiStandings.length > 0 && renderStageSection(
-        semiStandings, "Semi-Finals",
-        "from-amber-500/40", "from-amber-600/10",
-        "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30",
-        1
-      )}
-
-      {finalStandings.length > 0 && renderStageSection(
-        finalStandings, "Final",
-        "from-yellow-500/40", "from-yellow-600/10",
-        "bg-yellow-500/15 text-yellow-500 dark:text-yellow-400 border border-yellow-500/30",
-        1
-      )}
+      {renderKoStage("Quarter-Finals", qfMatches, "from-cyan-500/40")}
+      {renderKoStage("Semi-Finals", semiMatches, "from-amber-500/40")}
+      {renderKoStage("Final", finalMatches, "from-yellow-500/40")}
     </div>
   );
 }
