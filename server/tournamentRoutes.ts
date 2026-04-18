@@ -1071,15 +1071,25 @@ export function registerTournamentRoutes(app: Express) {
           (t.player1Id === p1Id && t.player2Id === p2Id) ||
           (t.player1Id === p2Id && t.player2Id === p1Id)
         );
-        if (found) return found.id;
-        try {
-          const [created] = await db.insert(tournamentTeams).values({
-            categoryId: catId, player1Id: p1Id, player2Id: p2Id,
-          }).returning();
-          return created.id;
-        } catch (err: any) {
-          throw new Error(`${sideLabel}: could not create team in category ${catId}: ${err.message}`);
+        let teamId: number;
+        if (found) {
+          teamId = found.id;
+        } else {
+          try {
+            const [created] = await db.insert(tournamentTeams).values({
+              categoryId: catId, player1Id: p1Id, player2Id: p2Id,
+            }).returning();
+            teamId = created.id;
+          } catch (err: any) {
+            throw new Error(`${sideLabel}: could not create team in category ${catId}: ${err.message}`);
+          }
         }
+        // Backfill the group_pair row(s) that reference this pair-request so the standings
+        // can match stats (keyed by teamId) to the pair displayed in the group.
+        await db.update(tournamentGroupPairs)
+          .set({ teamId })
+          .where(eq(tournamentGroupPairs.pairRequestId, prId));
+        return teamId;
       }
 
       let teamAId: number | null = rawTeamAId ? Number(rawTeamAId) : null;
