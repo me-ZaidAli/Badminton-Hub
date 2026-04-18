@@ -1040,15 +1040,40 @@ export function registerTournamentRoutes(app: Express) {
       const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
       if (!canManage) return res.status(403).json({ message: "Not authorized" });
 
-      const { teamAId, teamBId, groupNumber, subGroupNumber } = req.body;
-      if (!teamAId || !teamBId) return res.status(400).json({ message: "Both teams are required" });
-      if (teamAId === teamBId) return res.status(400).json({ message: "Teams must be different" });
+      const { teamAId: rawTeamAId, teamBId: rawTeamBId, pairARequestId, pairBRequestId, groupNumber, subGroupNumber } = req.body;
+
+      // Helper: resolve a pair-request to a team in this category, creating it if needed.
+      async function resolvePairRequestToTeam(prId: number): Promise<number | null> {
+        const [pr] = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, prId));
+        if (!pr) return null;
+        const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.fromUserId));
+        const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pr.toUserId));
+        if (!p1 || !p2) return null;
+        const existing = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
+        const found = existing.find(t =>
+          (t.player1Id === p1.id && t.player2Id === p2.id) ||
+          (t.player1Id === p2.id && t.player2Id === p1.id)
+        );
+        if (found) return found.id;
+        const [created] = await db.insert(tournamentTeams).values({
+          categoryId: catId, player1Id: p1.id, player2Id: p2.id,
+        }).returning();
+        return created.id;
+      }
+
+      let teamAId: number | null = rawTeamAId || null;
+      let teamBId: number | null = rawTeamBId || null;
+      if (!teamAId && pairARequestId) teamAId = await resolvePairRequestToTeam(Number(pairARequestId));
+      if (!teamBId && pairBRequestId) teamBId = await resolvePairRequestToTeam(Number(pairBRequestId));
+
+      if (!teamAId || !teamBId) return res.status(400).json({ message: "Both pairs are required" });
+      if (teamAId === teamBId) return res.status(400).json({ message: "Pairs must be different" });
 
       const [teamA] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamAId));
       const [teamB] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamBId));
-      if (!teamA || !teamB) return res.status(400).json({ message: "One or both teams not found" });
+      if (!teamA || !teamB) return res.status(400).json({ message: "One or both pairs not found" });
       if (teamA.categoryId !== catId || teamB.categoryId !== catId) {
-        return res.status(400).json({ message: "Both teams must belong to this category" });
+        return res.status(400).json({ message: "Both pairs must belong to this category" });
       }
 
       const gNum = groupNumber || teamA.groupNumber || 1;

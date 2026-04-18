@@ -2056,8 +2056,8 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const { toast } = useToast();
   const [scoreDialog, setScoreDialog] = useState<any>(null);
   const [addMatchDialog, setAddMatchDialog] = useState<{ groupNumber?: number; subGroupNumber?: number } | null>(null);
-  const [addMatchTeamA, setAddMatchTeamA] = useState<number | "">("");
-  const [addMatchTeamB, setAddMatchTeamB] = useState<number | "">("");
+  const [addMatchTeamA, setAddMatchTeamA] = useState<string>("");
+  const [addMatchTeamB, setAddMatchTeamB] = useState<string>("");
   const [addMatchGroupNumber, setAddMatchGroupNumber] = useState<number | "">("");
 
   const handleAssignCourt = (matchId: number, courtId: number | null) => {
@@ -2463,38 +2463,36 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 const effectiveGroupNumber: number | "" = presetGroup ?? addMatchGroupNumber;
                 const effectiveSubGroup = addMatchDialog.subGroupNumber ?? 1;
                 const allCategoryTeams = (teams || []) as any[];
-                // Build a user-pair lookup so we can resolve pair-request group entries to a team in this category.
-                const teamIdByUserKey = new Map<string, number>();
-                for (const t of allCategoryTeams) {
-                  const u1 = t.player1?.user?.id;
-                  const u2 = t.player2?.user?.id;
-                  if (u1 && u2) {
-                    const key = [Math.min(u1, u2), Math.max(u1, u2)].join("-");
-                    teamIdByUserKey.set(key, t.id);
-                  }
-                }
-                // Resolve selected group → its assigned team IDs (covers both teamId and pairRequestId entries)
+                const teamMap = new Map<number, any>(allCategoryTeams.map((t: any) => [t.id, t]));
+                // Resolve selected group from the Groups tab — display every pair it contains, exactly as set up there.
                 const selectedGroup = (allGroups as any[])
                   .slice()
                   .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0))
                   .find((g: any) => g.groupOrder === effectiveGroupNumber);
-                const groupTeamIds = new Set<number>();
-                for (const p of (selectedGroup?.pairs || [])) {
-                  if (typeof p.teamId === "number") {
-                    groupTeamIds.add(p.teamId);
-                  } else if (p.pairRequest) {
-                    const u1 = p.pairRequest.fromUserId;
-                    const u2 = p.pairRequest.toUserId;
-                    if (u1 && u2) {
-                      const key = [Math.min(u1, u2), Math.max(u1, u2)].join("-");
-                      const tid = teamIdByUserKey.get(key);
-                      if (tid) groupTeamIds.add(tid);
+                type PairOption = { value: string; label: string };
+                let pairOptions: PairOption[] = [];
+                if (effectiveGroupNumber !== "" && selectedGroup) {
+                  pairOptions = ((selectedGroup.pairs || []) as any[]).map((p: any) => {
+                    if (p.teamId) {
+                      const t = teamMap.get(p.teamId);
+                      const label = t
+                        ? getTeamName(t)
+                        : (p.team
+                          ? [p.team.player1Name, p.team.player2Name].filter(Boolean).join(" / ")
+                          : `Pair #${p.id}`);
+                      return { value: `team-${p.teamId}`, label };
                     }
-                  }
+                    if (p.pairRequest) {
+                      const label = p.pairRequest.pairName
+                        || [p.pairRequest.fromUserName, p.pairRequest.toUserName].filter(Boolean).join(" / ")
+                        || `Pair #${p.id}`;
+                      return { value: `pr-${p.pairRequestId}`, label };
+                    }
+                    return { value: `unknown-${p.id}`, label: `Pair #${p.id}` };
+                  });
+                } else if (effectiveGroupNumber === "") {
+                  pairOptions = allCategoryTeams.map((t: any) => ({ value: `team-${t.id}`, label: getTeamName(t) }));
                 }
-                const pairOptions = effectiveGroupNumber !== "" && groupTeamIds.size > 0
-                  ? allCategoryTeams.filter(t => groupTeamIds.has(t.id))
-                  : (effectiveGroupNumber !== "" ? [] : allCategoryTeams);
                 return (
                   <>
                     <div>
@@ -2525,22 +2523,22 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pair A</label>
-                      <Select value={addMatchTeamA === "" ? "" : String(addMatchTeamA)} onValueChange={v => setAddMatchTeamA(Number(v))}>
+                      <Select value={addMatchTeamA} onValueChange={v => setAddMatchTeamA(v)}>
                         <SelectTrigger data-testid="select-add-match-team-a"><SelectValue placeholder={effectiveGroupNumber === "" ? "Select group first" : "Select pair"} /></SelectTrigger>
                         <SelectContent>
-                          {pairOptions.filter(t => t.id !== addMatchTeamB).map(t => (
-                            <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
+                          {pairOptions.filter(t => t.value !== addMatchTeamB).map(t => (
+                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">Pair B</label>
-                      <Select value={addMatchTeamB === "" ? "" : String(addMatchTeamB)} onValueChange={v => setAddMatchTeamB(Number(v))}>
+                      <Select value={addMatchTeamB} onValueChange={v => setAddMatchTeamB(v)}>
                         <SelectTrigger data-testid="select-add-match-team-b"><SelectValue placeholder={effectiveGroupNumber === "" ? "Select group first" : "Select pair"} /></SelectTrigger>
                         <SelectContent>
-                          {pairOptions.filter(t => t.id !== addMatchTeamA).map(t => (
-                            <SelectItem key={t.id} value={String(t.id)}>{getTeamName(t)}</SelectItem>
+                          {pairOptions.filter(t => t.value !== addMatchTeamA).map(t => (
+                            <SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
@@ -2563,13 +2561,22 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   const gNum = addMatchDialog.groupNumber ?? (addMatchGroupNumber as number);
                   const sgNum = addMatchDialog.subGroupNumber ?? 1;
                   if (!gNum) return;
+                  const parse = (v: string) => {
+                    if (v.startsWith("team-")) return { teamId: Number(v.slice(5)) as number | null, prId: null as number | null };
+                    if (v.startsWith("pr-")) return { teamId: null as number | null, prId: Number(v.slice(3)) as number | null };
+                    return { teamId: null, prId: null };
+                  };
+                  const a = parse(addMatchTeamA);
+                  const b = parse(addMatchTeamB);
                   addGroupMatchMutation.mutate({
                     categoryId: category.id,
-                    teamAId: addMatchTeamA as number,
-                    teamBId: addMatchTeamB as number,
+                    teamAId: a.teamId ?? undefined,
+                    teamBId: b.teamId ?? undefined,
+                    pairARequestId: a.prId ?? undefined,
+                    pairBRequestId: b.prId ?? undefined,
                     groupNumber: gNum,
                     subGroupNumber: sgNum,
-                  }, {
+                  } as any, {
                     onSuccess: () => {
                       toast({ title: "Match Added" });
                       setAddMatchDialog(null);
