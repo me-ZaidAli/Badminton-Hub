@@ -1135,6 +1135,46 @@ export function registerTournamentRoutes(app: Express) {
       const updates: any = { scores, status: "FINISHED" as const };
       if (winnerId) updates.winnerId = winnerId;
 
+      // If the match was already FINISHED, reverse its previous effect on the standings
+      // before applying the new score so editing doesn't double-count.
+      if (existingMatch.status === "FINISHED" && existingMatch.winnerId && existingMatch.groupNumber) {
+        const prevScores: any[] = (existingMatch.scores as any[]) || [];
+        let pTotalA = 0, pTotalB = 0;
+        for (const s of prevScores) { pTotalA += s.scoreA; pTotalB += s.scoreB; }
+        const prevWinnerIsA = existingMatch.winnerId === existingMatch.teamAId;
+        const prevLoserId = prevWinnerIsA ? existingMatch.teamBId : existingMatch.teamAId;
+        const prevWinnerPF = prevWinnerIsA ? pTotalA : pTotalB;
+        const prevWinnerPA = prevWinnerIsA ? pTotalB : pTotalA;
+        const prevLoserPF = prevWinnerIsA ? pTotalB : pTotalA;
+        const prevLoserPA = prevWinnerIsA ? pTotalA : pTotalB;
+        const prevGamesByWinner = prevScores.filter((s: any) => prevWinnerIsA ? s.scoreA > s.scoreB : s.scoreB > s.scoreA).length;
+        const prevGamesByLoser = prevScores.length - prevGamesByWinner;
+        await db.execute(sql`
+          UPDATE tournament_standings SET
+            matches_played = matches_played - 1,
+            matches_won = matches_won - 1,
+            games_won = games_won - ${prevGamesByWinner},
+            games_lost = games_lost - ${prevGamesByLoser},
+            points_for = points_for - ${prevWinnerPF},
+            points_against = points_against - ${prevWinnerPA},
+            points = points - ${prevWinnerPF}
+          WHERE category_id = ${existingMatch.categoryId} AND team_id = ${existingMatch.winnerId}
+        `);
+        if (prevLoserId) {
+          await db.execute(sql`
+            UPDATE tournament_standings SET
+              matches_played = matches_played - 1,
+              matches_lost = matches_lost - 1,
+              games_won = games_won - ${prevGamesByLoser},
+              games_lost = games_lost - ${prevGamesByWinner},
+              points_for = points_for - ${prevLoserPF},
+              points_against = points_against - ${prevLoserPA},
+              points = points - ${prevLoserPF}
+            WHERE category_id = ${existingMatch.categoryId} AND team_id = ${prevLoserId}
+          `);
+        }
+      }
+
       const [match] = await db.update(tournamentMatches).set(updates).where(eq(tournamentMatches.id, matchId)).returning();
 
       if (match.groupNumber && match.winnerId) {
@@ -1196,6 +1236,65 @@ export function registerTournamentRoutes(app: Express) {
       }
 
       res.json(match);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Delete an individual match. If the match was already FINISHED with a winner,
+  // reverse its standings effect first so the table stays accurate.
+  app.delete("/api/tournament-matches/:id", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const matchId = Number(req.params.id);
+      const [m] = await db.select().from(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      if (!m) return res.status(404).json({ message: "Match not found" });
+      const [delCat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, m.categoryId));
+      if (!delCat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin((req.user as any).id, delCat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      if (m.status === "FINISHED" && m.winnerId && m.groupNumber) {
+        const prevScores: any[] = (m.scores as any[]) || [];
+        let pTotalA = 0, pTotalB = 0;
+        for (const s of prevScores) { pTotalA += s.scoreA; pTotalB += s.scoreB; }
+        const winnerIsA = m.winnerId === m.teamAId;
+        const loserId = winnerIsA ? m.teamBId : m.teamAId;
+        const wPF = winnerIsA ? pTotalA : pTotalB;
+        const wPA = winnerIsA ? pTotalB : pTotalA;
+        const lPF = winnerIsA ? pTotalB : pTotalA;
+        const lPA = winnerIsA ? pTotalA : pTotalB;
+        const wGames = prevScores.filter((s: any) => winnerIsA ? s.scoreA > s.scoreB : s.scoreB > s.scoreA).length;
+        const lGames = prevScores.length - wGames;
+        await db.execute(sql`
+          UPDATE tournament_standings SET
+            matches_played = matches_played - 1,
+            matches_won = matches_won - 1,
+            games_won = games_won - ${wGames},
+            games_lost = games_lost - ${lGames},
+            points_for = points_for - ${wPF},
+            points_against = points_against - ${wPA},
+            points = points - ${wPF}
+          WHERE category_id = ${m.categoryId} AND team_id = ${m.winnerId}
+        `);
+        if (loserId) {
+          await db.execute(sql`
+            UPDATE tournament_standings SET
+              matches_played = matches_played - 1,
+              matches_lost = matches_lost - 1,
+              games_won = games_won - ${lGames},
+              games_lost = games_lost - ${wGames},
+              points_for = points_for - ${lPF},
+              points_against = points_against - ${lPA},
+              points = points - ${lPF}
+            WHERE category_id = ${m.categoryId} AND team_id = ${loserId}
+          `);
+        }
+      }
+
+      await db.delete(tournamentMatches).where(eq(tournamentMatches.id, matchId));
+      try { await recalculatePlayerStats(delCat.tournamentId, m.categoryId); } catch {}
+      res.json({ success: true });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

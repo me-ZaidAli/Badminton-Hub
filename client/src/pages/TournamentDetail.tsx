@@ -5,7 +5,7 @@ import {
   useTournament, useTournamentCategories, useTournamentTeams,
   useTournamentMatches, useTournamentStandings,
   useCreateCategory, useDeleteCategory, useRegisterTeam, useDeleteTeam, useUpdateTeam,
-  useGenerateMatches, useScoreMatch, useAdvanceWinners, useAddGroupMatch, useUpdateTournament,
+  useGenerateMatches, useScoreMatch, useAdvanceWinners, useAddGroupMatch, useUpdateTournament, useDeleteTournamentMatch,
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
@@ -2052,6 +2052,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
     category.format === "KNOCKOUT" ? "bracket" : category.format === "GROUP_KNOCKOUT" ? "standings" : "list"
   );
   const scoreMutation = useScoreMatch();
+  const deleteMatchMutation = useDeleteTournamentMatch();
   const addGroupMatchMutation = useAddGroupMatch();
   const { toast } = useToast();
   const [scoreDialog, setScoreDialog] = useState<any>(null);
@@ -2413,6 +2414,16 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                         courts={courts || []}
                         onAssignCourt={handleAssignCourt}
                         onUpdateStatus={handleUpdateStatus}
+                        onDelete={(matchId) => {
+                          deleteMatchMutation.mutate(matchId, {
+                            onSuccess: () => {
+                              toast({ title: "Match Deleted" });
+                              queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+                              queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "standings"] });
+                            },
+                            onError: (err: any) => toast({ title: "Error", description: err.message, variant: "destructive" }),
+                          });
+                        }}
                         onUpdateTime={(matchId, scheduledTime) => {
                           updateTimeMutation.mutate({ matchId, scheduledTime, tournamentId }, {
                             onSuccess: () => {
@@ -2600,11 +2611,12 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   );
 }
 
-function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateStatus, onUpdateTime }: {
+function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateStatus, onUpdateTime, onDelete }: {
   match: any; canManage: boolean; onScore: () => void;
   courts?: any[]; onAssignCourt?: (matchId: number, courtId: number | null) => void;
   onUpdateStatus?: (matchId: number, status: string) => void;
   onUpdateTime?: (matchId: number, scheduledTime: string | null) => void;
+  onDelete?: (matchId: number) => void;
 }) {
   const [editingTime, setEditingTime] = useState(false);
   const toLocalInput = (d: any) => {
@@ -2757,9 +2769,9 @@ function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateS
             </div>
           </div>
 
-          {!isFinished && canManage && match.teamAId && match.teamBId && (
+          {canManage && (
             <div className="flex items-center gap-1 px-2 border-l border-border/30">
-              {!isLive && (
+              {!isFinished && match.teamAId && match.teamBId && !isLive && (
                 <Button size="sm" onClick={() => onUpdateStatus?.(match.id, "LIVE")}
                   data-testid={`match-start-${match.id}`}
                   className="h-8 w-8 p-0 bg-green-600/20 hover:bg-green-600/40 text-green-400 border border-green-500/30 rounded-lg"
@@ -2767,7 +2779,7 @@ function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateS
                   <Play className="h-3.5 w-3.5" />
                 </Button>
               )}
-              {isLive && (
+              {!isFinished && match.teamAId && match.teamBId && isLive && (
                 <Button size="sm" onClick={() => onUpdateStatus?.(match.id, "PENDING")}
                   data-testid={`match-stop-${match.id}`}
                   className="h-8 w-8 p-0 bg-orange-600/20 hover:bg-orange-600/40 text-orange-400 border border-orange-500/30 rounded-lg"
@@ -2775,12 +2787,24 @@ function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateS
                   <Square className="h-3.5 w-3.5" />
                 </Button>
               )}
-              <Button size="sm" onClick={onScore}
-                data-testid={`match-score-${match.id}`}
-                className="h-8 w-8 p-0 bg-violet-600/20 hover:bg-violet-600/40 text-violet-400 border border-violet-500/30 rounded-lg"
-                title="Submit Score">
-                <Target className="h-3.5 w-3.5" />
-              </Button>
+              {match.teamAId && match.teamBId && (
+                <Button size="sm" onClick={onScore}
+                  data-testid={`match-score-${match.id}`}
+                  className="h-8 w-8 p-0 bg-violet-600/20 hover:bg-violet-600/40 text-violet-400 border border-violet-500/30 rounded-lg"
+                  title={isFinished ? "Edit Score" : "Submit Score"}>
+                  {isFinished ? <Edit3 className="h-3.5 w-3.5" /> : <Target className="h-3.5 w-3.5" />}
+                </Button>
+              )}
+              {onDelete && (
+                <Button size="sm" onClick={() => {
+                  if (confirm("Delete this match? Standings will be adjusted automatically.")) onDelete(match.id);
+                }}
+                  data-testid={`match-delete-${match.id}`}
+                  className="h-8 w-8 p-0 bg-red-600/20 hover:bg-red-600/40 text-red-400 border border-red-500/30 rounded-lg"
+                  title="Delete Match">
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -2813,7 +2837,13 @@ function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateS
 }
 
 function ScoreDialog({ match, onClose, onSubmit, isPending }: { match: any; onClose: () => void; onSubmit: (scores: any[], winnerId: number) => void; isPending: boolean }) {
-  const [sets, setSets] = useState([{ scoreA: 0, scoreB: 0 }]);
+  // Prefill with existing sets when editing a finished match.
+  const [sets, setSets] = useState(() => {
+    const existing = (match.scores as any[] | undefined) || [];
+    return existing.length > 0
+      ? existing.map(s => ({ scoreA: s.scoreA ?? 0, scoreB: s.scoreB ?? 0 }))
+      : [{ scoreA: 0, scoreB: 0 }];
+  });
 
   function addSet() { setSets([...sets, { scoreA: 0, scoreB: 0 }]); }
   function updateSet(idx: number, field: "scoreA" | "scoreB", val: number) {

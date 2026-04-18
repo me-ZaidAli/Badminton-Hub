@@ -346,6 +346,18 @@ export function useScoreMatch() {
   });
 }
 
+export function useDeleteTournamentMatch() {
+  return useMutation({
+    mutationFn: async (matchId: number) => {
+      const res = await apiRequest("DELETE", `/api/tournament-matches/${matchId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories"] });
+    },
+  });
+}
+
 export function useAddGroupMatch() {
   return useMutation({
     mutationFn: async ({ categoryId, teamAId, teamBId, groupNumber, subGroupNumber }: { categoryId: number; teamAId: number; teamBId: number; groupNumber?: number; subGroupNumber?: number }) => {
