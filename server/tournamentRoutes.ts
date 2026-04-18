@@ -1043,42 +1043,56 @@ export function registerTournamentRoutes(app: Express) {
       const { teamAId: rawTeamAId, teamBId: rawTeamBId, pairARequestId, pairBRequestId, groupNumber, subGroupNumber } = req.body;
 
       // Helper: resolve a pair-request to a team in this category, creating it if needed.
-      // Auto-creates a player profile in the tournament's club if one doesn't exist for either user,
-      // so manual match creation never fails just because a profile is missing.
+      // Throws with a descriptive reason on failure so the user sees exactly what went wrong
+      // rather than a generic "Both pairs are required" message.
       const [tournamentForPair] = await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
-      async function ensureProfile(userId: number): Promise<number | null> {
+      async function ensureProfile(userId: number, label: string): Promise<number> {
         const [existing] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
         if (existing) return existing.id;
-        if (!tournamentForPair?.clubId) return null;
-        const [created] = await db.insert(playerProfiles).values({
-          userId, clubId: tournamentForPair.clubId,
-        }).returning();
-        return created.id;
+        if (!tournamentForPair?.clubId) {
+          throw new Error(`Tournament ${cat.tournamentId} has no club to create a profile for ${label} (user ${userId})`);
+        }
+        try {
+          const [created] = await db.insert(playerProfiles).values({
+            userId, clubId: tournamentForPair.clubId,
+          }).returning();
+          return created.id;
+        } catch (err: any) {
+          throw new Error(`Could not create player profile for ${label} (user ${userId}): ${err.message}`);
+        }
       }
-      async function resolvePairRequestToTeam(prId: number): Promise<number | null> {
+      async function resolvePairRequestToTeam(prId: number, sideLabel: string): Promise<number> {
         const [pr] = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, prId));
-        if (!pr) return null;
-        const p1Id = await ensureProfile(pr.fromUserId);
-        const p2Id = await ensureProfile(pr.toUserId);
-        if (!p1Id || !p2Id) return null;
+        if (!pr) throw new Error(`${sideLabel}: pair request #${prId} not found`);
+        const p1Id = await ensureProfile(pr.fromUserId, `${sideLabel} player 1`);
+        const p2Id = await ensureProfile(pr.toUserId, `${sideLabel} player 2`);
         const existing = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
         const found = existing.find(t =>
           (t.player1Id === p1Id && t.player2Id === p2Id) ||
           (t.player1Id === p2Id && t.player2Id === p1Id)
         );
         if (found) return found.id;
-        const [created] = await db.insert(tournamentTeams).values({
-          categoryId: catId, player1Id: p1Id, player2Id: p2Id,
-        }).returning();
-        return created.id;
+        try {
+          const [created] = await db.insert(tournamentTeams).values({
+            categoryId: catId, player1Id: p1Id, player2Id: p2Id,
+          }).returning();
+          return created.id;
+        } catch (err: any) {
+          throw new Error(`${sideLabel}: could not create team in category ${catId}: ${err.message}`);
+        }
       }
 
-      let teamAId: number | null = rawTeamAId || null;
-      let teamBId: number | null = rawTeamBId || null;
-      if (!teamAId && pairARequestId) teamAId = await resolvePairRequestToTeam(Number(pairARequestId));
-      if (!teamBId && pairBRequestId) teamBId = await resolvePairRequestToTeam(Number(pairBRequestId));
+      let teamAId: number | null = rawTeamAId ? Number(rawTeamAId) : null;
+      let teamBId: number | null = rawTeamBId ? Number(rawTeamBId) : null;
+      try {
+        if (!teamAId && pairARequestId) teamAId = await resolvePairRequestToTeam(Number(pairARequestId), "Pair A");
+        if (!teamBId && pairBRequestId) teamBId = await resolvePairRequestToTeam(Number(pairBRequestId), "Pair B");
+      } catch (err: any) {
+        return res.status(400).json({ message: err.message });
+      }
 
-      if (!teamAId || !teamBId) return res.status(400).json({ message: "Both pairs are required" });
+      if (!teamAId) return res.status(400).json({ message: "Pair A is required (no team or pair-request ID was provided)" });
+      if (!teamBId) return res.status(400).json({ message: "Pair B is required (no team or pair-request ID was provided)" });
       if (teamAId === teamBId) return res.status(400).json({ message: "Pairs must be different" });
 
       const [teamA] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamAId));
