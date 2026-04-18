@@ -1312,7 +1312,8 @@ export function registerTournamentRoutes(app: Express) {
           return res.status(400).json({ message: `Complete all group stage matches first (${unfinishedGroupMatches.length} remaining)` });
         }
 
-        const advancePerGroup = cat.advancePerGroup || 2;
+        // Always advance the top 2 pairs (by points) from each group stage group to the quarter-finals.
+        const advancePerGroup = 2;
         const groupKeys = Array.from(new Set(groupStageStandings.map(s => s.groupNumber))).sort((a, b) => a - b);
         const qualifiersWithOrigin: { teamId: number; sourceGroup: number; rank: number }[] = [];
         const seenTeamIds = new Set<number>();
