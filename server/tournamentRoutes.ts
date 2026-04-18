@@ -1172,7 +1172,7 @@ export function registerTournamentRoutes(app: Express) {
             points_for = points_for - ${prevWinnerPF},
             points_against = points_against - ${prevWinnerPA},
             points = points - ${prevWinnerPF}
-          WHERE category_id = ${existingMatch.categoryId} AND team_id = ${existingMatch.winnerId}
+          WHERE category_id = ${existingMatch.categoryId} AND team_id = ${existingMatch.winnerId} AND group_number = ${existingMatch.groupNumber}
         `);
         if (prevLoserId) {
           await db.execute(sql`
@@ -1184,7 +1184,7 @@ export function registerTournamentRoutes(app: Express) {
               points_for = points_for - ${prevLoserPF},
               points_against = points_against - ${prevLoserPA},
               points = points - ${prevLoserPF}
-            WHERE category_id = ${existingMatch.categoryId} AND team_id = ${prevLoserId}
+            WHERE category_id = ${existingMatch.categoryId} AND team_id = ${prevLoserId} AND group_number = ${existingMatch.groupNumber}
           `);
         }
       }
@@ -1213,7 +1213,7 @@ export function registerTournamentRoutes(app: Express) {
             points_for = points_for + ${winnerPF},
             points_against = points_against + ${winnerPA},
             points = points + ${winnerPF}
-          WHERE category_id = ${match.categoryId} AND team_id = ${match.winnerId}
+          WHERE category_id = ${match.categoryId} AND team_id = ${match.winnerId} AND group_number = ${match.groupNumber}
         `);
         if (loserId) {
           await db.execute(sql`
@@ -1225,7 +1225,7 @@ export function registerTournamentRoutes(app: Express) {
               points_for = points_for + ${loserPF},
               points_against = points_against + ${loserPA},
               points = points + ${loserPF}
-            WHERE category_id = ${match.categoryId} AND team_id = ${loserId}
+            WHERE category_id = ${match.categoryId} AND team_id = ${loserId} AND group_number = ${match.groupNumber}
           `);
         }
       }
@@ -1289,7 +1289,7 @@ export function registerTournamentRoutes(app: Express) {
             points_for = points_for - ${wPF},
             points_against = points_against - ${wPA},
             points = points - ${wPF}
-          WHERE category_id = ${m.categoryId} AND team_id = ${m.winnerId}
+          WHERE category_id = ${m.categoryId} AND team_id = ${m.winnerId} AND group_number = ${m.groupNumber}
         `);
         if (loserId) {
           await db.execute(sql`
@@ -1301,7 +1301,7 @@ export function registerTournamentRoutes(app: Express) {
               points_for = points_for - ${lPF},
               points_against = points_against - ${lPA},
               points = points - ${lPF}
-            WHERE category_id = ${m.categoryId} AND team_id = ${loserId}
+            WHERE category_id = ${m.categoryId} AND team_id = ${loserId} AND group_number = ${m.groupNumber}
           `);
         }
       }
