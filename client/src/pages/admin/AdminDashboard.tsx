@@ -402,7 +402,6 @@ export default function AdminDashboard() {
     { href: "/admin/trials", label: "Trial Players", description: "Manage trial registrations, evaluations, and decisions", icon: UserCheck, color: "text-cyan-500", bg: "bg-cyan-500/10" },
     ...(!isOrganiserOnly ? [{ href: "/admin/inactive-members", label: "Inactive Members", description: "Re-engage or manage inactive players", icon: Users, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/import-members", label: "Import Members", description: "Bulk upload members via CSV", icon: Upload, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
-    ...(!isOrganiserOnly ? [{ href: "/admin/tshirts", label: "T-Shirt Manager", description: "Manage club t-shirts, requests, and batch orders", icon: Shirt, color: "text-blue-500", bg: "bg-blue-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/merchandise", label: "Merchandise Manager", description: "Products, orders, stock, and payments", icon: ShoppingBag, color: "text-violet-500", bg: "bg-violet-500/10" }] : []),
   ];
 
