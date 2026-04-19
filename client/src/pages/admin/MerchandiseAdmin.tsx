@@ -704,11 +704,33 @@ function OrdersPanel({ clubs, isGodMode, clubFilter, onMutate }: { clubs: ClubLi
                   <TableCell className="text-xs whitespace-nowrap">{format(new Date(o.createdAt), "dd MMM yy, HH:mm")}</TableCell>
                   <TableCell>
                     <div className="flex gap-1 justify-end">
-                      <Button variant="ghost" size="icon" onClick={() => setOpenOrderId(o.id)} data-testid={`button-view-order-${o.id}`}><Eye className="w-4 h-4" /></Button>
-                      <Button variant="ghost" size="icon" onClick={() => updateMut.mutate({ id: o.id, paymentStatus: o.paymentStatus === "Paid" ? "Unpaid" : "Paid" })} data-testid={`button-toggle-paid-${o.id}`}>
-                        {o.paymentStatus === "Paid" ? <X className="w-4 h-4" /> : <Check className="w-4 h-4" />}
-                      </Button>
-                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(o.id)} data-testid={`button-delete-order-${o.id}`}><Trash2 className="w-4 h-4 text-destructive" /></Button>
+                      <Button variant="ghost" size="icon" onClick={() => setOpenOrderId(o.id)} data-testid={`button-view-order-${o.id}`} title="View order"><Eye className="w-4 h-4" /></Button>
+                      {o.paymentStatus === "Paid" ? (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-[11px] font-semibold border-rose-300 text-rose-600 hover:bg-rose-50 dark:border-rose-700 dark:text-rose-400 dark:hover:bg-rose-900/20"
+                          onClick={() => updateMut.mutate({ id: o.id, paymentStatus: "Unpaid" })}
+                          disabled={updateMut.isPending}
+                          data-testid={`button-mark-unpaid-${o.id}`}
+                          title="Mark this order as unpaid"
+                        >
+                          <X className="w-3.5 h-3.5 mr-1" /> Mark Unpaid
+                        </Button>
+                      ) : (
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="h-8 px-2 text-[11px] font-semibold border-emerald-300 text-emerald-700 hover:bg-emerald-50 dark:border-emerald-700 dark:text-emerald-400 dark:hover:bg-emerald-900/20"
+                          onClick={() => updateMut.mutate({ id: o.id, paymentStatus: "Paid" })}
+                          disabled={updateMut.isPending}
+                          data-testid={`button-mark-paid-${o.id}`}
+                          title="Mark this order as paid"
+                        >
+                          <Check className="w-3.5 h-3.5 mr-1" /> Mark Paid
+                        </Button>
+                      )}
+                      <Button variant="ghost" size="icon" onClick={() => setDeleteId(o.id)} data-testid={`button-delete-order-${o.id}`} title="Delete order"><Trash2 className="w-4 h-4 text-destructive" /></Button>
                     </div>
                   </TableCell>
                 </TableRow>
