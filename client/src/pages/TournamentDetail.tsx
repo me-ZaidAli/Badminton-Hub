@@ -2048,6 +2048,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const updateTimeMutation = useUpdateMatchScheduledTime();
   const bulkUpdateTimeMutation = useBulkUpdateMatchScheduledTime();
   const [bulkTimeBySection, setBulkTimeBySection] = useState<Record<string, string>>({});
+  const [stageFilter, setStageFilter] = useState<"all" | "qf" | "sf" | "final" | "rr" | "other">("all");
   const [activeView, setActiveView] = useState<"bracket" | "standings" | "list">(
     category.format === "KNOCKOUT" ? "bracket" : category.format === "GROUP_KNOCKOUT" ? "standings" : "list"
   );
@@ -2153,6 +2154,36 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 </span>
               </button>
             )}
+            {category.format === "GROUP_KNOCKOUT" && hasQF && (
+              <button
+                onClick={async () => {
+                  if (!window.confirm("Regenerate Quarter-Finals? This wipes the existing Quarter-Finals, Semi-Finals and Final (matches + standings) and rebuilds the Quarter-Finals from your current group standings. Round-robin groups stay untouched.")) return;
+                  try {
+                    await apiRequest("POST", `/api/tournament-categories/${category.id}/clear-knockout`);
+                    const r = await advanceWinnersMutation.mutateAsync(category.id);
+                    queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
+                    queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "standings"] });
+                    toast({ title: "Quarter-Finals Regenerated", description: r.message });
+                  } catch (e: any) {
+                    toast({ title: "Error", description: e.message, variant: "destructive" });
+                  }
+                }}
+                disabled={isAdvancing}
+                className={cn(
+                  "group relative px-5 py-3 rounded-xl font-black text-xs uppercase tracking-wider transition-all duration-300",
+                  "bg-slate-900/80 border border-amber-500/40 text-amber-300",
+                  "hover:shadow-[0_0_25px_rgba(245,158,11,0.25)] hover:border-amber-400/70",
+                  "hover:scale-[1.02] active:scale-[0.98]",
+                  "disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100",
+                )}
+                data-testid="button-regenerate-qf"
+              >
+                <span className="relative flex items-center gap-2">
+                  <RotateCcw className="h-3.5 w-3.5" />
+                  Regenerate Quarter-Finals
+                </span>
+              </button>
+            )}
             <button
               onClick={async () => {
                 if (!window.confirm("Clear all matches and standings for this category? Groups and pair assignments will be kept. You can then click Regenerate Fixtures to rebuild matches for every group.")) return;
@@ -2253,8 +2284,10 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 return `Round ${idx + 1}`;
               }
 
-              const sections: { key: string; label: string; color: string; matches: typeof displayMatches; groupNumber?: number; subGroupNumber?: number }[] = [];
+              type SectionStage = "rr" | "qf" | "sf" | "final" | "other";
+              const sections: { key: string; label: string; color: string; matches: typeof displayMatches; groupNumber?: number; subGroupNumber?: number; stage: SectionStage }[] = [];
 
+              const rrSections: typeof sections = [];
               if (grpMatches.length > 0) {
                 const sgMap = new Map<string, typeof grpMatches>();
                 grpMatches.forEach(m => {
@@ -2269,7 +2302,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   const label = hasMultipleSg
                     ? `Group ${String.fromCharCode(64 + g)} · Subgroup ${sg}`
                     : `Group ${String.fromCharCode(64 + g)}`;
-                  sections.push({ key: k, label, color: "violet", matches: sgMap.get(k)!, groupNumber: g, subGroupNumber: sg });
+                  rrSections.push({ key: k, label, color: "violet", matches: sgMap.get(k)!, groupNumber: g, subGroupNumber: sg, stage: "rr" });
                 }
               }
 
@@ -2319,15 +2352,63 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   koRoundMap.get(r)!.push(m);
                 });
                 Array.from(koRoundMap.entries()).sort(([a], [b]) => a - b).forEach(([round, ms]) => {
-                  sections.push({ key: `ko-${round}`, label: getKoLabel(round), color: "amber", matches: ms });
+                  sections.push({ key: `ko-${round}`, label: getKoLabel(round), color: "amber", matches: ms, stage: "other" });
                 });
               }
+
+              // Stitch the round-robin sections AFTER the knockout sections so the
+              // knockout stages (Quarter-Finals, Semi-Finals, Final) appear at the top.
+              sections.push(...rrSections);
+
+              const stageCounts = {
+                qf: sections.filter(s => s.stage === "qf").reduce((n, s) => n + s.matches.length, 0),
+                sf: sections.filter(s => s.stage === "sf").reduce((n, s) => n + s.matches.length, 0),
+                final: sections.filter(s => s.stage === "final").reduce((n, s) => n + s.matches.length, 0),
+                rr: sections.filter(s => s.stage === "rr").reduce((n, s) => n + s.matches.length, 0),
+                other: sections.filter(s => s.stage === "other").reduce((n, s) => n + s.matches.length, 0),
+              };
+              const visibleSections = stageFilter === "all" ? sections : sections.filter(s => s.stage === stageFilter);
+
+              const stageOptions: { value: typeof stageFilter; label: string; count: number }[] = [
+                { value: "all", label: "All stages", count: sections.reduce((n, s) => n + s.matches.length, 0) },
+              ];
+              if (stageCounts.qf) stageOptions.push({ value: "qf", label: "Quarter-Finals", count: stageCounts.qf });
+              if (stageCounts.sf) stageOptions.push({ value: "sf", label: "Semi-Finals", count: stageCounts.sf });
+              if (stageCounts.final) stageOptions.push({ value: "final", label: "Final", count: stageCounts.final });
+              if (stageCounts.other) stageOptions.push({ value: "other", label: "Other knockouts", count: stageCounts.other });
+              if (stageCounts.rr) stageOptions.push({ value: "rr", label: "Round Robin", count: stageCounts.rr });
 
               if (sections.length === 0) {
                 return <EmptyState icon={Swords} title="No Matches" description="Generate fixtures to create matches." />;
               }
 
-              return sections.map(sec => (
+              return (
+                <>
+                  {stageOptions.length > 1 && (
+                    <div className="flex flex-wrap items-center gap-2 mb-4 px-3 py-2.5 rounded-xl border border-border/60 bg-muted/40">
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Show stage</span>
+                      <Select value={stageFilter} onValueChange={(v) => setStageFilter(v as any)}>
+                        <SelectTrigger className="h-8 text-xs font-bold w-[200px]" data-testid="select-stage-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stageOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label} <span className="text-muted-foreground font-normal">· {opt.count}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {stageFilter !== "all" && (
+                        <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => setStageFilter("all")} data-testid="button-stage-filter-clear">
+                          Show all
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {visibleSections.length === 0 ? (
+                    <EmptyState icon={Swords} title="No Matches in this Stage" description="Pick another stage from the dropdown above." />
+                  ) : visibleSections.map(sec => (
                 <div key={sec.key}>
                   <div className="flex items-center gap-2 mb-2">
                     <div className={cn("h-px flex-1 bg-gradient-to-r to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
@@ -2437,7 +2518,9 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     ))}
                   </div>
                 </div>
-              ));
+                  ))}
+                </>
+              );
             })()
           )}
         </div>

@@ -1,6 +1,6 @@
 import { Express } from "express";
 import { db } from "./db";
-import { eq, and, or, desc, asc, sql, inArray, ne, isNull } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray, ne, isNull, gte } from "drizzle-orm";
 import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches,
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
@@ -779,6 +779,40 @@ export function registerTournamentRoutes(app: Express) {
       res.json({ success: true, message: "All matches and standings cleared. Click Regenerate Fixtures to rebuild." });
     } catch (e: any) {
       console.error("[CLEAR MATCHES]", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Clear only the knockout stages (Quarter-Finals, Semi-Finals, Final), keeping
+  // the round-robin group stage intact. Used by the "Regenerate Quarter-Finals"
+  // workflow so admins can re-run KO generation after changing groups/standings.
+  app.post("/api/tournament-categories/:id/clear-knockout", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      // Wipe matches with round >= 200 (QF=200, SF=300, Final=400) and any
+      // standings rows belonging to those KO group buckets (groupNumber >= 200).
+      await db.delete(tournamentMatches).where(
+        and(
+          eq(tournamentMatches.categoryId, catId),
+          gte(tournamentMatches.round, 200),
+        ),
+      );
+      await db.delete(tournamentStandings).where(
+        and(
+          eq(tournamentStandings.categoryId, catId),
+          gte(tournamentStandings.groupNumber, 200),
+        ),
+      );
+
+      res.json({ success: true, message: "Knockout stages cleared. Quarter-Finals can be regenerated." });
+    } catch (e: any) {
+      console.error("[CLEAR KNOCKOUT]", e);
       res.status(500).json({ message: e.message });
     }
   });
