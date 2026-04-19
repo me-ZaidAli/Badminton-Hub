@@ -3606,34 +3606,100 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const activeCatId = formCategoryId ? Number(formCategoryId) : (categories.length > 0 ? categories[0].id : 0);
   const { data: allTeams = [] } = useTournamentTeams(activeCatId);
   const { data: allPairs = [] } = useTournamentPairs(tournamentId);
+  const { data: catMatches = [] } = useTournamentMatches(activeCatId);
   const acceptedPairs = allPairs.filter((p: any) => !!p.pairRequestId);
-
-  const assignedTeamIds = new Set<number>(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.teamId).filter(Boolean) || []));
-  const assignedPairRequestIds = new Set<number>(groups.flatMap((g: any) => g.pairs?.map((p: any) => p.pairRequestId).filter(Boolean) || []));
 
   // Map: "minProfileId-maxProfileId" -> teamId, so we can cross-check pairs against team assignments
   const teamIdByPlayerKey = new Map<string, number>();
+  const teamUsersById = new Map<number, { u1?: number; u2?: number }>();
   for (const t of allTeams as any[]) {
     if (t.player1Id && t.player2Id) {
       const key = [Math.min(t.player1Id, t.player2Id), Math.max(t.player1Id, t.player2Id)].join("-");
       teamIdByPlayerKey.set(key, t.id);
     }
+    teamUsersById.set(t.id, {
+      u1: t.player1?.user?.id ?? t.player1?.userId,
+      u2: t.player2?.user?.id ?? t.player2?.userId,
+    });
   }
 
-  // De-dupe pairs by pairRequestId, then exclude any pair already assigned (via pairRequestId OR via its mapped teamId)
-  const seenPrIds = new Set<number>();
-  const availablePairs = acceptedPairs.filter((p: any) => {
-    if (!p.pairRequestId) return false;
-    if (seenPrIds.has(p.pairRequestId)) return false;
-    seenPrIds.add(p.pairRequestId);
-    if (assignedPairRequestIds.has(p.pairRequestId)) return false;
-    if (p.profile1?.id && p.profile2?.id) {
-      const key = [Math.min(p.profile1.id, p.profile2.id), Math.max(p.profile1.id, p.profile2.id)].join("-");
-      const tid = teamIdByPlayerKey.get(key);
-      if (tid && assignedTeamIds.has(tid)) return false;
+  // Build a "qualifier index" — for each pair (keyed by sorted user IDs), find their
+  // round-robin group number, points-for total, and rank within that group.
+  // This lets the Add-Pair dropdown sort by performance and label each pair as "G1 · 1st (63 pts)".
+  type PairStat = { uKey: string; groupNumber: number; pf: number; matchesWon: number };
+  const userKey = (a?: number | null, b?: number | null) => (a && b) ? `u-${Math.min(a, b)}-${Math.max(a, b)}` : null;
+  const statsByGroup = new Map<number, Map<string, PairStat>>();
+  for (const m of (catMatches as any[])) {
+    if (m.isBye || !m.groupNumber || m.groupNumber >= 100) continue;
+    const aUsers = teamUsersById.get(m.teamAId);
+    const bUsers = teamUsersById.get(m.teamBId);
+    const aKey = userKey(aUsers?.u1, aUsers?.u2);
+    const bKey = userKey(bUsers?.u1, bUsers?.u2);
+    const sets: { scoreA: number; scoreB: number }[] = m.scores || [];
+    let totalA = 0, totalB = 0;
+    for (const s of sets) { totalA += s.scoreA; totalB += s.scoreB; }
+    const finished = m.status === "completed" || !!m.winnerId;
+    if (!finished) continue;
+    const groupMap = statsByGroup.get(m.groupNumber) || new Map<string, PairStat>();
+    if (aKey) {
+      const existing = groupMap.get(aKey) || { uKey: aKey, groupNumber: m.groupNumber, pf: 0, matchesWon: 0 };
+      existing.pf += totalA;
+      if (m.winnerId === m.teamAId) existing.matchesWon += 1;
+      groupMap.set(aKey, existing);
     }
-    return true;
-  });
+    if (bKey) {
+      const existing = groupMap.get(bKey) || { uKey: bKey, groupNumber: m.groupNumber, pf: 0, matchesWon: 0 };
+      existing.pf += totalB;
+      if (m.winnerId === m.teamBId) existing.matchesWon += 1;
+      groupMap.set(bKey, existing);
+    }
+    statsByGroup.set(m.groupNumber, groupMap);
+  }
+  const qualifierByUserKey = new Map<string, { groupNumber: number; rank: number; points: number }>();
+  for (const [gNum, pairMap] of statsByGroup.entries()) {
+    const ranked = Array.from(pairMap.values()).sort((a, b) => b.pf - a.pf || b.matchesWon - a.matchesWon);
+    ranked.forEach((stat, idx) => {
+      qualifierByUserKey.set(stat.uKey, { groupNumber: gNum, rank: idx + 1, points: stat.pf });
+    });
+  }
+
+  // For a given groupId, list available pairs — only excludes those already in THIS group.
+  // Knockout groups (QF / SF / Final) can therefore reuse pairs already assigned to round-robin groups.
+  function availablePairsForGroup(groupId: number) {
+    const inThisGroup = groups.find((g: any) => g.id === groupId);
+    const blockedPrIds = new Set<number>(
+      (inThisGroup?.pairs || []).map((p: any) => p.pairRequestId).filter(Boolean)
+    );
+    const blockedTeamIds = new Set<number>(
+      (inThisGroup?.pairs || []).map((p: any) => p.teamId).filter(Boolean)
+    );
+    const seenPrIds = new Set<number>();
+    const list = acceptedPairs.filter((p: any) => {
+      if (!p.pairRequestId) return false;
+      if (seenPrIds.has(p.pairRequestId)) return false;
+      seenPrIds.add(p.pairRequestId);
+      if (blockedPrIds.has(p.pairRequestId)) return false;
+      if (p.profile1?.id && p.profile2?.id) {
+        const key = [Math.min(p.profile1.id, p.profile2.id), Math.max(p.profile1.id, p.profile2.id)].join("-");
+        const tid = teamIdByPlayerKey.get(key);
+        if (tid && blockedTeamIds.has(tid)) return false;
+      }
+      return true;
+    });
+    // Decorate with qualifier info, then sort by points DESC so top finishers appear first.
+    const decorated = list.map((p: any) => {
+      const uKey = userKey(p.user1?.id ?? p.fromUserId, p.user2?.id ?? p.toUserId);
+      const q = uKey ? qualifierByUserKey.get(uKey) : undefined;
+      return { pair: p, qualifier: q };
+    });
+    decorated.sort((a, b) => {
+      const pa = a.qualifier?.points ?? -1;
+      const pb = b.qualifier?.points ?? -1;
+      return pb - pa;
+    });
+    return decorated;
+  }
+
   const hasPairs = acceptedPairs.length > 0;
 
   function resetForm() {
@@ -3980,32 +4046,50 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                     <p className="text-xs text-muted-foreground text-center py-2 italic">No pairs assigned yet</p>
                   )}
 
-                  {canManage && !isFull && (
-                    <div className="flex items-center gap-2 pt-1">
-                      <Select
-                        value=""
-                        onValueChange={(val) => {
-                          if (val) handleAddPair(group.id, val);
-                        }}
-                        disabled={addPairMutation.isPending}
-                      >
-                        <SelectTrigger className="h-8 text-xs flex-1" data-testid={`select-add-pair-${group.id}`}>
-                          <SelectValue placeholder={addPairMutation.isPending ? "Adding..." : "+ Add pair to this group"} />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {availablePairs.length === 0 ? (
-                            <div className="px-3 py-2 text-xs text-muted-foreground italic">All pairs assigned</div>
-                          ) : (
-                            availablePairs.map((p: any) => (
-                              <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
-                                {`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}
-                              </SelectItem>
-                            ))
-                          )}
-                        </SelectContent>
-                      </Select>
-                    </div>
-                  )}
+                  {canManage && !isFull && (() => {
+                    const options = availablePairsForGroup(group.id);
+                    const rankLabel = (r: number) => r === 1 ? "1st" : r === 2 ? "2nd" : r === 3 ? "3rd" : `${r}th`;
+                    const rankColor = (r: number) =>
+                      r === 1 ? "text-yellow-600 dark:text-yellow-400 font-black"
+                      : r === 2 ? "text-slate-500 dark:text-slate-300 font-bold"
+                      : r === 3 ? "text-orange-500 dark:text-orange-400 font-bold"
+                      : "text-muted-foreground";
+                    return (
+                      <div className="flex items-center gap-2 pt-1">
+                        <Select
+                          value=""
+                          onValueChange={(val) => {
+                            if (val) handleAddPair(group.id, val);
+                          }}
+                          disabled={addPairMutation.isPending}
+                        >
+                          <SelectTrigger className="h-8 text-xs flex-1" data-testid={`select-add-pair-${group.id}`}>
+                            <SelectValue placeholder={addPairMutation.isPending ? "Adding..." : "+ Add pair (top finishers first)"} />
+                          </SelectTrigger>
+                          <SelectContent className="max-h-[400px]">
+                            {options.length === 0 ? (
+                              <div className="px-3 py-2 text-xs text-muted-foreground italic">No more pairs available</div>
+                            ) : (
+                              options.map(({ pair: p, qualifier: q }: any) => (
+                                <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
+                                  <div className="flex items-center gap-2">
+                                    {q ? (
+                                      <span className={cn("text-[10px] font-black uppercase tracking-wide tabular-nums px-1.5 py-0.5 rounded", rankColor(q.rank), "bg-muted/60")}>
+                                        G{q.groupNumber} · {rankLabel(q.rank)} · {q.points}p
+                                      </span>
+                                    ) : (
+                                      <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 px-1.5 py-0.5 rounded bg-muted/40">No matches yet</span>
+                                    )}
+                                    <span>{`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}</span>
+                                  </div>
+                                </SelectItem>
+                              ))
+                            )}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    );
+                  })()}
                   {isFull && (
                     <Badge className="bg-emerald-500/15 text-emerald-500 border border-emerald-500/30 text-[9px] font-black">
                       <CheckCircle className="h-3 w-3 mr-1" /> Full
