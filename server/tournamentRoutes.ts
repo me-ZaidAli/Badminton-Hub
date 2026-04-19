@@ -3559,8 +3559,8 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         const alreadyInGroup = existingPairs.find(p => p.pairRequestId === pairRequestId);
         if (alreadyInGroup) return res.status(400).json({ message: "Pair already in this group" });
 
-        const inAnyGroup = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.pairRequestId, pairRequestId));
-        if (inAnyGroup.length > 0) return res.status(400).json({ message: "Pair already assigned to a group" });
+        // Note: a pair may be in multiple groups (e.g. round-robin + Quarter-Final + Semi-Final),
+        // so we intentionally do NOT block based on membership in other groups.
 
         const [pair] = await db.insert(tournamentGroupPairs).values({
           groupId,
@@ -3584,8 +3584,8 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const alreadyInGroup = existingPairs.find(p => p.teamId === teamId);
       if (alreadyInGroup) return res.status(400).json({ message: "Team already in this group" });
 
-      const inAnyGroup = await db.select().from(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, teamId));
-      if (inAnyGroup.length > 0) return res.status(400).json({ message: "Team already assigned to another group" });
+      // Note: a team may be in multiple groups (round-robin + Quarter-Final + Semi-Final),
+      // so we intentionally do NOT block based on membership in other groups.
 
       const [pair] = await db.insert(tournamentGroupPairs).values({
         groupId,
