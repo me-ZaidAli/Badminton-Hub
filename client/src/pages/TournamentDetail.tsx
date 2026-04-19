@@ -2160,10 +2160,11 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   if (!window.confirm("Regenerate Quarter-Finals? This wipes the existing Quarter-Finals, Semi-Finals and Final (matches + standings) and rebuilds the Quarter-Finals from your current group standings. Round-robin groups stay untouched.")) return;
                   try {
                     await apiRequest("POST", `/api/tournament-categories/${category.id}/clear-knockout`);
-                    const r = await advanceWinnersMutation.mutateAsync(category.id);
+                    const res = await apiRequest("POST", `/api/tournament-categories/${category.id}/advance-winners`);
+                    const data = await res.json();
                     queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "matches"] });
                     queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", category.id, "standings"] });
-                    toast({ title: "Quarter-Finals Regenerated", description: r.message });
+                    toast({ title: "Quarter-Finals Regenerated", description: data.message });
                   } catch (e: any) {
                     toast({ title: "Error", description: e.message, variant: "destructive" });
                   }
