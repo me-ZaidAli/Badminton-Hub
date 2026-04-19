@@ -360,7 +360,7 @@ export function useDeleteTournamentMatch() {
 
 export function useAddGroupMatch() {
   return useMutation({
-    mutationFn: async ({ categoryId, ...body }: { categoryId: number; teamAId?: number; teamBId?: number; pairARequestId?: number; pairBRequestId?: number; groupNumber?: number; subGroupNumber?: number }) => {
+    mutationFn: async ({ categoryId, ...body }: { categoryId: number; teamAId?: number; teamBId?: number; pairARequestId?: number; pairBRequestId?: number; groupNumber?: number; subGroupNumber?: number; round?: number }) => {
       const res = await apiRequest("POST", `/api/tournament-categories/${categoryId}/add-group-match`, body);
       return res.json();
     },

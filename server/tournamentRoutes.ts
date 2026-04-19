@@ -1074,7 +1074,7 @@ export function registerTournamentRoutes(app: Express) {
       const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
       if (!canManage) return res.status(403).json({ message: "Not authorized" });
 
-      const { teamAId: rawTeamAId, teamBId: rawTeamBId, pairARequestId, pairBRequestId, groupNumber, subGroupNumber } = req.body;
+      const { teamAId: rawTeamAId, teamBId: rawTeamBId, pairARequestId, pairBRequestId, groupNumber, subGroupNumber, round: roundOverride } = req.body;
 
       // Helper: resolve a pair-request to a team in this category, creating it if needed.
       // Throws with a descriptive reason on failure so the user sees exactly what went wrong
@@ -1148,6 +1148,10 @@ export function registerTournamentRoutes(app: Express) {
 
       const gNum = groupNumber || teamA.groupNumber || 1;
       const sgNum = subGroupNumber || teamA.subGroupNumber || 1;
+      // Round defaults to 1 (round-robin / group stage). Knockout stages pass
+      // round = 200 (Quarter-Finals), 300 (Semi-Finals), or 400 (Final) so the
+      // Matches view groups them under the correct stage banner.
+      const matchRound = Number(roundOverride) > 0 ? Number(roundOverride) : 1;
 
       const existingMatches = await db.select().from(tournamentMatches)
         .where(eq(tournamentMatches.categoryId, catId));
@@ -1157,7 +1161,7 @@ export function registerTournamentRoutes(app: Express) {
         categoryId: catId,
         teamAId,
         teamBId,
-        round: 1,
+        round: matchRound,
         matchOrder: maxOrder + 1,
         groupNumber: gNum,
         subGroupNumber: sgNum,

@@ -39,7 +39,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
-  UserPlus, UserMinus, Clock, Shield, ChevronRight, Zap, Award, Star, Target, Lock, CheckCircle,
+  UserPlus, UserMinus, Clock, Shield, ChevronRight, ChevronDown, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
   Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw,
 } from "lucide-react";
@@ -2057,10 +2057,12 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const addGroupMatchMutation = useAddGroupMatch();
   const { toast } = useToast();
   const [scoreDialog, setScoreDialog] = useState<any>(null);
-  const [addMatchDialog, setAddMatchDialog] = useState<{ groupNumber?: number; subGroupNumber?: number } | null>(null);
+  const [addMatchDialog, setAddMatchDialog] = useState<{ groupNumber?: number; subGroupNumber?: number; stage?: "rr" | "qf" | "sf" | "final" } | null>(null);
   const [addMatchTeamA, setAddMatchTeamA] = useState<string>("");
   const [addMatchTeamB, setAddMatchTeamB] = useState<string>("");
   const [addMatchGroupNumber, setAddMatchGroupNumber] = useState<number | "">("");
+  const [addMatchStage, setAddMatchStage] = useState<"rr" | "qf" | "sf" | "final">("rr");
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const handleAssignCourt = (matchId: number, courtId: number | null) => {
     assignCourtMutation.mutate({ matchId, courtId }, {
@@ -2286,8 +2288,13 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
               }
 
               type SectionStage = "rr" | "qf" | "sf" | "final" | "other";
+              // Build all stage buckets independently first, then concatenate them in
+              // "latest stage on top" order: Final → Semi-Finals → Quarter-Finals → other KO → Round Robin.
               const sections: { key: string; label: string; color: string; matches: typeof displayMatches; groupNumber?: number; subGroupNumber?: number; stage: SectionStage }[] = [];
-
+              const finalSections: typeof sections = [];
+              const semiSections: typeof sections = [];
+              const qfSections: typeof sections = [];
+              const otherKoSections: typeof sections = [];
               const rrSections: typeof sections = [];
               if (grpMatches.length > 0) {
                 const sgMap = new Map<string, typeof grpMatches>();
@@ -2318,7 +2325,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 const qfGroupKeys = Array.from(qfGroupMap.keys()).sort((a, b) => a - b);
                 qfGroupKeys.forEach((gNum, idx) => {
                   const label = qfGroupKeys.length > 1 ? `Quarter-Finals · Group ${String.fromCharCode(65 + idx)}` : "Quarter-Finals";
-                  sections.push({ key: `qf-${gNum}`, label, color: "amber", matches: qfGroupMap.get(gNum)!, groupNumber: gNum, subGroupNumber: 1 });
+                  qfSections.push({ key: `qf-${gNum}`, label, color: "amber", matches: qfGroupMap.get(gNum)!, groupNumber: gNum, subGroupNumber: 1, stage: "qf" });
                 });
               }
 
@@ -2333,13 +2340,13 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 const semiGroupKeys = Array.from(semiGroupMap.keys()).sort((a, b) => a - b);
                 semiGroupKeys.forEach((gNum, idx) => {
                   const label = semiGroupKeys.length > 1 ? `Semi-Finals · Group ${String.fromCharCode(65 + idx)}` : "Semi-Finals";
-                  sections.push({ key: `semi-${gNum}`, label, color: "amber", matches: semiGroupMap.get(gNum)!, groupNumber: gNum, subGroupNumber: 1 });
+                  semiSections.push({ key: `semi-${gNum}`, label, color: "amber", matches: semiGroupMap.get(gNum)!, groupNumber: gNum, subGroupNumber: 1, stage: "sf" });
                 });
               }
 
               const finalDisplayMatches = displayMatches.filter(m => m.round === 400);
               if (finalDisplayMatches.length > 0) {
-                sections.push({ key: "final", label: "Final", color: "amber", matches: finalDisplayMatches, groupNumber: 400 });
+                finalSections.push({ key: "final", label: "Final", color: "amber", matches: finalDisplayMatches, groupNumber: 400, stage: "final" });
               }
 
               const otherKoMatches = displayMatches.filter(m =>
@@ -2353,13 +2360,12 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   koRoundMap.get(r)!.push(m);
                 });
                 Array.from(koRoundMap.entries()).sort(([a], [b]) => a - b).forEach(([round, ms]) => {
-                  sections.push({ key: `ko-${round}`, label: getKoLabel(round), color: "amber", matches: ms, stage: "other" });
+                  otherKoSections.push({ key: `ko-${round}`, label: getKoLabel(round), color: "amber", matches: ms, stage: "other" });
                 });
               }
 
-              // Stitch the round-robin sections AFTER the knockout sections so the
-              // knockout stages (Quarter-Finals, Semi-Finals, Final) appear at the top.
-              sections.push(...rrSections);
+              // Latest stage on top: Final → Semi-Finals → Quarter-Finals → other KO → Round Robin.
+              sections.push(...finalSections, ...semiSections, ...qfSections, ...otherKoSections, ...rrSections);
 
               const stageCounts = {
                 qf: sections.filter(s => s.stage === "qf").reduce((n, s) => n + s.matches.length, 0),
@@ -2409,18 +2415,37 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   )}
                   {visibleSections.length === 0 ? (
                     <EmptyState icon={Swords} title="No Matches in this Stage" description="Pick another stage from the dropdown above." />
-                  ) : visibleSections.map(sec => (
+                  ) : visibleSections.map(sec => {
+                    const isCollapsed = !!collapsedSections[sec.key];
+                    const stageForAdd: "rr" | "qf" | "sf" | "final" = sec.stage === "qf" ? "qf" : sec.stage === "sf" ? "sf" : sec.stage === "final" ? "final" : "rr";
+                    return (
                 <div key={sec.key}>
                   <div className="flex items-center gap-2 mb-2">
+                    <button
+                      type="button"
+                      onClick={() => setCollapsedSections(prev => ({ ...prev, [sec.key]: !prev[sec.key] }))}
+                      className={cn("flex items-center justify-center w-5 h-5 rounded transition-colors hover:bg-muted/60", sec.color === "amber" ? "text-amber-400" : "text-violet-400")}
+                      aria-label={isCollapsed ? "Expand section" : "Collapse section"}
+                      data-testid={`button-toggle-section-${sec.key}`}
+                    >
+                      {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                    </button>
                     <div className={cn("h-px flex-1 bg-gradient-to-r to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
-                    <span className={cn("text-[10px] font-black uppercase tracking-[0.15em] px-2", sec.color === "amber" ? "text-amber-400" : "text-violet-400")}>{sec.label}</span>
+                    <button
+                      type="button"
+                      onClick={() => setCollapsedSections(prev => ({ ...prev, [sec.key]: !prev[sec.key] }))}
+                      className={cn("text-[10px] font-black uppercase tracking-[0.15em] px-2 hover:opacity-80 transition-opacity", sec.color === "amber" ? "text-amber-400" : "text-violet-400")}
+                    >
+                      {sec.label}
+                    </button>
                     <span className="text-[9px] font-bold text-muted-foreground">{sec.matches.length} {sec.matches.length === 1 ? "match" : "matches"}</span>
                     {canManage && sec.groupNumber && (
                       <button
                         onClick={() => {
                           setAddMatchTeamA("");
                           setAddMatchTeamB("");
-                          setAddMatchDialog({ groupNumber: sec.groupNumber!, subGroupNumber: sec.subGroupNumber || 1 });
+                          setAddMatchStage(stageForAdd);
+                          setAddMatchDialog({ groupNumber: sec.groupNumber!, subGroupNumber: sec.subGroupNumber || 1, stage: stageForAdd });
                         }}
                         className="text-[10px] font-bold text-cyan-400 hover:text-cyan-300 flex items-center gap-1 transition-colors"
                         data-testid={`button-add-group-match-${sec.key}`}
@@ -2430,7 +2455,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     )}
                     <div className={cn("h-px flex-1 bg-gradient-to-l to-transparent", sec.color === "amber" ? "from-amber-500/30" : "from-violet-500/30")} />
                   </div>
-                  {canManage && (
+                  {!isCollapsed && canManage && (
                     <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/30">
                       <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
                       <span className="text-[10px] font-bold text-muted-foreground">Bulk set time:</span>
@@ -2486,6 +2511,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                       </Button>
                     </div>
                   )}
+                  {!isCollapsed && (
                   <div className="space-y-2">
                     {sec.matches.map(match => (
                       <MatchCard
@@ -2518,8 +2544,10 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                       />
                     ))}
                   </div>
+                  )}
                 </div>
-                  ))}
+                    );
+                  })}
                 </>
               );
             })()
@@ -2591,6 +2619,18 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 }
                 return (
                   <>
+                    <div>
+                      <label className="text-xs font-semibold text-muted-foreground mb-1 block">Stage</label>
+                      <Select value={addMatchStage} onValueChange={(v) => setAddMatchStage(v as any)}>
+                        <SelectTrigger data-testid="select-add-match-stage"><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="rr">Round Robin / Group Stage</SelectItem>
+                          <SelectItem value="qf">Quarter-Finals</SelectItem>
+                          <SelectItem value="sf">Semi-Finals</SelectItem>
+                          <SelectItem value="final">Final</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">Group</label>
                       <Select
@@ -2664,12 +2704,14 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   };
                   const a = parse(addMatchTeamA);
                   const b = parse(addMatchTeamB);
+                  const stageRound = addMatchStage === "qf" ? 200 : addMatchStage === "sf" ? 300 : addMatchStage === "final" ? 400 : 1;
                   addGroupMatchMutation.mutate({
                     categoryId: category.id,
                     teamAId: a.teamId ?? undefined,
                     teamBId: b.teamId ?? undefined,
                     pairARequestId: a.prId ?? undefined,
                     pairBRequestId: b.prId ?? undefined,
+                    round: stageRound,
                     groupNumber: gNum,
                     subGroupNumber: sgNum,
                   } as any, {
