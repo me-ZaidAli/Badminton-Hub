@@ -2897,18 +2897,35 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
   const teamMap = new Map(teams.map(t => [t.id, t]));
   const advancePerGroup = category.advancePerGroup || 1;
 
-  // Build a stable identifier for each pair (team-based or pair-request-based)
-  // so we can match stats from matches even when a team hasn't been linked back to a group_pair yet.
-  const pairKey = (p: any) => p.teamId ? `t-${p.teamId}` : (p.pairRequestId ? `pr-${p.pairRequestId}` : `gp-${p.id}`);
+  // Canonical "user-pair" key — two user IDs sorted ascending.
+  // This is the only fully stable identity for a pair, surviving differences between
+  // pair-requests and teams (a pair can be represented either way for the same two players).
+  const usersKey = (uidA?: number | null, uidB?: number | null): string | null => {
+    if (!uidA || !uidB) return null;
+    const [a, b] = [Number(uidA), Number(uidB)].sort((x, y) => x - y);
+    return `u-${a}-${b}`;
+  };
 
-  // For a match, return the keys of the two pairs it represents.
-  // teamA/teamB is the canonical link, but if a match was created from a pair-request side
-  // (pairARequestId / pairBRequestId stored as metadata), we honour that too.
-  const matchPairKey = (m: any, side: "A" | "B"): string | null => {
+  // For each team, derive its users-key from the player profile -> user id chain.
+  const teamUsersKey = (teamId?: number | null): string | null => {
+    if (!teamId) return null;
+    const t = teamMap.get(teamId);
+    return usersKey(t?.player1?.user?.id ?? t?.player1?.userId, t?.player2?.user?.id ?? t?.player2?.userId);
+  };
+
+  // Each group_pair gets the same canonical users-key whether it stores teamId or pairRequestId.
+  const groupPairKey = (p: any): string | null => {
+    if (p.teamId) return teamUsersKey(p.teamId) || `t-${p.teamId}`;
+    if (p.pairRequest) return usersKey(p.pairRequest.fromUserId, p.pairRequest.toUserId) || `pr-${p.pairRequestId}`;
+    if (p.pairRequestId) return `pr-${p.pairRequestId}`;
+    return `gp-${p.id}`;
+  };
+
+  // For a match, return the canonical key for one of its sides — almost always derived
+  // from the team's underlying users so it lines up with whichever way the group represents the pair.
+  const matchSideKey = (m: any, side: "A" | "B"): string | null => {
     const teamId = side === "A" ? m.teamAId : m.teamBId;
-    if (teamId) return `t-${teamId}`;
-    const prId = side === "A" ? m.pairARequestId : m.pairBRequestId;
-    if (prId) return `pr-${prId}`;
+    if (teamId) return teamUsersKey(teamId) || `t-${teamId}`;
     return null;
   };
 
@@ -2917,7 +2934,7 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
     const groupMatches = matches.filter(m => m.groupNumber === gNum && !m.isBye);
 
     return (grp.pairs || []).map((p: any, pi: number) => {
-      const key = pairKey(p);
+      const key = groupPairKey(p) || `gp-${p.id}`;
       // Always render pair names with " & " for visual consistency, regardless of source.
       const formatPair = (a?: string | null, b?: string | null) => [a, b].filter(Boolean).join(" & ");
       let displayName = "Unknown Pair";
@@ -2942,11 +2959,11 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
       // Find this pair's matches in this group — and on which side they played.
       const pairMatches = groupMatches
         .map(m => {
-          const aKey = matchPairKey(m, "A");
-          const bKey = matchPairKey(m, "B");
+          const aKey = matchSideKey(m, "A");
+          const bKey = matchSideKey(m, "B");
           let side: "A" | "B" | null = null;
-          if (aKey === key) side = "A";
-          else if (bKey === key) side = "B";
+          if (aKey && aKey === key) side = "A";
+          else if (bKey && bKey === key) side = "B";
           return side ? { match: m, side } : null;
         })
         .filter((x): x is { match: any; side: "A" | "B" } => x !== null)
@@ -2991,9 +3008,11 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
     });
   }
 
+  // Rank purely by Total points (PF) descending — that's what the user wants to see at a glance.
+  // Tiebreakers: matches won, point difference, sets won, sets lost.
   const sortFn = (a: any, b: any) => {
+    if (b.pointsFor !== a.pointsFor) return b.pointsFor - a.pointsFor;
     if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
-    if (b.points !== a.points) return b.points - a.points;
     const diffA = a.pointsFor - a.pointsAgainst;
     const diffB = b.pointsFor - b.pointsAgainst;
     if (diffB !== diffA) return diffB - diffA;
