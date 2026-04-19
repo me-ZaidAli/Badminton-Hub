@@ -3022,6 +3022,7 @@ function ScoreDialog({ match, onClose, onSubmit, isPending }: { match: any; onCl
 function StandingsView({ standings, teams, category, groups = [], matches = [] }: { standings: any[]; teams: any[]; category: any; groups?: any[]; matches?: any[] }) {
   const teamMap = new Map(teams.map(t => [t.id, t]));
   const advancePerGroup = category.advancePerGroup || 1;
+  const [stageFilter, setStageFilter] = useState<"all" | "rr" | "qf" | "sf" | "final">("all");
 
   // Canonical "user-pair" key — two user IDs sorted ascending.
   // This is the only fully stable identity for a pair, surviving differences between
@@ -3287,12 +3288,56 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
     );
   };
 
+  // Counts by stage so the dropdown can show how much content sits behind each filter.
+  const stageCounts = {
+    rr: sortedGroups.length,
+    qf: qfMatches.length,
+    sf: semiMatches.length,
+    final: finalMatches.length,
+  };
+  const showRr = stageFilter === "all" || stageFilter === "rr";
+  const showQf = (stageFilter === "all" || stageFilter === "qf") && qfMatches.length > 0;
+  const showSf = (stageFilter === "all" || stageFilter === "sf") && semiMatches.length > 0;
+  const showFinal = (stageFilter === "all" || stageFilter === "final") && finalMatches.length > 0;
+  const nothingToShow = !showRr && !showQf && !showSf && !showFinal;
+
   return (
     <div className="space-y-5">
-      {sortedGroups.length === 0 && (
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div className="flex items-center gap-2">
+          <BarChart3 className="h-4 w-4 text-violet-500" />
+          <span className="text-xs font-black text-foreground uppercase tracking-wider">Standings</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Stage</span>
+          <Select value={stageFilter} onValueChange={(v) => setStageFilter(v as any)}>
+            <SelectTrigger className="h-8 w-[200px] text-xs" data-testid="select-standings-stage-filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Stages</SelectItem>
+              <SelectItem value="final" disabled={stageCounts.final === 0}>Final{stageCounts.final ? ` (${stageCounts.final})` : ""}</SelectItem>
+              <SelectItem value="sf" disabled={stageCounts.sf === 0}>Semi-Finals{stageCounts.sf ? ` (${stageCounts.sf})` : ""}</SelectItem>
+              <SelectItem value="qf" disabled={stageCounts.qf === 0}>Quarter-Finals{stageCounts.qf ? ` (${stageCounts.qf})` : ""}</SelectItem>
+              <SelectItem value="rr" disabled={stageCounts.rr === 0}>Group Stage{stageCounts.rr ? ` (${stageCounts.rr})` : ""}</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      {nothingToShow && (
+        <div className="text-xs text-muted-foreground italic px-2">No standings for this stage yet.</div>
+      )}
+
+      {/* Latest stage on top: Final → Semi-Finals → Quarter-Finals → Group Stage. */}
+      {showFinal && renderKoStage("Final", finalMatches, "from-yellow-500/40")}
+      {showSf && renderKoStage("Semi-Finals", semiMatches, "from-amber-500/40")}
+      {showQf && renderKoStage("Quarter-Finals", qfMatches, "from-cyan-500/40")}
+
+      {showRr && sortedGroups.length === 0 && (
         <div className="text-xs text-muted-foreground italic px-2">No groups defined yet — add groups in the Groups section.</div>
       )}
-      {sortedGroups.map((grp: any, gi: number) => {
+      {showRr && sortedGroups.map((grp: any, gi: number) => {
         const gNum = gi + 1;
         const rows = computeGroupRows(grp, gNum).sort(sortFn);
         return (
@@ -3313,10 +3358,6 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
           </div>
         );
       })}
-
-      {renderKoStage("Quarter-Finals", qfMatches, "from-cyan-500/40")}
-      {renderKoStage("Semi-Finals", semiMatches, "from-amber-500/40")}
-      {renderKoStage("Final", finalMatches, "from-yellow-500/40")}
     </div>
   );
 }
