@@ -1272,6 +1272,47 @@ function ScoreboardCard({
 
 type SubView = "overview" | "court" | "list" | "score" | "broadcast" | "manager";
 
+function ManagerPlayerSlot({
+  player, position, matchId, availablePlayers, isOrganiser, onSwapPlayer,
+  sessionMatchCounts, busyPlayerIds, achievements,
+}: {
+  player: any;
+  position: string;
+  matchId: number;
+  availablePlayers: Player[];
+  isOrganiser: boolean;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  sessionMatchCounts?: Record<number, number>;
+  busyPlayerIds?: Set<number>;
+  achievements?: PlayerAchievements;
+}) {
+  const isFemale = player?.gender === "FEMALE";
+  return (
+    <div
+      className="flex items-center px-2.5 py-1.5 rounded-md border transition-all border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03]"
+      style={isFemale ? { borderColor: 'rgba(236,72,153,0.3)', backgroundColor: 'rgba(236,72,153,0.06)' } : undefined}
+      data-testid={`manager-slot-${position}-${matchId}`}
+    >
+      <ClickablePlayerName
+        player={player || null}
+        matchId={matchId}
+        position={position}
+        availablePlayers={availablePlayers}
+        canSwap={isOrganiser && !!onSwapPlayer}
+        onSwapPlayer={onSwapPlayer}
+        showMatchCount
+        sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
+        className="text-sm font-bold truncate flex-1"
+        style={{ color: isFemale ? '#ec4899' : undefined }}
+        isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
+        achievements={achievements}
+        busyPlayerIds={busyPlayerIds}
+        sessionMatchCounts={sessionMatchCounts}
+      />
+    </div>
+  );
+}
+
 function ManagerCourtCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers, onSwapPlayer, busyPlayerIds,
   sessionMatchCounts, courtNames, onCancelMatch, achievements,
@@ -1294,34 +1335,20 @@ function ManagerCourtCard({
 }) {
   const courtLabel = match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court";
 
-  const PlayerSlot = ({ player, position }: { player: any; position: string }) => {
-    const isFemale = player?.gender === "FEMALE";
-
-    return (
-      <div
-        className="flex items-center px-2.5 py-1.5 rounded-md border transition-all border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03]"
-        style={isFemale ? { borderColor: 'rgba(236,72,153,0.3)', backgroundColor: 'rgba(236,72,153,0.06)' } : undefined}
-        data-testid={`manager-slot-${position}-${match.id}`}
-      >
-        <ClickablePlayerName
-          player={player || null}
-          matchId={match.id}
-          position={position}
-          availablePlayers={availablePlayers}
-          canSwap={isOrganiser && !!onSwapPlayer}
-          onSwapPlayer={onSwapPlayer}
-          showMatchCount
-          sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
-          className="text-sm font-bold truncate flex-1"
-          style={{ color: isFemale ? '#ec4899' : undefined }}
-          isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
-          achievements={achievements}
-          busyPlayerIds={busyPlayerIds}
-          sessionMatchCounts={sessionMatchCounts}
-        />
-      </div>
-    );
-  };
+  const renderPlayerSlot = (player: any, position: string) => (
+    <ManagerPlayerSlot
+      key={position}
+      player={player}
+      position={position}
+      matchId={match.id}
+      availablePlayers={availablePlayers}
+      isOrganiser={isOrganiser}
+      onSwapPlayer={onSwapPlayer}
+      sessionMatchCounts={sessionMatchCounts}
+      busyPlayerIds={busyPlayerIds}
+      achievements={achievements}
+    />
+  );
 
   return (
     <div
@@ -1359,8 +1386,8 @@ function ManagerCourtCard({
             Team A
           </p>
           <div className="space-y-1">
-            <PlayerSlot player={match.teamAPlayer1} position="teamAPlayer1Id" />
-            <PlayerSlot player={match.teamAPlayer2} position="teamAPlayer2Id" />
+            {renderPlayerSlot(match.teamAPlayer1, "teamAPlayer1Id")}
+            {renderPlayerSlot(match.teamAPlayer2, "teamAPlayer2Id")}
           </div>
         </div>
 
@@ -1375,8 +1402,8 @@ function ManagerCourtCard({
             Team B
           </p>
           <div className="space-y-1">
-            <PlayerSlot player={match.teamBPlayer1} position="teamBPlayer1Id" />
-            <PlayerSlot player={match.teamBPlayer2} position="teamBPlayer2Id" />
+            {renderPlayerSlot(match.teamBPlayer1, "teamBPlayer1Id")}
+            {renderPlayerSlot(match.teamBPlayer2, "teamBPlayer2Id")}
           </div>
         </div>
       </div>
