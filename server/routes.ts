@@ -4750,17 +4750,19 @@ export async function registerRoutes(
         }
       }
 
+      const courtsLimit = session.courtsAvailable || 2;
       const isTargetQueued = match.status === "QUEUED";
       for (const existingMatch of allMatches) {
         if (existingMatch.id === matchId) continue;
         if (existingMatch.status === "COMPLETED") continue;
         for (const pos of positions) {
           if ((existingMatch as any)[pos] === newPlayerId) {
-            if (existingMatch.status === "LIVE") {
+            const isOnValidCourt = existingMatch.courtNumber != null && existingMatch.courtNumber <= courtsLimit;
+            if (existingMatch.status === "LIVE" && isOnValidCourt) {
               return res.status(400).json({ message: "This player cannot be added because they are currently in a live game." });
             }
             await storage.updateMatch(existingMatch.id, { [pos]: null });
-            console.log(`[SWAP] Removed player ${newPlayerId} from match ${existingMatch.id} position ${pos}`);
+            console.log(`[SWAP] Removed player ${newPlayerId} from match ${existingMatch.id} (status=${existingMatch.status}, court=${existingMatch.courtNumber}) position ${pos}`);
           }
         }
       }
