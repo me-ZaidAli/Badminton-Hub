@@ -4424,10 +4424,19 @@ export async function registerRoutes(
       }
 
       const sessionMatches0 = await storage.getSessionMatches(match.sessionId);
-      const liveMatchCount0 = sessionMatches0.filter(m => m.status === "LIVE").length;
+      const liveMatches0 = sessionMatches0.filter(m => m.status === "LIVE");
       const courtsLimit = session.courtsAvailable || 2;
-      if (liveMatchCount0 >= courtsLimit) {
-        return res.status(400).json({ message: `All ${courtsLimit} courts are occupied. Cannot start another match.` });
+
+      if (courtNumber != null) {
+        const courtTaken = liveMatches0.some(m => m.courtNumber === courtNumber && m.id !== matchId);
+        if (courtTaken) {
+          return res.status(400).json({ message: `Court ${courtNumber} is already occupied. End that match first.` });
+        }
+      } else {
+        const occupiedCourts = new Set(liveMatches0.filter(m => m.courtNumber != null && m.courtNumber <= courtsLimit).map(m => m.courtNumber));
+        if (occupiedCourts.size >= courtsLimit) {
+          return res.status(400).json({ message: `All ${courtsLimit} courts are occupied. Cannot start another match.` });
+        }
       }
       
       const updated = await storage.updateMatch(matchId, {
