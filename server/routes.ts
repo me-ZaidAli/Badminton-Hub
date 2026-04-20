@@ -33540,7 +33540,7 @@ Return ONLY valid JSON in this exact format:
       if (!event) return res.status(404).json({ message: "Team event not found" });
 
       let targetUserId = user.id;
-      const bodyUserId = req.body.userId ? Number(req.body.userId) : null;
+      const bodyUserId = req.body?.userId ? Number(req.body.userId) : null;
       if (bodyUserId && !isNaN(bodyUserId) && bodyUserId !== user.id) {
         const canAccess = await hasAdminAccess(user.id, user.role, event.clubId);
         if (!canAccess) return res.sendStatus(403);
