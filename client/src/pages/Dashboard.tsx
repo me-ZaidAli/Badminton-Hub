@@ -307,14 +307,14 @@ function DashboardContent({
                   <Calendar className="h-4 w-4 text-amber-400 shrink-0" />
                   <div>
                     <p className="text-[10px] text-amber-400 uppercase tracking-wider font-medium">Date</p>
-                    <p className="text-sm text-white font-semibold">{format(new Date(tournament.startDate), "EEE, d MMM yyyy")}</p>
+                    <p className="text-sm text-white font-semibold">{format(new Date(tournament.nextStageStartTime || tournament.startDate), "EEE, d MMM yyyy")}</p>
                   </div>
                 </div>
                 <div className="flex items-center gap-2.5 bg-white/10 backdrop-blur-sm rounded-lg px-3 py-2.5">
                   <Clock className="h-4 w-4 text-amber-400 shrink-0" />
                   <div>
                     <p className="text-[10px] text-amber-400 uppercase tracking-wider font-medium">Time</p>
-                    <p className="text-sm text-white font-semibold">{format(new Date(tournament.startDate), "h:mm a")}</p>
+                    <p className="text-sm text-white font-semibold">{format(new Date(tournament.nextStageStartTime || tournament.startDate), "h:mm a")}</p>
                   </div>
                 </div>
                 {tournament.location && (
@@ -341,7 +341,7 @@ function DashboardContent({
                             <Medal className="h-4 w-4 text-amber-300" />
                           </div>
                           <div>
-                            <p className="text-[10px] text-amber-400 uppercase tracking-wider font-medium">Your Group</p>
+                            <p className="text-[10px] text-amber-400 uppercase tracking-wider font-medium">{group.stageName || "Your Group"}</p>
                             <span className="text-sm font-bold text-white">{group.groupName}</span>
                             {group.categoryName && (
                               <span className="text-xs text-blue-300 ml-2">({group.categoryName})</span>
@@ -379,7 +379,7 @@ function DashboardContent({
                         <div>
                           <p className="text-[10px] text-amber-400 uppercase tracking-wider font-medium mb-1.5">
                             <Swords className="h-3 w-3 inline mr-1 -mt-0.5" />
-                            Your opponents at group stage
+                            {group.opponentLabel || "Your opponents at group stage"}
                           </p>
                           <div className="space-y-1.5">
                             {opponents.map((pair: any, idx: number) => (

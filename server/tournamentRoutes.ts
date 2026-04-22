@@ -3744,6 +3744,22 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         ? await db.select().from(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, groupIds))
         : [];
 
+      const startOfToday = new Date();
+      startOfToday.setHours(0, 0, 0, 0);
+
+      const stageNameForOrder = (groupOrder: number): string => {
+        if (groupOrder >= 400) return "Final";
+        if (groupOrder >= 300) return "Semi-Finals";
+        if (groupOrder >= 200) return "Quarter-Finals";
+        return "Group Stage";
+      };
+      const opponentLabelForOrder = (groupOrder: number): string => {
+        if (groupOrder >= 400) return "Your opponents in the final";
+        if (groupOrder >= 300) return "Your opponents at semi-finals";
+        if (groupOrder >= 200) return "Your opponents at quarter-finals";
+        return "Your opponents at group stage";
+      };
+
       const result = activeTournaments.map(tournament => {
         const venue = allVenues.find(v => v.id === tournament.venueId);
         const tCategories = allCategories.filter(c => c.tournamentId === tournament.id);
@@ -3759,6 +3775,12 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           );
 
           if (isMyGroup) {
+            // Only include groups whose startTime is in the future (or unset).
+            // Past stages (e.g. completed group stage) should not block the banner.
+            if (group.startTime && new Date(group.startTime) < startOfToday) {
+              continue;
+            }
+
             const pairsInGroup = groupPairs.map(gp => {
               if (gp.teamId) {
                 const team = allTeams.find(t => t.id === gp.teamId);
@@ -3792,6 +3814,8 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
               groupId: group.id,
               groupName: group.name,
               groupOrder: group.groupOrder,
+              stageName: stageNameForOrder(group.groupOrder),
+              opponentLabel: opponentLabelForOrder(group.groupOrder),
               startTime: group.startTime,
               hallName: group.hallName,
               courtName: group.courtName,
@@ -3801,6 +3825,9 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           }
         }
 
+        const sortedGroups = myGroupInfo.sort((a: any, b: any) => a.groupOrder - b.groupOrder);
+        const nextStageStartTime = sortedGroups.find((g: any) => g.startTime)?.startTime || null;
+
         return {
           tournamentId: tournament.id,
           name: tournament.name,
@@ -3808,14 +3835,22 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           status: tournament.status,
           startDate: tournament.startDate,
           endDate: tournament.endDate,
+          nextStageStartTime,
           location: tournament.location || venue?.address || venue?.name || null,
           venueName: venue?.name || null,
           bannerUrl: tournament.bannerUrl,
-          myGroups: myGroupInfo.sort((a: any, b: any) => a.groupOrder - b.groupOrder),
+          myGroups: sortedGroups,
         };
       });
 
-      res.json(result);
+      // Hide tournaments whose start date has passed and where the user has no remaining stages.
+      const filtered = result.filter(t => {
+        const tournamentStarted = new Date(t.startDate) < startOfToday;
+        if (!tournamentStarted) return true;
+        return t.myGroups.length > 0;
+      });
+
+      res.json(filtered);
     } catch (e: any) {
       console.error("[My Tournament Dashboard] Error:", e);
       res.status(500).json({ message: e.message });
