@@ -298,6 +298,8 @@ export const playerProfiles = pgTable("player_profiles", {
   grade: text("grade").default("C3"),
   adminLocked: boolean("admin_locked").default(false).notNull(),
   gradingResetAt: timestamp("grading_reset_at"),
+  promotionStreak: integer("promotion_streak").default(0).notNull(),
+  demotionStreak: integer("demotion_streak").default(0).notNull(),
   rankingPoints: integer("ranking_points").default(0).notNull(),
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),

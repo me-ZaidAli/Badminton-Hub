@@ -1474,10 +1474,13 @@ export async function registerRoutes(
 
   async function buildClubGradingData(clubId: number) {
     const { gradeHistory: gradeHistoryTable, playerProfiles: pp, users: u, sessions: s, sessionSignups: ss, matches: m, GRADE_ORDER } = await import("@shared/schema");
-    const PROMO_TH = 0.55;
-    const DEMO_TH = 0.40;
-    const MIN_GAMES = 10;
-    const MIN_SESSIONS = 3;
+    const { GRADING_CONFIG } = await import("./grading");
+    const PROMO_TH = GRADING_CONFIG.PROMOTION_SLOW;
+    const DEMO_TH = GRADING_CONFIG.DEMOTION_SLOW;
+    const PROMO_FAST = GRADING_CONFIG.PROMOTION_FAST;
+    const DEMO_FAST = GRADING_CONFIG.DEMOTION_FAST;
+    const MIN_GAMES = GRADING_CONFIG.MIN_GAMES;
+    const MIN_SESSIONS = GRADING_CONFIG.MIN_SESSIONS;
     const MS_DAY = 86_400_000;
     const now = Date.now();
 
@@ -1634,20 +1637,34 @@ export async function registerRoutes(
         ? 100
         : Math.round(activityFactor * Math.max(0, Math.min(100, ((PROMO_TH - winRate) / (PROMO_TH - DEMO_TH)) * 100)));
 
-      // Reason tags
+      const isProtected = stats?.isProtected || false;
+      const isReturning = stats?.isReturning || false;
+      const status = stats?.status || "BUILDING_PROFILE";
+      const promotionStreak = stats?.promotionStreak || 0;
+      const demotionStreak = stats?.demotionStreak || 0;
+
+      // Reason tags — friendlier wording
       const reasonTags: string[] = [];
       if (p.adminLocked) reasonTags.push("Admin locked");
-      if (gp === 0) reasonTags.push("No games yet in current window");
-      else if (gp < MIN_GAMES) reasonTags.push(`Low activity (${gp}/${MIN_GAMES} games, ${sc}/${MIN_SESSIONS} sessions)`);
-      else if (stats?.promotionEligible) reasonTags.push(`Strong: ${(winRate * 100).toFixed(0)}% win rate over ${gp} games`);
-      else if (stats?.demotionRisk) reasonTags.push(`Weak form: ${(winRate * 100).toFixed(0)}% over ${gp} games`);
-      else reasonTags.push(`Stable: ${(winRate * 100).toFixed(0)}% win rate`);
-      if (streakType && streakCount >= 3) reasonTags.push(`${streakCount} ${streakType === "W" ? "win" : "loss"} streak`);
-      if (last && last.trigger === "MANUAL" && (now - new Date(last.createdAt).getTime()) < 30 * MS_DAY) {
-        reasonTags.push(`Manual override${last.changedByName ? ` by ${last.changedByName}` : ""}`);
+      else if (isProtected) reasonTags.push("Protected — recently promoted");
+      else if (isReturning) reasonTags.push("Welcome back — grace period active");
+      if (gp === 0) reasonTags.push("Building profile — no games yet in window");
+      else if (gp < MIN_GAMES) reasonTags.push(`Building profile (${gp}/${MIN_GAMES} games · ${sc}/${MIN_SESSIONS} sessions)`);
+      else if (stats?.promotionEligible) {
+        if (winRate >= PROMO_FAST) reasonTags.push(`Ready to move up — ${(winRate * 100).toFixed(0)}% over ${gp} games`);
+        else reasonTags.push(`Ready to move up — ${(winRate * 100).toFixed(0)}% on ${promotionStreak + 1} consecutive checks`);
+      } else if (stats?.demotionRisk) {
+        if (winRate < DEMO_FAST) reasonTags.push(`Needs review — ${(winRate * 100).toFixed(0)}% over ${gp} games`);
+        else reasonTags.push(`Needs review — ${(winRate * 100).toFixed(0)}% on ${demotionStreak + 1} consecutive checks`);
+      } else if (gp >= MIN_GAMES) {
+        reasonTags.push(`Stable — ${(winRate * 100).toFixed(0)}% weighted win rate`);
       }
-      if (last && last.direction === "PROMOTION" && (now - new Date(last.createdAt).getTime()) < 14 * MS_DAY) {
-        reasonTags.push("Recently promoted — building new window");
+      if (promotionStreak >= 1 && !stats?.promotionEligible && winRate >= PROMO_TH) {
+        reasonTags.push(`Promotion check ${promotionStreak}/2 passed`);
+      }
+      if (streakType && streakCount >= 3) reasonTags.push(`${streakCount} match ${streakType === "W" ? "win" : "loss"} streak`);
+      if (last && last.trigger === "MANUAL" && (now - new Date(last.createdAt).getTime()) < 30 * MS_DAY) {
+        reasonTags.push(`Manual change${last.changedByName ? ` by ${last.changedByName}` : ""}`);
       }
 
       return {
@@ -1670,12 +1687,18 @@ export async function registerRoutes(
         promotionReadiness,
         demotionRiskScore,
         reasonTags,
+        status,
+        isProtected,
+        isReturning,
+        promotionStreak,
+        demotionStreak,
         stats: stats ? {
           gamesPlayed: stats.gamesPlayed,
           gamesWon: stats.gamesWon,
           gamesLost: stats.gamesPlayed - stats.gamesWon,
           sessionsCounted: stats.sessionsCounted,
           winRate: stats.winRate,
+          rawWinRate: stats.rawWinRate,
           promotionEligible: stats.promotionEligible,
           demotionRisk: stats.demotionRisk,
         } : null,

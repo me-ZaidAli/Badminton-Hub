@@ -41,6 +41,16 @@ function formatMonth(key: string) {
   return format(new Date(y, m - 1, 1), "MMM yyyy");
 }
 
+type GradingStatus = "LOCKED" | "PROTECTED" | "READY_TO_MOVE_UP" | "NEEDS_REVIEW" | "STABLE" | "BUILDING_PROFILE";
+const STATUS_LABEL: Record<GradingStatus, string> = {
+  LOCKED: "Locked",
+  PROTECTED: "Protected",
+  READY_TO_MOVE_UP: "Ready to Move Up",
+  NEEDS_REVIEW: "Needs Review",
+  STABLE: "Stable",
+  BUILDING_PROFILE: "Building Profile",
+};
+
 interface PlayerRow {
   profileId: number;
   userId: number;
@@ -60,12 +70,18 @@ interface PlayerRow {
   promotionReadiness: number;
   demotionRiskScore: number;
   reasonTags: string[];
+  status: GradingStatus;
+  isProtected: boolean;
+  isReturning: boolean;
+  promotionStreak: number;
+  demotionStreak: number;
   stats: {
     gamesPlayed: number;
     gamesWon: number;
     gamesLost: number;
     sessionsCounted: number;
     winRate: number;
+    rawWinRate?: number;
     promotionEligible: boolean;
     demotionRisk: boolean;
   } | null;
@@ -901,22 +917,23 @@ function ReadinessBar({ value, colour }: { value: number; colour: "emerald" | "o
 }
 
 function StatusBadges({ row }: { row: PlayerRow }) {
+  const map: Record<GradingStatus, { className: string; icon: React.ReactNode }> = {
+    LOCKED: { className: "bg-purple-500/15 text-purple-600 border-purple-500/40", icon: <Lock className="h-3 w-3" /> },
+    PROTECTED: { className: "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40", icon: <ShieldCheck className="h-3 w-3" /> },
+    READY_TO_MOVE_UP: { className: "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40", icon: <ArrowUpRight className="h-3 w-3" /> },
+    NEEDS_REVIEW: { className: "bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40", icon: <ArrowDownRight className="h-3 w-3" /> },
+    STABLE: { className: "bg-muted text-muted-foreground", icon: <ShieldCheck className="h-3 w-3" /> },
+    BUILDING_PROFILE: { className: "bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30", icon: <Activity className="h-3 w-3" /> },
+  };
+  const cfg = map[row.status] || map.STABLE;
   return (
     <div className="flex flex-wrap gap-1">
-      {row.adminLocked && (
-        <Badge variant="outline" className="bg-purple-500/15 text-purple-600 border-purple-500/40 gap-1"><Lock className="h-3 w-3" /> Locked</Badge>
-      )}
-      {row.stats?.promotionEligible && (
-        <Badge variant="outline" className="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40 gap-1"><ArrowUpRight className="h-3 w-3" /> Ready</Badge>
-      )}
-      {row.stats?.demotionRisk && (
-        <Badge variant="outline" className="bg-orange-500/15 text-orange-700 dark:text-orange-300 border-orange-500/40 gap-1"><ArrowDownRight className="h-3 w-3" /> Risk</Badge>
-      )}
-      {!row.adminLocked && !row.stats?.promotionEligible && !row.stats?.demotionRisk && row.stats && row.stats.gamesPlayed > 0 && (
-        <Badge variant="outline" className="bg-muted text-muted-foreground gap-1"><ShieldCheck className="h-3 w-3" /> Stable</Badge>
-      )}
-      {(!row.stats || row.stats.gamesPlayed === 0) && !row.adminLocked && (
-        <Badge variant="outline" className="text-xs text-muted-foreground">No window</Badge>
+      <Badge variant="outline" className={`${cfg.className} gap-1`} data-testid={`status-${row.status.toLowerCase()}`}>
+        {cfg.icon}
+        {STATUS_LABEL[row.status]}
+      </Badge>
+      {row.isReturning && row.status !== "PROTECTED" && (
+        <Badge variant="outline" className="bg-teal-500/10 text-teal-700 dark:text-teal-300 border-teal-500/30 gap-1">Welcome back</Badge>
       )}
     </div>
   );
