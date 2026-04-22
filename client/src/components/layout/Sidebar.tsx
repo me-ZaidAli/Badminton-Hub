@@ -189,15 +189,18 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
 
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
     items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
     items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
     items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
   }
 

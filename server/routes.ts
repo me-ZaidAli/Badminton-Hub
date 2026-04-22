@@ -1430,21 +1430,272 @@ export async function registerRoutes(
 
     try {
       const profileId = Number(req.params.profileId);
-      const { grade } = req.body;
-      const { GRADE_ORDER } = await import("@shared/schema");
+      const { grade, note } = req.body;
+      const { GRADE_ORDER, gradeHistory: gradeHistoryTable, playerProfiles: playerProfilesTable } = await import("@shared/schema");
 
       if (!grade || !GRADE_ORDER.includes(grade)) {
         return res.status(400).json({ message: `Invalid grade. Must be one of: ${GRADE_ORDER.join(", ")}` });
       }
 
+      const existing = await db.select().from(playerProfilesTable).where(eq(playerProfilesTable.id, profileId)).then(r => r[0]);
+      if (!existing) return res.status(404).json({ message: "Player profile not found" });
+
+      const oldGrade = existing.grade || "C3";
       await storage.updatePlayerProfile(profileId, { 
         grade, 
         gradingResetAt: new Date()
       });
+
+      if (oldGrade !== grade) {
+        const oldIdx = GRADE_ORDER.indexOf(oldGrade as any);
+        const newIdx = GRADE_ORDER.indexOf(grade as any);
+        const direction = newIdx > oldIdx ? "PROMOTION" : newIdx < oldIdx ? "DEMOTION" : "MANUAL";
+        await db.insert(gradeHistoryTable).values({
+          profileId,
+          clubId: existing.clubId,
+          oldGrade,
+          newGrade: grade,
+          direction,
+          trigger: "MANUAL",
+          changedByUserId: req.user!.id,
+          note: note || null,
+        });
+      }
       res.json({ success: true });
     } catch (err: any) {
       console.error("Error updating grade:", err);
       res.status(500).json({ message: err.message || "Failed to update grade" });
+    }
+  });
+
+  // ============================================================
+  // GRADING PROGRESS DASHBOARD ENDPOINTS
+  // ============================================================
+
+  // Per-club grading dashboard summary + per-player rows
+  app.get("/api/admin/clubs/:clubId/grading-dashboard", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!(await isAnyClubAdminOrOrganiser(req.user!.id, req.user!.role))) return res.sendStatus(403);
+
+    try {
+      const clubId = Number(req.params.clubId);
+      const { gradeHistory: gradeHistoryTable, playerProfiles: pp, users: u } = await import("@shared/schema");
+
+      const profileRows = await db.select({
+        profileId: pp.id,
+        userId: pp.userId,
+        fullName: u.fullName,
+        email: u.email,
+        profilePictureUrl: u.profilePictureUrl,
+        gender: pp.gender,
+        grade: pp.grade,
+        adminLocked: pp.adminLocked,
+        gradingResetAt: pp.gradingResetAt,
+        membershipStatus: pp.membershipStatus,
+      })
+        .from(pp)
+        .innerJoin(u, eq(pp.userId, u.id))
+        .where(and(eq(pp.clubId, clubId), eq(pp.membershipStatus, "APPROVED")));
+
+      const allHistory = await db.select()
+        .from(gradeHistoryTable)
+        .where(eq(gradeHistoryTable.clubId, clubId))
+        .orderBy(desc(gradeHistoryTable.createdAt));
+
+      const lastChangeByProfile = new Map<number, any>();
+      for (const h of allHistory) {
+        if (!lastChangeByProfile.has(h.profileId)) {
+          lastChangeByProfile.set(h.profileId, h);
+        }
+      }
+
+      const rows = await Promise.all(profileRows.map(async (p) => {
+        let stats: any = null;
+        try {
+          stats = await computePlayerGradingStats(p.profileId, clubId, p.gradingResetAt);
+        } catch (e) {
+          stats = null;
+        }
+        const last = lastChangeByProfile.get(p.profileId) || null;
+        return {
+          profileId: p.profileId,
+          userId: p.userId,
+          fullName: p.fullName,
+          email: p.email,
+          profilePictureUrl: p.profilePictureUrl,
+          gender: p.gender,
+          grade: p.grade || "C3",
+          adminLocked: p.adminLocked,
+          gradingResetAt: p.gradingResetAt,
+          stats: stats ? {
+            gamesPlayed: stats.gamesPlayed,
+            gamesWon: stats.gamesWon,
+            gamesLost: stats.gamesPlayed - stats.gamesWon,
+            sessionsCounted: stats.sessionsCounted,
+            winRate: stats.winRate,
+            promotionEligible: stats.promotionEligible,
+            demotionRisk: stats.demotionRisk,
+          } : null,
+          lastChange: last ? {
+            id: last.id,
+            oldGrade: last.oldGrade,
+            newGrade: last.newGrade,
+            direction: last.direction,
+            trigger: last.trigger,
+            winRate: last.winRate,
+            createdAt: last.createdAt,
+          } : null,
+        };
+      }));
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      const recentChanges = allHistory.filter(h => new Date(h.createdAt) >= thirtyDaysAgo);
+
+      const summary = {
+        totalPlayers: rows.length,
+        promotionEligible: rows.filter(r => r.stats?.promotionEligible).length,
+        demotionRisk: rows.filter(r => r.stats?.demotionRisk).length,
+        adminLocked: rows.filter(r => r.adminLocked).length,
+        recentPromotions: recentChanges.filter(h => h.direction === "PROMOTION").length,
+        recentDemotions: recentChanges.filter(h => h.direction === "DEMOTION").length,
+        recentManualChanges: recentChanges.filter(h => h.trigger === "MANUAL").length,
+        gradeDistribution: rows.reduce((acc: Record<string, number>, r) => {
+          acc[r.grade] = (acc[r.grade] || 0) + 1;
+          return acc;
+        }, {}),
+      };
+
+      res.json({ summary, rows });
+    } catch (err: any) {
+      console.error("Error fetching grading dashboard:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch grading dashboard" });
+    }
+  });
+
+  // Per-player full grade history + recent matches in current rolling window
+  app.get("/api/admin/player-profiles/:profileId/grade-progress", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!(await isAnyClubAdminOrOrganiser(req.user!.id, req.user!.role))) return res.sendStatus(403);
+
+    try {
+      const profileId = Number(req.params.profileId);
+      const { gradeHistory: gradeHistoryTable, playerProfiles: pp, users: u, sessions: s, sessionSignups: ss, matches: m } = await import("@shared/schema");
+
+      const profile = await db.select({
+        profileId: pp.id,
+        clubId: pp.clubId,
+        userId: pp.userId,
+        fullName: u.fullName,
+        email: u.email,
+        profilePictureUrl: u.profilePictureUrl,
+        gender: pp.gender,
+        grade: pp.grade,
+        adminLocked: pp.adminLocked,
+        gradingResetAt: pp.gradingResetAt,
+      })
+        .from(pp)
+        .innerJoin(u, eq(pp.userId, u.id))
+        .where(eq(pp.id, profileId))
+        .then(r => r[0]);
+
+      if (!profile) return res.status(404).json({ message: "Player profile not found" });
+
+      const history = await db.select({
+        id: gradeHistoryTable.id,
+        oldGrade: gradeHistoryTable.oldGrade,
+        newGrade: gradeHistoryTable.newGrade,
+        direction: gradeHistoryTable.direction,
+        trigger: gradeHistoryTable.trigger,
+        winRate: gradeHistoryTable.winRate,
+        gamesPlayed: gradeHistoryTable.gamesPlayed,
+        gamesWon: gradeHistoryTable.gamesWon,
+        sessionsCounted: gradeHistoryTable.sessionsCounted,
+        note: gradeHistoryTable.note,
+        changedByUserId: gradeHistoryTable.changedByUserId,
+        changedByName: u.fullName,
+        createdAt: gradeHistoryTable.createdAt,
+      })
+        .from(gradeHistoryTable)
+        .leftJoin(u, eq(gradeHistoryTable.changedByUserId, u.id))
+        .where(eq(gradeHistoryTable.profileId, profileId))
+        .orderBy(desc(gradeHistoryTable.createdAt));
+
+      const stats = await computePlayerGradingStats(profileId, profile.clubId, profile.gradingResetAt);
+
+      // Recent sessions in window
+      const recentSessions = await db.select({ id: s.id, name: s.name, date: s.date })
+        .from(s)
+        .innerJoin(ss, eq(ss.sessionId, s.id))
+        .where(and(
+          eq(s.clubId, profile.clubId),
+          eq(ss.playerProfileId, profileId),
+          profile.gradingResetAt ? sql`${s.date} >= ${profile.gradingResetAt}` : undefined
+        ))
+        .orderBy(desc(s.date))
+        .limit(5);
+
+      const sessionIds = recentSessions.map(x => x.id);
+      const completedMatches = sessionIds.length > 0
+        ? await db.select().from(m).where(and(inArray(m.sessionId, sessionIds), eq(m.isCompleted, true)))
+        : [];
+
+      const recentMatches = completedMatches.map(match => {
+        const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
+        const isTeamB = match.teamBPlayer1Id === profileId || match.teamBPlayer2Id === profileId;
+        if (!isTeamA && !isTeamB) return null;
+        const scoreA = match.scoreA ?? 0;
+        const scoreB = match.scoreB ?? 0;
+        const setsWonA = match.setsWonA ?? 0;
+        const setsWonB = match.setsWonB ?? 0;
+        const teamAWon = match.numberOfSets > 1 ? setsWonA > setsWonB : scoreA > scoreB;
+        const won = (isTeamA && teamAWon) || (isTeamB && !teamAWon);
+        const sessionInfo = recentSessions.find(rs => rs.id === match.sessionId);
+        return {
+          matchId: match.id,
+          sessionId: match.sessionId,
+          sessionName: sessionInfo?.name || null,
+          sessionDate: sessionInfo?.date || null,
+          scoreA,
+          scoreB,
+          setsWonA,
+          setsWonB,
+          numberOfSets: match.numberOfSets,
+          side: isTeamA ? "A" : "B",
+          won,
+        };
+      }).filter(Boolean);
+
+      // Sort matches by session date desc
+      recentMatches.sort((a: any, b: any) => {
+        const da = a.sessionDate ? new Date(a.sessionDate).getTime() : 0;
+        const db_ = b.sessionDate ? new Date(b.sessionDate).getTime() : 0;
+        return db_ - da;
+      });
+
+      res.json({
+        profile,
+        currentStats: {
+          gamesPlayed: stats.gamesPlayed,
+          gamesWon: stats.gamesWon,
+          gamesLost: stats.gamesPlayed - stats.gamesWon,
+          sessionsCounted: stats.sessionsCounted,
+          winRate: stats.winRate,
+          promotionEligible: stats.promotionEligible,
+          demotionRisk: stats.demotionRisk,
+          promotionThreshold: 0.55,
+          demotionThreshold: 0.40,
+          minGames: 10,
+          minSessions: 3,
+          rollingWindowSessions: 5,
+        },
+        history,
+        recentMatches,
+        recentSessions,
+      });
+    } catch (err: any) {
+      console.error("Error fetching grade progress:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch grade progress" });
     }
   });
 

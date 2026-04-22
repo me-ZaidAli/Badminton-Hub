@@ -993,6 +993,35 @@ export const tournamentStandingsRelations = relations(tournamentStandings, ({ on
   team: one(tournamentTeams, { fields: [tournamentStandings.teamId], references: [tournamentTeams.id] }),
 }));
 
+// === GRADE HISTORY ===
+// Logs every grade change (auto-promotion, auto-demotion, manual override) for visualisation/audit
+export const gradeHistory = pgTable("grade_history", {
+  id: serial("id").primaryKey(),
+  profileId: integer("profile_id").references(() => playerProfiles.id, { onDelete: "cascade" }).notNull(),
+  clubId: integer("club_id").references(() => clubs.id, { onDelete: "cascade" }).notNull(),
+  oldGrade: text("old_grade").notNull(),
+  newGrade: text("new_grade").notNull(),
+  direction: text("direction").notNull(), // "PROMOTION" | "DEMOTION" | "MANUAL"
+  trigger: text("trigger").notNull(), // "AUTO" | "MANUAL"
+  winRate: integer("win_rate_x100"), // win rate * 100, e.g. 0.6 -> 60
+  gamesPlayed: integer("games_played"),
+  gamesWon: integer("games_won"),
+  sessionsCounted: integer("sessions_counted"),
+  changedByUserId: integer("changed_by_user_id").references(() => users.id),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const gradeHistoryRelations = relations(gradeHistory, ({ one }) => ({
+  profile: one(playerProfiles, { fields: [gradeHistory.profileId], references: [playerProfiles.id] }),
+  club: one(clubs, { fields: [gradeHistory.clubId], references: [clubs.id] }),
+  changedBy: one(users, { fields: [gradeHistory.changedByUserId], references: [users.id] }),
+}));
+
+export const insertGradeHistorySchema = createInsertSchema(gradeHistory).omit({ id: true, createdAt: true });
+export type InsertGradeHistory = z.infer<typeof insertGradeHistorySchema>;
+export type GradeHistoryRow = typeof gradeHistory.$inferSelect;
+
 // === SCHEMAS ===
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true, emailVerified: true });
 export const insertClubSchema = createInsertSchema(clubs).omit({ id: true, createdAt: true });

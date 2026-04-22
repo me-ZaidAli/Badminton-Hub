@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { 
-  playerProfiles, matches, sessions, sessionSignups, clubs,
+  playerProfiles, matches, sessions, sessionSignups, clubs, gradeHistory,
   GRADE_ORDER, type Grade, type PlayerProfile
 } from "@shared/schema";
 import { eq, and, desc, inArray, sql } from "drizzle-orm";
@@ -168,8 +168,26 @@ export async function evaluatePlayerGrade(profileId: number, clubId: number): Pr
 
   if (newGrade !== currentGrade) {
     await db.update(playerProfiles)
-      .set({ grade: newGrade })
+      .set({ grade: newGrade, gradingResetAt: new Date() })
       .where(eq(playerProfiles.id, profileId));
+
+    const direction =
+      GRADE_ORDER.indexOf(newGrade as Grade) > GRADE_ORDER.indexOf(currentGrade as Grade)
+        ? "PROMOTION"
+        : "DEMOTION";
+
+    await db.insert(gradeHistory).values({
+      profileId,
+      clubId,
+      oldGrade: currentGrade,
+      newGrade,
+      direction,
+      trigger: "AUTO",
+      winRate: Math.round(stats.winRate * 100),
+      gamesPlayed: stats.gamesPlayed,
+      gamesWon: stats.gamesWon,
+      sessionsCounted: stats.sessionsCounted,
+    });
 
     return { changed: true, oldGrade: currentGrade, newGrade };
   }

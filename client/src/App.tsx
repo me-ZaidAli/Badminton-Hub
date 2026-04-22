@@ -55,6 +55,7 @@ const CommunityEventDetail = lazy(() => import("@/pages/CommunityEventDetail"));
 const CommunityTeamEventDetail = lazy(() => import("@/pages/CommunityTeamEventDetail"));
 
 const AdminDashboard = lazy(() => import("@/pages/admin/AdminDashboard"));
+const GradingDashboard = lazy(() => import("@/pages/admin/GradingDashboard"));
 
 const SuperAdminDashboard = lazy(() => import("@/pages/super-admin/SuperAdminDashboard"));
 const SuperAdminUsers = lazy(() => import("@/pages/super-admin/SuperAdminUsers"));
@@ -601,6 +602,9 @@ function Router() {
       </Route>
       <Route path="/admin">
         <AdminRoute component={AdminDashboard} />
+      </Route>
+      <Route path="/admin/grading">
+        <AdminRoute component={GradingDashboard} />
       </Route>
       <Route path="/admin/players">
         <NonOrganiserAdminRoute component={PlayerManagement} />
