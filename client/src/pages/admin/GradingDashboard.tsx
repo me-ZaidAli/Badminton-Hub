@@ -21,6 +21,7 @@ import {
 } from "lucide-react";
 import { format } from "date-fns";
 import { motion, useMotionValue, useTransform, animate, AnimatePresence } from "framer-motion";
+import { PremiumLoader } from "@/components/ui/premium-loader";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
   BarChart, Bar, Legend, AreaChart, Area,
@@ -960,7 +961,11 @@ function StatusBadges({ row }: { row: PlayerRow }) {
 }
 
 function LoadingState() {
-  return <div className="flex items-center justify-center py-20"><Loader2 className="h-8 w-8 animate-spin text-primary" /></div>;
+  return (
+    <div className="py-12">
+      <PremiumLoader label="Crunching the numbers" sublabel="Pulling fresh grading data" />
+    </div>
+  );
 }
 function EmptyState({ message }: { message: string }) {
   return <Card><CardContent className="py-16 text-center text-muted-foreground">{message}</CardContent></Card>;

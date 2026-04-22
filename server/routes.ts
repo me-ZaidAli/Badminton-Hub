@@ -2015,7 +2015,7 @@ export async function registerRoutes(
       const stats = await computePlayerGradingStats(profileId, profile.clubId, profile.gradingResetAt);
 
       // Recent sessions in window
-      const recentSessions = await db.select({ id: s.id, name: s.name, date: s.date })
+      const recentSessions = await db.select({ id: s.id, name: s.title, date: s.date })
         .from(s)
         .innerJoin(ss, eq(ss.sessionId, s.id))
         .where(and(

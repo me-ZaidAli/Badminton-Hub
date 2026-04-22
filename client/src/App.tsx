@@ -15,6 +15,7 @@ import { lazy, Suspense, useEffect, createContext, useContext } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
 import { IosFirstVisitPrompt } from "@/components/PwaInstallPrompt";
+import { GlobalRouteProgress } from "@/components/ui/premium-loader";
 import { useBackground } from "@/hooks/use-background";
 import { useTypography } from "@/hooks/use-typography";
 
@@ -796,6 +797,7 @@ function ThemeWrapper() {
     <ThemeContext.Provider value={themeCtx}>
       <TooltipProvider>
         <ThemeSync />
+        <GlobalRouteProgress />
         <Toaster />
         <Router />
         <IosFirstVisitPrompt />
