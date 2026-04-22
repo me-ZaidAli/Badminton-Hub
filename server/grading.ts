@@ -65,7 +65,7 @@ export async function computePlayerGradingStats(
     .where(
       and(
         eq(sessions.clubId, clubId),
-        eq(sessionSignups.playerProfileId, profileId),
+        eq(sessionSignups.playerId, profileId),
         gradingResetAt ? sql`${sessions.date} >= ${gradingResetAt}` : undefined
       )
     )

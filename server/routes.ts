@@ -1472,104 +1472,472 @@ export async function registerRoutes(
   // GRADING PROGRESS DASHBOARD ENDPOINTS
   // ============================================================
 
+  async function buildClubGradingData(clubId: number) {
+    const { gradeHistory: gradeHistoryTable, playerProfiles: pp, users: u, sessions: s, sessionSignups: ss, matches: m, GRADE_ORDER } = await import("@shared/schema");
+    const PROMO_TH = 0.55;
+    const DEMO_TH = 0.40;
+    const MIN_GAMES = 10;
+    const MIN_SESSIONS = 3;
+    const MS_DAY = 86_400_000;
+    const now = Date.now();
+
+    const club = await db.select({ id: clubs.id, name: clubs.name, autoGradingEnabled: clubs.autoGradingEnabled })
+      .from(clubs).where(eq(clubs.id, clubId)).then(r => r[0]);
+    if (!club) return null;
+
+    const profileRows = await db.select({
+      profileId: pp.id,
+      userId: pp.userId,
+      fullName: u.fullName,
+      email: u.email,
+      profilePictureUrl: u.profilePictureUrl,
+      gender: pp.gender,
+      grade: pp.grade,
+      adminLocked: pp.adminLocked,
+      gradingResetAt: pp.gradingResetAt,
+      joinedAt: pp.joinedAt,
+    })
+      .from(pp)
+      .innerJoin(u, eq(pp.userId, u.id))
+      .where(and(eq(pp.clubId, clubId), eq(pp.membershipStatus, "APPROVED")));
+
+    const profileIds = profileRows.map(p => p.profileId);
+
+    // Batch: all grade history for the club
+    const allHistory = await db.select({
+      id: gradeHistoryTable.id,
+      profileId: gradeHistoryTable.profileId,
+      oldGrade: gradeHistoryTable.oldGrade,
+      newGrade: gradeHistoryTable.newGrade,
+      direction: gradeHistoryTable.direction,
+      trigger: gradeHistoryTable.trigger,
+      winRate: gradeHistoryTable.winRate,
+      gamesPlayed: gradeHistoryTable.gamesPlayed,
+      gamesWon: gradeHistoryTable.gamesWon,
+      sessionsCounted: gradeHistoryTable.sessionsCounted,
+      note: gradeHistoryTable.note,
+      changedByUserId: gradeHistoryTable.changedByUserId,
+      changedByName: u.fullName,
+      createdAt: gradeHistoryTable.createdAt,
+    })
+      .from(gradeHistoryTable)
+      .leftJoin(u, eq(gradeHistoryTable.changedByUserId, u.id))
+      .where(eq(gradeHistoryTable.clubId, clubId))
+      .orderBy(desc(gradeHistoryTable.createdAt));
+
+    const historyByProfile = new Map<number, any[]>();
+    for (const h of allHistory) {
+      if (!historyByProfile.has(h.profileId)) historyByProfile.set(h.profileId, []);
+      historyByProfile.get(h.profileId)!.push(h);
+    }
+
+    // Batch: total session signups per player (all-time)
+    const sessionCountRows = profileIds.length > 0
+      ? await db.select({ playerId: ss.playerId, count: sql<number>`count(*)::int` })
+          .from(ss)
+          .innerJoin(s, eq(ss.sessionId, s.id))
+          .where(and(eq(s.clubId, clubId), inArray(ss.playerId, profileIds)))
+          .groupBy(ss.playerId)
+      : [];
+    const sessionsAllTime = new Map<number, number>(sessionCountRows.map(r => [r.playerId, Number(r.count)]));
+
+    // Batch: all completed matches in club (last 90 days for form/streak; all time for totals)
+    const completedMatchesAll = profileIds.length > 0
+      ? await db.select({
+          id: m.id,
+          sessionId: m.sessionId,
+          teamAPlayer1Id: m.teamAPlayer1Id,
+          teamAPlayer2Id: m.teamAPlayer2Id,
+          teamBPlayer1Id: m.teamBPlayer1Id,
+          teamBPlayer2Id: m.teamBPlayer2Id,
+          scoreA: m.scoreA,
+          scoreB: m.scoreB,
+          setsWonA: m.setsWonA,
+          setsWonB: m.setsWonB,
+          numberOfSets: m.numberOfSets,
+          completedAt: m.completedAt,
+          sessionDate: s.date,
+        })
+          .from(m)
+          .innerJoin(s, eq(m.sessionId, s.id))
+          .where(and(eq(s.clubId, clubId), eq(m.isCompleted, true)))
+      : [];
+
+    const matchesByPlayer = new Map<number, Array<{ won: boolean; matchId: number; sessionId: number; date: Date | null }>>();
+    for (const match of completedMatchesAll) {
+      const useSets = (match.numberOfSets || 1) > 1;
+      const aSide = useSets ? (match.setsWonA ?? 0) : (match.scoreA ?? 0);
+      const bSide = useSets ? (match.setsWonB ?? 0) : (match.scoreB ?? 0);
+      if (aSide === bSide) continue; // skip ties — don't count toward W/L
+      const teamAWon = aSide > bSide;
+      const sides: Array<[number | null, boolean]> = [
+        [match.teamAPlayer1Id, teamAWon],
+        [match.teamAPlayer2Id, teamAWon],
+        [match.teamBPlayer1Id, !teamAWon],
+        [match.teamBPlayer2Id, !teamAWon],
+      ];
+      for (const [pid, won] of sides) {
+        if (pid == null) continue;
+        if (!matchesByPlayer.has(pid)) matchesByPlayer.set(pid, []);
+        matchesByPlayer.get(pid)!.push({
+          won,
+          matchId: match.id,
+          sessionId: match.sessionId,
+          date: match.completedAt || (match.sessionDate ? new Date(match.sessionDate as any) : null),
+        });
+      }
+    }
+    // Sort per-player matches descending
+    for (const arr of matchesByPlayer.values()) {
+      arr.sort((a, b) => (b.date?.getTime() || 0) - (a.date?.getTime() || 0));
+    }
+
+    const gradeIdx = (g: string) => GRADE_ORDER.indexOf(g as any);
+
+    const rows = await Promise.all(profileRows.map(async (p) => {
+      let stats: any = null;
+      try {
+        stats = await computePlayerGradingStats(p.profileId, clubId, p.gradingResetAt);
+      } catch (e) { stats = null; }
+
+      const playerHistory = historyByProfile.get(p.profileId) || [];
+      const last = playerHistory[0] || null;
+      const previousGrade = last ? last.oldGrade : null;
+      const grade = p.grade || "C3";
+
+      // Highest grade reached: max of current + all newGrade in history
+      const grades = [grade, ...playerHistory.map(h => h.newGrade)].filter(Boolean);
+      const highestGrade = grades.reduce((best, g) => gradeIdx(g) > gradeIdx(best) ? g : best, grades[0] || grade);
+
+      const playerMatches = matchesByPlayer.get(p.profileId) || [];
+      const totalGamesAllTime = playerMatches.length;
+      const last10Form = playerMatches.slice(0, 10).map(x => x.won ? "W" : "L");
+
+      // Current streak
+      let streakType: "W" | "L" | null = null;
+      let streakCount = 0;
+      for (const x of playerMatches) {
+        const t = x.won ? "W" : "L";
+        if (streakType === null) { streakType = t; streakCount = 1; }
+        else if (streakType === t) { streakCount++; }
+        else break;
+      }
+
+      const winRate = stats?.winRate || 0;
+      const gp = stats?.gamesPlayed || 0;
+      const sc = stats?.sessionsCounted || 0;
+      const activityFactor = Math.min(1, Math.min(gp / MIN_GAMES, sc / MIN_SESSIONS));
+      const promotionReadiness = stats?.promotionEligible
+        ? 100
+        : Math.round(activityFactor * Math.max(0, Math.min(100, ((winRate - DEMO_TH) / (PROMO_TH - DEMO_TH)) * 100)));
+      const demotionRiskScore = stats?.demotionRisk
+        ? 100
+        : Math.round(activityFactor * Math.max(0, Math.min(100, ((PROMO_TH - winRate) / (PROMO_TH - DEMO_TH)) * 100)));
+
+      // Reason tags
+      const reasonTags: string[] = [];
+      if (p.adminLocked) reasonTags.push("Admin locked");
+      if (gp === 0) reasonTags.push("No games yet in current window");
+      else if (gp < MIN_GAMES) reasonTags.push(`Low activity (${gp}/${MIN_GAMES} games, ${sc}/${MIN_SESSIONS} sessions)`);
+      else if (stats?.promotionEligible) reasonTags.push(`Strong: ${(winRate * 100).toFixed(0)}% win rate over ${gp} games`);
+      else if (stats?.demotionRisk) reasonTags.push(`Weak form: ${(winRate * 100).toFixed(0)}% over ${gp} games`);
+      else reasonTags.push(`Stable: ${(winRate * 100).toFixed(0)}% win rate`);
+      if (streakType && streakCount >= 3) reasonTags.push(`${streakCount} ${streakType === "W" ? "win" : "loss"} streak`);
+      if (last && last.trigger === "MANUAL" && (now - new Date(last.createdAt).getTime()) < 30 * MS_DAY) {
+        reasonTags.push(`Manual override${last.changedByName ? ` by ${last.changedByName}` : ""}`);
+      }
+      if (last && last.direction === "PROMOTION" && (now - new Date(last.createdAt).getTime()) < 14 * MS_DAY) {
+        reasonTags.push("Recently promoted — building new window");
+      }
+
+      return {
+        profileId: p.profileId,
+        userId: p.userId,
+        fullName: p.fullName,
+        email: p.email,
+        profilePictureUrl: p.profilePictureUrl,
+        gender: p.gender,
+        grade,
+        previousGrade,
+        highestGrade,
+        adminLocked: p.adminLocked,
+        gradingResetAt: p.gradingResetAt,
+        joinedAt: p.joinedAt,
+        totalSessionsAllTime: sessionsAllTime.get(p.profileId) || 0,
+        totalGamesAllTime,
+        last10Form,
+        streak: { type: streakType, count: streakCount },
+        promotionReadiness,
+        demotionRiskScore,
+        reasonTags,
+        stats: stats ? {
+          gamesPlayed: stats.gamesPlayed,
+          gamesWon: stats.gamesWon,
+          gamesLost: stats.gamesPlayed - stats.gamesWon,
+          sessionsCounted: stats.sessionsCounted,
+          winRate: stats.winRate,
+          promotionEligible: stats.promotionEligible,
+          demotionRisk: stats.demotionRisk,
+        } : null,
+        lastChange: last ? {
+          id: last.id,
+          oldGrade: last.oldGrade,
+          newGrade: last.newGrade,
+          direction: last.direction,
+          trigger: last.trigger,
+          winRate: last.winRate,
+          changedByName: last.changedByName,
+          createdAt: last.createdAt,
+        } : null,
+      };
+    }));
+
+    // Monthly trends — last 12 months
+    const monthMap = new Map<string, { month: string; promotions: number; demotions: number; manual: number }>();
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date();
+      d.setMonth(d.getMonth() - i);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      monthMap.set(key, { month: key, promotions: 0, demotions: 0, manual: 0 });
+    }
+    for (const h of allHistory) {
+      const d = new Date(h.createdAt);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const bucket = monthMap.get(key);
+      if (!bucket) continue;
+      if (h.trigger === "MANUAL") bucket.manual++;
+      else if (h.direction === "PROMOTION") bucket.promotions++;
+      else if (h.direction === "DEMOTION") bucket.demotions++;
+    }
+    const monthlyTrends = Array.from(monthMap.values());
+
+    const thirtyDaysAgo = new Date(); thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentChanges = allHistory.filter(h => new Date(h.createdAt) >= thirtyDaysAgo);
+    const inactiveCount = rows.filter(r => {
+      const lastMatch = matchesByPlayer.get(r.profileId)?.[0];
+      return !lastMatch || (now - (lastMatch.date?.getTime() || 0)) > 30 * MS_DAY;
+    }).length;
+
+    const summary = {
+      totalPlayers: rows.length,
+      promotionEligible: rows.filter(r => r.stats?.promotionEligible).length,
+      demotionRisk: rows.filter(r => r.stats?.demotionRisk).length,
+      adminLocked: rows.filter(r => r.adminLocked).length,
+      inactiveCount,
+      recentPromotions: recentChanges.filter(h => h.direction === "PROMOTION" && h.trigger === "AUTO").length,
+      recentDemotions: recentChanges.filter(h => h.direction === "DEMOTION" && h.trigger === "AUTO").length,
+      recentManualChanges: recentChanges.filter(h => h.trigger === "MANUAL").length,
+      gradeDistribution: rows.reduce((acc: Record<string, number>, r) => {
+        acc[r.grade] = (acc[r.grade] || 0) + 1;
+        return acc;
+      }, {}),
+      avgWinRate: (() => {
+        const totalGames = rows.reduce((s, r) => s + (r.stats?.gamesPlayed || 0), 0);
+        const totalWins = rows.reduce((s, r) => s + (r.stats?.gamesWon || 0), 0);
+        return totalGames > 0 ? totalWins / totalGames : 0;
+      })(),
+    };
+
+    // Smart insights
+    const insights: string[] = [];
+    if (summary.promotionEligible > 0) insights.push(`${summary.promotionEligible} player${summary.promotionEligible > 1 ? "s" : ""} ready for promotion`);
+    if (summary.demotionRisk > 0) insights.push(`${summary.demotionRisk} player${summary.demotionRisk > 1 ? "s" : ""} at demotion risk`);
+    if (summary.inactiveCount > 0) insights.push(`${summary.inactiveCount} player${summary.inactiveCount > 1 ? "s" : ""} inactive for 30+ days`);
+    const distribution = summary.gradeDistribution;
+    const topGrade = Object.entries(distribution).sort((a, b) => b[1] - a[1])[0];
+    if (topGrade && topGrade[1] >= 5 && topGrade[1] / Math.max(1, summary.totalPlayers) > 0.35) {
+      insights.push(`${topGrade[0]} level overcrowded (${topGrade[1]} players)`);
+    }
+    if (summary.recentPromotions + summary.recentDemotions === 0 && rows.length > 0) {
+      insights.push("No automatic grade changes in the last 30 days");
+    }
+
+    const topImprover = [...rows]
+      .filter(r => r.stats && r.stats.gamesPlayed >= 5)
+      .sort((a, b) => (b.stats?.winRate || 0) - (a.stats?.winRate || 0))[0];
+    const mostAtRisk = [...rows]
+      .filter(r => r.stats && r.stats.gamesPlayed >= 5 && !r.adminLocked)
+      .sort((a, b) => (a.stats?.winRate || 0) - (b.stats?.winRate || 0))[0];
+
+    return {
+      club,
+      summary,
+      rows,
+      monthlyTrends,
+      insights,
+      topImprover: topImprover ? {
+        profileId: topImprover.profileId,
+        fullName: topImprover.fullName,
+        winRate: topImprover.stats?.winRate || 0,
+        grade: topImprover.grade,
+      } : null,
+      mostAtRisk: mostAtRisk ? {
+        profileId: mostAtRisk.profileId,
+        fullName: mostAtRisk.fullName,
+        winRate: mostAtRisk.stats?.winRate || 0,
+        grade: mostAtRisk.grade,
+      } : null,
+    };
+  }
+
+  async function userCanViewClubGrading(userId: number, userRole: string, clubId: number): Promise<boolean> {
+    if (userRole === "OWNER" || userRole === "ADMIN") return true;
+    const ownsClub = await db.select({ id: clubs.id }).from(clubs)
+      .where(and(eq(clubs.id, clubId), eq(clubs.ownerId, userId))).limit(1);
+    if (ownsClub.length > 0) return true;
+    const profile = await db.select({ clubRole: playerProfiles.clubRole })
+      .from(playerProfiles)
+      .where(and(
+        eq(playerProfiles.userId, userId),
+        eq(playerProfiles.clubId, clubId),
+        eq(playerProfiles.membershipStatus, "APPROVED"),
+        inArray(playerProfiles.clubRole, ["OWNER", "ADMIN", "ORGANISER"]),
+      )).limit(1);
+    return profile.length > 0;
+  }
+
   // Per-club grading dashboard summary + per-player rows
   app.get("/api/admin/clubs/:clubId/grading-dashboard", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (!(await isAnyClubAdminOrOrganiser(req.user!.id, req.user!.role))) return res.sendStatus(403);
-
     try {
       const clubId = Number(req.params.clubId);
-      const { gradeHistory: gradeHistoryTable, playerProfiles: pp, users: u } = await import("@shared/schema");
-
-      const profileRows = await db.select({
-        profileId: pp.id,
-        userId: pp.userId,
-        fullName: u.fullName,
-        email: u.email,
-        profilePictureUrl: u.profilePictureUrl,
-        gender: pp.gender,
-        grade: pp.grade,
-        adminLocked: pp.adminLocked,
-        gradingResetAt: pp.gradingResetAt,
-        membershipStatus: pp.membershipStatus,
-      })
-        .from(pp)
-        .innerJoin(u, eq(pp.userId, u.id))
-        .where(and(eq(pp.clubId, clubId), eq(pp.membershipStatus, "APPROVED")));
-
-      const allHistory = await db.select()
-        .from(gradeHistoryTable)
-        .where(eq(gradeHistoryTable.clubId, clubId))
-        .orderBy(desc(gradeHistoryTable.createdAt));
-
-      const lastChangeByProfile = new Map<number, any>();
-      for (const h of allHistory) {
-        if (!lastChangeByProfile.has(h.profileId)) {
-          lastChangeByProfile.set(h.profileId, h);
-        }
-      }
-
-      const rows = await Promise.all(profileRows.map(async (p) => {
-        let stats: any = null;
-        try {
-          stats = await computePlayerGradingStats(p.profileId, clubId, p.gradingResetAt);
-        } catch (e) {
-          stats = null;
-        }
-        const last = lastChangeByProfile.get(p.profileId) || null;
-        return {
-          profileId: p.profileId,
-          userId: p.userId,
-          fullName: p.fullName,
-          email: p.email,
-          profilePictureUrl: p.profilePictureUrl,
-          gender: p.gender,
-          grade: p.grade || "C3",
-          adminLocked: p.adminLocked,
-          gradingResetAt: p.gradingResetAt,
-          stats: stats ? {
-            gamesPlayed: stats.gamesPlayed,
-            gamesWon: stats.gamesWon,
-            gamesLost: stats.gamesPlayed - stats.gamesWon,
-            sessionsCounted: stats.sessionsCounted,
-            winRate: stats.winRate,
-            promotionEligible: stats.promotionEligible,
-            demotionRisk: stats.demotionRisk,
-          } : null,
-          lastChange: last ? {
-            id: last.id,
-            oldGrade: last.oldGrade,
-            newGrade: last.newGrade,
-            direction: last.direction,
-            trigger: last.trigger,
-            winRate: last.winRate,
-            createdAt: last.createdAt,
-          } : null,
-        };
-      }));
-
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      const recentChanges = allHistory.filter(h => new Date(h.createdAt) >= thirtyDaysAgo);
-
-      const summary = {
-        totalPlayers: rows.length,
-        promotionEligible: rows.filter(r => r.stats?.promotionEligible).length,
-        demotionRisk: rows.filter(r => r.stats?.demotionRisk).length,
-        adminLocked: rows.filter(r => r.adminLocked).length,
-        recentPromotions: recentChanges.filter(h => h.direction === "PROMOTION").length,
-        recentDemotions: recentChanges.filter(h => h.direction === "DEMOTION").length,
-        recentManualChanges: recentChanges.filter(h => h.trigger === "MANUAL").length,
-        gradeDistribution: rows.reduce((acc: Record<string, number>, r) => {
-          acc[r.grade] = (acc[r.grade] || 0) + 1;
-          return acc;
-        }, {}),
-      };
-
-      res.json({ summary, rows });
+      if (!Number.isFinite(clubId)) return res.status(400).json({ message: "Invalid club id" });
+      if (!(await userCanViewClubGrading(req.user!.id, req.user!.role, clubId))) return res.sendStatus(403);
+      const data = await buildClubGradingData(clubId);
+      if (!data) return res.status(404).json({ message: "Club not found" });
+      res.json(data);
     } catch (err: any) {
       console.error("Error fetching grading dashboard:", err);
       res.status(500).json({ message: err.message || "Failed to fetch grading dashboard" });
+    }
+  });
+
+  // Multi-club executive overview
+  app.get("/api/admin/grading-overview", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
+
+    try {
+      const allowedClubIds = await getUserAdminClubIds(req.user!.id, req.user!.role);
+      if (allowedClubIds.length === 0) return res.json({ executive: null, perClub: [], monthlyTrends: [], clubs: [] });
+
+      const clubsList = await db.select({
+        id: clubs.id,
+        name: clubs.name,
+        autoGradingEnabled: clubs.autoGradingEnabled,
+      }).from(clubs).where(inArray(clubs.id, allowedClubIds));
+
+      const allData = await Promise.all(clubsList.map(c => buildClubGradingData(c.id)));
+      const valid = allData.filter((x): x is NonNullable<typeof x> => !!x);
+
+      const perClub = valid.map(d => {
+        const totalGames = d.rows.reduce((s, r) => s + (r.stats?.gamesPlayed || 0), 0);
+        const totalWins = d.rows.reduce((s, r) => s + (r.stats?.gamesWon || 0), 0);
+        const avgWinRate = totalGames > 0 ? totalWins / totalGames : 0;
+        const topImprover = [...d.rows]
+          .filter(r => r.stats && r.stats.gamesPlayed >= 5)
+          .sort((a, b) => (b.stats?.winRate || 0) - (a.stats?.winRate || 0))[0];
+        return {
+          clubId: d.club.id,
+          clubName: d.club.name,
+          autoGradingEnabled: d.club.autoGradingEnabled,
+          totalPlayers: d.summary.totalPlayers,
+          activePlayers: d.rows.filter(r => (r.stats?.gamesPlayed || 0) > 0).length,
+          inactivePlayers: d.summary.inactiveCount,
+          avgWinRate,
+          promotionEligible: d.summary.promotionEligible,
+          demotionRisk: d.summary.demotionRisk,
+          adminLocked: d.summary.adminLocked,
+          recentPromotions: d.summary.recentPromotions,
+          recentDemotions: d.summary.recentDemotions,
+          recentManualChanges: d.summary.recentManualChanges,
+          topImprover: topImprover ? {
+            profileId: topImprover.profileId,
+            fullName: topImprover.fullName,
+            winRate: topImprover.stats?.winRate || 0,
+            grade: topImprover.grade,
+          } : null,
+          gradeDistribution: d.summary.gradeDistribution,
+        };
+      });
+
+      const aggregatedDistribution: Record<string, number> = {};
+      for (const d of valid) {
+        for (const [g, n] of Object.entries(d.summary.gradeDistribution)) {
+          aggregatedDistribution[g] = (aggregatedDistribution[g] || 0) + n;
+        }
+      }
+
+      // Aggregate monthly trends across clubs
+      const monthMap = new Map<string, { month: string; promotions: number; demotions: number; manual: number }>();
+      for (const d of valid) {
+        for (const m of d.monthlyTrends) {
+          const existing = monthMap.get(m.month) || { month: m.month, promotions: 0, demotions: 0, manual: 0 };
+          existing.promotions += m.promotions;
+          existing.demotions += m.demotions;
+          existing.manual += m.manual;
+          monthMap.set(m.month, existing);
+        }
+      }
+      const monthlyTrends = Array.from(monthMap.values()).sort((a, b) =>
+        new Date(a.month).getTime() - new Date(b.month).getTime()
+      );
+
+      const totalActivePlayers = perClub.reduce((s, c) => s + c.activePlayers, 0);
+      const promotionsThisMonth = perClub.reduce((s, c) => s + c.recentPromotions, 0);
+      const demotionsThisMonth = perClub.reduce((s, c) => s + c.recentDemotions, 0);
+      const lockedProfiles = perClub.reduce((s, c) => s + c.adminLocked, 0);
+      const totalGames = valid.reduce((s, d) => s + d.rows.reduce((ss, r) => ss + (r.stats?.gamesPlayed || 0), 0), 0);
+      const totalWins = valid.reduce((s, d) => s + d.rows.reduce((ss, r) => ss + (r.stats?.gamesWon || 0), 0), 0);
+      const overallAvgWinRate = totalGames > 0 ? totalWins / totalGames : 0;
+
+      const allRows = valid.flatMap(d => d.rows.map(r => ({ ...r, clubId: d.club.id, clubName: d.club.name })));
+      const topImprover = [...allRows]
+        .filter(r => r.stats && r.stats.gamesPlayed >= 5)
+        .sort((a, b) => (b.stats?.winRate || 0) - (a.stats?.winRate || 0))[0] || null;
+      const mostAtRisk = [...allRows]
+        .filter(r => r.stats && r.stats.gamesPlayed >= 5 && !r.adminLocked)
+        .sort((a, b) => (a.stats?.winRate || 0) - (b.stats?.winRate || 0))[0] || null;
+      const mostActiveClub = [...perClub].sort((a, b) =>
+        (b.activePlayers + b.recentPromotions + b.recentDemotions) -
+        (a.activePlayers + a.recentPromotions + a.recentDemotions)
+      )[0] || null;
+
+      res.json({
+        executive: {
+          totalActivePlayers,
+          promotionsThisMonth,
+          demotionsThisMonth,
+          lockedProfiles,
+          avgWinRate: overallAvgWinRate,
+          topImprover: topImprover ? {
+            profileId: topImprover.profileId,
+            fullName: topImprover.fullName,
+            winRate: topImprover.stats?.winRate || 0,
+            grade: topImprover.grade,
+            clubName: topImprover.clubName,
+          } : null,
+          mostAtRisk: mostAtRisk ? {
+            profileId: mostAtRisk.profileId,
+            fullName: mostAtRisk.fullName,
+            winRate: mostAtRisk.stats?.winRate || 0,
+            grade: mostAtRisk.grade,
+            clubName: mostAtRisk.clubName,
+          } : null,
+          mostActiveClub: mostActiveClub ? {
+            clubId: mostActiveClub.clubId,
+            clubName: mostActiveClub.clubName,
+            activePlayers: mostActiveClub.activePlayers,
+          } : null,
+        },
+        perClub,
+        monthlyTrends,
+        gradeDistribution: aggregatedDistribution,
+        clubs: clubsList.map(c => ({ id: c.id, name: c.name })),
+      });
+    } catch (err: any) {
+      console.error("Error fetching grading overview:", err);
+      res.status(500).json({ message: err.message || "Failed to fetch grading overview" });
     }
   });
 
