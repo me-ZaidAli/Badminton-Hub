@@ -136,7 +136,7 @@ export interface IStorage {
 
   // Enhanced session signups
   createSessionSignupEnhanced(data: { sessionId: number; playerId: number; fee: number; paymentMethod?: string; paymentStatus?: string; signupStatus?: string; waitingListPosition?: number; signedUpByUserId?: number }): Promise<SessionSignup>;
-  updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string; paymentNotes?: string }): Promise<SessionSignup>;
+  updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string; paymentNotes?: string; fee?: number }): Promise<SessionSignup>;
   updateSessionSignupStatus(signupId: number, updates: { signupStatus?: string; waitingListPosition?: number | null }): Promise<SessionSignup>;
   getWaitingListForSession(sessionId: number): Promise<(SessionSignup & { player: PlayerProfile & { user: User } })[]>;
   getPendingUsers(): Promise<(User & { playerProfile: PlayerProfile | null })[]>;
@@ -660,11 +660,29 @@ export class DatabaseStorage implements IStorage {
       .innerJoin(playerProfiles, eq(sessionSignups.playerId, playerProfiles.id))
       .innerJoin(users, eq(playerProfiles.userId, users.id))
       .where(eq(sessionSignups.sessionId, sessionId));
-    
+
+    let trialUserIds = new Set<number>();
+    if (result.length > 0) {
+      const sessionRow = await db.select({ clubId: sessions.clubId }).from(sessions).where(eq(sessions.id, sessionId)).limit(1);
+      const clubId = sessionRow[0]?.clubId;
+      if (clubId) {
+        const userIds = result.map(r => r.users.id);
+        const trialRows = await db.select({ userId: trialPlayers.userId })
+          .from(trialPlayers)
+          .where(and(
+            eq(trialPlayers.clubId, clubId),
+            inArray(trialPlayers.userId, userIds),
+            inArray(trialPlayers.status as any, ["PENDING", "SCHEDULED", "ATTENDED", "EVALUATED"])
+          ));
+        trialUserIds = new Set(trialRows.map(t => t.userId));
+      }
+    }
+
     return result.map(r => ({
       ...r.session_signups,
+      isTrial: trialUserIds.has(r.users.id),
       player: { ...r.player_profiles, user: r.users }
-    }));
+    }) as any);
   }
 
   async createSessionSignup(sessionId: number, playerId: number, fee: number): Promise<SessionSignup> {
@@ -2056,7 +2074,7 @@ export class DatabaseStorage implements IStorage {
     return signup;
   }
 
-  async updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string; paymentNotes?: string }): Promise<SessionSignup> {
+  async updateSessionSignupPayment(signupId: number, updates: { paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string; paymentNotes?: string; fee?: number }): Promise<SessionSignup> {
     const [updated] = await db.update(sessionSignups).set(updates as any).where(eq(sessionSignups.id, signupId)).returning();
     return updated;
   }

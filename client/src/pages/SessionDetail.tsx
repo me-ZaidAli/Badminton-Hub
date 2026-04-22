@@ -1955,6 +1955,17 @@ export default function SessionDetail() {
                           )}
                           {parentPlayerAchievements[signup.playerId]?.trophy && <Trophy className="w-3.5 h-3.5 text-amber-400 inline-block" />}
                           {parentPlayerAchievements[signup.playerId]?.fire && <Flame className="w-3.5 h-3.5 text-orange-400 inline-block" />}
+                          {(signup as any).isTrial && (
+                            <span title="Trial player" className="inline-flex items-center justify-center text-[9px] font-bold leading-none bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-full w-4 h-4" data-testid={`badge-trial-${signup.id}`}>
+                              T
+                            </span>
+                          )}
+                          <SignupFeeEditor
+                            signup={signup}
+                            canEdit={!!isOrganiser}
+                            onSave={(newFee) => paymentOverrideMutation.mutate({ signupId: signup.id, fee: newFee })}
+                            isSaving={paymentOverrideMutation.isPending}
+                          />
                         </span>
                       </p>
                     )}
@@ -5445,6 +5456,55 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       </Dialog>
 
     </div>
+  );
+}
+
+function SignupFeeEditor({ signup, canEdit, onSave, isSaving }: { signup: any; canEdit: boolean; onSave: (fee: number) => void; isSaving: boolean }) {
+  const currentFee = Number(signup?.fee ?? 0);
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState<string>(String(currentFee));
+  useEffect(() => { setValue(String(currentFee)); }, [currentFee]);
+
+  const commit = () => {
+    const n = Number(value);
+    if (!Number.isFinite(n) || n < 0) { setValue(String(currentFee)); setEditing(false); return; }
+    if (Math.round(n) !== currentFee) onSave(Math.round(n));
+    setEditing(false);
+  };
+
+  if (!canEdit) {
+    return (
+      <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 ml-1" data-testid={`text-fee-${signup.id}`}>£{currentFee}</span>
+    );
+  }
+
+  return editing ? (
+    <span className="inline-flex items-center gap-1 ml-1" onClick={(e) => e.stopPropagation()}>
+      <span className="text-[11px] text-muted-foreground">£</span>
+      <Input
+        type="number"
+        min="0"
+        value={value}
+        onChange={(e) => setValue(e.target.value)}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); else if (e.key === "Escape") { setValue(String(currentFee)); setEditing(false); } }}
+        onBlur={commit}
+        autoFocus
+        disabled={isSaving}
+        className="h-6 w-16 px-1.5 py-0 text-[11px] font-medium"
+        data-testid={`input-fee-${signup.id}`}
+      />
+    </span>
+  ) : (
+    <button
+      type="button"
+      onClick={(e) => { e.stopPropagation(); setEditing(true); }}
+      className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[11px] font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+      data-testid={`button-edit-fee-${signup.id}`}
+      title="Click to edit fee"
+    >
+      £{currentFee}
+      <Pencil className="w-2.5 h-2.5 opacity-70" />
+    </button>
   );
 }
 

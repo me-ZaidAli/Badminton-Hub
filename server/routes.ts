@@ -3584,13 +3584,22 @@ export async function registerRoutes(
     const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
-    const { paymentStatus, paymentMethod, verifiedByAdmin, adminNotes, paymentNotes } = req.body;
+    const { paymentStatus, paymentMethod, verifiedByAdmin, adminNotes, paymentNotes, fee } = req.body;
+    let validatedFee: number | undefined = undefined;
+    if (fee !== undefined && fee !== null && fee !== "") {
+      const n = Number(fee);
+      if (!Number.isFinite(n) || n < 0) {
+        return res.status(400).json({ message: "Fee must be a non-negative number" });
+      }
+      validatedFee = Math.round(n);
+    }
     const updated = await storage.updateSessionSignupPayment(signupId, {
       paymentStatus,
       paymentMethod,
       verifiedByAdmin,
       adminNotes,
       paymentNotes,
+      ...(validatedFee !== undefined ? { fee: validatedFee } : {}),
     });
 
     if (paymentStatus === "PAID" || verifiedByAdmin) {
