@@ -1,6 +1,6 @@
 import { usePlayers, useUpdatePlayer } from "@/hooks/use-players";
 import { useUser } from "@/hooks/use-auth";
-import { useClubs } from "@/hooks/use-clubs";
+import { useClubs, useUserClubRoles } from "@/hooks/use-clubs";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -56,7 +56,12 @@ export default function Players() {
   const [genderFilter, setGenderFilter] = useState<string>("all");
   const [editPlayer, setEditPlayer] = useState<PlayerData | null>(null);
   const [editProfileClubId, setEditProfileClubId] = useState<string>("all");
-  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const { data: clubRoles } = useUserClubRoles(!!user);
+  const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const isClubAdminOrOrganiser = (clubRoles || []).some(
+    (r) => r.clubRole === "OWNER" || r.clubRole === "ADMIN" || r.clubRole === "ORGANISER"
+  );
+  const isAdmin = isPlatformAdmin || isClubAdminOrOrganiser;
 
   const filteredPlayers = useMemo(() => {
     if (!players) return [];

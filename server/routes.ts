@@ -183,6 +183,19 @@ async function isAnyClubAdmin(userId: number, userRole: string): Promise<boolean
   return profiles.length > 0;
 }
 
+async function isAnyClubAdminOrOrganiser(userId: number, userRole: string): Promise<boolean> {
+  if (userRole === "OWNER" || userRole === "ADMIN") return true;
+  const profiles = await db.select({ clubRole: playerProfiles.clubRole })
+    .from(playerProfiles)
+    .where(and(
+      eq(playerProfiles.userId, userId),
+      eq(playerProfiles.membershipStatus, "APPROVED"),
+      inArray(playerProfiles.clubRole, ["OWNER", "ADMIN", "ORGANISER"])
+    ))
+    .limit(1);
+  return profiles.length > 0;
+}
+
 async function getUserAdminClubIds(userId: number, userRole: string): Promise<number[]> {
   if (userRole === "OWNER" || userRole === "ADMIN") {
     const allClubs = await db.select({ id: clubs.id }).from(clubs);
@@ -1357,7 +1370,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/player-profiles/:profileId/inline", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
+    if (!(await isAnyClubAdminOrOrganiser(req.user!.id, req.user!.role))) return res.sendStatus(403);
 
     try {
       const profileId = Number(req.params.profileId);
@@ -1413,7 +1426,7 @@ export async function registerRoutes(
 
   app.patch("/api/admin/player-profiles/:profileId/grade", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
+    if (!(await isAnyClubAdminOrOrganiser(req.user!.id, req.user!.role))) return res.sendStatus(403);
 
     try {
       const profileId = Number(req.params.profileId);
