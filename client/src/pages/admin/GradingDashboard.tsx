@@ -17,12 +17,13 @@ import {
   TrendingUp, TrendingDown, ArrowUpRight, ArrowDownRight, Lock,
   Trophy, AlertTriangle, Activity, Search, Loader2, Eye, History,
   Users, Crown, Building2, Sparkles, Download, Flame, Snowflake, ShieldCheck,
-  ChevronUp, ChevronDown, Calendar,
+  ChevronUp, ChevronDown, Calendar, Brain, Target, Zap, Award, Swords,
 } from "lucide-react";
 import { format } from "date-fns";
+import { motion, useMotionValue, useTransform, animate, AnimatePresence } from "framer-motion";
 import {
   ResponsiveContainer, LineChart, Line, XAxis, YAxis, Tooltip, CartesianGrid,
-  BarChart, Bar, Legend,
+  BarChart, Bar, Legend, AreaChart, Area,
 } from "recharts";
 
 const GRADE_ORDER = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
@@ -165,10 +166,18 @@ interface ProgressData {
     gamesLost: number;
     sessionsCounted: number;
     winRate: number;
+    rawWinRate?: number;
     promotionEligible: boolean;
     demotionRisk: boolean;
+    status?: GradingStatus;
+    isProtected?: boolean;
+    isReturning?: boolean;
+    promotionStreak: number;
+    demotionStreak: number;
     promotionThreshold: number;
+    promotionFastThreshold: number;
     demotionThreshold: number;
+    demotionFastThreshold: number;
     minGames: number;
     minSessions: number;
     rollingWindowSessions: number;
@@ -194,9 +203,17 @@ interface ProgressData {
     scoreA: number; scoreB: number;
     setsWonA: number; setsWonB: number;
     numberOfSets: number;
-    side: "A" | "B"; won: boolean;
+    side: "A" | "B"; won: boolean; isTie?: boolean;
+    opponents?: Array<{ id: number; fullName: string; grade: string | null; profilePictureUrl: string | null }>;
+    opponentGradeAvg?: string | null;
+    relationship?: "HIGHER" | "SAME" | "LOWER";
+    weight?: number;
+    weightedImpact?: number;
   }>;
   recentSessions: Array<{ id: number; name: string; date: string }>;
+  momentum?: Array<{ idx: number; date: string | null; result: "W" | "L" | "T"; impact: number; cumulative: number }>;
+  opponentBreakdown?: { higher: { wins: number; losses: number }; same: { wins: number; losses: number }; lower: { wins: number; losses: number } };
+  insights?: Array<{ tone: "positive" | "warning" | "neutral" | "info"; text: string }>;
 }
 
 type FilterKey =
@@ -862,16 +879,19 @@ function MultiClubPanel({ overview, loading, onOpenClub }: { overview: OverviewD
 // =====================================================================
 function KpiCard({ icon, label, value, hint }: { icon: React.ReactNode; label: string; value: number; hint?: string }) {
   return (
-    <Card>
-      <CardContent className="p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs uppercase tracking-wide text-muted-foreground font-medium">{label}</span>
-          {icon}
-        </div>
-        <div className="text-3xl font-bold">{value}</div>
-        {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
-      </CardContent>
-    </Card>
+    <motion.div initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.4 }}>
+      <Card className="relative overflow-hidden bg-gradient-to-br from-card via-card to-card/80 border-border/50 backdrop-blur hover:shadow-lg hover:shadow-primary/5 transition-all duration-300">
+        <div className="absolute -top-12 -right-12 h-32 w-32 rounded-full bg-primary/10 blur-2xl pointer-events-none" />
+        <CardContent className="relative p-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-[10px] uppercase tracking-widest text-muted-foreground font-semibold">{label}</span>
+            <div className="rounded-lg bg-primary/10 p-1.5">{icon}</div>
+          </div>
+          <div className="text-3xl font-bold tabular-nums tracking-tight"><AnimatedNumber value={value} /></div>
+          {hint && <p className="text-xs text-muted-foreground mt-1">{hint}</p>}
+        </CardContent>
+      </Card>
+    </motion.div>
   );
 }
 
@@ -949,6 +969,71 @@ function EmptyState({ message }: { message: string }) {
 // =====================================================================
 // PLAYER DIALOG
 // =====================================================================
+// =====================================================================
+// PREMIUM PLAYER PROGRESS DIALOG (v2)
+// =====================================================================
+function AnimatedNumber({ value, decimals = 0, suffix = "" }: { value: number; decimals?: number; suffix?: string }) {
+  const mv = useMotionValue(0);
+  const rounded = useTransform(mv, (v) => `${v.toFixed(decimals)}${suffix}`);
+  const [display, setDisplay] = useState(`${(0).toFixed(decimals)}${suffix}`);
+  useEffect(() => {
+    const controls = animate(mv, value, { duration: 1.1, ease: "easeOut" });
+    const unsub = rounded.on("change", (v) => setDisplay(v));
+    return () => { controls.stop(); unsub(); };
+  }, [value, decimals, suffix]);
+  return <span>{display}</span>;
+}
+
+function CircularProgressRing({ value, size = 140, stroke = 12, color = "hsl(142 76% 45%)", label, sublabel }: { value: number; size?: number; stroke?: number; color?: string; label?: string; sublabel?: string }) {
+  const radius = (size - stroke) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const clamped = Math.max(0, Math.min(100, value));
+  const dashOffset = circumference - (clamped / 100) * circumference;
+  return (
+    <div className="relative inline-flex items-center justify-center" style={{ width: size, height: size }}>
+      <svg width={size} height={size} className="-rotate-90">
+        <circle cx={size / 2} cy={size / 2} r={radius} fill="none" stroke="hsl(var(--muted))" strokeWidth={stroke} className="opacity-40" />
+        <motion.circle
+          cx={size / 2} cy={size / 2} r={radius} fill="none" stroke={color} strokeWidth={stroke} strokeLinecap="round"
+          strokeDasharray={circumference}
+          initial={{ strokeDashoffset: circumference }}
+          animate={{ strokeDashoffset: dashOffset }}
+          transition={{ duration: 1.2, ease: "easeOut" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center">
+        <div className="text-2xl font-bold tabular-nums" style={{ color }}>
+          <AnimatedNumber value={clamped} suffix="%" />
+        </div>
+        {label && <div className="text-[10px] uppercase tracking-wider text-muted-foreground mt-0.5">{label}</div>}
+        {sublabel && <div className="text-[10px] text-muted-foreground">{sublabel}</div>}
+      </div>
+    </div>
+  );
+}
+
+function ImpactPill({ rel, weight, won, isTie }: { rel?: "HIGHER" | "SAME" | "LOWER"; weight?: number; won: boolean; isTie?: boolean }) {
+  if (isTie) return <Badge variant="outline" className="bg-muted text-muted-foreground">Tie · skipped</Badge>;
+  const tone = won
+    ? rel === "HIGHER" ? "bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+      : rel === "LOWER" ? "bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30"
+      : "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/40"
+    : rel === "LOWER" ? "bg-red-500/20 text-red-600 border-red-500/40"
+      : rel === "HIGHER" ? "bg-orange-500/10 text-orange-600 border-orange-500/30"
+      : "bg-orange-500/15 text-orange-600 border-orange-500/40";
+  const label = won
+    ? rel === "HIGHER" ? "Strong push up" : rel === "LOWER" ? "Expected win" : "Solid win"
+    : rel === "LOWER" ? "Risk trigger" : rel === "HIGHER" ? "Minimal damage" : "Setback";
+  const sign = won ? "+" : "−";
+  return <Badge variant="outline" className={`${tone} gap-1 whitespace-nowrap`}>{sign}{(weight || 1).toFixed(2)} · {label}</Badge>;
+}
+
+function relColor(rel?: string) {
+  if (rel === "HIGHER") return "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/40";
+  if (rel === "LOWER") return "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/40";
+  return "bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40";
+}
+
 function PlayerProgressDialog({ profileId, onClose }: { profileId: number | null; onClose: () => void }) {
   const { data, isLoading } = useQuery<ProgressData>({
     queryKey: ["/api/admin/player-profiles", profileId, "grade-progress"],
@@ -959,6 +1044,43 @@ function PlayerProgressDialog({ profileId, onClose }: { profileId: number | null
     },
     enabled: !!profileId,
   });
+
+  const last10 = useMemo(() => data ? data.recentMatches.slice(0, 10).map(m => m.won ? "W" : "L") as ("W" | "L")[] : [], [data]);
+  const last30Rate = useMemo(() => {
+    if (!data) return 0;
+    const slice = data.recentMatches.slice(0, 30).filter(m => !m.isTie);
+    if (slice.length === 0) return 0;
+    return Math.round((slice.filter(m => m.won).length / slice.length) * 100);
+  }, [data]);
+  const last10Rate = useMemo(() => {
+    if (!data) return 0;
+    const slice = data.recentMatches.slice(0, 10).filter(m => !m.isTie);
+    if (slice.length === 0) return 0;
+    return Math.round((slice.filter(m => m.won).length / slice.length) * 100);
+  }, [data]);
+
+  const promoProb = useMemo(() => {
+    if (!data) return 0;
+    const s = data.currentStats;
+    if (s.promotionEligible) return 100;
+    const activity = Math.min(1, Math.min(s.gamesPlayed / s.minGames, s.sessionsCounted / s.minSessions));
+    const slow = ((s.winRate - s.demotionThreshold) / (s.promotionThreshold - s.demotionThreshold)) * 100;
+    let base = activity * Math.max(0, Math.min(100, slow));
+    if (s.promotionStreak >= 1 && s.winRate >= s.promotionThreshold) base = Math.max(base, 80);
+    return Math.round(base);
+  }, [data]);
+
+  const demoProb = useMemo(() => {
+    if (!data) return 0;
+    const s = data.currentStats;
+    if (s.isProtected || s.isReturning) return 0;
+    if (s.demotionRisk) return 100;
+    const activity = Math.min(1, Math.min(s.gamesPlayed / s.minGames, s.sessionsCounted / s.minSessions));
+    const slow = ((s.promotionThreshold - s.winRate) / (s.promotionThreshold - s.demotionThreshold)) * 100;
+    let base = activity * Math.max(0, Math.min(100, slow));
+    if (s.demotionStreak >= 1 && s.winRate < s.demotionThreshold + 0.05) base = Math.max(base, 70);
+    return Math.round(base);
+  }, [data]);
 
   const timelineData = useMemo(() => {
     if (!data) return [];
@@ -975,199 +1097,362 @@ function PlayerProgressDialog({ profileId, onClose }: { profileId: number | null
     return points;
   }, [data]);
 
-  const last10 = useMemo(() => {
-    if (!data) return [];
-    return data.recentMatches.slice(0, 10).map(m => m.won ? "W" : "L") as ("W" | "L")[];
-  }, [data]);
-
-  const promoProb = useMemo(() => {
-    if (!data) return 0;
-    const s = data.currentStats;
-    if (s.promotionEligible) return 100;
-    const activity = Math.min(1, Math.min(s.gamesPlayed / s.minGames, s.sessionsCounted / s.minSessions));
-    return Math.round(activity * Math.max(0, Math.min(100, ((s.winRate - s.demotionThreshold) / (s.promotionThreshold - s.demotionThreshold)) * 100)));
-  }, [data]);
-
-  const demoProb = useMemo(() => {
-    if (!data) return 0;
-    const s = data.currentStats;
-    if (s.demotionRisk) return 100;
-    const activity = Math.min(1, Math.min(s.gamesPlayed / s.minGames, s.sessionsCounted / s.minSessions));
-    return Math.round(activity * Math.max(0, Math.min(100, ((s.promotionThreshold - s.winRate) / (s.promotionThreshold - s.demotionThreshold)) * 100)));
+  const breakdownData = useMemo(() => {
+    if (!data?.opponentBreakdown) return [];
+    const b = data.opponentBreakdown;
+    return [
+      { name: "vs Higher", wins: b.higher.wins, losses: b.higher.losses },
+      { name: "vs Same", wins: b.same.wins, losses: b.same.losses },
+      { name: "vs Lower", wins: b.lower.wins, losses: b.lower.losses },
+    ];
   }, [data]);
 
   return (
     <Dialog open={!!profileId} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-5xl max-h-[92vh] overflow-y-auto" data-testid="dialog-progress">
+      <DialogContent className="max-w-6xl max-h-[94vh] overflow-y-auto p-0 gap-0 border-border/40" data-testid="dialog-progress">
         {isLoading || !data ? (
-          <LoadingState />
+          <div className="py-20"><LoadingState /></div>
         ) : (
           <>
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-3">
-                <Avatar className="h-12 w-12">
-                  <AvatarImage src={data.profile.profilePictureUrl || undefined} />
-                  <AvatarFallback>{data.profile.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div>
-                  <div>{data.profile.fullName}</div>
-                  <div className="flex items-center gap-2 mt-1">
-                    <Badge variant="outline" className={gradeColour(data.profile.grade)}>{data.profile.grade}</Badge>
-                    {data.profile.adminLocked && <Badge variant="outline" className="bg-purple-500/15 text-purple-600 border-purple-500/40 gap-1"><Lock className="h-3 w-3" /> Locked</Badge>}
+            {/* HERO HEADER with gradient + glassmorphism */}
+            <div className="relative overflow-hidden rounded-t-lg">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/10 to-transparent" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.25),transparent_60%)]" />
+              <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
+              <DialogHeader className="relative p-6 pb-4">
+                <DialogTitle asChild>
+                  <div className="flex items-start gap-4">
+                    <div className="relative">
+                      <div className="absolute -inset-1 rounded-full bg-gradient-to-tr from-primary to-primary/40 blur-md opacity-60" />
+                      <Avatar className="relative h-20 w-20 ring-4 ring-background shadow-xl">
+                        <AvatarImage src={data.profile.profilePictureUrl || undefined} />
+                        <AvatarFallback className="text-2xl font-bold">{data.profile.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-2xl md:text-3xl font-display font-bold tracking-tight" data-testid="text-player-name">{data.profile.fullName}</div>
+                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                        {(data.profile as any).previousGrade && (
+                          <Badge variant="outline" className={`${gradeColour((data.profile as any).previousGrade)} opacity-60`}>{(data.profile as any).previousGrade}</Badge>
+                        )}
+                        {(data.profile as any).previousGrade && <ArrowUpRight className="h-4 w-4 text-muted-foreground" />}
+                        <Badge variant="outline" className={`${gradeColour(data.profile.grade)} text-base font-bold px-3 py-1`}>{data.profile.grade}</Badge>
+                        {(data.profile as any).highestGrade && (data.profile as any).highestGrade !== data.profile.grade && (
+                          <UiTooltip>
+                            <TooltipTrigger asChild>
+                              <Badge variant="outline" className="gap-1 bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/40">
+                                <Crown className="h-3 w-3" /> Peak {(data.profile as any).highestGrade}
+                              </Badge>
+                            </TooltipTrigger>
+                            <TooltipContent>Highest grade achieved</TooltipContent>
+                          </UiTooltip>
+                        )}
+                        {data.currentStats.isProtected && <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40 gap-1"><ShieldCheck className="h-3 w-3" /> Protected</Badge>}
+                        {data.currentStats.isReturning && <Badge variant="outline" className="bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/40">Welcome back</Badge>}
+                        {data.profile.adminLocked && <Badge variant="outline" className="bg-purple-500/15 text-purple-600 border-purple-500/40 gap-1"><Lock className="h-3 w-3" /> Locked</Badge>}
+                      </div>
+                    </div>
+                    {/* Quick stats column */}
+                    <div className="hidden md:flex flex-col items-end gap-1 text-right">
+                      <div className="text-xs uppercase tracking-wider text-muted-foreground">Sessions in window</div>
+                      <div className="text-2xl font-bold tabular-nums"><AnimatedNumber value={data.currentStats.sessionsCounted} /></div>
+                    </div>
                   </div>
-                </div>
-              </DialogTitle>
-              <DialogDescription>Rolling window: last {data.currentStats.rollingWindowSessions} sessions · need {data.currentStats.minGames}+ games and {data.currentStats.minSessions}+ sessions for changes</DialogDescription>
-            </DialogHeader>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-2">
-              <StatBox label="Win Rate" value={formatPct(data.currentStats.winRate)} />
-              <StatBox label="W-L" value={`${data.currentStats.gamesWon} - ${data.currentStats.gamesLost}`} />
-              <StatBox label="Games (window)" value={String(data.currentStats.gamesPlayed)} />
-              <StatBox label="Sessions" value={String(data.currentStats.sessionsCounted)} />
+                </DialogTitle>
+                <DialogDescription className="mt-3 text-xs">
+                  Window: last {data.currentStats.rollingWindowSessions} sessions (auto-expands to ≥20 matches) · Promotion ≥{(data.currentStats.promotionFastThreshold * 100).toFixed(0)}% or {(data.currentStats.promotionThreshold * 100).toFixed(0)}% × 2 checks · Demotion &lt;{(data.currentStats.demotionFastThreshold * 100).toFixed(0)}% or &lt;{(data.currentStats.demotionThreshold * 100).toFixed(0)}% × 2 checks
+                </DialogDescription>
+              </DialogHeader>
             </div>
 
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
-              <Card><CardContent className="p-4">
-                <div className="text-xs uppercase text-muted-foreground mb-2">Last 10 form</div>
-                <FormDots form={last10} />
-              </CardContent></Card>
-              <Card><CardContent className="p-4">
-                <div className="text-xs uppercase text-muted-foreground mb-2">Promotion probability</div>
-                <div className="flex items-center gap-3">
-                  <div className="text-2xl font-bold text-emerald-600">{promoProb}%</div>
-                  <Progress value={promoProb} className="h-2 flex-1" />
-                </div>
-              </CardContent></Card>
-              <Card><CardContent className="p-4">
-                <div className="text-xs uppercase text-muted-foreground mb-2">Demotion probability</div>
-                <div className="flex items-center gap-3">
-                  <div className="text-2xl font-bold text-orange-600">{demoProb}%</div>
-                  <Progress value={demoProb} className="h-2 flex-1" />
-                </div>
-              </CardContent></Card>
-            </div>
+            <div className="p-6 pt-2 space-y-5">
+              {/* WIN RATE ENGINE — 3 circular rings + promo/demo */}
+              <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+                <Card className="lg:col-span-3 bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2"><Target className="h-4 w-4 text-primary" /> Win Rate Engine</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid grid-cols-3 gap-2 place-items-center">
+                      <CircularProgressRing value={Math.round(data.currentStats.winRate * 100)} color="hsl(142 76% 45%)" label="Window" sublabel="weighted" />
+                      <CircularProgressRing value={last10Rate} color="hsl(199 89% 55%)" label="Last 10" sublabel="raw" />
+                      <CircularProgressRing value={last30Rate} color="hsl(262 80% 60%)" label="Last 30" sublabel="raw" />
+                    </div>
+                    {data.currentStats.rawWinRate !== undefined && Math.abs(data.currentStats.rawWinRate - data.currentStats.winRate) > 0.02 && (
+                      <div className="mt-3 text-xs text-center text-muted-foreground">
+                        Raw win rate (unweighted): <span className="font-semibold text-foreground">{Math.round(data.currentStats.rawWinRate * 100)}%</span> · weighting reflects opponent strength
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-            <Card>
-              <CardContent className="p-4">
-                <div className="flex items-center justify-between text-xs text-muted-foreground mb-2">
-                  <span>Demotion ≤ {formatPct(data.currentStats.demotionThreshold)}</span>
-                  <span className="font-semibold text-foreground">Current: {formatPct(data.currentStats.winRate)}</span>
-                  <span>Promotion ≥ {formatPct(data.currentStats.promotionThreshold)}</span>
-                </div>
-                <div className="relative h-3 rounded-full bg-muted overflow-hidden">
-                  <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-orange-500 via-yellow-500 to-emerald-500" style={{ width: `${Math.min(100, data.currentStats.winRate * 100)}%` }} />
-                  <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500" style={{ left: `${data.currentStats.demotionThreshold * 100}%` }} />
-                  <div className="absolute top-0 bottom-0 w-0.5 bg-emerald-500" style={{ left: `${data.currentStats.promotionThreshold * 100}%` }} />
-                </div>
-              </CardContent>
-            </Card>
+                <Card className="lg:col-span-2 bg-gradient-to-br from-card to-card/50 backdrop-blur border-border/50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2"><Zap className="h-4 w-4 text-primary" /> Movement Probability</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="flex items-center gap-1 text-emerald-600 font-medium"><ArrowUpRight className="h-3.5 w-3.5" /> Promotion</span>
+                        <span className="text-2xl font-bold text-emerald-600 tabular-nums"><AnimatedNumber value={promoProb} suffix="%" /></span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                        <motion.div className="h-full bg-gradient-to-r from-emerald-400 to-emerald-600 rounded-full" initial={{ width: 0 }} animate={{ width: `${promoProb}%` }} transition={{ duration: 1, ease: "easeOut" }} />
+                      </div>
+                      {data.currentStats.promotionStreak >= 1 && !data.currentStats.promotionEligible && (
+                        <div className="text-[11px] text-emerald-600 mt-1">Promotion check {data.currentStats.promotionStreak}/2 passed</div>
+                      )}
+                    </div>
+                    <div>
+                      <div className="flex items-center justify-between text-xs mb-1.5">
+                        <span className="flex items-center gap-1 text-orange-600 font-medium"><ArrowDownRight className="h-3.5 w-3.5" /> Demotion</span>
+                        <span className="text-2xl font-bold text-orange-600 tabular-nums"><AnimatedNumber value={demoProb} suffix="%" /></span>
+                      </div>
+                      <div className="h-2.5 rounded-full bg-muted overflow-hidden">
+                        <motion.div className="h-full bg-gradient-to-r from-orange-400 to-orange-600 rounded-full" initial={{ width: 0 }} animate={{ width: `${demoProb}%` }} transition={{ duration: 1, ease: "easeOut" }} />
+                      </div>
+                      {data.currentStats.demotionStreak >= 1 && !data.currentStats.demotionRisk && !data.currentStats.isProtected && (
+                        <div className="text-[11px] text-orange-600 mt-1">Demotion check {data.currentStats.demotionStreak}/2 triggered</div>
+                      )}
+                    </div>
+                    {/* threshold bar */}
+                    <div className="pt-2">
+                      <div className="flex items-center justify-between text-[10px] uppercase tracking-wide text-muted-foreground mb-1">
+                        <span>{(data.currentStats.demotionFastThreshold * 100).toFixed(0)}%</span>
+                        <span className="font-bold text-foreground">Now {(data.currentStats.winRate * 100).toFixed(0)}%</span>
+                        <span>{(data.currentStats.promotionFastThreshold * 100).toFixed(0)}%</span>
+                      </div>
+                      <div className="relative h-3 rounded-full bg-muted overflow-hidden">
+                        <div className="absolute inset-y-0 left-0 bg-gradient-to-r from-red-500 via-amber-500 via-emerald-400 to-emerald-600" style={{ width: `${Math.min(100, data.currentStats.winRate * 100)}%` }} />
+                        <div className="absolute top-0 bottom-0 w-0.5 bg-red-500" style={{ left: `${data.currentStats.demotionFastThreshold * 100}%` }} />
+                        <div className="absolute top-0 bottom-0 w-0.5 bg-orange-500" style={{ left: `${data.currentStats.demotionThreshold * 100}%` }} />
+                        <div className="absolute top-0 bottom-0 w-0.5 bg-emerald-400" style={{ left: `${data.currentStats.promotionThreshold * 100}%` }} />
+                        <div className="absolute top-0 bottom-0 w-0.5 bg-emerald-600" style={{ left: `${data.currentStats.promotionFastThreshold * 100}%` }} />
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
 
-            {timelineData.length > 0 && (
-              <Card>
-                <CardHeader><CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4" /> Grade Journey</CardTitle></CardHeader>
-                <CardContent>
-                  <div className="h-[220px]">
-                    <ResponsiveContainer width="100%" height="100%">
-                      <LineChart data={timelineData}>
-                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                        <XAxis dataKey="date" tick={{ fontSize: 11 }} />
-                        <YAxis domain={[0, GRADE_ORDER.length - 1]} ticks={GRADE_ORDER.map((_, i) => i)} tickFormatter={(v) => GRADE_ORDER[v] || ""} tick={{ fontSize: 11 }} />
-                        <Tooltip formatter={(_v: any, _n: any, props: any) => [props.payload.grade, "Grade"]} />
-                        <Line type="stepAfter" dataKey="gradeIdx" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 5 }} />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
+              {/* AI INSIGHTS + LAST 10 FORM + KEY STATS */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+                <Card className="lg:col-span-2 bg-gradient-to-br from-violet-500/5 to-primary/5 border-primary/20">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2"><Brain className="h-4 w-4 text-primary" /> AI Insights</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-2">
+                    {(data.insights || []).map((ins, i) => (
+                      <motion.div
+                        key={i}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: i * 0.05 }}
+                        className={`flex items-start gap-2 p-2.5 rounded-lg border text-sm ${
+                          ins.tone === "positive" ? "bg-emerald-500/10 border-emerald-500/30 text-emerald-800 dark:text-emerald-200"
+                          : ins.tone === "warning" ? "bg-orange-500/10 border-orange-500/30 text-orange-800 dark:text-orange-200"
+                          : ins.tone === "info" ? "bg-sky-500/10 border-sky-500/30 text-sky-800 dark:text-sky-200"
+                          : "bg-muted/50 border-border text-muted-foreground"
+                        }`}
+                        data-testid={`insight-${i}`}
+                      >
+                        {ins.tone === "positive" ? <Sparkles className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                          : ins.tone === "warning" ? <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                          : ins.tone === "info" ? <ShieldCheck className="h-4 w-4 flex-shrink-0 mt-0.5" />
+                          : <Activity className="h-4 w-4 flex-shrink-0 mt-0.5" />}
+                        <span>{ins.text}</span>
+                      </motion.div>
+                    ))}
+                  </CardContent>
+                </Card>
+
+                <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2"><Flame className="h-4 w-4 text-orange-500" /> Recent form</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <FormDots form={last10} />
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                      <div className="rounded-lg bg-muted/40 p-2 text-center">
+                        <div className="text-xs text-muted-foreground">Games</div>
+                        <div className="text-lg font-bold tabular-nums"><AnimatedNumber value={data.currentStats.gamesPlayed} /></div>
+                      </div>
+                      <div className="rounded-lg bg-muted/40 p-2 text-center">
+                        <div className="text-xs text-muted-foreground">W–L</div>
+                        <div className="text-lg font-bold tabular-nums">{data.currentStats.gamesWon}–{data.currentStats.gamesLost}</div>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {/* MOMENTUM GRAPH */}
+              {(data.momentum?.length || 0) > 1 && (
+                <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2"><Activity className="h-4 w-4 text-primary" /> Momentum (last {data.momentum!.length} matches)</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[180px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <AreaChart data={data.momentum}>
+                          <defs>
+                            <linearGradient id="momGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity={0.45} />
+                              <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity={0} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
+                          <XAxis dataKey="idx" tick={{ fontSize: 10 }} />
+                          <YAxis tick={{ fontSize: 10 }} />
+                          <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(v: any, n: any) => [v, n === "cumulative" ? "Cumulative form" : n]} />
+                          <Area type="monotone" dataKey="cumulative" stroke="hsl(var(--primary))" strokeWidth={2.5} fill="url(#momGrad)" />
+                        </AreaChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* OPPONENT DIFFICULTY BREAKDOWN */}
+              {breakdownData.some(d => d.wins + d.losses > 0) && (
+                <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
+                  <CardHeader className="pb-2">
+                    <CardTitle className="text-sm flex items-center gap-2"><Swords className="h-4 w-4 text-primary" /> Opponent Difficulty</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="h-[180px]">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <BarChart data={breakdownData} layout="vertical" margin={{ left: 16 }}>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" horizontal={false} />
+                          <XAxis type="number" tick={{ fontSize: 11 }} />
+                          <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} width={70} />
+                          <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} />
+                          <Legend wrapperStyle={{ fontSize: 11 }} />
+                          <Bar dataKey="wins" stackId="a" fill="hsl(142 76% 45%)" radius={[0, 0, 0, 0]} />
+                          <Bar dataKey="losses" stackId="a" fill="hsl(0 84% 60%)" radius={[0, 4, 4, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+
+              {/* MATCH IMPACT BREAKDOWN */}
+              <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2"><Award className="h-4 w-4 text-primary" /> Match impact in current window</CardTitle>
+                </CardHeader>
+                <CardContent className="p-0">
+                  <Table>
+                    <TableHeader>
+                      <TableRow className="hover:bg-transparent">
+                        <TableHead>Session</TableHead>
+                        <TableHead>Opponent</TableHead>
+                        <TableHead className="text-center">Score</TableHead>
+                        <TableHead className="text-center">Result</TableHead>
+                        <TableHead>Impact</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {data.recentMatches.length === 0 && (
+                        <TableRow><TableCell colSpan={5} className="text-center py-6 text-muted-foreground text-sm">No completed matches in the current window.</TableCell></TableRow>
+                      )}
+                      {data.recentMatches.slice(0, 25).map(m => (
+                        <TableRow key={m.matchId} data-testid={`match-row-${m.matchId}`}>
+                          <TableCell className="text-sm">
+                            <div className="font-medium">{m.sessionName || `#${m.matchId}`}</div>
+                            <div className="text-xs text-muted-foreground">{m.sessionDate ? format(new Date(m.sessionDate), "d MMM") : "—"}</div>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            <div className="flex items-center gap-1.5">
+                              <Badge variant="outline" className={`${relColor(m.relationship)} text-[10px]`}>
+                                {m.relationship === "HIGHER" ? "↑ Higher" : m.relationship === "LOWER" ? "↓ Lower" : "= Same"}
+                              </Badge>
+                              {m.opponentGradeAvg && <Badge variant="outline" className={`${gradeColour(m.opponentGradeAvg)} text-[10px]`}>{m.opponentGradeAvg}</Badge>}
+                            </div>
+                            {m.opponents && m.opponents.length > 0 && (
+                              <div className="text-[11px] text-muted-foreground truncate max-w-[140px] mt-0.5">
+                                {m.opponents.map(o => o.fullName).join(" / ")}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center text-sm font-medium tabular-nums">{m.numberOfSets > 1 ? `${m.setsWonA}-${m.setsWonB}` : `${m.scoreA}-${m.scoreB}`}</TableCell>
+                          <TableCell className="text-center">
+                            {m.isTie ? <Badge variant="outline" className="bg-muted text-muted-foreground">Tie</Badge>
+                              : m.won ? <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40">Win</Badge>
+                              : <Badge className="bg-red-500/20 text-red-600 border-red-500/40">Loss</Badge>}
+                          </TableCell>
+                          <TableCell><ImpactPill rel={m.relationship} weight={m.weight} won={m.won} isTie={m.isTie} /></TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
                 </CardContent>
               </Card>
-            )}
 
-            <Card>
-              <CardHeader><CardTitle className="text-sm flex items-center gap-2"><History className="h-4 w-4" /> Grade Change History</CardTitle></CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Date</TableHead>
-                      <TableHead>Change</TableHead>
-                      <TableHead>Trigger</TableHead>
-                      <TableHead className="text-center">Win Rate</TableHead>
-                      <TableHead className="text-center">Games</TableHead>
-                      <TableHead>Note</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.history.length === 0 && (
-                      <TableRow><TableCell colSpan={6} className="text-center py-6 text-muted-foreground text-sm">No grade changes recorded yet.</TableCell></TableRow>
-                    )}
-                    {data.history.map(h => (
-                      <TableRow key={h.id} data-testid={`history-row-${h.id}`}>
-                        <TableCell className="text-xs">{format(new Date(h.createdAt), "d MMM yyyy HH:mm")}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {h.direction === "PROMOTION" ? <TrendingUp className="h-4 w-4 text-emerald-500" />
-                              : h.direction === "DEMOTION" ? <TrendingDown className="h-4 w-4 text-orange-500" />
-                              : <Activity className="h-4 w-4 text-blue-500" />}
-                            <span className="text-sm">
-                              <Badge variant="outline" className={gradeColour(h.oldGrade)}>{h.oldGrade}</Badge>
-                              <span className="mx-1">→</span>
-                              <Badge variant="outline" className={gradeColour(h.newGrade)}>{h.newGrade}</Badge>
-                            </span>
+              {/* GRADE JOURNEY (vertical timeline) */}
+              <Card className="bg-gradient-to-br from-card to-card/50 border-border/50">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm flex items-center gap-2"><Calendar className="h-4 w-4 text-primary" /> Grade Journey</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {data.history.length === 0 ? (
+                    <div className="text-center py-6 text-sm text-muted-foreground">No grade changes recorded yet.</div>
+                  ) : (
+                    <div className="relative pl-6 space-y-4 before:content-[''] before:absolute before:left-[10px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gradient-to-b before:from-primary/60 before:via-primary/30 before:to-transparent">
+                      {data.history.map((h, i) => (
+                        <motion.div
+                          key={h.id}
+                          initial={{ opacity: 0, x: -10 }}
+                          animate={{ opacity: 1, x: 0 }}
+                          transition={{ delay: i * 0.04 }}
+                          className="relative"
+                          data-testid={`history-row-${h.id}`}
+                        >
+                          <div className={`absolute -left-6 top-1.5 h-4 w-4 rounded-full ring-4 ring-background ${
+                            h.direction === "PROMOTION" ? "bg-emerald-500" : h.direction === "DEMOTION" ? "bg-orange-500" : "bg-blue-500"
+                          }`} />
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <Badge variant="outline" className={`${gradeColour(h.oldGrade)} text-xs`}>{h.oldGrade}</Badge>
+                                <ArrowUpRight className={`h-3.5 w-3.5 ${h.direction === "DEMOTION" ? "rotate-90 text-orange-500" : "text-emerald-500"}`} />
+                                <Badge variant="outline" className={`${gradeColour(h.newGrade)} text-xs`}>{h.newGrade}</Badge>
+                                <Badge variant={h.trigger === "MANUAL" ? "default" : "secondary"} className="text-[10px]">
+                                  {h.trigger}{h.changedByName ? ` · ${h.changedByName}` : ""}
+                                </Badge>
+                              </div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {format(new Date(h.createdAt), "d MMM yyyy · HH:mm")}
+                                {h.winRate !== null && ` · ${h.winRate}% win rate`}
+                                {h.gamesWon !== null && h.gamesPlayed !== null && ` · ${h.gamesWon}/${h.gamesPlayed} games`}
+                              </div>
+                              {h.note && <div className="text-xs text-muted-foreground mt-1 italic">"{h.note}"</div>}
+                            </div>
                           </div>
-                        </TableCell>
-                        <TableCell><Badge variant={h.trigger === "MANUAL" ? "default" : "secondary"} className="text-xs">{h.trigger}{h.changedByName ? ` · ${h.changedByName}` : ""}</Badge></TableCell>
-                        <TableCell className="text-center text-sm">{h.winRate !== null ? `${h.winRate}%` : "—"}</TableCell>
-                        <TableCell className="text-center text-sm">{h.gamesWon !== null && h.gamesPlayed !== null ? `${h.gamesWon}/${h.gamesPlayed}` : "—"}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground max-w-[200px] truncate">{h.note || "—"}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader><CardTitle className="text-sm">Matches in Current Window</CardTitle></CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Session</TableHead>
-                      <TableHead>Date</TableHead>
-                      <TableHead className="text-center">Score</TableHead>
-                      <TableHead className="text-center">Result</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {data.recentMatches.length === 0 && (
-                      <TableRow><TableCell colSpan={4} className="text-center py-6 text-muted-foreground text-sm">No completed matches in the current rolling window.</TableCell></TableRow>
-                    )}
-                    {data.recentMatches.map(m => (
-                      <TableRow key={m.matchId} data-testid={`match-row-${m.matchId}`}>
-                        <TableCell className="text-sm">{m.sessionName || `Session #${m.matchId}`}</TableCell>
-                        <TableCell className="text-xs text-muted-foreground">{m.sessionDate ? format(new Date(m.sessionDate), "d MMM yyyy") : "—"}</TableCell>
-                        <TableCell className="text-center text-sm font-medium">{m.numberOfSets > 1 ? `${m.setsWonA} - ${m.setsWonB} (sets)` : `${m.scoreA} - ${m.scoreB}`}</TableCell>
-                        <TableCell className="text-center">{m.won ? <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border-emerald-500/40">Win</Badge> : <Badge className="bg-red-500/20 text-red-600 border-red-500/40">Loss</Badge>}</TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
+                        </motion.div>
+                      ))}
+                    </div>
+                  )}
+                  {timelineData.length > 1 && (
+                    <div className="h-[160px] mt-4">
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={timelineData}>
+                          <CartesianGrid strokeDasharray="3 3" className="opacity-20" />
+                          <XAxis dataKey="date" tick={{ fontSize: 10 }} />
+                          <YAxis domain={[0, GRADE_ORDER.length - 1]} ticks={GRADE_ORDER.map((_, i) => i)} tickFormatter={(v) => GRADE_ORDER[v] || ""} tick={{ fontSize: 10 }} />
+                          <Tooltip contentStyle={{ borderRadius: 8, fontSize: 12 }} formatter={(_v: any, _n: any, props: any) => [props.payload.grade, "Grade"]} />
+                          <Line type="stepAfter" dataKey="gradeIdx" stroke="hsl(var(--primary))" strokeWidth={2.5} dot={{ r: 4 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            </div>
           </>
         )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function StatBox({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardContent className="p-3 text-center">
-        <div className="text-xs uppercase tracking-wide text-muted-foreground mb-1">{label}</div>
-        <div className="text-xl font-bold">{value}</div>
-      </CardContent>
-    </Card>
   );
 }

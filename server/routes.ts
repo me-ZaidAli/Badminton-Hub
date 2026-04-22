@@ -2031,6 +2031,23 @@ export async function registerRoutes(
         ? await db.select().from(m).where(and(inArray(m.sessionId, sessionIds), eq(m.isCompleted, true)))
         : [];
 
+      // Build opponent grade lookup for all involved profile IDs
+      const involvedIds = new Set<number>();
+      for (const mm of completedMatches) {
+        [mm.teamAPlayer1Id, mm.teamAPlayer2Id, mm.teamBPlayer1Id, mm.teamBPlayer2Id].forEach(id => {
+          if (id && id !== profileId) involvedIds.add(id);
+        });
+      }
+      const opponentProfiles = involvedIds.size > 0
+        ? await db.select({ id: pp.id, grade: pp.grade, fullName: u.fullName, profilePictureUrl: u.profilePictureUrl })
+            .from(pp).innerJoin(u, eq(pp.userId, u.id))
+            .where(inArray(pp.id, Array.from(involvedIds)))
+        : [];
+      const oppMap = new Map(opponentProfiles.map(o => [o.id, o]));
+      const { GRADE_ORDER } = await import("@shared/schema");
+      const gIdx = (g?: string | null) => g ? (GRADE_ORDER as readonly string[]).indexOf(g) : -1;
+      const selfIdx = gIdx(profile.grade);
+
       const recentMatches = completedMatches.map(match => {
         const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
         const isTeamB = match.teamBPlayer1Id === profileId || match.teamBPlayer2Id === profileId;
@@ -2040,49 +2057,130 @@ export async function registerRoutes(
         const setsWonA = match.setsWonA ?? 0;
         const setsWonB = match.setsWonB ?? 0;
         const teamAWon = match.numberOfSets > 1 ? setsWonA > setsWonB : scoreA > scoreB;
-        const won = (isTeamA && teamAWon) || (isTeamB && !teamAWon);
+        const isTie = match.numberOfSets > 1 ? setsWonA === setsWonB : scoreA === scoreB;
+        const won = !isTie && ((isTeamA && teamAWon) || (isTeamB && !teamAWon));
         const sessionInfo = recentSessions.find(rs => rs.id === match.sessionId);
+
+        // Identify opponents (the other team)
+        const oppIds = (isTeamA
+          ? [match.teamBPlayer1Id, match.teamBPlayer2Id]
+          : [match.teamAPlayer1Id, match.teamAPlayer2Id]
+        ).filter((x): x is number => !!x);
+        const opponents = oppIds.map(id => oppMap.get(id)).filter(Boolean) as Array<{ id: number; grade: string | null; fullName: string; profilePictureUrl: string | null }>;
+        const oppGradeIdxs = opponents.map(o => gIdx(o.grade)).filter(i => i >= 0);
+        const avgOppIdx = oppGradeIdxs.length > 0 ? oppGradeIdxs.reduce((s, v) => s + v, 0) / oppGradeIdxs.length : selfIdx;
+        const diff = selfIdx >= 0 ? avgOppIdx - selfIdx : 0;
+        const relationship: "HIGHER" | "SAME" | "LOWER" = diff >= 0.5 ? "HIGHER" : diff <= -0.5 ? "LOWER" : "SAME";
+        const weight = Math.max(0.6, Math.min(1.4, 1 + 0.10 * diff));
+        const weightedImpact = isTie ? 0 : (won ? +weight : -weight);
+
         return {
           matchId: match.id,
           sessionId: match.sessionId,
           sessionName: sessionInfo?.name || null,
           sessionDate: sessionInfo?.date || null,
-          scoreA,
-          scoreB,
-          setsWonA,
-          setsWonB,
+          scoreA, scoreB, setsWonA, setsWonB,
           numberOfSets: match.numberOfSets,
           side: isTeamA ? "A" : "B",
-          won,
+          won, isTie,
+          opponents: opponents.map(o => ({ id: o.id, fullName: o.fullName, grade: o.grade, profilePictureUrl: o.profilePictureUrl })),
+          opponentGradeAvg: oppGradeIdxs.length > 0 ? GRADE_ORDER[Math.round(avgOppIdx)] : null,
+          relationship,
+          weight: Math.round(weight * 100) / 100,
+          weightedImpact: Math.round(weightedImpact * 100) / 100,
         };
-      }).filter(Boolean);
+      }).filter(Boolean) as any[];
 
-      // Sort matches by session date desc
       recentMatches.sort((a: any, b: any) => {
         const da = a.sessionDate ? new Date(a.sessionDate).getTime() : 0;
         const db_ = b.sessionDate ? new Date(b.sessionDate).getTime() : 0;
         return db_ - da;
       });
 
+      // Momentum series (chronological, last 20) — cumulative weighted impact
+      const last20 = recentMatches.slice(0, 20).slice().reverse();
+      let cum = 0;
+      const momentum = last20.map((mm, i) => {
+        cum += mm.weightedImpact;
+        return {
+          idx: i + 1,
+          date: mm.sessionDate ? new Date(mm.sessionDate).toISOString() : null,
+          result: mm.isTie ? "T" : (mm.won ? "W" : "L"),
+          impact: mm.weightedImpact,
+          cumulative: Math.round(cum * 100) / 100,
+        };
+      });
+
+      // Opponent breakdown
+      const breakdown = { higher: { wins: 0, losses: 0 }, same: { wins: 0, losses: 0 }, lower: { wins: 0, losses: 0 } };
+      for (const mm of recentMatches) {
+        if (mm.isTie) continue;
+        const bucket = mm.relationship === "HIGHER" ? breakdown.higher : mm.relationship === "LOWER" ? breakdown.lower : breakdown.same;
+        if (mm.won) bucket.wins++; else bucket.losses++;
+      }
+
+      // AI-style insights (rule-based)
+      const insights: Array<{ tone: "positive" | "warning" | "neutral" | "info"; text: string }> = [];
+      const total = stats.gamesPlayed;
+      const winRatePct = Math.round(stats.winRate * 100);
+      if (stats.isProtected) insights.push({ tone: "info", text: "Protected window — recently promoted, demotion paused for 2 sessions." });
+      if (stats.isReturning) insights.push({ tone: "info", text: "Returning after a 60+ day break — grace period active until 2 sessions are completed." });
+      const last5 = recentMatches.slice(0, 5);
+      const last5Wins = last5.filter(m => m.won).length;
+      if (last5.length === 5 && last5Wins >= 4) insights.push({ tone: "positive", text: `Hot form — ${last5Wins}/5 in the last 5 matches.` });
+      if (last5.length === 5 && last5Wins <= 1) insights.push({ tone: "warning", text: `Cold streak — only ${last5Wins}/5 in the last 5 matches.` });
+      const higherWins = breakdown.higher.wins;
+      const lowerLosses = breakdown.lower.losses;
+      if (higherWins >= 3) insights.push({ tone: "positive", text: `Strong against higher grades — ${higherWins} wins above current level.` });
+      if (lowerLosses >= 3) insights.push({ tone: "warning", text: `Underperforming vs lower grades — ${lowerLosses} losses below current level.` });
+      const sameTotal = breakdown.same.wins + breakdown.same.losses;
+      const lowerTotal = breakdown.lower.wins + breakdown.lower.losses;
+      if (total >= 10 && sameTotal + breakdown.higher.wins + breakdown.higher.losses < 3 && lowerTotal >= 6) {
+        insights.push({ tone: "warning", text: "Mostly playing easier opposition — needs more matches at level to verify grade." });
+      }
+      if (stats.promotionEligible && winRatePct >= 58) insights.push({ tone: "positive", text: `Promotion ready — ${winRatePct}% weighted win rate exceeds the fast-track threshold.` });
+      else if (winRatePct >= 55 && stats.promotionStreak >= 1) insights.push({ tone: "positive", text: `On promotion track — ${stats.promotionStreak + 1}/2 consecutive checks above 55%.` });
+      if (stats.demotionRisk && winRatePct < 35) insights.push({ tone: "warning", text: `Demotion risk — ${winRatePct}% weighted win rate is below the 35% floor.` });
+      else if (winRatePct < 40 && stats.demotionStreak >= 1 && !stats.isProtected && !stats.isReturning) insights.push({ tone: "warning", text: `Watchlist — ${stats.demotionStreak + 1}/2 consecutive checks below 40%.` });
+      if (total > 0 && total < 12) insights.push({ tone: "neutral", text: `Building profile — needs ${12 - total} more games to qualify for movement.` });
+      if (insights.length === 0) insights.push({ tone: "neutral", text: "Stable performance — no movement triggers in the current window." });
+
       res.json({
-        profile,
+        profile: {
+          ...profile,
+          previousGrade: history.find(h => h.newGrade === profile.grade)?.oldGrade || null,
+          highestGrade: history.length > 0
+            ? GRADE_ORDER[Math.max(selfIdx, ...history.map(h => gIdx(h.newGrade)).filter(i => i >= 0))]
+            : profile.grade,
+        },
         currentStats: {
           gamesPlayed: stats.gamesPlayed,
           gamesWon: stats.gamesWon,
           gamesLost: stats.gamesPlayed - stats.gamesWon,
           sessionsCounted: stats.sessionsCounted,
           winRate: stats.winRate,
+          rawWinRate: stats.rawWinRate,
           promotionEligible: stats.promotionEligible,
           demotionRisk: stats.demotionRisk,
+          status: stats.status,
+          isProtected: stats.isProtected,
+          isReturning: stats.isReturning,
+          promotionStreak: stats.promotionStreak,
+          demotionStreak: stats.demotionStreak,
           promotionThreshold: 0.55,
+          promotionFastThreshold: 0.58,
           demotionThreshold: 0.40,
-          minGames: 10,
+          demotionFastThreshold: 0.35,
+          minGames: 12,
           minSessions: 3,
-          rollingWindowSessions: 5,
+          rollingWindowSessions: 7,
         },
         history,
         recentMatches,
         recentSessions,
+        momentum,
+        opponentBreakdown: breakdown,
+        insights,
       });
     } catch (err: any) {
       console.error("Error fetching grade progress:", err);
