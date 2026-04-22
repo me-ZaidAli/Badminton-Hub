@@ -1629,7 +1629,7 @@ export async function registerRoutes(
         .innerJoin(ss, eq(ss.sessionId, s.id))
         .where(and(
           eq(s.clubId, profile.clubId),
-          eq(ss.playerProfileId, profileId),
+          eq(ss.playerId, profileId),
           profile.gradingResetAt ? sql`${s.date} >= ${profile.gradingResetAt}` : undefined
         ))
         .orderBy(desc(s.date))
