@@ -10,6 +10,7 @@ import { eq, isNotNull, gt, gte, and } from "drizzle-orm";
 import { db } from "./db";
 import { ensureOwnerProfilesInAllClubs } from "./ownerSync";
 import { sendEmail } from "./email";
+import { authLoginLimiter, authRegisterLimiter } from "./rateLimit";
 
 const scryptAsync = promisify(scrypt);
 
@@ -85,7 +86,7 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/auth/register", async (req, res, next) => {
+  app.post("/api/auth/register", authRegisterLimiter, async (req, res, next) => {
     try {
       const existingUser = await storage.getUserByUsername(req.body.email);
       if (existingUser) {
@@ -448,7 +449,7 @@ export function setupAuth(app: Express) {
     res.json(filtered);
   });
 
-  app.post("/api/auth/login", (req, res, next) => {
+  app.post("/api/auth/login", authLoginLimiter, (req, res, next) => {
     passport.authenticate("local", (err: any, user: User | false, info: { message?: string }) => {
       if (err) return next(err);
       if (!user) {

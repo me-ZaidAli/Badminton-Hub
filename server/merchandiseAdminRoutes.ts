@@ -580,4 +580,72 @@ export function registerMerchandiseAdminRoutes(app: Express) {
       res.status(500).json({ message: err.message });
     }
   });
+
+  // ---------- Customer order history (per user, scoped to admin's clubs) ----------
+  app.get("/api/admin/merchandise/customers/:userId/orders", async (req, res) => {
+    if (!(await requireAdmin(req, res))) return;
+    try {
+      const u = req.user as any;
+      const allowed = await getAdminClubIds(u.id, u.role);
+      const customerId = Number(req.params.userId);
+      if (!Number.isFinite(customerId)) return res.status(400).json({ message: "Invalid userId" });
+      if (allowed.length === 0) return res.sendStatus(403);
+
+      // Authorization: only expose customer details if this admin has at least
+      // one of their orders in their allowed clubs. Otherwise treat as not found
+      // to avoid leaking PII for unrelated users.
+      const rows = await db.select({
+        order: merchandiseOrderItems,
+        productName: merchandiseProducts.name,
+        productImage: merchandiseProducts.imageUrl,
+        productPrice: merchandiseProducts.price,
+        clubName: clubs.name,
+      }).from(merchandiseOrderItems)
+        .innerJoin(merchandiseProducts, eq(merchandiseOrderItems.productId, merchandiseProducts.id))
+        .innerJoin(clubs, eq(merchandiseOrderItems.clubId, clubs.id))
+        .where(and(
+          eq(merchandiseOrderItems.userId, customerId),
+          inArray(merchandiseOrderItems.clubId, allowed),
+        ))
+        .orderBy(desc(merchandiseOrderItems.createdAt));
+
+      if (rows.length === 0) return res.sendStatus(404);
+
+      const [customer] = await db.select({
+        id: users.id, fullName: users.fullName, email: users.email, phone: users.phone,
+      }).from(users).where(eq(users.id, customerId));
+      if (!customer) return res.sendStatus(404);
+
+      const orders = rows.map(r => {
+        const unit = r.order.unitPrice ?? r.productPrice ?? 0;
+        return {
+          id: r.order.id,
+          status: r.order.status,
+          paymentStatus: r.order.paymentStatus,
+          quantity: r.order.quantity,
+          unitPrice: unit,
+          totalPrice: unit * (r.order.quantity || 1),
+          variationLabel: r.order.variationLabel,
+          createdAt: r.order.createdAt,
+          productName: r.productName,
+          productImage: r.productImage,
+          clubName: r.clubName,
+        };
+      });
+
+      const total = orders.length;
+      const paidActive = orders.filter(o => o.paymentStatus === "Paid" && o.status !== "cancelled");
+      const totalSpentPence = paidActive.reduce((s, o) => s + (o.totalPrice || 0), 0);
+      const unpaidCount = orders.filter(o => o.paymentStatus === "Unpaid" && o.status !== "cancelled").length;
+      const cancelledCount = orders.filter(o => o.status === "cancelled").length;
+
+      res.json({
+        customer,
+        summary: { totalOrders: total, totalSpentPence, unpaidCount, cancelledCount },
+        orders,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
 }

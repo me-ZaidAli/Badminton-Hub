@@ -10,6 +10,7 @@ import { evaluateAllClubsGrades } from "./grading";
 import { autoCloseInactiveTickets } from "./ticket-autoclose";
 import { runNotificationScheduler } from "./notification-scheduler";
 import { syncParentChildLinks } from "./parentLinkSync";
+import { ensureHotIndexes } from "./dbIndexes";
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
@@ -113,6 +114,7 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
       console.log(`[APP BASE URL] ${process.env.APP_URL || process.env.REPLIT_DEPLOYMENT_URL || process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || 'none detected'}`);
 
+      ensureHotIndexes().catch(err => console.error("Ensure hot indexes failed:", err));
       seedJuniorSkills().catch(err => console.error("Seed junior skills failed:", err));
       seedExercises().catch(err => console.error("Seed exercises failed:", err));
       seedPlayerSkillCategories().catch(err => console.error("Seed player skills failed:", err));

@@ -24,6 +24,9 @@ import { registerTournamentRoutes } from "./tournamentRoutes";
 import { registerCommunityRoutes } from "./communityRoutes";
 import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
+import { aiHeavyLimiter } from "./rateLimit";
+import { notifyUser } from "./notify";
+import LRU from "lru-cache";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
@@ -16356,10 +16359,17 @@ export async function registerRoutes(
   });
 
   // GET /api/badge-counts - Combined unread counts for sidebar badges
+  // Cached per-user for 15s to keep sidebar/nav polling cheap.
+  const badgeCountsCache = new LRU<string, any>({ max: 5000, maxAge: 15 * 1000 } as any);
   app.get("/api/badge-counts", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
+      const cacheKey = `bc:${userId}`;
+      if (req.query.refresh !== "1") {
+        const cached = badgeCountsCache.get(cacheKey);
+        if (cached) return res.json(cached);
+      }
 
       // Unread notifications
       const notifResult = await db.select({ count: sql<number>`count(*)::int` })
@@ -16522,7 +16532,7 @@ export async function registerRoutes(
         merchandiseNewOrders = merchResult[0]?.count || 0;
       }
 
-      res.json({
+      const payload = {
         notifications: notificationsCount,
         tickets: ticketsCount,
         messages: messagesCount,
@@ -16536,7 +16546,9 @@ export async function registerRoutes(
         myOutstandingPayments,
         pendingReferrals,
         merchandiseNewOrders,
-      });
+      };
+      badgeCountsCache.set(cacheKey, payload);
+      res.json(payload);
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
       res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0, merchandiseNewOrders: 0 });
@@ -32890,7 +32902,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     return profiles.some((p: any) => p.clubId === clubId && ["ADMIN","OWNER","ORGANISER"].includes(p.clubRole));
   }
 
-  app.post("/api/admin/ai-match-extract", aiMatchUpload.array("images", 10), async (req, res) => {
+  app.post("/api/admin/ai-match-extract", aiHeavyLimiter, aiMatchUpload.array("images", 10), async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const currentUser = req.user as any;
     const isAdminOrOwner = currentUser.role === "OWNER" || currentUser.role === "ADMIN";
@@ -33070,7 +33082,7 @@ Return ONLY valid JSON in this exact format:
     }
   });
 
-  app.post("/api/admin/ai-match-quick-create-player", async (req, res) => {
+  app.post("/api/admin/ai-match-quick-create-player", aiHeavyLimiter, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const currentUser = req.user as any;
     const isAdminOrOwner = currentUser.role === "OWNER" || currentUser.role === "ADMIN";
@@ -33100,7 +33112,7 @@ Return ONLY valid JSON in this exact format:
     }
   });
 
-  app.post("/api/admin/ai-match-save", async (req, res) => {
+  app.post("/api/admin/ai-match-save", aiHeavyLimiter, async (req, res) => {
     if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
     const currentUser = req.user as any;
 
@@ -33552,7 +33564,7 @@ Return ONLY valid JSON in this exact format:
         variationLabel: variationLabelParts.length ? variationLabelParts.join(" / ") : null,
       }).returning();
 
-      // Notify club admins of the new merchandise order
+      // Notify club admins of the new merchandise order (in-app + email)
       try {
         const buyer = req.user!;
         const owners = await storage.getUsersByRole("OWNER");
@@ -33566,7 +33578,7 @@ Return ONLY valid JSON in this exact format:
         const variationStr = variationLabelParts.length ? ` (${variationLabelParts.join(" / ")})` : "";
         const phoneStr = (buyer as any).phone ? `\nPhone: ${(buyer as any).phone}` : "";
         for (const notifyUserId of notifyUserIds) {
-          await storage.createNotification({
+          await notifyUser({
             userId: notifyUserId,
             type: "MERCHANDISE_ORDER",
             title: "New Merchandise Order",

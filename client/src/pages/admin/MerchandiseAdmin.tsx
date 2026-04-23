@@ -779,6 +779,74 @@ function OrdersPanel({ clubs, isGodMode, clubFilter, onMutate }: { clubs: ClubLi
   );
 }
 
+function CustomerHistoryPanel({ userId, currentOrderId }: { userId: number; currentOrderId: number }) {
+  const histQ = useQuery<any>({
+    queryKey: ["/api/admin/merchandise/customers", userId, "orders"],
+    queryFn: async () => {
+      const r = await fetch(`/api/admin/merchandise/customers/${userId}/orders`, { credentials: "include" });
+      return r.json();
+    },
+  });
+  const data = histQ.data;
+  const otherOrders = (data?.orders || []).filter((o: any) => o.id !== currentOrderId);
+  const summary = data?.summary;
+
+  return (
+    <Card data-testid="card-customer-history">
+      <CardContent className="p-4">
+        <div className="flex items-center gap-2 mb-3">
+          <History className="w-4 h-4" />
+          <div className="text-xs text-muted-foreground uppercase tracking-wider">Customer history</div>
+        </div>
+        {histQ.isLoading ? (
+          <div className="text-sm text-muted-foreground">Loading…</div>
+        ) : !data || (data.orders || []).length === 0 ? (
+          <div className="text-sm text-muted-foreground">No previous orders.</div>
+        ) : (
+          <>
+            {summary && (
+              <div className="grid grid-cols-3 gap-2 mb-3">
+                <div className="rounded bg-muted p-2 text-center">
+                  <div className="text-xs text-muted-foreground">Orders</div>
+                  <div className="text-lg font-bold" data-testid="text-history-total">{summary.totalOrders}</div>
+                </div>
+                <div className="rounded bg-muted p-2 text-center">
+                  <div className="text-xs text-muted-foreground">Spent</div>
+                  <div className="text-lg font-bold" data-testid="text-history-spent">{formatPrice(summary.totalSpentPence)}</div>
+                </div>
+                <div className="rounded bg-muted p-2 text-center">
+                  <div className="text-xs text-muted-foreground">Unpaid</div>
+                  <div className={`text-lg font-bold ${summary.unpaidCount > 0 ? "text-amber-600" : ""}`} data-testid="text-history-unpaid">{summary.unpaidCount}</div>
+                </div>
+              </div>
+            )}
+            {otherOrders.length === 0 ? (
+              <div className="text-sm text-muted-foreground">This is their first order.</div>
+            ) : (
+              <ul className="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+                {otherOrders.slice(0, 8).map((o: any) => (
+                  <li key={o.id} className="flex items-center gap-2 text-sm" data-testid={`row-history-${o.id}`}>
+                    <span className="text-xs text-muted-foreground w-20 shrink-0">{format(new Date(o.createdAt), "dd MMM yy")}</span>
+                    <span className="flex-1 truncate">{o.productName}{o.variationLabel ? ` · ${o.variationLabel}` : ""}</span>
+                    <span className="text-xs text-muted-foreground">×{o.quantity}</span>
+                    <span className="font-medium w-16 text-right">{formatPrice(o.totalPrice)}</span>
+                    <span className={`text-xs px-1.5 py-0.5 rounded ${o.paymentStatus === "Paid" ? "bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-300" : "bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300"}`}>
+                      {o.paymentStatus}
+                    </span>
+                  </li>
+                ))}
+                {otherOrders.length > 8 && (
+                  <li className="text-xs text-muted-foreground text-center pt-1">+ {otherOrders.length - 8} more</li>
+                )}
+              </ul>
+            )}
+          </>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function OrderDetailSheet({ orderId, onClose, onMutate }: { orderId: number; onClose: () => void; onMutate: () => void }) {
   const { toast } = useToast();
   const detailQ = useQuery<any>({
@@ -899,6 +967,8 @@ function OrderDetailSheet({ orderId, onClose, onMutate }: { orderId: number; onC
                 {saveMut.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />} Save changes
               </Button>
             </CardContent></Card>
+
+            {order.userId && <CustomerHistoryPanel userId={order.userId} currentOrderId={order.id} />}
 
             <Card><CardContent className="p-4">
               <div className="flex items-center gap-2 mb-3">
