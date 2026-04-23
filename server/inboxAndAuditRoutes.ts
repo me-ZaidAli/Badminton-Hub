@@ -405,4 +405,104 @@ export function registerInboxAndAuditRoutes(app: Express) {
       res.status(500).json({ message: err.message });
     }
   });
+
+  // ---------- CSV export of audit logs (same scoping & filters) ----------
+  app.get("/api/admin/audit-logs/export.csv", async (req, res) => {
+    const auth = await requireAdmin(req, res);
+    if (!auth.ok) return;
+    const allowed = auth.allowed!;
+    const u = req.user as any;
+    const isPlatformAdmin = u.role === "OWNER" || u.role === "ADMIN";
+
+    try {
+      const action = typeof req.query.action === "string" ? req.query.action.trim().slice(0, 64) : "";
+      const targetType = typeof req.query.targetType === "string" ? req.query.targetType.trim().slice(0, 64) : "";
+      const actorIdQ = typeof req.query.actorId === "string" ? parseInt(req.query.actorId, 10) : NaN;
+      const clubIdQ = typeof req.query.clubId === "string" ? parseInt(req.query.clubId, 10) : NaN;
+      const search = typeof req.query.search === "string" ? req.query.search.trim().slice(0, 64) : "";
+      const rawSinceDays = parseInt(String(req.query.sinceDays ?? "30"), 10);
+      const sinceDays = Math.min(Math.max(Number.isFinite(rawSinceDays) ? rawSinceDays : 30, 1), 365);
+      const since = new Date(Date.now() - sinceDays * 24 * 60 * 60 * 1000);
+
+      const conditions: any[] = [gte(adminAuditLogs.createdAt, since)];
+      if (!isPlatformAdmin) {
+        conditions.push(or(
+          inArray(adminAuditLogs.clubId, allowed),
+          eq(adminAuditLogs.actorId, u.id),
+        )!);
+      }
+      if (action) conditions.push(eq(adminAuditLogs.action, action));
+      if (targetType) conditions.push(eq(adminAuditLogs.targetType, targetType));
+      if (Number.isFinite(actorIdQ)) conditions.push(eq(adminAuditLogs.actorId, actorIdQ));
+      if (Number.isFinite(clubIdQ)) {
+        if (!isPlatformAdmin && !allowed.includes(clubIdQ)) {
+          return res.status(403).json({ message: "Forbidden club filter" });
+        }
+        conditions.push(eq(adminAuditLogs.clubId, clubIdQ));
+      }
+      if (search) {
+        const escaped = search.replace(/[\\%_]/g, (m) => `\\${m}`);
+        conditions.push(or(
+          ilike(adminAuditLogs.action, `%${escaped}%`),
+          ilike(adminAuditLogs.targetType, `%${escaped}%`),
+        )!);
+      }
+
+      const rows = await db.select({
+        id: adminAuditLogs.id,
+        actorId: adminAuditLogs.actorId,
+        action: adminAuditLogs.action,
+        targetType: adminAuditLogs.targetType,
+        targetId: adminAuditLogs.targetId,
+        clubId: adminAuditLogs.clubId,
+        metadata: adminAuditLogs.metadata,
+        createdAt: adminAuditLogs.createdAt,
+        actorName: users.fullName,
+        actorEmail: users.email,
+        clubName: clubs.name,
+      }).from(adminAuditLogs)
+        .leftJoin(users, eq(adminAuditLogs.actorId, users.id))
+        .leftJoin(clubs, eq(adminAuditLogs.clubId, clubs.id))
+        .where(and(...conditions))
+        .orderBy(desc(adminAuditLogs.createdAt))
+        .limit(10000); // hard cap on export size
+
+      // Quote a value for CSV per RFC 4180. Prefix any leading =,+,-,@ with a
+      // single quote to neutralise spreadsheet formula injection.
+      const csvCell = (val: unknown): string => {
+        if (val === null || val === undefined) return "";
+        let s = typeof val === "string" ? val : (val instanceof Date ? val.toISOString() : JSON.stringify(val));
+        if (/^[=+\-@]/.test(s)) s = "'" + s;
+        if (/[",\r\n]/.test(s)) s = `"${s.replace(/"/g, '""')}"`;
+        return s;
+      };
+
+      const header = ["id","createdAt","actorId","actorName","actorEmail","action","targetType","targetId","clubId","clubName","metadata"];
+      const lines = [header.join(",")];
+      for (const r of rows) {
+        lines.push([
+          csvCell(r.id),
+          csvCell(r.createdAt),
+          csvCell(r.actorId),
+          csvCell(r.actorName),
+          csvCell(r.actorEmail),
+          csvCell(r.action),
+          csvCell(r.targetType),
+          csvCell(r.targetId),
+          csvCell(r.clubId),
+          csvCell(r.clubName),
+          csvCell(r.metadata),
+        ].join(","));
+      }
+
+      const filename = `audit-logs-${new Date().toISOString().slice(0,10)}.csv`;
+      res.setHeader("Content-Type", "text/csv; charset=utf-8");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+      // BOM so Excel opens it as UTF-8
+      res.send("\uFEFF" + lines.join("\r\n"));
+    } catch (err: any) {
+      console.error("[/api/admin/audit-logs/export.csv] error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
 }

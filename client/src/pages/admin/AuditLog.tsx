@@ -13,7 +13,7 @@ import {
 import {
   Sheet, SheetContent, SheetHeader, SheetTitle,
 } from "@/components/ui/sheet";
-import { ScrollText, RefreshCw, Filter, ChevronLeft, ChevronRight } from "lucide-react";
+import { ScrollText, RefreshCw, Filter, ChevronLeft, ChevronRight, Download } from "lucide-react";
 
 type AuditRow = {
   id: number;
@@ -91,9 +91,30 @@ export default function AuditLog() {
             <p className="text-sm text-muted-foreground">A trail of sensitive admin actions across your clubs.</p>
           </div>
         </div>
-        <Button variant="outline" size="sm" onClick={() => auditQ.refetch()} data-testid="button-refresh-audit">
-          <RefreshCw className={`w-4 h-4 mr-2 ${auditQ.isFetching ? "animate-spin" : ""}`} /> Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            asChild
+            data-testid="button-export-audit-csv"
+          >
+            <a
+              href={(() => {
+                const p = new URLSearchParams();
+                p.set("sinceDays", sinceDays);
+                if (action !== "ALL") p.set("action", action);
+                if (targetType !== "ALL") p.set("targetType", targetType);
+                if (search.trim()) p.set("search", search.trim());
+                return `/api/admin/audit-logs/export.csv?${p.toString()}`;
+              })()}
+            >
+              <Download className="w-4 h-4 mr-2" /> Export CSV
+            </a>
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => auditQ.refetch()} data-testid="button-refresh-audit">
+            <RefreshCw className={`w-4 h-4 mr-2 ${auditQ.isFetching ? "animate-spin" : ""}`} /> Refresh
+          </Button>
+        </div>
       </header>
 
       <Card>

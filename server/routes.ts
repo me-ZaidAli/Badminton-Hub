@@ -16533,6 +16533,16 @@ export async function registerRoutes(
         merchandiseNewOrders = merchResult[0]?.count || 0;
       }
 
+      // Admin Inbox total — derived from already-computed numbers above so this
+      // adds zero extra DB calls. Mirrors the groups returned by /api/admin/inbox.
+      const adminInbox = pendingMemberships
+        + outstandingPayments
+        + pendingRewards
+        + merchandiseNewOrders
+        + pendingTickets
+        + pendingIncidents
+        + pendingReferrals;
+
       const payload = {
         notifications: notificationsCount,
         tickets: ticketsCount,
@@ -16547,12 +16557,13 @@ export async function registerRoutes(
         myOutstandingPayments,
         pendingReferrals,
         merchandiseNewOrders,
+        adminInbox,
       };
       badgeCountsCache.set(cacheKey, payload);
       res.json(payload);
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
-      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0, merchandiseNewOrders: 0 });
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0, merchandiseNewOrders: 0, adminInbox: 0 });
     }
   });
 
