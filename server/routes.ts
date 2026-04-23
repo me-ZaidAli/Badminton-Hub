@@ -33551,6 +33551,33 @@ Return ONLY valid JSON in this exact format:
         unitPrice: product.price ?? 0,
         variationLabel: variationLabelParts.length ? variationLabelParts.join(" / ") : null,
       }).returning();
+
+      // Notify club admins of the new merchandise order
+      try {
+        const buyer = req.user!;
+        const owners = await storage.getUsersByRole("OWNER");
+        const clubProfiles = await storage.getClubPlayersWithDetails(product.clubId);
+        const clubAdmins = (clubProfiles || [])
+          .filter((m: any) => (m.clubRole === "ADMIN" || m.clubRole === "OWNER")
+            && m.membershipStatus === "APPROVED")
+          .map((m: any) => m.userId);
+        const notifyUserIds = new Set<number>([...owners.map((o: any) => o.id), ...clubAdmins]);
+        notifyUserIds.delete(buyer.id);
+        const variationStr = variationLabelParts.length ? ` (${variationLabelParts.join(" / ")})` : "";
+        const phoneStr = (buyer as any).phone ? `\nPhone: ${(buyer as any).phone}` : "";
+        for (const notifyUserId of notifyUserIds) {
+          await storage.createNotification({
+            userId: notifyUserId,
+            type: "MERCHANDISE_ORDER",
+            title: "New Merchandise Order",
+            message: `${buyer.fullName} ordered ${qty}× ${product.name}${variationStr}.${phoneStr}`,
+            linkUrl: "/admin/merchandise",
+          });
+        }
+      } catch (notifyErr: any) {
+        console.error("Failed to send merchandise order notifications:", notifyErr?.message || notifyErr);
+      }
+
       res.json(order);
     } catch (err: any) {
       if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });

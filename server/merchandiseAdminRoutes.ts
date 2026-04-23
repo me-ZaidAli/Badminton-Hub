@@ -317,6 +317,7 @@ export function registerMerchandiseAdminRoutes(app: Express) {
         productStock: merchandiseProducts.stock,
         userName: users.fullName,
         userEmail: users.email,
+        userPhone: users.phone,
         clubName: clubs.name,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, eq(merchandiseOrderItems.productId, merchandiseProducts.id))
@@ -329,6 +330,7 @@ export function registerMerchandiseAdminRoutes(app: Express) {
         filtered = filtered.filter(r =>
           (r.userName || "").toLowerCase().includes(search) ||
           (r.userEmail || "").toLowerCase().includes(search) ||
+          (r.userPhone || "").toLowerCase().includes(search) ||
           (r.productName || "").toLowerCase().includes(search) ||
           (r.clubName || "").toLowerCase().includes(search) ||
           String(r.order.id).includes(search),
@@ -357,6 +359,7 @@ export function registerMerchandiseAdminRoutes(app: Express) {
           productStock: r.productStock,
           userName: r.userName,
           userEmail: r.userEmail,
+          userPhone: r.userPhone,
           clubName: r.clubName,
           unitPrice: unit,
           totalPrice: unit * (r.order.quantity || 1),
@@ -381,6 +384,7 @@ export function registerMerchandiseAdminRoutes(app: Express) {
         productStock: merchandiseProducts.stock,
         userName: users.fullName,
         userEmail: users.email,
+        userPhone: users.phone,
         clubName: clubs.name,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, eq(merchandiseOrderItems.productId, merchandiseProducts.id))
@@ -398,6 +402,7 @@ export function registerMerchandiseAdminRoutes(app: Express) {
         productStock: row.productStock,
         userName: row.userName,
         userEmail: row.userEmail,
+        userPhone: row.userPhone,
         clubName: row.clubName,
         unitPrice: unit,
         totalPrice: unit * (row.order.quantity || 1),

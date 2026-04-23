@@ -40,7 +40,7 @@ type AdminOrderRow = {
   size: string | null; gender: string | null; style: string | null; variationLabel: string | null;
   status: string; paymentStatus: string; notes: string | null; adminNotes: string | null;
   productName: string; productImage: string | null; productStock: number;
-  userName: string; userEmail: string; clubName: string;
+  userName: string; userEmail: string; userPhone: string | null; clubName: string;
   unitPrice: number; totalPrice: number; isNew: boolean;
   createdAt: string; updatedAt: string;
 };
@@ -686,8 +686,19 @@ function OrdersPanel({ clubs, isGodMode, clubFilter, onMutate }: { clubs: ClubLi
                   <TableCell><Checkbox checked={selected.has(o.id)} onCheckedChange={() => setSelected(s => { const n = new Set(s); n.has(o.id) ? n.delete(o.id) : n.add(o.id); return n; })} data-testid={`check-order-${o.id}`} /></TableCell>
                   <TableCell className="font-mono text-xs">#{o.id}{o.isNew && <Badge className="ml-1 bg-blue-500 text-white border-0 text-[10px] px-1 py-0">NEW</Badge>}</TableCell>
                   <TableCell>
-                    <div className="font-medium text-sm">{o.userName}</div>
-                    <div className="text-xs text-muted-foreground">{o.userEmail}</div>
+                    <div className="font-medium text-sm" data-testid={`text-customer-name-${o.id}`}>{o.userName}</div>
+                    <div className="text-xs text-muted-foreground" data-testid={`text-customer-email-${o.id}`}>{o.userEmail}</div>
+                    {o.userPhone ? (
+                      <a
+                        href={`tel:${o.userPhone}`}
+                        className="text-xs text-primary hover:underline"
+                        data-testid={`text-customer-phone-${o.id}`}
+                      >
+                        {o.userPhone}
+                      </a>
+                    ) : (
+                      <div className="text-xs text-muted-foreground/60 italic">No phone</div>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm">{o.clubName}</TableCell>
                   <TableCell>
@@ -835,8 +846,15 @@ function OrderDetailSheet({ orderId, onClose, onMutate }: { orderId: number; onC
 
             <Card><CardContent className="p-4 space-y-1">
               <div className="text-xs text-muted-foreground uppercase tracking-wider mb-1">Player</div>
-              <div className="font-medium">{order.userName}</div>
-              <div className="text-sm text-muted-foreground">{order.userEmail}</div>
+              <div className="font-medium" data-testid="text-detail-customer-name">{order.userName}</div>
+              <div className="text-sm text-muted-foreground" data-testid="text-detail-customer-email">{order.userEmail}</div>
+              {order.userPhone ? (
+                <a href={`tel:${order.userPhone}`} className="text-sm text-primary hover:underline block" data-testid="text-detail-customer-phone">
+                  {order.userPhone}
+                </a>
+              ) : (
+                <div className="text-sm text-muted-foreground/60 italic">No phone on file</div>
+              )}
               {order.notes && <div className="text-sm mt-2 p-2 bg-muted rounded"><span className="font-medium">Note:</span> {order.notes}</div>}
               {order.variationLabel && <div className="text-sm mt-1">Variation: <span className="font-medium">{order.variationLabel}</span></div>}
             </CardContent></Card>
