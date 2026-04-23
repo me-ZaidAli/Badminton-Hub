@@ -16,6 +16,9 @@ export async function ensureHotIndexes(): Promise<void> {
     `CREATE INDEX IF NOT EXISTS idx_player_profiles_club_status ON player_profiles (club_id, membership_status)`,
     `CREATE INDEX IF NOT EXISTS idx_player_profiles_user ON player_profiles (user_id)`,
     `CREATE INDEX IF NOT EXISTS idx_player_profiles_club_role ON player_profiles (club_id, club_role)`,
+    `CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_created ON admin_audit_logs (created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_club_created ON admin_audit_logs (club_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_admin_audit_logs_actor_created ON admin_audit_logs (actor_id, created_at DESC)`,
   ];
 
   let added = 0;

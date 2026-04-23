@@ -89,6 +89,8 @@ const MatchEngineLab = lazy(() => import("@/pages/admin/MatchEngineLab"));
 const MatchEngineSettingsPage = lazy(() => import("@/pages/admin/MatchEngineSettings"));
 const AIMatchInput = lazy(() => import("@/pages/admin/AIMatchInput"));
 const Communications = lazy(() => import("@/pages/admin/Communications"));
+const AdminInbox = lazy(() => import("@/pages/admin/AdminInbox"));
+const AuditLog = lazy(() => import("@/pages/admin/AuditLog"));
 const MerchandisePage = lazy(() => import("@/pages/MerchandisePage"));
 const Announcements = lazy(() => import("@/pages/Announcements"));
 const CalendarImport = lazy(() => import("@/pages/admin/CalendarImport"));
@@ -639,6 +641,12 @@ function Router() {
       </Route>
       <Route path="/admin/communications">
         <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><Communications /></Suspense>} />
+      </Route>
+      <Route path="/admin/inbox">
+        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminInbox /></Suspense>} />
+      </Route>
+      <Route path="/admin/audit-log">
+        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AuditLog /></Suspense>} />
       </Route>
       <Route path="/merchandise">
         <PrivateRoute component={MerchandisePage} />

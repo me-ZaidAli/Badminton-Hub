@@ -63,6 +63,8 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Notification Helper**: Unified `notifyUser()` wrapper creates an in-app notification and sends emails for high-priority types.
 - **Merchandise Admin Bulk Actions & Customer History**: `/admin/merchandise` Orders tab supports multi-select with a bulk action bar and displays customer history.
 - **Deals & Offers System**: Premium mobile-first experience with category discovery page, filtered deals view, featured deal card, glassmorphism card design with card-flip animation for details, save/favorite functionality, copy-code feedback, and smooth framer-motion animations. Dynamic category system with full CRUD for categories.
+- **Admin Inbox**: Aggregator at `/admin/inbox` (`GET /api/admin/inbox`) showing pending join requests, outstanding payments, credit requests, new merchandise orders, helpdesk tickets, incidents, in-flight trials, lesson requests, and pending referrals — all club-scoped via `getAdminClubIds` (platform OWNER/ADMIN see all). Lesson requests with `clubId IS NULL` are intentionally excluded from club-scoped admins to prevent cross-tenant exposure.
+- **Audit Log Viewer**: Admin page at `/admin/audit-log` (`GET /api/admin/audit-logs`) with paginated, filterable view over the existing `admin_audit_logs` table. Filters: action, targetType, actorId, clubId, free-text search, sinceDays. Club admins are restricted to logs for clubs they admin (or actions they themselves performed); platform admins see everything. All paging/range params are clamped, ILIKE search input is wildcard-escaped, and dedicated indexes (`created_at`, `(club_id, created_at)`, `(actor_id, created_at)`) are ensured at startup.
 
 ## External Dependencies
 

@@ -24,6 +24,7 @@ import { registerTournamentRoutes } from "./tournamentRoutes";
 import { registerCommunityRoutes } from "./communityRoutes";
 import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
+import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
 import { aiHeavyLimiter } from "./rateLimit";
 import { notifyUser } from "./notify";
 import LRU from "lru-cache";
@@ -30520,6 +30521,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   registerCommunityRoutes(app);
   registerDebtRoutes(app);
   registerMerchandiseAdminRoutes(app);
+  registerInboxAndAuditRoutes(app);
 
   // === INCIDENT REPORTS ===
   const incidentUploadsDir = path.join(process.cwd(), "public", "uploads", "incidents");

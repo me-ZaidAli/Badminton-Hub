@@ -17,6 +17,8 @@ import {
   LogOut, 
   Shield,
   ShieldCheck,
+  Inbox,
+  ScrollText,
   Menu,
   X,
   User,
@@ -189,17 +191,27 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
 
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin" });
+    items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
     items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
     items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    if (!isOrganiserOnly) {
+      items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin" });
+      items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
+    }
     items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
     items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    if (!isOrganiserOnly) {
+      items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin" });
+      items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
+    }
     items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
     items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
   }
