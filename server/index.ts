@@ -11,6 +11,9 @@ import { autoCloseInactiveTickets } from "./ticket-autoclose";
 import { runNotificationScheduler } from "./notification-scheduler";
 import { syncParentChildLinks } from "./parentLinkSync";
 import { ensureHotIndexes } from "./dbIndexes";
+import { randomUUID } from "crypto";
+import { sql } from "drizzle-orm";
+import { db } from "./db";
 
 process.on("uncaughtException", (err) => {
   console.error("Uncaught Exception:", err);
@@ -20,6 +23,7 @@ process.on("unhandledRejection", (reason) => {
   console.error("Unhandled Rejection:", reason);
 });
 
+const SERVER_STARTED_AT = Date.now();
 const app = express();
 const httpServer = createServer(app);
 
@@ -39,8 +43,31 @@ app.use(
 
 app.use(express.urlencoded({ extended: false }));
 
+// Attach a request id to every request for log correlation. Clients may pass
+// their own X-Request-Id (capped) or one is generated.
+app.use((req, res, next) => {
+  const incoming = req.header("x-request-id");
+  const id = (incoming && /^[A-Za-z0-9._-]{1,64}$/.test(incoming)) ? incoming : randomUUID();
+  (req as any).requestId = id;
+  res.setHeader("X-Request-Id", id);
+  next();
+});
+
 app.get("/api/health", (_req, res) => {
-  res.status(200).json({ status: "ok" });
+  res.status(200).json({
+    status: "ok",
+    uptimeSeconds: Math.round((Date.now() - SERVER_STARTED_AT) / 1000),
+  });
+});
+
+// Readiness probe: confirms the database is reachable before declaring ready.
+app.get("/api/health/ready", async (_req, res) => {
+  try {
+    await db.execute(sql`select 1`);
+    res.status(200).json({ status: "ready" });
+  } catch (err: any) {
+    res.status(503).json({ status: "not-ready", error: err?.message || "db unavailable" });
+  }
 });
 
 export function log(message: string, source = "express") {
@@ -83,17 +110,18 @@ app.use((req, res, next) => {
 (async () => {
   await registerRoutes(httpServer, app);
 
-  app.use((err: any, _req: Request, res: Response, next: NextFunction) => {
+  app.use((err: any, req: Request, res: Response, next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
     const message = err.message || "Internal Server Error";
+    const requestId = (req as any).requestId;
 
-    console.error("Internal Server Error:", err);
+    console.error(`Internal Server Error [reqId=${requestId} path=${req.method} ${req.path}]:`, err);
 
     if (res.headersSent) {
       return next(err);
     }
 
-    return res.status(status).json({ message });
+    return res.status(status).json({ message, requestId });
   });
 
   if (process.env.NODE_ENV === "production") {
@@ -159,4 +187,28 @@ app.use((req, res, next) => {
       }, 30 * 1000);
     },
   );
+
+  // Graceful shutdown: stop accepting new connections, drain in-flight requests,
+  // then exit. Force-exits after 15s if anything is hanging.
+  let shuttingDown = false;
+  const shutdown = (signal: string) => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    log(`received ${signal}, shutting down...`);
+    const forceExit = setTimeout(() => {
+      console.error("Shutdown timed out, forcing exit");
+      process.exit(1);
+    }, 15000);
+    forceExit.unref();
+    httpServer.close((err) => {
+      if (err) {
+        console.error("Error during server close:", err);
+        process.exit(1);
+      }
+      log("server closed cleanly");
+      process.exit(0);
+    });
+  };
+  process.on("SIGTERM", () => shutdown("SIGTERM"));
+  process.on("SIGINT", () => shutdown("SIGINT"));
 })();
