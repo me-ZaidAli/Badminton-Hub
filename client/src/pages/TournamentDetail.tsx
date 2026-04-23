@@ -32,6 +32,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { Input } from "@/components/ui/input";
 import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { format } from "date-fns";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -2389,33 +2390,24 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 return <EmptyState icon={Swords} title="No Matches" description="Generate fixtures to create matches." />;
               }
 
-              return (
-                <>
-                  {stageOptions.length > 1 && (
-                    <div className="flex flex-wrap items-center gap-2 mb-4 px-3 py-2.5 rounded-xl border border-border/60 bg-muted/40">
-                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Show stage</span>
-                      <Select value={stageFilter} onValueChange={(v) => setStageFilter(v as any)}>
-                        <SelectTrigger className="h-8 text-xs font-bold w-[200px]" data-testid="select-stage-filter">
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {stageOptions.map(opt => (
-                            <SelectItem key={opt.value} value={opt.value}>
-                              {opt.label} <span className="text-muted-foreground font-normal">· {opt.count}</span>
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                      {stageFilter !== "all" && (
-                        <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => setStageFilter("all")} data-testid="button-stage-filter-clear">
-                          Show all
-                        </Button>
-                      )}
-                    </div>
-                  )}
-                  {visibleSections.length === 0 ? (
-                    <EmptyState icon={Swords} title="No Matches in this Stage" description="Pick another stage from the dropdown above." />
-                  ) : visibleSections.map(sec => {
+              // Bucket every per-group section into its parent stage so we can render one
+              // accordion item per stage (each containing all of that stage's groups).
+              const stageMeta: Record<SectionStage, { label: string; color: string; icon: any }> = {
+                final: { label: "Final",          color: "from-yellow-500 to-amber-500",  icon: Trophy },
+                sf:    { label: "Semi-Finals",    color: "from-amber-500 to-orange-500",  icon: Medal },
+                qf:    { label: "Quarter-Finals", color: "from-cyan-500 to-sky-500",      icon: GitBranch },
+                other: { label: "Other Knockouts",color: "from-fuchsia-500 to-pink-500",  icon: Swords },
+                rr:    { label: "Round Robin",    color: "from-violet-600 to-purple-600", icon: LayoutGrid },
+              };
+              const stageOrder: SectionStage[] = ["final", "sf", "qf", "other", "rr"];
+              const stageBuckets = new Map<SectionStage, typeof sections>();
+              for (const sec of visibleSections) {
+                if (!stageBuckets.has(sec.stage)) stageBuckets.set(sec.stage, []);
+                stageBuckets.get(sec.stage)!.push(sec);
+              }
+              const activeStages = stageOrder.filter(s => stageBuckets.has(s));
+
+              const renderSection = (sec: typeof sections[number]) => {
                     const isCollapsed = !!collapsedSections[sec.key];
                     const stageForAdd: "rr" | "qf" | "sf" | "final" = sec.stage === "qf" ? "qf" : sec.stage === "sf" ? "sf" : sec.stage === "final" ? "final" : "rr";
                     return (
@@ -2547,7 +2539,69 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   )}
                 </div>
                     );
-                  })}
+                  };
+
+              const defaultOpenStages = activeStages.length > 0 ? [`mstage-${activeStages[0]}`] : [];
+              return (
+                <>
+                  {stageOptions.length > 1 && (
+                    <div className="flex flex-wrap items-center gap-2 mb-4 px-3 py-2.5 rounded-xl border border-border/60 bg-muted/40">
+                      <span className="text-[10px] font-black uppercase tracking-[0.15em] text-muted-foreground">Show stage</span>
+                      <Select value={stageFilter} onValueChange={(v) => setStageFilter(v as any)}>
+                        <SelectTrigger className="h-8 text-xs font-bold w-[200px]" data-testid="select-stage-filter">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {stageOptions.map(opt => (
+                            <SelectItem key={opt.value} value={opt.value}>
+                              {opt.label} <span className="text-muted-foreground font-normal">· {opt.count}</span>
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {stageFilter !== "all" && (
+                        <Button size="sm" variant="ghost" className="h-7 text-[10px]" onClick={() => setStageFilter("all")} data-testid="button-stage-filter-clear">
+                          Show all
+                        </Button>
+                      )}
+                    </div>
+                  )}
+                  {activeStages.length === 0 ? (
+                    <EmptyState icon={Swords} title="No Matches in this Stage" description="Pick another stage from the dropdown above." />
+                  ) : (
+                    <Accordion type="multiple" defaultValue={defaultOpenStages} className="space-y-3">
+                      {activeStages.map(stageKey => {
+                        const meta = stageMeta[stageKey];
+                        const StageIcon = meta.icon;
+                        const stageSections = stageBuckets.get(stageKey)!;
+                        const stageMatchCount = stageSections.reduce((n, s) => n + s.matches.length, 0);
+                        return (
+                          <AccordionItem key={stageKey} value={`mstage-${stageKey}`}
+                            className="border border-border/40 rounded-2xl overflow-hidden bg-card data-[state=open]:bg-card">
+                            <AccordionTrigger
+                              className="px-4 py-3 hover:no-underline hover:bg-muted/30"
+                              data-testid={`accordion-matches-stage-${stageKey}`}
+                            >
+                              <div className="flex items-center gap-3 flex-1 min-w-0">
+                                <div className={cn("h-7 w-7 rounded-lg bg-gradient-to-br flex items-center justify-center shadow-sm flex-shrink-0", meta.color)}>
+                                  <StageIcon className="h-3.5 w-3.5 text-white" />
+                                </div>
+                                <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{meta.label}</span>
+                                <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto mr-2">
+                                  {stageSections.length} {stageSections.length === 1 ? "group" : "groups"} · {stageMatchCount} {stageMatchCount === 1 ? "match" : "matches"}
+                                </Badge>
+                              </div>
+                            </AccordionTrigger>
+                            <AccordionContent className="px-3 pb-3 pt-1">
+                              <div className="space-y-4">
+                                {stageSections.map(sec => renderSection(sec))}
+                              </div>
+                            </AccordionContent>
+                          </AccordionItem>
+                        );
+                      })}
+                    </Accordion>
+                  )}
                 </>
               );
             })()
@@ -3022,7 +3076,6 @@ function ScoreDialog({ match, onClose, onSubmit, isPending }: { match: any; onCl
 function StandingsView({ standings, teams, category, groups = [], matches = [] }: { standings: any[]; teams: any[]; category: any; groups?: any[]; matches?: any[] }) {
   const teamMap = new Map(teams.map(t => [t.id, t]));
   const advancePerGroup = category.advancePerGroup || 1;
-  const [stageFilter, setStageFilter] = useState<"all" | "rr" | "qf" | "sf" | "final">("all");
 
   // Canonical "user-pair" key — two user IDs sorted ascending.
   // This is the only fully stable identity for a pair, surviving differences between
@@ -3288,76 +3341,105 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
     );
   };
 
-  // Counts by stage so the dropdown can show how much content sits behind each filter.
-  const stageCounts = {
-    rr: sortedGroups.length,
-    qf: qfMatches.length,
-    sf: semiMatches.length,
-    final: finalMatches.length,
-  };
-  const showRr = stageFilter === "all" || stageFilter === "rr";
-  const showQf = (stageFilter === "all" || stageFilter === "qf") && qfMatches.length > 0;
-  const showSf = (stageFilter === "all" || stageFilter === "sf") && semiMatches.length > 0;
-  const showFinal = (stageFilter === "all" || stageFilter === "final") && finalMatches.length > 0;
-  const nothingToShow = !showRr && !showQf && !showSf && !showFinal;
-
-  return (
-    <div className="space-y-5">
-      <div className="flex items-center justify-between gap-3 flex-wrap">
-        <div className="flex items-center gap-2">
-          <BarChart3 className="h-4 w-4 text-violet-500" />
-          <span className="text-xs font-black text-foreground uppercase tracking-wider">Standings</span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Stage</span>
-          <Select value={stageFilter} onValueChange={(v) => setStageFilter(v as any)}>
-            <SelectTrigger className="h-8 w-[200px] text-xs" data-testid="select-standings-stage-filter">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="all">All Stages</SelectItem>
-              <SelectItem value="final" disabled={stageCounts.final === 0}>Final{stageCounts.final ? ` (${stageCounts.final})` : ""}</SelectItem>
-              <SelectItem value="sf" disabled={stageCounts.sf === 0}>Semi-Finals{stageCounts.sf ? ` (${stageCounts.sf})` : ""}</SelectItem>
-              <SelectItem value="qf" disabled={stageCounts.qf === 0}>Quarter-Finals{stageCounts.qf ? ` (${stageCounts.qf})` : ""}</SelectItem>
-              <SelectItem value="rr" disabled={stageCounts.rr === 0}>Group Stage{stageCounts.rr ? ` (${stageCounts.rr})` : ""}</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {nothingToShow && (
-        <div className="text-xs text-muted-foreground italic px-2">No standings for this stage yet.</div>
-      )}
-
-      {/* Latest stage on top: Final → Semi-Finals → Quarter-Finals → Group Stage. */}
-      {showFinal && renderKoStage("Final", finalMatches, "from-yellow-500/40")}
-      {showSf && renderKoStage("Semi-Finals", semiMatches, "from-amber-500/40")}
-      {showQf && renderKoStage("Quarter-Finals", qfMatches, "from-cyan-500/40")}
-
-      {showRr && sortedGroups.length === 0 && (
-        <div className="text-xs text-muted-foreground italic px-2">No groups defined yet — add groups in the Groups section.</div>
-      )}
-      {showRr && sortedGroups.map((grp: any, gi: number) => {
-        const gNum = gi + 1;
-        const rows = computeGroupRows(grp, gNum).sort(sortFn);
-        return (
-          <div key={`grp-${grp.id}`} className="relative rounded-2xl overflow-hidden">
-            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
-            <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
-              <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
-                <div className="flex items-center gap-2">
-                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                    <LayoutGrid className="h-3 w-3 text-white" />
+  // Per-stage section list — render each stage as a single accordion item, with its
+  // groups / KO matches stacked inside. Latest-stage-on-top order.
+  type StandingsStage = { key: "final" | "sf" | "qf" | "rr"; label: string; color: string; icon: any; count: number; render: () => React.ReactNode };
+  const stageSections: StandingsStage[] = [];
+  if (finalMatches.length > 0) {
+    stageSections.push({
+      key: "final", label: "Final", color: "from-yellow-500 to-amber-500", icon: Trophy, count: finalMatches.length,
+      render: () => renderKoStage("Final", finalMatches, "from-yellow-500/40"),
+    });
+  }
+  if (semiMatches.length > 0) {
+    stageSections.push({
+      key: "sf", label: "Semi-Finals", color: "from-amber-500 to-orange-500", icon: Medal, count: semiMatches.length,
+      render: () => renderKoStage("Semi-Finals", semiMatches, "from-amber-500/40"),
+    });
+  }
+  if (qfMatches.length > 0) {
+    stageSections.push({
+      key: "qf", label: "Quarter-Finals", color: "from-cyan-500 to-sky-500", icon: GitBranch, count: qfMatches.length,
+      render: () => renderKoStage("Quarter-Finals", qfMatches, "from-cyan-500/40"),
+    });
+  }
+  if (sortedGroups.length > 0) {
+    stageSections.push({
+      key: "rr", label: "Round Robin", color: "from-violet-600 to-purple-600", icon: LayoutGrid, count: sortedGroups.length,
+      render: () => (
+        <div className="space-y-3">
+          {sortedGroups.map((grp: any, gi: number) => {
+            const gNum = grp.groupOrder || gi + 1;
+            const rows = computeGroupRows(grp, gNum).sort(sortFn);
+            return (
+              <div key={`grp-${grp.id}`} className="relative rounded-2xl overflow-hidden">
+                <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
+                <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
+                  <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
+                    <div className="flex items-center gap-2">
+                      <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                        <LayoutGrid className="h-3 w-3 text-white" />
+                      </div>
+                      <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{grp.name || `Group ${String.fromCharCode(64 + gNum)}`}</h4>
+                      <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{rows.length} Pairs</Badge>
+                    </div>
                   </div>
-                  <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{grp.name || `Group ${String.fromCharCode(64 + gNum)}`}</h4>
-                  <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{rows.length} Pairs</Badge>
+                  {renderStandingsTable(rows, advancePerGroup)}
                 </div>
               </div>
-              {renderStandingsTable(rows, advancePerGroup)}
-            </div>
-          </div>
-        );
-      })}
+            );
+          })}
+        </div>
+      ),
+    });
+  }
+
+  // Default open: latest stage with content (first in the list).
+  const defaultOpen = stageSections[0] ? [`sstage-${stageSections[0].key}`] : [];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center gap-2">
+        <BarChart3 className="h-4 w-4 text-violet-500" />
+        <span className="text-xs font-black text-foreground uppercase tracking-wider">Standings</span>
+        {stageSections.length > 0 && (
+          <span className="text-[10px] font-bold text-muted-foreground ml-auto">
+            {stageSections.length} {stageSections.length === 1 ? "stage" : "stages"}
+          </span>
+        )}
+      </div>
+
+      {stageSections.length === 0 ? (
+        <div className="text-xs text-muted-foreground italic px-2">No standings yet — add groups or generate matches to begin.</div>
+      ) : (
+        <Accordion type="multiple" defaultValue={defaultOpen} className="space-y-3">
+          {stageSections.map(s => {
+            const Icon = s.icon;
+            return (
+              <AccordionItem key={s.key} value={`sstage-${s.key}`}
+                className="border border-border/40 rounded-2xl overflow-hidden bg-card data-[state=open]:bg-card">
+                <AccordionTrigger
+                  className="px-4 py-3 hover:no-underline hover:bg-muted/30"
+                  data-testid={`accordion-standings-stage-${s.key}`}
+                >
+                  <div className="flex items-center gap-3 flex-1 min-w-0">
+                    <div className={cn("h-7 w-7 rounded-lg bg-gradient-to-br flex items-center justify-center shadow-sm flex-shrink-0", s.color)}>
+                      <Icon className="h-3.5 w-3.5 text-white" />
+                    </div>
+                    <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{s.label}</span>
+                    <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto mr-2">
+                      {s.count} {s.key === "rr" ? (s.count === 1 ? "group" : "groups") : (s.count === 1 ? "match" : "matches")}
+                    </Badge>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="px-3 pb-3 pt-1">
+                  {s.render()}
+                </AccordionContent>
+              </AccordionItem>
+            );
+          })}
+        </Accordion>
+      )}
     </div>
   );
 }
@@ -4104,13 +4186,63 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
 
       {groups.length === 0 ? (
         <EmptyState icon={LayoutGrid} title="No Groups" description="Create round robin groups and assign pairs to get started." />
-      ) : (
-        <div className="grid gap-4">
-          {groups.map((group: any) => {
-            const pairsCount = group.pairs?.length || 0;
-            const isFull = pairsCount >= group.maxPairs;
-            return (
-              <Card key={group.id} className="overflow-hidden border-border/50">
+      ) : (() => {
+        // Stage thresholds line up with the rest of the tournament module:
+        // 1-99 = Round Robin, 100-199 = other/early knockout, 200-299 = QF, 300-399 = SF, 400+ = Final.
+        const stageOf = (order?: number) => {
+          if (!order) return "rr" as const;
+          if (order >= 400) return "final" as const;
+          if (order >= 300) return "sf" as const;
+          if (order >= 200) return "qf" as const;
+          if (order >= 100) return "other" as const;
+          return "rr" as const;
+        };
+        const stageMeta: Record<string, { label: string; color: string; icon: any; order: number }> = {
+          final:  { label: "Final",            color: "from-yellow-500 to-amber-500",  icon: Trophy,     order: 1 },
+          sf:     { label: "Semi-Finals",      color: "from-amber-500 to-orange-500",  icon: Medal,      order: 2 },
+          qf:     { label: "Quarter-Finals",   color: "from-cyan-500 to-sky-500",      icon: GitBranch,  order: 3 },
+          other:  { label: "Other Knockouts",  color: "from-fuchsia-500 to-pink-500",  icon: Swords,     order: 4 },
+          rr:     { label: "Round Robin",      color: "from-violet-600 to-purple-600", icon: LayoutGrid, order: 5 },
+        };
+        const buckets = new Map<string, any[]>();
+        for (const g of groups as any[]) {
+          const s = stageOf(g.groupOrder);
+          if (!buckets.has(s)) buckets.set(s, []);
+          buckets.get(s)!.push(g);
+        }
+        const stageKeys = Array.from(buckets.keys()).sort((a, b) => stageMeta[a].order - stageMeta[b].order);
+        // Default open: latest stage with content (first in our latest-on-top order).
+        const defaultOpen = stageKeys[0] ? [`gstage-${stageKeys[0]}`] : [];
+        return (
+          <Accordion type="multiple" defaultValue={defaultOpen} className="space-y-3">
+            {stageKeys.map(stageKey => {
+              const meta = stageMeta[stageKey];
+              const StageIcon = meta.icon;
+              const stageGroups = buckets.get(stageKey)!;
+              return (
+                <AccordionItem key={stageKey} value={`gstage-${stageKey}`}
+                  className="border border-border/40 rounded-2xl overflow-hidden bg-card data-[state=open]:bg-card">
+                  <AccordionTrigger
+                    className="px-4 py-3 hover:no-underline hover:bg-muted/30"
+                    data-testid={`accordion-groups-stage-${stageKey}`}
+                  >
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div className={cn("h-7 w-7 rounded-lg bg-gradient-to-br flex items-center justify-center shadow-sm flex-shrink-0", meta.color)}>
+                        <StageIcon className="h-3.5 w-3.5 text-white" />
+                      </div>
+                      <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{meta.label}</span>
+                      <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto mr-2">
+                        {stageGroups.length} {stageGroups.length === 1 ? "group" : "groups"}
+                      </Badge>
+                    </div>
+                  </AccordionTrigger>
+                  <AccordionContent className="px-3 pb-3 pt-1">
+                    <div className="grid gap-4">
+                      {stageGroups.map((group: any) => {
+                        const pairsCount = group.pairs?.length || 0;
+                        const isFull = pairsCount >= group.maxPairs;
+                        return (
+                          <Card key={group.id} className="overflow-hidden border-border/50">
                 <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
                   <div className="flex items-center justify-between">
                     <div className="flex items-center gap-3">
@@ -4264,10 +4396,16 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                   )}
                 </CardContent>
               </Card>
-            );
-          })}
-        </div>
-      )}
+                        );
+                      })}
+                    </div>
+                  </AccordionContent>
+                </AccordionItem>
+              );
+            })}
+          </Accordion>
+        );
+      })()}
 
       {groupFormDialog}
     </div>
