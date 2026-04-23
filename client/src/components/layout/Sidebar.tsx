@@ -56,6 +56,9 @@ import {
   Shirt,
   Tag,
   Sparkles,
+  Home,
+  MessageSquare,
+  HelpCircle,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -101,6 +104,17 @@ interface NavGroup {
   label: string;
   items: NavItem[];
 }
+
+const SECTION_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
+  main: Home,
+  activity: Activity,
+  club: Building2,
+  comms: MessageSquare,
+  design: Palette,
+  info: HelpCircle,
+  admin: ShieldCheck,
+  godmode: Zap,
+};
 
 export function useBadgeCounts() {
   const { data: user } = useUser();
@@ -190,8 +204,14 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText, group: "info" },
   ];
 
+  // Admin section is split into two visual sub-rows inside one tile:
+  //  - "primary": the main Admin Panel entry
+  //  - "admin"  : secondary admin tools
+  // Admin Panel deliberately drops its `pendingMemberships`/`outstandingPayments`
+  // badges because the new Admin Inbox entry below now consolidates them, so the
+  // same number doesn't appear in two places.
   if (user?.role === "OWNER") {
-    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "adminPrimary" });
     items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
     items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
     items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
@@ -199,7 +219,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
-    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "adminPrimary" });
     if (!isOrganiserOnly) {
       items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
       items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
@@ -208,7 +228,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
-    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", badgeKey: "pendingMemberships", secondaryBadgeKey: "outstandingPayments" });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "adminPrimary" });
     if (!isOrganiserOnly) {
       items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
       items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
@@ -226,7 +246,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
 
   const groupOrder = ["main", "activity", "club", "comms", "design", "info", "admin", "godmode"];
   const groupLabels: Record<string, string> = {
-    main: "",
+    main: "Home",
     activity: "Activity",
     club: "My Club",
     comms: "Communication",
@@ -238,7 +258,13 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
 
   const groups: NavGroup[] = [];
   for (const key of groupOrder) {
-    const groupItems = filteredItems.filter(i => i.group === key);
+    let groupItems = filteredItems.filter(i => i.group === key);
+    // The admin tile bundles the primary "Admin Panel" entry with its secondary
+    // tools so they all live inside one visually distinct section.
+    if (key === "admin") {
+      const primary = filteredItems.filter(i => i.group === "adminPrimary");
+      groupItems = [...primary, ...groupItems];
+    }
     if (groupItems.length > 0) {
       groups.push({ key, label: groupLabels[key], items: groupItems });
     }
@@ -804,110 +830,87 @@ export function Sidebar() {
         </div>
       </div>
 
-      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-1">
-        {navGroups.map((group) => (
-          <div key={group.key} className={cn(group.key !== "main" && "mt-3")}>
-            {group.key === "admin" ? (
-              <div className="mt-3 rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="section-admin-panel">
-                <span className="flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400" data-testid="label-admin-section">
-                  <ShieldCheck className="w-3 h-3" /> {group.label}
-                </span>
-                {group.items.map((item) => {
-                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                  const badgeCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-                  return (
-                    <Link key={item.href} href={item.href}>
-                      <div
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer",
-                          isActive
-                            ? "bg-emerald-600 text-white shadow-md"
-                            : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"
-                        )}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
-                        <BadgeCount count={badgeCount} />
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : group.key === "godmode" ? (
-              <div className="mt-2 rounded-xl border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="section-god-mode">
-                <span className="flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider text-destructive" data-testid="label-super-admin-section">
-                  <Zap className="w-3 h-3" /> Super Admin
-                </span>
-                {group.items.map((item) => {
-                  const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                  return (
-                    <Link key={item.href} href={item.href}>
-                      <div
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer",
-                          isActive
-                            ? "bg-destructive text-destructive-foreground shadow-md"
-                            : "text-destructive hover:bg-destructive/15"
-                        )}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <item.icon className="h-4 w-4" />
-                        {item.label}
-                      </div>
-                    </Link>
-                  );
-                })}
-              </div>
-            ) : group.key === "main" ? (
+      <nav className="flex-1 px-3 py-3 overflow-y-auto space-y-3">
+        {navGroups.map((group) => {
+          const SectionIcon = SECTION_ICON[group.key] || ChevronRight;
+          const isAdminGroup = group.key === "admin";
+          const isGodmodeGroup = group.key === "godmode";
+          const isMainGroup = group.key === "main";
+
+          // Tile container styling differs by section family but the *structure*
+          // (header inside a card, items below) is identical so the menu reads
+          // consistently top-to-bottom.
+          const tileClass = cn(
+            "rounded-xl border p-2",
+            isAdminGroup && "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10",
+            isGodmodeGroup && "border-destructive/30 bg-destructive/5 dark:bg-destructive/10",
+            isMainGroup && "border-primary/20 bg-primary/5",
+            !isAdminGroup && !isGodmodeGroup && !isMainGroup && "border-border/50 bg-muted/30",
+          );
+          const headerClass = cn(
+            "flex items-center gap-1.5 px-2 pb-1.5 text-[10px] font-bold uppercase tracking-wider",
+            isAdminGroup && "text-emerald-600 dark:text-emerald-400",
+            isGodmodeGroup && "text-destructive",
+            isMainGroup && "text-primary",
+            !isAdminGroup && !isGodmodeGroup && !isMainGroup && "text-muted-foreground/70",
+          );
+
+          return (
+            <div key={group.key} className={tileClass} data-testid={`section-${group.key}`}>
+              <span className={headerClass} data-testid={`label-section-${group.key}`}>
+                <SectionIcon className="w-3 h-3" /> {group.label}
+              </span>
               <div className="space-y-0.5">
-                {group.items.map((item) => {
-                  const isActive = location === item.href;
-                  return (
-                    <Link key={item.href} href={item.href}>
-                      <div
-                        className={cn(
-                          "flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-semibold transition-all duration-200 cursor-pointer",
-                          isActive
-                            ? "bg-primary/10 text-primary shadow-sm"
-                            : "text-foreground hover:bg-muted"
-                        )}
-                        data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <item.icon className={cn("h-5 w-5 shrink-0", isActive ? "text-primary" : "")} />
-                        <span className="truncate">{item.label}</span>
-                      </div>
-                    </Link>
+                {group.items.map((item, idx) => {
+                  const isActive = location === item.href || (item.href !== "/" && item.href !== "/admin" && location.startsWith(`${item.href}/`));
+                  const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                  const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
+                  const badgeCount = primaryCount + secondaryCount;
+                  const isLocked = item.premiumOnly && !isPremium;
+
+                  // Inside the admin tile, the very first item is the headline
+                  // "Admin Panel" entry. We mark it as primary, then drop a thin
+                  // divider before the secondary tools so the hierarchy is obvious.
+                  const isAdminPrimary = isAdminGroup && idx === 0;
+                  const showAdminDivider = isAdminGroup && idx === 1;
+
+                  const itemClass = cn(
+                    "flex items-center gap-3 rounded-lg cursor-pointer transition-all duration-200",
+                    // Sizing: main + adminPrimary slightly taller for prominence
+                    isMainGroup || isAdminPrimary ? "px-3 py-2.5 text-sm font-semibold" : "px-3 py-2 text-sm font-medium",
+                    // Color states
+                    isAdminGroup && (isActive
+                      ? "bg-emerald-600 text-white shadow-md"
+                      : "text-emerald-700 dark:text-emerald-400 hover:bg-emerald-500/15"),
+                    isGodmodeGroup && (isActive
+                      ? "bg-destructive text-destructive-foreground shadow-md"
+                      : "text-destructive hover:bg-destructive/15"),
+                    isMainGroup && (isActive
+                      ? "bg-primary text-primary-foreground shadow-sm"
+                      : "text-foreground hover:bg-primary/10"),
+                    !isAdminGroup && !isGodmodeGroup && !isMainGroup && (isLocked
+                      ? "text-muted-foreground/50"
+                      : isActive
+                        ? "bg-primary/10 text-primary"
+                        : "text-muted-foreground hover:bg-muted hover:text-foreground"),
                   );
-                })}
-              </div>
-            ) : (
-              <>
-                <span className="flex items-center px-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60" data-testid={`label-section-${group.key}`}>
-                  {group.label}
-                </span>
-                <div className="space-y-0.5">
-                  {group.items.map((item) => {
-                    const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                    const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-                    const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
-                    const badgeCount = primaryCount + secondaryCount;
-                    const isLocked = item.premiumOnly && !isPremium;
-                    return (
-                      <Link key={item.href} href={item.href}>
-                        <div
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer group",
-                            isLocked
-                              ? "text-muted-foreground/50"
-                              : isActive
-                              ? "bg-primary/10 text-primary"
-                              : "text-muted-foreground hover:bg-muted hover:text-foreground"
-                          )}
-                          data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                        >
-                          <item.icon className={cn("h-4 w-4 shrink-0", isLocked ? "text-muted-foreground/40" : isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground")} />
-                          <span className="truncate">{item.label}</span>
+
+                  const iconClass = cn(
+                    isMainGroup || isAdminPrimary ? "h-5 w-5 shrink-0" : "h-4 w-4 shrink-0",
+                    !isAdminGroup && !isGodmodeGroup && !isMainGroup && (isLocked
+                      ? "text-muted-foreground/40"
+                      : isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"),
+                  );
+
+                  return (
+                    <div key={item.href}>
+                      {showAdminDivider && (
+                        <div className="my-1.5 h-px bg-emerald-500/20 mx-2" aria-hidden="true" />
+                      )}
+                      <Link href={item.href}>
+                        <div className={itemClass} data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                          <item.icon className={iconClass} />
+                          <span className="truncate flex-1">{item.label}</span>
                           {isLocked ? (
                             <Lock className="h-3 w-3 ml-auto text-amber-500/70 shrink-0" />
                           ) : (
@@ -915,13 +918,13 @@ export function Sidebar() {
                           )}
                         </div>
                       </Link>
-                    );
-                  })}
-                </div>
-              </>
-            )}
-          </div>
-        ))}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })}
       </nav>
 
       <PwaInstallBanner />
@@ -1047,97 +1050,65 @@ export function MobileTopNav() {
               </div>
             </div>
           </div>
-          <div className="py-2 px-2 space-y-2">
-            {navGroups.map((group) => (
-              <div key={group.key}>
-                {group.key === "admin" ? (
-                  <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10 p-2" data-testid="mobile-section-admin-panel">
-                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
-                      <ShieldCheck className="w-3 h-3" /> {group.label}
-                    </span>
-                    {group.items.map((item) => {
-                      const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                      return (
-                        <Link key={item.href} href={item.href}>
-                          <Button
-                            variant={isActive ? "default" : "ghost"}
-                            className={cn(
-                              "w-full justify-start gap-3",
-                              isActive ? "bg-emerald-600 text-white hover:bg-emerald-700" : "text-emerald-700 dark:text-emerald-400"
-                            )}
-                            size="sm"
-                            onClick={() => setMenuOpen(false)}
-                            data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                          >
-                            <item.icon className="w-4 h-4" />
-                            {item.label}
-                          </Button>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ) : group.key === "godmode" ? (
-                  <div className="rounded-xl border border-destructive/30 bg-destructive/5 dark:bg-destructive/10 p-2" data-testid="mobile-section-god-mode">
-                    <span className="flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider text-destructive">
-                      <Zap className="w-3 h-3" /> Super Admin
-                    </span>
-                    {group.items.map((item) => {
-                      const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                      return (
-                        <Link key={item.href} href={item.href}>
-                          <Button
-                            variant={isActive ? "destructive" : "ghost"}
-                            className={cn(
-                              "w-full justify-start gap-3",
-                              !isActive && "text-destructive"
-                            )}
-                            size="sm"
-                            onClick={() => setMenuOpen(false)}
-                            data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                          >
-                            <item.icon className="w-4 h-4" />
-                            {item.label}
-                          </Button>
-                        </Link>
-                      );
-                    })}
-                  </div>
-                ) : group.key === "main" ? (
+          <div className="py-2 px-2 space-y-3">
+            {navGroups.map((group) => {
+              const SectionIcon = SECTION_ICON[group.key] || ChevronRight;
+              const isAdminGroup = group.key === "admin";
+              const isGodmodeGroup = group.key === "godmode";
+              const isMainGroup = group.key === "main";
+
+              const tileClass = cn(
+                "rounded-xl border p-2",
+                isAdminGroup && "border-emerald-500/30 bg-emerald-500/5 dark:bg-emerald-500/10",
+                isGodmodeGroup && "border-destructive/30 bg-destructive/5 dark:bg-destructive/10",
+                isMainGroup && "border-primary/20 bg-primary/5",
+                !isAdminGroup && !isGodmodeGroup && !isMainGroup && "border-border/50 bg-muted/30",
+              );
+              const headerClass = cn(
+                "flex items-center gap-1.5 px-2 pb-1 text-[10px] font-bold uppercase tracking-wider",
+                isAdminGroup && "text-emerald-600 dark:text-emerald-400",
+                isGodmodeGroup && "text-destructive",
+                isMainGroup && "text-primary",
+                !isAdminGroup && !isGodmodeGroup && !isMainGroup && "text-muted-foreground/70",
+              );
+
+              return (
+                <div key={group.key} className={tileClass} data-testid={`mobile-section-${group.key}`}>
+                  <span className={headerClass}>
+                    <SectionIcon className="w-3 h-3" /> {group.label}
+                  </span>
                   <div className="space-y-0.5">
-                    {group.items.map((item) => {
-                      const isActive = location === item.href;
-                      return (
-                        <Link key={item.href} href={item.href}>
-                          <Button
-                            variant={isActive ? "secondary" : "ghost"}
-                            className="w-full justify-start gap-3 font-semibold"
-                            size="sm"
-                            onClick={() => setMenuOpen(false)}
-                            data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                          >
-                            <item.icon className="w-4 h-4" />
-                            {item.label}
-                          </Button>
-                        </Link>
+                    {group.items.map((item, idx) => {
+                      const isActive = location === item.href || (item.href !== "/" && item.href !== "/admin" && location.startsWith(`${item.href}/`));
+                      const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
+                      const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
+                      const badgeCount = primaryCount + secondaryCount;
+                      const isAdminPrimary = isAdminGroup && idx === 0;
+                      const showAdminDivider = isAdminGroup && idx === 1;
+
+                      const buttonVariant = isAdminGroup && isActive
+                        ? "default" as const
+                        : isGodmodeGroup && isActive
+                          ? "destructive" as const
+                          : isActive ? "secondary" as const : "ghost" as const;
+
+                      const extraClass = cn(
+                        "w-full justify-start gap-3",
+                        (isMainGroup || isAdminPrimary) && "font-semibold",
+                        isAdminGroup && isActive && "bg-emerald-600 text-white hover:bg-emerald-700",
+                        isAdminGroup && !isActive && "text-emerald-700 dark:text-emerald-400",
+                        isGodmodeGroup && !isActive && "text-destructive",
                       );
-                    })}
-                  </div>
-                ) : (
-                  <>
-                    <span className="flex items-center px-3 pb-0.5 pt-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/60">
-                      {group.label}
-                    </span>
-                    <div className="space-y-0.5">
-                      {group.items.map((item) => {
-                        const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                        const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-                        const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
-                        const badgeCount = primaryCount + secondaryCount;
-                        return (
-                          <Link key={item.href} href={item.href}>
+
+                      return (
+                        <div key={item.href}>
+                          {showAdminDivider && (
+                            <div className="my-1 h-px bg-emerald-500/20 mx-2" aria-hidden="true" />
+                          )}
+                          <Link href={item.href}>
                             <Button
-                              variant={isActive ? "secondary" : "ghost"}
-                              className="w-full justify-start gap-3"
+                              variant={buttonVariant}
+                              className={extraClass}
                               size="sm"
                               onClick={() => setMenuOpen(false)}
                               data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -1151,13 +1122,13 @@ export function MobileTopNav() {
                               )}
                             </Button>
                           </Link>
-                        );
-                      })}
-                    </div>
-                  </>
-                )}
-              </div>
-            ))}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
           <DonationCard compact />
           <div className="px-2 pb-1">
