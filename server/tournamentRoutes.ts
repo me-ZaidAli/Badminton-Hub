@@ -3747,6 +3747,14 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const startOfToday = new Date();
       startOfToday.setHours(0, 0, 0, 0);
 
+      // Stage tier: 1 = Group Stage, 2 = Quarter-Finals, 3 = Semi-Finals, 4 = Final
+      const stageTierForOrder = (groupOrder: number): number => {
+        if (groupOrder >= 400) return 4;
+        if (groupOrder >= 300) return 3;
+        if (groupOrder >= 200) return 2;
+        return 1;
+      };
+
       const stageNameForOrder = (groupOrder: number): string => {
         if (groupOrder >= 400) return "Final";
         if (groupOrder >= 300) return "Semi-Finals";
@@ -3775,9 +3783,9 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           );
 
           if (isMyGroup) {
-            // Only include groups whose startTime is in the future (or unset).
+            // Skip groups whose startTime has already passed.
             // Past stages (e.g. completed group stage) should not block the banner.
-            if (group.startTime && new Date(group.startTime) < startOfToday) {
+            if (group.startTime && new Date(group.startTime) < now) {
               continue;
             }
 
@@ -3825,7 +3833,14 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           }
         }
 
-        const sortedGroups = myGroupInfo.sort((a: any, b: any) => a.groupOrder - b.groupOrder);
+        // If the player has progressed to a later stage (QF / SF / Final),
+        // hide the earlier-stage entries so the banner only shows their current stage.
+        const maxTier = myGroupInfo.reduce((m: number, g: any) => Math.max(m, stageTierForOrder(g.groupOrder)), 0);
+        const stageFilteredGroups = maxTier > 0
+          ? myGroupInfo.filter((g: any) => stageTierForOrder(g.groupOrder) === maxTier)
+          : myGroupInfo;
+
+        const sortedGroups = stageFilteredGroups.sort((a: any, b: any) => a.groupOrder - b.groupOrder);
         const nextStageStartTime = sortedGroups.find((g: any) => g.startTime)?.startTime || null;
 
         return {
