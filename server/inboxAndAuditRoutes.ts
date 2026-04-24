@@ -63,7 +63,7 @@ export function registerInboxAndAuditRoutes(app: Express) {
         id: playerProfiles.id,
         clubId: playerProfiles.clubId,
         userId: playerProfiles.userId,
-        createdAt: playerProfiles.createdAt,
+        createdAt: playerProfiles.joinedAt,
         userName: users.fullName,
         userEmail: users.email,
         clubName: clubs.name,
@@ -71,7 +71,7 @@ export function registerInboxAndAuditRoutes(app: Express) {
         .innerJoin(users, eq(playerProfiles.userId, users.id))
         .innerJoin(clubs, eq(playerProfiles.clubId, clubs.id))
         .where(and(eq(playerProfiles.membershipStatus, "PENDING"), inArray(playerProfiles.clubId, allowed)))
-        .orderBy(desc(playerProfiles.createdAt))
+        .orderBy(desc(playerProfiles.joinedAt))
         .limit(50);
 
       // 2. Outstanding payments (player owes for confirmed past sessions)
