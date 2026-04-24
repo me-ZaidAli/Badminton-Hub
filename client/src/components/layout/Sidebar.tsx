@@ -17,8 +17,6 @@ import {
   LogOut, 
   Shield,
   ShieldCheck,
-  Inbox,
-  ScrollText,
   Menu,
   X,
   User,
@@ -204,37 +202,20 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText, group: "info" },
   ];
 
-  // Admin section is split into two visual sub-rows inside one tile:
-  //  - "primary": the main Admin Panel entry
-  //  - "admin"  : secondary admin tools
-  // Admin Panel deliberately drops its `pendingMemberships`/`outstandingPayments`
-  // badges because the new Admin Inbox entry below now consolidates them, so the
-  // same number doesn't appear in two places.
+  // The sidebar Management tile now holds a single "Admin Panel" entry only.
+  // Secondary admin tools (Admin Inbox, Audit Log, Grading Progress, AI Match
+  // Input) are surfaced as tiles *inside* the Admin Panel page so the sidebar
+  // stays uncluttered. The `adminInbox` badge piggy-backs on the Admin Panel
+  // entry so admins still see the pending count at a glance.
   if (user?.role === "OWNER") {
-    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "adminPrimary" });
-    items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
-    items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
-    items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
-    items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
+    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "adminInbox" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
-    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "adminPrimary" });
-    if (!isOrganiserOnly) {
-      items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
-      items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
-    }
-    items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
-    items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
-    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "adminPrimary" });
-    if (!isOrganiserOnly) {
-      items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
-      items.push({ href: "/admin/audit-log", label: "Audit Log", icon: ScrollText, group: "admin" });
-    }
-    items.push({ href: "/admin/grading", label: "Grading Progress", icon: Activity, group: "admin" });
-    items.push({ href: "/admin/ai-match-input", label: "AI Match Input", icon: ScanText, group: "admin" });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
   }
 
   const isAdminRole = user?.role === "OWNER" || user?.role === "ADMIN";
@@ -258,13 +239,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
 
   const groups: NavGroup[] = [];
   for (const key of groupOrder) {
-    let groupItems = filteredItems.filter(i => i.group === key);
-    // The admin tile bundles the primary "Admin Panel" entry with its secondary
-    // tools so they all live inside one visually distinct section.
-    if (key === "admin") {
-      const primary = filteredItems.filter(i => i.group === "adminPrimary");
-      groupItems = [...primary, ...groupItems];
-    }
+    const groupItems = filteredItems.filter(i => i.group === key);
     if (groupItems.length > 0) {
       groups.push({ key, label: groupLabels[key], items: groupItems });
     }
@@ -861,23 +836,17 @@ export function Sidebar() {
                 <SectionIcon className="w-3 h-3" /> {group.label}
               </span>
               <div className="space-y-0.5">
-                {group.items.map((item, idx) => {
+                {group.items.map((item) => {
                   const isActive = location === item.href || (item.href !== "/" && item.href !== "/admin" && location.startsWith(`${item.href}/`));
                   const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
                   const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
                   const badgeCount = primaryCount + secondaryCount;
                   const isLocked = item.premiumOnly && !isPremium;
 
-                  // Inside the admin tile, the very first item is the headline
-                  // "Admin Panel" entry. We mark it as primary, then drop a thin
-                  // divider before the secondary tools so the hierarchy is obvious.
-                  const isAdminPrimary = isAdminGroup && idx === 0;
-                  const showAdminDivider = isAdminGroup && idx === 1;
-
                   const itemClass = cn(
                     "flex items-center gap-3 rounded-lg cursor-pointer transition-all duration-200",
-                    // Sizing: main + adminPrimary slightly taller for prominence
-                    isMainGroup || isAdminPrimary ? "px-3 py-2.5 text-sm font-semibold" : "px-3 py-2 text-sm font-medium",
+                    // Sizing: main + admin tile entries are slightly taller for prominence
+                    isMainGroup || isAdminGroup ? "px-3 py-2.5 text-sm font-semibold" : "px-3 py-2 text-sm font-medium",
                     // Color states
                     isAdminGroup && (isActive
                       ? "bg-emerald-600 text-white shadow-md"
@@ -896,29 +865,24 @@ export function Sidebar() {
                   );
 
                   const iconClass = cn(
-                    isMainGroup || isAdminPrimary ? "h-5 w-5 shrink-0" : "h-4 w-4 shrink-0",
+                    isMainGroup || isAdminGroup ? "h-5 w-5 shrink-0" : "h-4 w-4 shrink-0",
                     !isAdminGroup && !isGodmodeGroup && !isMainGroup && (isLocked
                       ? "text-muted-foreground/40"
                       : isActive ? "text-primary" : "text-muted-foreground group-hover:text-foreground"),
                   );
 
                   return (
-                    <div key={item.href}>
-                      {showAdminDivider && (
-                        <div className="my-1.5 h-px bg-emerald-500/20 mx-2" aria-hidden="true" />
-                      )}
-                      <Link href={item.href}>
-                        <div className={itemClass} data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
-                          <item.icon className={iconClass} />
-                          <span className="truncate flex-1">{item.label}</span>
-                          {isLocked ? (
-                            <Lock className="h-3 w-3 ml-auto text-amber-500/70 shrink-0" />
-                          ) : (
-                            <BadgeCount count={badgeCount} />
-                          )}
-                        </div>
-                      </Link>
-                    </div>
+                    <Link key={item.href} href={item.href}>
+                      <div className={itemClass} data-testid={`nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}>
+                        <item.icon className={iconClass} />
+                        <span className="truncate flex-1">{item.label}</span>
+                        {isLocked ? (
+                          <Lock className="h-3 w-3 ml-auto text-amber-500/70 shrink-0" />
+                        ) : (
+                          <BadgeCount count={badgeCount} />
+                        )}
+                      </div>
+                    </Link>
                   );
                 })}
               </div>
@@ -1078,13 +1042,11 @@ export function MobileTopNav() {
                     <SectionIcon className="w-3 h-3" /> {group.label}
                   </span>
                   <div className="space-y-0.5">
-                    {group.items.map((item, idx) => {
+                    {group.items.map((item) => {
                       const isActive = location === item.href || (item.href !== "/" && item.href !== "/admin" && location.startsWith(`${item.href}/`));
                       const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
                       const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
                       const badgeCount = primaryCount + secondaryCount;
-                      const isAdminPrimary = isAdminGroup && idx === 0;
-                      const showAdminDivider = isAdminGroup && idx === 1;
 
                       const buttonVariant = isAdminGroup && isActive
                         ? "default" as const
@@ -1094,35 +1056,30 @@ export function MobileTopNav() {
 
                       const extraClass = cn(
                         "w-full justify-start gap-3",
-                        (isMainGroup || isAdminPrimary) && "font-semibold",
+                        (isMainGroup || isAdminGroup) && "font-semibold",
                         isAdminGroup && isActive && "bg-emerald-600 text-white hover:bg-emerald-700",
                         isAdminGroup && !isActive && "text-emerald-700 dark:text-emerald-400",
                         isGodmodeGroup && !isActive && "text-destructive",
                       );
 
                       return (
-                        <div key={item.href}>
-                          {showAdminDivider && (
-                            <div className="my-1 h-px bg-emerald-500/20 mx-2" aria-hidden="true" />
-                          )}
-                          <Link href={item.href}>
-                            <Button
-                              variant={buttonVariant}
-                              className={extraClass}
-                              size="sm"
-                              onClick={() => setMenuOpen(false)}
-                              data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                            >
-                              <item.icon className="w-4 h-4" />
-                              {item.label}
-                              {badgeCount > 0 && (
-                                <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
-                                  {badgeCount > 99 ? "99+" : badgeCount}
-                                </span>
-                              )}
-                            </Button>
-                          </Link>
-                        </div>
+                        <Link key={item.href} href={item.href}>
+                          <Button
+                            variant={buttonVariant}
+                            className={extraClass}
+                            size="sm"
+                            onClick={() => setMenuOpen(false)}
+                            data-testid={`mobile-nav-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          >
+                            <item.icon className="w-4 h-4" />
+                            {item.label}
+                            {badgeCount > 0 && (
+                              <span className="ml-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[10px] font-bold text-primary-foreground">
+                                {badgeCount > 99 ? "99+" : badgeCount}
+                              </span>
+                            )}
+                          </Button>
+                        </Link>
                       );
                     })}
                   </div>

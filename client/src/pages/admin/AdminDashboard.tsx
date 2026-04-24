@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle, ShoppingBag } from "lucide-react";
+import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle, ShoppingBag, Inbox, ScrollText, ScanText } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -448,6 +448,15 @@ export default function AdminDashboard() {
     ...(user?.role === "OWNER" ? [{ href: "/admin/clubs-management", label: "All Clubs Overview", description: "View and manage all platform clubs", icon: Settings, color: "text-slate-500", bg: "bg-slate-500/10" }] : []),
   ];
 
+  // Admin Tools — secondary management utilities surfaced as tiles inside the
+  // Admin Panel so they don't clutter the sidebar.
+  const adminToolsSections: AdminTile[] = [
+    ...(!isOrganiserOnly ? [{ href: "/admin/inbox", label: "Admin Inbox", description: "Pending requests, payments, orders, and tickets in one place", icon: Inbox, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/audit-log", label: "Audit Log", description: "Searchable history of admin actions across your clubs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" }] : []),
+    { href: "/admin/grading", label: "Grading Progress", description: "Review automatic skill promotions and demotions", icon: Activity, color: "text-amber-500", bg: "bg-amber-500/10" },
+    { href: "/admin/ai-match-input", label: "AI Match Input", description: "Upload score sheets and extract matches with AI vision", icon: ScanText, color: "text-indigo-500", bg: "bg-indigo-500/10" },
+  ];
+
   const allSections = [
     { label: "People & Sessions", tiles: peopleSections },
     { label: "Finance & Memberships", tiles: financeSections },
@@ -456,6 +465,7 @@ export default function AdminDashboard() {
     { label: "Rewards & Referrals", tiles: rewardsSections },
     { label: "Analytics & Insights", tiles: analyticsSections },
     { label: "Communication", tiles: commsSections },
+    { label: "Admin Tools", tiles: adminToolsSections },
     { label: "Exclusive Access", tiles: exclusiveSections },
   ].filter(s => s.tiles.length > 0);
 
