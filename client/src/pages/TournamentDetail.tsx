@@ -2259,7 +2259,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
       </div>
 
       {activeView === "standings" && (
-        <StandingsView standings={standings || []} teams={teams || []} category={category} groups={categoryGroups} matches={matches} />
+        <StandingsView standings={standings || []} teams={teams || []} category={category} groups={categoryGroups} matches={matches} stages={stages} />
       )}
 
       {activeView === "list" && (
@@ -2304,14 +2304,29 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
               const customSections: Section[] = [];
 
               // Pull matches assigned to custom stages out of the legacy buckets.
+              // A match inherits its parent group's stage when it has no stageId of its own —
+              // so stages set in the Groups tab automatically flow into Matches view too.
               const customStageMap = new Map<number, any>();
               for (const s of stages) customStageMap.set(s.id, s);
-              const isCustomStaged = (m: any) => m.stageId && customStageMap.has(m.stageId);
+              const groupStageByNumber = new Map<number, number | null>();
+              for (const g of categoryGroups) {
+                if (g?.groupOrder != null) groupStageByNumber.set(Number(g.groupOrder), g.stageId ?? null);
+              }
+              const effectiveStageId = (m: any): number | null => {
+                if (m.stageId && customStageMap.has(m.stageId)) return m.stageId;
+                if (m.groupNumber != null) {
+                  const sid = groupStageByNumber.get(Number(m.groupNumber));
+                  if (sid && customStageMap.has(sid)) return sid;
+                }
+                return null;
+              };
+              const isCustomStaged = (m: any) => effectiveStageId(m) !== null;
               const customStageGroupings = new Map<number, typeof displayMatches>();
               for (const m of displayMatches) {
-                if (isCustomStaged(m)) {
-                  if (!customStageGroupings.has(m.stageId!)) customStageGroupings.set(m.stageId!, [] as any);
-                  customStageGroupings.get(m.stageId!)!.push(m);
+                const sid = effectiveStageId(m);
+                if (sid !== null) {
+                  if (!customStageGroupings.has(sid)) customStageGroupings.set(sid, [] as any);
+                  customStageGroupings.get(sid)!.push(m);
                 }
               }
               const nowMs = Date.now();
@@ -3190,7 +3205,7 @@ function ScoreDialog({ match, onClose, onSubmit, isPending }: { match: any; onCl
   );
 }
 
-function StandingsView({ standings, teams, category, groups = [], matches = [] }: { standings: any[]; teams: any[]; category: any; groups?: any[]; matches?: any[] }) {
+function StandingsView({ standings, teams, category, groups = [], matches = [], stages = [] }: { standings: any[]; teams: any[]; category: any; groups?: any[]; matches?: any[]; stages?: any[] }) {
   const teamMap = new Map(teams.map(t => [t.id, t]));
   const advancePerGroup = category.advancePerGroup || 1;
 
@@ -3458,61 +3473,119 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
     );
   };
 
+  // Helper: render a list of groups as standings tables.
+  const renderGroupsList = (groupList: any[]) => (
+    <div className="space-y-3">
+      {groupList.map((grp: any, gi: number) => {
+        const gNum = grp.groupOrder || gi + 1;
+        const rows = computeGroupRows(grp, gNum).sort(sortFn);
+        return (
+          <div key={`grp-${grp.id}`} className="relative rounded-2xl overflow-hidden">
+            <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
+            <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
+              <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
+                <div className="flex items-center gap-2">
+                  <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
+                    <LayoutGrid className="h-3 w-3 text-white" />
+                  </div>
+                  <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{grp.name || `Group ${String.fromCharCode(64 + gNum)}`}</h4>
+                  <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{rows.length} Pairs</Badge>
+                </div>
+              </div>
+              {renderStandingsTable(rows, advancePerGroup)}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+
+  // Bucket groups by their custom stageId. Groups without a known stage fall through to the
+  // legacy "Round Robin" section so existing tournaments keep working.
+  const customStageMap = new Map<number, any>();
+  for (const s of stages) customStageMap.set(s.id, s);
+  const customStageGroupBuckets = new Map<number, any[]>();
+  const legacyGroups: any[] = [];
+  for (const g of sortedGroups) {
+    if (g.stageId && customStageMap.has(g.stageId)) {
+      if (!customStageGroupBuckets.has(g.stageId)) customStageGroupBuckets.set(g.stageId, []);
+      customStageGroupBuckets.get(g.stageId)!.push(g);
+    } else {
+      legacyGroups.push(g);
+    }
+  }
+  const nowMs = Date.now();
+  const isStagePast = (groupList: any[]) =>
+    groupList.length > 0 && groupList.every((g: any) => g.startTime && new Date(g.startTime).getTime() < nowMs);
+  const sortedCustomStages = Array.from(customStageGroupBuckets.entries())
+    .map(([sid, gs]) => ({ stage: customStageMap.get(sid), groupList: gs, past: isStagePast(gs) }))
+    .sort((a, b) => {
+      if (a.past !== b.past) return a.past ? 1 : -1;
+      return (b.stage.displayOrder ?? 0) - (a.stage.displayOrder ?? 0);
+    });
+
   // Per-stage section list — render each stage as a single accordion item, with its
   // groups / KO matches stacked inside. Latest-stage-on-top order.
-  type StandingsStage = { key: "final" | "sf" | "qf" | "rr"; label: string; color: string; icon: any; count: number; render: () => React.ReactNode };
+  type StandingsStage = { key: string; label: string; color: string; icon: any; count: number; countLabel: string; isPast?: boolean; render: () => React.ReactNode };
   const stageSections: StandingsStage[] = [];
+
+  // Active custom stages (built from the Groups tab) render first.
+  for (const cs of sortedCustomStages.filter(s => !s.past)) {
+    stageSections.push({
+      key: `custom-${cs.stage.id}`,
+      label: cs.stage.name,
+      color: "from-violet-600 to-purple-600",
+      icon: Trophy,
+      count: cs.groupList.length,
+      countLabel: cs.groupList.length === 1 ? "group" : "groups",
+      render: () => renderGroupsList(cs.groupList),
+    });
+  }
   if (finalMatches.length > 0) {
     stageSections.push({
       key: "final", label: "Final", color: "from-yellow-500 to-amber-500", icon: Trophy, count: finalMatches.length,
+      countLabel: finalMatches.length === 1 ? "match" : "matches",
       render: () => renderKoStage("Final", finalMatches, "from-yellow-500/40"),
     });
   }
   if (semiMatches.length > 0) {
     stageSections.push({
       key: "sf", label: "Semi-Finals", color: "from-amber-500 to-orange-500", icon: Medal, count: semiMatches.length,
+      countLabel: semiMatches.length === 1 ? "match" : "matches",
       render: () => renderKoStage("Semi-Finals", semiMatches, "from-amber-500/40"),
     });
   }
   if (qfMatches.length > 0) {
     stageSections.push({
       key: "qf", label: "Quarter-Finals", color: "from-cyan-500 to-sky-500", icon: GitBranch, count: qfMatches.length,
+      countLabel: qfMatches.length === 1 ? "match" : "matches",
       render: () => renderKoStage("Quarter-Finals", qfMatches, "from-cyan-500/40"),
     });
   }
-  if (sortedGroups.length > 0) {
+  if (legacyGroups.length > 0) {
     stageSections.push({
-      key: "rr", label: "Round Robin", color: "from-violet-600 to-purple-600", icon: LayoutGrid, count: sortedGroups.length,
-      render: () => (
-        <div className="space-y-3">
-          {sortedGroups.map((grp: any, gi: number) => {
-            const gNum = grp.groupOrder || gi + 1;
-            const rows = computeGroupRows(grp, gNum).sort(sortFn);
-            return (
-              <div key={`grp-${grp.id}`} className="relative rounded-2xl overflow-hidden">
-                <div className="absolute -inset-[1px] rounded-2xl bg-gradient-to-br from-violet-500/40 via-purple-500/20 to-slate-800/40 blur-[0.5px]" />
-                <div className="relative rounded-2xl bg-card overflow-hidden border border-border/30">
-                  <div className="bg-gradient-to-r from-violet-600/10 via-purple-600/5 to-transparent px-4 py-3 border-b border-border/30">
-                    <div className="flex items-center gap-2">
-                      <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center">
-                        <LayoutGrid className="h-3 w-3 text-white" />
-                      </div>
-                      <h4 className="text-sm font-black text-foreground uppercase tracking-wider">{grp.name || `Group ${String.fromCharCode(64 + gNum)}`}</h4>
-                      <Badge className="bg-violet-500/15 text-violet-500 dark:text-violet-400 border border-violet-500/30 text-[9px] font-black ml-auto">{rows.length} Pairs</Badge>
-                    </div>
-                  </div>
-                  {renderStandingsTable(rows, advancePerGroup)}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      ),
+      key: "rr", label: "Round Robin", color: "from-violet-600 to-purple-600", icon: LayoutGrid, count: legacyGroups.length,
+      countLabel: legacyGroups.length === 1 ? "group" : "groups",
+      render: () => renderGroupsList(legacyGroups),
+    });
+  }
+  // Past custom stages sink to the bottom, collapsed by default.
+  for (const cs of sortedCustomStages.filter(s => s.past)) {
+    stageSections.push({
+      key: `custom-past-${cs.stage.id}`,
+      label: cs.stage.name,
+      color: "from-slate-500 to-slate-600",
+      icon: Trophy,
+      count: cs.groupList.length,
+      countLabel: cs.groupList.length === 1 ? "group" : "groups",
+      isPast: true,
+      render: () => renderGroupsList(cs.groupList),
     });
   }
 
-  // Default open: latest stage with content (first in the list).
-  const defaultOpen = stageSections[0] ? [`sstage-${stageSections[0].key}`] : [];
+  // Default open: latest active stage with content (first non-past in the list).
+  const firstActive = stageSections.find(s => !s.isPast) || stageSections[0];
+  const defaultOpen = firstActive ? [`sstage-${firstActive.key}`] : [];
 
   return (
     <div className="space-y-4">
@@ -3544,8 +3617,11 @@ function StandingsView({ standings, teams, category, groups = [], matches = [] }
                       <Icon className="h-3.5 w-3.5 text-white" />
                     </div>
                     <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{s.label}</span>
+                    {s.isPast && (
+                      <Badge className="bg-slate-500/15 text-slate-500 dark:text-slate-400 border border-slate-500/30 text-[9px] font-black mr-2">Past</Badge>
+                    )}
                     <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto mr-2">
-                      {s.count} {s.key === "rr" ? (s.count === 1 ? "group" : "groups") : (s.count === 1 ? "match" : "matches")}
+                      {s.count} {s.countLabel}
                     </Badge>
                   </div>
                 </AccordionTrigger>
