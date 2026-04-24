@@ -2330,19 +2330,42 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 }
               }
               const nowMs = Date.now();
+              // Look up a friendly label for a groupNumber inside a custom stage.
+              const groupLabelByNumber = (gNum: number | null | undefined): string => {
+                if (gNum == null || gNum <= 0) return "Unassigned";
+                if (gNum >= 400) return "Final";
+                if (gNum >= 300) return "Semi-Finals";
+                if (gNum >= 200) return "Quarter-Finals";
+                const grp = (categoryGroups as any[]).find(g => Number(g.groupOrder) === Number(gNum));
+                if (grp?.name) return grp.name;
+                return `Group ${String.fromCharCode(64 + gNum)}`;
+              };
               for (const [sid, ms] of customStageGroupings.entries()) {
                 const stage = customStageMap.get(sid);
                 const allPast = ms.length > 0 && ms.every((m: any) => m.scheduledTime && new Date(m.scheduledTime).getTime() < nowMs);
-                customSections.push({
-                  key: `custom-${sid}`,
-                  label: stage.name,
-                  color: "violet",
-                  matches: ms,
-                  stage: "custom",
-                  customStageId: sid,
-                  customStageOrder: stage.displayOrder,
-                  isPast: allPast,
-                });
+                // Sub-bucket this stage's matches by groupNumber so each parent group gets
+                // its own collapsible card inside the stage accordion.
+                const byGroup = new Map<number, typeof ms>();
+                for (const m of ms) {
+                  const g = m.groupNumber ?? 0;
+                  if (!byGroup.has(g)) byGroup.set(g, [] as any);
+                  byGroup.get(g)!.push(m);
+                }
+                const sortedGroupKeys = Array.from(byGroup.keys()).sort((a, b) => a - b);
+                for (const g of sortedGroupKeys) {
+                  customSections.push({
+                    key: `custom-${sid}-g${g}`,
+                    label: groupLabelByNumber(g),
+                    color: "violet",
+                    matches: byGroup.get(g)!,
+                    groupNumber: g || undefined,
+                    subGroupNumber: 1,
+                    stage: "custom",
+                    customStageId: sid,
+                    customStageOrder: stage.displayOrder,
+                    isPast: allPast,
+                  });
+                }
               }
 
               const grpMatchesLegacy = grpMatches.filter(m => !isCustomStaged(m));
@@ -2459,12 +2482,26 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
               };
               type LegacyStage = Exclude<SectionStage, "custom">;
               const stageOrder: LegacyStage[] = ["final", "sf", "qf", "other", "rr"];
-              type Bucket = { kind: "legacy"; stage: LegacyStage; sections: typeof sections } | { kind: "custom"; section: typeof sections[number] };
+              type Bucket =
+                | { kind: "legacy"; stage: LegacyStage; sections: typeof sections }
+                | { kind: "custom"; customStageId: number; stageName: string; isPast: boolean; sections: typeof sections };
               const buckets: Bucket[] = [];
               const seenLegacy = new Set<LegacyStage>();
+              const seenCustom = new Set<number>();
               for (const sec of visibleSections) {
                 if (sec.stage === "custom") {
-                  buckets.push({ kind: "custom", section: sec });
+                  const sid = sec.customStageId!;
+                  if (seenCustom.has(sid)) continue;
+                  seenCustom.add(sid);
+                  const stageSecs = visibleSections.filter(s => s.stage === "custom" && s.customStageId === sid);
+                  const stage = customStageMap.get(sid);
+                  buckets.push({
+                    kind: "custom",
+                    customStageId: sid,
+                    stageName: stage?.name ?? "Stage",
+                    isPast: !!sec.isPast,
+                    sections: stageSecs,
+                  });
                 } else if (!seenLegacy.has(sec.stage as LegacyStage)) {
                   seenLegacy.add(sec.stage as LegacyStage);
                   // Reorder legacy stages by stageOrder later — gather all sections with this stage from visibleSections.
@@ -2611,14 +2648,14 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
               const firstActiveBucketKey: string | null = (() => {
                 for (const b of buckets) {
                   if (b.kind === "custom") {
-                    if (!b.section.isPast) return `mstage-${b.section.key}`;
+                    if (!b.isPast) return `mstage-custom-${b.customStageId}`;
                   } else {
                     return `mstage-${b.stage}`;
                   }
                 }
                 if (buckets.length > 0) {
                   const b = buckets[0];
-                  return b.kind === "custom" ? `mstage-${b.section.key}` : `mstage-${b.stage}`;
+                  return b.kind === "custom" ? `mstage-custom-${b.customStageId}` : `mstage-${b.stage}`;
                 }
                 return null;
               })();
@@ -2653,35 +2690,36 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     <Accordion type="multiple" defaultValue={defaultOpenStages} className="space-y-3">
                       {buckets.map(b => {
                         if (b.kind === "custom") {
-                          const sec = b.section;
                           const StageIcon = Trophy;
-                          const matchCount = sec.matches.length;
+                          const stageSecs = b.sections;
+                          const matchCount = stageSecs.reduce((n, s) => n + s.matches.length, 0);
+                          const groupCount = stageSecs.length;
                           return (
-                            <AccordionItem key={sec.key} value={`mstage-${sec.key}`}
+                            <AccordionItem key={`custom-${b.customStageId}`} value={`mstage-custom-${b.customStageId}`}
                               className={cn(
                                 "border rounded-2xl overflow-hidden",
-                                sec.isPast ? "border-border/30 bg-muted/20 opacity-80" : "border-border/40 bg-card data-[state=open]:bg-card",
+                                b.isPast ? "border-border/30 bg-muted/20 opacity-80" : "border-border/40 bg-card data-[state=open]:bg-card",
                               )}>
                               <AccordionTrigger
                                 className="px-4 py-3 hover:no-underline hover:bg-muted/30"
-                                data-testid={`accordion-matches-stage-${sec.key}`}
+                                data-testid={`accordion-matches-stage-custom-${b.customStageId}`}
                               >
                                 <div className="flex items-center gap-3 flex-1 min-w-0">
                                   <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
                                     <StageIcon className="h-3.5 w-3.5 text-white" />
                                   </div>
-                                  <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{sec.label}</span>
-                                  {sec.isPast && (
+                                  <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{b.stageName}</span>
+                                  {b.isPast && (
                                     <Badge className="bg-muted/60 text-muted-foreground text-[9px] font-black border-0">PAST</Badge>
                                   )}
                                   <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto mr-2">
-                                    {matchCount} {matchCount === 1 ? "match" : "matches"}
+                                    {groupCount} {groupCount === 1 ? "group" : "groups"} · {matchCount} {matchCount === 1 ? "match" : "matches"}
                                   </Badge>
                                 </div>
                               </AccordionTrigger>
                               <AccordionContent className="px-3 pb-3 pt-1">
                                 <div className="space-y-4">
-                                  {renderSection(sec)}
+                                  {stageSecs.map(sec => renderSection(sec))}
                                 </div>
                               </AccordionContent>
                             </AccordionItem>
