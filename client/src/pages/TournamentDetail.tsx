@@ -3959,7 +3959,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     setEditingGroup(group);
     setFormName(group.name);
     setFormMaxPairs(String(group.maxPairs));
-    setFormStartTime(group.startTime ? new Date(group.startTime).toISOString().slice(0, 16) : "");
+    setFormStartTime(group.startTime ? format(new Date(group.startTime), "yyyy-MM-dd'T'HH:mm") : "");
     setFormHallName(group.hallName || "");
     setFormCourtName(group.courtName || "");
     setFormCategoryId(group.categoryId ? String(group.categoryId) : "");
@@ -3972,7 +3972,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         tournamentId,
         name: formName.trim(),
         maxPairs: Number(formMaxPairs) || 4,
-        startTime: formStartTime || undefined,
+        startTime: formStartTime ? new Date(formStartTime).toISOString() : undefined,
         hallName: formHallName || undefined,
         courtName: formCourtName || undefined,
         categoryId: formCategoryId ? Number(formCategoryId) : undefined,
@@ -3992,7 +3992,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         tournamentId,
         name: formName.trim(),
         maxPairs: Number(formMaxPairs) || 4,
-        startTime: formStartTime || null,
+        startTime: formStartTime ? new Date(formStartTime).toISOString() : null,
         hallName: formHallName || null,
         courtName: formCourtName || null,
         categoryId: formCategoryId ? Number(formCategoryId) : null,
@@ -4297,7 +4297,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                       <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Start time</span>
                       <Input
                         type="datetime-local"
-                        value={perGroupTime[group.id] ?? (group.startTime ? new Date(group.startTime).toISOString().slice(0, 16) : "")}
+                        value={perGroupTime[group.id] ?? (group.startTime ? format(new Date(group.startTime), "yyyy-MM-dd'T'HH:mm") : "")}
                         onChange={(e) => setPerGroupTime(prev => ({ ...prev, [group.id]: e.target.value }))}
                         className="h-7 text-xs flex-1 min-w-[180px] max-w-[240px]"
                         data-testid={`input-group-time-${group.id}`}
@@ -5376,9 +5376,9 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
   const [name, setName] = useState(tournament.name || "");
   const [type, setType] = useState(tournament.type || "CLUB");
   const [status, setStatus] = useState(tournament.status || "DRAFT");
-  const [startDate, setStartDate] = useState(tournament.startDate ? new Date(tournament.startDate).toISOString().slice(0, 16) : "");
-  const [endDate, setEndDate] = useState(tournament.endDate ? new Date(tournament.endDate).toISOString().slice(0, 16) : "");
-  const [registrationDeadline, setRegistrationDeadline] = useState(tournament.registrationDeadline ? new Date(tournament.registrationDeadline).toISOString().slice(0, 16) : "");
+  const [startDate, setStartDate] = useState(tournament.startDate ? format(new Date(tournament.startDate), "yyyy-MM-dd'T'HH:mm") : "");
+  const [endDate, setEndDate] = useState(tournament.endDate ? format(new Date(tournament.endDate), "yyyy-MM-dd'T'HH:mm") : "");
+  const [registrationDeadline, setRegistrationDeadline] = useState(tournament.registrationDeadline ? format(new Date(tournament.registrationDeadline), "yyyy-MM-dd'T'HH:mm") : "");
   const [location, setLocation] = useState(tournament.location || "");
   const [description, setDescription] = useState(tournament.description || "");
   const [rules, setRules] = useState(tournament.rules || "");
@@ -5392,9 +5392,9 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
     setName(tournament.name || "");
     setType(tournament.type || "CLUB");
     setStatus(tournament.status || "DRAFT");
-    setStartDate(tournament.startDate ? new Date(tournament.startDate).toISOString().slice(0, 16) : "");
-    setEndDate(tournament.endDate ? new Date(tournament.endDate).toISOString().slice(0, 16) : "");
-    setRegistrationDeadline(tournament.registrationDeadline ? new Date(tournament.registrationDeadline).toISOString().slice(0, 16) : "");
+    setStartDate(tournament.startDate ? format(new Date(tournament.startDate), "yyyy-MM-dd'T'HH:mm") : "");
+    setEndDate(tournament.endDate ? format(new Date(tournament.endDate), "yyyy-MM-dd'T'HH:mm") : "");
+    setRegistrationDeadline(tournament.registrationDeadline ? format(new Date(tournament.registrationDeadline), "yyyy-MM-dd'T'HH:mm") : "");
     setLocation(tournament.location || "");
     setDescription(tournament.description || "");
     setRules(tournament.rules || "");
