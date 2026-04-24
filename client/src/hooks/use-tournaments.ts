@@ -860,7 +860,7 @@ export function useTournamentGroups(tournamentId: number) {
 
 export function useCreateTournamentGroup() {
   return useMutation({
-    mutationFn: async ({ tournamentId, ...data }: { tournamentId: number; name: string; categoryId?: number; maxPairs?: number; startTime?: string; venueId?: number; hallName?: string; courtName?: string; groupOrder?: number }) => {
+    mutationFn: async ({ tournamentId, ...data }: { tournamentId: number; name: string; categoryId?: number; maxPairs?: number; startTime?: string; venueId?: number; hallName?: string; courtName?: string; groupOrder?: number; stageId?: number | null }) => {
       const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/groups`, data);
       return res.json();
     },
@@ -872,12 +872,71 @@ export function useCreateTournamentGroup() {
 
 export function useUpdateTournamentGroup() {
   return useMutation({
-    mutationFn: async ({ groupId, tournamentId, ...data }: { groupId: number; tournamentId: number; name?: string; maxPairs?: number; startTime?: string | null; venueId?: number | null; hallName?: string | null; courtName?: string | null; groupOrder?: number; categoryId?: number | null }) => {
+    mutationFn: async ({ groupId, tournamentId, ...data }: { groupId: number; tournamentId: number; name?: string; maxPairs?: number; startTime?: string | null; venueId?: number | null; hallName?: string | null; courtName?: string | null; groupOrder?: number; categoryId?: number | null; stageId?: number | null }) => {
       const res = await apiRequest("PATCH", `/api/tournament-groups/${groupId}`, data);
       return res.json();
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+    },
+  });
+}
+
+// === STAGES ===
+export interface TournamentStage {
+  id: number;
+  tournamentId: number;
+  name: string;
+  displayOrder: number;
+  createdAt: string;
+}
+
+export function useTournamentStages(tournamentId: number) {
+  return useQuery<TournamentStage[]>({
+    queryKey: ["/api/tournaments", tournamentId, "stages"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/stages`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch stages");
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useCreateTournamentStage() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, name, displayOrder }: { tournamentId: number; name: string; displayOrder?: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/stages`, { name, displayOrder });
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "stages"] });
+    },
+  });
+}
+
+export function useUpdateTournamentStage() {
+  return useMutation({
+    mutationFn: async ({ stageId, tournamentId, ...data }: { stageId: number; tournamentId: number; name?: string; displayOrder?: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-stages/${stageId}`, data);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "stages"] });
+    },
+  });
+}
+
+export function useDeleteTournamentStage() {
+  return useMutation({
+    mutationFn: async ({ stageId }: { stageId: number; tournamentId: number }) => {
+      const res = await apiRequest("DELETE", `/api/tournament-stages/${stageId}`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "stages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
     },
   });
 }

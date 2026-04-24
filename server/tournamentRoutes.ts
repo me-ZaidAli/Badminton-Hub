@@ -6,7 +6,7 @@ import {
   tournamentStandings, tournamentRegistrations, tournamentPairRequests,
   tournamentWaitlist, tournamentAdmins, tournamentPrizes,
   tournamentCourts, tournamentPlayerStats,
-  tournamentGroups, tournamentGroupPairs,
+  tournamentGroups, tournamentGroupPairs, tournamentStages,
   users, clubs, venues, playerProfiles, matches,
   notifications, clubMemberships, internalMessages
 } from "@shared/schema";
@@ -1074,7 +1074,7 @@ export function registerTournamentRoutes(app: Express) {
       const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
       if (!canManage) return res.status(403).json({ message: "Not authorized" });
 
-      const { teamAId: rawTeamAId, teamBId: rawTeamBId, pairARequestId, pairBRequestId, groupNumber, subGroupNumber, round: roundOverride } = req.body;
+      const { teamAId: rawTeamAId, teamBId: rawTeamBId, pairARequestId, pairBRequestId, groupNumber, subGroupNumber, round: roundOverride, stageId: rawStageId } = req.body;
 
       // Helper: resolve a pair-request to a team in this category, creating it if needed.
       // Throws with a descriptive reason on failure so the user sees exactly what went wrong
@@ -1157,6 +1157,10 @@ export function registerTournamentRoutes(app: Express) {
         .where(eq(tournamentMatches.categoryId, catId));
       const maxOrder = existingMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1);
 
+      // Validate stageId belongs to this tournament before persisting (shared helper).
+      const stageCheck = await validateStageBelongsToTournament(rawStageId, cat.tournamentId);
+      if (!stageCheck.ok) return res.status(stageCheck.status).json({ message: stageCheck.message });
+
       const [match] = await db.insert(tournamentMatches).values({
         categoryId: catId,
         teamAId,
@@ -1165,6 +1169,7 @@ export function registerTournamentRoutes(app: Express) {
         matchOrder: maxOrder + 1,
         groupNumber: gNum,
         subGroupNumber: sgNum,
+        stageId: stageCheck.value,
       }).returning();
 
       // Ensure standings rows exist for both pairs in this group, otherwise score updates are silently dropped.
@@ -3497,6 +3502,110 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
     }
   });
 
+  // === TOURNAMENT STAGES ===
+  // Stages let admins group rounds (e.g. "Group Stage", "Quarter-Finals", "Final")
+  // and assign each tournament_group / tournament_match to a stage.
+  app.get("/api/tournaments/:id/stages", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const stages = await db.select().from(tournamentStages)
+        .where(eq(tournamentStages.tournamentId, tournamentId))
+        .orderBy(tournamentStages.displayOrder);
+      res.json(stages);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournaments/:id/stages", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const name = (req.body?.name || "").toString().trim();
+      if (!name) return res.status(400).json({ message: "Stage name is required" });
+
+      // Auto-assign next display order if not provided.
+      let displayOrder = Number(req.body?.displayOrder);
+      if (!Number.isFinite(displayOrder) || displayOrder <= 0) {
+        const existing = await db.select().from(tournamentStages)
+          .where(eq(tournamentStages.tournamentId, tournamentId));
+        displayOrder = existing.reduce((m, s) => Math.max(m, s.displayOrder), 0) + 1;
+      }
+
+      const [stage] = await db.insert(tournamentStages).values({
+        tournamentId, name, displayOrder,
+      }).returning();
+      res.json(stage);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-stages/:stageId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const stageId = Number(req.params.stageId);
+      if (!Number.isFinite(stageId) || stageId <= 0) return res.status(400).json({ message: "Invalid stage id" });
+      const [stage] = await db.select().from(tournamentStages).where(eq(tournamentStages.id, stageId));
+      if (!stage) return res.status(404).json({ message: "Stage not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, stage.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const updates: any = {};
+      if (req.body.name !== undefined) {
+        const trimmed = String(req.body.name).trim();
+        if (!trimmed) return res.status(400).json({ message: "Stage name cannot be empty" });
+        updates.name = trimmed;
+      }
+      if (req.body.displayOrder !== undefined) {
+        const n = Number(req.body.displayOrder);
+        if (!Number.isFinite(n) || n <= 0 || !Number.isInteger(n)) {
+          return res.status(400).json({ message: "displayOrder must be a positive integer" });
+        }
+        updates.displayOrder = n;
+      }
+
+      const [updated] = await db.update(tournamentStages).set(updates).where(eq(tournamentStages.id, stageId)).returning();
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.delete("/api/tournament-stages/:stageId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const stageId = Number(req.params.stageId);
+      if (!Number.isFinite(stageId) || stageId <= 0) return res.status(400).json({ message: "Invalid stage id" });
+      const [stage] = await db.select().from(tournamentStages).where(eq(tournamentStages.id, stageId));
+      if (!stage) return res.status(404).json({ message: "Stage not found" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, stage.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      // Detach groups and matches still linked to this stage so deletion is non-destructive.
+      await db.update(tournamentGroups).set({ stageId: null }).where(eq(tournamentGroups.stageId, stageId));
+      await db.update(tournamentMatches).set({ stageId: null }).where(eq(tournamentMatches.stageId, stageId));
+      await db.delete(tournamentStages).where(eq(tournamentStages.id, stageId));
+      res.json({ message: "Stage deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Helper: ensure a stageId exists and belongs to the given tournament.
+  async function validateStageBelongsToTournament(stageId: any, tournamentId: number): Promise<{ ok: true; value: number | null } | { ok: false; status: number; message: string }> {
+    if (stageId === undefined || stageId === null || stageId === "") return { ok: true, value: null };
+    const n = Number(stageId);
+    if (!Number.isFinite(n) || n <= 0) return { ok: false, status: 400, message: "Invalid stageId" };
+    const [s] = await db.select().from(tournamentStages).where(eq(tournamentStages.id, n));
+    if (!s) return { ok: false, status: 400, message: "Stage not found" };
+    if (s.tournamentId !== tournamentId) return { ok: false, status: 400, message: "Stage does not belong to this tournament" };
+    return { ok: true, value: n };
+  }
+
   app.post("/api/tournaments/:id/groups", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
@@ -3504,12 +3613,16 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
       if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
 
-      const { name, categoryId, maxPairs, startTime, venueId, hallName, courtName, groupOrder } = req.body;
+      const { name, categoryId, maxPairs, startTime, venueId, hallName, courtName, groupOrder, stageId } = req.body;
       if (!name) return res.status(400).json({ message: "Group name is required" });
+
+      const stageCheck = await validateStageBelongsToTournament(stageId, tournamentId);
+      if (!stageCheck.ok) return res.status(stageCheck.status).json({ message: stageCheck.message });
 
       const [group] = await db.insert(tournamentGroups).values({
         tournamentId,
         categoryId: categoryId || null,
+        stageId: stageCheck.value,
         name,
         groupOrder: groupOrder || 1,
         maxPairs: maxPairs || 4,
@@ -3544,6 +3657,11 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       if (req.body.courtName !== undefined) updates.courtName = req.body.courtName || null;
       if (req.body.groupOrder !== undefined) updates.groupOrder = req.body.groupOrder;
       if (req.body.categoryId !== undefined) updates.categoryId = req.body.categoryId || null;
+      if (req.body.stageId !== undefined) {
+        const stageCheck = await validateStageBelongsToTournament(req.body.stageId, group.tournamentId);
+        if (!stageCheck.ok) return res.status(stageCheck.status).json({ message: stageCheck.message });
+        updates.stageId = stageCheck.value;
+      }
 
       const [updated] = await db.update(tournamentGroups).set(updates).where(eq(tournamentGroups.id, groupId)).returning();
       res.json(updated);

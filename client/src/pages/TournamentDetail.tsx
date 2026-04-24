@@ -15,6 +15,7 @@ import {
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
   useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup,
   useAddPairToGroup, useRemovePairFromGroup,
+  useTournamentStages, useCreateTournamentStage, useUpdateTournamentStage, useDeleteTournamentStage,
   useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
   useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
@@ -2042,6 +2043,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const { data: standings } = useTournamentStandings(category.id);
   const { data: courts } = useTournamentCourts(tournamentId);
   const { data: allGroups = [] } = useTournamentGroups(tournamentId);
+  const { data: stages = [] } = useTournamentStages(tournamentId);
   // Show every group from the Groups tab (groups without a category are also included).
   const categoryGroups = (allGroups as any[]).filter((g: any) => !g.categoryId || g.categoryId === category.id);
   const assignCourtMutation = useAssignMatchCourt();
@@ -2063,6 +2065,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const [addMatchTeamB, setAddMatchTeamB] = useState<string>("");
   const [addMatchGroupNumber, setAddMatchGroupNumber] = useState<number | "">("");
   const [addMatchStage, setAddMatchStage] = useState<"rr" | "qf" | "sf" | "final">("rr");
+  const [addMatchCustomStageId, setAddMatchCustomStageId] = useState<string>("none");
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const handleAssignCourt = (matchId: number, courtId: number | null) => {
@@ -2288,18 +2291,49 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 return `Round ${idx + 1}`;
               }
 
-              type SectionStage = "rr" | "qf" | "sf" | "final" | "other";
+              type SectionStage = "rr" | "qf" | "sf" | "final" | "other" | "custom";
+              type Section = { key: string; label: string; color: string; matches: typeof displayMatches; groupNumber?: number; subGroupNumber?: number; stage: SectionStage; customStageId?: number; customStageOrder?: number; isPast?: boolean };
               // Build all stage buckets independently first, then concatenate them in
-              // "latest stage on top" order: Final → Semi-Finals → Quarter-Finals → other KO → Round Robin.
-              const sections: { key: string; label: string; color: string; matches: typeof displayMatches; groupNumber?: number; subGroupNumber?: number; stage: SectionStage }[] = [];
-              const finalSections: typeof sections = [];
-              const semiSections: typeof sections = [];
-              const qfSections: typeof sections = [];
-              const otherKoSections: typeof sections = [];
-              const rrSections: typeof sections = [];
-              if (grpMatches.length > 0) {
-                const sgMap = new Map<string, typeof grpMatches>();
-                grpMatches.forEach(m => {
+              // "latest stage on top" order: Custom stages (newest first) → Final → Semi-Finals → Quarter-Finals → other KO → Round Robin.
+              const sections: Section[] = [];
+              const finalSections: Section[] = [];
+              const semiSections: Section[] = [];
+              const qfSections: Section[] = [];
+              const otherKoSections: Section[] = [];
+              const rrSections: Section[] = [];
+              const customSections: Section[] = [];
+
+              // Pull matches assigned to custom stages out of the legacy buckets.
+              const customStageMap = new Map<number, any>();
+              for (const s of stages) customStageMap.set(s.id, s);
+              const isCustomStaged = (m: any) => m.stageId && customStageMap.has(m.stageId);
+              const customStageGroupings = new Map<number, typeof displayMatches>();
+              for (const m of displayMatches) {
+                if (isCustomStaged(m)) {
+                  if (!customStageGroupings.has(m.stageId!)) customStageGroupings.set(m.stageId!, [] as any);
+                  customStageGroupings.get(m.stageId!)!.push(m);
+                }
+              }
+              const nowMs = Date.now();
+              for (const [sid, ms] of customStageGroupings.entries()) {
+                const stage = customStageMap.get(sid);
+                const allPast = ms.length > 0 && ms.every((m: any) => m.scheduledTime && new Date(m.scheduledTime).getTime() < nowMs);
+                customSections.push({
+                  key: `custom-${sid}`,
+                  label: stage.name,
+                  color: "violet",
+                  matches: ms,
+                  stage: "custom",
+                  customStageId: sid,
+                  customStageOrder: stage.displayOrder,
+                  isPast: allPast,
+                });
+              }
+
+              const grpMatchesLegacy = grpMatches.filter(m => !isCustomStaged(m));
+              if (grpMatchesLegacy.length > 0) {
+                const sgMap = new Map<string, typeof grpMatchesLegacy>();
+                grpMatchesLegacy.forEach(m => {
                   const k = `${m.groupNumber}-${m.subGroupNumber || 1}`;
                   if (!sgMap.has(k)) sgMap.set(k, []);
                   sgMap.get(k)!.push(m);
@@ -2315,7 +2349,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 }
               }
 
-              const qfDisplayMatches = displayMatches.filter(m => m.round === 200);
+              const qfDisplayMatches = displayMatches.filter(m => m.round === 200 && !isCustomStaged(m));
               if (qfDisplayMatches.length > 0) {
                 const qfGroupMap = new Map<number, typeof qfDisplayMatches>();
                 qfDisplayMatches.forEach(m => {
@@ -2330,7 +2364,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 });
               }
 
-              const semiDisplayMatches = displayMatches.filter(m => m.round === 300);
+              const semiDisplayMatches = displayMatches.filter(m => m.round === 300 && !isCustomStaged(m));
               if (semiDisplayMatches.length > 0) {
                 const semiGroupMap = new Map<number, typeof semiDisplayMatches>();
                 semiDisplayMatches.forEach(m => {
@@ -2345,13 +2379,13 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 });
               }
 
-              const finalDisplayMatches = displayMatches.filter(m => m.round === 400);
+              const finalDisplayMatches = displayMatches.filter(m => m.round === 400 && !isCustomStaged(m));
               if (finalDisplayMatches.length > 0) {
                 finalSections.push({ key: "final", label: "Final", color: "amber", matches: finalDisplayMatches, groupNumber: 400, stage: "final" });
               }
 
               const otherKoMatches = displayMatches.filter(m =>
-                m.round >= 100 && m.round !== 200 && m.round !== 300 && m.round !== 400 && (!m.groupNumber || m.groupNumber >= 100)
+                m.round >= 100 && m.round !== 200 && m.round !== 300 && m.round !== 400 && (!m.groupNumber || m.groupNumber >= 100) && !isCustomStaged(m)
               );
               if (otherKoMatches.length > 0) {
                 const koRoundMap = new Map<number, typeof otherKoMatches>();
@@ -2365,8 +2399,17 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 });
               }
 
-              // Latest stage on top: Final → Semi-Finals → Quarter-Finals → other KO → Round Robin.
-              sections.push(...finalSections, ...semiSections, ...qfSections, ...otherKoSections, ...rrSections);
+              // Custom stages render newest-first at the top (past at bottom), then legacy stages.
+              const sortedCustom = [...customSections].sort((a, b) => {
+                const aPast = a.isPast ? 1 : 0;
+                const bPast = b.isPast ? 1 : 0;
+                if (aPast !== bPast) return aPast - bPast;
+                return (b.customStageOrder ?? 0) - (a.customStageOrder ?? 0);
+              });
+              const activeCustom = sortedCustom.filter(s => !s.isPast);
+              const pastCustom = sortedCustom.filter(s => s.isPast);
+              // Latest stage on top: custom (active) → Final → Semi-Finals → Quarter-Finals → other KO → Round Robin → custom (past).
+              sections.push(...activeCustom, ...finalSections, ...semiSections, ...qfSections, ...otherKoSections, ...rrSections, ...pastCustom);
 
               const stageCounts = {
                 qf: sections.filter(s => s.stage === "qf").reduce((n, s) => n + s.matches.length, 0),
@@ -2392,20 +2435,29 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
 
               // Bucket every per-group section into its parent stage so we can render one
               // accordion item per stage (each containing all of that stage's groups).
-              const stageMeta: Record<SectionStage, { label: string; color: string; icon: any }> = {
+              const stageMeta: Record<Exclude<SectionStage, "custom">, { label: string; color: string; icon: any }> = {
                 final: { label: "Final",          color: "from-yellow-500 to-amber-500",  icon: Trophy },
                 sf:    { label: "Semi-Finals",    color: "from-amber-500 to-orange-500",  icon: Medal },
                 qf:    { label: "Quarter-Finals", color: "from-cyan-500 to-sky-500",      icon: GitBranch },
                 other: { label: "Other Knockouts",color: "from-fuchsia-500 to-pink-500",  icon: Swords },
                 rr:    { label: "Round Robin",    color: "from-violet-600 to-purple-600", icon: LayoutGrid },
               };
-              const stageOrder: SectionStage[] = ["final", "sf", "qf", "other", "rr"];
-              const stageBuckets = new Map<SectionStage, typeof sections>();
+              type LegacyStage = Exclude<SectionStage, "custom">;
+              const stageOrder: LegacyStage[] = ["final", "sf", "qf", "other", "rr"];
+              type Bucket = { kind: "legacy"; stage: LegacyStage; sections: typeof sections } | { kind: "custom"; section: typeof sections[number] };
+              const buckets: Bucket[] = [];
+              const seenLegacy = new Set<LegacyStage>();
               for (const sec of visibleSections) {
-                if (!stageBuckets.has(sec.stage)) stageBuckets.set(sec.stage, []);
-                stageBuckets.get(sec.stage)!.push(sec);
+                if (sec.stage === "custom") {
+                  buckets.push({ kind: "custom", section: sec });
+                } else if (!seenLegacy.has(sec.stage as LegacyStage)) {
+                  seenLegacy.add(sec.stage as LegacyStage);
+                  // Reorder legacy stages by stageOrder later — gather all sections with this stage from visibleSections.
+                  const stage = sec.stage as LegacyStage;
+                  const stageSecs = visibleSections.filter(s => s.stage === stage);
+                  buckets.push({ kind: "legacy", stage, sections: stageSecs });
+                }
               }
-              const activeStages = stageOrder.filter(s => stageBuckets.has(s));
 
               const renderSection = (sec: typeof sections[number]) => {
                     const isCollapsed = !!collapsedSections[sec.key];
@@ -2541,7 +2593,21 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     );
                   };
 
-              const defaultOpenStages = activeStages.length > 0 ? [`mstage-${activeStages[0]}`] : [];
+              const firstActiveBucketKey: string | null = (() => {
+                for (const b of buckets) {
+                  if (b.kind === "custom") {
+                    if (!b.section.isPast) return `mstage-${b.section.key}`;
+                  } else {
+                    return `mstage-${b.stage}`;
+                  }
+                }
+                if (buckets.length > 0) {
+                  const b = buckets[0];
+                  return b.kind === "custom" ? `mstage-${b.section.key}` : `mstage-${b.stage}`;
+                }
+                return null;
+              })();
+              const defaultOpenStages = firstActiveBucketKey ? [firstActiveBucketKey] : [];
               return (
                 <>
                   {stageOptions.length > 1 && (
@@ -2566,14 +2632,50 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                       )}
                     </div>
                   )}
-                  {activeStages.length === 0 ? (
+                  {buckets.length === 0 ? (
                     <EmptyState icon={Swords} title="No Matches in this Stage" description="Pick another stage from the dropdown above." />
                   ) : (
                     <Accordion type="multiple" defaultValue={defaultOpenStages} className="space-y-3">
-                      {activeStages.map(stageKey => {
+                      {buckets.map(b => {
+                        if (b.kind === "custom") {
+                          const sec = b.section;
+                          const StageIcon = Trophy;
+                          const matchCount = sec.matches.length;
+                          return (
+                            <AccordionItem key={sec.key} value={`mstage-${sec.key}`}
+                              className={cn(
+                                "border rounded-2xl overflow-hidden",
+                                sec.isPast ? "border-border/30 bg-muted/20 opacity-80" : "border-border/40 bg-card data-[state=open]:bg-card",
+                              )}>
+                              <AccordionTrigger
+                                className="px-4 py-3 hover:no-underline hover:bg-muted/30"
+                                data-testid={`accordion-matches-stage-${sec.key}`}
+                              >
+                                <div className="flex items-center gap-3 flex-1 min-w-0">
+                                  <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-violet-600 to-purple-600 flex items-center justify-center shadow-sm flex-shrink-0">
+                                    <StageIcon className="h-3.5 w-3.5 text-white" />
+                                  </div>
+                                  <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{sec.label}</span>
+                                  {sec.isPast && (
+                                    <Badge className="bg-muted/60 text-muted-foreground text-[9px] font-black border-0">PAST</Badge>
+                                  )}
+                                  <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto mr-2">
+                                    {matchCount} {matchCount === 1 ? "match" : "matches"}
+                                  </Badge>
+                                </div>
+                              </AccordionTrigger>
+                              <AccordionContent className="px-3 pb-3 pt-1">
+                                <div className="space-y-4">
+                                  {renderSection(sec)}
+                                </div>
+                              </AccordionContent>
+                            </AccordionItem>
+                          );
+                        }
+                        const stageKey = b.stage;
                         const meta = stageMeta[stageKey];
                         const StageIcon = meta.icon;
-                        const stageSections = stageBuckets.get(stageKey)!;
+                        const stageSections = b.sections;
                         const stageMatchCount = stageSections.reduce((n, s) => n + s.matches.length, 0);
                         return (
                           <AccordionItem key={stageKey} value={`mstage-${stageKey}`}
@@ -2685,6 +2787,20 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                         </SelectContent>
                       </Select>
                     </div>
+                    {stages.length > 0 && (
+                      <div>
+                        <label className="text-xs font-semibold text-muted-foreground mb-1 block">Custom Stage (optional)</label>
+                        <Select value={addMatchCustomStageId} onValueChange={setAddMatchCustomStageId}>
+                          <SelectTrigger data-testid="select-add-match-custom-stage"><SelectValue /></SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">No custom stage</SelectItem>
+                            {[...stages].sort((a, b) => b.displayOrder - a.displayOrder).map(s => (
+                              <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    )}
                     <div>
                       <label className="text-xs font-semibold text-muted-foreground mb-1 block">Group</label>
                       <Select
@@ -2768,6 +2884,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                     round: stageRound,
                     groupNumber: gNum,
                     subGroupNumber: sgNum,
+                    stageId: addMatchCustomStageId !== "none" ? Number(addMatchCustomStageId) : null,
                   } as any, {
                     onSuccess: () => {
                       toast({ title: "Match Added" });
@@ -3831,9 +3948,13 @@ function PlayerStatsTab({ tournamentId, categories, canManage }: { tournamentId:
 
 function GroupsTab({ tournamentId, tournament, categories, canManage }: { tournamentId: number; tournament: any; categories: any[]; canManage: boolean }) {
   const { data: groups = [], isLoading } = useTournamentGroups(tournamentId);
+  const { data: stages = [] } = useTournamentStages(tournamentId);
   const createGroupMutation = useCreateTournamentGroup();
   const updateGroupMutation = useUpdateTournamentGroup();
   const deleteGroupMutation = useDeleteTournamentGroup();
+  const createStageMutation = useCreateTournamentStage();
+  const updateStageMutation = useUpdateTournamentStage();
+  const deleteStageMutation = useDeleteTournamentStage();
   const addPairMutation = useAddPairToGroup();
   const removePairMutation = useRemovePairFromGroup();
   const { toast } = useToast();
@@ -3842,6 +3963,8 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const [editingGroup, setEditingGroup] = useState<any>(null);
   const [addPairOpen, setAddPairOpen] = useState<number | null>(null);
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
+  const [stagesDialogOpen, setStagesDialogOpen] = useState(false);
+  const [newStageName, setNewStageName] = useState("");
 
   const [formName, setFormName] = useState("");
   const [formMaxPairs, setFormMaxPairs] = useState("4");
@@ -3849,6 +3972,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const [formHallName, setFormHallName] = useState("");
   const [formCourtName, setFormCourtName] = useState("");
   const [formCategoryId, setFormCategoryId] = useState<string>("");
+  const [formStageId, setFormStageId] = useState<string>("none");
   const [bulkGroupTime, setBulkGroupTime] = useState("");
   const [perGroupTime, setPerGroupTime] = useState<Record<number, string>>({});
 
@@ -3952,7 +4076,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const hasPairs = acceptedPairs.length > 0;
 
   function resetForm() {
-    setFormName(""); setFormMaxPairs("4"); setFormStartTime(""); setFormHallName(""); setFormCourtName(""); setFormCategoryId("");
+    setFormName(""); setFormMaxPairs("4"); setFormStartTime(""); setFormHallName(""); setFormCourtName(""); setFormCategoryId(""); setFormStageId("none");
   }
 
   function openEdit(group: any) {
@@ -3963,6 +4087,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     setFormHallName(group.hallName || "");
     setFormCourtName(group.courtName || "");
     setFormCategoryId(group.categoryId ? String(group.categoryId) : "");
+    setFormStageId(group.stageId ? String(group.stageId) : "none");
   }
 
   async function handleCreate() {
@@ -3976,6 +4101,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         hallName: formHallName || undefined,
         courtName: formCourtName || undefined,
         categoryId: formCategoryId ? Number(formCategoryId) : undefined,
+        stageId: formStageId !== "none" ? Number(formStageId) : null,
         groupOrder: groups.length + 1,
       });
       toast({ title: "Group Created" });
@@ -3996,10 +4122,51 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         hallName: formHallName || null,
         courtName: formCourtName || null,
         categoryId: formCategoryId ? Number(formCategoryId) : null,
+        stageId: formStageId !== "none" ? Number(formStageId) : null,
       });
       toast({ title: "Group Updated" });
       setEditingGroup(null);
       resetForm();
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function handleCreateStage() {
+    const name = newStageName.trim();
+    if (!name) { toast({ title: "Error", description: "Stage name required", variant: "destructive" }); return; }
+    try {
+      await createStageMutation.mutateAsync({ tournamentId, name });
+      setNewStageName("");
+      toast({ title: "Stage Created" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function handleRenameStage(stageId: number, name: string) {
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    try {
+      await updateStageMutation.mutateAsync({ stageId, tournamentId, name: trimmed });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function handleDeleteStage(stageId: number) {
+    try {
+      await deleteStageMutation.mutateAsync({ stageId, tournamentId });
+      toast({ title: "Stage Deleted" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function moveStage(stageId: number, direction: "up" | "down") {
+    const sorted = [...stages].sort((a, b) => a.displayOrder - b.displayOrder);
+    const idx = sorted.findIndex(s => s.id === stageId);
+    if (idx < 0) return;
+    const swapWith = direction === "up" ? idx - 1 : idx + 1;
+    if (swapWith < 0 || swapWith >= sorted.length) return;
+    const a = sorted[idx], b = sorted[swapWith];
+    try {
+      await Promise.all([
+        updateStageMutation.mutateAsync({ stageId: a.id, tournamentId, displayOrder: b.displayOrder }),
+        updateStageMutation.mutateAsync({ stageId: b.id, tournamentId, displayOrder: a.displayOrder }),
+      ]);
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
@@ -4064,6 +4231,21 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               </Select>
             </div>
           )}
+          <div>
+            <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Stage</label>
+            <Select value={formStageId} onValueChange={setFormStageId}>
+              <SelectTrigger data-testid="select-group-stage"><SelectValue placeholder="No stage" /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">No stage (use legacy bucket)</SelectItem>
+                {[...stages].sort((a, b) => b.displayOrder - a.displayOrder).map(s => (
+                  <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {stages.length === 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">No stages yet. Use Manage Stages to create one.</p>
+            )}
+          </div>
           <div className="grid grid-cols-2 gap-3">
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Max Pairs</label>
@@ -4150,11 +4332,21 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
           Round Robin Groups
         </h3>
         {canManage && (
-          <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
-            data-testid="button-create-group"
-            onClick={() => { resetForm(); setCreateOpen(true); }}>
-            <Plus className="h-3.5 w-3.5 mr-1" /> Add Group
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" className="font-bold text-xs"
+              data-testid="button-manage-stages"
+              onClick={() => setStagesDialogOpen(true)}>
+              <Settings className="h-3.5 w-3.5 mr-1" /> Manage Stages
+              {stages.length > 0 && (
+                <Badge className="ml-1.5 h-4 px-1.5 text-[9px] bg-violet-600/20 text-violet-400 border-0">{stages.length}</Badge>
+              )}
+            </Button>
+            <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
+              data-testid="button-create-group"
+              onClick={() => { resetForm(); setCreateOpen(true); }}>
+              <Plus className="h-3.5 w-3.5 mr-1" /> Add Group
+            </Button>
+          </div>
         )}
       </div>
 
@@ -4187,7 +4379,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
       {groups.length === 0 ? (
         <EmptyState icon={LayoutGrid} title="No Groups" description="Create round robin groups and assign pairs to get started." />
       ) : (() => {
-        // Stage thresholds line up with the rest of the tournament module:
+        // Legacy stage thresholds (used when no admin-defined stages exist):
         // 1-99 = Round Robin, 100-199 = other/early knockout, 200-299 = QF, 300-399 = SF, 400+ = Final.
         const stageOf = (order?: number) => {
           if (!order) return "rr" as const;
@@ -4197,31 +4389,89 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
           if (order >= 100) return "other" as const;
           return "rr" as const;
         };
-        const stageMeta: Record<string, { label: string; color: string; icon: any; order: number }> = {
+        const legacyMeta: Record<string, { label: string; color: string; icon: any; order: number }> = {
           final:  { label: "Final",            color: "from-yellow-500 to-amber-500",  icon: Trophy,     order: 1 },
           sf:     { label: "Semi-Finals",      color: "from-amber-500 to-orange-500",  icon: Medal,      order: 2 },
           qf:     { label: "Quarter-Finals",   color: "from-cyan-500 to-sky-500",      icon: GitBranch,  order: 3 },
           other:  { label: "Other Knockouts",  color: "from-fuchsia-500 to-pink-500",  icon: Swords,     order: 4 },
           rr:     { label: "Round Robin",      color: "from-violet-600 to-purple-600", icon: LayoutGrid, order: 5 },
         };
-        const buckets = new Map<string, any[]>();
-        for (const g of groups as any[]) {
-          const s = stageOf(g.groupOrder);
-          if (!buckets.has(s)) buckets.set(s, []);
-          buckets.get(s)!.push(g);
+        const customColors = ["from-violet-600 to-purple-600", "from-cyan-500 to-sky-500", "from-amber-500 to-orange-500", "from-rose-500 to-pink-500", "from-emerald-500 to-teal-500", "from-indigo-500 to-blue-500"];
+        const stageMap = new Map<number, any>();
+        for (const s of stages) stageMap.set(s.id, s);
+        const useCustom = stages.length > 0;
+        const now = Date.now();
+
+        // Build buckets keyed by either `s-{stageId}` (custom), `legacy-{key}` (legacy fallback),
+        // or `unassigned` (custom mode but group has no stageId).
+        type Bucket = { key: string; label: string; color: string; icon: any; sortOrder: number; isPast: boolean; groups: any[] };
+        const bucketMap = new Map<string, Bucket>();
+
+        const isAllPast = (gs: any[]) => gs.length > 0 && gs.every(g => g.startTime && new Date(g.startTime).getTime() < now);
+
+        if (useCustom) {
+          for (const g of groups as any[]) {
+            if (g.stageId && stageMap.has(g.stageId)) {
+              const stage = stageMap.get(g.stageId);
+              const key = `s-${stage.id}`;
+              if (!bucketMap.has(key)) {
+                const colorIdx = [...stages].sort((a, b) => b.displayOrder - a.displayOrder).findIndex(s => s.id === stage.id);
+                bucketMap.set(key, {
+                  key, label: stage.name, color: customColors[colorIdx % customColors.length], icon: LayoutGrid,
+                  // Higher displayOrder = newer stage = lower sortOrder so it renders on top.
+                  sortOrder: -stage.displayOrder, isPast: false, groups: [],
+                });
+              }
+              bucketMap.get(key)!.groups.push(g);
+            } else {
+              const key = "unassigned";
+              if (!bucketMap.has(key)) {
+                bucketMap.set(key, {
+                  key, label: "Unassigned", color: "from-slate-500 to-zinc-500", icon: LayoutGrid,
+                  sortOrder: 9999, isPast: false, groups: [],
+                });
+              }
+              bucketMap.get(key)!.groups.push(g);
+            }
+          }
+        } else {
+          for (const g of groups as any[]) {
+            const sKey = stageOf(g.groupOrder);
+            const meta = legacyMeta[sKey];
+            const key = `legacy-${sKey}`;
+            if (!bucketMap.has(key)) {
+              bucketMap.set(key, {
+                key, label: meta.label, color: meta.color, icon: meta.icon,
+                sortOrder: meta.order, isPast: false, groups: [],
+              });
+            }
+            bucketMap.get(key)!.groups.push(g);
+          }
         }
-        const stageKeys = Array.from(buckets.keys()).sort((a, b) => stageMeta[a].order - stageMeta[b].order);
-        // Default open: latest stage with content (first in our latest-on-top order).
-        const defaultOpen = stageKeys[0] ? [`gstage-${stageKeys[0]}`] : [];
+
+        // Compute past status per bucket.
+        for (const b of bucketMap.values()) b.isPast = isAllPast(b.groups);
+
+        const allBuckets = Array.from(bucketMap.values()).sort((a, b) => a.sortOrder - b.sortOrder);
+        const activeBuckets = allBuckets.filter(b => !b.isPast);
+        const pastBuckets = allBuckets.filter(b => b.isPast);
+
+        // Default open: first active bucket only. Past buckets stay collapsed by default.
+        const defaultOpen = activeBuckets[0] ? [`gstage-${activeBuckets[0].key}`] : [];
+        const orderedBuckets = [...activeBuckets, ...pastBuckets];
         return (
           <Accordion type="multiple" defaultValue={defaultOpen} className="space-y-3">
-            {stageKeys.map(stageKey => {
-              const meta = stageMeta[stageKey];
-              const StageIcon = meta.icon;
-              const stageGroups = buckets.get(stageKey)!;
+            {orderedBuckets.map(bucket => {
+              const StageIcon = bucket.icon;
+              const stageGroups = bucket.groups;
+              const meta = { label: bucket.label, color: bucket.color };
+              const stageKey = bucket.key;
               return (
                 <AccordionItem key={stageKey} value={`gstage-${stageKey}`}
-                  className="border border-border/40 rounded-2xl overflow-hidden bg-card data-[state=open]:bg-card">
+                  className={cn(
+                    "border rounded-2xl overflow-hidden",
+                    bucket.isPast ? "border-border/30 bg-muted/20 opacity-80" : "border-border/40 bg-card data-[state=open]:bg-card",
+                  )}>
                   <AccordionTrigger
                     className="px-4 py-3 hover:no-underline hover:bg-muted/30"
                     data-testid={`accordion-groups-stage-${stageKey}`}
@@ -4231,6 +4481,9 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                         <StageIcon className="h-3.5 w-3.5 text-white" />
                       </div>
                       <span className="text-sm font-black text-foreground uppercase tracking-wider truncate">{meta.label}</span>
+                      {bucket.isPast && (
+                        <Badge className="bg-muted/60 text-muted-foreground text-[9px] font-black border-0">PAST</Badge>
+                      )}
                       <Badge className="bg-muted/60 text-foreground text-[9px] font-black ml-auto mr-2">
                         {stageGroups.length} {stageGroups.length === 1 ? "group" : "groups"}
                       </Badge>
@@ -4408,6 +4661,79 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
       })()}
 
       {groupFormDialog}
+
+      <Dialog open={stagesDialogOpen} onOpenChange={setStagesDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Manage Stages</DialogTitle>
+            <DialogDescription>
+              Create named stages (for example "Group Stage", "Quarter-Finals", "Final"). Assign groups and matches to a stage so they render together.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                value={newStageName}
+                onChange={(e) => setNewStageName(e.target.value)}
+                placeholder="New stage name"
+                data-testid="input-new-stage-name"
+                onKeyDown={(e) => { if (e.key === "Enter") handleCreateStage(); }}
+              />
+              <Button
+                onClick={handleCreateStage}
+                disabled={!newStageName.trim() || createStageMutation.isPending}
+                data-testid="button-add-stage"
+                className="bg-violet-600 hover:bg-violet-700 text-white"
+              >
+                {createStageMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
+              </Button>
+            </div>
+            {stages.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic text-center py-4">No stages yet.</p>
+            ) : (
+              <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
+                {[...stages].sort((a, b) => b.displayOrder - a.displayOrder).map((s, idx, arr) => (
+                  <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/30">
+                    <span className="text-[10px] font-black text-muted-foreground w-8">#{s.displayOrder}</span>
+                    <Input
+                      defaultValue={s.name}
+                      onBlur={(e) => { if (e.target.value.trim() && e.target.value !== s.name) handleRenameStage(s.id, e.target.value); }}
+                      className="h-7 text-xs flex-1"
+                      data-testid={`input-stage-name-${s.id}`}
+                    />
+                    <Button size="icon" variant="ghost" className="h-7 w-7"
+                      disabled={idx === 0 || updateStageMutation.isPending}
+                      onClick={() => moveStage(s.id, "down")}
+                      title="Move later (down in list)"
+                      data-testid={`button-stage-down-${s.id}`}>
+                      <ChevronDown className="h-3.5 w-3.5" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7"
+                      disabled={idx === arr.length - 1 || updateStageMutation.isPending}
+                      onClick={() => moveStage(s.id, "up")}
+                      title="Move earlier (up in list)"
+                      data-testid={`button-stage-up-${s.id}`}>
+                      <ChevronRight className="h-3.5 w-3.5 rotate-[-90deg]" />
+                    </Button>
+                    <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-600"
+                      disabled={deleteStageMutation.isPending}
+                      onClick={() => handleDeleteStage(s.id)}
+                      data-testid={`button-stage-delete-${s.id}`}>
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-[10px] text-muted-foreground">
+              Latest stage (highest position) shows on top. Past stages collapse to the bottom automatically based on group start times. Deleting a stage detaches its groups and matches; it does not delete them.
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setStagesDialogOpen(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

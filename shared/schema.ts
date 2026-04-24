@@ -543,6 +543,7 @@ export const tournamentMatches = pgTable("tournament_matches", {
   status: tournamentMatchStatusEnum("status").default("UPCOMING").notNull(),
   scores: jsonb("scores").$type<Array<{scoreA: number; scoreB: number}>>().default([]),
   winnerId: integer("winner_id").references(() => tournamentTeams.id),
+  stageId: integer("stage_id").references(() => tournamentStages.id, { onDelete: "set null" }),
   round: integer("round").default(1).notNull(),
   matchOrder: integer("match_order").default(0).notNull(),
   groupNumber: integer("group_number"),
@@ -631,10 +632,19 @@ export const tournamentPrizes = pgTable("tournament_prizes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const tournamentStages = pgTable("tournament_stages", {
+  id: serial("id").primaryKey(),
+  tournamentId: integer("tournament_id").references(() => tournaments.id, { onDelete: "cascade" }).notNull(),
+  name: text("name").notNull(),
+  displayOrder: integer("display_order").default(1).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
 export const tournamentGroups = pgTable("tournament_groups", {
   id: serial("id").primaryKey(),
   tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
   categoryId: integer("category_id").references(() => tournamentCategories.id),
+  stageId: integer("stage_id").references(() => tournamentStages.id, { onDelete: "set null" }),
   name: text("name").notNull(),
   groupOrder: integer("group_order").default(1).notNull(),
   maxPairs: integer("max_pairs").default(4).notNull(),
@@ -1070,6 +1080,7 @@ export const insertTournamentMatchSchema = createInsertSchema(tournamentMatches)
 export const insertTournamentPlayerStatSchema = createInsertSchema(tournamentPlayerStats).omit({ id: true });
 export const insertTournamentGroupSchema = createInsertSchema(tournamentGroups).omit({ id: true, createdAt: true });
 export const insertTournamentGroupPairSchema = createInsertSchema(tournamentGroupPairs).omit({ id: true, createdAt: true });
+export const insertTournamentStageSchema = createInsertSchema(tournamentStages).omit({ id: true, createdAt: true });
 
 export const insertInternalMessageSchema = createInsertSchema(internalMessages).omit({ id: true, createdAt: true, readAt: true });
 export const insertPolicyAcceptanceSchema = createInsertSchema(policyAcceptances).omit({ id: true, acceptedAt: true });
@@ -1111,6 +1122,8 @@ export type TournamentPairRequest = typeof tournamentPairRequests.$inferSelect;
 export type TournamentWaitlistEntry = typeof tournamentWaitlist.$inferSelect;
 export type TournamentPrize = typeof tournamentPrizes.$inferSelect;
 export type TournamentGroup = typeof tournamentGroups.$inferSelect;
+export type TournamentStage = typeof tournamentStages.$inferSelect;
+export type InsertTournamentStage = z.infer<typeof insertTournamentStageSchema>;
 export type TournamentGroupPair = typeof tournamentGroupPairs.$inferSelect;
 export type Coach = typeof coaches.$inferSelect;
 export type CoachSeekerMembership = typeof coachSeekerMemberships.$inferSelect;
