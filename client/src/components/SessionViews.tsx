@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw } from "lucide-react";
 import { Link } from "wouter";
 
 type SessionItem = {
@@ -44,6 +44,8 @@ type AdminActions = {
   onDelete: (session: SessionItem) => void;
   onDetails: (session: SessionItem) => void;
   onRemindMembers?: (sessionId: number) => void;
+  onCancel?: (session: SessionItem) => void;
+  onReactivate?: (session: SessionItem) => void;
 };
 
 type SessionViewProps = {
@@ -220,6 +222,24 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
                 <Baby className={`h-4 w-4 mr-2 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
                 {session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
               </DropdownMenuItem>
+              {(adminActions.onCancel || adminActions.onReactivate) && (
+                <>
+                  <DropdownMenuSeparator />
+                  {session.status === "CANCELLED" ? (
+                    adminActions.onReactivate && (
+                      <DropdownMenuItem onClick={() => adminActions.onReactivate!(session)} data-testid={`button-reactivate-mini-${session.id}`}>
+                        <RefreshCw className="h-4 w-4 mr-2 text-emerald-500" />Reactivate Session
+                      </DropdownMenuItem>
+                    )
+                  ) : (
+                    adminActions.onCancel && (
+                      <DropdownMenuItem className="text-amber-600 dark:text-amber-400 focus:text-amber-600 dark:focus:text-amber-400" onClick={() => adminActions.onCancel!(session)} data-testid={`button-cancel-mini-${session.id}`}>
+                        <Ban className="h-4 w-4 mr-2" />Cancel Session
+                      </DropdownMenuItem>
+                    )
+                  )}
+                </>
+              )}
               <DropdownMenuSeparator />
               <DropdownMenuItem className="text-red-600 dark:text-red-400" onClick={() => adminActions.onDelete(session)}>
                 <Trash2 className="h-4 w-4 mr-2" />Delete
@@ -1189,6 +1209,33 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
               <Baby className={`h-4 w-4 mr-2 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
               {session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
             </DropdownMenuItem>
+            {(adminActions.onCancel || adminActions.onReactivate) && (
+              <>
+                <DropdownMenuSeparator />
+                {session.status === "CANCELLED" ? (
+                  adminActions.onReactivate && (
+                    <DropdownMenuItem
+                      onClick={(e) => { e.stopPropagation(); adminActions.onReactivate!(session); }}
+                      data-testid={`button-reactivate-view-${session.id}`}
+                    >
+                      <RefreshCw className="h-4 w-4 mr-2 text-emerald-500" />
+                      Reactivate Session
+                    </DropdownMenuItem>
+                  )
+                ) : (
+                  adminActions.onCancel && (
+                    <DropdownMenuItem
+                      className="text-amber-600 dark:text-amber-400 focus:text-amber-600 dark:focus:text-amber-400"
+                      onClick={(e) => { e.stopPropagation(); adminActions.onCancel!(session); }}
+                      data-testid={`button-cancel-view-${session.id}`}
+                    >
+                      <Ban className="h-4 w-4 mr-2" />
+                      Cancel Session
+                    </DropdownMenuItem>
+                  )
+                )}
+              </>
+            )}
             <DropdownMenuSeparator />
             <DropdownMenuItem
               className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"

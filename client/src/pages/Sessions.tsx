@@ -1068,6 +1068,17 @@ export default function Sessions() {
       onDelete: (s: any) => setDeleteSession({ id: s.id, recurringEventId: s.recurringEventId || null, date: s.date ? new Date(s.date).toISOString() : null }),
       onDetails: (s: any) => setDetailsSession(s),
       onRemindMembers: (id: number) => remindInviteesMutation.mutate(id),
+      onCancel: (s: any) => {
+        const reason = window.prompt(`Cancel "${s.title || "this session"}"? Signed-up players will be notified.\n\nOptional reason (shown to players):`);
+        if (reason !== null) {
+          cancelSessionMutation.mutate({ sessionId: s.id, reason: reason.trim() });
+        }
+      },
+      onReactivate: (s: any) => {
+        if (window.confirm(`Reactivate "${s.title || "this session"}"? Signed-up players will be notified that it's back on.`)) {
+          reactivateSessionMutation.mutate(s.id);
+        }
+      },
     };
   }, [canManageSessions, editableClubIds, isOrganiserOnly]);
 
