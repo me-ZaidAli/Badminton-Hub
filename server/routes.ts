@@ -26,7 +26,7 @@ import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
 import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
 import { aiHeavyLimiter } from "./rateLimit";
-import { notifyUser } from "./notify";
+import { notifyUser, notifyUsers } from "./notify";
 import LRU from "lru-cache";
 import multer from "multer";
 import path from "path";
@@ -3240,6 +3240,10 @@ export async function registerRoutes(
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
+    if (session.status === "CANCELLED") {
+      return res.status(400).json({ message: "This session has been cancelled. Signups are no longer open." });
+    }
+
     let profile = await storage.getPlayerProfile(req.user!.id, session.clubId);
     let isGuestPlayer = false;
 
@@ -3452,6 +3456,108 @@ export async function registerRoutes(
     res.sendStatus(200);
   });
 
+  app.post("/api/sessions/:id/cancel", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.status(403).json({ message: "You don't have permission to cancel this session." });
+
+    if (session.status === "CANCELLED") {
+      return res.status(400).json({ message: "Session is already cancelled." });
+    }
+
+    const escapeHtml = (s: string) => s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;")
+      .replace(/"/g, "&quot;")
+      .replace(/'/g, "&#39;");
+    const rawReason = (req.body?.reason ?? "").toString().trim().slice(0, 500);
+    const reason = escapeHtml(rawReason);
+    await storage.updateSession(sessionId, { status: "CANCELLED" } as any);
+
+    // Notify everyone who signed up (confirmed, waiting list, or invited).
+    try {
+      const signups = await storage.getSessionSignups(sessionId);
+      const userIdsToNotify = new Set<number>();
+      for (const s of signups as any[]) {
+        const status = s.signupStatus || "CONFIRMED";
+        if (status === "CONFIRMED" || status === "WAITING" || status === "INVITED") {
+          const uid = s.player?.userId ?? s.userId ?? null;
+          if (uid) userIdsToNotify.add(Number(uid));
+        }
+      }
+      const dateStr = session.date ? new Date(session.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : "";
+      const safeTitle = escapeHtml(session.title || "");
+      const baseMsg = `The session "${safeTitle}"${dateStr ? ` on ${dateStr}` : ""} has been cancelled.`;
+      const fullMsg = reason ? `${baseMsg}\n\nReason: ${reason}` : baseMsg;
+      await notifyUsers(userIdsToNotify, {
+        type: "SESSION_CANCELLED",
+        title: "Session cancelled",
+        message: fullMsg,
+        linkUrl: `/sessions/${sessionId}`,
+        email: true,
+      });
+    } catch (err: any) {
+      console.error("[SESSION CANCEL] notify failed:", err?.message || err);
+    }
+
+    const updated = await storage.getSession(sessionId);
+    res.json(updated);
+  });
+
+  app.post("/api/sessions/:id/reactivate", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.status(403).json({ message: "You don't have permission to reactivate this session." });
+
+    if (session.status !== "CANCELLED") {
+      return res.status(400).json({ message: "Only cancelled sessions can be reactivated." });
+    }
+
+    await storage.updateSession(sessionId, { status: "UPCOMING" } as any);
+
+    try {
+      const signups = await storage.getSessionSignups(sessionId);
+      const userIdsToNotify = new Set<number>();
+      for (const s of signups as any[]) {
+        const status = s.signupStatus || "CONFIRMED";
+        if (status === "CONFIRMED" || status === "WAITING" || status === "INVITED") {
+          const uid = s.player?.userId ?? s.userId ?? null;
+          if (uid) userIdsToNotify.add(Number(uid));
+        }
+      }
+      const escapeHtml = (s: string) => s
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;")
+        .replace(/'/g, "&#39;");
+      const dateStr = session.date ? new Date(session.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }) : "";
+      const safeTitle = escapeHtml(session.title || "");
+      const msg = `Good news — the session "${safeTitle}"${dateStr ? ` on ${dateStr}` : ""} is back on. Your signup is still confirmed.`;
+      await notifyUsers(userIdsToNotify, {
+        type: "SESSION_REACTIVATED",
+        title: "Session is back on",
+        message: msg,
+        linkUrl: `/sessions/${sessionId}`,
+        email: true,
+      });
+    } catch (err: any) {
+      console.error("[SESSION REACTIVATE] notify failed:", err?.message || err);
+    }
+
+    const updated = await storage.getSession(sessionId);
+    res.json(updated);
+  });
+
   app.post("/api/sessions/:id/player-status", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const sessionId = Number(req.params.id);
@@ -3474,6 +3580,10 @@ export async function registerRoutes(
       if (["accept", "join", "wait"].includes(action)) {
         return res.status(403).json({ message: "Signups are not yet open for this session." });
       }
+    }
+
+    if (session.status === "CANCELLED" && ["accept", "join", "wait"].includes(action)) {
+      return res.status(400).json({ message: "This session has been cancelled. Signups are no longer open." });
     }
 
     const signups = await storage.getSessionSignups(sessionId);

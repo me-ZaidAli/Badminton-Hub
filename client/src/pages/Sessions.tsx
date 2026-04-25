@@ -17,7 +17,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
 import { insertSessionSchema, insertRecurringEventSchema } from "@shared/schema";
-import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Shield, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flag } from "lucide-react";
+import { Plus, Users, MapPin, Calendar, PoundSterling, CircleDot, Building2, Filter, Trash2, Loader2, Lock, Search, Video, Home, CheckCircle, ShieldAlert, Shield, Activity, Pencil, Wallet, Repeat, CalendarPlus, UserPlus, X, CheckSquare, Clock, Eye, Send, UserCheck, UserX, Baby, Info, Shuffle, BarChart3, LayoutGrid, CalendarDays, AlignJustify, Layers, Copy, MoreVertical, Play, ArrowRight, AlertTriangle, FileText, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flag, Ban, RefreshCw } from "lucide-react";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { DropdownMenu, DropdownMenuTrigger, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -764,6 +764,36 @@ export default function Sessions() {
     },
   });
 
+  const cancelSessionMutation = useMutation({
+    mutationFn: async (vars: { sessionId: number; reason?: string }) => {
+      const res = await apiRequest("POST", `/api/sessions/${vars.sessionId}/cancel`, { reason: vars.reason || "" });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
+      toast({ title: "Session cancelled", description: "Signed-up players have been notified." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Couldn't cancel session", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const reactivateSessionMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/reactivate`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
+      toast({ title: "Session reactivated", description: "Signed-up players have been notified." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Couldn't reactivate session", description: error.message, variant: "destructive" });
+    },
+  });
+
   const teamEventsAsSessionItems = useMemo(() => {
     if (!teamEventsRaw || teamEventsRaw.length === 0) return [];
     return teamEventsRaw.map((te: any) => ({
@@ -880,7 +910,7 @@ export default function Sessions() {
     const n = new Date(); n.setHours(0, 0, 0, 0);
     return juniorFilteredSessions.filter(s => {
       const d = new Date(s.date); d.setHours(0, 0, 0, 0);
-      return d >= n && s.status !== "COMPLETED" && s.status !== "CANCELLED";
+      return d >= n && s.status !== "COMPLETED";
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [juniorFilteredSessions]);
 
@@ -934,7 +964,7 @@ export default function Sessions() {
     baseFilteredSessions.filter(s => {
       const sessionDate = new Date(s.date);
       sessionDate.setHours(0, 0, 0, 0);
-      return sessionDate >= now && s.status !== "ACTIVE" && s.status !== "COMPLETED" && s.status !== "CANCELLED";
+      return sessionDate >= now && s.status !== "ACTIVE" && s.status !== "COMPLETED";
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [baseFilteredSessions, now]
   );
@@ -1570,13 +1600,23 @@ export default function Sessions() {
                 </div>
 
                 <div className="mt-3 space-y-0.5">
-                  <h3
-                    className="text-lg sm:text-xl font-bold leading-tight cursor-pointer transition-colors"
-                    onClick={() => setDetailsSession(session)}
-                    data-testid={`button-session-title-${session.id}`}
-                  >
-                    {session.title || "Untitled Session"}
-                  </h3>
+                  <div className="flex items-start gap-2 flex-wrap">
+                    <h3
+                      className={`text-lg sm:text-xl font-bold leading-tight cursor-pointer transition-colors ${session.status === "CANCELLED" ? "line-through text-muted-foreground" : ""}`}
+                      onClick={() => setDetailsSession(session)}
+                      data-testid={`button-session-title-${session.id}`}
+                    >
+                      {session.title || "Untitled Session"}
+                    </h3>
+                    {session.status === "CANCELLED" && (
+                      <span
+                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800/60 mt-1"
+                        data-testid={`badge-cancelled-${session.id}`}
+                      >
+                        Cancelled
+                      </span>
+                    )}
+                  </div>
                   {clubName && (
                     <p className="text-sm sm:text-base font-semibold text-blue-600 dark:text-blue-400">
                       {clubName}
@@ -1959,6 +1999,38 @@ export default function Sessions() {
                             <Baby className={`h-4 w-4 mr-2 ${session.sessionType === "JUNIORS_ONLY" ? "text-emerald-500" : ""}`} />
                             {session.sessionType === "JUNIORS_ONLY" ? "Move to Sessions" : "Move to Juniors"}
                           </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          {session.status === "CANCELLED" ? (
+                            <DropdownMenuItem
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                if (window.confirm(`Reactivate "${session.title || "this session"}"? Signed-up players will be notified that it's back on.`)) {
+                                  reactivateSessionMutation.mutate(session.id);
+                                }
+                              }}
+                              disabled={reactivateSessionMutation.isPending}
+                              data-testid={`button-reactivate-session-${session.id}`}
+                            >
+                              <RefreshCw className="h-4 w-4 mr-2 text-emerald-500" />
+                              Reactivate Session
+                            </DropdownMenuItem>
+                          ) : (
+                            <DropdownMenuItem
+                              className="text-amber-600 dark:text-amber-400 focus:text-amber-600 dark:focus:text-amber-400"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const reason = window.prompt(`Cancel "${session.title || "this session"}"? Signed-up players will be notified.\n\nOptional reason (shown to players):`);
+                                if (reason !== null) {
+                                  cancelSessionMutation.mutate({ sessionId: session.id, reason: reason.trim() });
+                                }
+                              }}
+                              disabled={cancelSessionMutation.isPending}
+                              data-testid={`button-cancel-session-${session.id}`}
+                            >
+                              <Ban className="h-4 w-4 mr-2" />
+                              Cancel Session
+                            </DropdownMenuItem>
+                          )}
                           <DropdownMenuSeparator />
                           <DropdownMenuItem
                             className="text-red-600 dark:text-red-400 focus:text-red-600 dark:focus:text-red-400"
