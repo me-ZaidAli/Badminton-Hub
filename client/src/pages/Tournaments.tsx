@@ -71,9 +71,18 @@ export default function Tournaments() {
   const availableClubs = isSuperAdmin ? clubs : clubs?.filter(c => managedClubIds.has(c.id));
   const filteredTournaments = selectedClubFilter === "all" ? tournaments : tournaments?.filter(t => t.clubId === Number(selectedClubFilter));
 
-  const liveTournaments = filteredTournaments?.filter(t => t.status === "ONGOING") || [];
-  const upcomingTournaments = filteredTournaments?.filter(t => t.status === "PUBLISHED" || t.status === "DRAFT") || [];
-  const pastTournaments = filteredTournaments?.filter(t => t.status === "COMPLETED") || [];
+  // Treat any tournament whose end date is before today (after 12:00 AM the next day) as past,
+  // even if its status is still PUBLISHED or ONGOING. Status COMPLETED/CANCELLED also counts as past.
+  const startOfToday = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
+  const isTournamentPast = (t: any): boolean => {
+    if (t.status === "COMPLETED" || t.status === "CANCELLED") return true;
+    if (!t.endDate) return false;
+    return new Date(t.endDate) < startOfToday;
+  };
+
+  const liveTournaments = filteredTournaments?.filter(t => t.status === "ONGOING" && !isTournamentPast(t)) || [];
+  const upcomingTournaments = filteredTournaments?.filter(t => (t.status === "PUBLISHED" || t.status === "DRAFT") && !isTournamentPast(t)) || [];
+  const pastTournaments = filteredTournaments?.filter(t => isTournamentPast(t)) || [];
 
   async function onSubmit(values: z.infer<typeof createTournamentSchema>) {
     try {

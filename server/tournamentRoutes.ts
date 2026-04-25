@@ -3792,9 +3792,13 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       if (tournamentIds.length === 0) return res.json([]);
 
       const allTournaments = await db.select().from(tournaments).where(inArray(tournaments.id, tournamentIds));
+      // A tournament should disappear from dashboard banners after 12:00 AM on the day after it ends.
+      // Compare endDate against start-of-today so a tournament ending today (any time) still shows.
       const now = new Date();
+      const dashboardCutoff = new Date();
+      dashboardCutoff.setHours(0, 0, 0, 0);
       const activeTournaments = allTournaments.filter(t =>
-        t.status !== "CANCELLED" && new Date(t.endDate) >= now
+        t.status !== "CANCELLED" && t.status !== "COMPLETED" && new Date(t.endDate) >= dashboardCutoff
       );
 
       if (activeTournaments.length === 0) return res.json([]);

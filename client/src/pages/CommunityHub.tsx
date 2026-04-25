@@ -19,7 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import {
   Flame, Utensils, Users, PartyPopper, MessageCircle, Star, Heart, Trash2, Send,
-  Plus, MapPin, Calendar, Loader2, Image, ChevronRight, Sparkles, Clock, Settings,
+  Plus, MapPin, Calendar, Loader2, Image, ChevronRight, ChevronDown, Sparkles, Clock, Settings,
   Eye, EyeOff, Check, X, Shield
 } from "lucide-react";
 
@@ -190,12 +190,27 @@ export default function CommunityHub() {
     status: te.status,
   }));
 
-  const allEvents = [...events, ...normalizedTeamEvents];
-  const featured = events.filter((e: any) => e.isFeatured);
-  const foodEvents = events.filter((e: any) => e.isFoodEnabled);
-  const communityTeamEvents = events.filter((e: any) => e.eventType === "team");
-  const teamActivities = [...communityTeamEvents, ...normalizedTeamEvents];
-  const socialEvents = events.filter((e: any) => e.eventType === "social");
+  // Treat any event whose date is before today (after 12:00 AM the next day) as past.
+  // Team events with status COMPLETED also count as past.
+  const startOfToday = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
+  const isEventPast = (e: any): boolean => {
+    if (e._isTeamEvent && e.status === "COMPLETED") return true;
+    if (!e.eventDate) return false;
+    return new Date(e.eventDate) < startOfToday;
+  };
+
+  const upcomingCommunityEvents = events.filter((e: any) => !isEventPast(e));
+  const upcomingTeamEvents = normalizedTeamEvents.filter((e: any) => !isEventPast(e));
+  const allEvents = [...upcomingCommunityEvents, ...upcomingTeamEvents];
+  const pastEvents = [...events, ...normalizedTeamEvents]
+    .filter((e: any) => isEventPast(e))
+    .sort((a: any, b: any) => new Date(b.eventDate || 0).getTime() - new Date(a.eventDate || 0).getTime());
+
+  const featured = upcomingCommunityEvents.filter((e: any) => e.isFeatured);
+  const foodEvents = upcomingCommunityEvents.filter((e: any) => e.isFoodEnabled);
+  const communityTeamEvents = upcomingCommunityEvents.filter((e: any) => e.eventType === "team");
+  const teamActivities = [...communityTeamEvents, ...upcomingTeamEvents];
+  const socialEvents = upcomingCommunityEvents.filter((e: any) => e.eventType === "social");
 
   const eventTypeColors: Record<string, string> = {
     social: "from-pink-500 to-rose-600",
@@ -396,12 +411,33 @@ export default function CommunityHub() {
           </section>
         )}
 
-        {events.length === 0 && teamActivities.length === 0 && !eventsLoading && (
+        {allEvents.length === 0 && pastEvents.length === 0 && !eventsLoading && (
           <div className="text-center py-10">
             <PartyPopper className="h-10 w-10 mx-auto text-muted-foreground/30 mb-3" />
             <p className="text-sm text-muted-foreground">No community events yet.</p>
             {isAdmin && <p className="text-xs text-muted-foreground mt-1">Create your first event to get started!</p>}
           </div>
+        )}
+
+        {pastEvents.length > 0 && (
+          <section data-testid="section-past-events">
+            <details className="group rounded-2xl border border-border/40 bg-muted/20">
+              <summary className="cursor-pointer list-none px-4 py-3 flex items-center justify-between">
+                <h2 className="text-base font-bold flex items-center gap-2 text-muted-foreground">
+                  <Calendar className="h-4 w-4" /> Past Events
+                  <Badge variant="secondary" className="ml-1 text-[10px]">{pastEvents.length}</Badge>
+                </h2>
+                <ChevronDown className="h-4 w-4 text-muted-foreground transition-transform group-open:rotate-180" />
+              </summary>
+              <div className="px-4 pb-4 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {pastEvents.slice(0, 12).map((e: any) => (
+                  <div key={e.id} className="opacity-70">
+                    {renderEventCard(e)}
+                  </div>
+                ))}
+              </div>
+            </details>
+          </section>
         )}
 
         <section>
