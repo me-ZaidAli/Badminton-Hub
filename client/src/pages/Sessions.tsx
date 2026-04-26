@@ -1574,7 +1574,20 @@ export default function Sessions() {
                 />
               </div>
             )}
-            <Card className={`h-full border-border/40 group overflow-visible rounded-2xl shadow-sm ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""}`}>
+            <Card className={`h-full group overflow-hidden rounded-2xl shadow-sm ${selectedIds.has(session.id) ? "ring-2 ring-primary" : ""} ${
+              session.status === "CANCELLED"
+                ? "border-orange-300 dark:border-orange-700/60 bg-muted/40 dark:bg-muted/20 grayscale-[0.6] opacity-80"
+                : "border-border/40"
+            }`}>
+              {session.status === "CANCELLED" && (
+                <div
+                  className="flex items-center justify-center gap-2 bg-orange-500 dark:bg-orange-600 text-white px-3 py-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider"
+                  data-testid={`banner-cancelled-${session.id}`}
+                >
+                  <Ban className="h-4 w-4" />
+                  <span>Session Cancelled</span>
+                </div>
+              )}
               <CardContent className="p-4 sm:p-5">
 
                 <div className={`flex items-center justify-between gap-2 ${canManageThis ? "pl-7" : ""}`}>
@@ -1619,14 +1632,6 @@ export default function Sessions() {
                     >
                       {session.title || "Untitled Session"}
                     </h3>
-                    {session.status === "CANCELLED" && (
-                      <span
-                        className="inline-flex items-center rounded-full px-2 py-0.5 text-[11px] font-semibold bg-red-100 text-red-700 dark:bg-red-900/40 dark:text-red-300 border border-red-200 dark:border-red-800/60 mt-1"
-                        data-testid={`badge-cancelled-${session.id}`}
-                      >
-                        Cancelled
-                      </span>
-                    )}
                   </div>
                   {clubName && (
                     <p className="text-sm sm:text-base font-semibold text-blue-600 dark:text-blue-400">

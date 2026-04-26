@@ -12,7 +12,7 @@ Preferred communication style: Simple, everyday language.
 The application uses React 18, TypeScript, Wouter, TanStack React Query, Tailwind CSS, and shadcn/ui for the frontend. The backend is built with Node.js, Express.js, and TypeScript, utilizing PostgreSQL as the database with Drizzle ORM.
 
 ### UI/UX Decisions
-The UI features a modern design with privacy-enhanced public views, comprehensive player profiles, and a sophisticated Premium Theme System offering 64 themes across 7 tiers, 5 Branded Collections, and a Premium Collections category, many optimized for AMOLED displays. Typography Studio allows font customization. Dark themes include enhanced visual variety, a global Ultra-Premium Transparent Glass UI system, neo-tactile button animations, premium CTA gradient buttons, sport-engraved racket string texture overlays, and glass-treated dialogs/sidebars/inputs/tables. Mobile navigation uses a fixed bottom bar with customizable shortcut icons.
+The UI features a modern design with privacy-enhanced public views, comprehensive player profiles, and a sophisticated Premium Theme System offering 64 themes across 7 tiers, 5 Branded Collections, and a Premium Collections category, many optimized for AMOLED displays. Dark themes include enhanced visual variety, a global Ultra-Premium Transparent Glass UI system, neo-tactile button animations, premium CTA gradient buttons, sport-engraved racket string texture overlays, and glass-treated dialogs/sidebars/inputs/tables. Mobile navigation uses a fixed bottom bar with customizable shortcut icons.
 
 ### Technical Implementations
 - **Freemium Model**: A 2-plan freemium model (Basic FREE, Premium) with backend enforcement and frontend gating.
@@ -20,14 +20,12 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Multi-Club & Multi-Sport Support**: Manages multiple independent clubs and supports various racket sports.
 - **Match Management**: Includes a visual court component, queuing system, and a deterministic Smart Match Engine v6 with multi-mode matchmaking, gender-aware logic, and 9-tier grade-based scoring, enhanced by the BPG Competitive Balance Engine and Session Fairness Command Center.
 - **Membership & Leaderboard Systems**: Handles club-based memberships, plans, requests, approvals, and computes dynamic player rankings.
-- **Financial Intelligence System**: Multi-view financial dashboard with Smart Insights, credit management, donation system, and per-session invoice tracking. Includes a unified wallet/credit system and session-level expense tracking.
+- **Financial Intelligence System**: Multi-view financial dashboard with Smart Insights, credit management, donation system, and per-session invoice tracking.
 - **Admin & Player Management**: Tools for comprehensive user, club, venue, and administrator management.
 - **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing.
 - **Session Player Management**: Enhanced in-session controls with a four-state participant system, supporting optional hall and court names.
-- **Session Availability Notifications**: Automatic in-app, chat, and email notifications for session spaces, including reminders and admin manual reminders.
-- **Communications Admin Center**: Admin page at `/admin/communications` with per-club notification settings and a delivery log viewer.
+- **Session Availability Notifications**: Automatic in-app, chat, and email notifications for session spaces.
 - **Team Events System**: Club-scoped team events with full CRUD, signup/withdraw flow.
-- **Session Match Recovery**: Allows recovery of soft-deleted (archived) matches.
 - **Coach Directory & Lesson Booking**: Manages public coach profiles, an interactive map, and an in-app private lesson request system.
 - **Global Account Merge System**: Tool for merging duplicate user accounts (OWNER-only).
 - **IT Helpdesk Ticketing System**: Secure, ticket-based support with RBAC and credit claim workflow.
@@ -35,39 +33,32 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Club-Scoped Referral System**: Independent referral programs per club.
 - **Junior Management**: Features for managing junior players, skill tracking, exercise challenges, and parent dashboards.
 - **League Management System**: Full league fixture and results management, including Player Selection Notifications and Squad Management.
-- **Payment & Credit Request System**: Players can confirm payments and request credits in-app, with an enhanced credit wallet and automation settings. Session signup includes payment method selection, a Payment Verification Dashboard, and a Payment Reliability Score for players.
+- **Payment & Credit Request System**: Players can confirm payments and request credits in-app, with an enhanced credit wallet and automation settings, including Payment Verification Dashboard and Payment Reliability Score.
 - **Internal Messaging System**: Chat interface with message categories and filtering.
 - **AI-Powered Reporting**: AI-generated reports for coaches, parents, and admins.
-- **Enhanced Badge Count System**: Sidebar badges for notifications and pending items.
-- **Social Media Links System**: Clubs can add social media links for 11 platforms.
-- **Sidebar Hide/Lock System**: Collapsible sidebar with optional PIN protection.
-- **Premium Recognition Cards System**: Admin-gifted recognition cards with 3D flippable RPG-style display, unlocking exclusive theme tiers.
-- **Announcement Reactions & Comments**: Users can react to announcements with emoji reactions and threaded comments.
-- **Player Intelligence & Analytics System**: Comprehensive player analytics dashboard, interactive charts, AI Comparison Review, achievement badges, skill review system, coach notes timeline, AI-powered player style analysis, and Match Log/Development tabs for players with active annual club memberships.
+- **Player Intelligence & Analytics System**: Comprehensive player analytics dashboard, interactive charts, AI Comparison Review, achievement badges, skill review system, coach notes timeline, AI-powered player style analysis, and Match Log/Development tabs.
 - **Session Intelligence Layer**: Provides pre-session balance prediction, post-session engagement scores, and smart session recommendations.
-- **AI Full Session Schedule Generator**: One-click full session schedule generation using the match engine with fairness optimization, preview functionality, and an AI Session Designer for optimal session structure suggestions.
+- **AI Full Session Schedule Generator**: One-click full session schedule generation using the match engine with fairness optimization, preview functionality, and an AI Session Designer.
 - **Session Financial Command Center**: Real-time financial overview per session with expected vs actual revenue comparison, per-player financial actions, payment reminders, and credit issuance.
 - **3D Avatar Selection System**: Users can select AI-generated Pixar-style 3D avatar presets.
 - **Match Engine Testing Lab**: Admin-only sandbox for stress-testing the matchmaking algorithm with simulated players and comprehensive analytics.
 - **Advanced Analytics Dashboard**: Power BI-level business intelligence system with Interactive Performance Dashboard, a Command Center, and a Classic view.
-- **Trial Onboarding & Evaluation System**: Manages trial players from registration to approval with a dedicated dashboard, admin command center for session assignment, evaluation, decision workflow, and automated notifications.
-- **Rivalry Arena**: A component for player comparison in Player Intelligence featuring a badminton court background, gender-specific avatars, animated scoreboard, rivalry strength indicator, win ratio rings, match timeline, momentum line graph, and AI rivalry analysis.
+- **Trial Onboarding & Evaluation System**: Manages trial players from registration to approval with a dedicated dashboard, admin command center, and automated notifications.
+- **Rivalry Arena**: Player comparison component with a badminton court background, gender-specific avatars, animated scoreboard, rivalry strength indicator, win ratio rings, match timeline, momentum line graph, and AI rivalry analysis.
 - **Player Skills Analytics System**: League and Premium player skill tracking with enrollment management, per-player editable skill profiles, radar/bar charts, and audit history.
-- **Tournaments Module**: Full tournament management with esports-style UI, supporting various tournament types, registration, group/knockout brackets, score submission, and standings. Admin-managed named "stages" let admins group rounds (e.g. "Group Stage", "Quarter-Finals", "Final"), assign each tournament group and match to a stage, and render the latest stage on top with past stages collapsed at the bottom. Stage CRUD lives in the Groups tab; group and match create dialogs include a stage selector. Server validates that any stageId belongs to the same tournament; tournament_matches.stageId has FK ON DELETE SET NULL. Stages set on groups flow through to other views: matches without their own stageId inherit the parent group's stageId in the Matches view, and the Standings view buckets group standings tables by stage (active stages on top, past stages collapsed at the bottom).
+- **Tournaments Module**: Full tournament management with esports-style UI, supporting various tournament types, registration, group/knockout brackets, score submission, and standings, including named "stages" for grouping rounds.
 - **Tiered Session Fees**: Sessions support 4 fee tiers (Standard, Premium, Super Premium, Club Member) with dedicated input fields and display in the UI.
 - **Timeline UI Enhancements**: Real-time live/past/upcoming session status, hype indicators, animated capacity bars, glassmorphism dropdown panels, golden crown for top-ranked players, gradient dividers, and enriched match/player insights.
-- **Club T-Shirt System**: Legacy club-scoped t-shirt management with player requests, admin management, and batch ordering.
-- **Club Merchandise System**: Premium merchandise shopping experience with category-based entry view, product listing with sticky search bar and real-time filters, card-flip animations, featured product hero cards, save/favourite functionality, and a structured order request form. Admin system with full CRUD for products and order management dashboard.
+- **Club Merchandise System**: Premium merchandise shopping experience with category-based entry view, product listing with filters, card-flip animations, featured product hero cards, save/favourite functionality, and a structured order request form. Admin system with full CRUD for products and order management dashboard.
 - **Community Hub System**: Social layer for clubs with events, food experiences, community feed, reviews, and admin moderation.
-- **Performance & Reliability Hardening**: LRU-based rate limiting on auth and heavy AI endpoints; idempotent hot-path DB indexes ensured on startup; per-user in-memory cache on `/api/badge-counts` to reduce sidebar polling load.
+- **Performance & Reliability Hardening**: LRU-based rate limiting on auth and heavy AI endpoints; idempotent hot-path DB indexes; per-user in-memory cache on `/api/badge-counts`.
 - **Notification Helper**: Unified `notifyUser()` wrapper creates an in-app notification and sends emails for high-priority types.
-- **Merchandise Admin Bulk Actions & Customer History**: `/admin/merchandise` Orders tab supports multi-select with a bulk action bar and displays customer history.
-- **Deals & Offers System**: Premium mobile-first experience with category discovery page, filtered deals view, featured deal card, glassmorphism card design with card-flip animation for details, save/favorite functionality, copy-code feedback, and smooth framer-motion animations. Dynamic category system with full CRUD for categories.
-- **Admin Inbox**: Aggregator at `/admin/inbox` (`GET /api/admin/inbox`) showing pending join requests, outstanding payments, credit requests, new merchandise orders, helpdesk tickets, incidents, in-flight trials, lesson requests, and pending referrals — all club-scoped via `getAdminClubIds` (platform OWNER/ADMIN see all). Lesson requests with `clubId IS NULL` are intentionally excluded from club-scoped admins to prevent cross-tenant exposure.
-- **Operational Hardening**: `X-Request-Id` middleware adds a per-request id (echoed in response headers and error logs) for traceability; `/api/health` returns uptime, `/api/health/ready` runs a `select 1` against the database; SIGTERM/SIGINT handler drains in-flight requests with a 15s force-exit fallback.
-- **Unified Sidebar Tiles**: Side menu groups (Home, Activity, My Club, Communication, Design, Help & Info, Management, Super Admin) all render as consistent rounded-xl tiles with a section icon + label inside. The Management tile splits into a primary "Admin Panel" entry with a thin emerald divider, then secondary admin tools (Admin Inbox, Audit Log, Grading Progress, AI Match Input). The "Admin Panel" entry's pendingMemberships/outstandingPayments badges were removed since the new "Admin Inbox" entry consolidates them via the `adminInbox` badge key. Both desktop and mobile renderings use the same tile structure.
-- **Audit Log Viewer**: Admin page at `/admin/audit-log` (`GET /api/admin/audit-logs`) with paginated, filterable view over the existing `admin_audit_logs` table. Filters: action, targetType, actorId, clubId, free-text search, sinceDays. Club admins are restricted to logs for clubs they admin (or actions they themselves performed); platform admins see everything. All paging/range params are clamped, ILIKE search input is wildcard-escaped, and dedicated indexes (`created_at`, `(club_id, created_at)`, `(actor_id, created_at)`) are ensured at startup.
-- **Session Cancellation**: Admins can mark a session as cancelled while keeping it visible in the list with a strike-through title and "Cancelled" badge. Endpoints `POST /api/sessions/:id/cancel` (with optional reason) and `POST /api/sessions/:id/reactivate` are guarded by `canManageSessions`. Cancelling sets `sessions.status = "CANCELLED"` and notifies all CONFIRMED/WAITING/INVITED signups via `notifyUsers` (in-app + high-priority email) with the optional reason. Reactivating restores `status = "UPCOMING"` and notifies the same set that the session is back on. The join handler (`POST /api/sessions/:id/join`) returns 400 if the session is cancelled. Cancelled sessions remain in the upcoming and junior-upcoming lists so players can still see them. Per-session admin dropdown shows Cancel (amber) for active sessions and Reactivate (emerald) for cancelled ones.
+- **Deals & Offers System**: Premium mobile-first experience with category discovery, filtered deals view, featured deal card, glassmorphism card design with card-flip animation, save/favorite functionality, copy-code feedback, and smooth framer-motion animations. Dynamic category system with full CRUD for categories.
+- **Admin Inbox**: Aggregator at `/admin/inbox` showing pending join requests, outstanding payments, credit requests, new merchandise orders, helpdesk tickets, incidents, in-flight trials, lesson requests, and pending referrals—all club-scoped.
+- **Operational Hardening**: `X-Request-Id` middleware for traceability; `/api/health` returns uptime, `/api/health/ready` checks DB connection; SIGTERM/SIGINT handler drains in-flight requests.
+- **Unified Sidebar Tiles**: Consistent rounded-xl tiles for side menu groups (Home, Activity, My Club, Communication, Design, Help & Info, Management, Super Admin).
+- **Audit Log Viewer**: Admin page at `/admin/audit-log` with paginated, filterable view over `admin_audit_logs` table.
+- **Session Cancellation**: Admins can mark a session as cancelled, with UI indicators and notifications to affected participants, and the ability to reactivate.
 
 ## External Dependencies
 
@@ -93,7 +84,7 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Service Worker**: Implements network-first caching strategy.
 
 ### AI Match Input System
-- **GPT-4o vision**: Used for Image Upload & AI Vision OCR to extract player names, teams, and scores from score sheet images.
+- **GPT-4o vision**: Used for Image Upload & AI Vision OCR.
 
 ### APIs / Integrations
 - **OpenStreetMap Nominatim API**: Geocoding addresses.

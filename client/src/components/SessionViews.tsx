@@ -120,9 +120,12 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
     );
   }
 
+  const isCancelled = session.status === "CANCELLED";
+
   return (
     <div
-      className={`p-2.5 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
+      className={`rounded-lg border cursor-pointer transition-all hover:shadow-sm overflow-hidden ${
+        isCancelled ? "border-orange-300 dark:border-orange-700/60 bg-muted/40 dark:bg-muted/20 grayscale-[0.6] opacity-80" :
         isLive ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" :
         isPast ? "border-border/30 opacity-70" :
         "border-border/50 hover:border-primary/30"
@@ -130,9 +133,16 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
       onClick={() => onSessionClick(session)}
       data-testid={`session-mini-${session.id}`}
     >
+      {isCancelled && (
+        <div className="flex items-center justify-center gap-1.5 bg-orange-500 dark:bg-orange-600 text-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider">
+          <Ban className="h-3 w-3" />
+          <span>Session Cancelled</span>
+        </div>
+      )}
+      <div className="p-2.5">
       <div className="flex items-center gap-2 mb-1">
         {isLive && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />}
-        <span className="font-semibold text-sm truncate">{session.title}</span>
+        <span className={`font-semibold text-sm truncate ${isCancelled ? "line-through text-muted-foreground" : ""}`}>{session.title}</span>
       </div>
       <div className="flex items-center gap-3 text-xs text-muted-foreground flex-wrap">
         <span className="flex items-center gap-1">
@@ -248,6 +258,7 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
           </DropdownMenu>
         </div>
       )}
+      </div>
     </div>
   );
 }
