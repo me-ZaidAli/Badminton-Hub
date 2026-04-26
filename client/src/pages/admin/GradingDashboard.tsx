@@ -611,53 +611,145 @@ function PlayersTable({ data, loading, onOpenPlayer }: { data: ClubData | null; 
   if (loading) return <LoadingState />;
   if (!data) return <EmptyState message="Pick a club to begin." />;
 
+  const gradeBand = (g: string) => g.startsWith("A") ? "emerald" : g.startsWith("B") ? "blue" : "orange";
+  const gradeStripe = (g: string) => {
+    const b = gradeBand(g);
+    if (b === "emerald") return "before:bg-gradient-to-b before:from-emerald-400 before:to-emerald-600";
+    if (b === "blue") return "before:bg-gradient-to-b before:from-blue-400 before:to-cyan-500";
+    return "before:bg-gradient-to-b before:from-orange-400 before:to-amber-500";
+  };
+  const rowTint = (r: PlayerRow) => {
+    if (r.adminLocked) return "bg-muted/30";
+    if (r.stats?.promotionEligible) return "bg-emerald-500/[0.04] hover:bg-emerald-500/[0.08]";
+    if (r.stats?.demotionRisk) return "bg-orange-500/[0.04] hover:bg-orange-500/[0.08]";
+    return "hover:bg-muted/40";
+  };
+
+  const distribution = data.summary.gradeDistribution || {};
+  const totalGraded = GRADE_ORDER.reduce((s, g) => s + (distribution[g] || 0), 0);
+
   return (
-    <Card>
-      <CardHeader>
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
-          <div>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Users className="h-4 w-4" /> {data.club.name} — Players
-            </CardTitle>
-            <p className="text-xs text-muted-foreground">{filteredRows.length} of {data.rows.length} shown</p>
-          </div>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="relative w-full sm:w-[240px]">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-              <Input placeholder="Search players..." className="pl-9" value={search} onChange={(e) => setSearch(e.target.value)} data-testid="input-search" />
+    <Card className="overflow-hidden border-border/60 shadow-lg">
+      {/* Sport-style hero header */}
+      <div className="relative bg-gradient-to-br from-slate-950 via-slate-900 to-indigo-950 text-white">
+        <div className="absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "20px 20px" }} />
+        <div className="absolute -top-24 -right-24 h-64 w-64 rounded-full bg-fuchsia-500/20 blur-3xl" />
+        <div className="absolute -bottom-24 -left-24 h-64 w-64 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="relative p-5 md:p-6">
+          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+            <div className="space-y-2">
+              <div className="flex items-center gap-2">
+                <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-fuchsia-500 to-cyan-500 grid place-items-center shadow-lg shadow-fuchsia-500/30">
+                  <Users className="h-5 w-5 text-white" />
+                </div>
+                <div>
+                  <div className="text-[11px] uppercase tracking-[0.2em] text-white/75 font-semibold">Roster</div>
+                  <h2 className="text-xl md:text-2xl font-display font-bold leading-tight" data-testid="text-club-roster-title">{data.club.name}</h2>
+                </div>
+              </div>
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/15 text-white/90">
+                  <Users className="h-3 w-3" /> {filteredRows.length} <span className="text-white/50">/ {data.rows.length}</span>
+                </span>
+                {data.summary.promotionEligible > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 border border-emerald-400/40 text-emerald-200">
+                    <TrendingUp className="h-3 w-3" /> {data.summary.promotionEligible} promo-ready
+                  </span>
+                )}
+                {data.summary.demotionRisk > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-500/15 border border-orange-400/40 text-orange-200">
+                    <TrendingDown className="h-3 w-3" /> {data.summary.demotionRisk} at risk
+                  </span>
+                )}
+                {data.summary.adminLocked > 0 && (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-white/10 border border-white/20 text-white/70">
+                    <Lock className="h-3 w-3" /> {data.summary.adminLocked} locked
+                  </span>
+                )}
+              </div>
             </div>
-            <Select value={filter} onValueChange={(v) => setFilter(v as FilterKey)}>
-              <SelectTrigger className="w-[180px]" data-testid="select-filter"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Players</SelectItem>
-                <SelectItem value="promotion">Promotion Ready</SelectItem>
-                <SelectItem value="demotion">Demotion Risk</SelectItem>
-                <SelectItem value="highWinRate">Highest Win Rate</SelectItem>
-                <SelectItem value="lowWinRate">Lowest Win Rate</SelectItem>
-                <SelectItem value="active">Most Active</SelectItem>
-                <SelectItem value="inactive">No Recent Games</SelectItem>
-                <SelectItem value="newMembers">New (30 days)</SelectItem>
-                <SelectItem value="manual">Manual Overrides</SelectItem>
-                <SelectItem value="recent">Recently Changed</SelectItem>
-                <SelectItem value="locked">Admin-Locked</SelectItem>
-              </SelectContent>
-            </Select>
-            <Select value={gradeFilter} onValueChange={setGradeFilter}>
-              <SelectTrigger className="w-[120px]" data-testid="select-grade-filter"><SelectValue /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="ALL">All Grades</SelectItem>
-                {GRADE_ORDER.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
-              </SelectContent>
-            </Select>
-            <Button variant="outline" size="sm" onClick={exportCsv} data-testid="button-export"><Download className="h-4 w-4 mr-1" /> CSV</Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="relative w-full sm:w-[240px]">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/60" />
+                <Input
+                  placeholder="Search players..."
+                  className="pl-9 bg-white/10 border-white/20 text-white placeholder:text-white/50 focus-visible:ring-fuchsia-400/60"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  data-testid="input-search"
+                />
+              </div>
+              <Select value={filter} onValueChange={(v) => setFilter(v as FilterKey)}>
+                <SelectTrigger className="w-[180px] bg-white/10 border-white/20 text-white" data-testid="select-filter"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Players</SelectItem>
+                  <SelectItem value="promotion">Promotion Ready</SelectItem>
+                  <SelectItem value="demotion">Demotion Risk</SelectItem>
+                  <SelectItem value="highWinRate">Highest Win Rate</SelectItem>
+                  <SelectItem value="lowWinRate">Lowest Win Rate</SelectItem>
+                  <SelectItem value="active">Most Active</SelectItem>
+                  <SelectItem value="inactive">No Recent Games</SelectItem>
+                  <SelectItem value="newMembers">New (30 days)</SelectItem>
+                  <SelectItem value="manual">Manual Overrides</SelectItem>
+                  <SelectItem value="recent">Recently Changed</SelectItem>
+                  <SelectItem value="locked">Admin-Locked</SelectItem>
+                </SelectContent>
+              </Select>
+              <Select value={gradeFilter} onValueChange={setGradeFilter}>
+                <SelectTrigger className="w-[120px] bg-white/10 border-white/20 text-white" data-testid="select-grade-filter"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All Grades</SelectItem>
+                  {GRADE_ORDER.map(g => <SelectItem key={g} value={g}>{g}</SelectItem>)}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={exportCsv}
+                className="bg-white/10 border-white/20 text-white hover:bg-white/20 hover:text-white"
+                data-testid="button-export"
+              >
+                <Download className="h-4 w-4 mr-1" /> CSV
+              </Button>
+            </div>
           </div>
+
+          {/* Grade distribution chips */}
+          {totalGraded > 0 && (
+            <div className="mt-4 flex flex-wrap items-center gap-1.5">
+              <span className="text-[11px] uppercase tracking-wider text-white/70 mr-1 font-medium">Grade mix</span>
+              {GRADE_ORDER.slice().reverse().map(g => {
+                const n = distribution[g] || 0;
+                if (n === 0) return null;
+                const band = gradeBand(g);
+                const tone = band === "emerald" ? "bg-emerald-500/20 border-emerald-400/40 text-emerald-100"
+                  : band === "blue" ? "bg-blue-500/20 border-blue-400/40 text-blue-100"
+                  : "bg-orange-500/20 border-orange-400/40 text-orange-100";
+                const active = gradeFilter === g;
+                return (
+                  <button
+                    key={g}
+                    type="button"
+                    aria-pressed={active}
+                    onClick={() => setGradeFilter(active ? "ALL" : g)}
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md border text-xs font-medium tabular-nums transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/80 ${tone} ${active ? "ring-2 ring-white/80" : "opacity-90 hover:opacity-100"}`}
+                    data-testid={`chip-grade-${g}`}
+                  >
+                    <span className="font-semibold">{g}</span>
+                    <span className="text-white/90">{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
         </div>
-      </CardHeader>
+      </div>
+
       <CardContent className="p-0">
         <div className="overflow-x-auto">
           <Table>
             <TableHeader>
-              <TableRow>
+              <TableRow className="bg-muted/30 hover:bg-muted/30">
                 <SortHead k="name" label="Player" />
                 <SortHead k="grade" label="Grade" />
                 <SortHead k="winRate" label="Win Rate" className="text-center" />
@@ -673,22 +765,32 @@ function PlayersTable({ data, loading, onOpenPlayer }: { data: ClubData | null; 
             </TableHeader>
             <TableBody>
               {filteredRows.map((r) => (
-                <TableRow key={r.profileId} className="cursor-pointer hover-elevate" onClick={() => onOpenPlayer(r.profileId)} data-testid={`row-player-${r.profileId}`}>
-                  <TableCell>
+                <TableRow
+                  key={r.profileId}
+                  className={`cursor-pointer relative transition-colors ${rowTint(r)} before:absolute before:left-0 before:top-1 before:bottom-1 before:w-[3px] before:rounded-r-sm ${gradeStripe(r.grade)}`}
+                  onClick={() => onOpenPlayer(r.profileId)}
+                  data-testid={`row-player-${r.profileId}`}
+                >
+                  <TableCell className="pl-4">
                     <div className="flex items-center gap-3">
-                      <Avatar className="h-9 w-9">
-                        <AvatarImage src={r.profilePictureUrl || undefined} />
-                        <AvatarFallback>{r.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium" data-testid={`text-name-${r.profileId}`}>{r.fullName}</div>
-                        <div className="text-xs text-muted-foreground truncate max-w-[180px]">{r.email}</div>
+                      <div className="relative">
+                        <Avatar className="h-10 w-10 ring-2 ring-background shadow-sm">
+                          <AvatarImage src={r.profilePictureUrl || undefined} />
+                          <AvatarFallback className="text-xs font-semibold">{r.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        </Avatar>
+                        <span className={`absolute -bottom-1 -right-1 inline-flex items-center justify-center h-4 min-w-4 px-1 rounded-md border text-[10px] font-bold leading-none ${gradeColour(r.grade)}`}>
+                          {r.grade}
+                        </span>
+                      </div>
+                      <div className="min-w-0">
+                        <div className="font-semibold leading-tight" data-testid={`text-name-${r.profileId}`}>{r.fullName}</div>
+                        <div className="text-[11px] text-muted-foreground truncate max-w-[180px]">{r.email}</div>
                       </div>
                     </div>
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Badge variant="outline" className={gradeColour(r.grade)} data-testid={`badge-grade-${r.profileId}`}>{r.grade}</Badge>
+                      <Badge variant="outline" className={`${gradeColour(r.grade)} font-bold tabular-nums`} data-testid={`badge-grade-${r.profileId}`}>{r.grade}</Badge>
                       {r.previousGrade && r.previousGrade !== r.grade && (
                         <span className="text-[10px] text-muted-foreground">from {r.previousGrade}</span>
                       )}
@@ -1119,56 +1221,100 @@ function PlayerProgressDialog({ profileId, onClose }: { profileId: number | null
           <div className="py-20"><LoadingState /></div>
         ) : (
           <>
-            {/* HERO HEADER with gradient + glassmorphism */}
-            <div className="relative overflow-hidden rounded-t-lg">
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/30 via-primary/10 to-transparent" />
-              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.25),transparent_60%)]" />
-              <div className="absolute -top-24 -right-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
-              <DialogHeader className="relative p-6 pb-4">
+            {/* HERO HEADER — sport dashboard style */}
+            {(() => {
+              const lastChange = data.history && data.history.length > 0 ? data.history[0] : null;
+              const lastChangeDate = lastChange ? new Date(lastChange.createdAt) : null;
+              const daysAtGrade = lastChangeDate ? Math.max(0, Math.floor((Date.now() - lastChangeDate.getTime()) / (1000 * 60 * 60 * 24))) : null;
+              const isPromo = lastChange?.direction === "PROMOTION";
+              const isDemo = lastChange?.direction === "DEMOTION";
+              return (
+            <div className="relative overflow-hidden rounded-t-lg bg-slate-950">
+              <div className="absolute inset-0 bg-gradient-to-br from-indigo-600/40 via-fuchsia-600/20 to-cyan-500/30" />
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_right,hsl(var(--primary)/0.35),transparent_60%)]" />
+              <div className="absolute -top-32 -right-24 h-80 w-80 rounded-full bg-fuchsia-500/30 blur-3xl" />
+              <div className="absolute -bottom-24 -left-24 h-72 w-72 rounded-full bg-cyan-500/25 blur-3xl" />
+              <div className="absolute inset-0 opacity-[0.07] [background-image:linear-gradient(white_1px,transparent_1px),linear-gradient(90deg,white_1px,transparent_1px)] [background-size:24px_24px]" />
+              <DialogHeader className="relative p-6 pb-5 text-white">
                 <DialogTitle asChild>
                   <div className="flex items-start gap-4">
                     <div className="relative">
-                      <div className="absolute -inset-1 rounded-full bg-gradient-to-tr from-primary to-primary/40 blur-md opacity-60" />
-                      <Avatar className="relative h-20 w-20 ring-4 ring-background shadow-xl">
+                      <div className="absolute -inset-1.5 rounded-full bg-gradient-to-tr from-fuchsia-500 via-primary to-cyan-400 blur-md opacity-80 animate-pulse" />
+                      <Avatar className="relative h-20 w-20 ring-4 ring-white/20 shadow-2xl">
                         <AvatarImage src={data.profile.profilePictureUrl || undefined} />
-                        <AvatarFallback className="text-2xl font-bold">{data.profile.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
+                        <AvatarFallback className="text-2xl font-bold bg-slate-800 text-white">{data.profile.fullName.slice(0, 2).toUpperCase()}</AvatarFallback>
                       </Avatar>
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-2xl md:text-3xl font-display font-bold tracking-tight" data-testid="text-player-name">{data.profile.fullName}</div>
-                      <div className="flex flex-wrap items-center gap-2 mt-2">
+                      <div className="text-2xl md:text-3xl font-display font-extrabold tracking-tight uppercase drop-shadow-sm" data-testid="text-player-name">{data.profile.fullName}</div>
+                      <div className="flex flex-wrap items-center gap-2 mt-2.5">
                         {(data.profile as any).previousGrade && (
-                          <Badge variant="outline" className={`${gradeColour((data.profile as any).previousGrade)} opacity-60`}>{(data.profile as any).previousGrade}</Badge>
+                          <Badge variant="outline" className={`${gradeColour((data.profile as any).previousGrade)} opacity-70 line-through bg-white/5 border-white/20`}>{(data.profile as any).previousGrade}</Badge>
                         )}
-                        {(data.profile as any).previousGrade && <ArrowUpRight className="h-4 w-4 text-muted-foreground" />}
-                        <Badge variant="outline" className={`${gradeColour(data.profile.grade)} text-base font-bold px-3 py-1`}>{data.profile.grade}</Badge>
+                        {(data.profile as any).previousGrade && (
+                          isDemo
+                            ? <ArrowDownRight className="h-4 w-4 text-orange-300" />
+                            : <ArrowUpRight className="h-4 w-4 text-emerald-300" />
+                        )}
+                        <Badge className={`text-base font-extrabold px-3 py-1 shadow-lg ring-2 ring-white/30 ${
+                          data.profile.grade.startsWith("A") ? "bg-emerald-500 text-white"
+                          : data.profile.grade.startsWith("B") ? "bg-blue-500 text-white"
+                          : "bg-orange-500 text-white"
+                        }`}>{data.profile.grade}</Badge>
                         {(data.profile as any).highestGrade && (data.profile as any).highestGrade !== data.profile.grade && (
                           <UiTooltip>
                             <TooltipTrigger asChild>
-                              <Badge variant="outline" className="gap-1 bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/40">
+                              <Badge variant="outline" className="gap-1 bg-amber-500/20 text-amber-100 border-amber-300/60">
                                 <Crown className="h-3 w-3" /> Peak {(data.profile as any).highestGrade}
                               </Badge>
                             </TooltipTrigger>
                             <TooltipContent>Highest grade achieved</TooltipContent>
                           </UiTooltip>
                         )}
-                        {data.currentStats.isProtected && <Badge variant="outline" className="bg-sky-500/15 text-sky-700 dark:text-sky-300 border-sky-500/40 gap-1"><ShieldCheck className="h-3 w-3" /> Protected</Badge>}
-                        {data.currentStats.isReturning && <Badge variant="outline" className="bg-teal-500/15 text-teal-700 dark:text-teal-300 border-teal-500/40">Welcome back</Badge>}
-                        {data.profile.adminLocked && <Badge variant="outline" className="bg-purple-500/15 text-purple-600 border-purple-500/40 gap-1"><Lock className="h-3 w-3" /> Locked</Badge>}
+                        {data.currentStats.isProtected && <Badge variant="outline" className="bg-sky-500/20 text-sky-100 border-sky-300/50 gap-1"><ShieldCheck className="h-3 w-3" /> Protected</Badge>}
+                        {data.currentStats.isReturning && <Badge variant="outline" className="bg-teal-500/20 text-teal-100 border-teal-300/50">Welcome back</Badge>}
+                        {data.profile.adminLocked && <Badge variant="outline" className="bg-purple-500/20 text-purple-100 border-purple-300/50 gap-1"><Lock className="h-3 w-3" /> Locked</Badge>}
                       </div>
+                      {lastChange && (
+                        <div
+                          className="mt-3 inline-flex items-center gap-2 rounded-full bg-white/10 backdrop-blur px-3 py-1.5 text-xs font-medium border border-white/20"
+                          data-testid="text-last-grade-change"
+                        >
+                          <Calendar className="h-3.5 w-3.5 text-white/80" />
+                          <span className="text-white/90">
+                            {isPromo ? "Promoted" : isDemo ? "Demoted" : "Adjusted"} from <b>{lastChange.oldGrade}</b> to <b>{lastChange.newGrade}</b>
+                          </span>
+                          <span className="text-white/60">·</span>
+                          <span className="text-white">{format(lastChangeDate!, "d MMM yyyy")}</span>
+                          {daysAtGrade !== null && (
+                            <>
+                              <span className="text-white/60">·</span>
+                              <span className="text-white/80">{daysAtGrade === 0 ? "today" : daysAtGrade === 1 ? "1 day ago" : `${daysAtGrade} days ago`}</span>
+                            </>
+                          )}
+                        </div>
+                      )}
                     </div>
                     {/* Quick stats column */}
                     <div className="hidden md:flex flex-col items-end gap-1 text-right">
-                      <div className="text-xs uppercase tracking-wider text-muted-foreground">Sessions in window</div>
-                      <div className="text-2xl font-bold tabular-nums"><AnimatedNumber value={data.currentStats.sessionsCounted} /></div>
+                      <div className="text-[10px] uppercase tracking-[0.2em] text-white/70">Sessions in window</div>
+                      <div className="text-3xl font-extrabold tabular-nums text-white drop-shadow"><AnimatedNumber value={data.currentStats.sessionsCounted} /></div>
+                      {data.history && data.history.length > 0 && (
+                        <div className="text-[10px] uppercase tracking-[0.2em] text-white/70 mt-2">Total Grade Moves</div>
+                      )}
+                      {data.history && data.history.length > 0 && (
+                        <div className="text-xl font-bold tabular-nums text-white">{data.history.length}</div>
+                      )}
                     </div>
                   </div>
                 </DialogTitle>
-                <DialogDescription className="mt-3 text-xs">
+                <DialogDescription className="mt-3 text-xs text-white/70">
                   Window: last {data.currentStats.rollingWindowSessions} sessions (auto-expands to ≥20 matches) · Promotion ≥{(data.currentStats.promotionFastThreshold * 100).toFixed(0)}% or {(data.currentStats.promotionThreshold * 100).toFixed(0)}% × 2 checks · Demotion &lt;{(data.currentStats.demotionFastThreshold * 100).toFixed(0)}% or &lt;{(data.currentStats.demotionThreshold * 100).toFixed(0)}% × 2 checks
                 </DialogDescription>
               </DialogHeader>
             </div>
+              );
+            })()}
 
             <div className="p-6 pt-2 space-y-5">
               {/* WIN RATE ENGINE — 3 circular rings + promo/demo */}
@@ -1405,7 +1551,12 @@ function PlayerProgressDialog({ profileId, onClose }: { profileId: number | null
                     <div className="text-center py-6 text-sm text-muted-foreground">No grade changes recorded yet.</div>
                   ) : (
                     <div className="relative pl-6 space-y-4 before:content-[''] before:absolute before:left-[10px] before:top-2 before:bottom-2 before:w-0.5 before:bg-gradient-to-b before:from-primary/60 before:via-primary/30 before:to-transparent">
-                      {data.history.map((h, i) => (
+                      {data.history.map((h, i) => {
+                        const date = new Date(h.createdAt);
+                        const nextDate = i > 0 ? new Date(data.history[i - 1].createdAt) : new Date();
+                        const heldForDays = Math.max(0, Math.floor((nextDate.getTime() - date.getTime()) / (1000 * 60 * 60 * 24)));
+                        const daysAgo = Math.max(0, Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)));
+                        return (
                         <motion.div
                           key={h.id}
                           initial={{ opacity: 0, x: -10 }}
@@ -1414,29 +1565,63 @@ function PlayerProgressDialog({ profileId, onClose }: { profileId: number | null
                           className="relative"
                           data-testid={`history-row-${h.id}`}
                         >
-                          <div className={`absolute -left-6 top-1.5 h-4 w-4 rounded-full ring-4 ring-background ${
+                          <div className={`absolute -left-6 top-1.5 h-4 w-4 rounded-full ring-4 ring-background shadow ${
                             h.direction === "PROMOTION" ? "bg-emerald-500" : h.direction === "DEMOTION" ? "bg-orange-500" : "bg-blue-500"
                           }`} />
                           <div className="flex items-start justify-between gap-3">
                             <div className="flex-1 min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <Badge variant="outline" className={`${gradeColour(h.oldGrade)} text-xs`}>{h.oldGrade}</Badge>
-                                <ArrowUpRight className={`h-3.5 w-3.5 ${h.direction === "DEMOTION" ? "rotate-90 text-orange-500" : "text-emerald-500"}`} />
-                                <Badge variant="outline" className={`${gradeColour(h.newGrade)} text-xs`}>{h.newGrade}</Badge>
-                                <Badge variant={h.trigger === "MANUAL" ? "default" : "secondary"} className="text-[10px]">
+                                {h.direction === "DEMOTION"
+                                  ? <ArrowDownRight className="h-3.5 w-3.5 text-orange-500" />
+                                  : <ArrowUpRight className="h-3.5 w-3.5 text-emerald-500" />}
+                                <Badge variant="outline" className={`${gradeColour(h.newGrade)} text-xs font-bold`}>{h.newGrade}</Badge>
+                                <Badge
+                                  className={`text-[10px] ${
+                                    h.direction === "PROMOTION" ? "bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40"
+                                    : h.direction === "DEMOTION" ? "bg-orange-500/15 text-orange-700 dark:text-orange-300 border border-orange-500/40"
+                                    : "bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/40"
+                                  }`}
+                                  variant="outline"
+                                >
+                                  {h.direction === "PROMOTION" ? "Promotion" : h.direction === "DEMOTION" ? "Demotion" : "Manual"}
+                                </Badge>
+                                <Badge variant="secondary" className="text-[10px]">
                                   {h.trigger}{h.changedByName ? ` · ${h.changedByName}` : ""}
                                 </Badge>
                               </div>
+                              <div className="flex flex-wrap items-center gap-2 mt-1.5">
+                                <span className="inline-flex items-center gap-1 text-sm font-semibold text-foreground">
+                                  <Calendar className="h-3.5 w-3.5 text-primary" />
+                                  {format(date, "EEE, d MMM yyyy")}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  · {format(date, "HH:mm")}
+                                </span>
+                                <Badge variant="outline" className="text-[10px] bg-muted/60">
+                                  {daysAgo === 0 ? "today" : daysAgo === 1 ? "1 day ago" : `${daysAgo} days ago`}
+                                </Badge>
+                                {i > 0 && heldForDays > 0 && (
+                                  <Badge variant="outline" className="text-[10px] bg-muted/60">
+                                    held {heldForDays}d before next move
+                                  </Badge>
+                                )}
+                                {i === 0 && heldForDays >= 0 && (
+                                  <Badge variant="outline" className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30">
+                                    current — {heldForDays}d at this grade
+                                  </Badge>
+                                )}
+                              </div>
                               <div className="text-xs text-muted-foreground mt-1">
-                                {format(new Date(h.createdAt), "d MMM yyyy · HH:mm")}
-                                {h.winRate !== null && ` · ${h.winRate}% win rate`}
+                                {h.winRate !== null && `${h.winRate}% win rate`}
                                 {h.gamesWon !== null && h.gamesPlayed !== null && ` · ${h.gamesWon}/${h.gamesPlayed} games`}
                               </div>
                               {h.note && <div className="text-xs text-muted-foreground mt-1 italic">"{h.note}"</div>}
                             </div>
                           </div>
                         </motion.div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   {timelineData.length > 1 && (
