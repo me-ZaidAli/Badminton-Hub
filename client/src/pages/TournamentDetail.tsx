@@ -35,6 +35,8 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
 import { format } from "date-fns";
+import { UkDateTimePicker } from "@/components/UkDateTimePicker";
+import { utcToLondonInputs, londonInputsToUtcISO, formatLondon } from "@/lib/uk-time";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -220,7 +222,7 @@ export default function TournamentDetail() {
               </div>
               <h1 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow-lg" data-testid="text-tournament-title">{tournament.name}</h1>
               <div className="flex items-center gap-3 mt-1 text-xs text-gray-300 flex-wrap">
-                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{format(new Date(tournament.startDate), "d MMM")} – {format(new Date(tournament.endDate), "d MMM")}</span>
+                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatLondon(tournament.startDate, "d MMM")} – {formatLondon(tournament.endDate, "d MMM")}</span>
                 <span className="flex items-center gap-1"><Swords className="h-3 w-3" />{tournament.courtsAvailable} courts</span>
               </div>
             </div>
@@ -569,7 +571,7 @@ function OverviewTab({ tournament, categories, tournamentId }: { tournament: any
           <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-2 text-sm text-gray-300">
               <Calendar className="h-4 w-4 text-amber-400" />
-              <span>{format(new Date(tournament.startDate), "d MMM yyyy")} – {format(new Date(tournament.endDate), "d MMM yyyy")}</span>
+              <span>{formatLondon(tournament.startDate, "d MMM yyyy")} – {formatLondon(tournament.endDate, "d MMM yyyy")}</span>
             </div>
             <div className="h-4 w-px bg-gray-600" />
             <div className="flex items-center gap-2 text-sm text-gray-300">
@@ -984,7 +986,7 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
                           </div>
                           <div className="text-[10px] text-slate-500 shrink-0 text-right">
                             <div className="truncate max-w-[100px]">{match.sessionTitle}</div>
-                            {match.completedAt && <div>{format(new Date(match.completedAt), "MMM d, yy")}</div>}
+                            {match.completedAt && <div>{formatLondon(match.completedAt, "MMM d, yy")}</div>}
                           </div>
                         </div>
                       ))}
@@ -1381,7 +1383,7 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
               const p2Name = pair.user2?.fullName || "Player 2";
               const accentIdx = idx % esportsAccents.length;
               const accent = esportsAccents[accentIdx];
-              const pairedDate = pair.createdAt ? format(new Date(pair.createdAt), "d MMM yyyy") : null;
+              const pairedDate = pair.createdAt ? formatLondon(pair.createdAt, "d MMM yyyy") : null;
               const isMyPair = user && (pair.user1?.id === user.id || pair.user2?.id === user.id);
               const partnerInPair = isMyPair
                 ? (pair.user1?.id === user.id ? pair.user2?.fullName : pair.user1?.fullName)
@@ -2554,7 +2556,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                   {!isCollapsed && canManage && (
                     <div className="flex items-center gap-2 mb-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/30">
                       <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                      <span className="text-[10px] font-bold text-muted-foreground">Bulk set time:</span>
+                      <span className="text-[10px] font-bold text-muted-foreground">Bulk set time (UK):</span>
                       <Input
                         type="datetime-local"
                         value={bulkTimeBySection[sec.key] || ""}
@@ -2569,7 +2571,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                         onClick={() => {
                           const val = bulkTimeBySection[sec.key];
                           if (!val) return;
-                          const iso = new Date(val).toISOString();
+                          const iso = londonInputsToUtcISO(val.slice(0, 10), val.slice(11, 16)) || new Date(val).toISOString();
                           bulkUpdateTimeMutation.mutate(
                             { matchIds: sec.matches.map(m => m.id), scheduledTime: iso, tournamentId },
                             {
@@ -2971,14 +2973,12 @@ function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateS
   const [editingTime, setEditingTime] = useState(false);
   const toLocalInput = (d: any) => {
     if (!d) return "";
-    const dt = new Date(d);
-    if (isNaN(dt.getTime())) return "";
-    const pad = (n: number) => String(n).padStart(2, "0");
-    return `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}`;
+    const { date, time } = utcToLondonInputs(d);
+    return date && time ? `${date}T${time}` : "";
   };
   const [timeDraft, setTimeDraft] = useState<string>(() => toLocalInput(match.scheduledTime));
   const scheduledLabel = match.scheduledTime
-    ? new Date(match.scheduledTime).toLocaleString(undefined, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" })
+    ? formatLondon(match.scheduledTime, "d MMM HH:mm")
     : "";
   const teamAName = match.teamA ? getTeamName(match.teamA) : "TBD";
   const teamBName = match.teamB ? getTeamName(match.teamB) : "TBD";
@@ -3028,11 +3028,12 @@ function MatchCard({ match, canManage, onScore, courts, onAssignCourt, onUpdateS
                     className="h-6 text-[10px] px-1 w-[160px]"
                     data-testid={`input-match-time-${match.id}`}
                   />
+                  <span className="text-[9px] text-muted-foreground">UK</span>
                   <Button
                     size="icon"
                     className="h-6 w-6 bg-violet-600 hover:bg-violet-700 text-white"
                     onClick={() => {
-                      const iso = timeDraft ? new Date(timeDraft).toISOString() : null;
+                      const iso = timeDraft ? londonInputsToUtcISO(timeDraft.slice(0, 10), timeDraft.slice(11, 16)) : null;
                       onUpdateTime?.(match.id, iso);
                       setEditingTime(false);
                     }}
@@ -4197,7 +4198,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     setEditingGroup(group);
     setFormName(group.name);
     setFormMaxPairs(String(group.maxPairs));
-    setFormStartTime(group.startTime ? format(new Date(group.startTime), "yyyy-MM-dd'T'HH:mm") : "");
+    setFormStartTime(group.startTime ? (() => { const { date, time } = utcToLondonInputs(group.startTime); return date && time ? `${date}T${time}` : ""; })() : "");
     setFormHallName(group.hallName || "");
     setFormCourtName(group.courtName || "");
     setFormCategoryId(group.categoryId ? String(group.categoryId) : "");
@@ -4211,7 +4212,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         tournamentId,
         name: formName.trim(),
         maxPairs: Number(formMaxPairs) || 4,
-        startTime: formStartTime ? new Date(formStartTime).toISOString() : undefined,
+        startTime: formStartTime ? (londonInputsToUtcISO(formStartTime.slice(0, 10), formStartTime.slice(11, 16)) || undefined) : undefined,
         hallName: formHallName || undefined,
         courtName: formCourtName || undefined,
         categoryId: formCategoryId ? Number(formCategoryId) : undefined,
@@ -4232,7 +4233,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         tournamentId,
         name: formName.trim(),
         maxPairs: Number(formMaxPairs) || 4,
-        startTime: formStartTime ? new Date(formStartTime).toISOString() : null,
+        startTime: formStartTime ? (londonInputsToUtcISO(formStartTime.slice(0, 10), formStartTime.slice(11, 16)) || null) : null,
         hallName: formHallName || null,
         courtName: formCourtName || null,
         categoryId: formCategoryId ? Number(formCategoryId) : null,
@@ -4425,7 +4426,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   async function saveGroupTime(group: any) {
     const val = perGroupTime[group.id];
     if (val === undefined) return;
-    const iso = val ? new Date(val).toISOString() : null;
+    const iso = val ? (londonInputsToUtcISO(val.slice(0, 10), val.slice(11, 16)) || null) : null;
     try {
       await updateGroupMutation.mutateAsync({
         groupId: group.id, tournamentId,
@@ -4623,7 +4624,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                           {group.startTime && (
                             <>
                               <span>·</span>
-                              <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{format(new Date(group.startTime), "dd MMM, HH:mm")}</span>
+                              <span className="flex items-center gap-0.5"><Clock className="h-3 w-3" />{formatLondon(group.startTime, "dd MMM, HH:mm")}</span>
                             </>
                           )}
                         </div>
@@ -4661,10 +4662,10 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                   {canManage && (
                     <div className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/20">
                       <Clock className="h-3 w-3 text-muted-foreground flex-shrink-0" />
-                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Start time</span>
+                      <span className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">Start time (UK)</span>
                       <Input
                         type="datetime-local"
-                        value={perGroupTime[group.id] ?? (group.startTime ? format(new Date(group.startTime), "yyyy-MM-dd'T'HH:mm") : "")}
+                        value={perGroupTime[group.id] ?? (group.startTime ? (() => { const { date, time } = utcToLondonInputs(group.startTime); return date && time ? `${date}T${time}` : ""; })() : "")}
                         onChange={(e) => setPerGroupTime(prev => ({ ...prev, [group.id]: e.target.value }))}
                         className="h-7 text-xs flex-1 min-w-[180px] max-w-[240px]"
                         data-testid={`input-group-time-${group.id}`}
@@ -5816,9 +5817,10 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
   const [name, setName] = useState(tournament.name || "");
   const [type, setType] = useState(tournament.type || "CLUB");
   const [status, setStatus] = useState(tournament.status || "DRAFT");
-  const [startDate, setStartDate] = useState(tournament.startDate ? format(new Date(tournament.startDate), "yyyy-MM-dd'T'HH:mm") : "");
-  const [endDate, setEndDate] = useState(tournament.endDate ? format(new Date(tournament.endDate), "yyyy-MM-dd'T'HH:mm") : "");
-  const [registrationDeadline, setRegistrationDeadline] = useState(tournament.registrationDeadline ? format(new Date(tournament.registrationDeadline), "yyyy-MM-dd'T'HH:mm") : "");
+  const toUkLocal = (d: any) => { if (!d) return ""; const { date, time } = utcToLondonInputs(d); return date && time ? `${date}T${time}` : ""; };
+  const [startDate, setStartDate] = useState(toUkLocal(tournament.startDate));
+  const [endDate, setEndDate] = useState(toUkLocal(tournament.endDate));
+  const [registrationDeadline, setRegistrationDeadline] = useState(toUkLocal(tournament.registrationDeadline));
   const [location, setLocation] = useState(tournament.location || "");
   const [description, setDescription] = useState(tournament.description || "");
   const [rules, setRules] = useState(tournament.rules || "");
@@ -5832,9 +5834,9 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
     setName(tournament.name || "");
     setType(tournament.type || "CLUB");
     setStatus(tournament.status || "DRAFT");
-    setStartDate(tournament.startDate ? format(new Date(tournament.startDate), "yyyy-MM-dd'T'HH:mm") : "");
-    setEndDate(tournament.endDate ? format(new Date(tournament.endDate), "yyyy-MM-dd'T'HH:mm") : "");
-    setRegistrationDeadline(tournament.registrationDeadline ? format(new Date(tournament.registrationDeadline), "yyyy-MM-dd'T'HH:mm") : "");
+    setStartDate(toUkLocal(tournament.startDate));
+    setEndDate(toUkLocal(tournament.endDate));
+    setRegistrationDeadline(toUkLocal(tournament.registrationDeadline));
     setLocation(tournament.location || "");
     setDescription(tournament.description || "");
     setRules(tournament.rules || "");
@@ -5855,9 +5857,9 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
         name: name.trim(),
         type,
         status,
-        startDate: new Date(startDate).toISOString(),
-        endDate: new Date(endDate).toISOString(),
-        registrationDeadline: registrationDeadline ? new Date(registrationDeadline).toISOString() : null,
+        startDate: londonInputsToUtcISO(startDate.slice(0, 10), startDate.slice(11, 16)) || new Date(startDate).toISOString(),
+        endDate: londonInputsToUtcISO(endDate.slice(0, 10), endDate.slice(11, 16)) || new Date(endDate).toISOString(),
+        registrationDeadline: registrationDeadline ? (londonInputsToUtcISO(registrationDeadline.slice(0, 10), registrationDeadline.slice(11, 16)) || null) : null,
         location: location.trim() || null,
         description: description.trim() || null,
         rules: rules.trim() || null,
@@ -5998,9 +6000,9 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
               { label: "Name", value: tournament.name, icon: Trophy },
               { label: "Type", value: tournament.type, icon: Globe },
               { label: "Status", value: tournament.status?.replace("_", " "), icon: Sparkles },
-              { label: "Start", value: tournament.startDate ? format(new Date(tournament.startDate), "PPp") : "Not set", icon: Calendar },
-              { label: "End", value: tournament.endDate ? format(new Date(tournament.endDate), "PPp") : "Not set", icon: Calendar },
-              { label: "Reg Deadline", value: tournament.registrationDeadline ? format(new Date(tournament.registrationDeadline), "PPp") : "None", icon: Clock },
+              { label: "Start", value: tournament.startDate ? formatLondon(tournament.startDate, "PPp") : "Not set", icon: Calendar },
+              { label: "End", value: tournament.endDate ? formatLondon(tournament.endDate, "PPp") : "Not set", icon: Calendar },
+              { label: "Reg Deadline", value: tournament.registrationDeadline ? formatLondon(tournament.registrationDeadline, "PPp") : "None", icon: Clock },
               { label: "Location", value: tournament.location || "Not set", icon: MapPin },
               { label: "Max Players", value: tournament.maxPlayers || "Unlimited", icon: Users },
               { label: "Courts", value: tournament.courtsAvailable || "4", icon: Monitor },

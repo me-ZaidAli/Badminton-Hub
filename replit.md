@@ -59,6 +59,7 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Unified Sidebar Tiles**: Consistent rounded-xl tiles for side menu groups (Home, Activity, My Club, Communication, Design, Help & Info, Management, Super Admin).
 - **Audit Log Viewer**: Admin page at `/admin/audit-log` with paginated, filterable view over `admin_audit_logs` table.
 - **Session Cancellation**: Admins can mark a session as cancelled, with UI indicators and notifications to affected participants, and the ability to reactivate.
+- **UK Time Standard**: All event date/time inputs and displays are anchored to Europe/London (BST/GMT auto-aware) via `client/src/lib/uk-time.ts` (Intl-based, no library deps) and the friendly `UkDateTimePicker` component (date + time + ±15min controls + quick presets + UK BST/GMT label). Applied to League fixtures and Tournament startDate/endDate/registrationDeadline/group startTime/match scheduledTime — eliminates the previous bug where browser-local interpretation shifted entered times by 1 hour.
 
 ## External Dependencies
 

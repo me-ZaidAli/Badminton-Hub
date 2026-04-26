@@ -19,7 +19,8 @@ import {
   Send, ClipboardList
 } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
-import { format } from "date-fns";
+import { UkDateTimePicker } from "@/components/UkDateTimePicker";
+import { formatLondon, formatLondonShort, formatLondonDate } from "@/lib/uk-time";
 
 function StatusBadge({ status }: { status: string }) {
   if (status === "LIVE") return <Badge className="bg-red-500 text-white">LIVE</Badge>;
@@ -486,7 +487,7 @@ function FixturesTable({ matches, loading, onEdit, onAssign, onResult, onDelete,
                 <div className="flex items-center gap-4 mt-1.5 text-xs text-muted-foreground flex-wrap">
                   <span className="flex items-center gap-1">
                     <Calendar className="h-3 w-3" />
-                    {format(new Date(m.matchDatetime), "dd MMM yyyy HH:mm")}
+                    {formatLondonShort(m.matchDatetime)}
                   </span>
                   {m.venue && (
                     <span className="flex items-center gap-1">
@@ -618,7 +619,7 @@ function ResultsTable({ matches, loading, onResult }: { matches: any[]; loading:
                   <span className="font-semibold">{m.opponentClub}</span>
                 </div>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {format(new Date(m.matchDatetime), "dd MMM yyyy")} {m.venue ? `at ${m.venue}` : ""}
+                  {formatLondonDate(m.matchDatetime)} {m.venue ? `at ${m.venue}` : ""}
                 </p>
               </div>
               <Button variant="outline" size="sm" onClick={() => onResult(m.id)} data-testid={`button-edit-result-${m.id}`}>
@@ -1064,7 +1065,7 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
         venueAddress: match.venueAddress || "",
         googleMapsUrl: match.googleMapsUrl || "",
         location: match.location || "",
-        matchDatetime: match.matchDatetime ? format(new Date(match.matchDatetime), "yyyy-MM-dd'T'HH:mm") : "",
+        matchDatetime: match.matchDatetime ? new Date(match.matchDatetime).toISOString() : "",
         opponentClub: match.opponentClub,
         leagueTeamId: match.leagueTeamId ? String(match.leagueTeamId) : "",
         leagueId: match.leagueId ? String(match.leagueId) : "",
@@ -1259,10 +1260,13 @@ function MatchDialog({ open, onOpenChange, match, clubId, teams, leagues, oppone
               </Select>
             </div>
           )}
-          <div>
-            <Label>Match Date & Time</Label>
-            <Input type="datetime-local" value={formData.matchDatetime} onChange={e => setFormData(f => ({ ...f, matchDatetime: e.target.value }))} data-testid="input-match-datetime" />
-          </div>
+          <UkDateTimePicker
+            label="Match Date & Time"
+            required
+            value={formData.matchDatetime || null}
+            onChange={(iso) => setFormData(f => ({ ...f, matchDatetime: iso || "" }))}
+            testIdPrefix="input-match-datetime"
+          />
           <div className="grid grid-cols-2 gap-3">
             <div>
               <Label>Number of Pairs</Label>
@@ -1496,7 +1500,7 @@ function SquadTab({ clubId, squadPlayers, clubMembers, matches }: {
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium truncate">vs {match.opponentClub}</p>
                   <p className="text-xs text-muted-foreground">
-                    {format(new Date(match.matchDatetime), "EEE, dd MMM yyyy HH:mm")} · {match.category}
+                    {formatLondon(match.matchDatetime, "EEE, dd MMM yyyy HH:mm")} · {match.category}
                   </p>
                 </div>
                 <Button
@@ -1722,7 +1726,7 @@ function AssignPlayersDialog({ open, onOpenChange, matchId, squadPlayers, matche
         <DialogHeader>
           <DialogTitle>
             Assign Players & Create Pairs
-            {match && <span className="text-sm font-normal text-muted-foreground block">vs {match.opponentClub} - {format(new Date(match.matchDatetime), "dd MMM yyyy HH:mm")}</span>}
+            {match && <span className="text-sm font-normal text-muted-foreground block">vs {match.opponentClub} - {formatLondonShort(match.matchDatetime)}</span>}
           </DialogTitle>
         </DialogHeader>
 
