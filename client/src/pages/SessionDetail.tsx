@@ -2743,12 +2743,40 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
   const { data, isLoading, refetch } = useQuery<any>({
     queryKey: ["/api/sessions", sessionId, "financial-overview"],
   });
+  const { data: sessionMeta } = useQuery<any>({
+    queryKey: ["/api/sessions", sessionId],
+  });
   const { toast } = useToast();
   const qc = useQueryClient();
   const [expandedPlayers, setExpandedPlayers] = useState(false);
   const [creditDialogOpen, setCreditDialogOpen] = useState(false);
   const [creditTarget, setCreditTarget] = useState<{ playerId: number; fullName: string; fee: number } | null>(null);
   const [creditAmount, setCreditAmount] = useState("");
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [addPlayerSearch, setAddPlayerSearch] = useState("");
+  const [removeTarget, setRemoveTarget] = useState<{ signupId: number; fullName: string } | null>(null);
+
+  const clubId = sessionMeta?.clubId;
+  const { data: clubMembers, isError: clubMembersError, error: clubMembersErrorObj, refetch: refetchClubMembers, isFetching: clubMembersFetching } = useQuery<any[]>({
+    queryKey: ["/api/clubs", clubId, "members"],
+    queryFn: async () => {
+      const res = await fetch(`/api/clubs/${clubId}/members`, { credentials: "include" });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: `Failed to load members (${res.status})` }));
+        throw new Error(err.message || `Failed to load members (${res.status})`);
+      }
+      return res.json();
+    },
+    enabled: !!clubId && addPlayerOpen,
+    retry: false,
+  });
+
+  const invalidateBoth = () => {
+    refetch();
+    qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "signups"] });
+    qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "financial-overview"] });
+    qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId] });
+  };
 
   const confirmPaymentMutation = useMutation({
     mutationFn: async (data: { signupId: number }) => {
@@ -2759,10 +2787,58 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
       return res.json();
     },
     onSuccess: () => {
-      refetch();
-      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "signups"] });
+      invalidateBoth();
       toast({ title: "Payment confirmed" });
     },
+  });
+
+  const addPlayerMutation = useMutation({
+    mutationFn: async (data: { playerId: number }) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/admin-add-player`, data);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to add player" }));
+        throw new Error(err.message || "Failed to add player");
+      }
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      invalidateBoth();
+      toast({
+        title: data.addedAs === "WAITING" ? "Added to waiting list" : "Player added to session",
+        description: data.addedAs === "WAITING" ? "Session is full — placed on waiting list." : undefined,
+      });
+    },
+    onError: (err: any) => toast({ title: "Failed to add player", description: err.message, variant: "destructive" }),
+  });
+
+  const removePlayerMutation = useMutation({
+    mutationFn: async (data: { signupId: number }) => {
+      const res = await apiRequest("DELETE", `/api/sessions/${sessionId}/signups/${data.signupId}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to remove player" }));
+        throw new Error(err.message || "Failed to remove player");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      invalidateBoth();
+      setRemoveTarget(null);
+      toast({ title: "Player removed from session" });
+    },
+    onError: (err: any) => toast({ title: "Failed to remove player", description: err.message, variant: "destructive" }),
+  });
+
+  const promoteFromWaitingMutation = useMutation({
+    mutationFn: async (signupId: number) => {
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/promote-waiting`, { signupId });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({ message: "Failed to promote player" }));
+        throw new Error(err.message || "Failed to promote player");
+      }
+      return res.json();
+    },
+    onSuccess: () => { invalidateBoth(); toast({ title: "Player promoted from waiting list" }); },
+    onError: (err: any) => toast({ title: "Failed to promote", description: err.message, variant: "destructive" }),
   });
 
   const sendReminderMutation = useMutation({
@@ -2902,36 +2978,67 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
           </div>
 
           <div className="space-y-2">
-            <button
-              onClick={() => setExpandedPlayers(!expandedPlayers)}
-              className="flex items-center gap-2 text-sm font-medium w-full text-left"
-              data-testid="button-toggle-player-financials"
-            >
-              <Users className="w-4 h-4" />
-              Player Breakdown ({players.length})
-              {expandedPlayers ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setExpandedPlayers(!expandedPlayers)}
+                className="flex items-center gap-2 text-sm font-medium flex-1 text-left"
+                data-testid="button-toggle-player-financials"
+              >
+                <Users className="w-4 h-4" />
+                Player Breakdown ({players.length})
+                {(summary.waitingCount > 0 || summary.invitedCount > 0) && (
+                  <span className="text-xs text-muted-foreground">
+                    · {summary.totalPlayers} confirmed
+                    {summary.invitedCount > 0 ? `, ${summary.invitedCount} invited` : ""}
+                    {summary.waitingCount > 0 ? `, ${summary.waitingCount} waiting` : ""}
+                  </span>
+                )}
+                {expandedPlayers ? <ChevronUp className="w-4 h-4 ml-auto" /> : <ChevronDown className="w-4 h-4 ml-auto" />}
+              </button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => { setAddPlayerOpen(true); setExpandedPlayers(true); }}
+                data-testid="button-open-add-player"
+              >
+                <Plus className="w-4 h-4 mr-1" /> Add Player
+              </Button>
+            </div>
 
             {expandedPlayers && (
               <div className="space-y-2 pt-2" data-testid="list-player-financials">
-                {players.map((p: any) => (
-                  <div key={p.signupId} className="flex items-center gap-2 p-3 border rounded-md" data-testid={`row-player-financial-${p.playerId}`}>
+                {players.map((p: any) => {
+                  const isConfirmed = p.signupStatus === "CONFIRMED";
+                  const statusBadgeStyles: Record<string, string> = {
+                    CONFIRMED: "",
+                    WAITING: "bg-amber-100 text-amber-900 dark:bg-amber-900/40 dark:text-amber-200 border-amber-300",
+                    INVITED: "bg-blue-100 text-blue-900 dark:bg-blue-900/40 dark:text-blue-200 border-blue-300",
+                  };
+                  return (
+                  <div key={p.signupId} className={`flex items-center gap-2 p-3 border rounded-md ${!isConfirmed ? "bg-muted/30" : ""}`} data-testid={`row-player-financial-${p.playerId}`}>
                     <div className="flex-1 min-w-0">
                       <p className="font-medium text-sm truncate" data-testid={`text-player-name-${p.playerId}`}>{p.fullName}</p>
                       <div className="flex items-center gap-1.5 flex-wrap mt-1">
-                        <Badge variant="secondary" className={`text-xs ${statusColors[p.paymentStatus] || ""}`}>
-                          {p.paymentStatus}
-                        </Badge>
-                        {p.paymentMethod !== "NONE" && (
+                        {!isConfirmed && (
+                          <Badge variant="outline" className={`text-xs ${statusBadgeStyles[p.signupStatus] || ""}`} data-testid={`badge-signup-status-${p.playerId}`}>
+                            {p.signupStatus === "WAITING" ? `Waiting #${p.waitingListPosition || "?"}` : p.signupStatus}
+                          </Badge>
+                        )}
+                        {isConfirmed && (
+                          <Badge variant="secondary" className={`text-xs ${statusColors[p.paymentStatus] || ""}`}>
+                            {p.paymentStatus}
+                          </Badge>
+                        )}
+                        {p.paymentMethod !== "NONE" && isConfirmed && (
                           <Badge variant="outline" className="text-xs">{methodLabels[p.paymentMethod] || p.paymentMethod}</Badge>
                         )}
-                        <span className="text-xs font-medium">{fmt(p.fee)}</span>
+                        <span className="text-xs font-medium">{fmt(p.fee)}{!isConfirmed && <span className="text-muted-foreground"> (not yet owed)</span>}</span>
                         {(p as any).creditUsed > 0 && (
                           <Badge variant="outline" className="text-xs text-blue-600 dark:text-blue-400">
                             Reward: {fmt((p as any).creditUsed)}
                           </Badge>
                         )}
-                        {p.verifiedByAdmin && (
+                        {p.verifiedByAdmin && isConfirmed && (
                           <Badge variant="secondary" className="text-xs bg-green-50 dark:bg-green-950">
                             <CheckCircle className="w-3 h-3 mr-0.5" /> Verified
                           </Badge>
@@ -2939,7 +3046,19 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
                       </div>
                     </div>
                     <div className="flex items-center gap-1 shrink-0">
-                      {p.paymentStatus !== "PAID" && (
+                      {p.signupStatus === "WAITING" && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => promoteFromWaitingMutation.mutate(p.signupId)}
+                          disabled={promoteFromWaitingMutation.isPending}
+                          title="Promote from Waiting List"
+                          data-testid={`button-promote-${p.playerId}`}
+                        >
+                          <ChevronUp className="w-4 h-4 text-green-600" />
+                        </Button>
+                      )}
+                      {isConfirmed && p.paymentStatus !== "PAID" && (
                         <Button
                           size="icon"
                           variant="ghost"
@@ -2951,7 +3070,7 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
                           <CheckCircle className="w-4 h-4 text-green-600" />
                         </Button>
                       )}
-                      {p.paymentStatus !== "PAID" && (
+                      {isConfirmed && p.paymentStatus !== "PAID" && (
                         <Button
                           size="icon"
                           variant="ghost"
@@ -2963,22 +3082,35 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
                           <Send className="w-4 h-4 text-amber-600" />
                         </Button>
                       )}
+                      {isConfirmed && (
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => {
+                            setCreditTarget({ playerId: p.playerId, fullName: p.fullName, fee: p.fee });
+                            setCreditAmount(String(p.fee));
+                            setCreditDialogOpen(true);
+                          }}
+                          title="Issue Reward"
+                          data-testid={`button-issue-credit-${p.playerId}`}
+                        >
+                          <CreditCard className="w-4 h-4 text-blue-600" />
+                        </Button>
+                      )}
                       <Button
                         size="icon"
                         variant="ghost"
-                        onClick={() => {
-                          setCreditTarget({ playerId: p.playerId, fullName: p.fullName, fee: p.fee });
-                          setCreditAmount(String(p.fee));
-                          setCreditDialogOpen(true);
-                        }}
-                        title="Issue Reward"
-                        data-testid={`button-issue-credit-${p.playerId}`}
+                        onClick={() => setRemoveTarget({ signupId: p.signupId, fullName: p.fullName })}
+                        disabled={removePlayerMutation.isPending}
+                        title="Remove from Session"
+                        data-testid={`button-remove-from-session-${p.playerId}`}
                       >
-                        <CreditCard className="w-4 h-4 text-blue-600" />
+                        <X className="w-4 h-4 text-red-600" />
                       </Button>
                     </div>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
@@ -3030,6 +3162,102 @@ function SessionFinancialCommandCenter({ sessionId }: { sessionId: number }) {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={addPlayerOpen} onOpenChange={(o) => { setAddPlayerOpen(o); if (!o) setAddPlayerSearch(""); }}>
+        <DialogContent className="max-w-md" data-testid="dialog-add-player">
+          <DialogHeader>
+            <DialogTitle>Add Player to Session</DialogTitle>
+            <DialogDescription>
+              Choose a club member to add. They'll join as confirmed if there's space, otherwise they go on the waiting list.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <Input
+              placeholder="Search by name…"
+              value={addPlayerSearch}
+              onChange={(e) => setAddPlayerSearch(e.target.value)}
+              data-testid="input-add-player-search"
+              autoFocus
+            />
+            <div className="max-h-72 overflow-y-auto space-y-1 border rounded-md p-1">
+              {clubMembersError && (
+                <div className="p-4 text-center space-y-2" data-testid="text-members-error">
+                  <p className="text-sm text-red-600 dark:text-red-400">
+                    {(clubMembersErrorObj as any)?.message || "Couldn't load club members."}
+                  </p>
+                  <Button size="sm" variant="outline" onClick={() => refetchClubMembers()} disabled={clubMembersFetching} data-testid="button-retry-members">
+                    {clubMembersFetching ? <Loader2 className="w-3 h-3 animate-spin mr-1" /> : null}
+                    Retry
+                  </Button>
+                </div>
+              )}
+              {!clubMembers && !clubMembersError && (
+                <div className="flex items-center justify-center p-6"><Loader2 className="w-4 h-4 animate-spin text-muted-foreground" /></div>
+              )}
+              {clubMembers && (() => {
+                const existingPlayerIds = new Set<number>(players.map((p: any) => p.playerId));
+                const q = addPlayerSearch.trim().toLowerCase();
+                const filtered = clubMembers
+                  .filter((m: any) => m.id && !existingPlayerIds.has(m.id))
+                  .filter((m: any) => m.membershipStatus === "APPROVED")
+                  .filter((m: any) => {
+                    if (!q) return true;
+                    const name = (m.user?.fullName || "").toLowerCase();
+                    return name.includes(q);
+                  })
+                  .slice(0, 50);
+                if (filtered.length === 0) {
+                  return <p className="text-xs text-muted-foreground text-center py-6" data-testid="text-no-members">No matching members available.</p>;
+                }
+                return filtered.map((m: any) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    className="w-full flex items-center justify-between gap-2 p-2 rounded-md hover:bg-accent text-left disabled:opacity-50"
+                    onClick={() => addPlayerMutation.mutate({ playerId: m.id })}
+                    disabled={addPlayerMutation.isPending}
+                    data-testid={`button-add-member-${m.id}`}
+                  >
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-medium truncate">{m.user?.fullName || "Unknown"}</p>
+                      {m.grade && (
+                        <p className="text-xs text-muted-foreground">Grade {m.grade}</p>
+                      )}
+                    </div>
+                    <Plus className="w-4 h-4 text-primary shrink-0" />
+                  </button>
+                ));
+              })()}
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setAddPlayerOpen(false)} data-testid="button-close-add-player">Close</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <AlertDialog open={!!removeTarget} onOpenChange={(o) => { if (!o) setRemoveTarget(null); }}>
+        <AlertDialogContent data-testid="dialog-remove-player">
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove player from session?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {removeTarget?.fullName} will be removed from this session. If they were confirmed, the next person on the waiting list will be promoted automatically.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-remove">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => removeTarget && removePlayerMutation.mutate({ signupId: removeTarget.signupId })}
+              disabled={removePlayerMutation.isPending}
+              data-testid="button-confirm-remove"
+              className="bg-red-600 hover:bg-red-700"
+            >
+              {removePlayerMutation.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-2" /> : null}
+              Remove
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </>
   );
 }

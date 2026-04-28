@@ -4545,7 +4545,20 @@ export async function registerRoutes(
     const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     if (!canAccess) return res.sendStatus(403);
 
-    const { signupId } = req.body;
+    const signupId = Number(req.body?.signupId);
+    if (!signupId) return res.status(400).json({ message: "signupId is required" });
+
+    const allSignups = await storage.getSessionSignups(sessionId);
+    const target = allSignups.find((s: any) => s.id === signupId);
+    if (!target) return res.status(404).json({ message: "Signup not found in this session" });
+    if (target.signupStatus !== "WAITING") {
+      return res.status(400).json({ message: "Signup is not on the waiting list" });
+    }
+    const confirmedCount = allSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+    if (session.maxPlayers && confirmedCount >= session.maxPlayers) {
+      return res.status(400).json({ message: "Session is full — cannot promote from waiting list" });
+    }
+
     const updated = await storage.updateSessionSignupStatus(signupId, {
       signupStatus: "CONFIRMED",
       waitingListPosition: null,
@@ -9709,8 +9722,9 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
     
-    // Check if user has admin access to this club
-    const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
+    // Allow if user can manage the club OR can manage sessions for the club
+    const canAccess = (await hasAdminAccess(req.user!.id, req.user!.role, clubId))
+      || (await canManageSessions(req.user!.id, req.user!.role, clubId));
     if (!canAccess) {
       return res.sendStatus(403);
     }
@@ -30541,7 +30555,11 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
     try {
       const allSignups = await storage.getSessionSignups(sessionId);
-      const confirmed = allSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED");
+      const visible = allSignups.filter((s: any) => {
+        const st = s.signupStatus || "CONFIRMED";
+        return st === "CONFIRMED" || st === "WAITING" || st === "INVITED";
+      });
+      const confirmed = visible.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED");
 
       const expectedRevenue = confirmed.reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
       const paidRevenue = confirmed.filter((s: any) => s.paymentStatus === "PAID").reduce((sum: number, s: any) => sum + (s.fee || 0), 0);
@@ -30555,6 +30573,8 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const unpaidCount = confirmed.filter((s: any) => s.paymentStatus === "UNPAID").length;
       const cashPendingCount = confirmed.filter((s: any) => s.paymentMethod === "CASH" && s.paymentStatus !== "PAID").length;
       const creditCount = confirmed.filter((s: any) => s.paymentMethod === "MEMBERSHIP_CREDIT").length;
+      const waitingCount = visible.filter((s: any) => s.signupStatus === "WAITING").length;
+      const invitedCount = visible.filter((s: any) => s.signupStatus === "INVITED").length;
 
       const creditEntries = await db.select({
         userId: creditLedger.userId,
@@ -30570,19 +30590,30 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         creditByUser[entry.userId] = (creditByUser[entry.userId] || 0) + entry.amount;
       }
 
-      const players = confirmed.map((s: any) => ({
-        signupId: s.id,
-        playerId: s.playerId,
-        userId: s.player?.userId || null,
-        fullName: s.player?.user?.fullName || "Unknown",
-        fee: s.fee || 0,
-        paymentMethod: s.paymentMethod || "NONE",
-        paymentStatus: s.paymentStatus || "UNPAID",
-        verifiedByAdmin: s.verifiedByAdmin || false,
-        creditUsed: creditByUser[s.player?.userId] || 0,
-        adminNotes: s.adminNotes || null,
-        paymentNotes: s.paymentNotes || null,
-      }));
+      const statusOrder: Record<string, number> = { CONFIRMED: 0, INVITED: 1, WAITING: 2 };
+      const players = visible
+        .map((s: any) => ({
+          signupId: s.id,
+          playerId: s.playerId,
+          userId: s.player?.userId || null,
+          fullName: s.player?.user?.fullName || "Unknown",
+          fee: s.fee || 0,
+          paymentMethod: s.paymentMethod || "NONE",
+          paymentStatus: s.paymentStatus || "UNPAID",
+          signupStatus: s.signupStatus || "CONFIRMED",
+          waitingListPosition: s.waitingListPosition ?? null,
+          verifiedByAdmin: s.verifiedByAdmin || false,
+          creditUsed: creditByUser[s.player?.userId] || 0,
+          adminNotes: s.adminNotes || null,
+          paymentNotes: s.paymentNotes || null,
+        }))
+        .sort((a: any, b: any) => {
+          const sa = statusOrder[a.signupStatus] ?? 99;
+          const sb = statusOrder[b.signupStatus] ?? 99;
+          if (sa !== sb) return sa - sb;
+          if (a.signupStatus === "WAITING") return (a.waitingListPosition || 0) - (b.waitingListPosition || 0);
+          return a.fullName.localeCompare(b.fullName);
+        });
 
       res.json({
         summary: {
@@ -30597,6 +30628,8 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           unpaidCount,
           cashPendingCount,
           creditCount,
+          waitingCount,
+          invitedCount,
           totalPlayers: confirmed.length,
           collectionRate: expectedRevenue > 0 ? Math.round((paidRevenue / expectedRevenue) * 100) : 0,
         },
@@ -30605,6 +30638,87 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     } catch (err: any) {
       console.error("Error fetching session financial overview:", err);
       res.status(500).json({ message: "Failed to fetch financial overview" });
+    }
+  });
+
+  app.post("/api/sessions/:id/admin-add-player", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const playerId = Number(req.body?.playerId);
+    if (!playerId) return res.status(400).json({ message: "playerId is required" });
+
+    try {
+      const profileRow = await db
+        .select({ id: playerProfiles.id, userId: playerProfiles.userId, clubId: playerProfiles.clubId, membershipStatus: playerProfiles.membershipStatus })
+        .from(playerProfiles)
+        .where(eq(playerProfiles.id, playerId))
+        .limit(1);
+      if (profileRow.length === 0) {
+        return res.status(404).json({ message: "Player profile not found" });
+      }
+      if (profileRow[0].clubId !== session.clubId) {
+        return res.status(403).json({ message: "Player does not belong to this club" });
+      }
+      if (profileRow[0].membershipStatus !== "APPROVED") {
+        return res.status(400).json({ message: "Player membership is not approved for this club" });
+      }
+
+      const allSignups = await storage.getSessionSignups(sessionId);
+      const existing = allSignups.find((s: any) => s.playerId === playerId);
+      if (existing) {
+        return res.status(400).json({ message: "Player is already in this session" });
+      }
+
+      let fee = session.sessionFee;
+      if (fee == null) {
+        const club = await storage.getClub(session.clubId);
+        fee = club?.sessionFee ?? 0;
+      }
+      const [memberFee] = await db
+        .select({ defaultSessionFee: membershipPlans.defaultSessionFee })
+        .from(clubMemberships)
+        .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+        .where(and(
+          eq(clubMemberships.userId, profileRow[0].userId),
+          eq(clubMemberships.clubId, session.clubId),
+          eq(clubMemberships.status, "ACTIVE")
+        ))
+        .limit(1);
+      if (memberFee) fee = memberFee.defaultSessionFee;
+
+      const confirmedCount = allSignups.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED").length;
+      const hasSpace = !session.maxPlayers || confirmedCount < session.maxPlayers;
+
+      let signup;
+      if (hasSpace) {
+        signup = await storage.createSessionSignupEnhanced({
+          sessionId,
+          playerId,
+          fee,
+          signupStatus: "CONFIRMED",
+          signedUpByUserId: req.user!.id,
+        });
+      } else {
+        const waitingPlayers = allSignups.filter((s: any) => s.signupStatus === "WAITING");
+        const maxPos = waitingPlayers.reduce((max: number, s: any) => Math.max(max, s.waitingListPosition || 0), 0);
+        signup = await storage.createSessionSignupEnhanced({
+          sessionId,
+          playerId,
+          fee,
+          signupStatus: "WAITING",
+          waitingListPosition: maxPos + 1,
+          signedUpByUserId: req.user!.id,
+        });
+      }
+      res.json({ ...signup, addedAs: hasSpace ? "CONFIRMED" : "WAITING" });
+    } catch (error: any) {
+      console.error("Error admin-adding player to session:", error);
+      res.status(500).json({ message: error?.message || "Failed to add player" });
     }
   });
 
