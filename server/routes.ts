@@ -23714,7 +23714,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      if (user.role !== "OWNER") return res.status(403).json({ message: "Only OWNER can permanently delete users" });
+      if (user.role !== "OWNER" && user.role !== "ADMIN") return res.status(403).json({ message: "Only platform admins can permanently delete users" });
 
       const targetUserId = Number(req.params.userId);
       const [targetUser] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, targetUserId));
@@ -23750,7 +23750,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const user = req.user!;
-      if (user.role !== "OWNER") return res.status(403).json({ message: "Only OWNER can permanently delete users" });
+      if (user.role !== "OWNER" && user.role !== "ADMIN") return res.status(403).json({ message: "Only platform admins can permanently delete users" });
 
       const rawIds = req.body?.userIds;
       const reason: string = (req.body?.reason || "").toString().trim();

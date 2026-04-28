@@ -116,7 +116,7 @@ export default function InactiveMembers() {
     },
   });
 
-  const isOwner = currentUser?.role === "OWNER";
+  const isOwner = currentUser?.role === "OWNER" || currentUser?.role === "ADMIN";
 
   const filteredAndSorted = useMemo(() => {
     if (!data || !Array.isArray(data)) return [];
