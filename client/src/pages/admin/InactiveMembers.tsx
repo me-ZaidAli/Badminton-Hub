@@ -11,12 +11,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { PageHeader } from "@/components/ui/page-header";
 import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import {
   UserX, Clock, AlertTriangle, MessageSquare, Trash2, Eye,
   StickyNote, Search, ChevronLeft, ChevronRight, Loader2,
-  Users, Shield, MoreVertical
+  Users, Shield, MoreVertical, X
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -72,6 +73,11 @@ export default function InactiveMembers() {
 
   const [permanentDeleteModal, setPermanentDeleteModal] = useState<InactiveMember | null>(null);
   const [permanentDeleteReason, setPermanentDeleteReason] = useState("");
+
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleteScope, setBulkDeleteScope] = useState<"selected" | "all">("selected");
+  const [bulkDeleteReason, setBulkDeleteReason] = useState("");
 
   const activeThreshold = isCustom ? (parseInt(customThreshold) || 30) : threshold;
 
@@ -257,6 +263,62 @@ export default function InactiveMembers() {
     },
   });
 
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (payload: { userIds: number[]; reason: string }) => {
+      const res = await apiRequest("POST", `/api/admin/inactive-members/bulk-delete`, payload);
+      return res.json() as Promise<{ deletedCount: number }>;
+    },
+    onSuccess: (data) => {
+      toast({ title: `${data.deletedCount} member${data.deletedCount === 1 ? "" : "s"} permanently deleted` });
+      setBulkDeleteOpen(false);
+      setBulkDeleteReason("");
+      setSelectedIds(new Set());
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/inactive-members"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Bulk delete failed", description: err.message, variant: "destructive" });
+    },
+  });
+
+  const visibleSelectableIds = pagedMembers.map((m) => m.userId);
+  const allVisibleSelected = visibleSelectableIds.length > 0 && visibleSelectableIds.every((id) => selectedIds.has(id));
+  const someVisibleSelected = visibleSelectableIds.some((id) => selectedIds.has(id));
+  const allFilteredIds = filteredAndSorted.map((m) => m.userId);
+
+  function togglePageSelection(checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) visibleSelectableIds.forEach((id) => next.add(id));
+      else visibleSelectableIds.forEach((id) => next.delete(id));
+      return next;
+    });
+  }
+
+  function toggleRow(id: number, checked: boolean) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (checked) next.add(id);
+      else next.delete(id);
+      return next;
+    });
+  }
+
+  function selectAllFiltered() {
+    setSelectedIds(new Set(allFilteredIds));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function openBulkDelete(scope: "selected" | "all") {
+    setBulkDeleteScope(scope);
+    setBulkDeleteReason("");
+    setBulkDeleteOpen(true);
+  }
+
+  const bulkDeleteIds = bulkDeleteScope === "all" ? allFilteredIds : Array.from(selectedIds);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center min-h-[400px]" data-testid="loading-spinner">
@@ -417,6 +479,69 @@ export default function InactiveMembers() {
         </Card>
       </div>
 
+      {isOwner && (selectedIds.size > 0 || filteredAndSorted.length > 0) && (
+        <Card className="border-destructive/40 bg-destructive/5" data-testid="bar-bulk-actions">
+          <CardContent className="py-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2 text-sm">
+                <Shield className="h-4 w-4 text-destructive" />
+                <span className="font-medium">
+                  {selectedIds.size > 0
+                    ? `${selectedIds.size} selected`
+                    : `${filteredAndSorted.length} member${filteredAndSorted.length === 1 ? "" : "s"} shown`}
+                </span>
+                {selectedIds.size > 0 && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={clearSelection}
+                    data-testid="button-clear-selection"
+                  >
+                    <X className="h-3 w-3 mr-1" />
+                    Clear
+                  </Button>
+                )}
+                {filteredAndSorted.length > 0 && selectedIds.size < filteredAndSorted.length && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    onClick={selectAllFiltered}
+                    data-testid="button-select-all-filtered"
+                  >
+                    Select all {filteredAndSorted.length}
+                  </Button>
+                )}
+              </div>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  disabled={selectedIds.size === 0}
+                  onClick={() => openBulkDelete("selected")}
+                  data-testid="button-bulk-delete-selected"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete Selected
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="border-destructive text-destructive hover:bg-destructive hover:text-destructive-foreground"
+                  disabled={filteredAndSorted.length === 0}
+                  onClick={() => openBulkDelete("all")}
+                  data-testid="button-bulk-delete-all"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Delete All ({filteredAndSorted.length})
+                </Button>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       <Card data-testid="card-members-table">
         <CardContent className="pt-4">
           {pagedMembers.length === 0 ? (
@@ -430,6 +555,16 @@ export default function InactiveMembers() {
                 <Table>
                   <TableHeader>
                     <TableRow>
+                      {isOwner && (
+                        <TableHead className="w-10">
+                          <Checkbox
+                            checked={allVisibleSelected ? true : someVisibleSelected ? "indeterminate" : false}
+                            onCheckedChange={(c) => togglePageSelection(c === true)}
+                            data-testid="checkbox-select-page"
+                            aria-label="Select all on this page"
+                          />
+                        </TableHead>
+                      )}
                       <TableHead className="cursor-pointer" onClick={() => handleSort("name")} data-testid="sort-name">
                         Name {sortField === "name" && (sortDir === "asc" ? "↑" : "↓")}
                       </TableHead>
@@ -454,7 +589,17 @@ export default function InactiveMembers() {
                   </TableHeader>
                   <TableBody>
                     {pagedMembers.map((member) => (
-                      <TableRow key={member.userId} data-testid={`row-member-${member.userId}`}>
+                      <TableRow key={member.userId} data-testid={`row-member-${member.userId}`} data-state={selectedIds.has(member.userId) ? "selected" : undefined}>
+                        {isOwner && (
+                          <TableCell className="w-10">
+                            <Checkbox
+                              checked={selectedIds.has(member.userId)}
+                              onCheckedChange={(c) => toggleRow(member.userId, c === true)}
+                              data-testid={`checkbox-row-${member.userId}`}
+                              aria-label={`Select ${member.name}`}
+                            />
+                          </TableCell>
+                        )}
                         <TableCell>
                           <Link href={`/admin/players/${member.userId}`} className="text-primary hover:underline" data-testid={`link-profile-${member.userId}`}>
                             {member.name}
@@ -716,6 +861,44 @@ export default function InactiveMembers() {
             >
               {cancelDeletionMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
               Confirm Cancel
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={bulkDeleteOpen} onOpenChange={(open) => { if (!open) setBulkDeleteOpen(false); }}>
+        <AlertDialogContent data-testid="modal-bulk-delete">
+          <AlertDialogHeader>
+            <AlertDialogTitle className="text-destructive">
+              Permanently delete {bulkDeleteIds.length} member{bulkDeleteIds.length === 1 ? "" : "s"}?
+            </AlertDialogTitle>
+            <AlertDialogDescription>
+              <strong>WARNING:</strong> This action is irreversible. {bulkDeleteScope === "all"
+                ? `You are about to delete every member currently shown by your filters (${bulkDeleteIds.length} total).`
+                : `You are about to delete ${bulkDeleteIds.length} selected member${bulkDeleteIds.length === 1 ? "" : "s"}.`}
+              {" "}Their accounts and player profiles will be archived and removed from member lists.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <div>
+            <label className="text-sm font-medium mb-1 block">Reason (required)</label>
+            <Textarea
+              value={bulkDeleteReason}
+              onChange={(e) => setBulkDeleteReason(e.target.value)}
+              placeholder={`Provide a reason for deleting ${bulkDeleteIds.length} member${bulkDeleteIds.length === 1 ? "" : "s"}...`}
+              rows={3}
+              data-testid="input-bulk-delete-reason"
+            />
+          </div>
+          <AlertDialogFooter>
+            <AlertDialogCancel data-testid="button-cancel-bulk-delete">Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => bulkDeleteMutation.mutate({ userIds: bulkDeleteIds, reason: bulkDeleteReason })}
+              disabled={bulkDeleteMutation.isPending || !bulkDeleteReason.trim() || bulkDeleteIds.length === 0}
+              className="bg-destructive text-destructive-foreground"
+              data-testid="button-confirm-bulk-delete"
+            >
+              {bulkDeleteMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Permanently Delete {bulkDeleteIds.length}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

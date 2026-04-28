@@ -23742,6 +23742,53 @@ export async function registerRoutes(
     }
   });
 
+  app.post("/api/admin/inactive-members/bulk-delete", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      if (user.role !== "OWNER") return res.status(403).json({ message: "Only OWNER can permanently delete users" });
+
+      const rawIds = req.body?.userIds;
+      const reason: string = (req.body?.reason || "").toString().trim();
+      if (!Array.isArray(rawIds) || rawIds.length === 0) return res.status(400).json({ message: "userIds is required" });
+      if (!reason) return res.status(400).json({ message: "Reason is required" });
+
+      const userIds: number[] = Array.from(new Set(rawIds.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n) && n > 0)));
+      if (userIds.length === 0) return res.status(400).json({ message: "No valid userIds provided" });
+      if (userIds.includes(user.id)) return res.status(400).json({ message: "Cannot delete your own account" });
+
+      const targets = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds));
+      if (targets.length === 0) return res.status(404).json({ message: "No matching users found" });
+
+      const auditRows = targets.map((t) => ({
+        actorId: user.id,
+        action: "PERMANENT_DELETE_BULK" as const,
+        targetType: "USER",
+        targetId: t.id,
+        metadata: { userName: t.fullName, reason },
+      }));
+      await db.insert(adminAuditLogs).values(auditRows);
+
+      const targetIds = targets.map((t) => t.id);
+      const now = new Date();
+      await db.update(users).set({
+        closedAt: now,
+        closedReason: `Permanently deleted by admin (bulk): ${reason}`.slice(0, 1000),
+        accountStatus: "REJECTED",
+      }).where(inArray(users.id, targetIds));
+
+      await db.update(playerProfiles).set({
+        deletedAt: now,
+        playerStatus: "ARCHIVED",
+      }).where(inArray(playerProfiles.userId, targetIds));
+
+      res.json({ message: "Users deleted", deletedCount: targets.length, deletedIds: targetIds });
+    } catch (err: any) {
+      console.error("Error bulk-deleting users:", err);
+      res.status(500).json({ message: err.message || "Failed to delete users" });
+    }
+  });
+
   app.post("/api/admin/audit-log", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
