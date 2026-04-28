@@ -134,9 +134,10 @@ function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { ses
       data-testid={`session-mini-${session.id}`}
     >
       {isCancelled && (
-        <div className="flex items-center justify-center gap-1.5 bg-orange-500 dark:bg-orange-600 text-white px-2 py-1 text-[10px] font-bold uppercase tracking-wider">
-          <Ban className="h-3 w-3" />
-          <span>Session Cancelled</span>
+        <div className="flex items-center justify-center gap-2 bg-orange-500 dark:bg-orange-600 text-white px-2 py-2 text-base font-extrabold uppercase tracking-[0.25em]" data-testid={`banner-cancelled-mini-${session.id}`}>
+          <Ban className="h-5 w-5" />
+          <span>Cancelled</span>
+          <Ban className="h-5 w-5" />
         </div>
       )}
       <div className="p-2.5">
@@ -718,6 +719,7 @@ function TimelineSessionCard({
   const liveStatus = getSessionLiveStatus(session);
   const isRealTimeLive = liveStatus === "live";
   const isRealTimePast = liveStatus === "past";
+  const isCancelled = session.status === "CANCELLED";
   const energyScore = computeEnergyScore(session);
   const hype = getSessionHype(session);
 
@@ -870,19 +872,27 @@ function TimelineSessionCard({
       aria-controls={`session-details-${session.id}`}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}
       className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
-        isRealTimePast ? "opacity-55" : ""
-      } ${isElite && !isRealTimePast ? "ring-1 ring-amber-400/30" : ""} ${isRealTimeLive ? "tl-live-card-glow" : ""} ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
+        isCancelled ? "grayscale-[0.7] opacity-80" : isRealTimePast ? "opacity-55" : ""
+      } ${isElite && !isRealTimePast && !isCancelled ? "ring-1 ring-amber-400/30" : ""} ${isRealTimeLive && !isCancelled ? "tl-live-card-glow" : ""} ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
       onClick={handleCardClick}
       data-testid={`timeline-session-${session.id}`}
     >
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isRealTimeLive ? "bg-green-500 tl-live-stripe" : accentColor}`} />
+      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isCancelled ? "bg-orange-500" : isRealTimeLive ? "bg-green-500 tl-live-stripe" : accentColor}`} />
 
-      <div className={`p-4 pl-5 border rounded-xl backdrop-blur-sm shadow-sm ${
-        isSignedUp ? "border-emerald-400/50 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
-        isLive ? "border-green-500/50 bg-green-500/5 dark:bg-green-500/[0.07]" :
-        isFull && !isPast ? "border-red-400/40 bg-card dark:bg-card/60" :
-        isExpanded ? "border-primary/40 bg-card dark:bg-card/70" :
-        "border-border/60 bg-card dark:bg-card/60 hover:border-primary/30"
+      {isCancelled && (
+        <div className="flex items-center justify-center gap-3 bg-orange-500 dark:bg-orange-600 text-white px-3 py-2.5 text-lg sm:text-xl font-extrabold uppercase tracking-[0.25em] rounded-t-xl" data-testid={`banner-cancelled-timeline-${session.id}`}>
+          <Ban className="h-5 w-5 sm:h-6 sm:w-6" />
+          <span>Cancelled</span>
+          <Ban className="h-5 w-5 sm:h-6 sm:w-6" />
+        </div>
+      )}
+
+      <div className={`p-4 pl-5 border backdrop-blur-sm shadow-sm ${isCancelled ? "rounded-b-xl border-orange-300 dark:border-orange-700/60 bg-muted/40 dark:bg-muted/20" : "rounded-xl"} ${
+        !isCancelled && isSignedUp ? "border-emerald-400/50 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
+        !isCancelled && isLive ? "border-green-500/50 bg-green-500/5 dark:bg-green-500/[0.07]" :
+        !isCancelled && isFull && !isPast ? "border-red-400/40 bg-card dark:bg-card/60" :
+        !isCancelled && isExpanded ? "border-primary/40 bg-card dark:bg-card/70" :
+        !isCancelled ? "border-border/60 bg-card dark:bg-card/60 hover:border-primary/30" : ""
       }`}>
         <div className="flex items-center justify-between gap-2 mb-2.5">
           <div className="flex items-center gap-2 flex-wrap min-w-0">
@@ -2241,11 +2251,13 @@ export function GroupedView({ sessions, clubs, onSessionClick, adminActions }: S
                   {group.sessions.map(s => {
                     const isPast = new Date(s.date) < new Date(new Date().toDateString());
                     const isLive = s.status === "ACTIVE";
+                    const isCancelled = s.status === "CANCELLED";
 
                     return (
                       <div
                         key={s.id}
-                        className={`flex items-center justify-between p-2.5 rounded-lg border cursor-pointer transition-all hover:shadow-sm ${
+                        className={`rounded-lg border cursor-pointer transition-all hover:shadow-sm overflow-hidden ${
+                          isCancelled ? "border-orange-300 dark:border-orange-700/60 bg-muted/40 dark:bg-muted/20 grayscale-[0.7] opacity-80" :
                           isLive ? "border-green-500/50 bg-green-50/50 dark:bg-green-950/20" :
                           isPast ? "border-border/30 opacity-60" :
                           "border-border/50 hover:border-primary/30"
@@ -2253,10 +2265,18 @@ export function GroupedView({ sessions, clubs, onSessionClick, adminActions }: S
                         onClick={() => onSessionClick(s)}
                         data-testid={`grouped-session-${s.id}`}
                       >
+                      {isCancelled && (
+                        <div className="flex items-center justify-center gap-2 bg-orange-500 dark:bg-orange-600 text-white px-3 py-2 text-base sm:text-lg font-extrabold uppercase tracking-[0.25em]" data-testid={`banner-cancelled-grouped-${s.id}`}>
+                          <Ban className="h-5 w-5" />
+                          <span>Cancelled</span>
+                          <Ban className="h-5 w-5" />
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between p-2.5">
                         <div className="flex items-center gap-3 min-w-0">
                           {isLive && <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse flex-shrink-0" />}
                           <div className="min-w-0">
-                            <span className="font-medium text-sm">
+                            <span className={`font-medium text-sm ${isCancelled ? "line-through text-muted-foreground" : ""}`}>
                               {format(new Date(s.date), "EEE, d MMM")}
                             </span>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground flex-wrap">
@@ -2338,6 +2358,7 @@ export function GroupedView({ sessions, clubs, onSessionClick, adminActions }: S
                             </Button>
                           </Link>
                         </div>
+                      </div>
                       </div>
                     );
                   })}

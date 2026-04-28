@@ -1581,11 +1581,12 @@ export default function Sessions() {
             }`}>
               {session.status === "CANCELLED" && (
                 <div
-                  className="flex items-center justify-center gap-2 bg-orange-500 dark:bg-orange-600 text-white px-3 py-1.5 text-xs sm:text-sm font-bold uppercase tracking-wider"
+                  className="flex items-center justify-center gap-3 bg-orange-500 dark:bg-orange-600 text-white px-4 py-3 text-xl sm:text-2xl font-extrabold uppercase tracking-[0.25em]"
                   data-testid={`banner-cancelled-${session.id}`}
                 >
-                  <Ban className="h-4 w-4" />
-                  <span>Session Cancelled</span>
+                  <Ban className="h-6 w-6 sm:h-7 sm:w-7" />
+                  <span>Cancelled</span>
+                  <Ban className="h-6 w-6 sm:h-7 sm:w-7" />
                 </div>
               )}
               <CardContent className="p-4 sm:p-5">
