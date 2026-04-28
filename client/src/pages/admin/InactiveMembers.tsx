@@ -108,9 +108,9 @@ export default function InactiveMembers() {
   });
 
   const { data: currentUser } = useQuery<{ id: number; role: string }>({
-    queryKey: ["/api/user"],
+    queryKey: ["/api/auth/me"],
     queryFn: async () => {
-      const res = await fetch("/api/user", { credentials: "include" });
+      const res = await fetch("/api/auth/me", { credentials: "include" });
       if (!res.ok) throw new Error("Failed to fetch user");
       return res.json();
     },
