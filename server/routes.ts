@@ -23504,7 +23504,11 @@ export async function registerRoutes(
 
       const inactiveProfiles = allProfiles.filter(p => {
         const lastAtt = lastAttendanceMap.get(p.id);
-        return !lastAtt || lastAtt < cutoffDate;
+        if (lastAtt) {
+          return lastAtt < cutoffDate;
+        }
+        const joined = (p as any).joinedAt ? new Date((p as any).joinedAt) : null;
+        return !joined || joined < cutoffDate;
       });
 
       if (inactiveProfiles.length === 0) return res.json([]);
