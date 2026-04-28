@@ -191,6 +191,7 @@ export default function SessionDetail() {
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/sessions", id] });
       qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", id, "financial-overview"] });
       qc.invalidateQueries({ queryKey: ["/api/sessions"] });
       setCancelCreditDialogOpen(false);
       toast({
@@ -221,6 +222,7 @@ export default function SessionDetail() {
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", id, "financial-overview"] });
       qc.invalidateQueries({ queryKey: ["/api/sessions"] });
       setJoinModalOpen(false);
       const signedUp = data.signups?.length || 0;
@@ -243,21 +245,21 @@ export default function SessionDetail() {
       const res = await apiRequest("PATCH", `/api/sessions/${id}/signups/${data.signupId}/payment-override`, data);
       return res.json();
     },
-    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); },
+    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "financial-overview"] }); },
   });
   const statusOverrideMutation = useMutation({
     mutationFn: async (data: { signupId: number; signupStatus: string; waitingListPosition?: number | null }) => {
       const res = await apiRequest("PATCH", `/api/sessions/${id}/signups/${data.signupId}/status`, data);
       return res.json();
     },
-    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); },
+    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "financial-overview"] }); },
   });
   const promoteMutation = useMutation({
     mutationFn: async (signupId: number) => {
       const res = await apiRequest("POST", `/api/sessions/${id}/promote-waiting`, { signupId });
       return res.json();
     },
-    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); toast({ title: "Player promoted from waiting list" }); },
+    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "financial-overview"] }); toast({ title: "Player promoted from waiting list" }); },
   });
 
   const remindInviteesMutation = useMutation({
