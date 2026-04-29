@@ -10,6 +10,7 @@ import { eq, isNotNull, gt, gte, and } from "drizzle-orm";
 import { db } from "./db";
 import { ensureOwnerProfilesInAllClubs } from "./ownerSync";
 import { sendEmail } from "./email";
+import { notifyUser } from "./notify";
 import { authLoginLimiter, authRegisterLimiter } from "./rateLimit";
 
 const scryptAsync = promisify(scrypt);
@@ -64,8 +65,25 @@ export function setupAuth(app: Express) {
           return done(null, false, { message: "Invalid email or password" });
         }
         if ((user as any).closedAt) {
-          console.log(`[AUTH] LOGIN BLOCKED: email=${username} reason=account_closed`);
-          return done(null, false, { message: "This account has been closed. Please contact your club administrator." });
+          // Password is valid but the account has been closed. Decide whether to
+          // offer the self-service reopen flow:
+          //   - SUSPENDED status (covers merged accounts and any future
+          //     disciplinary suspension) -> no self-reopen.
+          //   - everything else (e.g. REJECTED via inactive-member archival) ->
+          //     allow self-reopen by signalling ACCOUNT_CLOSED to the client.
+          const closedReason = String((user as any).closedReason || "");
+          const accountStatus = String((user as any).accountStatus || "");
+          if (accountStatus === "SUSPENDED" || closedReason === "MERGED") {
+            console.log(`[AUTH] LOGIN BLOCKED: email=${username} reason=account_suspended_or_merged`);
+            return done(null, false, {
+              message: closedReason === "MERGED"
+                ? "This account has been merged into another account. Please sign in using your other email or contact your club administrator."
+                : "This account has been suspended. Please contact your club administrator.",
+              code: closedReason === "MERGED" ? "ACCOUNT_MERGED" : "ACCOUNT_SUSPENDED",
+            } as any);
+          }
+          console.log(`[AUTH] LOGIN BLOCKED: email=${username} reason=account_closed (reopen offered)`);
+          return done(null, false, { message: "This account has been closed.", code: "ACCOUNT_CLOSED" } as any);
         }
         console.log(`[AUTH] LOGIN SUCCESS: userId=${user.id} email=${username} role=${user.role}`);
         return done(null, user);
@@ -450,10 +468,12 @@ export function setupAuth(app: Express) {
   });
 
   app.post("/api/auth/login", authLoginLimiter, (req, res, next) => {
-    passport.authenticate("local", (err: any, user: User | false, info: { message?: string }) => {
+    passport.authenticate("local", (err: any, user: User | false, info: { message?: string; code?: string }) => {
       if (err) return next(err);
       if (!user) {
-        return res.status(401).json({ message: info?.message || "Invalid credentials" });
+        const payload: { message: string; code?: string } = { message: info?.message || "Invalid credentials" };
+        if (info?.code) payload.code = info.code;
+        return res.status(401).json(payload);
       }
       req.login(user, async (loginErr) => {
         if (loginErr) return next(loginErr);
@@ -464,6 +484,96 @@ export function setupAuth(app: Express) {
         res.status(200).json(user);
       });
     })(req, res, next);
+  });
+
+  // Self-service reopen for accounts that were closed (but not merged).
+  // Requires the same email + password the account was last using; logs the
+  // user in on success and notifies club owners so admins know it happened.
+  app.post("/api/auth/reopen-account", authLoginLimiter, async (req, res, next) => {
+    try {
+      const { email, password } = req.body || {};
+      if (!email || !password || typeof email !== "string" || typeof password !== "string") {
+        return res.status(400).json({ message: "Email and password are required" });
+      }
+
+      const user = await storage.getUserByUsername(email);
+      if (!user || !(await comparePasswords(password, user.password))) {
+        console.log(`[AUTH] REOPEN FAILED: email=${email} reason=invalid_credentials`);
+        return res.status(401).json({ message: "Invalid email or password" });
+      }
+      if (!(user as any).closedAt) {
+        return res.status(400).json({ message: "This account is already active. Please sign in normally." });
+      }
+      const closedReason = String((user as any).closedReason || "");
+      const accountStatus = String((user as any).accountStatus || "");
+      // SUSPENDED accounts (incl. merged) must never be self-reopenable. Only
+      // accounts that were closed via inactive-member archival (REJECTED) or
+      // similar non-disciplinary closures may be reopened by their owner.
+      if (accountStatus === "SUSPENDED" || closedReason === "MERGED") {
+        console.log(`[AUTH] REOPEN BLOCKED: userId=${user.id} email=${email} reason=suspended_or_merged`);
+        return res.status(403).json({
+          message: closedReason === "MERGED"
+            ? "This account has been merged into another account and cannot be reopened. Please sign in using your other email or contact your club administrator."
+            : "This account has been suspended and cannot be reopened. Please contact your club administrator.",
+        });
+      }
+
+      // Preserve previous closure metadata for audit before clearing it.
+      const previousClosedAt = (user as any).closedAt as Date | null;
+      const previousClosedReason = (user as any).closedReason as string | null;
+      const previousAccountStatus = accountStatus;
+
+      await db.update(users).set({
+        closedAt: null,
+        closedReason: null,
+        accountStatus: "APPROVED",
+        lastActivityAt: new Date(),
+      } as any).where(eq(users.id, user.id));
+
+      const refreshed = await storage.getUser(user.id);
+      if (!refreshed) {
+        return res.status(500).json({ message: "Failed to reopen account" });
+      }
+
+      console.log(`[AUTH] ACCOUNT REOPENED: userId=${refreshed.id} email=${email} previousReason=${previousClosedReason || "(none)"} previousStatus=${previousAccountStatus}`);
+
+      // Best-effort: notify OWNER users (in-app + email) that the user reopened
+      // their account so admins can spot unintended reactivations quickly.
+      try {
+        const owners = await storage.getUsersByRole("OWNER");
+        for (const owner of owners) {
+          try {
+            await notifyUser({
+              userId: (owner as any).id,
+              type: "ACCOUNT_REOPENED",
+              title: "Account reopened",
+              message: `${refreshed.fullName} (${refreshed.email}) has reopened their account.\n\nPrevious status: ${previousAccountStatus || "(unknown)"}\nPrevious reason: ${previousClosedReason || "(none)"}\nClosed at: ${previousClosedAt ? new Date(previousClosedAt).toISOString() : "(unknown)"}`,
+              linkUrl: "/admin/inactive-members",
+              email: true,
+            });
+          } catch (innerErr) {
+            console.error("[AUTH] notifyUser failed for owner", (owner as any).id, innerErr);
+          }
+        }
+      } catch (notifErr) {
+        console.error("[AUTH] Failed to send reopen notifications:", notifErr);
+      }
+
+      // Regenerate session before logging in to mitigate session-fixation.
+      req.session.regenerate((regenErr) => {
+        if (regenErr) return next(regenErr);
+        req.login(refreshed, async (loginErr) => {
+          if (loginErr) return next(loginErr);
+          try { await storage.updateUserActivity(refreshed.id); } catch (e) { console.error("[AUTH] Failed to update activity:", e); }
+          if (refreshed.role === "OWNER") {
+            try { await ensureOwnerProfilesInAllClubs(refreshed.id); } catch (e) { console.error("[SYNC] Error syncing owner profiles on reopen:", e); }
+          }
+          res.status(200).json(refreshed);
+        });
+      });
+    } catch (err) {
+      next(err);
+    }
   });
 
   app.post("/api/auth/logout", (req, res, next) => {

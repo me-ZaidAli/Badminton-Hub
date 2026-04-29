@@ -41,7 +41,7 @@ export function createRateLimiter(opts: {
 export const authLoginLimiter = createRateLimiter({
   windowMs: 15 * 60 * 1000,
   max: 10,
-  keyFn: (req) => `login:${req.ip}:${(req.body?.email || "").toLowerCase()}`,
+  keyFn: (req) => `login:${req.ip}:${((req.body?.email || req.body?.username) || "").toString().toLowerCase()}`,
   message: "Too many login attempts. Please wait a few minutes and try again.",
 });
 

@@ -2,13 +2,14 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
-import { useLogin } from "@/hooks/use-auth";
+import { useLogin, useReopenAccount, LoginError } from "@/hooks/use-auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import { Link, useLocation } from "wouter";
-import { Eye, EyeOff, AlertCircle } from "lucide-react";
+import { Eye, EyeOff, AlertCircle, RotateCcw } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 const formSchema = z.object({
   username: z.string().min(1, "Email/Username is required"),
@@ -18,8 +19,12 @@ const formSchema = z.object({
 export default function Login() {
   const [, setLocation] = useLocation();
   const { mutate: login, isPending } = useLogin();
+  const { mutate: reopenAccount, isPending: isReopening } = useReopenAccount();
+  const { toast } = useToast();
   const [showPassword, setShowPassword] = useState(false);
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [errorCode, setErrorCode] = useState<string | null>(null);
+  const [closedCredentials, setClosedCredentials] = useState<{ username: string; password: string } | null>(null);
 
   const form = useForm<z.infer<typeof formSchema>>({
     resolver: zodResolver(formSchema),
@@ -28,10 +33,42 @@ export default function Login() {
 
   function onSubmit(values: z.infer<typeof formSchema>) {
     setLoginError(null);
+    setErrorCode(null);
+    setClosedCredentials(null);
     login(values, {
       onSuccess: () => setLocation("/dashboard"),
       onError: (error: any) => {
+        const code: string | undefined = error instanceof LoginError ? error.code : error?.code;
+        if (code === "ACCOUNT_CLOSED") {
+          setErrorCode("ACCOUNT_CLOSED");
+          setClosedCredentials({ username: values.username, password: values.password });
+          setLoginError(
+            "Your account is currently closed. You can reopen it instantly with the button below — your data, sessions, and history will be restored."
+          );
+          return;
+        }
+        if (code === "ACCOUNT_MERGED") {
+          setErrorCode("ACCOUNT_MERGED");
+          setLoginError(error.message || "This account has been merged into another account.");
+          return;
+        }
         setLoginError(error.message || "Invalid email or password");
+      },
+    });
+  }
+
+  function handleReopen() {
+    if (!closedCredentials) return;
+    reopenAccount(closedCredentials, {
+      onSuccess: () => {
+        toast({
+          title: "Welcome back!",
+          description: "Your account has been reopened.",
+        });
+        setLocation("/dashboard");
+      },
+      onError: (error: any) => {
+        setLoginError(error?.message || "Failed to reopen account. Please try again or contact your club administrator.");
       },
     });
   }
@@ -95,12 +132,34 @@ export default function Login() {
                 )}
               />
               {loginError && (
-                <div className="flex items-center gap-2 p-3 rounded-md bg-destructive/10 text-destructive text-sm" data-testid="text-login-error">
-                  <AlertCircle className="h-4 w-4 shrink-0" />
-                  <span>{loginError}</span>
+                <div
+                  className={`flex flex-col gap-2 p-3 rounded-md text-sm ${
+                    errorCode === "ACCOUNT_CLOSED"
+                      ? "bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                      : "bg-destructive/10 text-destructive"
+                  }`}
+                  data-testid="text-login-error"
+                >
+                  <div className="flex items-start gap-2">
+                    <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+                    <span>{loginError}</span>
+                  </div>
+                  {errorCode === "ACCOUNT_CLOSED" && closedCredentials && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="w-full h-10 mt-1 border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 hover:text-amber-800 dark:hover:text-amber-200 font-semibold gap-2"
+                      onClick={handleReopen}
+                      disabled={isReopening}
+                      data-testid="button-reopen-account"
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                      {isReopening ? "Reopening account..." : "Reopen my account"}
+                    </Button>
+                  )}
                 </div>
               )}
-              <Button type="submit" className="w-full h-11 font-semibold" disabled={isPending} data-testid="button-login-submit">
+              <Button type="submit" className="w-full h-11 font-semibold" disabled={isPending || isReopening} data-testid="button-login-submit">
                 {isPending ? "Signing in..." : "Sign In"}
               </Button>
             </form>

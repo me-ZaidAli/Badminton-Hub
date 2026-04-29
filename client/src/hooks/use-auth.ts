@@ -14,6 +14,17 @@ export function useUser() {
   });
 }
 
+export class LoginError extends Error {
+  code?: string;
+  status?: number;
+  constructor(message: string, opts?: { code?: string; status?: number }) {
+    super(message);
+    this.name = "LoginError";
+    this.code = opts?.code;
+    this.status = opts?.status;
+  }
+}
+
 export function useLogin() {
   const queryClient = useQueryClient();
   return useMutation({
@@ -26,7 +37,36 @@ export function useLogin() {
       });
       if (!res.ok) {
         const data = await res.json().catch(() => null);
-        throw new Error(data?.message || "Invalid email or password");
+        throw new LoginError(data?.message || "Invalid email or password", {
+          code: data?.code,
+          status: res.status,
+        });
+      }
+      const userData = await res.json();
+      queryClient.setQueryData(["/api/auth/me"], userData);
+      const meRes = await fetch(api.auth.me.path, { credentials: "include" });
+      if (meRes.ok) {
+        const fullUser = await meRes.json();
+        queryClient.setQueryData(["/api/auth/me"], fullUser);
+      }
+      return userData;
+    },
+  });
+}
+
+export function useReopenAccount() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: async (credentials: { username: string; password: string }) => {
+      const res = await fetch("/api/auth/reopen-account", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email: credentials.username, password: credentials.password }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => null);
+        throw new Error(data?.message || "Failed to reopen account");
       }
       const userData = await res.json();
       queryClient.setQueryData(["/api/auth/me"], userData);
