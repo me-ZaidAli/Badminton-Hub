@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon } from "lucide-react";
 import { Link } from "wouter";
 
 const SESSION_BANNER_COLORS = {
@@ -18,6 +18,63 @@ const SESSION_BANNER_COLORS = {
   purple: { bar: "bg-purple-500 dark:bg-purple-600", text: "text-white", icon: Megaphone },
   pink:   { bar: "bg-pink-500 dark:bg-pink-600",     text: "text-white", icon: Megaphone },
 } as const;
+
+function renderInlineFormatting(text: string, keyPrefix: string): React.ReactNode[] {
+  const parts: React.ReactNode[] = [];
+  const regex = /\*\*([^*]+)\*\*/g;
+  let lastIndex = 0;
+  let match: RegExpExecArray | null;
+  let i = 0;
+  while ((match = regex.exec(text)) !== null) {
+    if (match.index > lastIndex) parts.push(text.slice(lastIndex, match.index));
+    parts.push(<strong key={`${keyPrefix}-b-${i++}`} className="font-bold">{match[1]}</strong>);
+    lastIndex = match.index + match[0].length;
+  }
+  if (lastIndex < text.length) parts.push(text.slice(lastIndex));
+  return parts;
+}
+
+export function FormattedBannerText({ text, keyPrefix = "fmt" }: { text: string; keyPrefix?: string }) {
+  if (!text) return null;
+  const lines = text.replace(/\r\n/g, "\n").split("\n");
+  const blocks: React.ReactNode[] = [];
+  let bulletBuffer: string[] = [];
+  const flushBullets = () => {
+    if (bulletBuffer.length === 0) return;
+    blocks.push(
+      <ul key={`${keyPrefix}-ul-${blocks.length}`} className="list-disc pl-5 space-y-0.5">
+        {bulletBuffer.map((b, i) => (
+          <li key={i}>{renderInlineFormatting(b, `${keyPrefix}-li-${blocks.length}-${i}`)}</li>
+        ))}
+      </ul>
+    );
+    bulletBuffer = [];
+  };
+  lines.forEach((rawLine, idx) => {
+    const line = rawLine.trimEnd();
+    const bulletMatch = /^\s*(?:[-*•])\s+(.*)$/.exec(line);
+    if (bulletMatch) {
+      bulletBuffer.push(bulletMatch[1]);
+      return;
+    }
+    flushBullets();
+    if (line.trim() === "") {
+      blocks.push(<div key={`${keyPrefix}-sp-${idx}`} className="h-1.5" />);
+      return;
+    }
+    const h2 = /^##\s+(.*)$/.exec(line);
+    const h1 = /^#\s+(.*)$/.exec(line);
+    if (h1) {
+      blocks.push(<div key={`${keyPrefix}-h1-${idx}`} className="text-base font-bold leading-snug">{renderInlineFormatting(h1[1], `${keyPrefix}-h1in-${idx}`)}</div>);
+    } else if (h2) {
+      blocks.push(<div key={`${keyPrefix}-h2-${idx}`} className="text-sm font-bold leading-snug">{renderInlineFormatting(h2[1], `${keyPrefix}-h2in-${idx}`)}</div>);
+    } else {
+      blocks.push(<p key={`${keyPrefix}-p-${idx}`} className="leading-snug m-0">{renderInlineFormatting(line, `${keyPrefix}-pin-${idx}`)}</p>);
+    }
+  });
+  flushBullets();
+  return <div className="space-y-1">{blocks}</div>;
+}
 
 export function SessionBanner({ message, color, sessionId, variant = "card" }: { message: string; color?: string | null; sessionId: number; variant?: "card" | "modal" }) {
   if (!message) return null;
@@ -31,7 +88,55 @@ export function SessionBanner({ message, color, sessionId, variant = "card" }: {
       role="status"
     >
       <Icon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-      <span className="flex-1 leading-snug whitespace-pre-line">{message}</span>
+      <div className="flex-1 min-w-0 break-words">
+        <FormattedBannerText text={message} keyPrefix={`banner-${sessionId}`} />
+      </div>
+    </div>
+  );
+}
+
+function isSafeHttpUrl(url: string): { ok: boolean; href: string } {
+  try {
+    const trimmed = (url || "").trim();
+    if (!trimmed) return { ok: false, href: "#" };
+    const withScheme = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    const parsed = new URL(withScheme);
+    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return { ok: false, href: "#" };
+    return { ok: true, href: parsed.toString() };
+  } catch {
+    return { ok: false, href: "#" };
+  }
+}
+
+export function UsefulLinks({ links, sessionId, compact = false }: { links?: { title: string; url: string }[] | null; sessionId: number; compact?: boolean }) {
+  if (!links || !Array.isArray(links) || links.length === 0) return null;
+  const valid = links.filter(l => l && l.title && l.url);
+  if (valid.length === 0) return null;
+  return (
+    <div className="rounded-lg border border-blue-300/60 dark:border-blue-700/50 bg-blue-50/70 dark:bg-blue-950/30 p-2.5" data-testid={`useful-links-${sessionId}`}>
+      <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-wide text-blue-700 dark:text-blue-300 mb-1.5">
+        <LinkIcon className="h-3 w-3" />
+        Useful Links
+      </div>
+      <div className={compact ? "flex flex-wrap gap-1.5" : "grid grid-cols-1 sm:grid-cols-2 gap-1.5"}>
+        {valid.map((link, idx) => {
+          const { ok, href } = isSafeHttpUrl(link.url);
+          if (!ok) return null;
+          return (
+            <a
+              key={idx}
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-md bg-white dark:bg-slate-900 border border-blue-200 dark:border-blue-800 text-xs font-medium text-blue-700 dark:text-blue-300 hover:bg-blue-100 dark:hover:bg-blue-900/40 transition-colors"
+              data-testid={`link-useful-${sessionId}-${idx}`}
+            >
+              <ExternalLink className="h-3 w-3 flex-shrink-0" />
+              <span className="truncate">{link.title}</span>
+            </a>
+          );
+        })}
+      </div>
     </div>
   );
 }
@@ -632,6 +737,8 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
                 </div>
               </div>
             )}
+
+            <UsefulLinks links={(session as any).customLinks} sessionId={session.id} />
 
             {(() => {
               const club = clubs?.find(c => c.id === session.clubId);

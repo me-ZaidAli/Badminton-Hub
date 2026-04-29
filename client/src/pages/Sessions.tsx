@@ -2779,6 +2779,7 @@ function extractSessionPrefill(session: any) {
     sessionDetails: session.sessionDetails || "",
     bannerMessage: session.bannerMessage || "",
     bannerColor: session.bannerColor || "",
+    customLinks: Array.isArray(session.customLinks) ? session.customLinks : [],
   };
 }
 
@@ -3188,10 +3189,25 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       sessionDetails: prefillData?.sessionDetails ?? "",
       bannerMessage: prefillData?.bannerMessage ?? "",
       bannerColor: prefillData?.bannerColor ?? "",
+      customLinks: prefillData?.customLinks ?? [],
       hallName: prefillData?.hallName ?? "",
       courtNames: prefillData?.courtNames ?? [],
     }
   });
+  const [bannerEnabled, setBannerEnabled] = useState<boolean>(!!prefillData?.bannerMessage);
+  const customLinksValue = form.watch("customLinks") as { title: string; url: string }[] | undefined;
+  const customLinks = useMemo(() => Array.isArray(customLinksValue) ? customLinksValue : [], [customLinksValue]);
+  const updateLink = (idx: number, patch: Partial<{ title: string; url: string }>) => {
+    const next = customLinks.map((l, i) => i === idx ? { ...l, ...patch } : l);
+    form.setValue("customLinks", next as any, { shouldDirty: true });
+  };
+  const removeLink = (idx: number) => {
+    form.setValue("customLinks", customLinks.filter((_, i) => i !== idx) as any, { shouldDirty: true });
+  };
+  const addLink = () => {
+    if (customLinks.length >= 10) return;
+    form.setValue("customLinks", [...customLinks, { title: "", url: "" }] as any, { shouldDirty: true });
+  };
 
   const watchClubId = form.watch("clubId");
   const watchSessionType = form.watch("sessionType");
@@ -3209,8 +3225,13 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
   function onSubmit(values: z.infer<typeof createSessionSchema>) {
     const publishAt = scheduleEnabled ? computePublishAt(values.date, weeksBefore) : null;
     const courtNamesArray = courtNamesText ? courtNamesText.split(",").map(s => s.trim()).filter(Boolean) : null;
+    const cleanedLinks = (Array.isArray((values as any).customLinks) ? (values as any).customLinks : [])
+      .filter((l: any) => l && typeof l.title === "string" && typeof l.url === "string" && l.title.trim() && l.url.trim());
     const payload = {
       ...values,
+      bannerMessage: bannerEnabled ? (values.bannerMessage?.trim() ? values.bannerMessage : null) : null,
+      bannerColor: bannerEnabled ? (values.bannerColor || null) : null,
+      customLinks: cleanedLinks,
       courtNames: courtNamesArray,
       publishAt: publishAt?.toISOString() || null,
       inviteePlayerIds: selectedInvitees.size > 0 ? Array.from(selectedInvitees) : undefined,
@@ -3356,52 +3377,130 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
               )}
             />
             <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Important Banner (optional)</div>
-              <FormField
-                control={form.control}
-                name="bannerMessage"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Banner Message</FormLabel>
-                    <FormControl>
+              <div className="flex items-center justify-between gap-3">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Important Banner (optional)</div>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">{bannerEnabled ? "On" : "Off"}</span>
+                  <Switch
+                    checked={bannerEnabled}
+                    onCheckedChange={(v) => {
+                      setBannerEnabled(v);
+                      if (!v) {
+                        form.setValue("bannerMessage", "" as any, { shouldDirty: true });
+                        form.setValue("bannerColor", "" as any, { shouldDirty: true });
+                      }
+                    }}
+                    data-testid="switch-banner-enabled"
+                  />
+                </div>
+              </div>
+              {bannerEnabled && (
+                <>
+                  <FormField
+                    control={form.control}
+                    name="bannerMessage"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Banner Message</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            placeholder={'e.g.\n**Please pay before joining**\n- Bank transfer to club account\n- Or pay in person on arrival'}
+                            rows={4}
+                            maxLength={2000}
+                            className="resize-none font-mono text-[12px] leading-relaxed"
+                            {...field}
+                            value={field.value || ""}
+                            data-testid="input-banner-message"
+                          />
+                        </FormControl>
+                        <FormDescription>
+                          Use <code className="px-1 py-0.5 rounded bg-muted text-[11px]">**bold**</code>, start a line with <code className="px-1 py-0.5 rounded bg-muted text-[11px]">- </code> for bullets, blank lines for spacing.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="bannerColor"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Banner Colour</FormLabel>
+                        <Select onValueChange={field.onChange} value={field.value || ""}>
+                          <FormControl>
+                            <SelectTrigger data-testid="select-banner-color">
+                              <SelectValue placeholder="Select a colour" />
+                            </SelectTrigger>
+                          </FormControl>
+                          <SelectContent>
+                            <SelectItem value="red">Red — Urgent</SelectItem>
+                            <SelectItem value="amber">Amber — Warning</SelectItem>
+                            <SelectItem value="blue">Blue — Information</SelectItem>
+                            <SelectItem value="green">Green — Success</SelectItem>
+                            <SelectItem value="purple">Purple — Highlight</SelectItem>
+                            <SelectItem value="pink">Pink — Notice</SelectItem>
+                          </SelectContent>
+                        </Select>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </>
+              )}
+            </div>
+            <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Useful Links (optional)</div>
+                  <p className="text-[11px] text-muted-foreground mt-0.5">e.g. WhatsApp group, Google Maps, club rules. Up to 10.</p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={addLink}
+                  disabled={customLinks.length >= 10}
+                  data-testid="button-add-link"
+                >
+                  <Plus className="h-3.5 w-3.5 mr-1" />
+                  Add link
+                </Button>
+              </div>
+              {customLinks.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic text-center py-2">No links added yet</p>
+              ) : (
+                <div className="space-y-2">
+                  {customLinks.map((link, idx) => (
+                    <div key={idx} className="flex items-center gap-2" data-testid={`row-link-${idx}`}>
                       <Input
-                        placeholder='e.g. "Please pay before adding your name"'
-                        maxLength={280}
-                        {...field}
-                        value={field.value || ""}
-                        data-testid="input-banner-message"
+                        placeholder="Title (e.g. WhatsApp Group)"
+                        value={link.title}
+                        onChange={(e) => updateLink(idx, { title: e.target.value })}
+                        maxLength={60}
+                        className="flex-1"
+                        data-testid={`input-link-title-${idx}`}
                       />
-                    </FormControl>
-                    <FormDescription>Shows as a coloured banner on top of the session card. Leave blank to hide.</FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <FormField
-                control={form.control}
-                name="bannerColor"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Banner Colour</FormLabel>
-                    <Select onValueChange={field.onChange} value={field.value || ""}>
-                      <FormControl>
-                        <SelectTrigger data-testid="select-banner-color">
-                          <SelectValue placeholder="Select a colour" />
-                        </SelectTrigger>
-                      </FormControl>
-                      <SelectContent>
-                        <SelectItem value="red">Red — Urgent</SelectItem>
-                        <SelectItem value="amber">Amber — Warning</SelectItem>
-                        <SelectItem value="blue">Blue — Information</SelectItem>
-                        <SelectItem value="green">Green — Success</SelectItem>
-                        <SelectItem value="purple">Purple — Highlight</SelectItem>
-                        <SelectItem value="pink">Pink — Notice</SelectItem>
-                      </SelectContent>
-                    </Select>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+                      <Input
+                        placeholder="https://..."
+                        value={link.url}
+                        onChange={(e) => updateLink(idx, { url: e.target.value })}
+                        maxLength={500}
+                        className="flex-[1.5]"
+                        data-testid={`input-link-url-${idx}`}
+                      />
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon"
+                        onClick={() => removeLink(idx)}
+                        data-testid={`button-remove-link-${idx}`}
+                      >
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
             <FormField
               control={form.control}
@@ -3935,6 +4034,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editSessionDetails, setEditSessionDetails] = useState("");
   const [editBannerMessage, setEditBannerMessage] = useState("");
   const [editBannerColor, setEditBannerColor] = useState("");
+  const [editBannerEnabled, setEditBannerEnabled] = useState(false);
+  const [editCustomLinks, setEditCustomLinks] = useState<{ title: string; url: string }[]>([]);
   const [editHallName, setEditHallName] = useState("");
   const [editCourtNames, setEditCourtNames] = useState("");
   const [editScheduleEnabled, setEditScheduleEnabled] = useState(false);
@@ -4003,6 +4104,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditSessionDetails(session.sessionDetails || "");
     setEditBannerMessage(session.bannerMessage || "");
     setEditBannerColor(session.bannerColor || "");
+    setEditBannerEnabled(!!session.bannerMessage);
+    setEditCustomLinks(Array.isArray(session.customLinks) ? session.customLinks : []);
     setEditHallName(session.hallName || "");
     setEditCourtNames(session.courtNames?.join(", ") || "");
     setEditGuestClubIds(session.guestClubIds || []);
@@ -4070,8 +4173,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       liveStreamUrl: editLiveStreamUrl || "",
       shuttleTubesUsed: editShuttleTubes,
       sessionDetails: editSessionDetails || null,
-      bannerMessage: editBannerMessage || null,
-      bannerColor: editBannerColor || null,
+      bannerMessage: editBannerEnabled ? (editBannerMessage || null) : null,
+      bannerColor: editBannerEnabled ? (editBannerColor || null) : null,
+      customLinks: editCustomLinks.filter(l => l.title.trim() && l.url.trim()),
       hallName: editHallName || null,
       courtNames: editCourtNames ? editCourtNames.split(",").map(s => s.trim()).filter(Boolean) : null,
       publishAt: publishAt?.toISOString() || null,
@@ -4213,45 +4317,125 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
             <p className="text-xs text-muted-foreground mt-1">Optional notes visible to all players</p>
           </div>
           <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Important Banner (optional)</div>
-            <div>
-              <Label>Banner Message</Label>
-              <Input
-                value={editBannerMessage}
-                onChange={(e) => setEditBannerMessage(e.target.value)}
-                placeholder='e.g. "Please pay before adding your name"'
-                maxLength={280}
-                className="mt-2"
-                data-testid="input-edit-banner-message"
-              />
-              <p className="text-xs text-muted-foreground mt-1">Shows as a coloured banner on top of the session card. Leave blank to hide.</p>
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Important Banner (optional)</div>
+              <div className="flex items-center gap-2">
+                <span className="text-xs text-muted-foreground">{editBannerEnabled ? "On" : "Off"}</span>
+                <Switch
+                  checked={editBannerEnabled}
+                  onCheckedChange={setEditBannerEnabled}
+                  data-testid="switch-edit-banner-enabled"
+                />
+              </div>
             </div>
-            <div>
-              <Label>Banner Colour</Label>
-              <Select value={editBannerColor || ""} onValueChange={setEditBannerColor}>
-                <SelectTrigger className="mt-2" data-testid="select-edit-banner-color">
-                  <SelectValue placeholder="Select a colour" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="red">Red — Urgent</SelectItem>
-                  <SelectItem value="amber">Amber — Warning</SelectItem>
-                  <SelectItem value="blue">Blue — Information</SelectItem>
-                  <SelectItem value="green">Green — Success</SelectItem>
-                  <SelectItem value="purple">Purple — Highlight</SelectItem>
-                  <SelectItem value="pink">Pink — Notice</SelectItem>
-                </SelectContent>
-              </Select>
-              {editBannerColor && (
-                <button
-                  type="button"
-                  onClick={() => setEditBannerColor("")}
-                  className="text-[11px] text-muted-foreground hover:text-foreground mt-1.5 underline"
-                  data-testid="button-clear-banner-color"
-                >
-                  Clear colour
-                </button>
-              )}
+            {editBannerEnabled && (
+              <>
+                <div>
+                  <Label>Banner Message</Label>
+                  <Textarea
+                    value={editBannerMessage}
+                    onChange={(e) => setEditBannerMessage(e.target.value)}
+                    placeholder={'e.g.\n**Please pay before joining**\n- Bank transfer to club account\n- Or pay in person on arrival'}
+                    rows={4}
+                    maxLength={2000}
+                    className="mt-2 resize-none font-mono text-[12px] leading-relaxed"
+                    data-testid="input-edit-banner-message"
+                  />
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Use <code className="px-1 py-0.5 rounded bg-muted text-[11px]">**bold**</code>, start a line with <code className="px-1 py-0.5 rounded bg-muted text-[11px]">- </code> for bullets, blank lines for spacing.
+                  </p>
+                </div>
+                <div>
+                  <Label>Banner Colour</Label>
+                  <Select value={editBannerColor || ""} onValueChange={setEditBannerColor}>
+                    <SelectTrigger className="mt-2" data-testid="select-edit-banner-color">
+                      <SelectValue placeholder="Select a colour" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="red">Red — Urgent</SelectItem>
+                      <SelectItem value="amber">Amber — Warning</SelectItem>
+                      <SelectItem value="blue">Blue — Information</SelectItem>
+                      <SelectItem value="green">Green — Success</SelectItem>
+                      <SelectItem value="purple">Purple — Highlight</SelectItem>
+                      <SelectItem value="pink">Pink — Notice</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {editBannerColor && (
+                    <button
+                      type="button"
+                      onClick={() => setEditBannerColor("")}
+                      className="text-[11px] text-muted-foreground hover:text-foreground mt-1.5 underline"
+                      data-testid="button-clear-banner-color"
+                    >
+                      Clear colour
+                    </button>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+          <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Useful Links (optional)</div>
+                <p className="text-[11px] text-muted-foreground mt-0.5">e.g. WhatsApp group, Google Maps, club rules. Up to 10.</p>
+              </div>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  if (editCustomLinks.length >= 10) return;
+                  setEditCustomLinks([...editCustomLinks, { title: "", url: "" }]);
+                }}
+                disabled={editCustomLinks.length >= 10}
+                data-testid="button-edit-add-link"
+              >
+                <Plus className="h-3.5 w-3.5 mr-1" />
+                Add link
+              </Button>
             </div>
+            {editCustomLinks.length === 0 ? (
+              <p className="text-xs text-muted-foreground italic text-center py-2">No links added yet</p>
+            ) : (
+              <div className="space-y-2">
+                {editCustomLinks.map((link, idx) => (
+                  <div key={idx} className="flex items-center gap-2" data-testid={`row-edit-link-${idx}`}>
+                    <Input
+                      placeholder="Title (e.g. WhatsApp Group)"
+                      value={link.title}
+                      onChange={(e) => {
+                        const next = editCustomLinks.map((l, i) => i === idx ? { ...l, title: e.target.value } : l);
+                        setEditCustomLinks(next);
+                      }}
+                      maxLength={60}
+                      className="flex-1"
+                      data-testid={`input-edit-link-title-${idx}`}
+                    />
+                    <Input
+                      placeholder="https://..."
+                      value={link.url}
+                      onChange={(e) => {
+                        const next = editCustomLinks.map((l, i) => i === idx ? { ...l, url: e.target.value } : l);
+                        setEditCustomLinks(next);
+                      }}
+                      maxLength={500}
+                      className="flex-[1.5]"
+                      data-testid={`input-edit-link-url-${idx}`}
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => setEditCustomLinks(editCustomLinks.filter((_, i) => i !== idx))}
+                      data-testid={`button-edit-remove-link-${idx}`}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

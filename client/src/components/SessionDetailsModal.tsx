@@ -14,7 +14,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, PoundSterling, Loader2, LogIn, LogOut, UserPlus, Calendar, ChevronDown, ChevronUp, ChevronRight, MessageSquare, Ban, Send, Bell, FileText } from "lucide-react";
 import { format } from "date-fns";
-import { SessionBanner } from "./SessionViews";
+import { SessionBanner, UsefulLinks } from "./SessionViews";
 
 interface SessionDetailsModalProps {
   session: any;
@@ -894,6 +894,12 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
               {session.sessionDetails}
             </p>
           </div>
+        </div>
+      )}
+
+      {Array.isArray(session.customLinks) && session.customLinks.length > 0 && (
+        <div className="mb-3">
+          <UsefulLinks links={session.customLinks} sessionId={session.id} />
         </div>
       )}
 

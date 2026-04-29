@@ -4693,7 +4693,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, hallName, guestClubIds } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, customLinks, hallName, guestClubIds } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -4753,10 +4753,37 @@ export async function registerRoutes(
       }
       if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
       if (sessionDetails !== undefined) updates.sessionDetails = sessionDetails || null;
-      if (bannerMessage !== undefined) updates.bannerMessage = bannerMessage ? String(bannerMessage).slice(0, 280) : null;
+      if (bannerMessage !== undefined) updates.bannerMessage = bannerMessage ? String(bannerMessage).slice(0, 2000) : null;
       if (bannerColor !== undefined) {
         const allowedColors = ["red", "amber", "blue", "green", "purple", "pink"];
         updates.bannerColor = bannerColor && allowedColors.includes(bannerColor) ? bannerColor : null;
+      }
+      if (customLinks !== undefined) {
+        if (customLinks === null || !Array.isArray(customLinks)) {
+          updates.customLinks = [];
+        } else {
+          const cleaned = customLinks
+            .filter((l: any) => l && typeof l.title === "string" && typeof l.url === "string" && l.title.trim() && l.url.trim())
+            .slice(0, 10)
+            .map((l: any) => {
+              const rawUrl = String(l.url).trim().slice(0, 500);
+              const withScheme = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+              let safeUrl = withScheme;
+              try {
+                const parsed = new URL(withScheme);
+                if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+                safeUrl = parsed.toString();
+              } catch {
+                return null;
+              }
+              return {
+                title: String(l.title).trim().slice(0, 60),
+                url: safeUrl.slice(0, 500),
+              };
+            })
+            .filter((l: any) => l !== null);
+          updates.customLinks = cleaned;
+        }
       }
       if (guestClubIds !== undefined) {
         if (req.user!.role !== "OWNER") {
@@ -4819,7 +4846,7 @@ export async function registerRoutes(
         "isPrivate", "sessionType", "juniorAgeGroups", "allowedCategories",
         "sessionFee", "shuttlecockType", "defaultPointsToPlayTo", "numberOfSets",
         "venueId", "liveStreamUrl", "shuttleTubesUsed", "publishAt", "sessionDetails",
-        "bannerMessage", "bannerColor"
+        "bannerMessage", "bannerColor", "customLinks"
       ];
       const allowedBannerColors = ["red", "amber", "blue", "green", "purple", "pink"];
 
@@ -4834,9 +4861,35 @@ export async function registerRoutes(
           } else if (key === "venueId") {
             updates[key] = rawUpdates[key] !== null ? Number(rawUpdates[key]) : null;
           } else if (key === "bannerMessage") {
-            updates[key] = rawUpdates[key] ? String(rawUpdates[key]).slice(0, 280) : null;
+            updates[key] = rawUpdates[key] ? String(rawUpdates[key]).slice(0, 2000) : null;
           } else if (key === "bannerColor") {
             updates[key] = rawUpdates[key] && allowedBannerColors.includes(rawUpdates[key]) ? rawUpdates[key] : null;
+          } else if (key === "customLinks") {
+            const arr = rawUpdates[key];
+            if (arr === null || !Array.isArray(arr)) {
+              updates[key] = [];
+            } else {
+              updates[key] = arr
+                .filter((l: any) => l && typeof l.title === "string" && typeof l.url === "string" && l.title.trim() && l.url.trim())
+                .slice(0, 10)
+                .map((l: any) => {
+                  const rawUrl = String(l.url).trim().slice(0, 500);
+                  const withScheme = /^https?:\/\//i.test(rawUrl) ? rawUrl : `https://${rawUrl}`;
+                  let safeUrl = withScheme;
+                  try {
+                    const parsed = new URL(withScheme);
+                    if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
+                    safeUrl = parsed.toString();
+                  } catch {
+                    return null;
+                  }
+                  return {
+                    title: String(l.title).trim().slice(0, 60),
+                    url: safeUrl.slice(0, 500),
+                  };
+                })
+                .filter((l: any) => l !== null);
+            }
           } else {
             updates[key] = rawUpdates[key];
           }

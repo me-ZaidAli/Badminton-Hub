@@ -388,6 +388,7 @@ export const sessions = pgTable("sessions", {
   sessionDetails: text("session_details"),
   bannerMessage: text("banner_message"),
   bannerColor: text("banner_color"),
+  customLinks: jsonb("custom_links").$type<{ title: string; url: string }[]>().default([]),
   guestClubIds: jsonb("guest_club_ids").$type<number[]>(),
 });
 
@@ -1057,8 +1058,12 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   numberOfSets: z.number().min(1).max(3).default(1),
   publishAt: z.coerce.date().optional().nullable(),
   sessionDetails: z.string().optional().nullable(),
-  bannerMessage: z.string().trim().max(280, "Banner must be 280 characters or fewer").optional().nullable(),
+  bannerMessage: z.string().trim().max(2000, "Banner must be 2000 characters or fewer").optional().nullable(),
   bannerColor: z.enum(["red", "amber", "blue", "green", "purple", "pink"]).optional().nullable(),
+  customLinks: z.array(z.object({
+    title: z.string().trim().min(1, "Title is required").max(60, "Title must be 60 characters or fewer"),
+    url: z.string().trim().min(1, "URL is required").max(500, "URL is too long"),
+  })).max(10, "Up to 10 links allowed").optional().nullable(),
 });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true }).extend({
   clubId: z.number().nullable().optional(),

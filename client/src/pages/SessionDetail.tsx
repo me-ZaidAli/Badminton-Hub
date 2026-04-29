@@ -18,6 +18,7 @@ import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapP
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
+import { UsefulLinks } from "@/components/SessionViews";
 import { CompactMatchView } from "@/components/CompactMatchView";
 import { ProLiveMatches, type PlayerAchievements } from "@/components/ProLiveMatches";
 import { MatchQueue, CompletedMatches } from "@/components/MatchQueue";
@@ -1181,6 +1182,11 @@ export default function SessionDetail() {
               <p className="text-sm leading-relaxed text-amber-900 dark:text-amber-100 whitespace-pre-line">
                 {session.sessionDetails}
               </p>
+            </div>
+          )}
+          {Array.isArray((session as any).customLinks) && (session as any).customLinks.length > 0 && (
+            <div className="mt-3">
+              <UsefulLinks links={(session as any).customLinks} sessionId={session.id} />
             </div>
           )}
           {session.liveStreamUrl && (
