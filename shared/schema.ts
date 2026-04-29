@@ -1058,8 +1058,14 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   numberOfSets: z.number().min(1).max(3).default(1),
   publishAt: z.coerce.date().optional().nullable(),
   sessionDetails: z.string().optional().nullable(),
-  bannerMessage: z.string().trim().max(2000, "Banner must be 2000 characters or fewer").optional().nullable(),
-  bannerColor: z.enum(["red", "amber", "blue", "green", "purple", "pink"]).optional().nullable(),
+  bannerMessage: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(2000, "Banner must be 2000 characters or fewer").optional().nullable()
+  ),
+  bannerColor: z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.enum(["red", "amber", "blue", "green", "purple", "pink"]).optional().nullable()
+  ),
   customLinks: z.array(z.object({
     title: z.string().trim().min(1, "Title is required").max(60, "Title must be 60 characters or fewer"),
     url: z.string().trim().min(1, "URL is required").max(500, "URL is too long"),

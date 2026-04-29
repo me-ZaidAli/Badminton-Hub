@@ -2777,8 +2777,8 @@ function extractSessionPrefill(session: any) {
     numberOfSets: session.numberOfSets || 1,
     venueId: session.venueId || undefined,
     sessionDetails: session.sessionDetails || "",
-    bannerMessage: session.bannerMessage || "",
-    bannerColor: session.bannerColor || "",
+    bannerMessage: session.bannerMessage || null,
+    bannerColor: session.bannerColor || null,
     customLinks: Array.isArray(session.customLinks) ? session.customLinks : [],
   };
 }
@@ -3187,8 +3187,8 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       defaultPointsToPlayTo: prefillData?.defaultPointsToPlayTo ?? 21,
       numberOfSets: prefillData?.numberOfSets ?? 1,
       sessionDetails: prefillData?.sessionDetails ?? "",
-      bannerMessage: prefillData?.bannerMessage ?? "",
-      bannerColor: prefillData?.bannerColor ?? "",
+      bannerMessage: prefillData?.bannerMessage ?? null,
+      bannerColor: prefillData?.bannerColor ?? null,
       customLinks: prefillData?.customLinks ?? [],
       hallName: prefillData?.hallName ?? "",
       courtNames: prefillData?.courtNames ?? [],
@@ -3386,8 +3386,8 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                     onCheckedChange={(v) => {
                       setBannerEnabled(v);
                       if (!v) {
-                        form.setValue("bannerMessage", "" as any, { shouldDirty: true });
-                        form.setValue("bannerColor", "" as any, { shouldDirty: true });
+                        form.setValue("bannerMessage", null as any, { shouldDirty: true });
+                        form.setValue("bannerColor", null as any, { shouldDirty: true });
                       }
                     }}
                     data-testid="switch-banner-enabled"
