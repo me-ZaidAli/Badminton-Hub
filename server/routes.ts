@@ -4818,8 +4818,10 @@ export async function registerRoutes(
         "matchMode", "playersPerSide", "matchGenderType", "genderRestriction",
         "isPrivate", "sessionType", "juniorAgeGroups", "allowedCategories",
         "sessionFee", "shuttlecockType", "defaultPointsToPlayTo", "numberOfSets",
-        "venueId", "liveStreamUrl", "shuttleTubesUsed", "publishAt", "sessionDetails"
+        "venueId", "liveStreamUrl", "shuttleTubesUsed", "publishAt", "sessionDetails",
+        "bannerMessage", "bannerColor"
       ];
+      const allowedBannerColors = ["red", "amber", "blue", "green", "purple", "pink"];
 
       const updates: any = {};
       for (const key of allowedFields) {
@@ -4831,6 +4833,10 @@ export async function registerRoutes(
             updates[key] = rawUpdates[key] !== null ? Number(rawUpdates[key]) : null;
           } else if (key === "venueId") {
             updates[key] = rawUpdates[key] !== null ? Number(rawUpdates[key]) : null;
+          } else if (key === "bannerMessage") {
+            updates[key] = rawUpdates[key] ? String(rawUpdates[key]).slice(0, 280) : null;
+          } else if (key === "bannerColor") {
+            updates[key] = rawUpdates[key] && allowedBannerColors.includes(rawUpdates[key]) ? rawUpdates[key] : null;
           } else {
             updates[key] = rawUpdates[key];
           }

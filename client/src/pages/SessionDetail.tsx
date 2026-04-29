@@ -1173,9 +1173,15 @@ export default function SessionDetail() {
             {(session.shuttleTubesUsed ?? 0) > 0 && ` • ${session.shuttleTubesUsed} Equipment Used`}
           </p>
           {session.sessionDetails && (
-            <p className="text-sm text-muted-foreground mt-2 whitespace-pre-line" data-testid="text-session-details">
-              {session.sessionDetails}
-            </p>
+            <div className="mt-3 rounded-lg border-l-4 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5 shadow-sm" data-testid="text-session-details">
+              <div className="flex items-center gap-1.5 mb-1">
+                <ClipboardList className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Session Notes</span>
+              </div>
+              <p className="text-sm leading-relaxed text-amber-900 dark:text-amber-100 whitespace-pre-line">
+                {session.sessionDetails}
+              </p>
+            </div>
           )}
           {session.liveStreamUrl && (
             <a href={session.liveStreamUrl} target="_blank" rel="noopener noreferrer" className="inline-block mt-3">

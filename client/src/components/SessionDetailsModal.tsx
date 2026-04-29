@@ -12,8 +12,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, PoundSterling, Loader2, LogIn, LogOut, UserPlus, Calendar, ChevronDown, ChevronUp, ChevronRight, MessageSquare, Ban, Send, Bell } from "lucide-react";
+import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, PoundSterling, Loader2, LogIn, LogOut, UserPlus, Calendar, ChevronDown, ChevronUp, ChevronRight, MessageSquare, Ban, Send, Bell, FileText } from "lucide-react";
 import { format } from "date-fns";
+import { SessionBanner } from "./SessionViews";
 
 interface SessionDetailsModalProps {
   session: any;
@@ -854,6 +855,16 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
 
   const drawerContent = (
     <div className="px-2 sm:px-4 pb-4 sm:pb-6 overflow-y-auto max-h-[80vh]">
+      {session.bannerMessage && (
+        <div className="mb-3">
+          <SessionBanner
+            message={session.bannerMessage}
+            color={session.bannerColor}
+            sessionId={session.id}
+            variant="modal"
+          />
+        </div>
+      )}
       <div className="text-center mb-2 sm:mb-3">
         <h2 className="text-base sm:text-xl font-bold" data-testid="text-session-details-title">{session.title}</h2>
         <div className="flex items-center justify-center gap-2 sm:gap-3 mt-1 sm:mt-1.5 text-[11px] sm:text-sm text-muted-foreground flex-wrap">
@@ -871,6 +882,20 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           </span>
         </div>
       </div>
+
+      {session.sessionDetails && (
+        <div className="mb-3" data-testid={`session-notes-modal-${session.id}`}>
+          <div className="flex items-center gap-1.5 mb-1.5">
+            <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+            <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Session Notes</span>
+          </div>
+          <div className="rounded-lg border-l-4 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5 shadow-sm">
+            <p className="text-sm leading-relaxed text-amber-900 dark:text-amber-100 whitespace-pre-line">
+              {session.sessionDetails}
+            </p>
+          </div>
+        </div>
+      )}
 
       {isLoading ? (
         <div className="flex justify-center py-8">

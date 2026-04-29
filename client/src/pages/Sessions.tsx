@@ -2777,6 +2777,8 @@ function extractSessionPrefill(session: any) {
     numberOfSets: session.numberOfSets || 1,
     venueId: session.venueId || undefined,
     sessionDetails: session.sessionDetails || "",
+    bannerMessage: session.bannerMessage || "",
+    bannerColor: session.bannerColor || "",
   };
 }
 
@@ -3184,6 +3186,8 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       defaultPointsToPlayTo: prefillData?.defaultPointsToPlayTo ?? 21,
       numberOfSets: prefillData?.numberOfSets ?? 1,
       sessionDetails: prefillData?.sessionDetails ?? "",
+      bannerMessage: prefillData?.bannerMessage ?? "",
+      bannerColor: prefillData?.bannerColor ?? "",
       hallName: prefillData?.hallName ?? "",
       courtNames: prefillData?.courtNames ?? [],
     }
@@ -3351,6 +3355,54 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                 </FormItem>
               )}
             />
+            <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Important Banner (optional)</div>
+              <FormField
+                control={form.control}
+                name="bannerMessage"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Banner Message</FormLabel>
+                    <FormControl>
+                      <Input
+                        placeholder='e.g. "Please pay before adding your name"'
+                        maxLength={280}
+                        {...field}
+                        value={field.value || ""}
+                        data-testid="input-banner-message"
+                      />
+                    </FormControl>
+                    <FormDescription>Shows as a coloured banner on top of the session card. Leave blank to hide.</FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name="bannerColor"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Banner Colour</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value || ""}>
+                      <FormControl>
+                        <SelectTrigger data-testid="select-banner-color">
+                          <SelectValue placeholder="Select a colour" />
+                        </SelectTrigger>
+                      </FormControl>
+                      <SelectContent>
+                        <SelectItem value="red">Red — Urgent</SelectItem>
+                        <SelectItem value="amber">Amber — Warning</SelectItem>
+                        <SelectItem value="blue">Blue — Information</SelectItem>
+                        <SelectItem value="green">Green — Success</SelectItem>
+                        <SelectItem value="purple">Purple — Highlight</SelectItem>
+                        <SelectItem value="pink">Pink — Notice</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
             <FormField
               control={form.control}
               name="date"
@@ -3881,6 +3933,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editShuttleTubes, setEditShuttleTubes] = useState(0);
   const [editNumberOfSets, setEditNumberOfSets] = useState(1);
   const [editSessionDetails, setEditSessionDetails] = useState("");
+  const [editBannerMessage, setEditBannerMessage] = useState("");
+  const [editBannerColor, setEditBannerColor] = useState("");
   const [editHallName, setEditHallName] = useState("");
   const [editCourtNames, setEditCourtNames] = useState("");
   const [editScheduleEnabled, setEditScheduleEnabled] = useState(false);
@@ -3947,6 +4001,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditShuttleTubes(session.shuttleTubesUsed || 0);
     setEditNumberOfSets(session.numberOfSets || 1);
     setEditSessionDetails(session.sessionDetails || "");
+    setEditBannerMessage(session.bannerMessage || "");
+    setEditBannerColor(session.bannerColor || "");
     setEditHallName(session.hallName || "");
     setEditCourtNames(session.courtNames?.join(", ") || "");
     setEditGuestClubIds(session.guestClubIds || []);
@@ -4014,6 +4070,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       liveStreamUrl: editLiveStreamUrl || "",
       shuttleTubesUsed: editShuttleTubes,
       sessionDetails: editSessionDetails || null,
+      bannerMessage: editBannerMessage || null,
+      bannerColor: editBannerColor || null,
       hallName: editHallName || null,
       courtNames: editCourtNames ? editCourtNames.split(",").map(s => s.trim()).filter(Boolean) : null,
       publishAt: publishAt?.toISOString() || null,
@@ -4153,6 +4211,47 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
               data-testid="input-edit-session-details"
             />
             <p className="text-xs text-muted-foreground mt-1">Optional notes visible to all players</p>
+          </div>
+          <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Important Banner (optional)</div>
+            <div>
+              <Label>Banner Message</Label>
+              <Input
+                value={editBannerMessage}
+                onChange={(e) => setEditBannerMessage(e.target.value)}
+                placeholder='e.g. "Please pay before adding your name"'
+                maxLength={280}
+                className="mt-2"
+                data-testid="input-edit-banner-message"
+              />
+              <p className="text-xs text-muted-foreground mt-1">Shows as a coloured banner on top of the session card. Leave blank to hide.</p>
+            </div>
+            <div>
+              <Label>Banner Colour</Label>
+              <Select value={editBannerColor || ""} onValueChange={setEditBannerColor}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-banner-color">
+                  <SelectValue placeholder="Select a colour" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="red">Red — Urgent</SelectItem>
+                  <SelectItem value="amber">Amber — Warning</SelectItem>
+                  <SelectItem value="blue">Blue — Information</SelectItem>
+                  <SelectItem value="green">Green — Success</SelectItem>
+                  <SelectItem value="purple">Purple — Highlight</SelectItem>
+                  <SelectItem value="pink">Pink — Notice</SelectItem>
+                </SelectContent>
+              </Select>
+              {editBannerColor && (
+                <button
+                  type="button"
+                  onClick={() => setEditBannerColor("")}
+                  className="text-[11px] text-muted-foreground hover:text-foreground mt-1.5 underline"
+                  data-testid="button-clear-banner-color"
+                >
+                  Clear colour
+                </button>
+              )}
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

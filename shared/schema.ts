@@ -1057,6 +1057,8 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   numberOfSets: z.number().min(1).max(3).default(1),
   publishAt: z.coerce.date().optional().nullable(),
   sessionDetails: z.string().optional().nullable(),
+  bannerMessage: z.string().trim().max(280, "Banner must be 280 characters or fewer").optional().nullable(),
+  bannerColor: z.enum(["red", "amber", "blue", "green", "purple", "pink"]).optional().nullable(),
 });
 export const insertAnnouncementSchema = createInsertSchema(announcements).omit({ id: true, authorId: true, createdAt: true }).extend({
   clubId: z.number().nullable().optional(),

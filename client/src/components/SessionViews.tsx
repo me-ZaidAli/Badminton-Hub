@@ -7,8 +7,34 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info } from "lucide-react";
 import { Link } from "wouter";
+
+const SESSION_BANNER_COLORS = {
+  red:    { bar: "bg-red-500 dark:bg-red-600",       text: "text-white", icon: AlertTriangle },
+  amber:  { bar: "bg-amber-500 dark:bg-amber-500",   text: "text-white", icon: AlertTriangle },
+  blue:   { bar: "bg-blue-500 dark:bg-blue-600",     text: "text-white", icon: Info },
+  green:  { bar: "bg-emerald-500 dark:bg-emerald-600", text: "text-white", icon: CheckCircle },
+  purple: { bar: "bg-purple-500 dark:bg-purple-600", text: "text-white", icon: Megaphone },
+  pink:   { bar: "bg-pink-500 dark:bg-pink-600",     text: "text-white", icon: Megaphone },
+} as const;
+
+export function SessionBanner({ message, color, sessionId, variant = "card" }: { message: string; color?: string | null; sessionId: number; variant?: "card" | "modal" }) {
+  if (!message) return null;
+  const palette = (color && SESSION_BANNER_COLORS[color as keyof typeof SESSION_BANNER_COLORS]) || SESSION_BANNER_COLORS.blue;
+  const Icon = palette.icon;
+  const radius = variant === "card" ? "rounded-t-xl" : "rounded-lg";
+  return (
+    <div
+      className={`flex items-start gap-2.5 px-3.5 py-2.5 text-sm font-semibold ${palette.bar} ${palette.text} ${radius} shadow-sm`}
+      data-testid={`session-banner-${sessionId}`}
+      role="status"
+    >
+      <Icon className="h-4 w-4 mt-0.5 flex-shrink-0" />
+      <span className="flex-1 leading-snug whitespace-pre-line">{message}</span>
+    </div>
+  );
+}
 
 type SessionItem = {
   id: number;
@@ -594,14 +620,16 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
             )}
 
             {(session as any).sessionDetails && (
-              <div>
+              <div data-testid={`session-notes-${session.id}`}>
                 <div className="flex items-center gap-1.5 mb-1.5">
-                  <FileText className="h-3 w-3 text-muted-foreground/70" />
-                  <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wide">Session Notes</span>
+                  <FileText className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <span className="text-[11px] font-bold uppercase tracking-wider text-amber-700 dark:text-amber-300">Session Notes</span>
                 </div>
-                <p className="text-[11px] text-muted-foreground bg-muted/25 dark:bg-muted/15 rounded-md px-2.5 py-2">
-                  {(session as any).sessionDetails}
-                </p>
+                <div className="relative rounded-lg border-l-4 border-amber-400 dark:border-amber-500 bg-amber-50 dark:bg-amber-950/30 px-3 py-2.5 shadow-sm">
+                  <p className="text-[12px] leading-relaxed text-amber-900 dark:text-amber-100 whitespace-pre-line">
+                    {(session as any).sessionDetails}
+                  </p>
+                </div>
               </div>
             )}
 
@@ -887,7 +915,16 @@ function TimelineSessionCard({
         </div>
       )}
 
-      <div className={`p-4 pl-5 border backdrop-blur-sm shadow-sm ${isCancelled ? "rounded-b-xl border-orange-300 dark:border-orange-700/60 bg-muted/40 dark:bg-muted/20" : "rounded-xl"} ${
+      {!isCancelled && (session as any).bannerMessage && (
+        <SessionBanner
+          message={(session as any).bannerMessage}
+          color={(session as any).bannerColor}
+          sessionId={session.id}
+          variant="card"
+        />
+      )}
+
+      <div className={`p-4 pl-5 border backdrop-blur-sm shadow-sm ${isCancelled ? "rounded-b-xl border-orange-300 dark:border-orange-700/60 bg-muted/40 dark:bg-muted/20" : (session as any).bannerMessage ? "rounded-b-xl" : "rounded-xl"} ${
         !isCancelled && isSignedUp ? "border-emerald-400/50 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
         !isCancelled && isLive ? "border-green-500/50 bg-green-500/5 dark:bg-green-500/[0.07]" :
         !isCancelled && isFull && !isPast ? "border-red-400/40 bg-card dark:bg-card/60" :
