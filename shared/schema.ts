@@ -386,6 +386,8 @@ export const sessions = pgTable("sessions", {
   publishAt: timestamp("publish_at"),
   invoiceNumber: text("invoice_number"),
   sessionDetails: text("session_details"),
+  bannerMessage: text("banner_message"),
+  bannerColor: text("banner_color"),
   guestClubIds: jsonb("guest_club_ids").$type<number[]>(),
 });
 

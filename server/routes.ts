@@ -4693,7 +4693,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, hallName, guestClubIds } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, hallName, guestClubIds } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -4753,6 +4753,11 @@ export async function registerRoutes(
       }
       if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
       if (sessionDetails !== undefined) updates.sessionDetails = sessionDetails || null;
+      if (bannerMessage !== undefined) updates.bannerMessage = bannerMessage ? String(bannerMessage).slice(0, 280) : null;
+      if (bannerColor !== undefined) {
+        const allowedColors = ["red", "amber", "blue", "green", "purple", "pink"];
+        updates.bannerColor = bannerColor && allowedColors.includes(bannerColor) ? bannerColor : null;
+      }
       if (guestClubIds !== undefined) {
         if (req.user!.role !== "OWNER") {
           return res.status(403).json({ message: "Only super admins can set guest club access" });
