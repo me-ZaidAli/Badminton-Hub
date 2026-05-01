@@ -1076,29 +1076,25 @@ function TileCard({
     <Link href={tile.href}>
       <Card
         onClick={() => onActivate(tile.id)}
-        className="group relative border-border/40 hover:border-border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full rounded-2xl"
+        className="group relative aspect-square border border-border/50 bg-gradient-to-br from-card to-card/70 hover:border-primary/40 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl overflow-hidden"
         data-testid={tile.testId}
+        title={tile.description}
       >
-        <CardContent className={compact ? "p-3 flex items-center gap-3" : "p-4 flex items-start gap-3.5"}>
-          <div className={`${tile.bg} rounded-xl ${compact ? "p-2" : "p-2.5"} shrink-0 group-hover:scale-105 transition-transform`}>
-            <tile.icon className={`${compact ? "w-4 h-4" : "w-5 h-5"} ${tile.color}`} />
+        <CardContent className="p-3 sm:p-4 flex flex-col items-center justify-center text-center h-full gap-2.5">
+          <div className={`${tile.bg} rounded-2xl ${compact ? "p-3" : "p-3.5 sm:p-4"} group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
+            <tile.icon className={`${compact ? "w-5 h-5" : "w-6 h-6 sm:w-7 sm:h-7"} ${tile.color}`} />
           </div>
-          <div className="min-w-0 flex-1">
-            <p className={`${compact ? "text-xs" : "text-sm"} font-semibold text-foreground leading-tight truncate`}>{tile.label}</p>
-            {!compact && (
-              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">{tile.description}</p>
-            )}
-          </div>
-          <button
-            type="button"
-            aria-label={pinned ? "Unpin tile" : "Pin tile"}
-            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted shrink-0"
-            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPinToggle(tile.id); }}
-            data-testid={`pin-${tile.id}`}
-          >
-            {pinned ? <PinOff className="w-3.5 h-3.5 text-muted-foreground" /> : <Pin className="w-3.5 h-3.5 text-muted-foreground" />}
-          </button>
+          <p className={`${compact ? "text-[11px]" : "text-[12px] sm:text-sm"} font-semibold text-foreground leading-tight line-clamp-2`}>{tile.label}</p>
         </CardContent>
+        <button
+          type="button"
+          aria-label={pinned ? "Unpin tile" : "Pin tile"}
+          className={`absolute top-2 right-2 ${pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity p-1.5 rounded-lg bg-background/70 backdrop-blur hover:bg-muted shrink-0 z-10`}
+          onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPinToggle(tile.id); }}
+          data-testid={`pin-${tile.id}`}
+        >
+          {pinned ? <PinOff className="w-3 h-3 text-amber-500" /> : <Pin className="w-3 h-3 text-muted-foreground" />}
+        </button>
       </Card>
     </Link>
   );
@@ -1143,7 +1139,7 @@ function CategorySection({
         </button>
       </CollapsibleTrigger>
       <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mt-3">
+        <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 mt-3">
           {tiles.map((tile) => (
             <TileCard
               key={tile.id}
@@ -1814,7 +1810,7 @@ export default function SuperAdminDashboard() {
             <p className="text-sm font-bold tracking-tight">Pinned</p>
             <p className="text-[11px] text-muted-foreground">Your favourite shortcuts</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
             {pinnedTiles.map((tile) => (
               <TileCard key={tile.id} tile={tile} pinned compact onPinToggle={togglePin} onActivate={trackActivate} />
             ))}
@@ -1830,7 +1826,7 @@ export default function SuperAdminDashboard() {
             <p className="text-sm font-bold tracking-tight">Recently Used</p>
             <p className="text-[11px] text-muted-foreground">Last {RECENT_LIMIT} you opened</p>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+          <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 xl:grid-cols-8">
             {recentTiles.map((tile) => (
               <TileCard key={tile.id} tile={tile} pinned={pinnedSet.has(tile.id)} compact onPinToggle={togglePin} onActivate={trackActivate} />
             ))}

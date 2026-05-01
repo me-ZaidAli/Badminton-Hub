@@ -51,15 +51,16 @@ interface AdminTile {
 function AdminTileCard({ tile }: { tile: AdminTile }) {
   return (
     <Link href={tile.href}>
-      <Card className="group border-border/40 hover:border-border hover:shadow-md transition-all duration-200 cursor-pointer h-full" data-testid={`card-admin-${tile.label.toLowerCase().replace(/\s+/g, '-')}`}>
-        <CardContent className="p-4 flex items-start gap-3.5">
-          <div className={`${tile.bg} rounded-xl p-2.5 shrink-0 group-hover:scale-105 transition-transform`}>
-            <tile.icon className={`w-5 h-5 ${tile.color}`} />
+      <Card
+        className="group relative aspect-square border border-border/50 bg-gradient-to-br from-card to-card/70 hover:border-primary/40 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl overflow-hidden"
+        data-testid={`card-admin-${tile.label.toLowerCase().replace(/\s+/g, '-')}`}
+        title={tile.description}
+      >
+        <CardContent className="p-3 sm:p-4 flex flex-col items-center justify-center text-center h-full gap-2.5">
+          <div className={`${tile.bg} rounded-2xl p-3.5 sm:p-4 group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
+            <tile.icon className={`w-6 h-6 sm:w-7 sm:h-7 ${tile.color}`} />
           </div>
-          <div className="min-w-0">
-            <p className="text-sm font-semibold text-foreground leading-tight">{tile.label}</p>
-            <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed">{tile.description}</p>
-          </div>
+          <p className="text-[12px] sm:text-sm font-semibold text-foreground leading-tight line-clamp-2">{tile.label}</p>
         </CardContent>
       </Card>
     </Link>
@@ -593,7 +594,7 @@ export default function AdminDashboard() {
               <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground px-2">{section.label}</p>
               <div className="h-px flex-1 bg-border/50" />
             </div>
-            <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6">
               {section.tiles.map(tile => (
                 <AdminTileCard key={tile.href} tile={tile} />
               ))}
