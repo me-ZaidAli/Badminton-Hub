@@ -156,6 +156,7 @@ export default function MerchandisePage() {
   const [editOrderQty, setEditOrderQty] = useState("1");
   const [editOrderNotes, setEditOrderNotes] = useState("");
   const [editOrderAdminNotes, setEditOrderAdminNotes] = useState("");
+  const [editOrderIsCustomer, setEditOrderIsCustomer] = useState(false);
 
   const canManage = adminClubs && adminClubs.length > 0;
   const adminClubId = selectedAdminClub ? Number(selectedAdminClub) : adminClubs?.[0]?.id;
@@ -227,7 +228,8 @@ export default function MerchandisePage() {
   const openCreateProduct = () => { closeProductDialog(); if (adminClubs?.length) setFormClubId(String(adminClubs[0].id)); setProductDialogOpen(true); };
   const openEditProduct = (p: MerchProduct) => { setEditingProduct(p); setFormName(p.name); setFormDesc(p.description || ""); setFormShortDesc(p.shortDescription || ""); setFormImageUrl(p.imageUrl || ""); setFormPrice(p.price ? String(p.price) : ""); setFormCategoryName(p.categoryName || "Other"); setFormSizes(p.sizes || []); setFormGenders(p.genders || ["Unisex"]); setFormStyles((p.styles || []).join(", ")); setFormMaterials(p.materials || ""); setFormSpecs(p.specifications || ""); setFormTags(p.tags || []); setFormStatus(p.status); setFormFeatured(p.isFeatured); setFormClubId(String(p.clubId)); setProductDialogOpen(true); };
   const openOrderProduct = (p: MerchProduct) => { setOrderingProduct(p); if (p.sizes && p.sizes.length > 0) setOrderSize(p.sizes[0]); if (p.genders && p.genders.length > 0) setOrderGender(p.genders[0]); if (p.styles && p.styles.length > 0) setOrderStyle(p.styles[0]); setOrderDialogOpen(true); };
-  const openEditOrder = (o: MerchOrder) => { setEditingOrder(o); setEditOrderStatus(o.status); setEditOrderSize(o.size || ""); setEditOrderGender(o.gender || ""); setEditOrderStyle(o.style || ""); setEditOrderQty(String(o.quantity)); setEditOrderNotes(o.notes || ""); setEditOrderAdminNotes(o.adminNotes || ""); setEditOrderDialogOpen(true); };
+  const openEditOrder = (o: MerchOrder) => { setEditOrderIsCustomer(false); setEditingOrder(o); setEditOrderStatus(o.status); setEditOrderSize(o.size || ""); setEditOrderGender(o.gender || ""); setEditOrderStyle(o.style || ""); setEditOrderQty(String(o.quantity)); setEditOrderNotes(o.notes || ""); setEditOrderAdminNotes(o.adminNotes || ""); setEditOrderDialogOpen(true); };
+  const openEditMyOrder = (o: MerchOrder) => { setEditOrderIsCustomer(true); setEditingOrder(o); setEditOrderStatus(o.status); setEditOrderSize(o.size || ""); setEditOrderGender(o.gender || ""); setEditOrderStyle(o.style || ""); setEditOrderQty(String(o.quantity)); setEditOrderNotes(o.notes || ""); setEditOrderAdminNotes(o.adminNotes || ""); setEditOrderDialogOpen(true); };
 
   const handleSaveProduct = () => {
     if (!formName.trim()) { toast({ title: "Error", description: "Name is required.", variant: "destructive" }); return; }
@@ -242,7 +244,11 @@ export default function MerchandisePage() {
   };
   const handleSaveOrder = () => {
     if (!editingOrder) return;
-    updateOrderMut.mutate({ id: editingOrder.id, status: editOrderStatus, size: editOrderSize || null, gender: editOrderGender || null, style: editOrderStyle || null, quantity: parseInt(editOrderQty) || 1, notes: editOrderNotes || null, adminNotes: editOrderAdminNotes || null });
+    if (editOrderIsCustomer) {
+      updateOrderMut.mutate({ id: editingOrder.id, size: editOrderSize || null, gender: editOrderGender || null, style: editOrderStyle || null, quantity: parseInt(editOrderQty) || 1, notes: editOrderNotes || null });
+    } else {
+      updateOrderMut.mutate({ id: editingOrder.id, status: editOrderStatus, size: editOrderSize || null, gender: editOrderGender || null, style: editOrderStyle || null, quantity: parseInt(editOrderQty) || 1, notes: editOrderNotes || null, adminNotes: editOrderAdminNotes || null });
+    }
   };
   const handleSaveCategory = () => {
     if (!catFormName.trim()) { toast({ title: "Error", description: "Name is required.", variant: "destructive" }); return; }
@@ -345,6 +351,7 @@ export default function MerchandisePage() {
               <div className="space-y-2">
                 {myOrders.slice(0, 5).map((order) => {
                   const si = getOrderStatusInfo(order.status);
+                  const canEdit = order.status === "pending";
                   return (
                     <Card key={order.id} className="rounded-2xl border border-border/30" data-testid={`card-my-order-${order.id}`}>
                       <CardContent className="p-3 flex items-center gap-3">
@@ -354,6 +361,11 @@ export default function MerchandisePage() {
                           <p className="text-[10px] text-muted-foreground">{[order.size, order.gender, `x${order.quantity}`].filter(Boolean).join(" · ")}</p>
                         </div>
                         <Badge className={`text-[10px] ${si.color} border-0`}>{si.label}</Badge>
+                        {canEdit && (
+                          <Button variant="ghost" size="icon" className="h-8 w-8 rounded-xl shrink-0" onClick={() => openEditMyOrder(order)} data-testid={`button-edit-my-order-${order.id}`}>
+                            <Pencil className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                       </CardContent>
                     </Card>
                   );
@@ -482,27 +494,41 @@ export default function MerchandisePage() {
         </DialogContent>
       </Dialog>
 
-      {/* Admin Edit Order Dialog */}
+      {/* Edit Order Dialog (admin + customer modes) */}
       <Dialog open={editOrderDialogOpen} onOpenChange={(o) => { if (!o) setEditOrderDialogOpen(false); }}>
         <DialogContent className="max-w-md">
-          <DialogHeader><DialogTitle>Edit Order</DialogTitle><DialogDescription>Update order #{editingOrder?.id} details and status.</DialogDescription></DialogHeader>
+          <DialogHeader>
+            <DialogTitle>{editOrderIsCustomer ? "Update My Order" : "Edit Order"}</DialogTitle>
+            <DialogDescription>
+              {editOrderIsCustomer
+                ? `Amend the details of your order #${editingOrder?.id}. You can only change a request while it is still pending.`
+                : `Update order #${editingOrder?.id} details and status.`}
+            </DialogDescription>
+          </DialogHeader>
           {editingOrder && (
             <div className="space-y-4">
-              <div className="p-3 rounded-xl bg-muted/30 text-sm"><p className="font-semibold">{editingOrder.productName || "Product"}</p><p className="text-muted-foreground text-xs">Ordered by {editingOrder.userName || `User #${editingOrder.userId}`}</p></div>
-              <div className="space-y-1.5"><Label>Status</Label><Select value={editOrderStatus} onValueChange={setEditOrderStatus}><SelectTrigger data-testid="select-edit-order-status"><SelectValue /></SelectTrigger><SelectContent>{ORDER_STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div>
+              <div className="p-3 rounded-xl bg-muted/30 text-sm">
+                <p className="font-semibold">{editingOrder.productName || "Product"}</p>
+                {!editOrderIsCustomer && <p className="text-muted-foreground text-xs">Ordered by {editingOrder.userName || `User #${editingOrder.userId}`}</p>}
+              </div>
+              {!editOrderIsCustomer && (
+                <div className="space-y-1.5"><Label>Status</Label><Select value={editOrderStatus} onValueChange={setEditOrderStatus}><SelectTrigger data-testid="select-edit-order-status"><SelectValue /></SelectTrigger><SelectContent>{ORDER_STATUS_OPTIONS.map(s => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}</SelectContent></Select></div>
+              )}
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>Size</Label><Input value={editOrderSize} onChange={(e) => setEditOrderSize(e.target.value)} /></div>
-                <div className="space-y-1.5"><Label>Gender</Label><Input value={editOrderGender} onChange={(e) => setEditOrderGender(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Size</Label><Input value={editOrderSize} onChange={(e) => setEditOrderSize(e.target.value)} data-testid="input-edit-order-size" /></div>
+                <div className="space-y-1.5"><Label>Gender</Label><Input value={editOrderGender} onChange={(e) => setEditOrderGender(e.target.value)} data-testid="input-edit-order-gender" /></div>
               </div>
               <div className="grid grid-cols-2 gap-3">
-                <div className="space-y-1.5"><Label>Style</Label><Input value={editOrderStyle} onChange={(e) => setEditOrderStyle(e.target.value)} /></div>
-                <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min={1} value={editOrderQty} onChange={(e) => setEditOrderQty(e.target.value)} /></div>
+                <div className="space-y-1.5"><Label>Style</Label><Input value={editOrderStyle} onChange={(e) => setEditOrderStyle(e.target.value)} data-testid="input-edit-order-style" /></div>
+                <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min={1} value={editOrderQty} onChange={(e) => setEditOrderQty(e.target.value)} data-testid="input-edit-order-qty" /></div>
               </div>
-              <div className="space-y-1.5"><Label>Customer Notes</Label><Textarea value={editOrderNotes} onChange={(e) => setEditOrderNotes(e.target.value)} rows={2} /></div>
-              <div className="space-y-1.5"><Label>Admin Notes</Label><Textarea placeholder="Internal notes..." value={editOrderAdminNotes} onChange={(e) => setEditOrderAdminNotes(e.target.value)} rows={2} data-testid="input-admin-notes" /></div>
+              <div className="space-y-1.5"><Label>{editOrderIsCustomer ? "Notes / Preferences" : "Customer Notes"}</Label><Textarea value={editOrderNotes} onChange={(e) => setEditOrderNotes(e.target.value)} rows={2} data-testid="input-edit-order-notes" /></div>
+              {!editOrderIsCustomer && (
+                <div className="space-y-1.5"><Label>Admin Notes</Label><Textarea placeholder="Internal notes..." value={editOrderAdminNotes} onChange={(e) => setEditOrderAdminNotes(e.target.value)} rows={2} data-testid="input-admin-notes" /></div>
+              )}
             </div>
           )}
-          <DialogFooter><Button variant="outline" onClick={() => setEditOrderDialogOpen(false)}>Cancel</Button><Button onClick={handleSaveOrder} disabled={updateOrderMut.isPending} className="bg-gradient-to-r from-primary to-violet-600" data-testid="button-save-order">{updateOrderMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}Update</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setEditOrderDialogOpen(false)}>Cancel</Button><Button onClick={handleSaveOrder} disabled={updateOrderMut.isPending} className="bg-gradient-to-r from-primary to-violet-600" data-testid="button-save-order">{updateOrderMut.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}{editOrderIsCustomer ? "Save Changes" : "Update"}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
 

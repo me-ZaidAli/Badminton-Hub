@@ -33996,17 +33996,30 @@ Return ONLY valid JSON in this exact format:
       const orderId = Number(req.params.id);
       const [order] = await db.select().from(merchandiseOrderItems).where(eq(merchandiseOrderItems.id, orderId));
       if (!order) return res.status(404).json({ message: "Order not found" });
-      const allowed = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", order.clubId);
-      if (!allowed) return res.sendStatus(403);
-      const body = z.object({
+      const isAdmin = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", order.clubId);
+      const isOwner = order.userId === req.user!.id;
+      if (!isAdmin && !isOwner) return res.sendStatus(403);
+      // Owners can only amend their own order while it is still pending.
+      if (!isAdmin && order.status !== "pending") {
+        return res.status(403).json({ message: "This order has been processed and can no longer be edited. Please contact your club admin." });
+      }
+      const adminBody = z.object({
         status: z.enum(["pending", "approved", "ready", "collected", "cancelled"]).optional(),
-        size: z.string().optional(),
-        gender: z.string().optional(),
-        style: z.string().optional(),
-        quantity: z.number().int().min(1).optional(),
-        notes: z.string().optional(),
-        adminNotes: z.string().optional(),
-      }).parse(req.body);
+        size: z.string().optional().nullable(),
+        gender: z.string().optional().nullable(),
+        style: z.string().optional().nullable(),
+        quantity: z.number().int().min(1).max(50).optional(),
+        notes: z.string().optional().nullable(),
+        adminNotes: z.string().optional().nullable(),
+      });
+      const ownerBody = z.object({
+        size: z.string().optional().nullable(),
+        gender: z.string().optional().nullable(),
+        style: z.string().optional().nullable(),
+        quantity: z.number().int().min(1).max(50).optional(),
+        notes: z.string().optional().nullable(),
+      });
+      const body = isAdmin ? adminBody.parse(req.body) : ownerBody.parse(req.body);
       const updates: any = { updatedAt: new Date() };
       for (const [k, v] of Object.entries(body)) { if (v !== undefined) updates[k] = v; }
       const [updated] = await db.update(merchandiseOrderItems).set(updates).where(eq(merchandiseOrderItems.id, orderId)).returning();
