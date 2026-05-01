@@ -4771,47 +4771,48 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
           </Button>
         </div>
 
-        {showSeriesConfirm && (
-          <div className="absolute inset-0 bg-background/95 backdrop-blur-sm z-50 flex items-center justify-center p-6 rounded-lg">
-            <div className="space-y-4 text-center max-w-sm">
-              <div className="flex items-center justify-center gap-2 mb-2">
-                <Repeat className="h-5 w-5 text-primary" />
-                <h4 className="font-semibold">Recurring Session</h4>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                This session is part of a recurring series. How would you like to apply your changes?
-              </p>
-              <div className="flex flex-col gap-2">
-                <Button
-                  onClick={saveThisOnly}
-                  disabled={isPending}
-                  variant="outline"
-                  data-testid="button-save-this-only"
-                >
-                  {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Apply to This Session Only
-                </Button>
-                <Button
-                  onClick={saveAllFuture}
-                  disabled={applyToSeriesMutation.isPending}
-                  data-testid="button-save-all-future"
-                >
-                  {applyToSeriesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                  Apply to All Future Sessions
-                </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setShowSeriesConfirm(false)}
-                  data-testid="button-cancel-series-confirm"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          </div>
-        )}
       </DialogContent>
+
+      <Dialog open={showSeriesConfirm} onOpenChange={(open) => { if (!open) setShowSeriesConfirm(false); }}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-series-confirm">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Repeat className="h-5 w-5 text-primary" />
+              Recurring Session
+            </DialogTitle>
+            <DialogDescription>
+              This session is part of a recurring series. How would you like to apply your changes?
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col gap-2 pt-2">
+            <Button
+              onClick={saveThisOnly}
+              disabled={isPending}
+              variant="outline"
+              data-testid="button-save-this-only"
+            >
+              {isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Apply to This Session Only
+            </Button>
+            <Button
+              onClick={saveAllFuture}
+              disabled={applyToSeriesMutation.isPending}
+              data-testid="button-save-all-future"
+            >
+              {applyToSeriesMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Apply to All Future Sessions
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setShowSeriesConfirm(false)}
+              data-testid="button-cancel-series-confirm"
+            >
+              Cancel
+            </Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Dialog>
   );
 }
