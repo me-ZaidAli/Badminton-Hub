@@ -1,5 +1,11 @@
 import PDFDocument from "pdfkit";
 import { format } from "date-fns";
+import fs from "fs";
+
+export interface SupplierSheetClubLogo {
+  name: string;
+  logoPath: string | null;
+}
 
 export interface SupplierSheetOrder {
   id: number;
@@ -32,6 +38,7 @@ export interface SupplierSheetMeta {
   generatedByName: string;
   generatedAt: Date;
   showClubColumn?: boolean;
+  clubLogos?: SupplierSheetClubLogo[];
 }
 
 const BRAND_PURPLE = "#7c3aed";
@@ -110,17 +117,51 @@ function drawHeader(
   const pageW = doc.page.width;
   const x = PAGE_MARGIN;
 
+  // Reserve right-hand area for club logos so the title text doesn't run under them.
+  const validLogos = (meta.clubLogos || [])
+    .filter(l => l.logoPath && fs.existsSync(l.logoPath))
+    .slice(0, 5);
+  const logoSize = 44;
+  const logoGap = 8;
+  const logoBlockW = validLogos.length > 0
+    ? validLogos.length * logoSize + (validLogos.length - 1) * logoGap
+    : 0;
+  const headerH = 110;
+  const titleW = pageW - x * 2 - (logoBlockW > 0 ? logoBlockW + 16 : 0);
+
   doc.save();
-  doc.rect(0, 0, pageW, 110).fill(BRAND_DARK);
+  doc.rect(0, 0, pageW, headerH).fill(BRAND_DARK);
   doc.rect(0, 0, pageW, 6).fill(BRAND_PURPLE);
   doc.restore();
 
   doc.fillColor("#ffffff").font("Helvetica-Bold").fontSize(22)
-    .text("Supplier Order Sheet", x, 24, { width: pageW - x * 2 });
+    .text("Supplier Order Sheet", x, 24, { width: titleW });
   doc.fillColor("#cbd5e1").font("Helvetica").fontSize(11)
-    .text(meta.clubName, x, 56);
+    .text(meta.clubName, x, 56, { width: titleW });
   doc.fillColor("#94a3b8").fontSize(9)
-    .text(`Generated ${format(meta.generatedAt, "EEE d MMM yyyy 'at' HH:mm")} by ${meta.generatedByName}`, x, 74);
+    .text(`Generated ${format(meta.generatedAt, "EEE d MMM yyyy 'at' HH:mm")} by ${meta.generatedByName}`, x, 74, { width: titleW });
+
+  // Render club logo(s) on the right side of the header banner.
+  if (validLogos.length > 0) {
+    const logosY = (headerH - logoSize) / 2 + 2;
+    let logoX = pageW - PAGE_MARGIN - logoBlockW;
+    for (const l of validLogos) {
+      doc.save();
+      // White rounded backdrop so dark/transparent logos remain visible on the dark banner.
+      doc.roundedRect(logoX, logosY, logoSize, logoSize, 6).fill("#ffffff");
+      doc.restore();
+      try {
+        doc.image(l.logoPath as string, logoX + 3, logosY + 3, {
+          fit: [logoSize - 6, logoSize - 6],
+          align: "center",
+          valign: "center",
+        });
+      } catch {
+        // If the image is unreadable (corrupt / unsupported format), silently skip — the white tile remains.
+      }
+      logoX += logoSize + logoGap;
+    }
+  }
 
   doc.y = 130;
 

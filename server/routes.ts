@@ -34055,6 +34055,23 @@ Return ONLY valid JSON in this exact format:
     }
   });
 
+  // Resolves a club logoUrl to a safe absolute path under public/uploads/clubs.
+  // Returns null if the URL is missing, outside the allowed directory, or the file
+  // does not exist on disk. Prevents path-traversal via crafted logoUrl values.
+  const resolveSafeClubLogoPath = (logoUrl: string | null | undefined): string | null => {
+    if (!logoUrl || typeof logoUrl !== "string") return null;
+    if (!logoUrl.startsWith("/uploads/clubs/")) return null;
+    const allowedRoot = path.resolve(process.cwd(), "public", "uploads", "clubs");
+    const candidate = path.resolve(process.cwd(), "public", logoUrl.replace(/^\/+/, ""));
+    if (!candidate.startsWith(allowedRoot + path.sep)) return null;
+    try {
+      if (!fs.existsSync(candidate) || !fs.statSync(candidate).isFile()) return null;
+    } catch {
+      return null;
+    }
+    return candidate;
+  };
+
   // Cross-club supplier order sheet — admin can select orders from any club they manage.
   app.post("/api/merchandise/orders/supplier-sheet", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -34067,6 +34084,7 @@ Return ONLY valid JSON in this exact format:
         userName: users.fullName,
         userEmail: users.email,
         clubName: clubs.name,
+        clubLogoUrl: clubs.logoUrl,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, and(
           eq(merchandiseOrderItems.productId, merchandiseProducts.id),
@@ -34116,11 +34134,22 @@ Return ONLY valid JSON in this exact format:
       const uniqueClubNames = Array.from(new Set(rows.map(r => r.clubName))).filter(Boolean) as string[];
       const headingClubName = uniqueClubNames.length === 1
         ? uniqueClubNames[0]
-        : `${uniqueClubNames.length} clubs · ${uniqueClubNames.join(", ")}`;
+        : uniqueClubNames.length <= 3
+          ? `${uniqueClubNames.length} clubs · ${uniqueClubNames.join(", ")}`
+          : `${uniqueClubNames.length} clubs selected`;
       const filenameBase = uniqueClubNames.length === 1
         ? uniqueClubNames[0].replace(/[^a-z0-9-]+/gi, "-").toLowerCase()
         : "multi-club";
       const filename = `supplier-order-${filenameBase}-${generatedAt.toISOString().slice(0, 10)}.pdf`;
+
+      // Collect one safely-resolved logo per unique club for the PDF header.
+      const seenClubIds = new Set<number>();
+      const clubLogos = rows.reduce<{ name: string; logoPath: string | null }[]>((acc, r) => {
+        if (seenClubIds.has(r.order.clubId)) return acc;
+        seenClubIds.add(r.order.clubId);
+        acc.push({ name: r.clubName || "Club", logoPath: resolveSafeClubLogoPath(r.clubLogoUrl) });
+        return acc;
+      }, []);
 
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
@@ -34130,7 +34159,13 @@ Return ONLY valid JSON in this exact format:
         generatedByName: req.user!.fullName || req.user!.username,
         generatedAt,
         showClubColumn: uniqueClubNames.length > 1,
+        clubLogos,
       });
+      doc.on("error", (err) => {
+        console.error("[SUPPLIER SHEET MULTI] PDF stream error", err);
+        try { if (!res.headersSent) res.status(500).end(); else res.end(); } catch {}
+      });
+      res.on("close", () => { try { doc.end(); } catch {} });
       doc.pipe(res);
       doc.end();
     } catch (err: any) {
@@ -34167,7 +34202,7 @@ Return ONLY valid JSON in this exact format:
 
       if (rows.length === 0) return res.status(404).json({ message: "No matching orders for this club." });
 
-      const [club] = await db.select({ name: clubs.name }).from(clubs).where(eq(clubs.id, clubId));
+      const [club] = await db.select({ name: clubs.name, logoUrl: clubs.logoUrl }).from(clubs).where(eq(clubs.id, clubId));
       const generatedAt = new Date();
       const orders = rows.map(r => ({
         id: r.order.id,
@@ -34199,11 +34234,19 @@ Return ONLY valid JSON in this exact format:
       res.setHeader("Content-Type", "application/pdf");
       res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
 
+      const clubLogoPath = resolveSafeClubLogoPath(club?.logoUrl);
+
       const doc = generateSupplierOrderSheet(orders, {
         clubName: club?.name || "Club",
         generatedByName: req.user!.fullName || req.user!.username,
         generatedAt,
+        clubLogos: [{ name: club?.name || "Club", logoPath: clubLogoPath }],
       });
+      doc.on("error", (err) => {
+        console.error("[SUPPLIER SHEET] PDF stream error", err);
+        try { if (!res.headersSent) res.status(500).end(); else res.end(); } catch {}
+      });
+      res.on("close", () => { try { doc.end(); } catch {} });
       doc.pipe(res);
       doc.end();
     } catch (err: any) {
