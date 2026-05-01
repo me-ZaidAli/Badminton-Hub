@@ -1076,24 +1076,37 @@ function TileCard({
     <Link href={tile.href}>
       <Card
         onClick={() => onActivate(tile.id)}
-        className="group relative aspect-square border border-border/50 bg-gradient-to-br from-card to-card/70 hover:border-primary/40 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 cursor-pointer rounded-3xl overflow-hidden"
+        className="group relative aspect-[4/3] border border-slate-700/40 dark:border-slate-700/40 bg-gradient-to-br from-slate-800 via-slate-800/95 to-slate-900 dark:from-slate-800 dark:via-slate-800/95 dark:to-slate-900 hover:border-primary/50 hover:shadow-xl hover:shadow-primary/10 hover:-translate-y-0.5 transition-all duration-300 cursor-pointer rounded-2xl overflow-hidden"
         data-testid={tile.testId}
         title={tile.description}
       >
-        <CardContent className="p-3 sm:p-4 flex flex-col items-center justify-center text-center h-full gap-2.5">
-          <div className={`${tile.bg} rounded-2xl ${compact ? "p-3" : "p-3.5 sm:p-4"} group-hover:scale-110 transition-transform duration-300 shadow-sm`}>
-            <tile.icon className={`${compact ? "w-5 h-5" : "w-6 h-6 sm:w-7 sm:h-7"} ${tile.color}`} />
+        {/* Decorative organic wave overlay (matches bento-grid reference design) */}
+        <svg
+          aria-hidden
+          viewBox="0 0 200 120"
+          preserveAspectRatio="none"
+          className="absolute inset-0 w-full h-full opacity-[0.07] pointer-events-none"
+        >
+          <path d="M0,80 C40,40 80,100 120,60 C160,20 200,70 200,70 L200,120 L0,120 Z" fill="white" />
+          <path d="M0,95 C50,70 100,110 150,85 C180,70 200,90 200,90 L200,120 L0,120 Z" fill="white" opacity="0.5" />
+        </svg>
+
+        <CardContent className={`relative p-3 sm:p-4 flex flex-col h-full ${compact ? "gap-1.5" : "gap-2"}`}>
+          <div className={`${tile.bg} rounded-xl ${compact ? "p-2" : "p-2.5"} self-start group-hover:scale-110 transition-transform duration-300 shadow-md ring-1 ring-white/10`}>
+            <tile.icon className={`${compact ? "w-4 h-4" : "w-5 h-5"} ${tile.color}`} />
           </div>
-          <p className={`${compact ? "text-[11px]" : "text-[12px] sm:text-sm"} font-semibold text-foreground leading-tight line-clamp-2`}>{tile.label}</p>
+          <div className="flex-1 flex items-end">
+            <p className={`${compact ? "text-[11px]" : "text-[12px] sm:text-[13px]"} font-semibold text-white leading-tight line-clamp-2`}>{tile.label}</p>
+          </div>
         </CardContent>
         <button
           type="button"
           aria-label={pinned ? "Unpin tile" : "Pin tile"}
-          className={`absolute top-2 right-2 ${pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity p-1.5 rounded-lg bg-background/70 backdrop-blur hover:bg-muted shrink-0 z-10`}
+          className={`absolute top-2 right-2 ${pinned ? "opacity-100" : "opacity-0 group-hover:opacity-100 focus-visible:opacity-100 focus-visible:ring-2 focus-visible:ring-amber-400/70"} transition-opacity p-1.5 rounded-lg bg-slate-900/60 backdrop-blur hover:bg-slate-900/80 shrink-0 z-10`}
           onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPinToggle(tile.id); }}
           data-testid={`pin-${tile.id}`}
         >
-          {pinned ? <PinOff className="w-3 h-3 text-amber-500" /> : <Pin className="w-3 h-3 text-muted-foreground" />}
+          {pinned ? <PinOff className="w-3 h-3 text-amber-400" /> : <Pin className="w-3 h-3 text-slate-300" />}
         </button>
       </Card>
     </Link>
