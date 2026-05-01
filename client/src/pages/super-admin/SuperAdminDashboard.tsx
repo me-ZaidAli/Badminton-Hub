@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -15,13 +15,20 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
+import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import {
   Users, Building2, PoundSterling,
   Shield, Zap, Mail, BarChart3,
   Package, CreditCard, Upload, ChevronRight, Loader2,
   CheckCircle, XCircle, Clock, Plus, MapPin, Search, Pencil,
   Archive, Pause, Trash2, Calendar, Play, Send, Save, User,
-  Trophy, Award, Share2
+  Trophy, Award, Share2,
+  UserPlus, UserCheck, Activity, Bell, Sparkles, TrendingUp, Crown,
+  Megaphone, Baby, Target, FlaskConical, Settings, Settings2, Inbox,
+  ScrollText, ScanText, ShoppingBag, AlertCircle, Swords, Pin, PinOff,
+  Download, ChevronDown, History, LayoutGrid,
 } from "lucide-react";
 
 interface ClubRecord {
@@ -176,38 +183,161 @@ const defaultEditForm: ClubEditForm = {
   adminUserId: "",
 };
 
-const controlSections = [
-  {
-    label: "People & Clubs",
-    items: [
-      { href: "/super-admin/users-management", label: "Users Management", icon: Users, color: "text-blue-500", bg: "bg-blue-500/10" },
-      { href: "/admin/clubs-management", label: "Clubs Management", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
-      { href: "/admin/import-members", label: "Import Members", icon: Upload, color: "text-rose-500", bg: "bg-rose-500/10" },
-    ],
-  },
-  {
-    label: "Finance & Memberships",
-    items: [
-      { href: "/admin/financials", label: "Financials", icon: PoundSterling, color: "text-green-500", bg: "bg-green-500/10" },
-      { href: "/super-admin/billing", label: "Club Billing", icon: CreditCard, color: "text-amber-500", bg: "bg-amber-500/10" },
-      { href: "/admin/membership-board", label: "Membership Board", icon: CreditCard, color: "text-purple-500", bg: "bg-purple-500/10" },
-      { href: "/admin/inventory", label: "Inventory", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" },
-    ],
-  },
-  {
-    label: "Rewards & Referrals",
-    items: [
-      { href: "/admin/rewards-dashboard", label: "Rewards Dashboard", icon: Award, color: "text-pink-500", bg: "bg-pink-500/10" },
-      { href: "/super-admin/referrals", label: "Referral Programs", icon: Share2, color: "text-violet-500", bg: "bg-violet-500/10" },
-    ],
-  },
-  {
-    label: "Communication",
-    items: [
-      { href: "/admin/messages", label: "Messages", icon: Mail, color: "text-pink-500", bg: "bg-pink-500/10" },
-    ],
-  },
+interface AnalyticsClubSummary {
+  clubId: number;
+  clubName: string;
+  status: string;
+  totalPlayers: number;
+  totalSessions: number;
+  totalMatches: number;
+  totalRevenue: number;
+}
+
+interface AnalyticsData {
+  clubs: AnalyticsClubSummary[];
+  totals: {
+    totalClubs: number;
+    totalPlayers: number;
+    totalSessions: number;
+    totalMatches: number;
+    completedMatches: number;
+    totalRevenue: number;
+    paidRevenue: number;
+  };
+}
+
+type CategoryKey =
+  | "people-clubs"
+  | "sessions-competitions"
+  | "finance-monetisation"
+  | "operations"
+  | "growth-engagement"
+  | "analytics-ai"
+  | "communication"
+  | "admin-control"
+  | "reports-export"
+  | "exclusive-premium";
+
+interface CategoryMeta {
+  key: CategoryKey;
+  label: string;
+  description: string;
+  accent: string; // Tailwind text colour for category dot/divider
+  ring: string;   // Subtle ring colour for cards in this category
+}
+
+const CATEGORIES: CategoryMeta[] = [
+  { key: "people-clubs",          label: "People & Clubs",          description: "Members, players, clubs, venues",        accent: "text-blue-500",     ring: "hover:ring-blue-500/20" },
+  { key: "sessions-competitions", label: "Sessions & Competitions", description: "Sessions, leagues, tournaments, engine", accent: "text-indigo-500",   ring: "hover:ring-indigo-500/20" },
+  { key: "finance-monetisation",  label: "Finance & Monetisation",  description: "Revenue, billing, debts, merchandise",   accent: "text-green-500",    ring: "hover:ring-green-500/20" },
+  { key: "operations",            label: "Operations",              description: "Inbox, audit log, notifications",        accent: "text-emerald-500",  ring: "hover:ring-emerald-500/20" },
+  { key: "growth-engagement",     label: "Growth & Engagement",     description: "Rewards, referrals, recognition",        accent: "text-amber-500",    ring: "hover:ring-amber-500/20" },
+  { key: "analytics-ai",          label: "Analytics & AI",          description: "KPIs, attendance, match engine lab",     accent: "text-violet-500",   ring: "hover:ring-violet-500/20" },
+  { key: "communication",         label: "Communication",           description: "Messages and announcements",             accent: "text-pink-500",     ring: "hover:ring-pink-500/20" },
+  { key: "admin-control",         label: "Admin & Control",         description: "Cross-club management, settings",        accent: "text-slate-500",    ring: "hover:ring-slate-500/20" },
+  { key: "reports-export",        label: "Reports & Export",        description: "AI reports and CSV exports",             accent: "text-cyan-500",     ring: "hover:ring-cyan-500/20" },
+  { key: "exclusive-premium",     label: "Exclusive / Premium",     description: "Black Card and ultra exclusive",         accent: "text-rose-500",     ring: "hover:ring-rose-500/20" },
 ];
+
+interface TileDef {
+  id: string;            // stable id for pin/recents (e.g. "users-mgmt")
+  href: string;
+  label: string;
+  description: string;
+  icon: any;
+  color: string;
+  bg: string;
+  category: CategoryKey;
+  testId: string;        // preserves legacy test ids where present
+  external?: boolean;    // open in new tab if true
+}
+
+// Unified tile catalogue: every tile from the original Super Admin and Admin
+// dashboards lives here, deduped and normalised. Routes are unchanged.
+const TILE_CATALOG: TileDef[] = [
+  // People & Clubs
+  { id: "users-mgmt",         href: "/super-admin/users-management", label: "Users Management",   description: "Manage users across the platform",         icon: Users,        color: "text-blue-500",    bg: "bg-blue-500/10",    category: "people-clubs",          testId: "button-quick-users-management" },
+  { id: "player-mgmt",        href: "/admin/players",                label: "Player Management",  description: "Add, edit, and manage player profiles",    icon: UserPlus,     color: "text-purple-500",  bg: "bg-purple-500/10",  category: "people-clubs",          testId: "tile-player-mgmt" },
+  { id: "trial-players",      href: "/admin/trials",                 label: "Trial Players",      description: "Trial registrations and evaluations",      icon: UserCheck,    color: "text-cyan-500",    bg: "bg-cyan-500/10",    category: "people-clubs",          testId: "tile-trial-players" },
+  { id: "inactive-members",   href: "/admin/inactive-members",       label: "Inactive Members",   description: "Re-engage or manage inactive players",     icon: Users,        color: "text-orange-500",  bg: "bg-orange-500/10",  category: "people-clubs",          testId: "tile-inactive-members" },
+  { id: "import-members",     href: "/admin/import-members",         label: "Import Members",     description: "Bulk upload members via CSV",              icon: Upload,       color: "text-rose-500",    bg: "bg-rose-500/10",    category: "people-clubs",          testId: "button-quick-import-members" },
+  { id: "clubs-mgmt",         href: "/admin/clubs-management",       label: "Clubs Management",   description: "All clubs overview and approvals",         icon: Building2,    color: "text-emerald-500", bg: "bg-emerald-500/10", category: "people-clubs",          testId: "button-quick-clubs-management" },
+  { id: "club-mgmt",          href: "/admin/clubs",                  label: "Club Management",    description: "Create and manage your clubs",             icon: Building2,    color: "text-sky-500",     bg: "bg-sky-500/10",     category: "people-clubs",          testId: "tile-club-mgmt" },
+  { id: "venues",             href: "/admin/venues",                 label: "Venues & Courts",    description: "Manage venues, halls, and court setup",    icon: MapPin,       color: "text-red-500",     bg: "bg-red-500/10",     category: "people-clubs",          testId: "tile-venues" },
+  { id: "juniors",            href: "/juniors",                      label: "Juniors Hub",        description: "Manage junior players and families",       icon: Baby,         color: "text-pink-500",    bg: "bg-pink-500/10",    category: "people-clubs",          testId: "tile-juniors" },
+
+  // Sessions & Competitions
+  { id: "sessions",           href: "/sessions",                     label: "Session Management", description: "Create sessions, signups, attendance",     icon: Calendar,     color: "text-blue-500",    bg: "bg-blue-500/10",    category: "sessions-competitions", testId: "tile-sessions" },
+  { id: "league",             href: "/admin/league",                 label: "League Management",  description: "Fixtures, teams, and results",             icon: Swords,       color: "text-blue-500",    bg: "bg-blue-500/10",    category: "sessions-competitions", testId: "tile-league" },
+  { id: "tournaments",        href: "/tournaments",                  label: "Tournaments",        description: "Brackets, groups, and standings",          icon: Trophy,       color: "text-amber-500",   bg: "bg-amber-500/10",   category: "sessions-competitions", testId: "tile-tournaments" },
+  { id: "match-engine-lab",   href: "/admin/match-engine-lab",       label: "Match Engine Lab",   description: "Stress-test the matchmaking algorithm",    icon: FlaskConical, color: "text-indigo-500",  bg: "bg-indigo-500/10",  category: "sessions-competitions", testId: "tile-match-engine-lab" },
+  { id: "match-engine-set",   href: "/admin/match-engine-settings",  label: "Engine Control Panel", description: "Algorithm settings and presets",         icon: Settings2,    color: "text-violet-500",  bg: "bg-violet-500/10",  category: "sessions-competitions", testId: "tile-match-engine-settings" },
+  { id: "ai-match-input",     href: "/admin/ai-match-input",         label: "AI Match Input",     description: "Upload score sheets, extract via vision",  icon: ScanText,     color: "text-indigo-500",  bg: "bg-indigo-500/10",  category: "sessions-competitions", testId: "tile-ai-match-input" },
+  { id: "grading",            href: "/admin/grading",                label: "Grading Progress",   description: "Auto skill promotions and demotions",      icon: Activity,     color: "text-amber-500",   bg: "bg-amber-500/10",   category: "sessions-competitions", testId: "tile-grading" },
+
+  // Finance & Monetisation
+  { id: "financials",         href: "/admin/financials",             label: "Financials",         description: "Track payments, fees, and revenue",        icon: PoundSterling,color: "text-green-500",   bg: "bg-green-500/10",   category: "finance-monetisation",  testId: "button-quick-financials" },
+  { id: "debts",              href: "/admin/debts",                  label: "Debts & Payments",   description: "Player debts, charges, and collections",   icon: AlertCircle,  color: "text-red-500",     bg: "bg-red-500/10",     category: "finance-monetisation",  testId: "tile-debts" },
+  { id: "memberships",        href: "/admin/memberships",            label: "Memberships",        description: "Plans, requests, and payments",            icon: CreditCard,   color: "text-teal-500",    bg: "bg-teal-500/10",    category: "finance-monetisation",  testId: "tile-memberships" },
+  { id: "membership-board",   href: "/admin/membership-board",       label: "Membership Board",   description: "Membership status board view",             icon: CreditCard,   color: "text-purple-500",  bg: "bg-purple-500/10",  category: "finance-monetisation",  testId: "button-quick-membership-board" },
+  { id: "inventory",          href: "/admin/inventory",              label: "Inventory & Expenses", description: "Stock, supplies, and club expenses",     icon: Package,      color: "text-cyan-500",    bg: "bg-cyan-500/10",    category: "finance-monetisation",  testId: "button-quick-inventory" },
+  { id: "merchandise",        href: "/admin/merchandise",            label: "Merchandise Manager",description: "Products, orders, stock, and payments",    icon: ShoppingBag,  color: "text-violet-500",  bg: "bg-violet-500/10",  category: "finance-monetisation",  testId: "tile-merchandise" },
+  { id: "billing-super",      href: "/super-admin/billing",          label: "Club Billing",       description: "Cross-club billing overview",              icon: CreditCard,   color: "text-amber-500",   bg: "bg-amber-500/10",   category: "finance-monetisation",  testId: "button-quick-club-billing" },
+  { id: "billing-admin",      href: "/admin/billing",                label: "Billing & Plan",     description: "Manage your club subscription",            icon: CreditCard,   color: "text-violet-500",  bg: "bg-violet-500/10",  category: "finance-monetisation",  testId: "tile-billing-admin" },
+
+  // Operations
+  { id: "inbox",              href: "/admin/inbox",                  label: "Admin Inbox",        description: "Pending requests, payments, tickets",      icon: Inbox,        color: "text-emerald-500", bg: "bg-emerald-500/10", category: "operations",            testId: "tile-inbox" },
+  { id: "audit-log",          href: "/admin/audit-log",              label: "Audit Log",          description: "Searchable history of admin actions",      icon: ScrollText,   color: "text-slate-500",   bg: "bg-slate-500/10",   category: "operations",            testId: "tile-audit-log" },
+  { id: "notifications",      href: "/admin/notifications",          label: "Notification Settings", description: "Reminders, schedules, delivery logs",   icon: Bell,         color: "text-indigo-500",  bg: "bg-indigo-500/10",  category: "operations",            testId: "tile-notifications" },
+
+  // Growth & Engagement
+  { id: "rewards",            href: "/admin/rewards",                label: "Club Rewards",       description: "Anniversary, milestone, referral rewards", icon: Trophy,       color: "text-amber-500",   bg: "bg-amber-500/10",   category: "growth-engagement",     testId: "tile-rewards" },
+  { id: "rewards-dashboard",  href: "/admin/rewards-dashboard",      label: "Rewards Dashboard",  description: "View all claimed rewards",                 icon: Award,        color: "text-pink-500",    bg: "bg-pink-500/10",    category: "growth-engagement",     testId: "button-quick-rewards-dashboard" },
+  { id: "recognition",        href: "/admin/recognition-cards",      label: "Recognition Cards",  description: "Award and manage recognition cards",       icon: Award,        color: "text-rose-500",    bg: "bg-rose-500/10",    category: "growth-engagement",     testId: "tile-recognition" },
+  { id: "referrals-admin",    href: "/admin/referrals",              label: "Referral Management",description: "Review submissions and award credits",     icon: Share2,       color: "text-emerald-500", bg: "bg-emerald-500/10", category: "growth-engagement",     testId: "tile-referrals-admin" },
+  { id: "referrals-super",    href: "/super-admin/referrals",        label: "Referral Programs",  description: "Cross-club referral programs",             icon: Share2,       color: "text-violet-500",  bg: "bg-violet-500/10",  category: "growth-engagement",     testId: "button-quick-referral-programs" },
+
+  // Analytics & AI
+  { id: "acquisition",        href: "/admin/acquisition-analytics",  label: "Acquisition & KPI",  description: "Track growth, channels, and retention",    icon: BarChart3,    color: "text-blue-500",    bg: "bg-blue-500/10",    category: "analytics-ai",          testId: "tile-acquisition" },
+  { id: "attendance-an",      href: "/admin/attendance-analytics",   label: "Attendance Analytics", description: "Session attendance and engagement",      icon: Activity,     color: "text-emerald-500", bg: "bg-emerald-500/10", category: "analytics-ai",          testId: "tile-attendance-analytics" },
+  { id: "coach-skills",       href: "/coach/juniors/skills",         label: "Coach Skills Analytics", description: "Aggregate skill insights and reports", icon: Target,       color: "text-amber-500",   bg: "bg-amber-500/10",   category: "analytics-ai",          testId: "tile-coach-skills" },
+
+  // Communication
+  { id: "messages",           href: "/admin/messages",               label: "Messages",           description: "Internal messaging across clubs",          icon: Mail,         color: "text-pink-500",    bg: "bg-pink-500/10",    category: "communication",         testId: "button-quick-messages" },
+  { id: "announcements",      href: "/admin/announcements",          label: "Announcements",      description: "Post updates to club members",             icon: Megaphone,    color: "text-orange-500",  bg: "bg-orange-500/10",  category: "communication",         testId: "tile-announcements" },
+
+  // Admin & Control
+  { id: "god-mode",           href: "/super-admin/god-mode",         label: "God Mode Tools",     description: "Advanced platform-wide controls",          icon: Zap,          color: "text-amber-500",   bg: "bg-amber-500/10",   category: "admin-control",         testId: "tile-god-mode" },
+  { id: "wallets",            href: "/super-admin/wallets",          label: "Wallet Management",  description: "Inspect and adjust user wallets",          icon: PoundSterling,color: "text-green-500",   bg: "bg-green-500/10",   category: "admin-control",         testId: "tile-wallets" },
+  { id: "su-users",           href: "/super-admin/users",            label: "All Users",          description: "Browse all platform users",                icon: Users,        color: "text-blue-500",    bg: "bg-blue-500/10",    category: "admin-control",         testId: "tile-su-users" },
+  { id: "su-clubs",           href: "/super-admin/clubs",            label: "All Clubs",          description: "Browse all platform clubs",                icon: Building2,    color: "text-emerald-500", bg: "bg-emerald-500/10", category: "admin-control",         testId: "tile-su-clubs" },
+  { id: "su-sessions",        href: "/super-admin/sessions",         label: "All Sessions",       description: "Cross-club session view",                  icon: Calendar,     color: "text-indigo-500",  bg: "bg-indigo-500/10",  category: "admin-control",         testId: "tile-su-sessions" },
+
+  // Exclusive / Premium
+  { id: "black-card",         href: "/admin/black-card",             label: "Black Card Management", description: "Grant Ultra Exclusive access",          icon: Crown,        color: "text-amber-500",   bg: "bg-amber-500/10",   category: "exclusive-premium",     testId: "tile-black-card" },
+];
+
+// localStorage helpers (UI-only persistence)
+const LS_PINNED   = "superadmin_pinned_tiles";
+const LS_RECENT   = "superadmin_recent_tiles";
+const LS_COLLAPSED = "superadmin_collapsed_sections";
+const RECENT_LIMIT = 6;
+
+function readLS<T>(key: string, fallback: T): T {
+  if (typeof window === "undefined") return fallback;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return fallback;
+    return JSON.parse(raw) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function writeLS<T>(key: string, value: T) {
+  if (typeof window === "undefined") return;
+  try { window.localStorage.setItem(key, JSON.stringify(value)); } catch { /* ignore */ }
+}
 
 function ClubFormFields({ form, setForm, users }: { form: ClubEditForm; setForm: (fn: (f: ClubEditForm) => ClubEditForm) => void; users?: UserRecord[] }) {
   return (
@@ -925,6 +1055,238 @@ function MembersManagementDialog({
   );
 }
 
+// ---------------------------------------------------------------------------
+// Tile + section helper components used by the unified Super Admin layout
+// ---------------------------------------------------------------------------
+
+function TileCard({
+  tile,
+  pinned,
+  onPinToggle,
+  onActivate,
+  compact = false,
+}: {
+  tile: TileDef;
+  pinned: boolean;
+  onPinToggle: (id: string) => void;
+  onActivate: (id: string) => void;
+  compact?: boolean;
+}) {
+  return (
+    <Link href={tile.href}>
+      <Card
+        onClick={() => onActivate(tile.id)}
+        className="group relative border-border/40 hover:border-border hover:shadow-lg hover:-translate-y-0.5 transition-all duration-200 cursor-pointer h-full rounded-2xl"
+        data-testid={tile.testId}
+      >
+        <CardContent className={compact ? "p-3 flex items-center gap-3" : "p-4 flex items-start gap-3.5"}>
+          <div className={`${tile.bg} rounded-xl ${compact ? "p-2" : "p-2.5"} shrink-0 group-hover:scale-105 transition-transform`}>
+            <tile.icon className={`${compact ? "w-4 h-4" : "w-5 h-5"} ${tile.color}`} />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className={`${compact ? "text-xs" : "text-sm"} font-semibold text-foreground leading-tight truncate`}>{tile.label}</p>
+            {!compact && (
+              <p className="text-xs text-muted-foreground mt-0.5 leading-relaxed line-clamp-2">{tile.description}</p>
+            )}
+          </div>
+          <button
+            type="button"
+            aria-label={pinned ? "Unpin tile" : "Pin tile"}
+            className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-md hover:bg-muted shrink-0"
+            onClick={(e) => { e.preventDefault(); e.stopPropagation(); onPinToggle(tile.id); }}
+            data-testid={`pin-${tile.id}`}
+          >
+            {pinned ? <PinOff className="w-3.5 h-3.5 text-muted-foreground" /> : <Pin className="w-3.5 h-3.5 text-muted-foreground" />}
+          </button>
+        </CardContent>
+      </Card>
+    </Link>
+  );
+}
+
+function CategorySection({
+  category,
+  tiles,
+  defaultOpen,
+  collapsed,
+  onToggleCollapsed,
+  pinnedSet,
+  onPinToggle,
+  onActivate,
+}: {
+  category: CategoryMeta;
+  tiles: TileDef[];
+  defaultOpen: boolean;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
+  pinnedSet: Set<string>;
+  onPinToggle: (id: string) => void;
+  onActivate: (id: string) => void;
+}) {
+  if (tiles.length === 0) return null;
+  const open = !collapsed;
+  return (
+    <Collapsible open={open} onOpenChange={onToggleCollapsed} data-testid={`section-${category.key}`}>
+      <CollapsibleTrigger asChild>
+        <button
+          type="button"
+          className="w-full flex items-center gap-3 group py-2 px-2 rounded-lg hover:bg-muted/40 transition-colors"
+          data-testid={`section-toggle-${category.key}`}
+        >
+          <div className={`w-1.5 h-1.5 rounded-full ${category.accent.replace("text-", "bg-")}`} />
+          <div className="flex-1 text-left">
+            <p className="text-sm font-bold tracking-tight text-foreground">{category.label}</p>
+            <p className="text-[11px] text-muted-foreground">{category.description}</p>
+          </div>
+          <Badge variant="secondary" className="text-[10px] h-5 px-1.5">{tiles.length}</Badge>
+          <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-0" : "-rotate-90"}`} />
+        </button>
+      </CollapsibleTrigger>
+      <CollapsibleContent className="data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 mt-3">
+          {tiles.map((tile) => (
+            <TileCard
+              key={tile.id}
+              tile={tile}
+              pinned={pinnedSet.has(tile.id)}
+              onPinToggle={onPinToggle}
+              onActivate={onActivate}
+            />
+          ))}
+        </div>
+      </CollapsibleContent>
+    </Collapsible>
+  );
+}
+
+function SuperAdminAIReportsSection({ clubs }: { clubs: any[] }) {
+  const { toast } = useToast();
+  const [reportClubId, setReportClubId] = useState<string>(clubs[0]?.id ? String(clubs[0].id) : "");
+  const [activeReport, setActiveReport] = useState<{ type: string; data: any } | null>(null);
+
+  useEffect(() => {
+    if (!reportClubId && clubs[0]?.id) setReportClubId(String(clubs[0].id));
+  }, [clubs, reportClubId]);
+
+  const runReport = (type: "finances" | "matches" | "attendance") => async () => {
+    try {
+      const res = await apiRequest("POST", `/api/admin/ai-report/${type}`, { clubId: Number(reportClubId) });
+      if (!res.ok) throw new Error((await res.json()).message);
+      const data = await res.json();
+      setActiveReport({ type, data });
+      toast({ title: `${type === "finances" ? "Finance" : type === "matches" ? "Match" : "Attendance"} Report Ready` });
+    } catch (e: any) {
+      toast({ title: "Error", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const financeMutation    = useMutation({ mutationFn: runReport("finances") });
+  const matchMutation      = useMutation({ mutationFn: runReport("matches") });
+  const attendanceMutation = useMutation({ mutationFn: runReport("attendance") });
+
+  if (clubs.length === 0) {
+    return (
+      <div className="text-xs text-muted-foreground italic px-3 py-4 border border-dashed border-border/50 rounded-xl" data-testid="empty-ai-reports">
+        No clubs available yet — create or approve a club to generate AI reports.
+      </div>
+    );
+  }
+
+  return (
+    <>
+      <div className="space-y-4">
+        <div className="flex items-center gap-3 flex-wrap">
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span className="text-sm text-muted-foreground">Generate AI insights for</span>
+          <Select value={reportClubId} onValueChange={setReportClubId}>
+            <SelectTrigger data-testid="select-sa-ai-report-club" className="w-[200px] h-8 text-sm">
+              <SelectValue placeholder="Select Club" />
+            </SelectTrigger>
+            <SelectContent>
+              {clubs.map((c: any) => (
+                <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <Card className="border-border/40 rounded-2xl hover:border-green-500/30 transition-colors">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-green-500/10 rounded-xl p-2.5 shrink-0">
+                <PoundSterling className="w-5 h-5 text-green-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Financial Report</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Revenue, payments and collection analysis</p>
+                <Button data-testid="button-sa-ai-finance-report" size="sm" className="mt-2" onClick={() => financeMutation.mutate()} disabled={financeMutation.isPending || !reportClubId}>
+                  {financeMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                  Generate
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/40 rounded-2xl hover:border-blue-500/30 transition-colors">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-blue-500/10 rounded-xl p-2.5 shrink-0">
+                <Swords className="w-5 h-5 text-blue-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Match Report</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Match activity, engagement and stats</p>
+                <Button data-testid="button-sa-ai-match-report" size="sm" className="mt-2" onClick={() => matchMutation.mutate()} disabled={matchMutation.isPending || !reportClubId}>
+                  {matchMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                  Generate
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/40 rounded-2xl hover:border-emerald-500/30 transition-colors">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-emerald-500/10 rounded-xl p-2.5 shrink-0">
+                <TrendingUp className="w-5 h-5 text-emerald-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Attendance Report</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Attendance rates, no-shows and engagement</p>
+                <Button data-testid="button-sa-ai-attendance-report" size="sm" className="mt-2" onClick={() => attendanceMutation.mutate()} disabled={attendanceMutation.isPending || !reportClubId}>
+                  {attendanceMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1.5" />}
+                  Generate
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+
+      <Dialog open={!!activeReport} onOpenChange={() => setActiveReport(null)}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-amber-500" />
+              {activeReport?.type === "finances" ? "Financial AI Report" : activeReport?.type === "matches" ? "Match AI Report" : "Attendance AI Report"}
+            </DialogTitle>
+            <DialogDescription>
+              AI-generated analysis for the last 30 days — {activeReport?.data?.report?.createdAt ? new Date(activeReport.data.report.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "long", year: "numeric" }) : "today"}
+            </DialogDescription>
+          </DialogHeader>
+          {activeReport && (
+            <div className="space-y-5">
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-4">
+                <p className="text-xs font-bold text-amber-600 dark:text-amber-400 uppercase tracking-wider mb-3 flex items-center gap-1.5">
+                  <Sparkles className="h-3.5 w-3.5" /> AI Analysis
+                </p>
+                <div className="text-sm text-foreground/90 whitespace-pre-wrap leading-relaxed">
+                  {activeReport.data.report?.aiSummary}
+                </div>
+              </div>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function SuperAdminDashboard() {
   const { toast } = useToast();
   const [, navigate] = useLocation();
@@ -939,6 +1301,45 @@ export default function SuperAdminDashboard() {
   const [transferClub, setTransferClub] = useState<ClubRecord | null>(null);
   const [transferOwnerId, setTransferOwnerId] = useState("");
 
+  // Unified dashboard UI state
+  const [paletteOpen, setPaletteOpen] = useState(false);
+  const [topSearch, setTopSearch] = useState("");
+  const [statusFilter, setStatusFilter] = useState<string>("ALL");
+  const [kpiDetail, setKpiDetail] = useState<string | null>(null);
+  const [downloadingUsers, setDownloadingUsers] = useState(false);
+  const [downloadingAttendance, setDownloadingAttendance] = useState(false);
+  const [pinned, setPinned] = useState<string[]>(() => readLS<string[]>(LS_PINNED, []));
+  const [recent, setRecent] = useState<string[]>(() => readLS<string[]>(LS_RECENT, []));
+  const [collapsed, setCollapsed] = useState<Record<string, boolean>>(() => readLS<Record<string, boolean>>(LS_COLLAPSED, {}));
+
+  useEffect(() => writeLS(LS_PINNED, pinned), [pinned]);
+  useEffect(() => writeLS(LS_RECENT, recent), [recent]);
+  useEffect(() => writeLS(LS_COLLAPSED, collapsed), [collapsed]);
+
+  // Cmd/Ctrl-K opens command palette
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setPaletteOpen((p) => !p);
+      }
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
+
+  const togglePin = useCallback((id: string) => {
+    setPinned((cur) => cur.includes(id) ? cur.filter(x => x !== id) : [...cur, id]);
+  }, []);
+
+  const trackActivate = useCallback((id: string) => {
+    setRecent((cur) => [id, ...cur.filter(x => x !== id)].slice(0, RECENT_LIMIT));
+  }, []);
+
+  const toggleCollapsed = useCallback((key: string) => {
+    setCollapsed((cur) => ({ ...cur, [key]: !cur[key] }));
+  }, []);
+
   const { data: allClubs, isLoading: clubsLoading } = useQuery<ClubRecord[]>({
     queryKey: ["/api/admin/clubs"],
   });
@@ -946,6 +1347,32 @@ export default function SuperAdminDashboard() {
   const { data: allUsers } = useQuery<UserRecord[]>({
     queryKey: ["/api/admin/users"],
   });
+
+  const { data: analytics, isLoading: analyticsLoading } = useQuery<AnalyticsData>({
+    queryKey: ["/api/admin/analytics"],
+  });
+
+  const handleExport = async (type: "users" | "attendance") => {
+    const setLoading = type === "users" ? setDownloadingUsers : setDownloadingAttendance;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/export/${type}`, { credentials: "include" });
+      if (!res.ok) throw new Error("Export failed");
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = res.headers.get("Content-Disposition")?.match(/filename="(.+)"/)?.[1] || `export_${type}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.URL.revokeObjectURL(url);
+    } catch {
+      toast({ title: "Export Failed", description: "Could not download the export file.", variant: "destructive" });
+    } finally {
+      setLoading(false);
+    }
+  };
 
   useEffect(() => {
     if (editClub) {
@@ -1264,55 +1691,437 @@ export default function SuperAdminDashboard() {
     },
   ];
 
+  // Derived data for the unified layout
+  const pinnedSet = useMemo(() => new Set(pinned), [pinned]);
+  const tilesById = useMemo(() => new Map(TILE_CATALOG.map(t => [t.id, t])), []);
+  const pinnedTiles = useMemo(() => pinned.map(id => tilesById.get(id)).filter(Boolean) as TileDef[], [pinned, tilesById]);
+  const recentTiles = useMemo(() => recent.map(id => tilesById.get(id)).filter(Boolean) as TileDef[], [recent, tilesById]);
+  const tilesByCategory = useMemo(() => {
+    const map = new Map<CategoryKey, TileDef[]>();
+    for (const cat of CATEGORIES) map.set(cat.key, []);
+    for (const t of TILE_CATALOG) map.get(t.category)?.push(t);
+    return map;
+  }, []);
+
+  const totals = analytics?.totals;
+  const totalClubs    = totals?.totalClubs ?? (allClubs?.length ?? 0);
+  const totalPlayers  = totals?.totalPlayers ?? 0;
+  const totalSessions = totals?.totalSessions ?? 0;
+  const totalMatches  = totals?.totalMatches ?? 0;
+  const pendingClubsCount = pendingClubs.length;
+
+  // Apply status filter on top of existing search
+  const visibleClubs = useMemo(() => {
+    if (statusFilter === "ALL") return filteredClubs;
+    return filteredClubs.filter(c => c.status === statusFilter);
+  }, [filteredClubs, statusFilter]);
+
   return (
     <div className="space-y-8" data-testid="super-admin-dashboard">
-      <div className="flex items-center justify-between gap-4 flex-wrap">
+      {/* ── Header + top bar ──────────────────────────────────────────── */}
+      <div className="flex items-start justify-between gap-4 flex-wrap">
         <div>
           <h1 className="text-3xl font-display font-bold flex items-center gap-3" data-testid="text-super-admin-title">
             <Shield className="w-8 h-8 text-primary" />
             God's Mode Dashboard
           </h1>
-          <p className="text-muted-foreground mt-1">Full control access to all system features.</p>
+          <p className="text-muted-foreground mt-1">Full control across every club, member, and module.</p>
         </div>
-        <Badge variant="destructive" className="text-sm py-1.5 px-4" data-testid="badge-god-mode">
-          <Zap className="h-4 w-4 mr-2" />
-          GOD MODE
-        </Badge>
+        <div className="flex items-center gap-2 flex-wrap">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setPaletteOpen(true)}
+            className="gap-2 rounded-xl"
+            data-testid="button-open-palette"
+          >
+            <Search className="h-4 w-4" />
+            <span className="hidden sm:inline">Search anything…</span>
+            <kbd className="hidden md:inline-flex h-5 select-none items-center gap-1 rounded border bg-muted px-1.5 font-mono text-[10px] font-medium text-muted-foreground">
+              ⌘K
+            </kbd>
+          </Button>
+          <Badge variant="destructive" className="text-sm py-1.5 px-4 rounded-xl" data-testid="badge-god-mode">
+            <Zap className="h-4 w-4 mr-2" />
+            GOD MODE
+          </Badge>
+        </div>
       </div>
 
-      <Card data-testid="card-quick-actions">
-        <CardHeader>
-          <CardTitle className="text-lg flex items-center gap-2">
-            <Zap className="w-5 h-5 text-primary" />
-            Control Panel
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-5">
-            {controlSections.map(section => (
-              <div key={section.label}>
-                <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2">{section.label}</p>
-                <div className="flex flex-col gap-2">
-                  {section.items.map((item) => (
-                    <Link key={item.href} href={item.href}>
-                      <div
-                        className="flex items-center gap-4 px-4 py-3 rounded-lg hover-elevate cursor-pointer border border-border/50 transition-all"
-                        data-testid={`button-quick-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                      >
-                        <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${item.bg}`}>
-                          <item.icon className={`w-5 h-5 ${item.color}`} />
-                        </div>
-                        <span className="flex-1 font-medium text-sm">{item.label}</span>
-                        <ChevronRight className="w-4 h-4 text-muted-foreground" />
-                      </div>
-                    </Link>
-                  ))}
-                </div>
+      {/* ── Overview KPIs ─────────────────────────────────────────────── */}
+      <section className="space-y-3" data-testid="section-overview">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className="w-1.5 h-1.5 rounded-full bg-primary" />
+            <p className="text-sm font-bold tracking-tight">Overview</p>
+            <p className="text-[11px] text-muted-foreground">Platform health at a glance</p>
+          </div>
+        </div>
+        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 lg:grid-cols-5">
+          <Card className="border-border/40 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all rounded-2xl" data-testid="kpi-total-clubs" onClick={() => setKpiDetail("total-clubs")}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Total Clubs</span>
+                <Building2 className="h-4 w-4 text-muted-foreground/60" />
               </div>
+              {analyticsLoading ? <div className="h-8 w-12 bg-muted rounded animate-pulse" /> : <div className="text-2xl font-bold" data-testid="value-kpi-total-clubs">{totalClubs}</div>}
+            </CardContent>
+          </Card>
+          <Card className="border-border/40 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all rounded-2xl" data-testid="kpi-total-players" onClick={() => setKpiDetail("total-players")}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Players</span>
+                <Users className="h-4 w-4 text-muted-foreground/60" />
+              </div>
+              {analyticsLoading ? <div className="h-8 w-12 bg-muted rounded animate-pulse" /> : <div className="text-2xl font-bold" data-testid="value-kpi-total-players">{totalPlayers}</div>}
+            </CardContent>
+          </Card>
+          <Card className="border-border/40 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all rounded-2xl" data-testid="kpi-total-sessions" onClick={() => setKpiDetail("total-sessions")}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Sessions</span>
+                <Calendar className="h-4 w-4 text-muted-foreground/60" />
+              </div>
+              {analyticsLoading ? <div className="h-8 w-12 bg-muted rounded animate-pulse" /> : <div className="text-2xl font-bold" data-testid="value-kpi-total-sessions">{totalSessions}</div>}
+            </CardContent>
+          </Card>
+          <Card className="border-border/40 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all rounded-2xl" data-testid="kpi-total-matches" onClick={() => setKpiDetail("total-matches")}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Matches</span>
+                <Trophy className="h-4 w-4 text-muted-foreground/60" />
+              </div>
+              {analyticsLoading ? <div className="h-8 w-12 bg-muted rounded animate-pulse" /> : <div className="text-2xl font-bold" data-testid="value-kpi-total-matches">{totalMatches}</div>}
+            </CardContent>
+          </Card>
+          <Card className="border-border/40 cursor-pointer hover:shadow-lg hover:-translate-y-0.5 transition-all rounded-2xl" data-testid="kpi-pending-clubs" onClick={() => setKpiDetail("pending-clubs")}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-medium text-muted-foreground">Pending Clubs</span>
+                <Clock className="h-4 w-4 text-muted-foreground/60" />
+              </div>
+              <div className="text-2xl font-bold" data-testid="value-kpi-pending-clubs">{pendingClubsCount}</div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* ── Pinned tiles ──────────────────────────────────────────────── */}
+      {pinnedTiles.length > 0 && (
+        <section className="space-y-3" data-testid="section-pinned">
+          <div className="flex items-center gap-2">
+            <Pin className="w-4 h-4 text-amber-500" />
+            <p className="text-sm font-bold tracking-tight">Pinned</p>
+            <p className="text-[11px] text-muted-foreground">Your favourite shortcuts</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+            {pinnedTiles.map((tile) => (
+              <TileCard key={tile.id} tile={tile} pinned compact onPinToggle={togglePin} onActivate={trackActivate} />
             ))}
           </div>
-        </CardContent>
-      </Card>
+        </section>
+      )}
+
+      {/* ── Recently used ─────────────────────────────────────────────── */}
+      {recentTiles.length > 0 && (
+        <section className="space-y-3" data-testid="section-recent">
+          <div className="flex items-center gap-2">
+            <History className="w-4 h-4 text-muted-foreground" />
+            <p className="text-sm font-bold tracking-tight">Recently Used</p>
+            <p className="text-[11px] text-muted-foreground">Last {RECENT_LIMIT} you opened</p>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
+            {recentTiles.map((tile) => (
+              <TileCard key={tile.id} tile={tile} pinned={pinnedSet.has(tile.id)} compact onPinToggle={togglePin} onActivate={trackActivate} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {/* ── Categorised collapsible sections ──────────────────────────── */}
+      <section className="space-y-4" data-testid="section-modules">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <LayoutGrid className="w-4 h-4 text-primary" />
+            <p className="text-sm font-bold tracking-tight">All Modules</p>
+            <p className="text-[11px] text-muted-foreground">Every tool, organised</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setCollapsed({})}
+              className="text-xs h-7 rounded-lg"
+              data-testid="button-expand-all"
+            >
+              Expand all
+            </Button>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => {
+                const all: Record<string, boolean> = {};
+                for (const c of CATEGORIES) all[c.key] = true;
+                setCollapsed(all);
+              }}
+              className="text-xs h-7 rounded-lg"
+              data-testid="button-collapse-all"
+            >
+              Collapse all
+            </Button>
+          </div>
+        </div>
+        <div className="space-y-3">
+          {CATEGORIES.map((cat) => {
+            const tiles = tilesByCategory.get(cat.key) || [];
+            if (tiles.length === 0 && cat.key !== "admin-control" && cat.key !== "reports-export") return null;
+            return (
+              <CategorySection
+                key={cat.key}
+                category={cat}
+                tiles={tiles}
+                defaultOpen
+                collapsed={!!collapsed[cat.key]}
+                onToggleCollapsed={() => toggleCollapsed(cat.key)}
+                pinnedSet={pinnedSet}
+                onPinToggle={togglePin}
+                onActivate={trackActivate}
+              />
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Admin & Control: live clubs management ────────────────────── */}
+      <section className="space-y-3" data-testid="section-clubs-management">
+        <div className="flex items-center gap-2">
+          <Building2 className="w-4 h-4 text-emerald-500" />
+          <p className="text-sm font-bold tracking-tight">Clubs Management</p>
+          <p className="text-[11px] text-muted-foreground">Approve, edit, transfer or pause clubs</p>
+        </div>
+        <Card className="border-border/40 rounded-2xl overflow-hidden" data-testid="card-clubs-management">
+          <CardContent className="p-4 space-y-3">
+            <div className="flex items-center gap-2 flex-wrap">
+              <div className="relative flex-1 min-w-[200px]">
+                <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  placeholder="Search clubs by name or city…"
+                  value={search}
+                  onChange={(e) => setSearch(e.target.value)}
+                  className="pl-9 rounded-xl"
+                  data-testid="input-clubs-search"
+                />
+              </div>
+              <Select value={statusFilter} onValueChange={setStatusFilter}>
+                <SelectTrigger className="w-[160px] rounded-xl" data-testid="select-clubs-status">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="ALL">All statuses</SelectItem>
+                  <SelectItem value="APPROVED">Approved</SelectItem>
+                  <SelectItem value="PENDING">Pending</SelectItem>
+                  <SelectItem value="PAUSED">Paused</SelectItem>
+                  <SelectItem value="REJECTED">Rejected</SelectItem>
+                  <SelectItem value="ARCHIVED">Archived</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button onClick={() => setCreateOpen(true)} className="gap-2 rounded-xl" data-testid="button-create-club">
+                <Plus className="w-4 h-4" />
+                Create Club
+              </Button>
+            </div>
+            <div className="border rounded-xl overflow-hidden">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Name</TableHead>
+                    <TableHead className="hidden md:table-cell">City</TableHead>
+                    <TableHead className="hidden lg:table-cell">Admin</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {clubsLoading ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground"><Loader2 className="w-4 h-4 animate-spin inline mr-2" /> Loading clubs…</TableCell></TableRow>
+                  ) : visibleClubs.length === 0 ? (
+                    <TableRow><TableCell colSpan={5} className="text-center py-8 text-muted-foreground">No clubs match your filters.</TableCell></TableRow>
+                  ) : visibleClubs.map((club) => (
+                    <TableRow key={club.id} className="hover:bg-muted/40" data-testid={`row-club-${club.id}`}>
+                      <TableCell className="font-medium">{club.name}</TableCell>
+                      <TableCell className="hidden md:table-cell text-muted-foreground">{club.city || "—"}</TableCell>
+                      <TableCell className="hidden lg:table-cell text-muted-foreground text-xs">{getOwnerName(club.ownerId)}</TableCell>
+                      <TableCell>{statusLabel(club.status)}</TableCell>
+                      <TableCell className="text-right">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="rounded-lg"
+                          onClick={() => setActionClub(club)}
+                          data-testid={`button-club-actions-${club.id}`}
+                        >
+                          Manage
+                          <ChevronRight className="w-3.5 h-3.5 ml-1" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </section>
+
+      {/* ── Reports & Export ──────────────────────────────────────────── */}
+      <section className="space-y-4" data-testid="section-reports-export">
+        <div className="flex items-center gap-2">
+          <div className="w-1.5 h-1.5 rounded-full bg-cyan-500" />
+          <p className="text-sm font-bold tracking-tight">Reports & Export</p>
+          <p className="text-[11px] text-muted-foreground">AI summaries and data downloads</p>
+        </div>
+        <SuperAdminAIReportsSection clubs={(allClubs as any[]) || []} />
+        <div className="grid gap-3 sm:grid-cols-2">
+          <Card className="border-border/40 rounded-2xl">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-primary/10 rounded-xl p-2.5 shrink-0">
+                <Users className="w-5 h-5 text-primary" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Export All Users</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Download CSV with all user details, club memberships, and stats.</p>
+                <Button size="sm" className="mt-2 rounded-lg" onClick={() => handleExport("users")} disabled={downloadingUsers} data-testid="button-sa-export-users">
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  {downloadingUsers ? "Downloading…" : "Download CSV"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+          <Card className="border-border/40 rounded-2xl">
+            <CardContent className="p-4 flex items-start gap-3.5">
+              <div className="bg-blue-500/10 rounded-xl p-2.5 shrink-0">
+                <Calendar className="w-5 h-5 text-blue-500" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-semibold">Export Attendance</p>
+                <p className="text-xs text-muted-foreground mt-0.5">Download CSV with attendance history, dates, and payment status.</p>
+                <Button size="sm" className="mt-2 rounded-lg" onClick={() => handleExport("attendance")} disabled={downloadingAttendance} data-testid="button-sa-export-attendance">
+                  <Download className="h-3.5 w-3.5 mr-1.5" />
+                  {downloadingAttendance ? "Downloading…" : "Download CSV"}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      </section>
+
+      {/* ── KPI detail dialog ─────────────────────────────────────────── */}
+      <KpiDetailDialog
+        open={kpiDetail !== null}
+        onOpenChange={(open) => { if (!open) setKpiDetail(null); }}
+        title={
+          kpiDetail === "total-clubs" ? "All Clubs" :
+          kpiDetail === "total-players" ? "Players by Club" :
+          kpiDetail === "total-sessions" ? "Sessions by Club" :
+          kpiDetail === "total-matches" ? "Matches by Club" :
+          kpiDetail === "pending-clubs" ? "Pending Club Approvals" : ""
+        }
+        description={
+          kpiDetail === "total-clubs" ? `${totalClubs} clubs registered` :
+          kpiDetail === "total-players" ? `${totalPlayers} total players across all clubs` :
+          kpiDetail === "total-sessions" ? `${totalSessions} total sessions` :
+          kpiDetail === "total-matches" ? `${totalMatches} total matches played` :
+          kpiDetail === "pending-clubs" ? `${pendingClubsCount} clubs awaiting approval` : undefined
+        }
+      >
+        {(kpiDetail === "total-clubs" || kpiDetail === "total-players" || kpiDetail === "total-sessions" || kpiDetail === "total-matches") && (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Club Name</TableHead>
+                {kpiDetail === "total-clubs" && <TableHead>Status</TableHead>}
+                {kpiDetail !== "total-clubs" && <TableHead className="text-right">{kpiDetail === "total-players" ? "Players" : kpiDetail === "total-sessions" ? "Sessions" : "Matches"}</TableHead>}
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {analytics?.clubs?.map((c) => (
+                <TableRow key={c.clubId} className="cursor-pointer hover:bg-muted/40" onClick={() => navigate(`/admin/club/${c.clubId}`)}>
+                  <TableCell className="font-medium text-primary">{c.clubName}</TableCell>
+                  {kpiDetail === "total-clubs" && <TableCell><Badge variant={c.status === "APPROVED" ? "default" : "secondary"}>{c.status}</Badge></TableCell>}
+                  {kpiDetail === "total-players" && <TableCell className="text-right">{c.totalPlayers}</TableCell>}
+                  {kpiDetail === "total-sessions" && <TableCell className="text-right">{c.totalSessions}</TableCell>}
+                  {kpiDetail === "total-matches" && <TableCell className="text-right">{c.totalMatches}</TableCell>}
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+        {kpiDetail === "pending-clubs" && (
+          pendingClubs.length === 0 ? (
+            <p className="text-muted-foreground text-sm py-4 text-center">No pending clubs</p>
+          ) : (
+            <Table>
+              <TableHeader><TableRow><TableHead>Name</TableHead><TableHead>City</TableHead><TableHead className="text-right">Actions</TableHead></TableRow></TableHeader>
+              <TableBody>
+                {pendingClubs.map((c) => (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">{c.name}</TableCell>
+                    <TableCell className="text-muted-foreground">{c.city || "—"}</TableCell>
+                    <TableCell className="text-right">
+                      <Button size="sm" variant="outline" onClick={() => { setKpiDetail(null); setEditClub(c); }} data-testid={`button-review-pending-${c.id}`}>Review</Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )
+        )}
+      </KpiDetailDialog>
+
+      {/* ── Global Command Palette ────────────────────────────────────── */}
+      <CommandDialog open={paletteOpen} onOpenChange={setPaletteOpen}>
+        <CommandInput placeholder="Search any module, page or KPI…" value={topSearch} onValueChange={setTopSearch} data-testid="input-command-palette" />
+        <CommandList>
+          <CommandEmpty>No results found.</CommandEmpty>
+          {pinnedTiles.length > 0 && (
+            <CommandGroup heading="Pinned">
+              {pinnedTiles.map((tile) => (
+                <CommandItem
+                  key={`pal-pin-${tile.id}`}
+                  value={`${tile.label} ${tile.description}`}
+                  onSelect={() => { trackActivate(tile.id); setPaletteOpen(false); navigate(tile.href); }}
+                  data-testid={`palette-item-${tile.id}`}
+                >
+                  <tile.icon className={`w-4 h-4 mr-2 ${tile.color}`} />
+                  <span>{tile.label}</span>
+                </CommandItem>
+              ))}
+            </CommandGroup>
+          )}
+          {CATEGORIES.map((cat) => {
+            const tiles = tilesByCategory.get(cat.key) || [];
+            if (tiles.length === 0) return null;
+            return (
+              <div key={`pal-${cat.key}`}>
+                <CommandSeparator />
+                <CommandGroup heading={cat.label}>
+                  {tiles.map((tile) => (
+                    <CommandItem
+                      key={`pal-${tile.id}`}
+                      value={`${tile.label} ${tile.description} ${cat.label}`}
+                      onSelect={() => { trackActivate(tile.id); setPaletteOpen(false); navigate(tile.href); }}
+                    >
+                      <tile.icon className={`w-4 h-4 mr-2 ${tile.color}`} />
+                      <span>{tile.label}</span>
+                      <span className="ml-auto text-xs text-muted-foreground hidden sm:inline">{tile.href}</span>
+                    </CommandItem>
+                  ))}
+                </CommandGroup>
+              </div>
+            );
+          })}
+        </CommandList>
+      </CommandDialog>
 
       <Dialog open={!!actionClub} onOpenChange={(open) => { if (!open) setActionClub(null); }}>
         <DialogContent className="max-w-md" data-testid="dialog-club-actions">
