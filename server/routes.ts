@@ -34046,6 +34046,90 @@ Return ONLY valid JSON in this exact format:
     }
   });
 
+  // Cross-club supplier order sheet — admin can select orders from any club they manage.
+  app.post("/api/merchandise/orders/supplier-sheet", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const body = z.object({ orderIds: z.array(z.number().int().positive()).min(1).max(500) }).parse(req.body);
+
+      const rows = await db.select({
+        order: merchandiseOrderItems,
+        product: merchandiseProducts,
+        userName: users.fullName,
+        userEmail: users.email,
+        clubName: clubs.name,
+      }).from(merchandiseOrderItems)
+        .innerJoin(merchandiseProducts, and(
+          eq(merchandiseOrderItems.productId, merchandiseProducts.id),
+          eq(merchandiseOrderItems.clubId, merchandiseProducts.clubId),
+        ))
+        .innerJoin(users, eq(merchandiseOrderItems.userId, users.id))
+        .innerJoin(clubs, eq(merchandiseOrderItems.clubId, clubs.id))
+        .where(inArray(merchandiseOrderItems.id, body.orderIds));
+
+      if (rows.length === 0) return res.status(404).json({ message: "No matching orders found." });
+
+      // Verify the user has admin permission for every club in the selection.
+      const clubIds = Array.from(new Set(rows.map(r => r.order.clubId)));
+      for (const cid of clubIds) {
+        const ok = await canPerform({ id: req.user!.id, role: req.user!.role }, "MANAGE_MEMBERSHIPS", cid);
+        if (!ok) return res.status(403).json({ message: "You don't have access to one or more selected clubs." });
+      }
+
+      const generatedAt = new Date();
+      const orders = rows.map(r => ({
+        id: r.order.id,
+        size: r.order.size,
+        gender: r.order.gender,
+        style: r.order.style,
+        quantity: r.order.quantity,
+        notes: r.order.notes,
+        adminNotes: r.order.adminNotes,
+        status: r.order.status,
+        paymentStatus: r.order.paymentStatus ?? null,
+        createdAt: r.order.createdAt,
+        userName: r.userName || `User #${r.order.userId}`,
+        userEmail: r.userEmail || null,
+        clubName: r.clubName,
+        product: {
+          id: r.product.id,
+          name: r.product.name,
+          description: r.product.description,
+          shortDescription: r.product.shortDescription,
+          materials: r.product.materials,
+          specifications: r.product.specifications,
+          categoryName: r.product.categoryName,
+          price: r.product.price,
+        },
+      }));
+
+      const uniqueClubNames = Array.from(new Set(rows.map(r => r.clubName))).filter(Boolean) as string[];
+      const headingClubName = uniqueClubNames.length === 1
+        ? uniqueClubNames[0]
+        : `${uniqueClubNames.length} clubs · ${uniqueClubNames.join(", ")}`;
+      const filenameBase = uniqueClubNames.length === 1
+        ? uniqueClubNames[0].replace(/[^a-z0-9-]+/gi, "-").toLowerCase()
+        : "multi-club";
+      const filename = `supplier-order-${filenameBase}-${generatedAt.toISOString().slice(0, 10)}.pdf`;
+
+      res.setHeader("Content-Type", "application/pdf");
+      res.setHeader("Content-Disposition", `attachment; filename="${filename}"`);
+
+      const doc = generateSupplierOrderSheet(orders, {
+        clubName: headingClubName,
+        generatedByName: req.user!.fullName || req.user!.username,
+        generatedAt,
+        showClubColumn: uniqueClubNames.length > 1,
+      });
+      doc.pipe(res);
+      doc.end();
+    } catch (err: any) {
+      if (err instanceof z.ZodError) return res.status(400).json({ message: "Invalid data", errors: err.errors });
+      console.error("[SUPPLIER SHEET MULTI] failed", err);
+      if (!res.headersSent) res.status(500).json({ message: err.message || "Failed to build supplier sheet" });
+    }
+  });
+
   // Supplier order sheet — admin downloads a PDF for selected merch orders.
   app.post("/api/clubs/:clubId/merchandise/orders/supplier-sheet", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

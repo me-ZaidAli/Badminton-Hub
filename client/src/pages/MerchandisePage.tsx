@@ -1,5 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueries } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
 import { useMyAdminClubs } from "@/hooks/use-clubs";
@@ -85,7 +85,7 @@ interface MerchOrder {
   paymentStatus?: string;
   createdAt: string; updatedAt: string;
   productName?: string; productImage?: string | null; productCategory?: string | null;
-  userName?: string;
+  userName?: string; clubName?: string;
 }
 
 function getOrderStatusInfo(status: string) {
@@ -160,7 +160,11 @@ export default function MerchandisePage() {
   const [editOrderIsCustomer, setEditOrderIsCustomer] = useState(false);
 
   const canManage = adminClubs && adminClubs.length > 0;
-  const adminClubId = selectedAdminClub ? Number(selectedAdminClub) : adminClubs?.[0]?.id;
+  // "ALL" is only meaningful for the orders tab; for other admin tabs fall back to the first real club
+  // so adminClubId never becomes NaN and dependent queries keep working.
+  const adminClubId = (selectedAdminClub && selectedAdminClub !== "ALL")
+    ? Number(selectedAdminClub)
+    : adminClubs?.[0]?.id;
 
   const { data: categories = [], isLoading: catsLoading } = useQuery<MerchCategory[]>({ queryKey: ["/api/merchandise-categories"] });
   const { data: allCategories = [] } = useQuery<MerchCategory[]>({ queryKey: ["/api/merchandise-categories/all"], enabled: activeTab === "categories" && !!canManage });
@@ -168,8 +172,38 @@ export default function MerchandisePage() {
   const { data: myOrders = [] } = useQuery<MerchOrder[]>({ queryKey: ["/api/merchandise/my-orders"] });
   const adminProductsUrl = adminClubId ? `/api/clubs/${adminClubId}/merchandise/products` : null;
   const { data: adminProducts = [] } = useQuery<MerchProduct[]>({ queryKey: [adminProductsUrl], enabled: !!adminProductsUrl && activeTab === "products" });
-  const adminOrdersUrl = adminClubId ? `/api/clubs/${adminClubId}/merchandise/orders` : null;
-  const { data: adminOrders = [] } = useQuery<MerchOrder[]>({ queryKey: [adminOrdersUrl], enabled: !!adminOrdersUrl && activeTab === "orders" });
+  const isAllClubs = selectedAdminClub === "ALL";
+  const adminOrdersUrl = !isAllClubs && adminClubId ? `/api/clubs/${adminClubId}/merchandise/orders` : null;
+  const { data: singleClubOrders = [] } = useQuery<MerchOrder[]>({ queryKey: [adminOrdersUrl], enabled: !!adminOrdersUrl && activeTab === "orders" });
+
+  // When "All my clubs" is selected, fetch orders for every admin club in parallel and merge.
+  const allClubOrderQueries = useQueries({
+    queries: (isAllClubs && activeTab === "orders" && adminClubs ? adminClubs : []).map((c: any) => ({
+      queryKey: [`/api/clubs/${c.id}/merchandise/orders`],
+      enabled: isAllClubs && activeTab === "orders",
+    })),
+  });
+  const adminClubNameById = useMemo(() => {
+    const m = new Map<number, string>();
+    (adminClubs || []).forEach((c: any) => m.set(c.id, c.name));
+    return m;
+  }, [adminClubs]);
+  const mergedClubOrders = useMemo(() => {
+    if (!isAllClubs) return [] as MerchOrder[];
+    // Dedupe by order id in case the same club appears more than once in adminClubs
+    // and skip any failed per-club fetches (e.g. clubs where the user lacks admin access).
+    const byId = new Map<number, MerchOrder>();
+    allClubOrderQueries.forEach((q) => {
+      if (q.isError) return;
+      const list = (q.data as MerchOrder[] | undefined) || [];
+      list.forEach((o) => {
+        if (byId.has(o.id)) return;
+        byId.set(o.id, { ...o, clubName: adminClubNameById.get(o.clubId) || (o as any).clubName });
+      });
+    });
+    return Array.from(byId.values()).sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+  }, [isAllClubs, allClubOrderQueries, adminClubNameById]);
+  const adminOrders: MerchOrder[] = isAllClubs ? mergedClubOrders : singleClubOrders;
 
   const seedDefaultsMut = useMutation({
     mutationFn: async () => { const r = await apiRequest("POST", "/api/merchandise-categories/seed-defaults"); return r.json(); },
@@ -421,9 +455,21 @@ export default function MerchandisePage() {
 
             <TabsContent value="orders" className="mt-4 space-y-4">
               {adminClubs && adminClubs.length > 1 && (
-                <Select value={selectedAdminClub || String(adminClubs[0]?.id)} onValueChange={setSelectedAdminClub}><SelectTrigger className="w-64 backdrop-blur-sm bg-card/50"><SelectValue placeholder="Select club" /></SelectTrigger><SelectContent>{adminClubs.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select>
+                <Select value={selectedAdminClub || String(adminClubs[0]?.id)} onValueChange={setSelectedAdminClub}>
+                  <SelectTrigger className="w-64 backdrop-blur-sm bg-card/50" data-testid="select-admin-club"><SelectValue placeholder="Select club" /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="ALL" data-testid="option-all-clubs">All my clubs</SelectItem>
+                    {adminClubs.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}
+                  </SelectContent>
+                </Select>
               )}
-              <AdminOrdersList orders={adminOrders} onEdit={openEditOrder} onDelete={setDeleteOrderId} clubId={adminClubId ?? null} />
+              <AdminOrdersList
+                orders={adminOrders}
+                onEdit={openEditOrder}
+                onDelete={setDeleteOrderId}
+                clubId={isAllClubs ? null : (adminClubId ?? null)}
+                multiClub={isAllClubs}
+              />
             </TabsContent>
 
             <TabsContent value="categories" className="mt-4 space-y-4">
@@ -727,13 +773,13 @@ function AdminProductsList({ products, isLoading, findCat, onEdit, onDelete, onT
   );
 }
 
-function AdminOrdersList({ orders, onEdit, onDelete, clubId }: { orders: MerchOrder[]; onEdit: (o: MerchOrder) => void; onDelete: (id: number) => void; clubId: number | null }) {
+function AdminOrdersList({ orders, onEdit, onDelete, clubId, multiClub = false }: { orders: MerchOrder[]; onEdit: (o: MerchOrder) => void; onDelete: (id: number) => void; clubId: number | null; multiClub?: boolean }) {
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [downloading, setDownloading] = useState(false);
 
-  // Clear stale selections when the visible orders change (e.g. switching club)
-  useEffect(() => { setSelectedIds(new Set()); }, [clubId]);
+  // Clear stale selections when the visible scope changes (single club or multi-club).
+  useEffect(() => { setSelectedIds(new Set()); }, [clubId, multiClub]);
   useEffect(() => {
     setSelectedIds(prev => {
       if (prev.size === 0) return prev;
@@ -759,10 +805,14 @@ function AdminOrdersList({ orders, onEdit, onDelete, clubId }: { orders: MerchOr
   };
 
   const downloadSheet = async () => {
-    if (!clubId || selectedIds.size === 0) return;
+    if (selectedIds.size === 0) return;
+    if (!multiClub && !clubId) return;
     setDownloading(true);
     try {
-      const res = await fetch(`/api/clubs/${clubId}/merchandise/orders/supplier-sheet`, {
+      const endpoint = multiClub
+        ? `/api/merchandise/orders/supplier-sheet`
+        : `/api/clubs/${clubId}/merchandise/orders/supplier-sheet`;
+      const res = await fetch(endpoint, {
         method: "POST",
         credentials: "include",
         headers: { "Content-Type": "application/json" },
@@ -807,7 +857,7 @@ function AdminOrdersList({ orders, onEdit, onDelete, clubId }: { orders: MerchOr
           <Button
             size="sm"
             onClick={downloadSheet}
-            disabled={selectedIds.size === 0 || !clubId || downloading}
+            disabled={selectedIds.size === 0 || (!multiClub && !clubId) || downloading}
             className="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-95"
             data-testid="button-download-supplier-sheet"
           >
@@ -827,7 +877,15 @@ function AdminOrdersList({ orders, onEdit, onDelete, clubId }: { orders: MerchOr
                   <Checkbox checked={checked} onCheckedChange={() => toggleOne(o.id)} className="flex-shrink-0" data-testid={`checkbox-order-${o.id}`} />
                   {isSafeUrl(o.productImage) ? <img src={o.productImage!} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" /> : <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-violet-500/30 flex items-center justify-center flex-shrink-0"><Package className="h-6 w-6 text-primary" /></div>}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap"><span className="font-semibold text-sm">{o.productName || "Product"}</span><Badge className={`text-[10px] border-0 ${si.color}`}>{si.label}</Badge></div>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-sm">{o.productName || "Product"}</span>
+                      <Badge className={`text-[10px] border-0 ${si.color}`}>{si.label}</Badge>
+                      {multiClub && o.clubName && (
+                        <Badge variant="outline" className="text-[10px] border-violet-400/40 text-violet-700 dark:text-violet-300" data-testid={`badge-order-club-${o.id}`}>
+                          <Building2 className="h-2.5 w-2.5 mr-1" />{o.clubName}
+                        </Badge>
+                      )}
+                    </div>
                     <p className="text-xs text-muted-foreground">{o.userName || `User #${o.userId}`}</p>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">{o.size && <span>Size: {o.size}</span>}{o.gender && <span>• {o.gender}</span>}<span>• Qty: {o.quantity}</span><span>• {format(new Date(o.createdAt), "dd MMM yyyy")}</span></div>
                     {o.notes && <p className="text-[10px] text-muted-foreground mt-0.5 italic truncate">"{o.notes}"</p>}

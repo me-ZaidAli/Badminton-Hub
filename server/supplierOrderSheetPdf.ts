@@ -14,6 +14,7 @@ export interface SupplierSheetOrder {
   createdAt: Date | string;
   userName: string;
   userEmail: string | null;
+  clubName?: string | null;
   product: {
     id: number;
     name: string;
@@ -30,6 +31,7 @@ export interface SupplierSheetMeta {
   clubName: string;
   generatedByName: string;
   generatedAt: Date;
+  showClubColumn?: boolean;
 }
 
 const BRAND_PURPLE = "#7c3aed";
@@ -96,7 +98,7 @@ export function generateSupplierOrderSheet(orders: SupplierSheetOrder[], meta: S
 
   drawHeader(doc, meta, orders.length, totalQty, totalValuePence, groups.length);
   drawSummarySection(doc, groups);
-  drawDetailsSection(doc, groups);
+  drawDetailsSection(doc, groups, !!meta.showClubColumn);
   drawAllPagesFooter(doc, meta);
 
   return doc;
@@ -276,7 +278,7 @@ function drawProductSummaryBlock(doc: PDFKit.PDFDocument, g: ProductGroup) {
   doc.moveDown(1.2);
 }
 
-function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[]) {
+function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], showClubColumn: boolean) {
   doc.addPage();
   sectionTitle(doc, "Detailed Order List", "Per-customer breakdown so each item can be matched on arrival.");
 
@@ -291,15 +293,18 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[]) {
     const innerW = doc.page.width - PAGE_MARGIN * 2;
     const tableX = PAGE_MARGIN;
     const tableW = innerW;
-    const cols = [
-      { label: "#", w: 30 },
-      { label: "Customer", w: tableW * 0.22 },
-      { label: "Date", w: tableW * 0.10 },
-      { label: "Variant", w: tableW * 0.18 },
-      { label: "Qty", w: 36, align: "right" as const },
-      { label: "Status", w: tableW * 0.10 },
-      { label: "Notes / Customisation", w: 0, flex: true },
+    const cols: { label: string; w: number; align?: "right" | "left"; flex?: boolean }[] = [
+      { label: "#", w: 26 },
+      { label: "Customer", w: tableW * (showClubColumn ? 0.18 : 0.22) },
     ];
+    if (showClubColumn) cols.push({ label: "Club", w: tableW * 0.12 });
+    cols.push(
+      { label: "Date", w: tableW * 0.09 },
+      { label: "Variant", w: tableW * 0.16 },
+      { label: "Qty", w: 32, align: "right" },
+      { label: "Status", w: tableW * 0.09 },
+      { label: "Notes / Customisation", w: 0, flex: true },
+    );
     const fixedW = cols.reduce((s, c) => s + (c.flex ? 0 : c.w!), 0);
     cols.forEach(c => { if (c.flex) c.w = tableW - fixedW; });
 
@@ -345,12 +350,15 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[]) {
         const values: { text: string; bold?: boolean; color?: string }[] = [
           { text: String(idx + 1), color: MUTED },
           { text: customerText },
+        ];
+        if (showClubColumn) values.push({ text: o.clubName || "—", color: BRAND_DARK });
+        values.push(
           { text: dateStr },
           { text: variantStr },
           { text: String(o.quantity), bold: true },
           { text: statusStr, color: BRAND_PURPLE },
           { text: noteText },
-        ];
+        );
         cols.forEach((c, i) => {
           const v = values[i];
           if (v.bold) doc.font("Helvetica-Bold"); else doc.font("Helvetica");
