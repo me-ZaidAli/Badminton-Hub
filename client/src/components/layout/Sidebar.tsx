@@ -57,6 +57,7 @@ import {
   Home,
   MessageSquare,
   HelpCircle,
+  PoundSterling,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -209,13 +210,20 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
   // entry so admins still see the pending count at a glance.
   if (user?.role === "OWNER") {
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "adminInbox" });
+    items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
+    if (!isOrganiserOnly) {
+      items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
+    }
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
+    if (!isOrganiserOnly) {
+      items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
+    }
   }
 
   const isAdminRole = user?.role === "OWNER" || user?.role === "ADMIN";
