@@ -34117,11 +34117,12 @@ Return ONLY valid JSON in this exact format:
     try {
       const body = z.object({ orderIds: z.array(z.number().int().positive()).min(1).max(500) }).parse(req.body);
 
+      // Privacy: do NOT select user identifying fields (name, email, etc.).
+      // Supplier sheets must never expose personal data — only product
+      // fulfilment details (variant, qty, customisation back-name).
       const rows = await db.select({
         order: merchandiseOrderItems,
         product: merchandiseProducts,
-        userName: users.fullName,
-        userEmail: users.email,
         clubName: clubs.name,
         clubLogoUrl: clubs.logoUrl,
       }).from(merchandiseOrderItems)
@@ -34129,7 +34130,6 @@ Return ONLY valid JSON in this exact format:
           eq(merchandiseOrderItems.productId, merchandiseProducts.id),
           eq(merchandiseOrderItems.clubId, merchandiseProducts.clubId),
         ))
-        .innerJoin(users, eq(merchandiseOrderItems.userId, users.id))
         .innerJoin(clubs, eq(merchandiseOrderItems.clubId, clubs.id))
         .where(inArray(merchandiseOrderItems.id, body.orderIds));
 
@@ -34155,8 +34155,6 @@ Return ONLY valid JSON in this exact format:
         status: r.order.status,
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,
-        userName: r.userName || `User #${r.order.userId}`,
-        userEmail: r.userEmail || null,
         clubName: r.clubName,
         product: {
           id: r.product.id,
@@ -34223,17 +34221,15 @@ Return ONLY valid JSON in this exact format:
       if (!allowed) return res.sendStatus(403);
       const body = z.object({ orderIds: z.array(z.number().int().positive()).min(1).max(500) }).parse(req.body);
 
+      // Privacy: do NOT select user identifying fields. See comment above.
       const rows = await db.select({
         order: merchandiseOrderItems,
         product: merchandiseProducts,
-        userName: users.fullName,
-        userEmail: users.email,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, and(
           eq(merchandiseOrderItems.productId, merchandiseProducts.id),
           eq(merchandiseProducts.clubId, clubId),
         ))
-        .innerJoin(users, eq(merchandiseOrderItems.userId, users.id))
         .where(and(
           eq(merchandiseOrderItems.clubId, clubId),
           inArray(merchandiseOrderItems.id, body.orderIds),
@@ -34255,8 +34251,6 @@ Return ONLY valid JSON in this exact format:
         status: r.order.status,
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,
-        userName: r.userName || `User #${r.order.userId}`,
-        userEmail: r.userEmail || null,
         product: {
           id: r.product.id,
           name: r.product.name,

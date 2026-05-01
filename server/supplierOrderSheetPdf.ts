@@ -19,8 +19,6 @@ export interface SupplierSheetOrder {
   status: string;
   paymentStatus: string | null;
   createdAt: Date | string;
-  userName: string;
-  userEmail: string | null;
   clubName?: string | null;
   product: {
     id: number;
