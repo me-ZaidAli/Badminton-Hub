@@ -33892,6 +33892,7 @@ Return ONLY valid JSON in this exact format:
         style: z.string().nullable().optional(),
         quantity: z.number().int().min(1).max(50).nullable().optional(),
         notes: z.string().max(500).nullable().optional(),
+        backName: z.string().max(40).nullable().optional(),
       }).parse(req.body);
       const [product] = await db.select().from(merchandiseProducts).where(eq(merchandiseProducts.id, body.productId));
       if (!product) return res.status(404).json({ message: "Product not found" });
@@ -33913,6 +33914,7 @@ Return ONLY valid JSON in this exact format:
         style: body.style || null,
         quantity: qty,
         notes: body.notes || null,
+        backName: body.backName?.trim() || null,
         unitPrice: product.price ?? 0,
         variationLabel: variationLabelParts.length ? variationLabelParts.join(" / ") : null,
       }).returning();
@@ -34011,6 +34013,7 @@ Return ONLY valid JSON in this exact format:
         style: z.string().optional().nullable(),
         quantity: z.number().int().min(1).max(50).optional(),
         notes: z.string().optional().nullable(),
+        backName: z.string().max(40).optional().nullable(),
         adminNotes: z.string().optional().nullable(),
       });
       const ownerBody = z.object({
@@ -34019,10 +34022,16 @@ Return ONLY valid JSON in this exact format:
         style: z.string().optional().nullable(),
         quantity: z.number().int().min(1).max(50).optional(),
         notes: z.string().optional().nullable(),
+        backName: z.string().max(40).optional().nullable(),
       });
       const body = isAdmin ? adminBody.parse(req.body) : ownerBody.parse(req.body);
       const updates: any = { updatedAt: new Date() };
       for (const [k, v] of Object.entries(body)) { if (v !== undefined) updates[k] = v; }
+      // Normalise back name: trim whitespace and treat empty as null so the PDF stays clean.
+      if (Object.prototype.hasOwnProperty.call(updates, "backName")) {
+        const raw = updates.backName;
+        updates.backName = typeof raw === "string" ? (raw.trim() || null) : (raw ?? null);
+      }
       const [updated] = await db.update(merchandiseOrderItems).set(updates).where(eq(merchandiseOrderItems.id, orderId)).returning();
       res.json(updated);
     } catch (err: any) {
@@ -34085,6 +34094,7 @@ Return ONLY valid JSON in this exact format:
         quantity: r.order.quantity,
         notes: r.order.notes,
         adminNotes: r.order.adminNotes,
+        backName: r.order.backName,
         status: r.order.status,
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,
@@ -34167,6 +34177,7 @@ Return ONLY valid JSON in this exact format:
         quantity: r.order.quantity,
         notes: r.order.notes,
         adminNotes: r.order.adminNotes,
+        backName: r.order.backName,
         status: r.order.status,
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,

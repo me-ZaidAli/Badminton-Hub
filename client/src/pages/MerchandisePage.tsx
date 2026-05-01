@@ -82,6 +82,7 @@ interface MerchOrder {
   id: number; clubId: number; productId: number; userId: number;
   size: string | null; gender: string | null; style: string | null;
   quantity: number; notes: string | null; status: string; adminNotes: string | null;
+  backName?: string | null;
   paymentStatus?: string;
   createdAt: string; updatedAt: string;
   productName?: string; productImage?: string | null; productCategory?: string | null;
@@ -143,6 +144,7 @@ export default function MerchandisePage() {
   const [orderStyle, setOrderStyle] = useState("");
   const [orderQty, setOrderQty] = useState("1");
   const [orderNotes, setOrderNotes] = useState("");
+  const [orderBackName, setOrderBackName] = useState("");
 
   const [catFormName, setCatFormName] = useState("");
   const [catFormEmoji, setCatFormEmoji] = useState("🛍️");
@@ -157,6 +159,7 @@ export default function MerchandisePage() {
   const [editOrderQty, setEditOrderQty] = useState("1");
   const [editOrderNotes, setEditOrderNotes] = useState("");
   const [editOrderAdminNotes, setEditOrderAdminNotes] = useState("");
+  const [editOrderBackName, setEditOrderBackName] = useState("");
   const [editOrderIsCustomer, setEditOrderIsCustomer] = useState(false);
 
   const canManage = adminClubs && adminClubs.length > 0;
@@ -257,14 +260,14 @@ export default function MerchandisePage() {
   });
 
   const closeProductDialog = () => { setProductDialogOpen(false); setEditingProduct(null); setFormName(""); setFormDesc(""); setFormShortDesc(""); setFormImageUrl(""); setFormPrice(""); setFormCategoryName("Other"); setFormSizes([]); setFormGenders(["Unisex"]); setFormStyles(""); setFormMaterials(""); setFormSpecs(""); setFormTags([]); setFormStatus("active"); setFormFeatured(false); setFormClubId(""); };
-  const closeOrderDialog = () => { setOrderDialogOpen(false); setOrderingProduct(null); setOrderSize(""); setOrderGender(""); setOrderStyle(""); setOrderQty("1"); setOrderNotes(""); };
+  const closeOrderDialog = () => { setOrderDialogOpen(false); setOrderingProduct(null); setOrderSize(""); setOrderGender(""); setOrderStyle(""); setOrderQty("1"); setOrderNotes(""); setOrderBackName(""); };
   const closeCatDialog = () => { setCatDialogOpen(false); setEditingCat(null); setCatFormName(""); setCatFormEmoji("🛍️"); setCatFormGradient("from-purple-500 to-fuchsia-600"); setCatFormImageUrl(""); setCatFormSortOrder("99"); };
 
   const openCreateProduct = () => { closeProductDialog(); if (adminClubs?.length) setFormClubId(String(adminClubs[0].id)); setProductDialogOpen(true); };
   const openEditProduct = (p: MerchProduct) => { setEditingProduct(p); setFormName(p.name); setFormDesc(p.description || ""); setFormShortDesc(p.shortDescription || ""); setFormImageUrl(p.imageUrl || ""); setFormPrice(p.price ? String(p.price) : ""); setFormCategoryName(p.categoryName || "Other"); setFormSizes(p.sizes || []); setFormGenders(p.genders || ["Unisex"]); setFormStyles((p.styles || []).join(", ")); setFormMaterials(p.materials || ""); setFormSpecs(p.specifications || ""); setFormTags(p.tags || []); setFormStatus(p.status); setFormFeatured(p.isFeatured); setFormClubId(String(p.clubId)); setProductDialogOpen(true); };
   const openOrderProduct = (p: MerchProduct) => { setOrderingProduct(p); if (p.sizes && p.sizes.length > 0) setOrderSize(p.sizes[0]); if (p.genders && p.genders.length > 0) setOrderGender(p.genders[0]); if (p.styles && p.styles.length > 0) setOrderStyle(p.styles[0]); setOrderDialogOpen(true); };
-  const openEditOrder = (o: MerchOrder) => { setEditOrderIsCustomer(false); setEditingOrder(o); setEditOrderStatus(o.status); setEditOrderSize(o.size || ""); setEditOrderGender(o.gender || ""); setEditOrderStyle(o.style || ""); setEditOrderQty(String(o.quantity)); setEditOrderNotes(o.notes || ""); setEditOrderAdminNotes(o.adminNotes || ""); setEditOrderDialogOpen(true); };
-  const openEditMyOrder = (o: MerchOrder) => { setEditOrderIsCustomer(true); setEditingOrder(o); setEditOrderStatus(o.status); setEditOrderSize(o.size || ""); setEditOrderGender(o.gender || ""); setEditOrderStyle(o.style || ""); setEditOrderQty(String(o.quantity)); setEditOrderNotes(o.notes || ""); setEditOrderAdminNotes(o.adminNotes || ""); setEditOrderDialogOpen(true); };
+  const openEditOrder = (o: MerchOrder) => { setEditOrderIsCustomer(false); setEditingOrder(o); setEditOrderStatus(o.status); setEditOrderSize(o.size || ""); setEditOrderGender(o.gender || ""); setEditOrderStyle(o.style || ""); setEditOrderQty(String(o.quantity)); setEditOrderNotes(o.notes || ""); setEditOrderAdminNotes(o.adminNotes || ""); setEditOrderBackName(o.backName || ""); setEditOrderDialogOpen(true); };
+  const openEditMyOrder = (o: MerchOrder) => { setEditOrderIsCustomer(true); setEditingOrder(o); setEditOrderStatus(o.status); setEditOrderSize(o.size || ""); setEditOrderGender(o.gender || ""); setEditOrderStyle(o.style || ""); setEditOrderQty(String(o.quantity)); setEditOrderNotes(o.notes || ""); setEditOrderAdminNotes(o.adminNotes || ""); setEditOrderBackName(o.backName || ""); setEditOrderDialogOpen(true); };
 
   const handleSaveProduct = () => {
     if (!formName.trim()) { toast({ title: "Error", description: "Name is required.", variant: "destructive" }); return; }
@@ -275,14 +278,14 @@ export default function MerchandisePage() {
   };
   const handleSubmitOrder = () => {
     if (!orderingProduct) return;
-    createOrderMut.mutate({ productId: orderingProduct.id, size: orderSize || null, gender: orderGender || null, style: orderStyle || null, quantity: parseInt(orderQty) || 1, notes: orderNotes.trim() || null });
+    createOrderMut.mutate({ productId: orderingProduct.id, size: orderSize || null, gender: orderGender || null, style: orderStyle || null, quantity: parseInt(orderQty) || 1, notes: orderNotes.trim() || null, backName: orderBackName.trim() || null });
   };
   const handleSaveOrder = () => {
     if (!editingOrder) return;
     if (editOrderIsCustomer) {
-      updateOrderMut.mutate({ id: editingOrder.id, size: editOrderSize || null, gender: editOrderGender || null, style: editOrderStyle || null, quantity: parseInt(editOrderQty) || 1, notes: editOrderNotes || null });
+      updateOrderMut.mutate({ id: editingOrder.id, size: editOrderSize || null, gender: editOrderGender || null, style: editOrderStyle || null, quantity: parseInt(editOrderQty) || 1, notes: editOrderNotes || null, backName: editOrderBackName.trim() || null });
     } else {
-      updateOrderMut.mutate({ id: editingOrder.id, status: editOrderStatus, size: editOrderSize || null, gender: editOrderGender || null, style: editOrderStyle || null, quantity: parseInt(editOrderQty) || 1, notes: editOrderNotes || null, adminNotes: editOrderAdminNotes || null });
+      updateOrderMut.mutate({ id: editingOrder.id, status: editOrderStatus, size: editOrderSize || null, gender: editOrderGender || null, style: editOrderStyle || null, quantity: parseInt(editOrderQty) || 1, notes: editOrderNotes || null, adminNotes: editOrderAdminNotes || null, backName: editOrderBackName.trim() || null });
     }
   };
   const handleSaveCategory = () => {
@@ -394,6 +397,7 @@ export default function MerchandisePage() {
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-semibold truncate">{order.productName || "Product"}</p>
                           <p className="text-[10px] text-muted-foreground">{[order.size, order.gender, `x${order.quantity}`].filter(Boolean).join(" · ")}</p>
+                          {order.backName && <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 truncate" data-testid={`text-my-order-backname-${order.id}`}>Back: {order.backName.toUpperCase()}</p>}
                         </div>
                         <Badge className={`text-[10px] ${si.color} border-0`}>{si.label}</Badge>
                         {canEdit && (
@@ -534,6 +538,7 @@ export default function MerchandisePage() {
               {orderingProduct.genders && orderingProduct.genders.length > 1 && <div className="space-y-1.5"><Label>Gender</Label><div className="flex flex-wrap gap-1.5">{orderingProduct.genders.map(g => <button key={g} type="button" onClick={() => setOrderGender(g)} className={`px-4 py-2 rounded-xl text-sm font-semibold transition-all ${orderGender === g ? "bg-primary text-white shadow-md" : "bg-muted/60 text-muted-foreground hover:bg-muted"}`} data-testid={`button-order-gender-${g}`}>{g}</button>)}</div></div>}
               {orderingProduct.styles && orderingProduct.styles.length > 0 && <div className="space-y-1.5"><Label>Style / Variant</Label><Select value={orderStyle} onValueChange={setOrderStyle}><SelectTrigger><SelectValue placeholder="Select style" /></SelectTrigger><SelectContent>{orderingProduct.styles.map(s => <SelectItem key={s} value={s}>{s}</SelectItem>)}</SelectContent></Select></div>}
               <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min={1} max={50} value={orderQty} onChange={(e) => setOrderQty(e.target.value)} data-testid="input-order-qty" /></div>
+              <div className="space-y-1.5"><Label>Name on back <span className="text-xs text-muted-foreground font-normal">(optional, max 40 chars)</span></Label><Input maxLength={40} placeholder="e.g. SMITH 7" value={orderBackName} onChange={(e) => setOrderBackName(e.target.value)} data-testid="input-order-backname" /></div>
               <div className="space-y-1.5"><Label>Notes / Preferences</Label><Textarea placeholder="Any special requests..." value={orderNotes} onChange={(e) => setOrderNotes(e.target.value)} rows={2} data-testid="input-order-notes" /></div>
             </div>
           )}
@@ -569,6 +574,7 @@ export default function MerchandisePage() {
                 <div className="space-y-1.5"><Label>Style</Label><Input value={editOrderStyle} onChange={(e) => setEditOrderStyle(e.target.value)} data-testid="input-edit-order-style" /></div>
                 <div className="space-y-1.5"><Label>Quantity</Label><Input type="number" min={1} value={editOrderQty} onChange={(e) => setEditOrderQty(e.target.value)} data-testid="input-edit-order-qty" /></div>
               </div>
+              <div className="space-y-1.5"><Label>Name on back <span className="text-xs text-muted-foreground font-normal">(optional, max 40 chars)</span></Label><Input maxLength={40} placeholder="e.g. SMITH 7" value={editOrderBackName} onChange={(e) => setEditOrderBackName(e.target.value)} data-testid="input-edit-order-backname" /></div>
               <div className="space-y-1.5"><Label>{editOrderIsCustomer ? "Notes / Preferences" : "Customer Notes"}</Label><Textarea value={editOrderNotes} onChange={(e) => setEditOrderNotes(e.target.value)} rows={2} data-testid="input-edit-order-notes" /></div>
               {!editOrderIsCustomer && (
                 <div className="space-y-1.5"><Label>Admin Notes</Label><Textarea placeholder="Internal notes..." value={editOrderAdminNotes} onChange={(e) => setEditOrderAdminNotes(e.target.value)} rows={2} data-testid="input-admin-notes" /></div>
@@ -888,6 +894,7 @@ function AdminOrdersList({ orders, onEdit, onDelete, clubId, multiClub = false }
                     </div>
                     <p className="text-xs text-muted-foreground">{o.userName || `User #${o.userId}`}</p>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground mt-0.5">{o.size && <span>Size: {o.size}</span>}{o.gender && <span>• {o.gender}</span>}<span>• Qty: {o.quantity}</span><span>• {format(new Date(o.createdAt), "dd MMM yyyy")}</span></div>
+                    {o.backName && <p className="text-[10px] font-semibold text-violet-600 dark:text-violet-400 mt-0.5 truncate" data-testid={`text-order-backname-${o.id}`}>Back: {o.backName.toUpperCase()}</p>}
                     {o.notes && <p className="text-[10px] text-muted-foreground mt-0.5 italic truncate">"{o.notes}"</p>}
                   </div>
                   <DropdownMenu><DropdownMenuTrigger asChild><Button variant="ghost" size="icon" className="h-8 w-8 shrink-0 rounded-xl" data-testid={`button-order-menu-${o.id}`}><MoreVertical className="h-4 w-4" /></Button></DropdownMenuTrigger><DropdownMenuContent align="end" className="w-48 rounded-xl"><DropdownMenuItem onClick={() => onEdit(o)} data-testid={`button-edit-order-${o.id}`}><Pencil className="h-3.5 w-3.5 mr-2" />Edit / Update</DropdownMenuItem>{(o.paymentStatus || "Unpaid") !== "Paid" ? <DropdownMenuItem onClick={() => onEdit({ ...o, paymentStatus: "Paid" } as any)} data-testid={`button-mark-paid-${o.id}`} className="text-emerald-600 focus:text-emerald-700"><Check className="h-3.5 w-3.5 mr-2" />Mark as Paid</DropdownMenuItem> : <DropdownMenuItem onClick={() => onEdit({ ...o, paymentStatus: "Unpaid" } as any)} data-testid={`button-mark-unpaid-${o.id}`} className="text-rose-600 focus:text-rose-700"><X className="h-3.5 w-3.5 mr-2" />Mark Unpaid</DropdownMenuItem>}{o.status !== "approved" && <DropdownMenuItem onClick={() => onEdit({ ...o, status: "approved" })} data-testid={`button-approve-order-${o.id}`}><BadgeCheck className="h-3.5 w-3.5 mr-2" />Approve</DropdownMenuItem>}{o.status !== "ready" && <DropdownMenuItem onClick={() => onEdit({ ...o, status: "ready" })}><Check className="h-3.5 w-3.5 mr-2" />Mark Ready</DropdownMenuItem>}{o.status !== "collected" && <DropdownMenuItem onClick={() => onEdit({ ...o, status: "collected" })}><ShoppingBag className="h-3.5 w-3.5 mr-2" />Mark Collected</DropdownMenuItem>}<DropdownMenuItem onClick={() => onDelete(o.id)} className="text-red-600" data-testid={`button-delete-order-${o.id}`}><Trash2 className="h-3.5 w-3.5 mr-2" />Delete</DropdownMenuItem></DropdownMenuContent></DropdownMenu>

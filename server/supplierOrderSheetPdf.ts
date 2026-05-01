@@ -9,6 +9,7 @@ export interface SupplierSheetOrder {
   quantity: number;
   notes: string | null;
   adminNotes: string | null;
+  backName: string | null;
   status: string;
   paymentStatus: string | null;
   createdAt: Date | string;
@@ -23,7 +24,6 @@ export interface SupplierSheetOrder {
     materials: string | null;
     specifications: string | null;
     categoryName: string | null;
-    price: number | null;
   };
 }
 
@@ -41,11 +41,6 @@ const BORDER = "#e5e7eb";
 const ZEBRA = "#f9fafb";
 const PAGE_MARGIN = 48;
 
-function formatPrice(pence: number | null | undefined) {
-  if (pence == null) return "—";
-  return `£${(pence / 100).toFixed(2)}`;
-}
-
 function variantKey(o: SupplierSheetOrder) {
   const parts = [o.size, o.gender, o.style].filter(Boolean);
   return parts.length ? parts.join(" / ") : "Standard";
@@ -54,9 +49,9 @@ function variantKey(o: SupplierSheetOrder) {
 interface ProductGroup {
   product: SupplierSheetOrder["product"];
   totalQty: number;
-  totalValuePence: number;
   variants: Map<string, { qty: number; orderCount: number }>;
   orders: SupplierSheetOrder[];
+  customisedCount: number;
 }
 
 function groupByProduct(orders: SupplierSheetOrder[]): ProductGroup[] {
@@ -64,11 +59,11 @@ function groupByProduct(orders: SupplierSheetOrder[]): ProductGroup[] {
   for (const o of orders) {
     let g = map.get(o.product.id);
     if (!g) {
-      g = { product: o.product, totalQty: 0, totalValuePence: 0, variants: new Map(), orders: [] };
+      g = { product: o.product, totalQty: 0, variants: new Map(), orders: [], customisedCount: 0 };
       map.set(o.product.id, g);
     }
     g.totalQty += o.quantity;
-    g.totalValuePence += (o.product.price ?? 0) * o.quantity;
+    if (o.backName && o.backName.trim()) g.customisedCount += 1;
     const k = variantKey(o);
     const v = g.variants.get(k) || { qty: 0, orderCount: 0 };
     v.qty += o.quantity;
@@ -94,9 +89,9 @@ export function generateSupplierOrderSheet(orders: SupplierSheetOrder[], meta: S
 
   const groups = groupByProduct(orders);
   const totalQty = orders.reduce((s, o) => s + o.quantity, 0);
-  const totalValuePence = groups.reduce((s, g) => s + g.totalValuePence, 0);
+  const customisedCount = orders.reduce((s, o) => s + (o.backName && o.backName.trim() ? 1 : 0), 0);
 
-  drawHeader(doc, meta, orders.length, totalQty, totalValuePence, groups.length);
+  drawHeader(doc, meta, orders.length, totalQty, customisedCount, groups.length);
   drawSummarySection(doc, groups);
   drawDetailsSection(doc, groups, !!meta.showClubColumn);
   drawAllPagesFooter(doc, meta);
@@ -109,7 +104,7 @@ function drawHeader(
   meta: SupplierSheetMeta,
   orderCount: number,
   totalQty: number,
-  totalValuePence: number,
+  customisedCount: number,
   productCount: number,
 ) {
   const pageW = doc.page.width;
@@ -135,7 +130,7 @@ function drawHeader(
     { label: "Orders", value: String(orderCount) },
     { label: "Products", value: String(productCount) },
     { label: "Total units", value: String(totalQty) },
-    { label: "Est. value", value: formatPrice(totalValuePence) },
+    { label: "Customised", value: String(customisedCount) },
   ];
   const cardGap = 8;
   const cardW = (pageW - PAGE_MARGIN * 2 - cardGap * (cards.length - 1)) / cards.length;
@@ -191,14 +186,15 @@ function drawProductSummaryBlock(doc: PDFKit.PDFDocument, g: ProductGroup) {
   doc.restore();
   doc.fillColor(BRAND_DARK).font("Helvetica-Bold").fontSize(11)
     .text(g.product.name, PAGE_MARGIN + 12, startY + 8, { width: innerW * 0.6, ellipsis: true });
-  const rightText = `${g.totalQty} unit${g.totalQty === 1 ? "" : "s"}  ·  ${formatPrice(g.totalValuePence)}`;
+  const rightParts = [`${g.totalQty} unit${g.totalQty === 1 ? "" : "s"}`];
+  if (g.customisedCount > 0) rightParts.push(`${g.customisedCount} customised`);
+  const rightText = rightParts.join("  ·  ");
   doc.fillColor(BRAND_PURPLE).font("Helvetica-Bold").fontSize(10)
     .text(rightText, PAGE_MARGIN + innerW * 0.6, startY + 10, { width: innerW * 0.4 - 12, align: "right" });
   doc.y = startY + headerH + 6;
 
   const metaParts: string[] = [];
   if (g.product.categoryName) metaParts.push(g.product.categoryName);
-  if (g.product.price != null) metaParts.push(`Unit price ${formatPrice(g.product.price)}`);
   if (metaParts.length) {
     doc.fillColor(MUTED).font("Helvetica").fontSize(8.5)
       .text(metaParts.join("  ·  "), PAGE_MARGIN + 12, doc.y);
@@ -325,14 +321,25 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
       .slice()
       .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
       .forEach((o, idx) => {
-        // Estimate row height from notes
-        const noteText = [o.notes, o.adminNotes ? `[admin] ${o.adminNotes}` : null].filter(Boolean).join("  •  ") || "—";
+        // Back name is rendered prominently on its own line above the rest of the note text.
+        const backNameClean = o.backName?.trim() || "";
+        const noteText = [
+          o.notes,
+          o.adminNotes ? `[admin] ${o.adminNotes}` : null,
+        ].filter(Boolean).join("  •  ") || (backNameClean ? "" : "—");
         const noteCol = cols[cols.length - 1];
-        const noteHeight = doc.heightOfString(noteText, { width: (noteCol.w as number) - 8 });
+        const noteColW = (noteCol.w as number) - 8;
+        const backLineText = backNameClean ? `BACK: ${backNameClean.toUpperCase()}` : "";
+        // Measure heights using the matching font sizes
+        doc.font("Helvetica-Bold").fontSize(9);
+        const backHeight = backLineText ? doc.heightOfString(backLineText, { width: noteColW }) : 0;
+        doc.font("Helvetica").fontSize(8.5);
+        const noteHeight = noteText ? doc.heightOfString(noteText, { width: noteColW }) : 0;
+        const totalNoteHeight = backHeight + (backHeight && noteHeight ? 2 : 0) + noteHeight;
         const customerCol = cols[1];
         const customerText = `${o.userName}${o.userEmail ? `\n${o.userEmail}` : ""}`;
         const customerHeight = doc.heightOfString(customerText, { width: (customerCol.w as number) - 8 });
-        const rowH = Math.max(22, noteHeight + 8, customerHeight + 8);
+        const rowH = Math.max(22, totalNoteHeight + 8, customerHeight + 8);
         ensureSpace(doc, rowH);
         const ry = doc.y;
         if (idx % 2 === 1) {
@@ -361,9 +368,20 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
         );
         cols.forEach((c, i) => {
           const v = values[i];
-          if (v.bold) doc.font("Helvetica-Bold"); else doc.font("Helvetica");
-          doc.fillColor(v.color || "#111827");
-          doc.text(v.text, rx, cellTopY, { width: (c.w as number) - 8, align: c.align || "left" });
+          const isLastCol = i === cols.length - 1;
+          if (isLastCol && backLineText) {
+            // Custom render for notes column when there's a back-name to highlight
+            doc.font("Helvetica-Bold").fontSize(9).fillColor(BRAND_PURPLE);
+            doc.text(backLineText, rx, cellTopY, { width: (c.w as number) - 8 });
+            if (v.text) {
+              doc.font("Helvetica").fontSize(8.5).fillColor("#111827");
+              doc.text(v.text, rx, cellTopY + backHeight + 2, { width: (c.w as number) - 8 });
+            }
+          } else {
+            if (v.bold) doc.font("Helvetica-Bold").fontSize(8.5); else doc.font("Helvetica").fontSize(8.5);
+            doc.fillColor(v.color || "#111827");
+            doc.text(v.text, rx, cellTopY, { width: (c.w as number) - 8, align: c.align || "left" });
+          }
           rx += c.w as number;
         });
         doc.y = ry + rowH;

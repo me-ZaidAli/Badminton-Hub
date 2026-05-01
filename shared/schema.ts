@@ -2810,6 +2810,7 @@ export const merchandiseOrderItems = pgTable("merchandise_order_items", {
   style: text("style"),
   quantity: integer("quantity").default(1).notNull(),
   notes: text("notes"),
+  backName: text("back_name"),
   status: merchandiseOrderStatusEnum("merchandise_order_status").default("pending").notNull(),
   adminNotes: text("admin_notes"),
   paymentStatus: text("payment_status").default("Unpaid").notNull(),
