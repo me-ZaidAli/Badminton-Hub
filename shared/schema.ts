@@ -158,6 +158,7 @@ export const clubs = pgTable("clubs", {
   sportTypes: jsonb("sport_types").$type<string[]>().default(["badminton"]),
   socialLinks: jsonb("social_links").$type<{ platform: string; url: string }[]>().default([]),
   matchEngineSettings: jsonb("match_engine_settings").$type<Record<string, any>>(),
+  featureOverrides: jsonb("feature_overrides").$type<Record<string, boolean>>().default({}).notNull(),
   creditAutoApprove: boolean("credit_auto_approve").default(false).notNull(),
   creditAutoCancelWindowHours: integer("credit_auto_cancel_window_hours"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

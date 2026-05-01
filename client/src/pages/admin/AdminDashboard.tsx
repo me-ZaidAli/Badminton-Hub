@@ -410,7 +410,6 @@ export default function AdminDashboard() {
     ...(!isOrganiserOnly ? [{ href: "/admin/financials", label: "Financials", description: "Track payments, fees, and revenue", icon: PoundSterling, color: "text-green-500", bg: "bg-green-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/debts", label: "Debts & Payments", description: "Track player debts, charges, and collections", icon: AlertCircle, color: "text-red-500", bg: "bg-red-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/memberships", label: "Memberships", description: "Manage plans, requests, and payments", icon: CreditCard, color: "text-teal-500", bg: "bg-teal-500/10" }] : []),
-    { href: "/admin/billing", label: "Billing & Plan", description: "Manage your club subscription and plan details", icon: CreditCard, color: "text-violet-500", bg: "bg-violet-500/10" },
     { href: "/admin/league", label: "League Management", description: "Fixtures, teams, and results", icon: Swords, color: "text-blue-500", bg: "bg-blue-500/10" },
     ...(!isOrganiserOnly ? [{ href: "/admin/inventory", label: "Inventory & Expenses", description: "Track stock, supplies, and club expenses", icon: Package, color: "text-cyan-500", bg: "bg-cyan-500/10" }] : []),
   ];
@@ -444,9 +443,8 @@ export default function AdminDashboard() {
   ];
 
   const clubSettingsSections: AdminTile[] = [
+    { href: "/admin/control-center", label: "Club Control Center", description: "Unified hub for clubs, plans, billing & feature toggles", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { href: "/admin/venues", label: "Venues & Courts", description: "Manage venues, halls, and court setup", icon: MapPin, color: "text-red-500", bg: "bg-red-500/10" },
-    ...(user?.role === "OWNER" ? [{ href: "/admin/clubs", label: "Club Management", description: "Create and manage your clubs", icon: Building2, color: "text-sky-500", bg: "bg-sky-500/10" }] : []),
-    ...(user?.role === "OWNER" ? [{ href: "/admin/clubs-management", label: "All Clubs Overview", description: "View and manage all platform clubs", icon: Settings, color: "text-slate-500", bg: "bg-slate-500/10" }] : []),
   ];
 
   // Admin Tools — secondary management utilities surfaced as tiles inside the

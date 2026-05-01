@@ -63,6 +63,7 @@ The UI features a modern design with privacy-enhanced public views, comprehensiv
 - **Session Cancellation**: Admins can mark a session as cancelled, with UI indicators and notifications to affected participants.
 - **UK Time Standard**: All event date/time inputs and displays are anchored to Europe/London (BST/GMT auto-aware).
 - **Session Banner, Formatting & Useful Links**: Sessions support an optional admin-set coloured banner with formatted messages and custom links.
+- **Club Control Center**: Unified premium dark-mode glassmorphism hub at `/admin/control-center` consolidating club management, billing, plan controls and per-club feature toggles. Layout: searchable left club rail, top KPI bar (Plan, Members, Sessions, Venues), and 5 tabs (Overview, Features, Billing, Usage, Settings). OWNER sees all clubs and can toggle any feature; ADMIN sees only their managed clubs in read-only feature view. Per-club `featureOverrides` JSONB column on `clubs` with GET (any admin) and PATCH (OWNER-only) endpoints. Existing routes (`/admin/billing`, `/admin/clubs`, `/admin/clubs-management`, `/super-admin/billing`, `/super-admin/clubs`) remain alive for backward compatibility; duplicate dashboard tile entry points have been consolidated into a single Club Control Center tile.
 
 ## External Dependencies
 

@@ -693,6 +693,45 @@ export async function registerRoutes(
     res.json({ message: "Premium upgrade requested. Please complete the bank transfer and wait for activation by the platform admin." });
   });
 
+  // === Per-Club Feature Overrides (Club Control Center) ===
+  app.get("/api/clubs/:id/feature-overrides", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const clubId = Number(req.params.id);
+    if (!Number.isSafeInteger(clubId) || clubId <= 0) return res.status(400).json({ message: "Invalid club id" });
+    const user = req.user!;
+    const isAdmin = await hasAdminAccess(user.id, user.role, clubId);
+    if (!isAdmin) return res.status(403).json({ message: "Only club admins can view feature overrides" });
+    try {
+      const [row] = await db.select({ featureOverrides: clubs.featureOverrides }).from(clubs).where(eq(clubs.id, clubId)).limit(1);
+      res.json({ featureOverrides: row?.featureOverrides || {} });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to fetch feature overrides" });
+    }
+  });
+
+  app.patch("/api/clubs/:id/feature-overrides", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
+      return res.status(403).json({ message: "Only platform owners can update feature overrides" });
+    }
+    const clubId = Number(req.params.id);
+    if (!Number.isSafeInteger(clubId) || clubId <= 0) return res.status(400).json({ message: "Invalid club id" });
+    const body = req.body ?? {};
+    const overrides = body.featureOverrides && typeof body.featureOverrides === "object" && !Array.isArray(body.featureOverrides) ? body.featureOverrides : null;
+    if (!overrides) return res.status(400).json({ message: "featureOverrides must be an object" });
+    const sanitised: Record<string, boolean> = {};
+    for (const [k, v] of Object.entries(overrides)) {
+      if (typeof k === "string" && k.length <= 64 && /^[a-z0-9_-]+$/i.test(k) && typeof v === "boolean") {
+        sanitised[k] = v;
+      }
+    }
+    try {
+      await db.update(clubs).set({ featureOverrides: sanitised }).where(eq(clubs.id, clubId));
+      res.json({ featureOverrides: sanitised });
+    } catch (err: any) {
+      res.status(500).json({ message: "Failed to update feature overrides" });
+    }
+  });
+
   // === Super Admin Billing Management ===
   app.get("/api/super-admin/clubs/billing", async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
