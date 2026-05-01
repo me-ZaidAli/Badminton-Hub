@@ -1,4 +1,4 @@
-import { useState, useMemo, useCallback } from "react";
+import { useState, useMemo, useCallback, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useUser } from "@/hooks/use-auth";
@@ -19,8 +19,9 @@ import {
   MoreVertical, Eye, EyeOff, Sparkles, Heart, ChevronLeft,
   ArrowRight, FolderOpen, GripVertical, ImageIcon, Package,
   Star, Flame, Check, ShoppingCart, Filter, Clock, Building2,
-  Tag, Shirt, BadgeCheck, ChevronDown,
+  Tag, Shirt, BadgeCheck, ChevronDown, FileDown,
 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { format } from "date-fns";
 import { motion, AnimatePresence } from "framer-motion";
@@ -422,7 +423,7 @@ export default function MerchandisePage() {
               {adminClubs && adminClubs.length > 1 && (
                 <Select value={selectedAdminClub || String(adminClubs[0]?.id)} onValueChange={setSelectedAdminClub}><SelectTrigger className="w-64 backdrop-blur-sm bg-card/50"><SelectValue placeholder="Select club" /></SelectTrigger><SelectContent>{adminClubs.map((c: any) => <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>)}</SelectContent></Select>
               )}
-              <AdminOrdersList orders={adminOrders} onEdit={openEditOrder} onDelete={setDeleteOrderId} />
+              <AdminOrdersList orders={adminOrders} onEdit={openEditOrder} onDelete={setDeleteOrderId} clubId={adminClubId ?? null} />
             </TabsContent>
 
             <TabsContent value="categories" className="mt-4 space-y-4">
@@ -726,17 +727,104 @@ function AdminProductsList({ products, isLoading, findCat, onEdit, onDelete, onT
   );
 }
 
-function AdminOrdersList({ orders, onEdit, onDelete }: { orders: MerchOrder[]; onEdit: (o: MerchOrder) => void; onDelete: (id: number) => void }) {
+function AdminOrdersList({ orders, onEdit, onDelete, clubId }: { orders: MerchOrder[]; onEdit: (o: MerchOrder) => void; onDelete: (id: number) => void; clubId: number | null }) {
+  const { toast } = useToast();
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [downloading, setDownloading] = useState(false);
+
+  // Clear stale selections when the visible orders change (e.g. switching club)
+  useEffect(() => { setSelectedIds(new Set()); }, [clubId]);
+  useEffect(() => {
+    setSelectedIds(prev => {
+      if (prev.size === 0) return prev;
+      const visible = new Set(orders.map(o => o.id));
+      let changed = false;
+      const next = new Set<number>();
+      prev.forEach(id => { if (visible.has(id)) next.add(id); else changed = true; });
+      return changed ? next : prev;
+    });
+  }, [orders]);
+
+  const allSelected = orders.length > 0 && orders.every(o => selectedIds.has(o.id));
+  const toggleAll = () => {
+    if (allSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(orders.map(o => o.id)));
+  };
+  const toggleOne = (id: number) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  };
+
+  const downloadSheet = async () => {
+    if (!clubId || selectedIds.size === 0) return;
+    setDownloading(true);
+    try {
+      const res = await fetch(`/api/clubs/${clubId}/merchandise/orders/supplier-sheet`, {
+        method: "POST",
+        credentials: "include",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderIds: Array.from(selectedIds) }),
+      });
+      if (!res.ok) {
+        let msg = "Failed to generate sheet";
+        try { const j = await res.json(); msg = j.message || msg; } catch {}
+        throw new Error(msg);
+      }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      const cd = res.headers.get("Content-Disposition") || "";
+      const m = cd.match(/filename="?([^";]+)"?/);
+      a.download = m ? m[1] : `supplier-order-${new Date().toISOString().slice(0, 10)}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      toast({ title: "Supplier sheet ready", description: `${selectedIds.size} order${selectedIds.size === 1 ? "" : "s"} included.` });
+    } catch (err: any) {
+      toast({ title: "Download failed", description: err.message, variant: "destructive" });
+    } finally {
+      setDownloading(false);
+    }
+  };
+
   if (orders.length === 0) return <Card className="border-dashed border-2 rounded-3xl"><CardContent className="flex flex-col items-center justify-center py-16 text-center"><ShoppingCart className="h-12 w-12 text-muted-foreground/40 mb-3" /><h3 className="text-lg font-semibold">No Orders Yet</h3><p className="text-sm text-muted-foreground mt-1">Orders will appear here when members request items.</p></CardContent></Card>;
   return (
     <div className="space-y-2">
+      <div className="sticky top-0 z-20 -mx-1 px-1 py-2 backdrop-blur-md bg-background/70 border-b border-border/40 flex items-center gap-3 flex-wrap">
+        <label className="flex items-center gap-2 text-xs font-medium cursor-pointer select-none" data-testid="label-select-all-orders">
+          <Checkbox checked={allSelected} onCheckedChange={toggleAll} data-testid="checkbox-select-all-orders" />
+          {allSelected ? "Clear all" : "Select all"}
+        </label>
+        <span className="text-xs text-muted-foreground" data-testid="text-selected-count">
+          {selectedIds.size} of {orders.length} selected
+        </span>
+        <div className="ml-auto">
+          <Button
+            size="sm"
+            onClick={downloadSheet}
+            disabled={selectedIds.size === 0 || !clubId || downloading}
+            className="rounded-xl bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white hover:opacity-95"
+            data-testid="button-download-supplier-sheet"
+          >
+            {downloading ? <Loader2 className="h-3.5 w-3.5 mr-2 animate-spin" /> : <FileDown className="h-3.5 w-3.5 mr-2" />}
+            Download Supplier Sheet
+          </Button>
+        </div>
+      </div>
       {orders.map((o, index) => {
         const si = getOrderStatusInfo(o.status);
+        const checked = selectedIds.has(o.id);
         return (
           <motion.div key={o.id} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: index * 0.03 }}>
-            <Card className="rounded-2xl border border-border/30" data-testid={`card-admin-order-${o.id}`}>
+            <Card className={`rounded-2xl border ${checked ? "border-violet-500/60 ring-1 ring-violet-500/40" : "border-border/30"}`} data-testid={`card-admin-order-${o.id}`}>
               <CardContent className="p-3 sm:p-4">
                 <div className="flex items-center gap-3">
+                  <Checkbox checked={checked} onCheckedChange={() => toggleOne(o.id)} className="flex-shrink-0" data-testid={`checkbox-order-${o.id}`} />
                   {isSafeUrl(o.productImage) ? <img src={o.productImage!} alt="" className="w-12 h-12 rounded-xl object-cover flex-shrink-0" /> : <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-primary/30 to-violet-500/30 flex items-center justify-center flex-shrink-0"><Package className="h-6 w-6 text-primary" /></div>}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap"><span className="font-semibold text-sm">{o.productName || "Product"}</span><Badge className={`text-[10px] border-0 ${si.color}`}>{si.label}</Badge></div>
