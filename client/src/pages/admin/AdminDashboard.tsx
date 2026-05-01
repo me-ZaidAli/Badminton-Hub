@@ -443,7 +443,6 @@ export default function AdminDashboard() {
   ];
 
   const clubSettingsSections: AdminTile[] = [
-    { href: "/admin/control-center", label: "Club Control Center", description: "Unified hub for clubs, plans, billing & feature toggles", icon: Building2, color: "text-emerald-500", bg: "bg-emerald-500/10" },
     { href: "/admin/venues", label: "Venues & Courts", description: "Manage venues, halls, and court setup", icon: MapPin, color: "text-red-500", bg: "bg-red-500/10" },
   ];
 

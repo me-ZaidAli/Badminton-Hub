@@ -602,7 +602,7 @@ function Router() {
 
       {/* Admin Routes */}
       <Route path="/admin/control-center">
-        <AdminRoute component={ClubControlCenter} />
+        <OwnerRoute component={ClubControlCenter} />
       </Route>
       <Route path="/admin/billing">
         <AdminRoute component={ClubBilling} />

@@ -332,14 +332,14 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
     const tableW = innerW;
     const cols: { label: string; w: number; align?: "right" | "left"; flex?: boolean }[] = [
       { label: "#", w: 26 },
-      { label: "Customer", w: tableW * (showClubColumn ? 0.18 : 0.22) },
+      { label: "Order Ref", w: tableW * (showClubColumn ? 0.14 : 0.16) },
     ];
-    if (showClubColumn) cols.push({ label: "Club", w: tableW * 0.12 });
+    if (showClubColumn) cols.push({ label: "Club", w: tableW * 0.14 });
     cols.push(
-      { label: "Date", w: tableW * 0.09 },
-      { label: "Variant", w: tableW * 0.16 },
-      { label: "Qty", w: 32, align: "right" },
-      { label: "Status", w: tableW * 0.09 },
+      { label: "Date", w: tableW * 0.10 },
+      { label: "Variant", w: tableW * 0.18 },
+      { label: "Qty", w: 36, align: "right" },
+      { label: "Status", w: tableW * 0.10 },
       { label: "Notes / Customisation", w: 0, flex: true },
     );
     const fixedW = cols.reduce((s, c) => s + (c.flex ? 0 : c.w!), 0);
@@ -377,10 +377,11 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
         doc.font("Helvetica").fontSize(8.5);
         const noteHeight = noteText ? doc.heightOfString(noteText, { width: noteColW }) : 0;
         const totalNoteHeight = backHeight + (backHeight && noteHeight ? 2 : 0) + noteHeight;
-        const customerCol = cols[1];
-        const customerText = `${o.userName}${o.userEmail ? `\n${o.userEmail}` : ""}`;
-        const customerHeight = doc.heightOfString(customerText, { width: (customerCol.w as number) - 8 });
-        const rowH = Math.max(22, totalNoteHeight + 8, customerHeight + 8);
+        // Privacy: never include customer name, email or any personal data
+        // on the supplier sheet. The order reference (#1234) is the only link
+        // back to the customer record and is kept on the club's internal system.
+        const orderRefText = `#${o.id}`;
+        const rowH = Math.max(22, totalNoteHeight + 8);
         ensureSpace(doc, rowH);
         const ry = doc.y;
         if (idx % 2 === 1) {
@@ -397,7 +398,7 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
         const cellTopY = ry + 4;
         const values: { text: string; bold?: boolean; color?: string }[] = [
           { text: String(idx + 1), color: MUTED },
-          { text: customerText },
+          { text: orderRefText, color: MUTED },
         ];
         if (showClubColumn) values.push({ text: o.clubName || "—", color: BRAND_DARK });
         values.push(
