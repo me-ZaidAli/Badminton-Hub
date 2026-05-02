@@ -9,6 +9,7 @@ export interface SupplierSheetClubLogo {
 
 export interface SupplierSheetOrder {
   id: number;
+  customerName: string;
   size: string | null;
   gender: string | null;
   style: string | null;
@@ -330,14 +331,15 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
     const tableW = innerW;
     const cols: { label: string; w: number; align?: "right" | "left"; flex?: boolean }[] = [
       { label: "#", w: 26 },
-      { label: "Order Ref", w: tableW * (showClubColumn ? 0.14 : 0.16) },
+      { label: "Customer", w: tableW * (showClubColumn ? 0.18 : 0.20) },
+      { label: "Order Ref", w: tableW * 0.08 },
     ];
-    if (showClubColumn) cols.push({ label: "Club", w: tableW * 0.14 });
+    if (showClubColumn) cols.push({ label: "Club", w: tableW * 0.12 });
     cols.push(
-      { label: "Date", w: tableW * 0.10 },
-      { label: "Variant", w: tableW * 0.18 },
-      { label: "Qty", w: 36, align: "right" },
-      { label: "Status", w: tableW * 0.10 },
+      { label: "Date", w: tableW * 0.09 },
+      { label: "Variant", w: tableW * 0.16 },
+      { label: "Qty", w: 32, align: "right" },
+      { label: "Status", w: tableW * 0.09 },
       { label: "Notes / Customisation", w: 0, flex: true },
     );
     const fixedW = cols.reduce((s, c) => s + (c.flex ? 0 : c.w!), 0);
@@ -375,9 +377,11 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
         doc.font("Helvetica").fontSize(8.5);
         const noteHeight = noteText ? doc.heightOfString(noteText, { width: noteColW }) : 0;
         const totalNoteHeight = backHeight + (backHeight && noteHeight ? 2 : 0) + noteHeight;
-        // Privacy: never include customer name, email or any personal data
-        // on the supplier sheet. The order reference (#1234) is the only link
-        // back to the customer record and is kept on the club's internal system.
+        // Privacy: only the customer's name is shown. Email addresses,
+        // phone numbers and any other contact details are never included
+        // on the supplier sheet — suppliers only need a name to match the
+        // delivered item back to the orderer at the club.
+        const customerNameText = (o.customerName && o.customerName.trim()) ? o.customerName.trim() : "—";
         const orderRefText = `#${o.id}`;
         const rowH = Math.max(22, totalNoteHeight + 8);
         ensureSpace(doc, rowH);
@@ -396,6 +400,7 @@ function drawDetailsSection(doc: PDFKit.PDFDocument, groups: ProductGroup[], sho
         const cellTopY = ry + 4;
         const values: { text: string; bold?: boolean; color?: string }[] = [
           { text: String(idx + 1), color: MUTED },
+          { text: customerNameText, color: BRAND_DARK, bold: true },
           { text: orderRefText, color: MUTED },
         ];
         if (showClubColumn) values.push({ text: o.clubName || "—", color: BRAND_DARK });

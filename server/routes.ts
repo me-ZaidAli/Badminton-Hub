@@ -34117,20 +34117,24 @@ Return ONLY valid JSON in this exact format:
     try {
       const body = z.object({ orderIds: z.array(z.number().int().positive()).min(1).max(500) }).parse(req.body);
 
-      // Privacy: do NOT select user identifying fields (name, email, etc.).
-      // Supplier sheets must never expose personal data — only product
-      // fulfilment details (variant, qty, customisation back-name).
+      // Privacy: only the customer's display name is selected. Email
+      // addresses, phone numbers and other contact details are NEVER
+      // selected or passed to the PDF generator — suppliers only need a
+      // name to match each item back to the orderer.
       const rows = await db.select({
         order: merchandiseOrderItems,
         product: merchandiseProducts,
         clubName: clubs.name,
         clubLogoUrl: clubs.logoUrl,
+        customerFullName: users.fullName,
+        customerUsername: users.username,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, and(
           eq(merchandiseOrderItems.productId, merchandiseProducts.id),
           eq(merchandiseOrderItems.clubId, merchandiseProducts.clubId),
         ))
         .innerJoin(clubs, eq(merchandiseOrderItems.clubId, clubs.id))
+        .leftJoin(users, eq(merchandiseOrderItems.userId, users.id))
         .where(inArray(merchandiseOrderItems.id, body.orderIds));
 
       if (rows.length === 0) return res.status(404).json({ message: "No matching orders found." });
@@ -34156,6 +34160,7 @@ Return ONLY valid JSON in this exact format:
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,
         clubName: r.clubName,
+        customerName: r.customerFullName || r.customerUsername || "—",
         product: {
           id: r.product.id,
           name: r.product.name,
@@ -34221,15 +34226,18 @@ Return ONLY valid JSON in this exact format:
       if (!allowed) return res.sendStatus(403);
       const body = z.object({ orderIds: z.array(z.number().int().positive()).min(1).max(500) }).parse(req.body);
 
-      // Privacy: do NOT select user identifying fields. See comment above.
+      // Privacy: only the customer's display name is selected. See comment above.
       const rows = await db.select({
         order: merchandiseOrderItems,
         product: merchandiseProducts,
+        customerFullName: users.fullName,
+        customerUsername: users.username,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, and(
           eq(merchandiseOrderItems.productId, merchandiseProducts.id),
           eq(merchandiseProducts.clubId, clubId),
         ))
+        .leftJoin(users, eq(merchandiseOrderItems.userId, users.id))
         .where(and(
           eq(merchandiseOrderItems.clubId, clubId),
           inArray(merchandiseOrderItems.id, body.orderIds),
@@ -34251,6 +34259,7 @@ Return ONLY valid JSON in this exact format:
         status: r.order.status,
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,
+        customerName: r.customerFullName || r.customerUsername || "—",
         product: {
           id: r.product.id,
           name: r.product.name,
