@@ -34127,7 +34127,6 @@ Return ONLY valid JSON in this exact format:
         clubName: clubs.name,
         clubLogoUrl: clubs.logoUrl,
         customerFullName: users.fullName,
-        customerUsername: users.username,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, and(
           eq(merchandiseOrderItems.productId, merchandiseProducts.id),
@@ -34160,7 +34159,7 @@ Return ONLY valid JSON in this exact format:
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,
         clubName: r.clubName,
-        customerName: r.customerFullName || r.customerUsername || "—",
+        customerName: r.customerFullName || "—",
         product: {
           id: r.product.id,
           name: r.product.name,
@@ -34198,7 +34197,7 @@ Return ONLY valid JSON in this exact format:
 
       const doc = generateSupplierOrderSheet(orders, {
         clubName: headingClubName,
-        generatedByName: req.user!.fullName || req.user!.username,
+        generatedByName: req.user!.fullName || "Admin",
         generatedAt,
         showClubColumn: uniqueClubNames.length > 1,
         clubLogos,
@@ -34231,7 +34230,6 @@ Return ONLY valid JSON in this exact format:
         order: merchandiseOrderItems,
         product: merchandiseProducts,
         customerFullName: users.fullName,
-        customerUsername: users.username,
       }).from(merchandiseOrderItems)
         .innerJoin(merchandiseProducts, and(
           eq(merchandiseOrderItems.productId, merchandiseProducts.id),
@@ -34259,7 +34257,7 @@ Return ONLY valid JSON in this exact format:
         status: r.order.status,
         paymentStatus: r.order.paymentStatus ?? null,
         createdAt: r.order.createdAt,
-        customerName: r.customerFullName || r.customerUsername || "—",
+        customerName: r.customerFullName || "—",
         product: {
           id: r.product.id,
           name: r.product.name,
@@ -34280,7 +34278,7 @@ Return ONLY valid JSON in this exact format:
 
       const doc = generateSupplierOrderSheet(orders, {
         clubName: club?.name || "Club",
-        generatedByName: req.user!.fullName || req.user!.username,
+        generatedByName: req.user!.fullName || "Admin",
         generatedAt,
         clubLogos: [{ name: club?.name || "Club", logoPath: clubLogoPath }],
       });
