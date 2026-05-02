@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, CheckCircle2, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X } from "lucide-react";
 import { Link } from "wouter";
 
 const SESSION_BANNER_COLORS = {
@@ -177,6 +177,7 @@ type AdminActions = {
   onRemindMembers?: (sessionId: number) => void;
   onCancel?: (session: SessionItem) => void;
   onReactivate?: (session: SessionItem) => void;
+  onEndSession?: (session: SessionItem) => void;
 };
 
 type SessionViewProps = {
@@ -1345,6 +1346,28 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
           </TooltipTrigger>
           <TooltipContent>Edit Session</TooltipContent>
         </Tooltip>
+        {adminActions.onEndSession && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="rounded-lg h-8 px-2 text-xs gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  if (window.confirm(`End "${session.title || "this session"}" now? This will mark it as completed, stop auto-generating matches, and lock results.`)) {
+                    adminActions.onEndSession!(session);
+                  }
+                }}
+                data-testid={`button-end-view-${session.id}`}
+              >
+                <CheckCircle2 className="h-3.5 w-3.5" />
+                <span className="hidden sm:inline">End</span>
+              </Button>
+            </TooltipTrigger>
+            <TooltipContent>End Session</TooltipContent>
+          </Tooltip>
+        )}
         <Tooltip>
           <TooltipTrigger asChild>
             <Button

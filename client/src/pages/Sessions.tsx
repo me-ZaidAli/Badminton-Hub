@@ -794,6 +794,21 @@ export default function Sessions() {
     },
   });
 
+  const endSessionMutation = useMutation({
+    mutationFn: async (sessionId: number) => {
+      const res = await apiRequest("PATCH", `/api/sessions/${sessionId}`, { status: "COMPLETED", autoGenerateActive: false });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
+      toast({ title: "Session ended", description: "The session has been marked as completed." });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Couldn't end session", description: error.message, variant: "destructive" });
+    },
+  });
+
   const teamEventsAsSessionItems = useMemo(() => {
     if (!teamEventsRaw || teamEventsRaw.length === 0) return [];
     return teamEventsRaw.map((te: any) => ({
@@ -1079,6 +1094,7 @@ export default function Sessions() {
           reactivateSessionMutation.mutate(s.id);
         }
       },
+      onEndSession: (s: any) => endSessionMutation.mutate(s.id),
     };
   }, [canManageSessions, editableClubIds, isOrganiserOnly]);
 
