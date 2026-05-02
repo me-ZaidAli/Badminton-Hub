@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X } from "lucide-react";
 import { Link } from "wouter";
 
 const SESSION_BANNER_COLORS = {
@@ -189,6 +189,7 @@ type SessionViewProps = {
 type TimelineViewProps = SessionViewProps & {
   mySignupsBySession?: Map<number, any>;
   onSignUp?: (session: SessionItem) => void;
+  onWithdraw?: (sessionId: number) => void;
 };
 
 const TEAM_EVENT_TYPES: Record<string, { label: string; icon: typeof Flag; color: string }> = {
@@ -465,7 +466,7 @@ function getIntensityLevel(session: SessionItem): { label: string; color: string
   return { label: "LOW", color: "bg-blue-400/15 text-blue-600 dark:text-blue-400 ring-blue-400/30" };
 }
 
-function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate, adminActions }: { session: SessionItem; clubs?: any[]; mySignup?: any; onSignUp?: (session: SessionItem) => void; onNavigate: () => void; adminActions?: AdminActions }) {
+function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onWithdraw, onNavigate, adminActions }: { session: SessionItem; clubs?: any[]; mySignup?: any; onSignUp?: (session: SessionItem) => void; onWithdraw?: (sessionId: number) => void; onNavigate: () => void; adminActions?: AdminActions }) {
   const contentRef = useRef<HTMLDivElement>(null);
   const [height, setHeight] = useState(0);
 
@@ -780,10 +781,29 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onNavigate
 
                 if (isSignedUp) {
                   return (
-                    <Button size="sm" variant="outline" className={`flex-1 h-8 text-xs cursor-default ${isWaiting ? "border-amber-400/50 text-amber-600 dark:text-amber-400" : "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"}`} disabled data-testid={`button-joined-${session.id}`}>
-                      <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
-                      {isWaiting ? "On Waitlist" : "Joined"}
-                    </Button>
+                    <>
+                      <Button size="sm" variant="outline" className={`flex-1 h-8 text-xs cursor-default ${isWaiting ? "border-amber-400/50 text-amber-600 dark:text-amber-400" : "border-emerald-400/50 text-emerald-600 dark:text-emerald-400"}`} disabled data-testid={`button-joined-${session.id}`}>
+                        <CheckCircle className="h-3.5 w-3.5 mr-1.5" />
+                        {isWaiting ? "On Waitlist" : "Joined"}
+                      </Button>
+                      {onWithdraw && !isPast && (
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-8 text-xs border-red-400/40 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (window.confirm(`Withdraw from "${session.title}"? Your spot will be released and may be given to someone on the waitlist.`)) {
+                              onWithdraw(session.id);
+                            }
+                          }}
+                          data-testid={`button-withdraw-${session.id}`}
+                        >
+                          <X className="h-3.5 w-3.5 mr-1.5" />
+                          Withdraw
+                        </Button>
+                      )}
+                    </>
                   );
                 }
                 if (!isPast && onSignUp) {
@@ -825,6 +845,7 @@ function TimelineSessionCard({
   onToggleExpand,
   onNavigate,
   onSignUp,
+  onWithdraw,
   adminActions,
 }: {
   session: SessionItem;
@@ -834,6 +855,7 @@ function TimelineSessionCard({
   onToggleExpand: () => void;
   onNavigate: () => void;
   onSignUp?: (session: SessionItem) => void;
+  onWithdraw?: (sessionId: number) => void;
   adminActions?: AdminActions;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
@@ -1231,7 +1253,7 @@ function TimelineSessionCard({
           </div>
         )}
 
-        {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onNavigate={onNavigate} adminActions={adminActions} />}
+        {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onWithdraw={onWithdraw} onNavigate={onNavigate} adminActions={adminActions} />}
       </div>
     </div>
   );
@@ -1322,6 +1344,26 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
             </Button>
           </TooltipTrigger>
           <TooltipContent>Edit Session</TooltipContent>
+        </Tooltip>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm"
+              variant="ghost"
+              className="rounded-lg h-8 px-2 text-xs gap-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+              onClick={(e) => {
+                e.stopPropagation();
+                if (window.confirm(`Delete "${session.title || "this session"}"? This will permanently remove the session, its signups, matches, and finances. This cannot be undone.`)) {
+                  adminActions.onDelete(session);
+                }
+              }}
+              data-testid={`button-delete-view-bar-${session.id}`}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span className="hidden sm:inline">Delete</span>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent>Delete Session</TooltipContent>
         </Tooltip>
         <div className="flex-1" />
         <DropdownMenu>
@@ -1820,7 +1862,7 @@ export function CalendarView({ sessions, clubs, onSessionClick, adminActions }: 
   );
 }
 
-export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, adminActions }: TimelineViewProps) {
+export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, onWithdraw, adminActions }: TimelineViewProps) {
   const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
 
@@ -2227,6 +2269,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                               onToggleExpand={() => handleToggleExpand(s.id)}
                               onNavigate={() => handleNavigate(s)}
                               onSignUp={onSignUp}
+                              onWithdraw={onWithdraw}
                               adminActions={adminActions}
                             />
                           </div>

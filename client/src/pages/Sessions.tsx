@@ -1475,6 +1475,7 @@ export default function Sessions() {
           onSessionClick={handleSessionClickFromView}
           mySignupsBySession={mySignupsBySession}
           onSignUp={(session) => setJoinSession(session)}
+          onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
           adminActions={viewAdminActions}
         />
       )}
@@ -2127,6 +2128,7 @@ export default function Sessions() {
               onSessionClick={handleSessionClickFromView}
               mySignupsBySession={mySignupsBySession}
               onSignUp={(session) => setJoinSession(session)}
+              onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
               adminActions={viewAdminActions}
             />
           )}
