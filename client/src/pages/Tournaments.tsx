@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { format } from "date-fns";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -55,6 +55,7 @@ export default function Tournaments() {
   const deleteMutation = useDeleteTournament();
   const updateMutation = useUpdateTournament();
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<number | null>(null);
   const [selectedClubFilter, setSelectedClubFilter] = useState<string>("all");
@@ -86,14 +87,20 @@ export default function Tournaments() {
 
   async function onSubmit(values: z.infer<typeof createTournamentSchema>) {
     try {
-      await createMutation.mutateAsync({
+      const created = await createMutation.mutateAsync({
         ...values,
         startDate: new Date(values.startDate + "T00:00:00").toISOString(),
         endDate: new Date(values.endDate + "T23:59:59").toISOString(),
       });
-      toast({ title: "Tournament Created" });
+      toast({
+        title: "Tournament Created",
+        description: "Next: add categories, teams and generate matches.",
+      });
       setCreateOpen(false);
       form.reset();
+      if (created?.id) {
+        setLocation(`/tournaments/${created.id}`);
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
