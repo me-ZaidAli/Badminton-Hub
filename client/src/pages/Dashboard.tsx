@@ -149,6 +149,31 @@ function DashboardContent({
     enabled: !!user,
   });
 
+  const { data: allTournaments } = useQuery<any[]>({
+    queryKey: ["/api/tournaments"],
+    enabled: !!user,
+  });
+
+  const upcomingJoinable = useMemo(() => {
+    if (!allTournaments) return [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const myIds = new Set((myTournaments || []).map((t: any) => t.tournamentId));
+    return allTournaments
+      .filter((t: any) => {
+        if (myIds.has(t.id)) return false;
+        if (t.status === "COMPLETED" || t.status === "CANCELLED") return false;
+        if (effectiveClubId && t.clubId !== effectiveClubId) return false;
+        const end = t.endDate ? new Date(t.endDate) : null;
+        if (end && end < today) return false;
+        return true;
+      })
+      .sort((a: any, b: any) => new Date(a.startDate).getTime() - new Date(b.startDate).getTime());
+  }, [allTournaments, myTournaments, effectiveClubId]);
+
+  const featuredJoinTournament = upcomingJoinable[0];
+  const upcomingList = upcomingJoinable.slice(0, 4);
+
   const nextLeagueMatch = useMemo(() => {
     if (!upcomingLeagueMatches || upcomingLeagueMatches.length === 0) return null;
     const now = new Date();
@@ -407,6 +432,150 @@ function DashboardContent({
           </div>
         </Link>
       ))}
+
+      {featuredJoinTournament && (
+        <Link href={`/tournaments/${featuredJoinTournament.id}`}>
+          <div
+            className="relative overflow-hidden rounded-xl cursor-pointer group transition-all duration-300 hover:shadow-2xl hover:scale-[1.01]"
+            data-testid={`banner-join-tournament-${featuredJoinTournament.id}`}
+          >
+            <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 dark:from-amber-600 dark:via-orange-700 dark:to-rose-700" />
+            <div className="absolute inset-0 opacity-15" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.5\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
+            <div className="absolute -top-10 -right-10 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
+            <div className="absolute -bottom-16 -left-10 w-64 h-64 bg-amber-300/20 rounded-full blur-3xl" />
+
+            <div className="relative z-10 p-5 sm:p-6">
+              <div className="flex items-start justify-between mb-3 gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-sm shadow-inner shrink-0">
+                    <Trophy className="h-6 w-6 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <Badge className="bg-white/20 text-white border-white/30 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 mb-1.5">
+                      <Zap className="h-3 w-3 mr-1" />New Tournament
+                    </Badge>
+                    <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight truncate" data-testid={`text-join-tournament-name-${featuredJoinTournament.id}`}>
+                      {featuredJoinTournament.name}
+                    </h3>
+                    <p className="text-xs text-amber-100 mt-0.5 font-medium">
+                      Sign up now and prove you're the champion
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
+                <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2">
+                  <Calendar className="h-4 w-4 text-white shrink-0" />
+                  <span className="text-sm text-white font-semibold truncate">
+                    {format(new Date(featuredJoinTournament.startDate), "EEE, d MMM")}
+                  </span>
+                </div>
+                {featuredJoinTournament.location && (
+                  <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2">
+                    <MapPinned className="h-4 w-4 text-white shrink-0" />
+                    <span className="text-sm text-white font-semibold truncate">{featuredJoinTournament.location}</span>
+                  </div>
+                )}
+                {featuredJoinTournament.maxPlayers && (
+                  <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2">
+                    <Users className="h-4 w-4 text-white shrink-0" />
+                    <span className="text-sm text-white font-semibold truncate">Up to {featuredJoinTournament.maxPlayers} players</span>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-xs sm:text-sm text-amber-50 font-medium hidden sm:block">
+                  Tap to view details and register your spot
+                </p>
+                <Button
+                  size="sm"
+                  className="bg-white text-orange-600 hover:bg-amber-50 font-bold shadow-lg ml-auto"
+                  data-testid={`button-join-tournament-${featuredJoinTournament.id}`}
+                >
+                  Join Now
+                  <ChevronRight className="h-4 w-4 ml-1" />
+                </Button>
+              </div>
+            </div>
+          </div>
+        </Link>
+      )}
+
+      {upcomingList.length > 0 && (
+        <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5" data-testid="card-upcoming-tournaments">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between gap-3 flex-wrap">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-amber-500/15">
+                  <Trophy className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                </div>
+                <div>
+                  <CardTitle className="text-base">Upcoming Tournaments</CardTitle>
+                  <CardDescription className="text-xs mt-0.5">
+                    {upcomingList.length === 1 ? "1 tournament" : `${upcomingList.length} tournaments`} coming up — pick one to compete in
+                  </CardDescription>
+                </div>
+              </div>
+              <Link href="/tournaments">
+                <Button variant="ghost" size="sm" className="text-xs h-7 text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-500/10" data-testid="button-view-all-tournaments">
+                  View all
+                  <ChevronRight className="h-3 w-3 ml-0.5" />
+                </Button>
+              </Link>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="space-y-2">
+              {upcomingList.map((t: any) => (
+                <Link key={t.id} href={`/tournaments/${t.id}`}>
+                  <div
+                    className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 hover:bg-amber-500/5 hover:border-amber-500/30 hover:shadow-sm transition-all duration-200 px-3 py-2.5 cursor-pointer group"
+                    data-testid={`row-upcoming-tournament-${t.id}`}
+                  >
+                    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center shrink-0 border border-amber-500/20 group-hover:scale-105 transition-transform">
+                      <Trophy className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="font-semibold text-sm text-foreground truncate" data-testid={`text-upcoming-tournament-name-${t.id}`}>
+                          {t.name}
+                        </p>
+                        {t.status === "ONGOING" && (
+                          <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 text-[9px] font-bold px-1.5 py-0">
+                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 mr-1 animate-pulse" />LIVE
+                          </Badge>
+                        )}
+                        {t.status === "PUBLISHED" && (
+                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[9px] font-bold px-1.5 py-0">
+                            Open
+                          </Badge>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
+                        <span className="flex items-center gap-1">
+                          <Calendar className="h-3 w-3" />
+                          {format(new Date(t.startDate), "d MMM")}
+                          {t.endDate && new Date(t.endDate).getTime() !== new Date(t.startDate).getTime() &&
+                            ` – ${format(new Date(t.endDate), "d MMM")}`}
+                        </span>
+                        {t.location && (
+                          <span className="flex items-center gap-1 truncate hidden sm:flex">
+                            <MapPin className="h-3 w-3" />
+                            <span className="truncate max-w-[140px]">{t.location}</span>
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-amber-500 transition-colors shrink-0" />
+                  </div>
+                </Link>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {(user?.role === "ADMIN" || user?.role === "OWNER") && !isSuperAdmin && (
         <Card className={`border ${
