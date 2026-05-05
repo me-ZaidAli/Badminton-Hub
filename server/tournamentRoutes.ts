@@ -95,16 +95,33 @@ export function registerTournamentRoutes(app: Express) {
       const allTournaments = await db.select().from(tournaments).orderBy(desc(tournaments.createdAt));
 
       let userClubIds: number[] = [];
+      let adminClubIds: number[] = [];
+      let tournamentAdminIds: number[] = [];
+      let isOwner = false;
+      let userId: number | undefined;
       if (req.isAuthenticated()) {
+        userId = req.user!.id;
+        isOwner = (req.user as any).role === "OWNER";
         const memberships = await db.select({ clubId: clubMemberships.clubId })
           .from(clubMemberships).where(
-            and(eq(clubMemberships.userId, req.user!.id), inArray(clubMemberships.status, ["ACTIVE", "EXPIRING"]))
+            and(eq(clubMemberships.userId, userId), inArray(clubMemberships.status, ["ACTIVE", "EXPIRING"]))
           );
         userClubIds = memberships.map(m => m.clubId);
+        const adminProfiles = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles)
+          .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubRole, "ADMIN")));
+        adminClubIds = adminProfiles.map(p => p.clubId);
+        const tas = await db.select({ tournamentId: tournamentAdmins.tournamentId })
+          .from(tournamentAdmins).where(eq(tournamentAdmins.userId, userId));
+        tournamentAdminIds = tas.map(t => t.tournamentId);
       }
 
       const filtered = allTournaments.filter(t => {
         if (clubId && t.clubId !== clubId) return false;
+        if (isOwner) return true;
+        if (userId && t.createdBy === userId) return true;
+        if (adminClubIds.includes(t.clubId)) return true;
+        if (tournamentAdminIds.includes(t.id)) return true;
         if (t.type === "OPEN") return true;
         if (!t.allowedClubIds || t.allowedClubIds.length === 0) {
           return userClubIds.includes(t.clubId);
