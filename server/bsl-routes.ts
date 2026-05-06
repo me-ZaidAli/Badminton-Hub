@@ -131,29 +131,50 @@ export function registerBslRoutes(app: Express) {
   app.post("/api/bsl/clubs", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const { name, division, categories, teamCount, logoUrl, clubId } = req.body;
+      const { name, division, categoryPairs, categories, logoUrl, clubId } = req.body;
       if (!name || !division) return res.status(400).json({ message: "Name and division required" });
       const ALLOWED_CATEGORIES = ["MD", "WD", "XD"];
       const CATEGORY_LABEL: Record<string, string> = { MD: "Men's Doubles", WD: "Women's Doubles", XD: "Mixed Doubles" };
-      const cleanCategories: string[] = Array.isArray(categories)
-        ? Array.from(new Set(categories.filter((c: any) => typeof c === "string" && ALLOWED_CATEGORIES.includes(c))))
-        : [];
-      if (cleanCategories.length === 0) {
-        return res.status(400).json({ message: "Select at least one category (Men's, Women's, or Mixed Doubles)" });
+      const CATEGORY_SHORT: Record<string, string> = { MD: "MD", WD: "WD", XD: "XD" };
+      // Normalise pairs map: { MD: 2, WD: 1, XD: 0 } — allow legacy `categories` array (1 pair each)
+      const pairs: Record<string, number> = {};
+      if (categoryPairs && typeof categoryPairs === "object") {
+        for (const cat of ALLOWED_CATEGORIES) {
+          const n = Number((categoryPairs as any)[cat]);
+          if (Number.isFinite(n) && n > 0) pairs[cat] = Math.min(8, Math.floor(n));
+        }
+      } else if (Array.isArray(categories)) {
+        for (const c of categories) if (typeof c === "string" && ALLOWED_CATEGORIES.includes(c)) pairs[c] = 1;
+      }
+      const totalPairs = Object.values(pairs).reduce((s, n) => s + n, 0);
+      if (totalPairs === 0) {
+        return res.status(400).json({ message: "Register at least one pair across Men's, Women's, or Mixed Doubles" });
       }
       const paymentReference = genRef("BSL-CLUB");
       const [created] = await db.insert(bslClubs).values({
-        name, division, teamCount: cleanCategories.length, categories: cleanCategories,
+        name, division,
+        teamCount: totalPairs,
+        categories: Object.keys(pairs),
+        categoryPairs: pairs,
         logoUrl: logoUrl || null,
         clubId: clubId || null, managerUserId: user.id, paymentReference,
       } as any).returning();
-      // Auto-create one team per selected category
-      const teamRows = cleanCategories.map((cat) => ({
-        bslClubId: created.id,
-        name: `${created.name} · ${CATEGORY_LABEL[cat]}`,
-        division: created.division,
-        category: cat,
-      }));
+      // Auto-create one team per pair, lettered A/B/C... within each category
+      const teamRows: any[] = [];
+      for (const cat of ALLOWED_CATEGORIES) {
+        const count = pairs[cat] || 0;
+        for (let i = 0; i < count; i++) {
+          const letter = String.fromCharCode(65 + i);
+          const suffix = count > 1 ? ` Pair ${letter}` : "";
+          teamRows.push({
+            bslClubId: created.id,
+            name: `${created.name} ${CATEGORY_SHORT[cat]}${suffix}`,
+            division: created.division,
+            category: cat,
+            pairNumber: i + 1,
+          });
+        }
+      }
       if (teamRows.length) await db.insert(bslTeams).values(teamRows as any);
       res.json(created);
     } catch (err: any) { res.status(500).json({ message: err.message }); }

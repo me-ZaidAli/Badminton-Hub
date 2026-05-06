@@ -27,7 +27,10 @@ export default function RegisterClub() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [division, setDivision] = useState("");
-  const [categories, setCategories] = useState<string[]>([]);
+  const [categoryPairs, setCategoryPairs] = useState<Record<string, number>>({ MD: 0, WD: 0, XD: 0 });
+  const totalPairs = Object.values(categoryPairs).reduce((s, n) => s + n, 0);
+  const adjustPairs = (cat: string, delta: number) =>
+    setCategoryPairs(prev => ({ ...prev, [cat]: Math.max(0, Math.min(8, (prev[cat] || 0) + delta)) }));
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -37,7 +40,7 @@ export default function RegisterClub() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const r = await apiRequest("POST", "/api/bsl/clubs", { name, division, categories, logoUrl });
+      const r = await apiRequest("POST", "/api/bsl/clubs", { name, division, categoryPairs, logoUrl });
       return r.json();
     },
     onSuccess: (club) => {
@@ -95,7 +98,7 @@ export default function RegisterClub() {
     if (step === 0) return name.trim().length >= 2;
     if (step === 1) return true; // logo optional
     if (step === 2) return !!division;
-    if (step === 3) return categories.length > 0;
+    if (step === 3) return totalPairs > 0;
     return true;
   })();
 
@@ -204,7 +207,7 @@ export default function RegisterClub() {
               {step === 3 && (
                 <div className="space-y-4">
                   <p className="text-sm" style={{ color: BSL.muted }}>
-                    Which categories will you enter? Select one or more — you'll field a team in each. Each team plays a 6-rubber tie per league day.
+                    How many pairs will you enter in each category? Each pair plays as its own team and gets a separate row in the standings. Set 0 to skip a category.
                   </p>
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                     {[
@@ -212,33 +215,53 @@ export default function RegisterClub() {
                       { key: "WD", label: "Women's Doubles", short: "WD" },
                       { key: "XD", label: "Mixed Doubles", short: "XD" },
                     ].map((c) => {
-                      const selected = categories.includes(c.key);
+                      const value = categoryPairs[c.key] || 0;
+                      const active = value > 0;
                       return (
-                        <button
+                        <div
                           key={c.key}
-                          type="button"
-                          onClick={() => setCategories(prev => prev.includes(c.key) ? prev.filter(x => x !== c.key) : [...prev, c.key])}
-                          className="relative rounded-xl px-4 py-5 text-left transition-all"
+                          className="rounded-xl px-4 py-5 transition-all"
                           style={{
-                            background: selected ? `${BSL.gold}22` : "hsla(0,0%,100%,0.04)",
-                            border: `1px solid ${selected ? BSL.gold : "hsla(0,0%,100%,0.1)"}`,
-                            boxShadow: selected ? `0 0 24px ${BSL.gold}44` : undefined,
+                            background: active ? `${BSL.gold}22` : "hsla(0,0%,100%,0.04)",
+                            border: `1px solid ${active ? BSL.gold : "hsla(0,0%,100%,0.1)"}`,
+                            boxShadow: active ? `0 0 24px ${BSL.gold}44` : undefined,
                           }}
-                          data-testid={`button-category-${c.key}`}
+                          data-testid={`card-category-${c.key}`}
                         >
                           <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{c.short}</div>
-                          <div className="text-lg font-black" style={{ color: selected ? BSL.gold : BSL.text }}>{c.label}</div>
-                          {selected && (
-                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full flex items-center justify-center" style={{ background: BSL.gold, color: "hsl(222,50%,8%)" }}>
-                              <Check className="h-3 w-3" />
+                          <div className="text-base font-black mb-3" style={{ color: active ? BSL.gold : BSL.text }}>{c.label}</div>
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => adjustPairs(c.key, -1)}
+                              disabled={value === 0}
+                              className="h-9 w-9 rounded-lg text-lg font-black disabled:opacity-30"
+                              style={{ background: "hsla(0,0%,100%,0.06)", border: "1px solid hsla(0,0%,100%,0.15)" }}
+                              data-testid={`button-pairs-minus-${c.key}`}
+                            >−</button>
+                            <div className="flex-1 text-center">
+                              <div className="text-3xl font-black" style={{ color: active ? BSL.gold : BSL.muted, textShadow: active ? `0 0 16px ${BSL.gold}66` : undefined }} data-testid={`text-pairs-${c.key}`}>
+                                {value}
+                              </div>
+                              <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{value === 1 ? "Pair" : "Pairs"}</div>
                             </div>
-                          )}
-                        </button>
+                            <button
+                              type="button"
+                              onClick={() => adjustPairs(c.key, 1)}
+                              disabled={value >= 8}
+                              className="h-9 w-9 rounded-lg text-lg font-black disabled:opacity-30"
+                              style={{ background: "hsla(0,0%,100%,0.06)", border: "1px solid hsla(0,0%,100%,0.15)" }}
+                              data-testid={`button-pairs-plus-${c.key}`}
+                            >+</button>
+                          </div>
+                        </div>
                       );
                     })}
                   </div>
-                  <div className="text-xs text-center pt-1" style={{ color: BSL.muted }}>
-                    {categories.length === 0 ? "Pick at least one category" : `${categories.length} categor${categories.length === 1 ? "y" : "ies"} selected · ${categories.length} team${categories.length === 1 ? "" : "s"}`}
+                  <div className="text-xs text-center pt-1" style={{ color: BSL.muted }} data-testid="text-pairs-summary">
+                    {totalPairs === 0
+                      ? "Add at least one pair to continue"
+                      : `${totalPairs} pair${totalPairs === 1 ? "" : "s"} registered · ${totalPairs} standings row${totalPairs === 1 ? "" : "s"} for your club`}
                   </div>
                 </div>
               )}

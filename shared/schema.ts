@@ -3101,6 +3101,7 @@ export const bslClubs = pgTable("bsl_clubs", {
   division: text("division").notNull(),
   teamCount: integer("team_count").notNull().default(1),
   categories: text("categories").array().default(sql`ARRAY['MD']::text[]`),
+  categoryPairs: jsonb("category_pairs").$type<Record<string, number>>().default({}),
   paymentReference: text("payment_reference").notNull().unique(), // e.g., "BSL-CLUB-XYZ123"
   paymentProofUrl: text("payment_proof_url"),
   inviteCode: text("invite_code").unique(), // generated on approval
@@ -3120,6 +3121,7 @@ export const bslTeams = pgTable("bsl_teams", {
   name: text("name").notNull(),
   division: text("division").notNull(),
   category: text("category"),
+  pairNumber: integer("pair_number").default(1),
   // Standings
   played: integer("played").notNull().default(0),
   won: integer("won").notNull().default(0),
