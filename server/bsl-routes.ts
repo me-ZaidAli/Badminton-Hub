@@ -104,10 +104,33 @@ export function registerBslRoutes(app: Express) {
   });
   app.patch("/api/bsl/league", requireAdmin, async (req, res) => {
     try {
-      const [updated] = await db.update(bslLeagues).set({ ...req.body, updatedAt: new Date() })
+      const body = req.body || {};
+      const allowedStr = ["name", "tagline", "venueName", "bankAccountName", "bankSortCode", "bankAccountNumber", "matchFormat", "brandingPrimary", "brandingAccent"];
+      const allowedInt = ["clubFee", "playerFee", "pointsWin", "pointsDraw", "pointsLoss", "courtCount"];
+      const update: Record<string, any> = { updatedAt: new Date() };
+      for (const k of allowedStr) {
+        if (k in body) update[k] = body[k] === null ? null : String(body[k] ?? "");
+      }
+      for (const k of allowedInt) {
+        if (k in body) {
+          const n = Number(body[k]);
+          if (Number.isFinite(n)) update[k] = Math.max(0, Math.round(n));
+        }
+      }
+      if ("notificationsEnabled" in body) update.notificationsEnabled = !!body.notificationsEnabled;
+      if ("nextLeagueDay" in body) {
+        const v = body.nextLeagueDay;
+        if (!v) update.nextLeagueDay = null;
+        else {
+          const d = v instanceof Date ? v : new Date(v);
+          if (!isNaN(d.getTime())) update.nextLeagueDay = d;
+        }
+      }
+      const [updated] = await db.update(bslLeagues).set(update as any)
         .where(eq(bslLeagues.id, 1)).returning();
+      if (!updated) return res.status(404).json({ message: "League not configured" });
       res.json(updated);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) { res.status(500).json({ message: err.message || "Failed to save settings" }); }
   });
 
   // === CLUBS ===
