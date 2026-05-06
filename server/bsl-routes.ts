@@ -131,17 +131,28 @@ export function registerBslRoutes(app: Express) {
   app.post("/api/bsl/clubs", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
-      const { name, division, teamCount, logoUrl, clubId } = req.body;
+      const { name, division, categories, teamCount, logoUrl, clubId } = req.body;
       if (!name || !division) return res.status(400).json({ message: "Name and division required" });
+      const ALLOWED_CATEGORIES = ["MD", "WD", "XD"];
+      const CATEGORY_LABEL: Record<string, string> = { MD: "Men's Doubles", WD: "Women's Doubles", XD: "Mixed Doubles" };
+      const cleanCategories: string[] = Array.isArray(categories)
+        ? Array.from(new Set(categories.filter((c: any) => typeof c === "string" && ALLOWED_CATEGORIES.includes(c))))
+        : [];
+      if (cleanCategories.length === 0) {
+        return res.status(400).json({ message: "Select at least one category (Men's, Women's, or Mixed Doubles)" });
+      }
       const paymentReference = genRef("BSL-CLUB");
       const [created] = await db.insert(bslClubs).values({
-        name, division, teamCount: teamCount || 1, logoUrl: logoUrl || null,
+        name, division, teamCount: cleanCategories.length, categories: cleanCategories,
+        logoUrl: logoUrl || null,
         clubId: clubId || null, managerUserId: user.id, paymentReference,
       } as any).returning();
-      // Auto-create team placeholders
-      const teamRows = Array.from({ length: created.teamCount }, (_, i) => ({
-        bslClubId: created.id, name: `${created.name} ${created.teamCount > 1 ? String.fromCharCode(65 + i) : ""}`.trim(),
+      // Auto-create one team per selected category
+      const teamRows = cleanCategories.map((cat) => ({
+        bslClubId: created.id,
+        name: `${created.name} · ${CATEGORY_LABEL[cat]}`,
         division: created.division,
+        category: cat,
       }));
       if (teamRows.length) await db.insert(bslTeams).values(teamRows as any);
       res.json(created);

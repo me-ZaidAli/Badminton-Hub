@@ -1,5 +1,5 @@
 import { pgTable, text, serial, integer, boolean, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
-import { relations } from "drizzle-orm";
+import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
@@ -3100,6 +3100,7 @@ export const bslClubs = pgTable("bsl_clubs", {
   logoUrl: text("logo_url"),
   division: text("division").notNull(),
   teamCount: integer("team_count").notNull().default(1),
+  categories: text("categories").array().default(sql`ARRAY['MD']::text[]`),
   paymentReference: text("payment_reference").notNull().unique(), // e.g., "BSL-CLUB-XYZ123"
   paymentProofUrl: text("payment_proof_url"),
   inviteCode: text("invite_code").unique(), // generated on approval
@@ -3118,6 +3119,7 @@ export const bslTeams = pgTable("bsl_teams", {
   bslClubId: integer("bsl_club_id").notNull().references(() => bslClubs.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   division: text("division").notNull(),
+  category: text("category"),
   // Standings
   played: integer("played").notNull().default(0),
   won: integer("won").notNull().default(0),

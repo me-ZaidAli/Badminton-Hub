@@ -14,7 +14,7 @@ const STEPS = [
   { key: "details", label: "Club Details", icon: Building2 },
   { key: "logo", label: "Logo", icon: ImageIcon },
   { key: "division", label: "Division", icon: Award },
-  { key: "teams", label: "Teams", icon: Users },
+  { key: "categories", label: "Categories", icon: Users },
   { key: "payment", label: "Bank Transfer", icon: Banknote },
   { key: "proof", label: "Upload Proof", icon: Upload },
   { key: "done", label: "Pending", icon: Hourglass },
@@ -27,7 +27,7 @@ export default function RegisterClub() {
   const [step, setStep] = useState(0);
   const [name, setName] = useState("");
   const [division, setDivision] = useState("");
-  const [teamCount, setTeamCount] = useState(1);
+  const [categories, setCategories] = useState<string[]>([]);
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [proofFile, setProofFile] = useState<File | null>(null);
@@ -37,7 +37,7 @@ export default function RegisterClub() {
 
   const createMutation = useMutation({
     mutationFn: async () => {
-      const r = await apiRequest("POST", "/api/bsl/clubs", { name, division, teamCount, logoUrl });
+      const r = await apiRequest("POST", "/api/bsl/clubs", { name, division, categories, logoUrl });
       return r.json();
     },
     onSuccess: (club) => {
@@ -95,7 +95,7 @@ export default function RegisterClub() {
     if (step === 0) return name.trim().length >= 2;
     if (step === 1) return true; // logo optional
     if (step === 2) return !!division;
-    if (step === 3) return teamCount > 0;
+    if (step === 3) return categories.length > 0;
     return true;
   })();
 
@@ -203,16 +203,42 @@ export default function RegisterClub() {
               )}
               {step === 3 && (
                 <div className="space-y-4">
-                  <p className="text-sm" style={{ color: BSL.muted }}>How many teams will you enter? Each team plays a 6-rubber tie per league day.</p>
-                  <div className="flex items-center gap-4">
-                    <button onClick={() => setTeamCount(Math.max(1, teamCount - 1))} className="h-10 w-10 rounded-lg text-xl font-black"
-                      style={{ background: "hsla(0,0%,100%,0.05)", border: "1px solid hsla(0,0%,100%,0.15)" }} data-testid="button-team-minus">−</button>
-                    <div className="flex-1 text-center">
-                      <div className="text-5xl font-black" style={{ color: BSL.gold, textShadow: `0 0 20px ${BSL.gold}66` }} data-testid="text-team-count">{teamCount}</div>
-                      <div className="text-[10px] uppercase tracking-widest mt-1" style={{ color: BSL.muted }}>{teamCount === 1 ? "Team" : "Teams"}</div>
-                    </div>
-                    <button onClick={() => setTeamCount(Math.min(8, teamCount + 1))} className="h-10 w-10 rounded-lg text-xl font-black"
-                      style={{ background: "hsla(0,0%,100%,0.05)", border: "1px solid hsla(0,0%,100%,0.15)" }} data-testid="button-team-plus">+</button>
+                  <p className="text-sm" style={{ color: BSL.muted }}>
+                    Which categories will you enter? Select one or more — you'll field a team in each. Each team plays a 6-rubber tie per league day.
+                  </p>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    {[
+                      { key: "MD", label: "Men's Doubles", short: "MD" },
+                      { key: "WD", label: "Women's Doubles", short: "WD" },
+                      { key: "XD", label: "Mixed Doubles", short: "XD" },
+                    ].map((c) => {
+                      const selected = categories.includes(c.key);
+                      return (
+                        <button
+                          key={c.key}
+                          type="button"
+                          onClick={() => setCategories(prev => prev.includes(c.key) ? prev.filter(x => x !== c.key) : [...prev, c.key])}
+                          className="relative rounded-xl px-4 py-5 text-left transition-all"
+                          style={{
+                            background: selected ? `${BSL.gold}22` : "hsla(0,0%,100%,0.04)",
+                            border: `1px solid ${selected ? BSL.gold : "hsla(0,0%,100%,0.1)"}`,
+                            boxShadow: selected ? `0 0 24px ${BSL.gold}44` : undefined,
+                          }}
+                          data-testid={`button-category-${c.key}`}
+                        >
+                          <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{c.short}</div>
+                          <div className="text-lg font-black" style={{ color: selected ? BSL.gold : BSL.text }}>{c.label}</div>
+                          {selected && (
+                            <div className="absolute top-2 right-2 h-5 w-5 rounded-full flex items-center justify-center" style={{ background: BSL.gold, color: "hsl(222,50%,8%)" }}>
+                              <Check className="h-3 w-3" />
+                            </div>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="text-xs text-center pt-1" style={{ color: BSL.muted }}>
+                    {categories.length === 0 ? "Pick at least one category" : `${categories.length} categor${categories.length === 1 ? "y" : "ies"} selected · ${categories.length} team${categories.length === 1 ? "" : "s"}`}
                   </div>
                 </div>
               )}

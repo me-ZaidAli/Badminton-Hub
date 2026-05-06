@@ -33,15 +33,24 @@ declare module "http" {
   }
 }
 
-app.use(
-  express.json({
-    verify: (req, _res, buf) => {
-      req.rawBody = buf;
-    },
-  }),
-);
+// Default JSON body limit is conservative to limit DoS risk.
+// Specific endpoints that legitimately receive larger payloads (e.g. base64
+// image fallbacks during BSL club registration) opt into a higher cap below.
+const jsonLargeRoutes = [/^\/api\/bsl\/clubs(?:\/|$)/];
+const jsonStandard = express.json({
+  limit: "256kb",
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+});
+const jsonLarge = express.json({
+  limit: "8mb",
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+});
+app.use((req, res, next) => {
+  const useLarge = jsonLargeRoutes.some((re) => re.test(req.path));
+  return (useLarge ? jsonLarge : jsonStandard)(req, res, next);
+});
 
-app.use(express.urlencoded({ extended: false }));
+app.use(express.urlencoded({ extended: false, limit: "256kb" }));
 
 // Attach a request id to every request for log correlation. Clients may pass
 // their own X-Request-Id (capped) or one is generated.
