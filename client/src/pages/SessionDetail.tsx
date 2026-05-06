@@ -1858,6 +1858,10 @@ export default function SessionDetail() {
             const aPaused = !!(a as any).isPaused;
             const bPaused = !!(b as any).isPaused;
             if (aPaused !== bPaused) return aPaused ? 1 : -1;
+            // Unpaid players first, paid players last (pending counts as unpaid here)
+            const aPaid = (a as any).paymentStatus === "PAID";
+            const bPaid = (b as any).paymentStatus === "PAID";
+            if (aPaid !== bPaid) return aPaid ? 1 : -1;
             const aName = a.player?.user?.fullName || "";
             const bName = b.player?.user?.fullName || "";
             return aName.localeCompare(bName);
