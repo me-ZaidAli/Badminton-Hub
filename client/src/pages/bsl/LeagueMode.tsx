@@ -10,11 +10,11 @@ import { StatTile } from "./components/StatTile";
 import { MatchCard } from "./components/MatchCard";
 import { LeaderRow } from "./components/LeaderRow";
 import { BSL } from "./components/BSLPalette";
-import { useAuth } from "@/hooks/use-auth";
+import { useUser } from "@/hooks/use-auth";
 
 export default function LeagueMode() {
-  const { user } = useAuth();
-  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const { data: user } = useUser();
+  const isAdmin = (user as any)?.role === "OWNER" || (user as any)?.role === "ADMIN";
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: standings = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/standings"] });

@@ -7,7 +7,7 @@ import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
 import { BSL } from "./components/BSLPalette";
-import { useAuth } from "@/hooks/use-auth";
+import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -84,10 +84,10 @@ function RubberRow({ rubber, isAdmin, onSave }: { rubber: any; isAdmin: boolean;
 export default function MatchDetail() {
   const [, params] = useRoute<{ id: string }>("/bsl/match/:id");
   const id = Number(params?.id);
-  const { user } = useAuth();
+  const { data: user } = useUser();
   const { toast } = useToast();
   const qc = useQueryClient();
-  const isAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const isAdmin = (user as any)?.role === "OWNER" || (user as any)?.role === "ADMIN";
 
   const { data: match } = useQuery<any>({
     queryKey: ["/api/bsl/fixtures", id],
