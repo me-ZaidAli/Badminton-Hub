@@ -1,0 +1,57 @@
+.cm-themed {
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+
+  --background: 0 0% 100%;
+  --foreground: 222 47% 11%;
+  --primary: 200 98% 39%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 160 84% 39%;
+  --secondary-foreground: 0 0% 100%;
+  --muted: 210 40% 96%;
+  --muted-foreground: 215 16% 47%;
+  --accent: 35 100% 55%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --card: 0 0% 100%;
+  --card-foreground: 222 47% 11%;
+  --border: 214 32% 91%;
+  --ring: 200 98% 39%;
+  --radius: 0.75rem;
+  font-family: var(--font-body);
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.cm-themed.dark {
+  --background: 222 47% 11%;
+  --foreground: 210 40% 98%;
+  --primary: 200 98% 45%;
+  --primary-foreground: 210 40% 98%;
+  --secondary: 160 84% 45%;
+  --secondary-foreground: 210 40% 98%;
+  --muted: 217 33% 17%;
+  --muted-foreground: 215 20% 65%;
+  --accent: 35 100% 55%;
+  --accent-foreground: 222 47% 11%;
+  --destructive: 0 62% 30%;
+  --destructive-foreground: 210 40% 98%;
+  --card: 222 47% 14%;
+  --card-foreground: 210 40% 98%;
+  --border: 217 33% 17%;
+  --ring: 200 98% 45%;
+}
+
+@keyframes cm-orb-drift {
+  0%, 100% { transform: translate3d(0,0,0); }
+  50%      { transform: translate3d(20px,-12px,0); }
+}
+.cm-orb-a { animation: cm-orb-drift 14s ease-in-out infinite; }
+.cm-orb-b { animation: cm-orb-drift 17s ease-in-out infinite reverse; }
+
+@keyframes cm-row-in {
+  from { opacity: 0; transform: translateY(4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.cm-row { animation: cm-row-in 350ms ease-out both; }
