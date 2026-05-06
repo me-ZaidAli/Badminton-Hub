@@ -436,67 +436,82 @@ function DashboardContent({
       {featuredJoinTournament && (
         <Link href={`/tournaments/${featuredJoinTournament.id}`}>
           <div
-            className="relative overflow-hidden rounded-xl cursor-pointer group transition-all duration-300 hover:shadow-2xl hover:scale-[1.01]"
+            className="relative overflow-hidden rounded-2xl cursor-pointer group transition-all duration-300 ease-out hover:-translate-y-0.5 active:scale-[0.995] bg-card border border-border"
+            style={{ boxShadow: "0 1px 0 hsl(var(--accent)/0.06) inset, 0 18px 40px -22px hsl(var(--primary)/0.55)" }}
             data-testid={`banner-join-tournament-${featuredJoinTournament.id}`}
           >
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500 via-orange-600 to-rose-600 dark:from-amber-600 dark:via-orange-700 dark:to-rose-700" />
-            <div className="absolute inset-0 opacity-15" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg width=\'60\' height=\'60\' viewBox=\'0 0 60 60\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cg fill=\'none\' fill-rule=\'evenodd\'%3E%3Cg fill=\'%23ffffff\' fill-opacity=\'0.5\'%3E%3Cpath d=\'M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z\'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E")' }} />
-            <div className="absolute -top-10 -right-10 w-72 h-72 bg-white/10 rounded-full blur-3xl" />
-            <div className="absolute -bottom-16 -left-10 w-64 h-64 bg-amber-300/20 rounded-full blur-3xl" />
+            <div aria-hidden className="absolute -top-32 -right-24 w-[420px] h-[420px] rounded-full pointer-events-none" style={{ background: "radial-gradient(closest-side, hsl(var(--accent)/0.22), transparent 70%)" }} />
+            <div aria-hidden className="absolute -bottom-24 -left-24 w-[360px] h-[360px] rounded-full pointer-events-none" style={{ background: "radial-gradient(closest-side, hsl(var(--primary)/0.22), transparent 70%)" }} />
+            <div aria-hidden className="absolute inset-x-0 top-0 h-px" style={{ background: "linear-gradient(90deg, transparent, hsl(var(--accent)/0.6), transparent)" }} />
 
             <div className="relative z-10 p-5 sm:p-6">
-              <div className="flex items-start justify-between mb-3 gap-3">
-                <div className="flex items-center gap-3 min-w-0">
-                  <div className="p-2.5 rounded-xl bg-white/20 backdrop-blur-sm shadow-inner shrink-0">
-                    <Trophy className="h-6 w-6 text-white" />
+              <div className="flex items-start justify-between mb-4 gap-3">
+                <div className="flex items-start gap-3 min-w-0">
+                  <div className="grid place-items-center h-11 w-11 rounded-xl shrink-0" style={{ background: "hsl(var(--accent)/0.14)", boxShadow: "inset 0 0 0 1px hsl(var(--accent)/0.35)" }}>
+                    <Trophy className="h-5 w-5" style={{ color: "hsl(var(--accent))" }} />
                   </div>
                   <div className="min-w-0">
-                    <Badge className="bg-white/20 text-white border-white/30 text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 mb-1.5">
-                      <Zap className="h-3 w-3 mr-1" />New Tournament
-                    </Badge>
-                    <h3 className="text-lg sm:text-xl font-bold text-white tracking-tight truncate" data-testid={`text-join-tournament-name-${featuredJoinTournament.id}`}>
+                    <span className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider mb-1.5" style={{ background: "hsl(var(--accent)/0.14)", color: "hsl(var(--accent))", boxShadow: "inset 0 0 0 1px hsl(var(--accent)/0.30)" }}>
+                      <Zap className="h-3 w-3" />New Tournament
+                    </span>
+                    <h3 className="text-lg sm:text-xl font-bold tracking-tight truncate text-foreground" data-testid={`text-join-tournament-name-${featuredJoinTournament.id}`}>
                       {featuredJoinTournament.name}
                     </h3>
-                    <p className="text-xs text-amber-100 mt-0.5 font-medium">
-                      Sign up now and prove you're the champion
+                    <p className="text-xs text-muted-foreground mt-0.5 font-medium">
+                      Registration open · claim your spot before it fills
                     </p>
                   </div>
+                </div>
+                <div className="grid place-items-center h-9 w-9 rounded-full shrink-0 transition-transform duration-300 group-hover:rotate-45 bg-muted text-muted-foreground">
+                  <ArrowUpRight className="h-4 w-4" />
                 </div>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
-                <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2">
-                  <Calendar className="h-4 w-4 text-white shrink-0" />
-                  <span className="text-sm text-white font-semibold truncate">
-                    {format(new Date(featuredJoinTournament.startDate), "EEE, d MMM")}
-                  </span>
+                <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 bg-background/60 backdrop-blur border border-border">
+                  <Calendar className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--accent))" }} />
+                  <div className="min-w-0">
+                    <div className="text-[10px] uppercase tracking-wider font-semibold leading-none mb-0.5 text-muted-foreground">When</div>
+                    <div className="text-sm font-semibold truncate text-foreground">{format(new Date(featuredJoinTournament.startDate), "EEE, d MMM")}</div>
+                  </div>
                 </div>
                 {featuredJoinTournament.location && (
-                  <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2">
-                    <MapPinned className="h-4 w-4 text-white shrink-0" />
-                    <span className="text-sm text-white font-semibold truncate">{featuredJoinTournament.location}</span>
+                  <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 bg-background/60 backdrop-blur border border-border">
+                    <MapPinned className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--accent))" }} />
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider font-semibold leading-none mb-0.5 text-muted-foreground">Where</div>
+                      <div className="text-sm font-semibold truncate text-foreground">{featuredJoinTournament.location}</div>
+                    </div>
                   </div>
                 )}
                 {featuredJoinTournament.maxPlayers && (
-                  <div className="flex items-center gap-2 bg-white/15 backdrop-blur-sm rounded-lg px-3 py-2">
-                    <Users className="h-4 w-4 text-white shrink-0" />
-                    <span className="text-sm text-white font-semibold truncate">Up to {featuredJoinTournament.maxPlayers} players</span>
+                  <div className="flex items-center gap-2.5 rounded-xl px-3 py-2.5 bg-background/60 backdrop-blur border border-border">
+                    <Users className="h-4 w-4 shrink-0" style={{ color: "hsl(var(--accent))" }} />
+                    <div className="min-w-0">
+                      <div className="text-[10px] uppercase tracking-wider font-semibold leading-none mb-0.5 text-muted-foreground">Field</div>
+                      <div className="text-sm font-semibold truncate text-foreground">Up to {featuredJoinTournament.maxPlayers} players</div>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-3">
-                <p className="text-xs sm:text-sm text-amber-50 font-medium hidden sm:block">
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <p className="text-xs text-muted-foreground hidden sm:block">
                   Tap to view details and register your spot
                 </p>
-                <Button
-                  size="sm"
-                  className="bg-white text-orange-600 hover:bg-amber-50 font-bold shadow-lg ml-auto"
+                <button
+                  type="button"
+                  className="ml-auto inline-flex items-center gap-1.5 rounded-full px-4 py-2 text-sm font-bold transition-all duration-200 hover:brightness-110 active:scale-[0.97]"
+                  style={{
+                    background: "linear-gradient(135deg, hsl(var(--accent)) 0%, hsl(var(--accent) / 0.85) 100%)",
+                    color: "hsl(var(--accent-foreground))",
+                    boxShadow: "0 8px 24px -10px hsl(var(--accent)/0.7)",
+                  }}
                   data-testid={`button-join-tournament-${featuredJoinTournament.id}`}
                 >
                   Join Now
-                  <ChevronRight className="h-4 w-4 ml-1" />
-                </Button>
+                  <ChevronRight className="h-4 w-4" />
+                </button>
               </div>
             </div>
           </div>
@@ -504,12 +519,12 @@ function DashboardContent({
       )}
 
       {upcomingList.length > 0 && (
-        <Card className="border-amber-500/20 bg-gradient-to-br from-amber-500/5 via-transparent to-orange-500/5" data-testid="card-upcoming-tournaments">
+        <Card className="border-border bg-card" data-testid="card-upcoming-tournaments">
           <CardHeader className="pb-3">
             <div className="flex items-center justify-between gap-3 flex-wrap">
-              <div className="flex items-center gap-2">
-                <div className="p-1.5 rounded-lg bg-amber-500/15">
-                  <Trophy className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+              <div className="flex items-center gap-2.5">
+                <div className="grid place-items-center h-8 w-8 rounded-lg" style={{ background: "hsl(var(--accent)/0.14)", boxShadow: "inset 0 0 0 1px hsl(var(--accent)/0.25)" }}>
+                  <Trophy className="h-4 w-4" style={{ color: "hsl(var(--accent))" }} />
                 </div>
                 <div>
                   <CardTitle className="text-base">Upcoming Tournaments</CardTitle>
@@ -519,7 +534,7 @@ function DashboardContent({
                 </div>
               </div>
               <Link href="/tournaments">
-                <Button variant="ghost" size="sm" className="text-xs h-7 text-amber-600 dark:text-amber-400 hover:text-amber-700 hover:bg-amber-500/10" data-testid="button-view-all-tournaments">
+                <Button variant="ghost" size="sm" className="text-xs h-7 hover:bg-muted" style={{ color: "hsl(var(--primary))" }} data-testid="button-view-all-tournaments">
                   View all
                   <ChevronRight className="h-3 w-3 ml-0.5" />
                 </Button>
@@ -527,15 +542,15 @@ function DashboardContent({
             </div>
           </CardHeader>
           <CardContent className="pt-0">
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {upcomingList.map((t: any) => (
                 <Link key={t.id} href={`/tournaments/${t.id}`}>
                   <div
-                    className="flex items-center gap-3 rounded-lg border border-border/50 bg-card/50 hover:bg-amber-500/5 hover:border-amber-500/30 hover:shadow-sm transition-all duration-200 px-3 py-2.5 cursor-pointer group"
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5 cursor-pointer group transition-all duration-200 hover:-translate-y-px bg-background border border-border"
                     data-testid={`row-upcoming-tournament-${t.id}`}
                   >
-                    <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-amber-500/20 to-orange-500/20 flex items-center justify-center shrink-0 border border-amber-500/20 group-hover:scale-105 transition-transform">
-                      <Trophy className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+                    <div className="h-9 w-9 rounded-lg grid place-items-center shrink-0 transition-transform duration-300 group-hover:scale-105" style={{ background: "linear-gradient(135deg, hsl(var(--accent)/0.16), hsl(var(--primary)/0.16))", boxShadow: "inset 0 0 0 1px hsl(var(--border))" }}>
+                      <Trophy className="h-4 w-4" style={{ color: "hsl(var(--accent))" }} />
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -543,14 +558,14 @@ function DashboardContent({
                           {t.name}
                         </p>
                         {t.status === "ONGOING" && (
-                          <Badge className="bg-red-500/15 text-red-600 dark:text-red-400 border-red-500/30 text-[9px] font-bold px-1.5 py-0">
-                            <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-500 mr-1 animate-pulse" />LIVE
-                          </Badge>
+                          <span className="inline-flex items-center text-[9px] font-bold px-1.5 py-0 rounded" style={{ background: "hsl(var(--destructive)/0.18)", color: "hsl(var(--foreground))", boxShadow: "inset 0 0 0 1px hsl(var(--destructive)/0.4)" }}>
+                            <span className="inline-block h-1.5 w-1.5 rounded-full mr-1 animate-pulse" style={{ background: "hsl(var(--destructive))" }} />LIVE
+                          </span>
                         )}
                         {t.status === "PUBLISHED" && (
-                          <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 text-[9px] font-bold px-1.5 py-0">
+                          <span className="text-[9px] font-bold px-1.5 py-0 rounded" style={{ background: "hsl(var(--primary)/0.14)", color: "hsl(var(--primary))", boxShadow: "inset 0 0 0 1px hsl(var(--primary)/0.3)" }}>
                             Open
-                          </Badge>
+                          </span>
                         )}
                       </div>
                       <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-0.5">
@@ -568,7 +583,7 @@ function DashboardContent({
                         )}
                       </div>
                     </div>
-                    <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-amber-500 transition-colors shrink-0" />
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0 transition-all duration-200 group-hover:translate-x-0.5" />
                   </div>
                 </Link>
               ))}
