@@ -213,15 +213,14 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "adminInbox" });
     items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
     items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
-    items.push({ href: "/bsl/admin", label: "BSL · Control Panel", icon: Trophy, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
+    items.push({ href: "/bsl/admin", label: "BSL · Control Panel", icon: Trophy, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
     if (!isOrganiserOnly) {
       items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
-      items.push({ href: "/bsl/admin", label: "BSL · Control Panel", icon: Trophy, group: "admin" });
     }
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";

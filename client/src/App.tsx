@@ -257,7 +257,7 @@ function BslAdminRoute({ component: Component }: { component: React.ComponentTyp
   const [, setLocation] = useLocation();
   if (isLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
   if (!user) { setLocation("/login"); return null; }
-  if (user.role !== "OWNER" && user.role !== "ADMIN") { setLocation("/dashboard"); return null; }
+  if (user.role !== "OWNER") { setLocation("/dashboard"); return null; }
   return <ErrorBoundary><Suspense fallback={<LazyFallback />}><Component /></Suspense></ErrorBoundary>;
 }
 
