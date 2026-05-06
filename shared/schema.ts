@@ -3079,6 +3079,14 @@ export const bslLeagues = pgTable("bsl_leagues", {
   nextLeagueDay: timestamp("next_league_day"), // countdown target
   venueName: text("venue_name").default("One Central Venue, Birmingham"),
   divisions: text("divisions").array().notNull().default(["Premier", "Championship", "Division 1"]),
+  pointsWin: integer("points_win").notNull().default(3),
+  pointsDraw: integer("points_draw").notNull().default(1),
+  pointsLoss: integer("points_loss").notNull().default(0),
+  matchFormat: text("match_format").notNull().default("6-RUBBER"),
+  courtCount: integer("court_count").notNull().default(6),
+  notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
+  brandingPrimary: text("branding_primary").default("hsl(42 95% 55%)"),
+  brandingAccent: text("branding_accent").default("hsl(195 100% 60%)"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -3098,6 +3106,9 @@ export const bslClubs = pgTable("bsl_clubs", {
   rejectionReason: text("rejection_reason"),
   approvedAt: timestamp("approved_at"),
   approvedById: integer("approved_by_id").references(() => users.id),
+  isFlagged: boolean("is_flagged").notNull().default(false),
+  isSuspended: boolean("is_suspended").notNull().default(false),
+  adminNotes: text("admin_notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -3133,6 +3144,11 @@ export const bslPlayers = pgTable("bsl_players", {
   matchesPlayed: integer("matches_played").notNull().default(0),
   matchesWon: integer("matches_won").notNull().default(0),
   pointsScored: integer("points_scored").notNull().default(0),
+  // Discipline
+  warnings: integer("warnings").notNull().default(0),
+  isSuspended: boolean("is_suspended").notNull().default(false),
+  matchBanCount: integer("match_ban_count").notNull().default(0),
+  disciplineNotes: text("discipline_notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -3209,3 +3225,28 @@ export type InsertBslFixture = z.infer<typeof insertBslFixtureSchema>;
 export type BslRubber = typeof bslRubbers.$inferSelect;
 export type BslLeagueDay = typeof bslLeagueDays.$inferSelect;
 export type BslWalletTransaction = typeof bslWalletTransactions.$inferSelect;
+
+export const bslAuditLog = pgTable("bsl_audit_log", {
+  id: serial("id").primaryKey(),
+  actorUserId: integer("actor_user_id").references(() => users.id),
+  actorRole: text("actor_role"),
+  action: text("action").notNull(),
+  entity: text("entity").notNull(),
+  entityId: integer("entity_id"),
+  detail: jsonb("detail"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type BslAuditEntry = typeof bslAuditLog.$inferSelect;
+
+export const bslMedia = pgTable("bsl_media", {
+  id: serial("id").primaryKey(),
+  url: text("url").notNull(),
+  caption: text("caption"),
+  taggedClubId: integer("tagged_club_id").references(() => bslClubs.id, { onDelete: "set null" }),
+  taggedPlayerId: integer("tagged_player_id").references(() => bslPlayers.id, { onDelete: "set null" }),
+  isMvp: boolean("is_mvp").notNull().default(false),
+  isFeatured: boolean("is_featured").notNull().default(false),
+  uploadedById: integer("uploaded_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type BslMedia = typeof bslMedia.$inferSelect;

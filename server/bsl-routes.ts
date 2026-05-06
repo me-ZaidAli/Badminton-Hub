@@ -6,8 +6,20 @@ import path from "path";
 import fs from "fs";
 import {
   bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays,
-  bslFixtures, bslRubbers, bslWalletTransactions,
+  bslFixtures, bslRubbers, bslWalletTransactions, bslAuditLog, bslMedia, users,
 } from "@shared/schema";
+
+async function audit(req: Request, action: string, entity: string, entityId: number | null, detail?: any) {
+  try {
+    const u = (req as any).user;
+    await db.insert(bslAuditLog).values({
+      actorUserId: u?.id ?? null,
+      actorRole: u?.role ?? null,
+      action, entity, entityId: entityId ?? null,
+      detail: detail ?? null,
+    });
+  } catch { /* never block on audit */ }
+}
 
 function authed(req: Request): req is Request & { user: any } {
   return !!(req as any).isAuthenticated?.() && !!(req as any).user;
@@ -432,6 +444,285 @@ export function registerBslRoutes(app: Express) {
       const id = Number(req.params.id);
       const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, id));
       res.json(teams);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ========================================================================
+  // ====== ADMIN CONTROL PANEL =============================================
+  // ========================================================================
+
+  // --- DASHBOARD: aggregate stats + alerts ---
+  app.get("/api/bsl/admin/dashboard", requireAdmin, async (_req, res) => {
+    try {
+      const [allClubs, allPlayers, allFixtures, allTx] = await Promise.all([
+        db.select().from(bslClubs),
+        db.select().from(bslPlayers),
+        db.select().from(bslFixtures),
+        db.select().from(bslWalletTransactions),
+      ]);
+      const today = new Date(); today.setHours(0,0,0,0);
+      const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate()+1);
+      const todaysFixtures = allFixtures.filter(f => f.startTime && f.startTime >= today && f.startTime < tomorrow);
+      const liveCourts = new Set(allFixtures.filter(f => f.status === "LIVE" && f.court != null).map(f => f.court));
+      const pendingPayments = allClubs.filter(c => c.status === "PENDING_VERIFICATION").length
+        + allPlayers.filter(p => p.status === "PENDING_VERIFICATION").length
+        + allTx.filter(t => t.status === "PENDING").length;
+      res.json({
+        activeClubs: allClubs.filter(c => c.status === "ACTIVE" && !c.isSuspended).length,
+        totalClubs: allClubs.length,
+        flaggedClubs: allClubs.filter(c => c.isFlagged).length,
+        suspendedClubs: allClubs.filter(c => c.isSuspended).length,
+        activePlayers: allPlayers.filter(p => p.status === "ACTIVE" && !p.isSuspended).length,
+        totalPlayers: allPlayers.length,
+        suspendedPlayers: allPlayers.filter(p => p.isSuspended).length,
+        todaysMatches: todaysFixtures.length,
+        liveMatches: allFixtures.filter(f => f.status === "LIVE").length,
+        liveCourts: liveCourts.size,
+        completedMatches: allFixtures.filter(f => f.status === "FINISHED").length,
+        pendingPayments,
+        pendingClubApprovals: allClubs.filter(c => c.status === "PENDING_VERIFICATION").length,
+        pendingPlayerApprovals: allPlayers.filter(p => p.status === "PENDING_VERIFICATION").length,
+        pendingWalletTopups: allTx.filter(t => t.status === "PENDING").length,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- ADMIN: list ALL clubs (with filters) ---
+  app.get("/api/bsl/admin/clubs", requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const division = req.query.division as string | undefined;
+      const q = (req.query.q as string | undefined)?.toLowerCase().trim();
+      let rows = await db.select().from(bslClubs).orderBy(desc(bslClubs.createdAt));
+      if (status) rows = rows.filter(r => r.status === status);
+      if (division) rows = rows.filter(r => r.division === division);
+      if (q) rows = rows.filter(r => r.name.toLowerCase().includes(q) || r.paymentReference.toLowerCase().includes(q));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- ADMIN: list ALL players (with filters + user info) ---
+  app.get("/api/bsl/admin/players", requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      const clubId = req.query.clubId ? Number(req.query.clubId) : undefined;
+      const teamId = req.query.teamId ? Number(req.query.teamId) : undefined;
+      const q = (req.query.q as string | undefined)?.toLowerCase().trim();
+      let rows = await db.select().from(bslPlayers).orderBy(desc(bslPlayers.createdAt));
+      if (status) rows = rows.filter(r => r.status === status);
+      if (clubId) rows = rows.filter(r => r.bslClubId === clubId);
+      if (teamId) rows = rows.filter(r => r.bslTeamId === teamId);
+      // Hydrate with user displayName
+      const userIds = Array.from(new Set(rows.map(r => r.userId)));
+      const usersList = userIds.length
+        ? await db.select().from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(usersList.map(u => [u.id, u]));
+      const hydrated = rows.map(r => {
+        const u = userMap.get(r.userId);
+        return { ...r, displayName: u?.fullName || u?.username || `Player #${r.userId}`, email: u?.email };
+      }).filter(r => !q || r.displayName.toLowerCase().includes(q) || (r.email||"").toLowerCase().includes(q));
+      res.json(hydrated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- ADMIN: edit/suspend/flag club ---
+  app.patch("/api/bsl/admin/clubs/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const allow = ["name", "division", "teamCount", "logoUrl", "isFlagged", "isSuspended", "adminNotes"];
+      const patch: any = {};
+      for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
+      const [updated] = await db.update(bslClubs).set(patch).where(eq(bslClubs.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Club not found" });
+      await audit(req, "UPDATE_CLUB", "bsl_club", id, patch);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- ADMIN: edit player (team assign, discipline, stat correction) ---
+  app.patch("/api/bsl/admin/players/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const allow = ["bslTeamId", "bslClubId", "warnings", "isSuspended", "matchBanCount", "disciplineNotes",
+                     "matchesPlayed", "matchesWon", "pointsScored", "walletBalance"];
+      const patch: any = {};
+      for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
+      const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Player not found" });
+      await audit(req, "UPDATE_PLAYER", "bsl_player", id, patch);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- ADMIN: round-robin fixture generation per division ---
+  app.post("/api/bsl/admin/fixtures/generate", requireAdmin, async (req, res) => {
+    try {
+      const { division, leagueDayId } = req.body as { division: string; leagueDayId?: number };
+      if (!division) return res.status(400).json({ message: "division required" });
+      const teams = await db.select().from(bslTeams).where(eq(bslTeams.division, division));
+      if (teams.length < 2) return res.status(400).json({ message: "Need ≥2 teams in division" });
+      // Round-robin (circle method)
+      const list = teams.slice();
+      if (list.length % 2 === 1) list.push({ id: -1 } as any); // bye marker
+      const n = list.length;
+      const rounds = n - 1;
+      const half = n / 2;
+      const created: any[] = [];
+      const arr = list.slice();
+      for (let r = 0; r < rounds; r++) {
+        for (let i = 0; i < half; i++) {
+          const home = arr[i]; const away = arr[n - 1 - i];
+          if (home.id === -1 || away.id === -1) continue;
+          const [f] = await db.insert(bslFixtures).values({
+            bslLeagueDayId: leagueDayId ?? null,
+            homeTeamId: r % 2 === 0 ? home.id : away.id,
+            awayTeamId: r % 2 === 0 ? away.id : home.id,
+            court: null,
+            startTime: null,
+          }).returning();
+          // seed 6 rubbers
+          const types: any[] = ["MS1","MS2","WS","MD","WD","XD"];
+          for (let k = 0; k < types.length; k++) {
+            await db.insert(bslRubbers).values({
+              bslFixtureId: f.id, rubberNumber: k+1, rubberType: types[k],
+            });
+          }
+          created.push(f);
+        }
+        // rotate (keep first fixed)
+        arr.splice(1, 0, arr.pop()!);
+      }
+      await audit(req, "GENERATE_FIXTURES", "bsl_division", null, { division, leagueDayId, count: created.length });
+      res.json({ created: created.length, fixtures: created });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- ADMIN: control match status (start/pause/end/delay) ---
+  app.patch("/api/bsl/admin/fixtures/:id/status", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const status = req.body.status as string;
+      const allowed = ["SCHEDULED", "WARMUP", "LIVE", "FINISHED"];
+      if (!allowed.includes(status)) return res.status(400).json({ message: "Invalid status" });
+      const [updated] = await db.update(bslFixtures).set({ status: status as any }).where(eq(bslFixtures.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "Fixture not found" });
+      if (status === "FINISHED") await recomputeStandings();
+      await audit(req, "UPDATE_FIXTURE_STATUS", "bsl_fixture", id, { status });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- ADMIN: league days CRUD ---
+  app.get("/api/bsl/admin/league-days", requireAdmin, async (_req, res) => {
+    try {
+      const rows = await db.select().from(bslLeagueDays).orderBy(desc(bslLeagueDays.date));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/bsl/admin/league-days", requireAdmin, async (req, res) => {
+    try {
+      const { date, status } = req.body;
+      if (!date) return res.status(400).json({ message: "date required" });
+      const [row] = await db.insert(bslLeagueDays).values({
+        bslLeagueId: 1, date: new Date(date), status: status || "UPCOMING",
+      }).returning();
+      await audit(req, "CREATE_LEAGUE_DAY", "bsl_league_day", row.id, { date });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/bsl/admin/league-days/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(bslLeagueDays).where(eq(bslLeagueDays.id, id));
+      await audit(req, "DELETE_LEAGUE_DAY", "bsl_league_day", id, null);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- PAYMENTS: list all transactions + CSV export ---
+  app.get("/api/bsl/admin/transactions", requireAdmin, async (req, res) => {
+    try {
+      const status = req.query.status as string | undefined;
+      let rows = await db.select().from(bslWalletTransactions).orderBy(desc(bslWalletTransactions.createdAt));
+      if (status) rows = rows.filter(r => r.status === status);
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.get("/api/bsl/admin/payments/export.csv", requireAdmin, async (_req, res) => {
+    try {
+      const [clubs, players, txs] = await Promise.all([
+        db.select().from(bslClubs),
+        db.select().from(bslPlayers),
+        db.select().from(bslWalletTransactions),
+      ]);
+      const lines: string[] = ["type,id,reference,amount_pence,status,subject_id,created_at"];
+      clubs.forEach(c => lines.push(`CLUB_FEE,${c.id},${c.paymentReference},50000,${c.status},${c.id},${c.createdAt.toISOString()}`));
+      players.forEach(p => lines.push(`PLAYER_FEE,${p.id},${p.paymentReference},2500,${p.status},${p.id},${p.createdAt.toISOString()}`));
+      txs.forEach(t => lines.push(`WALLET_${t.type},${t.id},${t.reference},${t.amount},${t.status},${t.bslPlayerId},${t.createdAt.toISOString()}`));
+      res.setHeader("Content-Type", "text/csv");
+      res.setHeader("Content-Disposition", `attachment; filename="bsl-payments-${Date.now()}.csv"`);
+      res.send(lines.join("\n"));
+      await audit(_req as any, "EXPORT_PAYMENTS_CSV", "bsl_payments", null, { rows: lines.length - 1 });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- AUDIT LOG ---
+  app.get("/api/bsl/admin/audit", requireAdmin, async (req, res) => {
+    try {
+      const limit = Math.min(Number(req.query.limit) || 100, 500);
+      const rows = await db.select().from(bslAuditLog).orderBy(desc(bslAuditLog.createdAt)).limit(limit);
+      const userIds = Array.from(new Set(rows.map(r => r.actorUserId).filter(Boolean) as number[]));
+      const usersList = userIds.length ? await db.select().from(users).where(inArray(users.id, userIds)) : [];
+      const userMap = new Map(usersList.map(u => [u.id, u]));
+      res.json(rows.map(r => ({
+        ...r,
+        actorName: r.actorUserId ? (userMap.get(r.actorUserId)?.fullName || userMap.get(r.actorUserId)?.username || `User #${r.actorUserId}`) : "system",
+      })));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // --- MEDIA ---
+  app.get("/api/bsl/admin/media", requireAdmin, async (_req, res) => {
+    try {
+      const rows = await db.select().from(bslMedia).orderBy(desc(bslMedia.createdAt));
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.post("/api/bsl/admin/media", requireAdmin, bslUpload.single("file"), async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ message: "file required" });
+      const url = `/uploads/bsl/${req.file.filename}`;
+      const taggedClubId = req.body.taggedClubId ? Number(req.body.taggedClubId) : null;
+      const taggedPlayerId = req.body.taggedPlayerId ? Number(req.body.taggedPlayerId) : null;
+      const [row] = await db.insert(bslMedia).values({
+        url, caption: req.body.caption || null, taggedClubId, taggedPlayerId,
+        isMvp: req.body.isMvp === "true", isFeatured: req.body.isFeatured === "true",
+        uploadedById: (req as any).user.id,
+      }).returning();
+      await audit(req, "UPLOAD_MEDIA", "bsl_media", row.id, { url });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.patch("/api/bsl/admin/media/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const allow = ["caption", "taggedClubId", "taggedPlayerId", "isMvp", "isFeatured"];
+      const patch: any = {};
+      for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      const [row] = await db.update(bslMedia).set(patch).where(eq(bslMedia.id, id)).returning();
+      await audit(req, "UPDATE_MEDIA", "bsl_media", id, patch);
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/bsl/admin/media/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(bslMedia).where(eq(bslMedia.id, id));
+      await audit(req, "DELETE_MEDIA", "bsl_media", id, null);
+      res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 }

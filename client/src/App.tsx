@@ -153,6 +153,14 @@ const BslWallet = lazy(() => import("@/pages/bsl/Wallet"));
 const BslMatchDetail = lazy(() => import("@/pages/bsl/MatchDetail"));
 const BslAdminVerify = lazy(() => import("@/pages/bsl/AdminVerify"));
 const BslFixtureBoard = lazy(() => import("@/pages/bsl/FixtureBoard"));
+const BslAdminDashboard = lazy(() => import("@/pages/bsl/admin/Dashboard"));
+const BslAdminLeague = lazy(() => import("@/pages/bsl/admin/LeagueControl"));
+const BslAdminMatchDay = lazy(() => import("@/pages/bsl/admin/MatchDayControl"));
+const BslAdminClubs = lazy(() => import("@/pages/bsl/admin/ClubsAdmin"));
+const BslAdminPlayers = lazy(() => import("@/pages/bsl/admin/PlayersAdmin"));
+const BslAdminPayments = lazy(() => import("@/pages/bsl/admin/PaymentsAdmin"));
+const BslAdminMedia = lazy(() => import("@/pages/bsl/admin/MediaAdmin"));
+const BslAdminSettings = lazy(() => import("@/pages/bsl/admin/SettingsAdmin"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const { hidden } = useSidebarHidden();
@@ -242,6 +250,15 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
       </ErrorBoundary>
     </AuthenticatedShell>
   );
+}
+
+function BslAdminRoute({ component: Component }: { component: React.ComponentType }) {
+  const { data: user, isLoading } = useUser();
+  const [, setLocation] = useLocation();
+  if (isLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
+  if (!user) { setLocation("/login"); return null; }
+  if (user.role !== "OWNER" && user.role !== "ADMIN") { setLocation("/dashboard"); return null; }
+  return <ErrorBoundary><Suspense fallback={<LazyFallback />}><Component /></Suspense></ErrorBoundary>;
 }
 
 function NonOrganiserAdminRoute({ component: Component }: { component: React.ComponentType }) {
@@ -506,11 +523,35 @@ function Router() {
       <Route path="/bsl/match/:id">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslMatchDetail /></Suspense>} />
       </Route>
+      <Route path="/bsl/admin">
+        <BslAdminRoute component={() => <BslAdminDashboard />} />
+      </Route>
+      <Route path="/bsl/admin/league">
+        <BslAdminRoute component={() => <BslAdminLeague />} />
+      </Route>
+      <Route path="/bsl/admin/match-day">
+        <BslAdminRoute component={() => <BslAdminMatchDay />} />
+      </Route>
+      <Route path="/bsl/admin/clubs">
+        <BslAdminRoute component={() => <BslAdminClubs />} />
+      </Route>
+      <Route path="/bsl/admin/players">
+        <BslAdminRoute component={() => <BslAdminPlayers />} />
+      </Route>
+      <Route path="/bsl/admin/payments">
+        <BslAdminRoute component={() => <BslAdminPayments />} />
+      </Route>
+      <Route path="/bsl/admin/media">
+        <BslAdminRoute component={() => <BslAdminMedia />} />
+      </Route>
+      <Route path="/bsl/admin/settings">
+        <BslAdminRoute component={() => <BslAdminSettings />} />
+      </Route>
       <Route path="/bsl/admin/verify">
-        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><BslAdminVerify /></Suspense>} />
+        <BslAdminRoute component={() => <BslAdminPayments />} />
       </Route>
       <Route path="/bsl/admin/fixtures">
-        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><BslFixtureBoard /></Suspense>} />
+        <BslAdminRoute component={() => <BslAdminMatchDay />} />
       </Route>
       <Route path="/tournaments">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TournamentsPage /></Suspense>} />
