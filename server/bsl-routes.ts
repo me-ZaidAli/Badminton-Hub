@@ -128,9 +128,16 @@ export function registerBslRoutes(app: Express) {
       }
       const [updated] = await db.update(bslLeagues).set(update as any)
         .where(eq(bslLeagues.id, 1)).returning();
-      if (!updated) return res.status(404).json({ message: "League not configured" });
+      if (!updated) {
+        // No row with id=1 — seed one and retry
+        const [created] = await db.insert(bslLeagues).values({ id: 1, ...update } as any).returning();
+        return res.json(created);
+      }
       res.json(updated);
-    } catch (err: any) { res.status(500).json({ message: err.message || "Failed to save settings" }); }
+    } catch (err: any) {
+      console.error("[BSL PATCH /api/bsl/league] failed:", err);
+      res.status(500).json({ message: err.message || "Failed to save settings" });
+    }
   });
 
   // === CLUBS ===
