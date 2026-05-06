@@ -52,6 +52,12 @@ const createClubSchema = z.object({
   city: z.string().max(100, "City must be less than 100 characters").optional(),
   postcode: z.string().max(20, "Postcode must be less than 20 characters").optional(),
   googleMapsUrl: z.string().url("Please enter a valid URL").max(500, "URL too long").optional().or(z.literal("")),
+  logoUrl: z
+    .string()
+    .max(500, "Logo URL too long")
+    .refine((v) => v === "" || /^https?:\/\//i.test(v), "Logo URL must start with http:// or https://")
+    .optional()
+    .or(z.literal("")),
   isRegisteredWithBE: z.boolean().default(false),
   beRegistrationNumber: z.string().max(50, "Registration number too long").optional(),
   hasCompetitions: z.boolean().default(false),
@@ -115,6 +121,7 @@ export default function CreateClub() {
       city: "",
       postcode: "",
       googleMapsUrl: "",
+      logoUrl: "",
       isRegisteredWithBE: false,
       beRegistrationNumber: "",
       hasCompetitions: false,
@@ -245,6 +252,47 @@ export default function CreateClub() {
                           />
                         </FormControl>
                         <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="logoUrl"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Club Logo URL (optional)</FormLabel>
+                        <div className="flex items-start gap-3">
+                          <div className="flex-1">
+                            <FormControl>
+                              <Input
+                                placeholder="https://example.com/logo.png"
+                                data-testid="input-club-logo-url"
+                                {...field}
+                              />
+                            </FormControl>
+                            <FormDescription>
+                              Paste a public image URL (PNG, JPG, SVG, or WebP). Square images work best.
+                            </FormDescription>
+                            <FormMessage />
+                          </div>
+                          <div
+                            className="w-16 h-16 rounded-md border border-border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0"
+                            data-testid="preview-club-logo"
+                          >
+                            {field.value && /^https?:\/\//i.test(field.value) ? (
+                              <img
+                                src={field.value}
+                                alt="Logo preview"
+                                className="w-full h-full object-cover"
+                                onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                                onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = "block"; }}
+                              />
+                            ) : (
+                              <Building2 className="w-6 h-6 text-muted-foreground/40" />
+                            )}
+                          </div>
+                        </div>
                       </FormItem>
                     )}
                   />

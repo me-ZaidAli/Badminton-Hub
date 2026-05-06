@@ -833,7 +833,7 @@ export async function registerRoutes(
 
     try {
       const { 
-        name, description, address, city, postcode, googleMapsUrl,
+        name, description, address, city, postcode, googleMapsUrl, logoUrl,
         isRegisteredWithBE, beRegistrationNumber,
         hasCompetitions, hasSocialGames, socialGameTimings,
         providesTraining, trainingDetails,
@@ -841,6 +841,26 @@ export async function registerRoutes(
         ageGroups, playerLevels, shuttlecockType, providesClubTShirts,
         sportTypes
       } = req.body;
+
+      // Validate logoUrl: must be http(s):// or an existing /uploads/clubs/ path, ≤500 chars (or empty)
+      let validatedLogoUrl: string | null = null;
+      if (logoUrl !== undefined && logoUrl !== null && logoUrl !== "") {
+        if (typeof logoUrl !== "string" || logoUrl.length > 500) {
+          return res.status(400).json({ message: "Logo URL must be a string under 500 characters" });
+        }
+        const trimmedLogo = logoUrl.trim();
+        if (trimmedLogo) {
+          const isHttp = /^https?:\/\//i.test(trimmedLogo);
+          const isLocalUpload = trimmedLogo.startsWith("/uploads/clubs/");
+          if (!isHttp && !isLocalUpload) {
+            return res.status(400).json({ message: "Logo URL must start with http://, https://, or be a /uploads/clubs/ path" });
+          }
+          if (isLocalUpload && (trimmedLogo.includes("..") || trimmedLogo.includes("\\"))) {
+            return res.status(400).json({ message: "Invalid logo path" });
+          }
+        }
+        validatedLogoUrl = trimmedLogo || null;
+      }
       
       // Validate name
       if (!name || typeof name !== 'string') {
@@ -972,6 +992,7 @@ export async function registerRoutes(
         city: city?.trim() || null,
         postcode: postcode?.trim() || null,
         googleMapsUrl: googleMapsUrl?.trim() || null,
+        logoUrl: validatedLogoUrl,
         latitude,
         longitude,
         ownerId: userId,
@@ -9386,6 +9407,31 @@ export async function registerRoutes(
               return res.status(400).json({ message: "Club name must be at least 3 characters" });
             }
             updates.name = body.name.trim();
+          } else if (field === "logoUrl") {
+            const raw = body.logoUrl;
+            if (raw === null || raw === "") {
+              updates.logoUrl = null;
+            } else if (typeof raw === "string") {
+              const trimmed = raw.trim();
+              if (trimmed === "") {
+                updates.logoUrl = null;
+              } else {
+                if (trimmed.length > 500) {
+                  return res.status(400).json({ message: "Logo URL must be under 500 characters" });
+                }
+                const isHttp = /^https?:\/\//i.test(trimmed);
+                const isLocalUpload = trimmed.startsWith("/uploads/clubs/");
+                if (!isHttp && !isLocalUpload) {
+                  return res.status(400).json({ message: "Logo URL must start with http://, https://, or be a /uploads/clubs/ path" });
+                }
+                if (isLocalUpload && (trimmed.includes("..") || trimmed.includes("\\"))) {
+                  return res.status(400).json({ message: "Invalid logo path" });
+                }
+                updates.logoUrl = trimmed;
+              }
+            } else {
+              return res.status(400).json({ message: "Logo URL must be a string" });
+            }
           } else {
             updates[field] = body[field] || null;
           }

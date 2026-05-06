@@ -601,12 +601,35 @@ export default function ClubManagement() {
                   </div>
                   <div className="space-y-1.5">
                     <Label>Logo URL</Label>
-                    <Input
-                      value={editDetails.logoUrl}
-                      onChange={(e) => setEditDetails({ ...editDetails, logoUrl: e.target.value })}
-                      placeholder="https://..."
-                      data-testid="input-edit-club-logo"
-                    />
+                    <div className="flex items-start gap-2">
+                      <div className="flex-1 space-y-1">
+                        <Input
+                          value={editDetails.logoUrl}
+                          onChange={(e) => setEditDetails({ ...editDetails, logoUrl: e.target.value })}
+                          placeholder="https://example.com/logo.png"
+                          data-testid="input-edit-club-logo"
+                        />
+                        <p className="text-[11px] text-muted-foreground">
+                          Paste a public image URL. Leave blank to remove.
+                        </p>
+                      </div>
+                      <div
+                        className="w-12 h-12 rounded-md border border-border bg-muted/30 flex items-center justify-center overflow-hidden flex-shrink-0"
+                        data-testid="preview-edit-club-logo"
+                      >
+                        {editDetails.logoUrl && /^(https?:\/\/|\/uploads\/)/i.test(editDetails.logoUrl) ? (
+                          <img
+                            src={editDetails.logoUrl}
+                            alt="Logo preview"
+                            className="w-full h-full object-cover"
+                            onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                            onLoad={(e) => { (e.currentTarget as HTMLImageElement).style.display = "block"; }}
+                          />
+                        ) : (
+                          <Building2 className="w-5 h-5 text-muted-foreground/40" />
+                        )}
+                      </div>
+                    </div>
                   </div>
                 </div>
                 <div className="space-y-1.5">
