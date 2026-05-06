@@ -12,6 +12,7 @@ import { LeaderRow } from "./components/LeaderRow";
 import { BSL } from "./components/BSLPalette";
 import { useUser } from "@/hooks/use-auth";
 import bslLogo from "@assets/image_1778089188139.png";
+import bslHeroPhoto from "@assets/1778089289327_1778089305815.png";
 
 export default function LeagueMode() {
   const { data: user } = useUser();
@@ -37,53 +38,74 @@ export default function LeagueMode() {
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
-      {/* HERO HEADER */}
+      {/* HERO BANNER */}
       <div className="relative">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-8 md:pt-12">
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8">
           <motion.div
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
-            className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6"
+            initial={{ opacity: 0, y: -16, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+            className="relative w-full overflow-hidden rounded-3xl"
+            style={{ border: `1px solid ${BSL.cyan}33`, boxShadow: `0 32px 80px hsla(222,80%,2%,0.6), 0 0 0 1px ${BSL.gold}22` }}
+            data-testid="hero-banner"
           >
-            <div>
+            <motion.img
+              src={bslHeroPhoto}
+              alt=""
+              className="block w-full h-[260px] sm:h-[340px] md:h-[420px] lg:h-[480px] object-cover select-none"
+              draggable={false}
+              initial={{ scale: 1.08 }}
+              animate={{ scale: 1 }}
+              transition={{ duration: 1.6, ease: [0.16, 1, 0.3, 1] }}
+            />
+            {/* Vignette + colour wash so the photo blends with the BSL palette */}
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: `linear-gradient(180deg, hsla(222,55%,4%,0.15) 0%, hsla(222,55%,4%,0.0) 35%, hsla(222,55%,4%,0.55) 78%, hsla(222,55%,4%,0.95) 100%)`,
+            }} />
+            <div className="absolute inset-0 pointer-events-none" style={{
+              background: `radial-gradient(60% 80% at 50% 0%, hsla(195,100%,60%,0.18), transparent 60%), radial-gradient(40% 60% at 80% 90%, hsla(42,95%,55%,0.16), transparent 60%)`,
+            }} />
+            {/* Logo + content overlay */}
+            <div className="absolute inset-0 flex flex-col justify-end p-5 md:p-8 lg:p-10">
               <motion.img
                 src={bslLogo}
                 alt="Birmingham Super League"
-                className="block w-full max-w-[520px] h-auto select-none mb-4"
+                className="block w-full max-w-[260px] sm:max-w-[340px] md:max-w-[420px] lg:max-w-[520px] h-auto select-none mb-3 md:mb-4"
                 draggable={false}
-                initial={{ opacity: 0, y: -12, filter: "blur(8px)" }}
+                initial={{ opacity: 0, y: 16, filter: "blur(10px)" }}
                 animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
-                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
-                style={{ filter: `drop-shadow(0 0 32px ${BSL.cyan}55) drop-shadow(0 12px 28px hsla(222,80%,2%,0.7))` }}
+                transition={{ delay: 0.25, duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                style={{ filter: `drop-shadow(0 0 36px ${BSL.cyan}66) drop-shadow(0 14px 32px hsla(222,80%,2%,0.85))` }}
               />
-              <div className="flex flex-col gap-2">
-                <span className="text-2xl md:text-3xl font-black uppercase leading-none tracking-tight" style={{
-                  background: `linear-gradient(135deg, ${BSL.gold}, ${BSL.cyan})`,
-                  WebkitBackgroundClip: "text",
-                  WebkitTextFillColor: "transparent",
-                }}>{league?.name || "Birmingham Super League"}</span>
-                <span style={{ color: BSL.gold }} className="text-xs font-bold uppercase tracking-[0.28em]">{league?.tagline || "Compete · Connect · Elevate"}</span>
-              </div>
-              <div className="mt-3 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.18em]" style={{ color: BSL.muted }}>
-                <span className="inline-flex items-center gap-1.5"><MapPin className="h-3 w-3" style={{ color: BSL.cyan }} /> {league?.venueName || "One Central Venue"}</span>
-                <span className="inline-flex items-center gap-1.5"><Calendar className="h-3 w-3" style={{ color: BSL.cyan }} /> One Saturday / Month</span>
-                <span className="inline-flex items-center gap-1.5"><Trophy className="h-3 w-3" style={{ color: BSL.cyan }} /> 12 Days A Year</span>
-              </div>
+              <motion.div
+                initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.5, duration: 0.6 }}
+                className="flex flex-col gap-1.5"
+              >
+                <span style={{ color: BSL.gold }} className="text-[10px] sm:text-xs font-bold uppercase tracking-[0.28em]">{league?.tagline || "Compete · Connect · Elevate"}</span>
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[10px] sm:text-[11px] uppercase tracking-[0.18em]" style={{ color: "hsla(0,0%,100%,0.78)" }}>
+                  <span className="inline-flex items-center gap-1.5"><MapPin className="h-3 w-3" style={{ color: BSL.cyan }} /> {league?.venueName || "One Central Venue"}</span>
+                  <span className="inline-flex items-center gap-1.5"><Calendar className="h-3 w-3" style={{ color: BSL.cyan }} /> One Saturday / Month</span>
+                  <span className="inline-flex items-center gap-1.5"><Trophy className="h-3 w-3" style={{ color: BSL.cyan }} /> 12 Days A Year</span>
+                </div>
+              </motion.div>
             </div>
-            <div
-              className="rounded-2xl px-5 py-4 backdrop-blur-xl"
+            {/* Countdown — floating top-right */}
+            <motion.div
+              initial={{ opacity: 0, x: 16 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.4, duration: 0.6 }}
+              className="absolute top-4 right-4 md:top-6 md:right-6 rounded-2xl px-4 py-3 backdrop-blur-xl"
               style={{
-                background: "linear-gradient(140deg, hsla(42,95%,55%,0.10), hsla(195,100%,60%,0.06))",
+                background: "linear-gradient(140deg, hsla(42,95%,55%,0.16), hsla(195,100%,60%,0.10))",
                 border: `1px solid ${BSL.gold}55`,
+                boxShadow: `0 12px 32px hsla(222,80%,2%,0.6)`,
               }}
             >
-              <div className="text-[10px] uppercase tracking-[0.3em] mb-2 font-bold" style={{ color: BSL.gold }}>
-                Next League Day
-              </div>
+              <div className="text-[9px] md:text-[10px] uppercase tracking-[0.3em] mb-1.5 font-bold" style={{ color: BSL.gold }}>Next League Day</div>
               <CountdownTimer target={league?.nextLeagueDay} />
-            </div>
+            </motion.div>
           </motion.div>
+        </div>
+
+        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6">
 
           {/* QUICK ACTIONS */}
           <motion.div
