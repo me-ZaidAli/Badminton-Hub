@@ -277,7 +277,7 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // === STANDINGS ===
+  // === STANDINGS (one row per club; stats aggregated across all the club's pairs) ===
   app.get("/api/bsl/standings", async (req, res) => {
     try {
       const division = req.query.division as string | undefined;
@@ -287,14 +287,40 @@ export function registerBslRoutes(app: Express) {
       const teams = await teamsQ;
       const clubs = await db.select().from(bslClubs);
       const clubMap = new Map(clubs.map(c => [c.id, c]));
-      const enriched = teams.map(t => ({
-        ...t,
-        clubName: clubMap.get(t.bslClubId)?.name || "—",
-        clubLogo: clubMap.get(t.bslClubId)?.logoUrl || null,
-        rubberDiff: t.rubbersFor - t.rubbersAgainst,
-      }));
+      // Aggregate by club
+      type Row = { id: number; name: string; clubName: string; clubLogo: string | null; division: string; played: number; won: number; drawn: number; lost: number; rubbersFor: number; rubbersAgainst: number; points: number; rubberDiff: number; categories: string[] };
+      const byClub = new Map<number, Row>();
+      for (const t of teams) {
+        const club = clubMap.get(t.bslClubId);
+        if (!club) continue;
+        if (division && club.division !== division && t.division !== division) continue;
+        let row = byClub.get(t.bslClubId);
+        if (!row) {
+          row = {
+            id: t.bslClubId,
+            name: club.name,
+            clubName: club.name,
+            clubLogo: club.logoUrl || null,
+            division: club.division || t.division,
+            played: 0, won: 0, drawn: 0, lost: 0,
+            rubbersFor: 0, rubbersAgainst: 0, points: 0,
+            rubberDiff: 0,
+            categories: [],
+          };
+          byClub.set(t.bslClubId, row);
+        }
+        row.played += t.played || 0;
+        row.won += t.won || 0;
+        row.drawn += t.drawn || 0;
+        row.lost += t.lost || 0;
+        row.rubbersFor += t.rubbersFor || 0;
+        row.rubbersAgainst += t.rubbersAgainst || 0;
+        row.points += t.points || 0;
+        if (t.category && !row.categories.includes(t.category)) row.categories.push(t.category);
+      }
+      const enriched = Array.from(byClub.values()).map(r => ({ ...r, rubberDiff: r.rubbersFor - r.rubbersAgainst }));
       enriched.sort((a, b) => b.points - a.points || b.rubberDiff - a.rubberDiff || b.rubbersFor - a.rubbersFor);
-      res.json(enriched.map((t, i) => ({ ...t, position: i + 1 })));
+      res.json(enriched.map((r, i) => ({ ...r, position: i + 1 })));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
