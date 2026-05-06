@@ -28,6 +28,7 @@ _Populate as you build_
 - **Matchmaking**: Deterministic Smart Match Engine v6 with multi-mode, gender-aware, 9-tier grade-based scoring, complemented by BPG Competitive Balance Engine and Session Fairness Command Center.
 - **Freemium Model**: Backend-enforced and frontend-gated 2-plan (Basic FREE, Premium) freemium structure.
 - **Multi-Tenancy**: Supports multi-club and multi-sport management with granular, role-based access control.
+- **Club Control Center** (`/admin/control-center`): Single consolidated hub (page: `client/src/pages/admin/ClubControlCenter.tsx`) replacing scattered Club Management / Billing / All Clubs tiles. OWNER sees all clubs (via `/api/super-admin/clubs/billing`), ADMIN/club-admin sees their own admin clubs. Per-club feature toggles persisted in `clubs.featureOverrides` (jsonb) and exposed via `GET/PATCH /api/clubs/:id/feature-overrides` (PATCH = OWNER-only).
 - **Localization**: All event date/time inputs and displays are anchored to `Europe/London` (BST/GMT auto-aware).
 
 ## Product

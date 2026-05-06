@@ -217,12 +217,14 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
     if (!isOrganiserOnly) {
+      items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
     }
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
     if (!isOrganiserOnly) {
+      items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
     }
   }

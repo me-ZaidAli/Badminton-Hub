@@ -547,10 +547,10 @@ function ExpandedSessionDetails({ session, clubs, mySignup, onSignUp, onWithdraw
             <div className="tl-insight-card rounded-xl px-3 py-2" data-testid={`expanded-hype-${session.id}`}>
               <div className="flex items-center gap-1.5 mb-1">
                 <Flame className="h-3 w-3 text-orange-500" />
-                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Session Insight</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-foreground/75">Session Insight</span>
               </div>
-              <div className={`flex items-center gap-1.5 ${hype.color}`}>
-                <hype.icon className="h-3.5 w-3.5" />
+              <div className="flex items-center gap-1.5 text-foreground">
+                <hype.icon className="h-3.5 w-3.5 text-orange-400" />
                 <span className="text-xs font-semibold">{hype.message}</span>
               </div>
             </div>
@@ -2103,39 +2103,25 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         .tl-energy-track {
           box-shadow: inset 0 1px 2px rgba(0,0,0,0.1);
         }
+        /* Theme-token surfaces — adapt automatically to any theme (light, dark, Elite Sports default, premium themes) */
         .tl-dropdown-panel {
-          background: rgba(255,255,255,0.6);
-          backdrop-filter: blur(16px) saturate(1.8);
-          -webkit-backdrop-filter: blur(16px) saturate(1.8);
-          border: 1px solid rgba(255,255,255,0.3);
-          box-shadow: 0 4px 24px rgba(0,0,0,0.06), 0 1px 4px rgba(0,0,0,0.04);
-        }
-        .dark .tl-dropdown-panel {
-          background: rgba(30,30,40,0.6);
-          border: 1px solid rgba(255,255,255,0.08);
-          box-shadow: 0 4px 24px rgba(0,0,0,0.3), 0 1px 4px rgba(0,0,0,0.2);
+          background: hsl(var(--card) / 0.72);
+          backdrop-filter: blur(14px) saturate(1.4);
+          -webkit-backdrop-filter: blur(14px) saturate(1.4);
+          border: 1px solid hsl(var(--border) / 0.7);
+          box-shadow: 0 4px 24px hsl(0 0% 0% / 0.18), 0 1px 4px hsl(0 0% 0% / 0.12);
         }
         .tl-insight-card {
-          background: linear-gradient(135deg, rgba(251,146,60,0.05), rgba(239,68,68,0.05));
-          border: 1px solid rgba(251,146,60,0.15);
-        }
-        .dark .tl-insight-card {
-          background: linear-gradient(135deg, rgba(251,146,60,0.08), rgba(239,68,68,0.05));
-          border: 1px solid rgba(251,146,60,0.2);
+          background: hsl(var(--muted) / 0.55);
+          border: 1px solid hsl(var(--accent) / 0.25);
         }
         .tl-section-card {
-          background: rgba(0,0,0,0.02);
-          border: 1px solid rgba(0,0,0,0.04);
-        }
-        .dark .tl-section-card {
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.06);
+          background: hsl(var(--muted) / 0.45);
+          border: 1px solid hsl(var(--border) / 0.6);
         }
         .tl-stat-card {
-          background: rgba(0,0,0,0.03);
-        }
-        .dark .tl-stat-card {
-          background: rgba(255,255,255,0.04);
+          background: hsl(var(--muted) / 0.6);
+          border: 1px solid hsl(var(--border) / 0.4);
         }
         @keyframes tl-sectionIconGlow {
           0%, 100% { filter: drop-shadow(0 0 2px currentColor); }
