@@ -146,6 +146,13 @@ const IncidentReports = lazy(() => import("@/pages/IncidentReports"));
 const TrialManagement = lazy(() => import("@/pages/admin/TrialManagement"));
 const TrialDashboard = lazy(() => import("@/pages/TrialDashboard"));
 const AnalyticsDashboard = lazy(() => import("@/pages/AnalyticsDashboard"));
+const BslLeagueMode = lazy(() => import("@/pages/bsl/LeagueMode"));
+const BslRegisterClub = lazy(() => import("@/pages/bsl/RegisterClub"));
+const BslJoinPlayer = lazy(() => import("@/pages/bsl/JoinPlayer"));
+const BslWallet = lazy(() => import("@/pages/bsl/Wallet"));
+const BslMatchDetail = lazy(() => import("@/pages/bsl/MatchDetail"));
+const BslAdminVerify = lazy(() => import("@/pages/bsl/AdminVerify"));
+const BslFixtureBoard = lazy(() => import("@/pages/bsl/FixtureBoard"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const { hidden } = useSidebarHidden();
@@ -483,6 +490,27 @@ function Router() {
       </Route>
       <Route path="/league">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><LeaguePage /></Suspense>} />
+      </Route>
+      <Route path="/bsl">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslLeagueMode /></Suspense>} />
+      </Route>
+      <Route path="/bsl/register-club">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslRegisterClub /></Suspense>} />
+      </Route>
+      <Route path="/bsl/join">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslJoinPlayer /></Suspense>} />
+      </Route>
+      <Route path="/bsl/wallet">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslWallet /></Suspense>} />
+      </Route>
+      <Route path="/bsl/match/:id">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslMatchDetail /></Suspense>} />
+      </Route>
+      <Route path="/bsl/admin/verify">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><BslAdminVerify /></Suspense>} />
+      </Route>
+      <Route path="/bsl/admin/fixtures">
+        <AdminRoute component={() => <Suspense fallback={<LazyFallback />}><BslFixtureBoard /></Suspense>} />
       </Route>
       <Route path="/tournaments">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TournamentsPage /></Suspense>} />

@@ -3046,3 +3046,166 @@ export type InsertDebtPayment = z.infer<typeof insertDebtPaymentSchema>;
 export const insertPlayerDebtNoteSchema = createInsertSchema(playerDebtNotes).omit({ id: true, createdAt: true, createdById: true });
 export type PlayerDebtNote = typeof playerDebtNotes.$inferSelect;
 export type InsertPlayerDebtNote = z.infer<typeof insertPlayerDebtNoteSchema>;
+
+// ============================================================================
+// === BIRMINGHAM SUPER LEAGUE (BSL) ==========================================
+// ============================================================================
+
+export const bslPaymentStatusEnum = pgEnum("bsl_payment_status", [
+  "PENDING_PAYMENT", "PENDING_VERIFICATION", "ACTIVE", "REJECTED"
+]);
+export const bslFixtureStatusEnum = pgEnum("bsl_fixture_status", [
+  "SCHEDULED", "WARMUP", "LIVE", "FINISHED"
+]);
+export const bslRubberTypeEnum = pgEnum("bsl_rubber_type", [
+  "MS1", "MS2", "WS", "MD", "WD", "XD"
+]);
+export const bslWalletTxTypeEnum = pgEnum("bsl_wallet_tx_type", ["TOPUP", "DEDUCTION"]);
+export const bslWalletTxStatusEnum = pgEnum("bsl_wallet_tx_status", [
+  "PENDING", "APPROVED", "REJECTED"
+]);
+
+// Singleton league configuration row (id always = 1)
+export const bslLeagues = pgTable("bsl_leagues", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull().default("Birmingham Super League"),
+  tagline: text("tagline").default("Compete. Connect. Elevate."),
+  // Bank details for transfers (admin-editable)
+  bankAccountName: text("bank_account_name").notNull().default("Birmingham Super League Ltd"),
+  bankSortCode: text("bank_sort_code").notNull().default("00-00-00"),
+  bankAccountNumber: text("bank_account_number").notNull().default("00000000"),
+  clubFee: integer("club_fee").notNull().default(50000), // in pence (£500)
+  playerFee: integer("player_fee").notNull().default(2500), // in pence (£25)
+  nextLeagueDay: timestamp("next_league_day"), // countdown target
+  venueName: text("venue_name").default("One Central Venue, Birmingham"),
+  divisions: text("divisions").array().notNull().default(["Premier", "Championship", "Division 1"]),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+
+export const bslClubs = pgTable("bsl_clubs", {
+  id: serial("id").primaryKey(),
+  clubId: integer("club_id").references(() => clubs.id), // optional link to existing club
+  name: text("name").notNull(),
+  managerUserId: integer("manager_user_id").notNull().references(() => users.id),
+  logoUrl: text("logo_url"),
+  division: text("division").notNull(),
+  teamCount: integer("team_count").notNull().default(1),
+  paymentReference: text("payment_reference").notNull().unique(), // e.g., "BSL-CLUB-XYZ123"
+  paymentProofUrl: text("payment_proof_url"),
+  inviteCode: text("invite_code").unique(), // generated on approval
+  status: bslPaymentStatusEnum("status").notNull().default("PENDING_PAYMENT"),
+  rejectionReason: text("rejection_reason"),
+  approvedAt: timestamp("approved_at"),
+  approvedById: integer("approved_by_id").references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bslTeams = pgTable("bsl_teams", {
+  id: serial("id").primaryKey(),
+  bslClubId: integer("bsl_club_id").notNull().references(() => bslClubs.id, { onDelete: "cascade" }),
+  name: text("name").notNull(),
+  division: text("division").notNull(),
+  // Standings
+  played: integer("played").notNull().default(0),
+  won: integer("won").notNull().default(0),
+  drawn: integer("drawn").notNull().default(0),
+  lost: integer("lost").notNull().default(0),
+  rubbersFor: integer("rubbers_for").notNull().default(0),
+  rubbersAgainst: integer("rubbers_against").notNull().default(0),
+  points: integer("points").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bslPlayers = pgTable("bsl_players", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").notNull().references(() => users.id),
+  bslTeamId: integer("bsl_team_id").references(() => bslTeams.id, { onDelete: "set null" }),
+  bslClubId: integer("bsl_club_id").references(() => bslClubs.id, { onDelete: "set null" }),
+  paymentReference: text("payment_reference").notNull().unique(),
+  paymentProofUrl: text("payment_proof_url"),
+  status: bslPaymentStatusEnum("status").notNull().default("PENDING_PAYMENT"),
+  walletBalance: integer("wallet_balance").notNull().default(0), // in pence
+  rejectionReason: text("rejection_reason"),
+  approvedAt: timestamp("approved_at"),
+  approvedById: integer("approved_by_id").references(() => users.id),
+  // Stats
+  matchesPlayed: integer("matches_played").notNull().default(0),
+  matchesWon: integer("matches_won").notNull().default(0),
+  pointsScored: integer("points_scored").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bslLeagueDays = pgTable("bsl_league_days", {
+  id: serial("id").primaryKey(),
+  bslLeagueId: integer("bsl_league_id").notNull().references(() => bslLeagues.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  status: text("status").notNull().default("UPCOMING"), // UPCOMING, LIVE, COMPLETED
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bslFixtures = pgTable("bsl_fixtures", {
+  id: serial("id").primaryKey(),
+  bslLeagueDayId: integer("bsl_league_day_id").references(() => bslLeagueDays.id, { onDelete: "cascade" }),
+  homeTeamId: integer("home_team_id").notNull().references(() => bslTeams.id),
+  awayTeamId: integer("away_team_id").notNull().references(() => bslTeams.id),
+  court: integer("court"), // null = unassigned, set by drag-drop
+  startTime: timestamp("start_time"),
+  status: bslFixtureStatusEnum("status").notNull().default("SCHEDULED"),
+  homeRubbers: integer("home_rubbers").notNull().default(0),
+  awayRubbers: integer("away_rubbers").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bslRubbers = pgTable("bsl_rubbers", {
+  id: serial("id").primaryKey(),
+  bslFixtureId: integer("bsl_fixture_id").notNull().references(() => bslFixtures.id, { onDelete: "cascade" }),
+  rubberNumber: integer("rubber_number").notNull(), // 1..6
+  rubberType: bslRubberTypeEnum("rubber_type").notNull(),
+  homePlayer1Id: integer("home_player1_id").references(() => bslPlayers.id),
+  homePlayer2Id: integer("home_player2_id").references(() => bslPlayers.id),
+  awayPlayer1Id: integer("away_player1_id").references(() => bslPlayers.id),
+  awayPlayer2Id: integer("away_player2_id").references(() => bslPlayers.id),
+  homeScore: integer("home_score").notNull().default(0),
+  awayScore: integer("away_score").notNull().default(0),
+  status: bslFixtureStatusEnum("status").notNull().default("SCHEDULED"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const bslWalletTransactions = pgTable("bsl_wallet_transactions", {
+  id: serial("id").primaryKey(),
+  bslPlayerId: integer("bsl_player_id").notNull().references(() => bslPlayers.id, { onDelete: "cascade" }),
+  type: bslWalletTxTypeEnum("type").notNull(),
+  amount: integer("amount").notNull(), // in pence; positive
+  status: bslWalletTxStatusEnum("status").notNull().default("PENDING"),
+  proofUrl: text("proof_url"),
+  reference: text("reference").notNull(),
+  description: text("description"),
+  reviewedById: integer("reviewed_by_id").references(() => users.id),
+  reviewedAt: timestamp("reviewed_at"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+export const insertBslLeagueSchema = createInsertSchema(bslLeagues).omit({ id: true, createdAt: true, updatedAt: true });
+export type BslLeague = typeof bslLeagues.$inferSelect;
+export type InsertBslLeague = z.infer<typeof insertBslLeagueSchema>;
+
+export const insertBslClubSchema = createInsertSchema(bslClubs).omit({ id: true, createdAt: true, paymentReference: true, status: true, inviteCode: true, approvedAt: true, approvedById: true, paymentProofUrl: true, rejectionReason: true });
+export type BslClub = typeof bslClubs.$inferSelect;
+export type InsertBslClub = z.infer<typeof insertBslClubSchema>;
+
+export const insertBslTeamSchema = createInsertSchema(bslTeams).omit({ id: true, createdAt: true, played: true, won: true, drawn: true, lost: true, rubbersFor: true, rubbersAgainst: true, points: true });
+export type BslTeam = typeof bslTeams.$inferSelect;
+export type InsertBslTeam = z.infer<typeof insertBslTeamSchema>;
+
+export const insertBslPlayerSchema = createInsertSchema(bslPlayers).omit({ id: true, createdAt: true, paymentReference: true, status: true, walletBalance: true, approvedAt: true, approvedById: true, paymentProofUrl: true, rejectionReason: true, matchesPlayed: true, matchesWon: true, pointsScored: true });
+export type BslPlayer = typeof bslPlayers.$inferSelect;
+export type InsertBslPlayer = z.infer<typeof insertBslPlayerSchema>;
+
+export const insertBslFixtureSchema = createInsertSchema(bslFixtures).omit({ id: true, createdAt: true, status: true, homeRubbers: true, awayRubbers: true });
+export type BslFixture = typeof bslFixtures.$inferSelect;
+export type InsertBslFixture = z.infer<typeof insertBslFixtureSchema>;
+
+export type BslRubber = typeof bslRubbers.$inferSelect;
+export type BslLeagueDay = typeof bslLeagueDays.$inferSelect;
+export type BslWalletTransaction = typeof bslWalletTransactions.$inferSelect;

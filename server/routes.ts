@@ -25,6 +25,7 @@ import { registerCommunityRoutes } from "./communityRoutes";
 import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
 import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
+import { registerBslRoutes } from "./bsl-routes";
 import { generateSupplierOrderSheet } from "./supplierOrderSheetPdf";
 import { aiHeavyLimiter } from "./rateLimit";
 import { notifyUser, notifyUsers } from "./notify";
@@ -35224,6 +35225,8 @@ Return ONLY valid JSON in this exact format:
       res.status(500).json({ message: err.message });
     }
   });
+
+  registerBslRoutes(app);
 
   return httpServer;
 }
