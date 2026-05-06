@@ -9,6 +9,7 @@ import { BSL } from "../components/BSLPalette";
 import { BSLBackground } from "../components/BSLBackground";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
+import bslLogo from "@assets/image_1778089188139.png";
 
 const NAV = [
   { key: "dashboard", href: "/bsl/admin", label: "Dashboard", icon: LayoutDashboard },
@@ -40,13 +41,13 @@ export function AdminLayout({ active, children }: { active: string; children: Re
             {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
           </button>
           <Link href="/bsl"><a className="inline-flex items-center gap-2 text-xs uppercase tracking-widest" style={{ color: BSL.muted }} data-testid="link-back-to-bsl">
-            <ArrowLeft className="h-3 w-3" /> BSL
+            <ArrowLeft className="h-3 w-3" />
           </a></Link>
-          <div className="hidden md:block h-5 w-px" style={{ background: BSL.border }} />
-          <div className="flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4" style={{ color: BSL.gold }} />
-            <span className="font-black uppercase tracking-tight text-sm">Control Panel</span>
-          </div>
+          <Link href="/bsl/admin"><a className="inline-flex items-center gap-2.5" data-testid="link-bsl-logo">
+            <img src={bslLogo} alt="BSL" className="h-8 w-auto select-none" draggable={false} style={{ filter: `drop-shadow(0 0 12px ${BSL.cyan}55)` }} />
+            <div className="hidden md:block h-5 w-px" style={{ background: BSL.border }} />
+            <span className="hidden md:inline font-black uppercase tracking-tight text-sm" style={{ color: BSL.gold }}>Control Panel</span>
+          </a></Link>
           <div className="flex-1" />
           {pending > 0 && (
             <motion.div

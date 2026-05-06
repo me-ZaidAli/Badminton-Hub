@@ -11,6 +11,7 @@ import { MatchCard } from "./components/MatchCard";
 import { LeaderRow } from "./components/LeaderRow";
 import { BSL } from "./components/BSLPalette";
 import { useUser } from "@/hooks/use-auth";
+import bslLogo from "@assets/image_1778089188139.png";
 
 export default function LeagueMode() {
   const { data: user } = useUser();
@@ -46,31 +47,23 @@ export default function LeagueMode() {
             className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-6"
           >
             <div>
-              <div className="flex items-center gap-2 mb-3">
-                <motion.div
-                  className="h-9 w-9 rounded-lg flex items-center justify-center"
-                  style={{ background: `linear-gradient(135deg, ${BSL.gold}, ${BSL.goldDim})`, boxShadow: `0 0 32px ${BSL.gold}88` }}
-                  animate={{ boxShadow: [`0 0 24px ${BSL.gold}66`, `0 0 48px ${BSL.gold}aa`, `0 0 24px ${BSL.gold}66`] }}
-                  transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
-                >
-                  <Crown className="h-5 w-5" style={{ color: "hsl(222, 50%, 8%)" }} />
-                </motion.div>
-                <span className="text-xs font-bold uppercase tracking-[0.32em]" style={{ color: BSL.gold }}>
-                  {league?.name || "Birmingham Super League"}
-                </span>
-              </div>
-              <h1 className="text-4xl md:text-6xl lg:text-7xl font-black uppercase leading-[0.95] tracking-tight">
-                <span className="block" style={{ color: BSL.text }}>BIRMINGHAM</span>
-                <span className="block" style={{ color: BSL.text }}>SUPER</span>
-                <span className="block" style={{
+              <motion.img
+                src={bslLogo}
+                alt="Birmingham Super League"
+                className="block w-full max-w-[520px] h-auto select-none mb-4"
+                draggable={false}
+                initial={{ opacity: 0, y: -12, filter: "blur(8px)" }}
+                animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
+                transition={{ duration: 0.9, ease: [0.16, 1, 0.3, 1] }}
+                style={{ filter: `drop-shadow(0 0 32px ${BSL.cyan}55) drop-shadow(0 12px 28px hsla(222,80%,2%,0.7))` }}
+              />
+              <div className="flex flex-col gap-2">
+                <span className="text-2xl md:text-3xl font-black uppercase leading-none tracking-tight" style={{
                   background: `linear-gradient(135deg, ${BSL.gold}, ${BSL.cyan})`,
                   WebkitBackgroundClip: "text",
                   WebkitTextFillColor: "transparent",
-                  textShadow: `0 0 60px ${BSL.gold}44`,
-                }}>LEAGUE</span>
-              </h1>
-              <div className="mt-4 flex items-center gap-4 text-xs uppercase tracking-[0.18em]" style={{ color: BSL.muted }}>
-                <span style={{ color: BSL.gold }} className="font-bold">{league?.tagline || "Compete · Connect · Elevate"}</span>
+                }}>{league?.name || "Birmingham Super League"}</span>
+                <span style={{ color: BSL.gold }} className="text-xs font-bold uppercase tracking-[0.28em]">{league?.tagline || "Compete · Connect · Elevate"}</span>
               </div>
               <div className="mt-3 flex flex-wrap gap-3 text-[11px] uppercase tracking-[0.18em]" style={{ color: BSL.muted }}>
                 <span className="inline-flex items-center gap-1.5"><MapPin className="h-3 w-3" style={{ color: BSL.cyan }} /> {league?.venueName || "One Central Venue"}</span>
