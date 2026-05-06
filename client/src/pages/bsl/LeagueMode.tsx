@@ -11,7 +11,7 @@ import { MatchCard } from "./components/MatchCard";
 import { LeaderRow } from "./components/LeaderRow";
 import { BSL } from "./components/BSLPalette";
 import { useUser } from "@/hooks/use-auth";
-import bslLogo from "@assets/image_1778089188139.png";
+import bslLogo from "@assets/bsl_logo_chrome_1778089580995.png";
 import bslHeroPhoto from "@assets/1778089289327_1778089305815.png";
 
 export default function LeagueMode() {

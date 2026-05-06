@@ -9,7 +9,7 @@ import { BSL } from "../components/BSLPalette";
 import { BSLBackground } from "../components/BSLBackground";
 import { useQuery } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
-import bslLogo from "@assets/image_1778089188139.png";
+import bslLogo from "@assets/bsl_logo_chrome_1778089580995.png";
 
 const NAV = [
   { key: "dashboard", href: "/bsl/admin", label: "Dashboard", icon: LayoutDashboard },
