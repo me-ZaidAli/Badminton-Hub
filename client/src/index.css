@@ -9,73 +9,74 @@
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
 
-  /* Elite Sports — Deep dark base, neon-lime accent, electric-blue secondary */
-  --background: 230 23% 5%;            /* #0a0b10 */
-  --foreground: 0 0% 96%;
+  /* Elite Sports v2 — Atmospheric forest-green base lifted off pure black,
+     cards with green-grey tint, neon-lime accent, blue-violet radial atmosphere. */
+  --background: 150 16% 10%;           /* Lifted forest-green dark, not black */
+  --foreground: 0 0% 97%;
 
   --primary: 70 100% 50%;              /* Neon Lime #d4ff00 */
-  --primary-foreground: 230 23% 5%;
+  --primary-foreground: 150 16% 10%;
 
-  --secondary: 217 91% 60%;            /* Electric Blue */
+  --secondary: 252 90% 68%;            /* Violet/Indigo accent (image 1) */
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 230 18% 11%;
-  --muted-foreground: 0 0% 70%;
+  --muted: 150 12% 16%;
+  --muted-foreground: 150 8% 70%;
 
-  --accent: 70 100% 50%;               /* Neon Lime accent */
-  --accent-foreground: 230 23% 5%;
+  --accent: 70 100% 50%;               /* Neon Lime */
+  --accent-foreground: 150 16% 10%;
 
-  --destructive: 0 84% 60%;
+  --destructive: 0 80% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --card: 230 22% 8%;
-  --card-foreground: 0 0% 96%;
+  --card: 150 14% 14%;                 /* Visibly lifted from background */
+  --card-foreground: 0 0% 97%;
   --card-border: 0 0% 100%;            /* used with /10 alpha at sites */
 
-  --popover: 230 24% 7%;
-  --popover-foreground: 0 0% 96%;
+  --popover: 150 14% 13%;
+  --popover-foreground: 0 0% 97%;
   --popover-border: 0 0% 100%;
 
-  --sidebar-background: 230 24% 6%;
+  --sidebar-background: 150 16% 11%;
 
-  --border: 230 15% 16%;
-  --input: 230 15% 16%;
+  --border: 150 10% 22%;
+  --input: 150 10% 22%;
   --ring: 70 100% 50%;
 
   --radius: 0.75rem;
 }
 
 .dark {
-  --background: 230 23% 5%;
-  --foreground: 0 0% 96%;
+  --background: 150 16% 10%;
+  --foreground: 0 0% 97%;
 
   --primary: 70 100% 50%;
-  --primary-foreground: 230 23% 5%;
+  --primary-foreground: 150 16% 10%;
 
-  --secondary: 217 91% 60%;
+  --secondary: 252 90% 68%;
   --secondary-foreground: 0 0% 100%;
 
-  --muted: 230 18% 11%;
-  --muted-foreground: 0 0% 70%;
+  --muted: 150 12% 16%;
+  --muted-foreground: 150 8% 70%;
 
   --accent: 70 100% 50%;
-  --accent-foreground: 230 23% 5%;
+  --accent-foreground: 150 16% 10%;
 
-  --destructive: 0 75% 55%;
+  --destructive: 0 78% 58%;
   --destructive-foreground: 0 0% 100%;
 
-  --card: 230 22% 8%;
-  --card-foreground: 0 0% 96%;
+  --card: 150 14% 14%;
+  --card-foreground: 0 0% 97%;
   --card-border: 0 0% 100%;
 
-  --popover: 230 24% 7%;
-  --popover-foreground: 0 0% 96%;
+  --popover: 150 14% 13%;
+  --popover-foreground: 0 0% 97%;
   --popover-border: 0 0% 100%;
 
-  --sidebar-background: 230 24% 6%;
+  --sidebar-background: 150 16% 11%;
 
-  --border: 230 15% 16%;
-  --input: 230 15% 16%;
+  --border: 150 10% 22%;
+  --input: 150 10% 22%;
   --ring: 70 100% 50%;
 }
 
@@ -2076,12 +2077,14 @@ html, body {
   min-height: 100%;
 }
 
-/* Elite Sports — ambient deep-blue + forest-green radial wash, default theme only */
+/* Elite Sports v2 — atmospheric violet + lime + forest-green radial wash, default theme only.
+   Inspired by image 1 (blue-violet sport UI) and image 3 (forest-green fitness UI). */
 html.theme-default body {
   background-image:
-    radial-gradient(60% 50% at 12% 0%, hsl(217 91% 22% / 0.35) 0%, transparent 60%),
-    radial-gradient(55% 50% at 100% 100%, hsl(150 60% 18% / 0.30) 0%, transparent 65%),
-    radial-gradient(40% 30% at 50% 40%, hsl(70 100% 50% / 0.04) 0%, transparent 70%);
+    radial-gradient(70% 55% at 10% 0%, hsl(252 80% 30% / 0.55) 0%, transparent 60%),
+    radial-gradient(60% 55% at 100% 105%, hsl(70 90% 28% / 0.40) 0%, transparent 65%),
+    radial-gradient(55% 45% at 90% 5%, hsl(217 80% 32% / 0.30) 0%, transparent 60%),
+    radial-gradient(45% 35% at 50% 50%, hsl(70 100% 50% / 0.06) 0%, transparent 70%);
   background-attachment: fixed;
 }
 
