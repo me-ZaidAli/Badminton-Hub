@@ -168,12 +168,13 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const { name, clubId, type, startDate, endDate, description, courtsAvailable,
-        bannerUrl, maxPlayers, skillLevelMin, skillLevelMax, registrationDeadline,
+        bannerUrl, logoUrl, maxPlayers, skillLevelMin, skillLevelMax, registrationDeadline,
         location, socialLinks, entryFee, externalEntryFee, prizeInfo, rules, groupsPerSide, pairsPerGroup } = req.body;
+      const cleanLogoUrl = (typeof logoUrl === "string" && logoUrl.trim() && /^https?:\/\//i.test(logoUrl.trim()) && logoUrl.length <= 500) ? logoUrl.trim() : null;
       const [t] = await db.insert(tournaments).values({
         name, clubId, type, startDate: new Date(startDate), endDate: new Date(endDate),
         description, courtsAvailable: courtsAvailable || 4, createdBy: req.user!.id,
-        bannerUrl, maxPlayers, skillLevelMin, skillLevelMax,
+        bannerUrl, logoUrl: cleanLogoUrl, maxPlayers, skillLevelMin, skillLevelMax,
         registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
         location, socialLinks, entryFee, externalEntryFee, prizeInfo, rules, groupsPerSide, pairsPerGroup,
       }).returning();
@@ -190,11 +191,21 @@ export function registerTournamentRoutes(app: Express) {
       const isAdmin = await isTournamentAdmin(req.user!.id, id);
       if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
       const updates: any = {};
-      const allowed = ["name", "status", "description", "courtsAvailable", "bannerUrl", "maxPlayers",
+      const allowed = ["name", "status", "description", "courtsAvailable", "bannerUrl", "logoUrl", "maxPlayers",
         "skillLevelMin", "skillLevelMax", "location", "socialLinks", "isLocked",
         "entryFee", "externalEntryFee", "prizeInfo", "rules", "groupsPerSide", "pairsPerGroup", "type", "allowedClubIds"];
       for (const key of allowed) {
         if (req.body[key] !== undefined) updates[key] = req.body[key];
+      }
+      if (updates.logoUrl !== undefined) {
+        const v = updates.logoUrl;
+        if (v === null || v === "") {
+          updates.logoUrl = null;
+        } else if (typeof v !== "string" || v.length > 500 || !/^https?:\/\//i.test(v.trim())) {
+          return res.status(400).json({ message: "Logo URL must start with http:// or https:// (max 500 chars)" });
+        } else {
+          updates.logoUrl = v.trim();
+        }
       }
       if (req.body.startDate) updates.startDate = new Date(req.body.startDate);
       if (req.body.endDate) updates.endDate = new Date(req.body.endDate);

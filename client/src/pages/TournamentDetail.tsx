@@ -5825,6 +5825,7 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
   const [description, setDescription] = useState(tournament.description || "");
   const [rules, setRules] = useState(tournament.rules || "");
   const [bannerUrl, setBannerUrl] = useState(tournament.bannerUrl || "");
+  const [logoUrl, setLogoUrl] = useState((tournament as any).logoUrl || "");
   const [maxPlayers, setMaxPlayers] = useState(tournament.maxPlayers?.toString() || "");
   const [courtsAvailable, setCourtsAvailable] = useState(tournament.courtsAvailable?.toString() || "4");
   const [skillLevelMin, setSkillLevelMin] = useState(tournament.skillLevelMin || "");
@@ -5841,6 +5842,7 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
     setDescription(tournament.description || "");
     setRules(tournament.rules || "");
     setBannerUrl(tournament.bannerUrl || "");
+    setLogoUrl((tournament as any).logoUrl || "");
     setMaxPlayers(tournament.maxPlayers?.toString() || "");
     setCourtsAvailable(tournament.courtsAvailable?.toString() || "4");
     setSkillLevelMin(tournament.skillLevelMin || "");
@@ -5864,6 +5866,7 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
         description: description.trim() || null,
         rules: rules.trim() || null,
         bannerUrl: bannerUrl.trim() || null,
+        logoUrl: logoUrl.trim() || null,
         maxPlayers: maxPlayers ? parseInt(maxPlayers) : null,
         courtsAvailable: parseInt(courtsAvailable) || 4,
         skillLevelMin: skillLevelMin || null,
@@ -5969,6 +5972,18 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
             <div className="md:col-span-2">
               <label className={labelCls}>Banner Image URL</label>
               <input value={bannerUrl} onChange={(e) => setBannerUrl(e.target.value)} placeholder="https://..." className={inputCls} data-testid="input-banner-url" />
+            </div>
+            <div className="md:col-span-2">
+              <label className={labelCls}>Tournament Logo URL</label>
+              <div className="flex items-start gap-3">
+                <input value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://example.com/logo.png" className={cn(inputCls, "flex-1")} data-testid="input-logo-url" />
+                {logoUrl && /^https?:\/\//i.test(logoUrl) && (
+                  <div className="h-12 w-12 rounded-lg border border-border/60 bg-card overflow-hidden flex-shrink-0" data-testid="preview-logo">
+                    <img src={logoUrl} alt="Logo preview" className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                  </div>
+                )}
+              </div>
+              <p className="text-[10px] text-muted-foreground mt-1">Square image works best. Shows on the tournaments list.</p>
             </div>
             <div className="md:col-span-2">
               <label className={labelCls}>Description</label>

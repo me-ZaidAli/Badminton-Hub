@@ -481,6 +481,7 @@ export const tournaments = pgTable("tournaments", {
   createdBy: integer("created_by").references(() => users.id),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   bannerUrl: text("banner_url"),
+  logoUrl: text("logo_url"),
   maxPlayers: integer("max_players"),
   skillLevelMin: text("skill_level_min"),
   skillLevelMax: text("skill_level_max"),

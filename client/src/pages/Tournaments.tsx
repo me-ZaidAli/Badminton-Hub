@@ -30,6 +30,12 @@ const createTournamentSchema = z.object({
   maxPlayers: z.coerce.number().optional(),
   location: z.string().optional(),
   entryFee: z.string().optional(),
+  logoUrl: z
+    .string()
+    .max(500, "Logo URL too long")
+    .refine((v) => !v || /^https?:\/\//i.test(v), "Logo URL must start with http:// or https://")
+    .optional()
+    .or(z.literal("")),
 });
 
 const statusConfig: Record<string, { label: string; color: string; glow: string }> = {
@@ -66,7 +72,7 @@ export default function Tournaments() {
 
   const form = useForm<z.infer<typeof createTournamentSchema>>({
     resolver: zodResolver(createTournamentSchema),
-    defaultValues: { name: "", type: "CLUB", startDate: "", endDate: "", description: "", courtsAvailable: 4 },
+    defaultValues: { name: "", type: "CLUB", startDate: "", endDate: "", description: "", courtsAvailable: 4, logoUrl: "" },
   });
 
   const availableClubs = isSuperAdmin ? clubs : clubs?.filter(c => managedClubIds.has(c.id));
@@ -228,6 +234,29 @@ export default function Tournaments() {
                       <FormField control={form.control} name="location" render={({ field }) => (
                         <FormItem><FormLabel>Location</FormLabel><FormControl><Input placeholder="Venue address..." {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
+                      <FormField control={form.control} name="logoUrl" render={({ field }) => (
+                        <FormItem>
+                          <FormLabel>Tournament Logo URL (optional)</FormLabel>
+                          <div className="flex items-start gap-3">
+                            <div className="flex-1">
+                              <FormControl>
+                                <Input
+                                  placeholder="https://example.com/logo.png"
+                                  data-testid="input-tournament-logo-url"
+                                  {...field}
+                                />
+                              </FormControl>
+                              <p className="text-xs text-muted-foreground mt-1">Paste a public image URL (PNG, JPG, SVG, or WebP). Square images work best.</p>
+                              <FormMessage />
+                            </div>
+                            {field.value && /^https?:\/\//i.test(field.value) && (
+                              <div className="h-14 w-14 rounded-xl border border-border/60 bg-card overflow-hidden flex-shrink-0" data-testid="preview-tournament-logo">
+                                <img src={field.value} alt="Logo preview" className="w-full h-full object-cover" onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }} />
+                              </div>
+                            )}
+                          </div>
+                        </FormItem>
+                      )} />
                       <FormField control={form.control} name="description" render={({ field }) => (
                         <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea data-testid="input-description" placeholder="Tournament details..." {...field} /></FormControl><FormMessage /></FormItem>
                       )} />
@@ -335,8 +364,27 @@ function TournamentSection({ title, tournaments, getClubName, canManage, isSuper
                 data-testid={`card-tournament-${tournament.id}`}
               >
                 <div className="p-4 sm:p-5 flex items-center gap-4">
-                  <div className="hidden sm:flex h-14 w-14 rounded-xl bg-gradient-to-br from-violet-600/20 to-purple-600/20 dark:from-violet-500/30 dark:to-purple-500/30 items-center justify-center flex-shrink-0 border border-violet-500/20">
-                    <span className="text-2xl">{tc.emoji}</span>
+                  <div className="hidden sm:flex h-14 w-14 rounded-xl bg-gradient-to-br from-violet-600/20 to-purple-600/20 dark:from-violet-500/30 dark:to-purple-500/30 items-center justify-center flex-shrink-0 border border-violet-500/20 overflow-hidden" data-testid={`logo-tournament-${tournament.id}`}>
+                    {(tournament as any).logoUrl ? (
+                      <img
+                        src={(tournament as any).logoUrl}
+                        alt={`${tournament.name} logo`}
+                        className="w-full h-full object-cover"
+                        onError={(e) => {
+                          const img = e.currentTarget as HTMLImageElement;
+                          const parent = img.parentElement;
+                          img.remove();
+                          if (parent) {
+                            const span = document.createElement("span");
+                            span.className = "text-2xl";
+                            span.textContent = tc.emoji;
+                            parent.appendChild(span);
+                          }
+                        }}
+                      />
+                    ) : (
+                      <span className="text-2xl">{tc.emoji}</span>
+                    )}
                   </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap mb-1">
