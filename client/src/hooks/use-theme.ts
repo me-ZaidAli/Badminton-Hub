@@ -223,8 +223,10 @@ function applyThemeClasses(mode: DisplayMode, reducedMotion: boolean) {
   const root = document.documentElement;
   root.classList.add("theme-transitioning");
   ALL_THEME_CLASSES.forEach(cls => root.classList.remove(cls));
+  root.classList.remove("theme-default");
   const themeClasses = THEME_CLASSES[mode] || [];
   themeClasses.forEach(cls => root.classList.add(cls));
+  if (mode === "light" || mode === "dark") root.classList.add("theme-default");
   if (reducedMotion || mode === "migraine") root.classList.add("reduced-motion");
   setTimeout(() => root.classList.remove("theme-transitioning"), 350);
 }

@@ -9,74 +9,74 @@
   --font-display: 'Outfit', sans-serif;
   --font-body: 'Plus Jakarta Sans', sans-serif;
 
-  /* Vibrant Blue-Green Sports Theme */
-  --background: 0 0% 100%;
-  --foreground: 222 47% 11%;
-  
-  --primary: 200 98% 39%;     /* Deep Sport Blue */
-  --primary-foreground: 0 0% 100%;
-  
-  --secondary: 160 84% 39%;   /* Court Green */
+  /* Elite Sports — Deep dark base, neon-lime accent, electric-blue secondary */
+  --background: 230 23% 5%;            /* #0a0b10 */
+  --foreground: 0 0% 96%;
+
+  --primary: 70 100% 50%;              /* Neon Lime #d4ff00 */
+  --primary-foreground: 230 23% 5%;
+
+  --secondary: 217 91% 60%;            /* Electric Blue */
   --secondary-foreground: 0 0% 100%;
-  
-  --muted: 210 40% 96%;
-  --muted-foreground: 215 16% 47%;
-  
-  --accent: 35 100% 55%;      /* Gold/Trophy Accent */
-  --accent-foreground: 222 47% 11%;
-  
+
+  --muted: 230 18% 11%;
+  --muted-foreground: 0 0% 70%;
+
+  --accent: 70 100% 50%;               /* Neon Lime accent */
+  --accent-foreground: 230 23% 5%;
+
   --destructive: 0 84% 60%;
   --destructive-foreground: 0 0% 100%;
 
-  --card: 0 0% 100%;
-  --card-foreground: 222 47% 11%;
-  --card-border: 214 32% 91%;
+  --card: 230 22% 8%;
+  --card-foreground: 0 0% 96%;
+  --card-border: 0 0% 100%;            /* used with /10 alpha at sites */
 
-  --popover: 0 0% 100%;
-  --popover-foreground: 222 47% 11%;
-  --popover-border: 214 32% 91%;
+  --popover: 230 24% 7%;
+  --popover-foreground: 0 0% 96%;
+  --popover-border: 0 0% 100%;
 
-  --sidebar-background: 0 0% 100%;
+  --sidebar-background: 230 24% 6%;
 
-  --border: 214 32% 91%;
-  --input: 214 32% 91%;
-  --ring: 200 98% 39%;
-  
+  --border: 230 15% 16%;
+  --input: 230 15% 16%;
+  --ring: 70 100% 50%;
+
   --radius: 0.75rem;
 }
 
 .dark {
-  --background: 222 47% 11%;
-  --foreground: 210 40% 98%;
-  
-  --primary: 200 98% 45%;
-  --primary-foreground: 210 40% 98%;
-  
-  --secondary: 160 84% 45%;
-  --secondary-foreground: 210 40% 98%;
-  
-  --muted: 217 33% 17%;
-  --muted-foreground: 215 20% 65%;
-  
-  --accent: 35 100% 55%;
-  --accent-foreground: 222 47% 11%;
-  
-  --destructive: 0 62% 30%;
-  --destructive-foreground: 210 40% 98%;
+  --background: 230 23% 5%;
+  --foreground: 0 0% 96%;
 
-  --card: 222 47% 14%;
-  --card-foreground: 210 40% 98%;
-  --card-border: 217 33% 17%;
+  --primary: 70 100% 50%;
+  --primary-foreground: 230 23% 5%;
 
-  --popover: 222 47% 14%;
-  --popover-foreground: 210 40% 98%;
-  --popover-border: 217 33% 17%;
+  --secondary: 217 91% 60%;
+  --secondary-foreground: 0 0% 100%;
 
-  --sidebar-background: 222 47% 14%;
-  
-  --border: 217 33% 17%;
-  --input: 217 33% 17%;
-  --ring: 200 98% 45%;
+  --muted: 230 18% 11%;
+  --muted-foreground: 0 0% 70%;
+
+  --accent: 70 100% 50%;
+  --accent-foreground: 230 23% 5%;
+
+  --destructive: 0 75% 55%;
+  --destructive-foreground: 0 0% 100%;
+
+  --card: 230 22% 8%;
+  --card-foreground: 0 0% 96%;
+  --card-border: 0 0% 100%;
+
+  --popover: 230 24% 7%;
+  --popover-foreground: 0 0% 96%;
+  --popover-border: 0 0% 100%;
+
+  --sidebar-background: 230 24% 6%;
+
+  --border: 230 15% 16%;
+  --input: 230 15% 16%;
+  --ring: 70 100% 50%;
 }
 
 .sepia {
@@ -2076,10 +2076,66 @@ html, body {
   min-height: 100%;
 }
 
+/* Elite Sports — ambient deep-blue + forest-green radial wash, default theme only */
+html.theme-default body {
+  background-image:
+    radial-gradient(60% 50% at 12% 0%, hsl(217 91% 22% / 0.35) 0%, transparent 60%),
+    radial-gradient(55% 50% at 100% 100%, hsl(150 60% 18% / 0.30) 0%, transparent 65%),
+    radial-gradient(40% 30% at 50% 40%, hsl(70 100% 50% / 0.04) 0%, transparent 70%);
+  background-attachment: fixed;
+}
+
+/* Mobile / coarse-pointer / reduced-motion: drop fixed attachment to avoid scroll jank */
+@media (max-width: 768px), (pointer: coarse), (prefers-reduced-motion: reduce) {
+  html.theme-default body {
+    background-attachment: scroll;
+  }
+}
+html.reduced-motion.theme-default body { background-attachment: scroll; }
+
 #root {
   background: transparent;
   min-height: 100vh;
 }
+
+/* Glassmorphism — Elite Sports premium surfaces */
+.glass-elite {
+  background-color: hsl(var(--card) / 0.55);
+  backdrop-filter: blur(16px) saturate(140%);
+  -webkit-backdrop-filter: blur(16px) saturate(140%);
+  border: 1px solid hsl(0 0% 100% / 0.08);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 0.05),
+    0 10px 30px -12px hsl(0 0% 0% / 0.6);
+}
+
+.glass-elite-strong {
+  background-color: hsl(var(--card) / 0.7);
+  backdrop-filter: blur(24px) saturate(160%);
+  -webkit-backdrop-filter: blur(24px) saturate(160%);
+  border: 1px solid hsl(0 0% 100% / 0.10);
+  box-shadow:
+    inset 0 1px 0 hsl(0 0% 100% / 0.06),
+    0 14px 40px -14px hsl(0 0% 0% / 0.7);
+}
+
+/* Neon glow utilities (uses --accent / --primary so still theme-aware) */
+.glow-accent {
+  box-shadow: 0 0 0 1px hsl(var(--accent) / 0.45), 0 0 18px hsl(var(--accent) / 0.35);
+}
+.glow-accent-soft {
+  box-shadow: 0 0 22px hsl(var(--accent) / 0.25);
+}
+.text-glow-accent {
+  text-shadow: 0 0 12px hsl(var(--accent) / 0.55);
+}
+
+/* High-energy pulse */
+@keyframes elite-pulse {
+  0%, 100% { transform: scale(1); filter: drop-shadow(0 0 6px hsl(var(--accent) / 0.55)); }
+  50%      { transform: scale(1.12); filter: drop-shadow(0 0 14px hsl(var(--accent) / 0.85)); }
+}
+.animate-elite-pulse { animation: elite-pulse 1.6s ease-in-out infinite; }
 
 /* Custom Gradients */
 .bg-gradient-primary {
