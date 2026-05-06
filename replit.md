@@ -24,7 +24,7 @@ _Populate as you build_
 
 ## Architecture decisions
 
-- **Theming**: Advanced Premium Theme System with 64 themes, optimized for various displays including AMOLED, featuring a global Ultra-Premium Transparent Glass UI.
+- **Theming**: Advanced Premium Theme System with 64 themes, optimized for various displays including AMOLED, featuring a global Ultra-Premium Transparent Glass UI. Default palette ("Dribbble Blue-Violet") in `client/src/index.css` `:root`/`.dark`: deep blue-violet background (232 40% 10%), lifted blue-violet glass cards (232 32% 16%), violet accent (252 90% 68%), white foreground; body radial wash on `html.theme-default` matches the reference screenshot (brighter violet/blue from top, deepening at bottom).
 - **Matchmaking**: Deterministic Smart Match Engine v6 with multi-mode, gender-aware, 9-tier grade-based scoring, complemented by BPG Competitive Balance Engine and Session Fairness Command Center.
 - **Freemium Model**: Backend-enforced and frontend-gated 2-plan (Basic FREE, Premium) freemium structure.
 - **Multi-Tenancy**: Supports multi-club and multi-sport management with granular, role-based access control.
