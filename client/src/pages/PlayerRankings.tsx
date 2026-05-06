@@ -3,18 +3,18 @@ import { useClubs, useFilteredLeaderboard, type LeaderboardFilters, type Leaderb
 import { useUser } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { PageHeader } from "@/components/ui/page-header";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import {
-  Trophy, Search, Star, Flame, Target, Zap, Award, Medal, Loader2, RotateCcw, TrendingUp, Percent, Swords, Info, ArrowUpDown,
-  Crown, Shield, Sparkles
+  Trophy, Search, Star, Flame, Target, Zap, Award, Medal, Loader2, TrendingUp, Percent, Swords, Info,
+  Crown, Shield, Sparkles, MoreVertical, ChevronLeft, User as UserIcon,
 } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
+import heroMalePlayer from "@assets/hero_male_player.png";
+import heroFemalePlayer from "@assets/hero_female_player.png";
 
 type Membership = {
   clubId: number;
@@ -47,11 +47,11 @@ function getTimePeriodDates(period: string): { dateFrom?: string; dateTo?: strin
 
 function getAchievements(player: LeaderboardPlayer): { icon: any; label: string; color: string }[] {
   const badges: { icon: any; label: string; color: string }[] = [];
-  if (player.matchesWon >= 5) badges.push({ icon: Flame, label: "5+ Wins", color: "text-orange-500" });
-  if (player.matchesPlayed >= 10) badges.push({ icon: Star, label: "10+ Matches", color: "text-amber-500" });
-  if (player.winPercentage >= 75 && player.matchesPlayed >= 4) badges.push({ icon: Award, label: "Top Performer", color: "text-purple-500" });
-  if (player.matchesWon >= 1 && player.matchesPlayed <= 3) badges.push({ icon: Zap, label: "First Win", color: "text-green-500" });
-  if ((player as any).winStreak >= 10) badges.push({ icon: Medal, label: "Undefeated", color: "text-yellow-500" });
+  if (player.matchesWon >= 5) badges.push({ icon: Flame, label: "5+ Wins", color: "text-orange-400" });
+  if (player.matchesPlayed >= 10) badges.push({ icon: Star, label: "10+ Matches", color: "text-amber-400" });
+  if (player.winPercentage >= 75 && player.matchesPlayed >= 4) badges.push({ icon: Award, label: "Top Performer", color: "text-violet-300" });
+  if (player.matchesWon >= 1 && player.matchesPlayed <= 3) badges.push({ icon: Zap, label: "First Win", color: "text-emerald-400" });
+  if ((player as any).winStreak >= 10) badges.push({ icon: Medal, label: "Undefeated", color: "text-yellow-400" });
   return badges;
 }
 
@@ -76,7 +76,7 @@ function getBadgeHolders(players: any[]): BadgeHolder[] {
     if (champion) {
       const id = champion.id || champion.profileId;
       usedIds.add(id);
-      holders.push({ id, icon: Crown, label: "Champion", description: "Most wins overall", color: "text-amber-500", bgColor: "bg-amber-500/15", holderName: champion.displayName || champion.fullName || "Unknown" });
+      holders.push({ id, icon: Crown, label: "Champion", description: "Most wins overall", color: "text-amber-400", bgColor: "bg-amber-500/15", holderName: champion.displayName || champion.fullName || "Unknown" });
     }
   }
 
@@ -89,7 +89,7 @@ function getBadgeHolders(players: any[]): BadgeHolder[] {
         const id = sharpshooter.id || sharpshooter.profileId;
         if (!usedIds.has(id)) {
           usedIds.add(id);
-          holders.push({ id, icon: Target, label: "Sharpshooter", description: "Highest win rate (min 5 matches)", color: "text-red-500", bgColor: "bg-red-500/15", holderName: sharpshooter.displayName || sharpshooter.fullName || "Unknown" });
+          holders.push({ id, icon: Target, label: "Sharpshooter", description: "Highest win rate (min 5 matches)", color: "text-rose-400", bgColor: "bg-rose-500/15", holderName: sharpshooter.displayName || sharpshooter.fullName || "Unknown" });
         }
       }
     }
@@ -102,7 +102,7 @@ function getBadgeHolders(players: any[]): BadgeHolder[] {
       const id = ironman.id || ironman.profileId;
       if (!usedIds.has(id)) {
         usedIds.add(id);
-        holders.push({ id, icon: Shield, label: ironman.gender === "FEMALE" ? "Iron Woman" : "Iron Man", description: "Most matches played", color: "text-blue-500", bgColor: "bg-blue-500/15", holderName: ironman.displayName || ironman.fullName || "Unknown" });
+        holders.push({ id, icon: Shield, label: ironman.gender === "FEMALE" ? "Iron Woman" : "Iron Man", description: "Most matches played", color: "text-sky-400", bgColor: "bg-sky-500/15", holderName: ironman.displayName || ironman.fullName || "Unknown" });
       }
     }
   }
@@ -116,7 +116,7 @@ function getBadgeHolders(players: any[]): BadgeHolder[] {
         const id = star.id || star.profileId;
         if (!usedIds.has(id)) {
           usedIds.add(id);
-          holders.push({ id, icon: Sparkles, label: "Rising Star", description: "Best newcomer (3-10 matches)", color: "text-pink-500", bgColor: "bg-pink-500/15", holderName: star.displayName || star.fullName || "Unknown" });
+          holders.push({ id, icon: Sparkles, label: "Rising Star", description: "Best newcomer (3-10 matches)", color: "text-pink-400", bgColor: "bg-pink-500/15", holderName: star.displayName || star.fullName || "Unknown" });
         }
       }
     }
@@ -132,91 +132,357 @@ function getUniqueBadges(players: any[]): Map<number, { icon: any; label: string
   return badges;
 }
 
-function PodiumCard({
+const PLACE_META: Record<1 | 2 | 3, { label: string; ringFrom: string; ringTo: string; chip: string }> = {
+  1: { label: "1st", ringFrom: "from-amber-300", ringTo: "to-yellow-500", chip: "bg-amber-400/20 text-amber-200 border-amber-300/30" },
+  2: { label: "2nd", ringFrom: "from-slate-200", ringTo: "to-slate-400", chip: "bg-slate-300/15 text-slate-100 border-slate-200/30" },
+  3: { label: "3rd", ringFrom: "from-orange-400", ringTo: "to-amber-700", chip: "bg-orange-500/15 text-orange-200 border-orange-400/30" },
+};
+
+function HeroPlayerCard({
   player,
   place,
   computePoints,
   isMe,
+  uniqueBadge,
   onClick,
 }: {
   player: any;
   place: 1 | 2 | 3;
   computePoints: (p: LeaderboardPlayer) => number;
   isMe: boolean;
+  uniqueBadge?: { icon: any; label: string; color: string; bgColor: string };
   onClick: () => void;
 }) {
-  const crownColors = {
-    1: { main: "#FFD700", glow: "rgba(255,215,0,0.4)", gradient: "from-amber-400 to-yellow-500" },
-    2: { main: "#C0C0C0", glow: "rgba(192,192,192,0.3)", gradient: "from-slate-300 to-gray-400" },
-    3: { main: "#CD7F32", glow: "rgba(205,127,50,0.3)", gradient: "from-amber-600 to-orange-700" },
-  }[place];
-
-  const pedestalHeight = place === 1 ? "h-28" : place === 2 ? "h-20" : "h-16";
-  const pedestalOrder = place === 1 ? "order-2" : place === 2 ? "order-1" : "order-3";
-  const avatarSize = place === 1 ? "h-16 w-16" : "h-12 w-12";
-  const crownSize = place === 1 ? "h-10 w-10" : "h-7 w-7";
-  const nameSize = place === 1 ? "text-sm" : "text-xs";
+  const meta = PLACE_META[place];
+  const heroImg = player.gender === "FEMALE" ? heroFemalePlayer : heroMalePlayer;
+  const points = computePoints(player);
+  const winRate = player.winPercentage;
+  const heatPct = Math.min(100, Math.round(winRate));
+  const initials = (player.displayName || player.fullName || "?").substring(0, 2).toUpperCase();
 
   return (
     <div
-      className={`flex flex-col items-center ${pedestalOrder} cursor-pointer group`}
+      role="button"
+      tabIndex={0}
       onClick={onClick}
-      data-testid={`podium-${place}`}
+      onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onClick(); } }}
+      data-testid={`hero-player-${place}`}
+      className="group relative w-full text-left rounded-3xl overflow-hidden transition-all duration-300 hover:-translate-y-1 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/60 cursor-pointer"
+      style={{
+        background:
+          "linear-gradient(155deg, hsl(var(--card) / 0.85) 0%, hsl(var(--card) / 0.55) 60%, hsl(232 50% 14% / 0.7) 100%)",
+        backdropFilter: "blur(18px) saturate(160%)",
+        WebkitBackdropFilter: "blur(18px) saturate(160%)",
+        border: "1px solid hsl(0 0% 100% / 0.08)",
+        boxShadow:
+          "inset 0 1px 0 hsl(0 0% 100% / 0.08), 0 24px 60px -20px hsl(0 0% 0% / 0.55), 0 0 0 1px hsl(252 90% 68% / 0.08)",
+      }}
     >
-      <div className="relative mb-1">
-        <div
-          className="absolute -top-5 left-1/2 -translate-x-1/2 z-20"
-          style={{ filter: `drop-shadow(0 2px 6px ${crownColors.glow})` }}
-        >
-          <Crown className={crownSize} style={{ color: crownColors.main }} fill={crownColors.main} />
-        </div>
-        <div className="relative">
-          <div
-            className="absolute -inset-1 rounded-full"
-            style={{
-              background: `linear-gradient(135deg, ${crownColors.main}40, transparent 60%)`,
-              filter: `blur(3px)`,
-            }}
-          />
-          <Avatar className={`${avatarSize} border-2 relative z-10`} style={{ borderColor: crownColors.main }}>
-            <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-            <AvatarFallback className="bg-[#1a2744] text-white text-xs">
-              {player.fullName.substring(0, 2).toUpperCase()}
-            </AvatarFallback>
-          </Avatar>
-        </div>
-      </div>
-
-      <p className={`${nameSize} font-bold text-white mt-1 text-center truncate max-w-[100px]`}>
-        {player.displayName || player.fullName}
-        {isMe && <span className="text-cyan-400 ml-1 text-[10px]">(You)</span>}
-      </p>
-
-      <div className="flex items-center gap-1 mt-0.5">
-        <span className="text-[10px] font-bold text-emerald-400">{player.winPercentage}%</span>
-        <span className="text-[10px] text-slate-500">·</span>
-        <span className="text-[10px] text-slate-400">{player.matchesPlayed} played</span>
-        <span className="text-[10px] text-slate-500">·</span>
-        <span className="text-[10px] text-slate-400">{computePoints(player)} pts</span>
-      </div>
-
-      <div
-        className={`${pedestalHeight} w-24 sm:w-28 mt-2 rounded-t-xl flex items-center justify-center relative overflow-hidden group-hover:brightness-110 transition-all`}
+      {/* Atmospheric violet wash */}
+      <div className="pointer-events-none absolute inset-0 opacity-90"
         style={{
-          background: `linear-gradient(180deg, ${crownColors.main}15 0%, #0c1322 40%, #0a0f1e 100%)`,
-          border: `1px solid ${crownColors.main}30`,
-          borderBottom: "none",
+          background:
+            "radial-gradient(120% 80% at 100% 0%, hsl(252 90% 60% / 0.28) 0%, transparent 55%), radial-gradient(80% 60% at 0% 100%, hsl(217 90% 50% / 0.22) 0%, transparent 60%)",
         }}
-      >
-        <span
-          className="text-4xl font-black"
+      />
+
+      {/* Hero photo bleed */}
+      <div
+        className="pointer-events-none absolute right-[-30px] bottom-0 w-[78%] h-full opacity-90 group-hover:opacity-100 transition-opacity"
+        style={{
+          backgroundImage: `url(${heroImg})`,
+          backgroundSize: "cover",
+          backgroundPosition: "center bottom",
+          backgroundRepeat: "no-repeat",
+          maskImage: "linear-gradient(to left, black 55%, transparent 100%)",
+          WebkitMaskImage: "linear-gradient(to left, black 55%, transparent 100%)",
+        }}
+      />
+
+      <div className="relative z-10 p-5 sm:p-6 flex flex-col min-h-[320px]">
+        {/* Top bar — place chip + kebab */}
+        <div className="flex items-center justify-between mb-4">
+          <div className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full border text-[10px] font-bold uppercase tracking-wider ${meta.chip}`}>
+            <Crown className="h-3 w-3" />
+            {meta.label}
+          </div>
+          <button
+            type="button"
+            onClick={(e) => e.stopPropagation()}
+            className="h-8 w-8 rounded-full grid place-items-center bg-white/5 border border-white/10 text-white/70 hover:bg-white/10"
+            data-testid={`hero-kebab-${place}`}
+          >
+            <MoreVertical className="h-4 w-4" />
+          </button>
+        </div>
+
+        {/* Avatar with violet glow ring */}
+        <div className="flex items-start gap-3 mb-4">
+          <div className="relative">
+            <div className={`absolute -inset-1.5 rounded-full bg-gradient-to-br ${meta.ringFrom} ${meta.ringTo} opacity-60 blur-md`} />
+            <Avatar className="relative h-16 w-16 ring-2 ring-white/20">
+              <AvatarImage src={(player as any).profilePhoto || `https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
+              <AvatarFallback className="bg-violet-500/20 text-white text-sm font-bold">{initials}</AvatarFallback>
+            </Avatar>
+          </div>
+          <div className="min-w-0 flex-1">
+            <div className="text-base font-bold text-white truncate flex items-center gap-1.5">
+              {player.displayName || player.fullName}
+              {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/20 text-accent-foreground border border-accent/30">You</span>}
+            </div>
+            {player.clubName && (
+              <div className="text-[11px] text-white/60 truncate">{player.clubName}</div>
+            )}
+            {uniqueBadge && (
+              <div className={`mt-1.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-semibold ${uniqueBadge.bgColor} ${uniqueBadge.color}`}>
+                <uniqueBadge.icon className="h-3 w-3" />
+                {uniqueBadge.label}
+              </div>
+            )}
+          </div>
+        </div>
+
+        {/* Stat strip overlay */}
+        <div
+          className="mt-auto rounded-2xl px-4 py-3 grid grid-cols-3 gap-2"
           style={{
-            color: `${crownColors.main}15`,
-            textShadow: `0 0 20px ${crownColors.main}08`,
+            background: "linear-gradient(180deg, hsl(232 40% 8% / 0.55), hsl(232 40% 6% / 0.7))",
+            backdropFilter: "blur(8px)",
+            WebkitBackdropFilter: "blur(8px)",
+            border: "1px solid hsl(0 0% 100% / 0.06)",
           }}
         >
-          {place === 1 ? "1st" : place === 2 ? "2nd" : "3rd"}
-        </span>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Win %</div>
+            <div className="text-lg font-black text-white tabular-nums">{Number.isInteger(winRate) ? winRate : winRate.toFixed(1)}<span className="text-xs text-white/50">%</span></div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">W / L</div>
+            <div className="text-lg font-black tabular-nums">
+              <span className="text-emerald-300">{player.matchesWon}</span>
+              <span className="text-white/30 mx-0.5">/</span>
+              <span className="text-rose-300">{player.matchesLost}</span>
+            </div>
+          </div>
+          <div>
+            <div className="text-[10px] uppercase tracking-wider text-white/50 font-semibold">Pts</div>
+            <div className="text-lg font-black text-white tabular-nums">{points}</div>
+          </div>
+        </div>
+
+        {/* Heat-index progress bar */}
+        <div className="mt-3">
+          <div className="flex items-center justify-between text-[10px] text-white/55 mb-1">
+            <span className="uppercase tracking-wider font-semibold">Win Index</span>
+            <span className="tabular-nums font-bold text-white/85">{heatPct}/100</span>
+          </div>
+          <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
+            <div
+              className="h-full rounded-full transition-[width] duration-700"
+              style={{
+                width: `${heatPct}%`,
+                background:
+                  "linear-gradient(90deg, hsl(252 90% 68%) 0%, hsl(217 90% 60%) 60%, hsl(160 80% 55%) 100%)",
+                boxShadow: "0 0 10px hsl(252 90% 68% / 0.5)",
+              }}
+            />
+          </div>
+        </div>
+
+        {/* Bottom action chip row */}
+        <div className="mt-4 flex items-center gap-2">
+          <Chip>
+            <Swords className="h-3 w-3" />
+            <span className="tabular-nums">{player.matchesPlayed}</span>
+          </Chip>
+          {(player as any).grade && (
+            <Chip>
+              <span className="font-mono">{(player as any).grade}</span>
+            </Chip>
+          )}
+          <ChipPrimary>
+            <UserIcon className="h-3 w-3" />
+            <span>Profile</span>
+          </ChipPrimary>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Chip({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-semibold text-white/85 bg-white/5 border border-white/10 backdrop-blur"
+    >
+      {children}
+    </span>
+  );
+}
+
+function ChipPrimary({ children }: { children: React.ReactNode }) {
+  return (
+    <span
+      className="ml-auto inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold text-white bg-gradient-to-br from-violet-500 to-indigo-500 shadow-lg shadow-violet-500/30"
+    >
+      {children}
+    </span>
+  );
+}
+
+function CompactPlayerCard({
+  player,
+  isMe,
+  uniqueBadge,
+  achievements,
+  onClick,
+}: {
+  player: any;
+  isMe: boolean;
+  uniqueBadge?: { icon: any; label: string; color: string; bgColor: string };
+  achievements: { icon: any; label: string; color: string }[];
+  onClick: () => void;
+}) {
+  const heatPct = Math.min(100, Math.round(player.winPercentage));
+  const initials = (player.displayName || player.fullName || "?").substring(0, 2).toUpperCase();
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={`compact-player-${player.id}`}
+      className="group relative w-full text-left rounded-2xl overflow-hidden transition-all duration-200 hover:-translate-y-0.5 focus:outline-none focus-visible:ring-2 focus-visible:ring-accent/50"
+      style={{
+        background:
+          "linear-gradient(135deg, hsl(var(--card) / 0.7) 0%, hsl(var(--card) / 0.5) 100%)",
+        backdropFilter: "blur(14px) saturate(150%)",
+        WebkitBackdropFilter: "blur(14px) saturate(150%)",
+        border: `1px solid ${isMe ? "hsl(252 90% 68% / 0.45)" : "hsl(0 0% 100% / 0.07)"}`,
+        boxShadow:
+          isMe
+            ? "0 10px 30px -16px hsl(252 90% 68% / 0.5), inset 0 1px 0 hsl(0 0% 100% / 0.06)"
+            : "0 8px 22px -16px hsl(0 0% 0% / 0.45), inset 0 1px 0 hsl(0 0% 100% / 0.05)",
+      }}
+    >
+      <div className="absolute inset-0 pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity"
+        style={{ background: "radial-gradient(60% 80% at 100% 50%, hsl(252 90% 68% / 0.12) 0%, transparent 60%)" }}
+      />
+      <div className="relative z-10 flex items-center gap-3 px-3 py-3 sm:px-4">
+        {/* Rank pill */}
+        <div className="flex-shrink-0 w-9 h-9 rounded-xl grid place-items-center bg-white/5 border border-white/10">
+          <span className="text-sm font-black text-white/90 tabular-nums">
+            {player.isTied ? `=${player.rank}` : player.rank}
+          </span>
+        </div>
+
+        {/* Avatar with optional badge */}
+        <div className="relative flex-shrink-0">
+          {uniqueBadge && (
+            <div className={`absolute -top-1 -right-1 z-10 w-5 h-5 rounded-full grid place-items-center ${uniqueBadge.bgColor} border border-background`} title={uniqueBadge.label}>
+              <uniqueBadge.icon className={`w-3 h-3 ${uniqueBadge.color}`} />
+            </div>
+          )}
+          <Avatar className="h-10 w-10 ring-2 ring-white/10">
+            <AvatarImage src={(player as any).profilePhoto || `https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
+            <AvatarFallback className="bg-violet-500/20 text-white text-xs font-bold">{initials}</AvatarFallback>
+          </Avatar>
+        </div>
+
+        {/* Name + meta */}
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-sm text-white truncate flex items-center gap-1.5">
+            {player.displayName || player.fullName}
+            {isMe && <span className="text-[10px] px-1.5 py-0.5 rounded bg-accent/25 text-white border border-accent/40 font-bold">You</span>}
+            {player.matchesPlayed <= 3 && (
+              <span className="text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-400/30 font-bold">New</span>
+            )}
+          </div>
+          <div className="flex items-center gap-2 mt-0.5">
+            {(player as any).grade && (
+              <span className="text-[10px] font-mono font-bold text-white/85 px-1.5 py-0.5 rounded bg-white/10 border border-white/10">
+                {(player as any).grade}
+              </span>
+            )}
+            {player.clubName && (
+              <span className="text-[11px] text-white/55 truncate">{player.clubName}</span>
+            )}
+          </div>
+          {/* Heat bar */}
+          <div className="mt-1.5 flex items-center gap-2">
+            <div className="flex-1 h-1 rounded-full bg-white/8 overflow-hidden max-w-[140px]">
+              <div
+                className="h-full rounded-full"
+                style={{
+                  width: `${heatPct}%`,
+                  background: "linear-gradient(90deg, hsl(252 90% 68%), hsl(217 90% 60%) 60%, hsl(160 80% 55%))",
+                }}
+              />
+            </div>
+            <span className="text-[10px] font-bold tabular-nums text-white/75">{heatPct}%</span>
+          </div>
+        </div>
+
+        {/* Right stat strip */}
+        <div className="hidden sm:flex flex-col items-end gap-0.5 pl-2">
+          <div className="text-[10px] uppercase tracking-wider text-white/45 font-semibold">W / L</div>
+          <div className="text-sm font-black tabular-nums">
+            <span className="text-emerald-300">{player.matchesWon}</span>
+            <span className="text-white/25 mx-0.5">/</span>
+            <span className="text-rose-300">{player.matchesLost}</span>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-0.5 pl-2 min-w-[52px]">
+          <div className="text-[10px] uppercase tracking-wider text-white/45 font-semibold">Pts</div>
+          <div className="text-base font-black text-white tabular-nums" data-testid={`text-points-${player.id}`}>
+            {player.totalPoints}
+          </div>
+        </div>
+
+        {/* Achievement icons */}
+        {achievements.length > 0 && (
+          <div className="hidden md:flex items-center gap-1 pl-2">
+            {achievements.slice(0, 3).map((a, i) => (
+              <div key={i} title={a.label} className="w-6 h-6 rounded-md grid place-items-center bg-white/5 border border-white/10">
+                <a.icon className={`w-3 h-3 ${a.color}`} />
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </button>
+  );
+}
+
+function StatTile({
+  label, value, icon: Icon, accent,
+}: {
+  label: string;
+  value: React.ReactNode;
+  icon: any;
+  accent: string;
+}) {
+  return (
+    <div
+      className="relative overflow-hidden rounded-2xl p-4"
+      style={{
+        background: "linear-gradient(135deg, hsl(var(--card) / 0.7), hsl(var(--card) / 0.45))",
+        backdropFilter: "blur(14px) saturate(150%)",
+        WebkitBackdropFilter: "blur(14px) saturate(150%)",
+        border: "1px solid hsl(0 0% 100% / 0.07)",
+        boxShadow: "inset 0 1px 0 hsl(0 0% 100% / 0.05), 0 8px 22px -16px hsl(0 0% 0% / 0.5)",
+      }}
+    >
+      <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full opacity-40 pointer-events-none"
+        style={{ background: `radial-gradient(circle, ${accent} 0%, transparent 70%)` }}
+      />
+      <div className="relative z-10 flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl grid place-items-center" style={{ background: accent }}>
+          <Icon className="h-5 w-5 text-white" />
+        </div>
+        <div>
+          <p className="text-[10px] text-white/60 uppercase tracking-wider font-semibold">{label}</p>
+          <p className="text-xl font-black text-white">{value}</p>
+        </div>
       </div>
     </div>
   );
@@ -343,17 +609,29 @@ export default function PlayerRankings() {
 
   const hasActiveFilters = selectedClubId !== "all" || category !== "all" || gender !== "all" || matchType !== "all" || timePeriod !== "all" || searchQuery.trim();
 
-  const resetFilters = () => {
-    setSelectedClubId("all");
-    setCategory("all");
-    setGender("all");
-    setMatchType("all");
-    setTimePeriod("all");
-    setSearchQuery("");
-  };
-
   const top3 = rankedLeaderboard.slice(0, 3);
   const remaining = rankedLeaderboard.slice(3);
+
+  // Reorder for visual podium: 2nd, 1st, 3rd on md+
+  const podiumOrder = useMemo(() => {
+    if (top3.length === 3) return [top3[1], top3[0], top3[2]] as const;
+    return top3;
+  }, [top3]);
+
+  const FilterPill = ({ active, onClick, children, testId }: { active: boolean; onClick: () => void; children: React.ReactNode; testId?: string }) => (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testId}
+      className={`px-3.5 py-1.5 rounded-full text-xs font-semibold transition-all border ${
+        active
+          ? "bg-gradient-to-br from-violet-500 to-indigo-500 text-white border-transparent shadow-lg shadow-violet-500/30"
+          : "bg-white/5 text-white/75 border-white/10 hover:bg-white/10"
+      }`}
+    >
+      {children}
+    </button>
+  );
 
   return (
     <div className="space-y-6">
@@ -371,11 +649,10 @@ export default function PlayerRankings() {
           <PopoverContent className="w-80 text-sm space-y-3" align="start">
             <h4 className="font-semibold text-base">How Rankings Work</h4>
             <div className="space-y-2 text-muted-foreground">
-              <p><span className="font-medium text-foreground">Points System:</span> Players earn 3 points for each win and 1 point for each loss. Points reflect overall activity and success.</p>
+              <p><span className="font-medium text-foreground">Points System:</span> Players earn 3 points for each win and 1 point for each loss.</p>
               <p><span className="font-medium text-foreground">Default Ranking:</span> Players are ranked first by total wins, then by win percentage as a tiebreaker.</p>
-              <p><span className="font-medium text-foreground">Grade:</span> Players have a skill grade from C3 (beginner) to A1 (advanced). Grades are assigned by admins or computed automatically based on recent performance.</p>
-              <p><span className="font-medium text-foreground">Auto-Grading:</span> When enabled, the system evaluates a rolling window of the last 5 sessions. Players need at least 10 games across 3 sessions to qualify. A win rate above 55% triggers a promotion, while below 40% triggers a demotion.</p>
-              <p><span className="font-medium text-foreground">Win %:</span> Percentage of matches won out of total matches played.</p>
+              <p><span className="font-medium text-foreground">Grade:</span> Players have a skill grade from C3 (beginner) to A1 (advanced).</p>
+              <p><span className="font-medium text-foreground">Auto-Grading:</span> Rolling window of last 5 sessions; needs 10+ games across 3 sessions; over 55% promotes, under 40% demotes.</p>
             </div>
           </PopoverContent>
         </Popover>
@@ -383,117 +660,64 @@ export default function PlayerRankings() {
 
       {myStats && (
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
-            <div className="absolute inset-0 bg-gradient-to-br from-amber-500/5 via-transparent to-transparent pointer-events-none" />
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-amber-500/15 flex items-center justify-center">
-                <Trophy className="h-5 w-5 text-amber-500" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Your Rank</p>
-                <p className="text-xl font-black text-white" data-testid="text-my-rank">
-                  {myRank ? `#${myRank}` : "-"}
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
-            <div className="absolute inset-0 bg-gradient-to-br from-emerald-500/5 via-transparent to-transparent pointer-events-none" />
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-emerald-500/15 flex items-center justify-center">
-                <TrendingUp className="h-5 w-5 text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Wins / Losses</p>
-                <p className="text-xl font-black" data-testid="text-my-wins">
-                  <span className="text-emerald-400">{myStats.matchesWon}</span>
-                  <span className="text-slate-600"> / </span>
-                  <span className="text-red-400">{myStats.matchesLost}</span>
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
-            <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/5 via-transparent to-transparent pointer-events-none" />
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-cyan-500/15 flex items-center justify-center">
-                <Percent className="h-5 w-5 text-cyan-400" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Win Rate</p>
-                <p className="text-xl font-black text-white" data-testid="text-my-winrate">
-                  {myStats.winPercentage}%
-                </p>
-              </div>
-            </div>
-          </div>
-          <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
-            <div className="absolute inset-0 bg-gradient-to-br from-purple-500/5 via-transparent to-transparent pointer-events-none" />
-            <div className="relative z-10 flex items-center gap-3">
-              <div className="h-10 w-10 rounded-full bg-purple-500/15 flex items-center justify-center">
-                <Swords className="h-5 w-5 text-purple-400" />
-              </div>
-              <div>
-                <p className="text-[10px] text-slate-500 uppercase tracking-wider font-semibold">Matches Played</p>
-                <p className="text-xl font-black text-white" data-testid="text-my-matches">
-                  {myStats.matchesPlayed}
-                </p>
-              </div>
-            </div>
-          </div>
+          <StatTile label="Your Rank" value={myRank ? `#${myRank}` : "-"} icon={Trophy} accent="hsl(43 95% 55% / 0.35)" />
+          <StatTile
+            label="Wins / Losses"
+            value={
+              <>
+                <span className="text-emerald-300">{myStats.matchesWon}</span>
+                <span className="text-white/30"> / </span>
+                <span className="text-rose-300">{myStats.matchesLost}</span>
+              </>
+            }
+            icon={TrendingUp}
+            accent="hsl(160 80% 50% / 0.3)"
+          />
+          <StatTile label="Win Rate" value={`${myStats.winPercentage}%`} icon={Percent} accent="hsl(217 90% 60% / 0.3)" />
+          <StatTile label="Matches" value={myStats.matchesPlayed} icon={Swords} accent="hsl(252 90% 68% / 0.35)" />
         </div>
       )}
 
-      <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
-        <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-        <div className="relative z-10 flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1">
-            <Button
-              variant={clubScope === "my" ? "default" : "outline"}
-              size="sm"
-              onClick={() => { setClubScope("my"); setSelectedClubId("all"); }}
-              className={clubScope === "my" ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border-cyan-500/30" : "border-[#1e293b] text-slate-400 hover:bg-[#1e293b]/50"}
-              data-testid="button-scope-my-clubs"
-            >
-              My Clubs
-            </Button>
-            <Button
-              variant={clubScope === "all" ? "default" : "outline"}
-              size="sm"
-              onClick={() => { setClubScope("all"); setSelectedClubId("all"); }}
-              className={clubScope === "all" ? "bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border-cyan-500/30" : "border-[#1e293b] text-slate-400 hover:bg-[#1e293b]/50"}
-              data-testid="button-scope-all-clubs"
-            >
-              All Clubs
-            </Button>
+      {/* Filter bar — glass with violet pills */}
+      <div
+        className="relative overflow-hidden rounded-2xl p-3 sm:p-4"
+        style={{
+          background: "linear-gradient(135deg, hsl(var(--card) / 0.65), hsl(var(--card) / 0.4))",
+          backdropFilter: "blur(14px) saturate(150%)",
+          WebkitBackdropFilter: "blur(14px) saturate(150%)",
+          border: "1px solid hsl(0 0% 100% / 0.07)",
+        }}
+      >
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+          <div className="flex items-center gap-1.5">
+            <FilterPill active={clubScope === "my"} onClick={() => { setClubScope("my"); setSelectedClubId("all"); }} testId="button-scope-my-clubs">My Clubs</FilterPill>
+            <FilterPill active={clubScope === "all"} onClick={() => { setClubScope("all"); setSelectedClubId("all"); }} testId="button-scope-all-clubs">All Clubs</FilterPill>
           </div>
           <div className="relative flex-1 min-w-[180px]">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-500" />
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-white/40" />
             <Input
               placeholder="Search players or clubs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="pl-9 bg-[#0a0f1e] border-[#1e293b] text-slate-300 placeholder:text-slate-600"
+              className="pl-9 bg-white/5 border-white/10 text-white placeholder:text-white/35 focus-visible:ring-violet-500/50"
               data-testid="input-search-rankings"
             />
           </div>
           {displayClubs.length > 0 && (
             <Select value={selectedClubId} onValueChange={setSelectedClubId}>
-              <SelectTrigger className="w-[180px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-club-filter-rankings">
+              <SelectTrigger className="w-[160px] bg-white/5 border-white/10 text-white" data-testid="select-club-filter-rankings">
                 <SelectValue placeholder="All Clubs" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="all">All Clubs</SelectItem>
                 {displayClubs.map(club => (
-                  <SelectItem key={club.id} value={club.id.toString()}>
-                    {club.name}
-                  </SelectItem>
+                  <SelectItem key={club.id} value={club.id.toString()}>{club.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
           )}
           <Select value={category} onValueChange={setCategory}>
-            <SelectTrigger className="w-[130px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-category-filter-rankings">
+            <SelectTrigger className="w-[120px] bg-white/5 border-white/10 text-white" data-testid="select-category-filter-rankings">
               <SelectValue placeholder="All Grades" />
             </SelectTrigger>
             <SelectContent>
@@ -504,28 +728,28 @@ export default function PlayerRankings() {
             </SelectContent>
           </Select>
           <Select value={gender} onValueChange={setGender}>
-            <SelectTrigger className="w-[130px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-gender-filter-rankings">
-              <SelectValue placeholder="All Players" />
+            <SelectTrigger className="w-[120px] bg-white/5 border-white/10 text-white" data-testid="select-gender-filter-rankings">
+              <SelectValue placeholder="Any" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Players</SelectItem>
+              <SelectItem value="all">All Genders</SelectItem>
               <SelectItem value="MALE">Male</SelectItem>
               <SelectItem value="FEMALE">Female</SelectItem>
             </SelectContent>
           </Select>
           <Select value={matchType} onValueChange={setMatchType}>
-            <SelectTrigger className="w-[130px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-match-type-rankings">
-              <SelectValue placeholder="All Types" />
+            <SelectTrigger className="w-[130px] bg-white/5 border-white/10 text-white" data-testid="select-match-type-filter-rankings">
+              <SelectValue placeholder="Any Match" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="all">All Types</SelectItem>
+              <SelectItem value="all">All Match Types</SelectItem>
               <SelectItem value="SINGLES">Singles</SelectItem>
               <SelectItem value="DOUBLES">Doubles</SelectItem>
               <SelectItem value="MIXED">Mixed</SelectItem>
             </SelectContent>
           </Select>
           <Select value={timePeriod} onValueChange={setTimePeriod}>
-            <SelectTrigger className="w-[150px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-time-rankings">
+            <SelectTrigger className="w-[140px] bg-white/5 border-white/10 text-white" data-testid="select-period-filter-rankings">
               <SelectValue placeholder="All Time" />
             </SelectTrigger>
             <SelectContent>
@@ -536,82 +760,71 @@ export default function PlayerRankings() {
             </SelectContent>
           </Select>
           <Select value={sortBy} onValueChange={setSortBy}>
-            <SelectTrigger className="w-[170px] bg-[#0a0f1e] border-[#1e293b] text-slate-300" data-testid="select-sort-by">
-              <ArrowUpDown className="h-4 w-4 mr-1 shrink-0" />
-              <SelectValue placeholder="Sort by" />
+            <SelectTrigger className="w-[130px] bg-white/5 border-white/10 text-white" data-testid="select-sort-rankings">
+              <SelectValue placeholder="Sort" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="default">Default (Wins)</SelectItem>
-              <SelectItem value="grade">Grade (High to Low)</SelectItem>
-              <SelectItem value="winpct">Win % (High to Low)</SelectItem>
-              <SelectItem value="matches">Matches (Most to Least)</SelectItem>
-              <SelectItem value="points">Points (High to Low)</SelectItem>
+              <SelectItem value="default">Default</SelectItem>
+              <SelectItem value="winpct">Win %</SelectItem>
+              <SelectItem value="matches">Matches</SelectItem>
+              <SelectItem value="points">Points</SelectItem>
+              <SelectItem value="grade">Grade</SelectItem>
             </SelectContent>
           </Select>
-          {hasActiveFilters && (
-            <Button variant="ghost" size="sm" onClick={resetFilters} className="text-slate-400 hover:text-white" data-testid="button-reset-ranking-filters">
-              <RotateCcw className="h-4 w-4 mr-1" /> Reset
-            </Button>
-          )}
         </div>
+        {hasActiveFilters && (
+          <div className="mt-2 text-[11px] text-white/50">Active filters applied — clear individual selectors to broaden results.</div>
+        )}
       </div>
 
+      {/* Badge guide — collapsed line */}
       {badgeHolders.length > 0 && (
-        <div className="relative overflow-hidden rounded-xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] p-4">
+        <div
+          className="relative overflow-hidden rounded-2xl p-3 sm:p-4"
+          style={{
+            background: "linear-gradient(135deg, hsl(var(--card) / 0.6), hsl(var(--card) / 0.4))",
+            border: "1px solid hsl(0 0% 100% / 0.06)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+          }}
+        >
           <div className="flex items-center gap-2 mb-3">
-            <Info className="h-4 w-4 text-slate-500" />
-            <h4 className="text-sm font-semibold text-slate-300">Badge Guide</h4>
+            <Sparkles className="h-4 w-4 text-violet-300" />
+            <h4 className="text-sm font-semibold text-white">Badge Holders</h4>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
             {badgeHolders.map((badge) => (
-              <div key={badge.label} className="flex items-center gap-3 p-2 rounded-md bg-[#1e293b]/30" data-testid={`badge-holder-${badge.label.toLowerCase().replace(/\s/g, '-')}`}>
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center ${badge.bgColor} shrink-0`}>
+              <div key={badge.label} className="flex items-center gap-2.5 p-2 rounded-xl bg-white/5 border border-white/8" data-testid={`badge-holder-${badge.label.toLowerCase().replace(/\s/g, '-')}`}>
+                <div className={`w-8 h-8 rounded-full grid place-items-center ${badge.bgColor} shrink-0`}>
                   <badge.icon className={`w-4 h-4 ${badge.color}`} />
                 </div>
                 <div className="min-w-0">
-                  <div className="text-sm font-medium text-slate-200">{badge.label}</div>
-                  <div className="text-xs text-slate-500 truncate">{badge.holderName}</div>
+                  <div className="text-xs font-bold text-white truncate">{badge.label}</div>
+                  <div className="text-[11px] text-white/55 truncate">{badge.holderName}</div>
                 </div>
               </div>
             ))}
-          </div>
-          <div className="mt-3 pt-3 border-t border-[#1e293b]">
-            <div className="text-xs font-medium mb-2 text-slate-500">Achievement Badges</div>
-            <div className="flex flex-wrap gap-4">
-              <div className="flex items-center gap-1.5">
-                <Flame className="w-4 h-4 text-orange-500" />
-                <span className="text-xs text-slate-400">5+ Wins</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Star className="w-4 h-4 text-amber-500" />
-                <span className="text-xs text-slate-400">10+ Matches</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Award className="w-4 h-4 text-purple-500" />
-                <span className="text-xs text-slate-400">Top Performer (75%+ win rate)</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Zap className="w-4 h-4 text-green-500" />
-                <span className="text-xs text-slate-400">First Win</span>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Medal className="w-4 h-4 text-yellow-500" />
-                <span className="text-xs text-slate-400">Undefeated (10 consecutive wins)</span>
-              </div>
-            </div>
           </div>
         </div>
       )}
 
       {isLoading ? (
-        <div className="flex items-end justify-center gap-4 py-12">
-          <Loader2 className="h-8 w-8 animate-spin text-cyan-400" />
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="h-8 w-8 animate-spin text-violet-300" />
         </div>
       ) : rankedLeaderboard.length === 0 ? (
-        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b] py-16 text-center">
-          <Target className="w-10 h-10 mx-auto mb-3 text-slate-600" />
-          <p className="font-medium text-slate-400">No players found</p>
-          <p className="text-sm mt-1 text-slate-500">
+        <div
+          className="rounded-2xl py-16 text-center"
+          style={{
+            background: "linear-gradient(135deg, hsl(var(--card) / 0.55), hsl(var(--card) / 0.35))",
+            border: "1px solid hsl(0 0% 100% / 0.06)",
+            backdropFilter: "blur(12px)",
+            WebkitBackdropFilter: "blur(12px)",
+          }}
+        >
+          <Target className="w-10 h-10 mx-auto mb-3 text-white/30" />
+          <p className="font-semibold text-white">No players found</p>
+          <p className="text-sm mt-1 text-white/55">
             {hasActiveFilters
               ? "Try adjusting your filters to see more results."
               : clubScope === "my" && myClubs.length === 0
@@ -622,163 +835,44 @@ export default function PlayerRankings() {
       ) : (
         <>
           {top3.length > 0 && (
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
-              <div className="absolute inset-0 bg-gradient-to-t from-transparent via-transparent to-purple-500/5 pointer-events-none" />
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-amber-500/3 pointer-events-none" />
-              <div className="relative z-10 pt-12 pb-4 px-4">
-                <div className="flex items-end justify-center gap-2 sm:gap-6">
-                  {top3.length >= 2 && (
-                    <PodiumCard
-                      player={top3[1]}
-                      place={2}
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {podiumOrder.map((player, idx) => {
+                const place: 1 | 2 | 3 = top3.length === 3 ? (idx === 0 ? 2 : idx === 1 ? 1 : 3) : ((idx + 1) as 1 | 2 | 3);
+                return (
+                  <div key={player.id} className={place === 1 ? "md:-translate-y-2" : ""}>
+                    <HeroPlayerCard
+                      player={player}
+                      place={place}
                       computePoints={computePoints}
-                      isMe={myProfile?.id === top3[1].id}
-                      onClick={() => { setStatsPlayerId(top3[1].id); setStatsOpen(true); }}
+                      isMe={myProfile?.id === player.id}
+                      uniqueBadge={uniqueBadgesMap.get(player.id)}
+                      onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}
                     />
-                  )}
-                  {top3.length >= 1 && (
-                    <PodiumCard
-                      player={top3[0]}
-                      place={1}
-                      computePoints={computePoints}
-                      isMe={myProfile?.id === top3[0].id}
-                      onClick={() => { setStatsPlayerId(top3[0].id); setStatsOpen(true); }}
-                    />
-                  )}
-                  {top3.length >= 3 && (
-                    <PodiumCard
-                      player={top3[2]}
-                      place={3}
-                      computePoints={computePoints}
-                      isMe={myProfile?.id === top3[2].id}
-                      onClick={() => { setStatsPlayerId(top3[2].id); setStatsOpen(true); }}
-                    />
-                  )}
-                </div>
-              </div>
+                  </div>
+                );
+              })}
             </div>
           )}
 
           {remaining.length > 0 && (
-            <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-[#0f1729] to-[#0c1322] border border-[#1e293b]">
-              <div className="absolute inset-0 bg-gradient-to-br from-cyan-500/3 via-transparent to-purple-500/3 pointer-events-none" />
-              <div className="relative z-10 overflow-x-auto">
-                <table className="w-full text-left" data-testid="rankings-table">
-                  <thead>
-                    <tr className="border-b border-[#1e293b]">
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 w-[60px]">Rank</th>
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500">Player</th>
-                      {selectedClubId === "all" && (
-                        <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden md:table-cell">Club</th>
-                      )}
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[70px]">Grade</th>
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[70px]">Played</th>
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[80px]">Win %</th>
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[90px]">W / L</th>
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 text-center w-[70px]">Points</th>
-                      <th className="px-4 py-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 hidden lg:table-cell w-[120px]">Badges</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {remaining.map((player) => {
-                      const achievements = getAchievements(player);
-                      const isMe = myProfile?.id === player.id;
-                      const isNewEntry = player.matchesPlayed <= 3;
-                      const uniqueBadge = uniqueBadgesMap.get(player.id);
-
-                      return (
-                        <tr
-                          key={player.id}
-                          className={`border-b border-[#1e293b]/50 cursor-pointer transition-colors ${isMe ? "bg-cyan-500/5 border-l-2 border-l-cyan-500" : "hover:bg-[#1e293b]/30"}`}
-                          onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}
-                          data-testid={`ranking-row-${player.id}`}
-                        >
-                          <td className="px-4 py-3 text-center">
-                            <span className={`text-base font-bold ${player.isTied ? "text-slate-500" : "text-slate-300"}`}>
-                              {player.isTied ? `=${player.rank}` : player.rank}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-3">
-                              {uniqueBadge && (
-                                <div className={`w-8 h-8 rounded-full flex items-center justify-center shrink-0 ${uniqueBadge.bgColor}`} title={uniqueBadge.label} data-testid={`badge-unique-${player.id}`}>
-                                  <uniqueBadge.icon className={`w-4 h-4 ${uniqueBadge.color}`} />
-                                </div>
-                              )}
-                              <Avatar className="h-8 w-8 border border-[#1e293b]">
-                                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${player.fullName}`} />
-                                <AvatarFallback className="bg-[#1a2744] text-slate-300 text-xs">
-                                  {player.fullName.substring(0, 2).toUpperCase()}
-                                </AvatarFallback>
-                              </Avatar>
-                              <div className="min-w-0">
-                                <div className="font-semibold text-sm text-slate-200 truncate flex items-center gap-1.5">
-                                  {player.displayName || player.fullName}
-                                  {isMe && <span className="text-[10px] text-cyan-400 font-bold px-1 py-0 bg-cyan-500/10 rounded">You</span>}
-                                  {isNewEntry && (
-                                    <span className="text-[10px] text-emerald-400 font-bold px-1 py-0 bg-emerald-500/10 rounded">New</span>
-                                  )}
-                                </div>
-                                {player.gender && (
-                                  <span className="text-[10px] text-slate-500">
-                                    {player.gender === "MALE" ? "Male" : "Female"}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                          </td>
-                          {selectedClubId === "all" && (
-                            <td className="px-4 py-3 hidden md:table-cell">
-                              <span className="text-xs text-slate-500 truncate">{player.clubName}</span>
-                            </td>
-                          )}
-                          <td className="px-4 py-3 text-center">
-                            <span className="text-xs font-mono font-bold text-slate-300 bg-[#1e293b]/50 px-2 py-0.5 rounded">
-                              {(player as any).grade || "?"}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="text-sm font-medium text-slate-300">{player.matchesPlayed}</span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className={`text-sm font-bold ${player.winPercentage >= 50 ? "text-emerald-400" : "text-slate-400"}`}>
-                              {player.winPercentage}%
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="text-sm font-medium">
-                              <span className="text-emerald-400">{player.matchesWon}</span>
-                              <span className="text-slate-600"> / </span>
-                              <span className="text-red-400">{player.matchesLost}</span>
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 text-center">
-                            <span className="text-sm font-bold text-white" data-testid={`text-points-${player.id}`}>
-                              {player.totalPoints}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3 hidden lg:table-cell">
-                            <div className="flex items-center gap-1">
-                              {achievements.slice(0, 3).map((a, i) => (
-                                <div key={i} title={a.label}>
-                                  <a.icon className={`w-3.5 h-3.5 ${a.color}`} />
-                                </div>
-                              ))}
-                            </div>
-                          </td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
+            <div className="space-y-2.5">
+              {remaining.map((player) => (
+                <CompactPlayerCard
+                  key={player.id}
+                  player={player}
+                  isMe={myProfile?.id === player.id}
+                  uniqueBadge={uniqueBadgesMap.get(player.id)}
+                  achievements={getAchievements(player)}
+                  onClick={() => { setStatsPlayerId(player.id); setStatsOpen(true); }}
+                />
+              ))}
             </div>
           )}
         </>
       )}
 
       {rankedLeaderboard.length > 0 && (
-        <div className="text-sm text-slate-500 text-center">
+        <div className="text-sm text-white/50 text-center">
           Showing {rankedLeaderboard.length} player{rankedLeaderboard.length !== 1 ? 's' : ''}
         </div>
       )}

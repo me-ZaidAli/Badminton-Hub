@@ -30,6 +30,7 @@ _Populate as you build_
 - **Multi-Tenancy**: Supports multi-club and multi-sport management with granular, role-based access control.
 - **Club Control Center** (`/admin/control-center`): Single consolidated hub (page: `client/src/pages/admin/ClubControlCenter.tsx`) replacing scattered Club Management / Billing / All Clubs tiles. OWNER sees all clubs (via `/api/super-admin/clubs/billing`), ADMIN/club-admin sees their own admin clubs. Per-club feature toggles persisted in `clubs.featureOverrides` (jsonb) and exposed via `GET/PATCH /api/clubs/:id/feature-overrides` (PATCH = OWNER-only).
 - **Localization**: All event date/time inputs and displays are anchored to `Europe/London` (BST/GMT auto-aware).
+- **Player Rankings UI** (`client/src/pages/PlayerRankings.tsx`): Dribbble-style rebuild — top 3 rendered as `HeroPlayerCard` (image-bleed gender-aware hero photo from `attached_assets/hero_{male,female}_player.png`, violet glow ring on avatar, overlaid 3-up stat strip Win%/W-L/Pts, win-index gradient progress bar, pill action chips, place chip top-left, kebab top-right). Ranks 4+ render as `CompactPlayerCard` (glassy row with rank pill, avatar, heat bar, W/L + Pts strip). Filter bar uses violet `FilterPill` for scope toggle. All surfaces use `hsl(var(--card)/x)` tokens — no hardcoded slate colors.
 
 ## Product
 
