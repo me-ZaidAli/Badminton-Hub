@@ -13,8 +13,8 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Button } from "@/components/ui/button";
 import { PlayerStatsDialog } from "@/components/PlayerStatsDialog";
-import heroMalePlayer from "@assets/hero_male_player.png";
-import heroFemalePlayer from "@assets/hero_female_player.png";
+import heroMalePlayer from "@assets/male_badminton_silhouette.png";
+import heroFemalePlayer from "@assets/female_badminton_silhouette.png";
 
 type Membership = {
   clubId: number;
@@ -612,11 +612,9 @@ export default function PlayerRankings() {
   const top3 = rankedLeaderboard.slice(0, 3);
   const remaining = rankedLeaderboard.slice(3);
 
-  // Reorder for visual podium: 2nd, 1st, 3rd on md+
-  const podiumOrder = useMemo(() => {
-    if (top3.length === 3) return [top3[1], top3[0], top3[2]] as const;
-    return top3;
-  }, [top3]);
+  // Always render in rank order (1st, 2nd, 3rd). On md+ we use CSS order to put 1st in the middle, lifted.
+  const podiumOrderClass = (place: 1 | 2 | 3) =>
+    place === 1 ? "md:order-2 md:-translate-y-2" : place === 2 ? "md:order-1" : "md:order-3";
 
   const FilterPill = ({ active, onClick, children, testId }: { active: boolean; onClick: () => void; children: React.ReactNode; testId?: string }) => (
     <button
@@ -836,10 +834,10 @@ export default function PlayerRankings() {
         <>
           {top3.length > 0 && (
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {podiumOrder.map((player, idx) => {
-                const place: 1 | 2 | 3 = top3.length === 3 ? (idx === 0 ? 2 : idx === 1 ? 1 : 3) : ((idx + 1) as 1 | 2 | 3);
+              {top3.map((player, idx) => {
+                const place = (idx + 1) as 1 | 2 | 3;
                 return (
-                  <div key={player.id} className={place === 1 ? "md:-translate-y-2" : ""}>
+                  <div key={player.id} className={podiumOrderClass(place)}>
                     <HeroPlayerCard
                       player={player}
                       place={place}
