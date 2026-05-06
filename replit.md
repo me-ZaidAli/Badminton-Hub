@@ -1,101 +1,60 @@
-# Club Master - Racket Sports Club Management Platform
+# Club Master
 
-## Overview
-Club Master is a comprehensive full-stack web application designed to streamline operations for racket sports clubs (badminton, tennis, padel, squash, table tennis) and enhance player engagement. It provides a central platform for session scheduling, dynamic player ranking, match organization, member profiles, and administrative tasks. The system supports robust role-based access control, multi-club management, and a 2-plan freemium model. Its vision is to be the leading platform for racket sports clubs globally, significantly improving club efficiency and player satisfaction.
+Club Master is a comprehensive web application for racket sports clubs, streamlining operations and enhancing player engagement.
 
-## User Preferences
+## Run & Operate
+
+_Populate as you build_
+
+## Stack
+
+- **Frontend**: React 18, TypeScript, Wouter, TanStack React Query, Tailwind CSS, shadcn/ui
+- **Backend**: Node.js, Express.js, TypeScript
+- **Database**: PostgreSQL with Drizzle ORM
+- **Build Tools**: Vite (frontend), esbuild (backend)
+- **Other**: express-session, passport/passport-local, date-fns, recharts, framer-motion
+
+## Where things live
+
+- `client/`: Frontend source code.
+  - `client/src/index.css`: Contains base CSS tokens for "Elite Sports" theme.
+  - `client/src/hooks/use-theme.ts`: Manages theme application classes.
+- `server/`: Backend source code.
+- `drizzle/schema.ts`: Database schema definition.
+
+## Architecture decisions
+
+- **Theming**: Advanced Premium Theme System with 64 themes, optimized for various displays including AMOLED, featuring a global Ultra-Premium Transparent Glass UI.
+- **Matchmaking**: Deterministic Smart Match Engine v6 with multi-mode, gender-aware, 9-tier grade-based scoring, complemented by BPG Competitive Balance Engine and Session Fairness Command Center.
+- **Freemium Model**: Backend-enforced and frontend-gated 2-plan (Basic FREE, Premium) freemium structure.
+- **Multi-Tenancy**: Supports multi-club and multi-sport management with granular, role-based access control.
+- **Localization**: All event date/time inputs and displays are anchored to `Europe/London` (BST/GMT auto-aware).
+
+## Product
+
+- **Club Management**: Multi-club support, membership management, recurring events, session scheduling, and financial intelligence.
+- **Player Engagement**: Dynamic player ranking, match organization, individual player profiles, achievement badges, and AI-powered analytics.
+- **Admin Tools**: Comprehensive user, club, venue, and administrator management, audit logs, helpdesk ticketing, and an OWNER-only Club Control Center for feature toggling.
+- **Advanced Features**: AI-powered reporting, session schedule generation, 3D avatar selection, league management, tournaments, merchandise system, and a community hub.
+- **Monetization**: Freemium model, tiered session fees, credit request system, and club-scoped referral programs.
+
+## User preferences
+
 Preferred communication style: Simple, everyday language.
 
-## System Architecture
+## Gotchas
 
-### Core Technologies
-The application uses React 18, TypeScript, Wouter, TanStack React Query, Tailwind CSS, and shadcn/ui for the frontend. The backend is built with Node.js, Express.js, and TypeScript, utilizing PostgreSQL as the database with Drizzle ORM.
+- Legacy hardcoded color blocks in some UI components (e.g., `Dashboard.tsx`, `Deals.tsx`, `MerchandisePage.tsx`, `not-found.tsx`) may bypass theme tokens and not harmonize with selected themes. These require refactoring to use CSS variables.
+- Merchandise Supplier Order Sheet explicitly avoids selecting or displaying any customer contact details (email, phone) for privacy.
 
-### UI/UX Decisions
-The UI features a modern design with privacy-enhanced public views, comprehensive player profiles, and a sophisticated Premium Theme System offering 64 themes across 7 tiers, 5 Branded Collections, and a Premium Collections category, many optimized for AMOLED displays. Dark themes include enhanced visual variety, a global Ultra-Premium Transparent Glass UI system, neo-tactile button animations, premium CTA gradient buttons, sport-engraved racket string texture overlays, and glass-treated dialogs/sidebars/inputs/tables. Mobile navigation uses a fixed bottom bar with customizable shortcut icons.
+## Pointers
 
-**Elite Sports Default Theme**: The base `:root` and `.dark` tokens in `client/src/index.css` are tuned to an "Elite Sports" palette — deep dark `#0a0b10` background (`230 23% 5%`), neon-lime `#d4ff00` primary + accent (`70 100% 50%`), electric-blue secondary. A scoped ambient radial wash (deep blue + forest green) is applied via `html.theme-default body` (a marker class added by `applyThemeClasses` in `use-theme.ts` only when mode is `light` or `dark`), so all 60+ named themes (`.premium-gold`, `.ultra-premium`, etc.) cascade-override cleanly without the wash leaking through. `background-attachment: fixed` is dropped under `(max-width: 768px)`, `(pointer: coarse)`, `(prefers-reduced-motion: reduce)`, and `.reduced-motion` to avoid mobile scroll jank. Utility classes for the look: `.glass-elite`, `.glass-elite-strong`, `.glow-accent`, `.glow-accent-soft`, `.text-glow-accent`, `.animate-elite-pulse`. Followup work needed: legacy hardcoded color blocks still exist in some heroes/banners (e.g. `Dashboard.tsx` ~307/~866, `Deals.tsx`, `MerchandisePage.tsx`, `not-found.tsx`) that bypass tokens and won't harmonize across themes.
-
-### Technical Implementations
-- **Freemium Model**: A 2-plan freemium model (Basic FREE, Premium) with backend enforcement and frontend gating.
-- **Role-Based Access Control (RBAC)**: Granular permissions at platform and club levels.
-- **Multi-Club & Multi-Sport Support**: Manages multiple independent clubs and supports various racket sports.
-- **Match Management**: Includes a visual court component, queuing system, and a deterministic Smart Match Engine v6 with multi-mode matchmaking, gender-aware logic, and 9-tier grade-based scoring, enhanced by the BPG Competitive Balance Engine and Session Fairness Command Center.
-- **Membership & Leaderboard Systems**: Handles club-based memberships, plans, requests, approvals, and computes dynamic player rankings.
-- **Financial Intelligence System**: Multi-view financial dashboard with Smart Insights, credit management, donation system, and per-session invoice tracking.
-- **Admin & Player Management**: Tools for comprehensive user, club, venue, and administrator management.
-- **Recurring Events System**: Facilitates single or recurring session creation with scheduled publishing.
-- **Session Player Management**: Enhanced in-session controls with a four-state participant system, supporting optional hall and court names.
-- **Session Availability Notifications**: Automatic in-app, chat, and email notifications for session spaces.
-- **Team Events System**: Club-scoped team events with full CRUD, signup/withdraw flow.
-- **Coach Directory & Lesson Booking**: Manages public coach profiles, an interactive map, and an in-app private lesson request system.
-- **Global Account Merge System**: Tool for merging duplicate user accounts (OWNER-only).
-- **IT Helpdesk Ticketing System**: Secure, ticket-based support with RBAC and credit claim workflow.
-- **Automatic Player Grading System**: 9-tier skill grading with automatic promotion/demotion.
-- **Club-Scoped Referral System**: Independent referral programs per club.
-- **Junior Management**: Features for managing junior players, skill tracking, exercise challenges, and parent dashboards.
-- **League Management System**: Full league fixture and results management, including Player Selection Notifications and Squad Management.
-- **Payment & Credit Request System**: Players can confirm payments and request credits in-app, with an enhanced credit wallet and automation settings, including Payment Verification Dashboard and Payment Reliability Score.
-- **Internal Messaging System**: Chat interface with message categories and filtering.
-- **AI-Powered Reporting**: AI-generated reports for coaches, parents, and admins.
-- **Player Intelligence & Analytics System**: Comprehensive player analytics dashboard, interactive charts, AI Comparison Review, achievement badges, skill review system, coach notes timeline, AI-powered player style analysis, and Match Log/Development tabs.
-- **Session Intelligence Layer**: Provides pre-session balance prediction, post-session engagement scores, and smart session recommendations.
-- **AI Full Session Schedule Generator**: One-click full session schedule generation using the match engine with fairness optimization, preview functionality, and an AI Session Designer.
-- **Session Financial Command Center**: Real-time financial overview per session with expected vs actual revenue comparison, per-player financial actions, payment reminders, and credit issuance.
-- **3D Avatar Selection System**: Users can select AI-generated Pixar-style 3D avatar presets.
-- **Match Engine Testing Lab**: Admin-only sandbox for stress-testing the matchmaking algorithm with simulated players and comprehensive analytics.
-- **Advanced Analytics Dashboard**: Power BI-level business intelligence system with Interactive Performance Dashboard, a Command Center, and a Classic view.
-- **Trial Onboarding & Evaluation System**: Manages trial players from registration to approval with a dedicated dashboard, admin command center, and automated notifications.
-- **Rivalry Arena**: Player comparison component with a badminton court background, gender-specific avatars, animated scoreboard, rivalry strength indicator, win ratio rings, match timeline, momentum line graph, and AI rivalry analysis.
-- **Player Skills Analytics System**: League and Premium player skill tracking with enrollment management, per-player editable skill profiles, radar/bar charts, and audit history.
-- **Tournaments Module**: Full tournament management with esports-style UI, supporting various tournament types, registration, group/knockout brackets, score submission, and standings, including named "stages" for grouping rounds. After creation, the user is auto-navigated to the tournament detail page for setup. The list endpoint (`GET /api/tournaments`) is visible to OWNERs, club admins, the tournament's creator, tournament admins, and active club members. The player Dashboard surfaces two extra banners when there are tournaments the user hasn't joined yet: a gradient "Join Now" hero card for the next upcoming tournament, plus a compact "Upcoming Tournaments" list (up to 4 entries) with a "View all" link to `/tournaments`.
-- **Tiered Session Fees**: Sessions support 4 fee tiers (Standard, Premium, Super Premium, Club Member) with dedicated input fields and display in the UI.
-- **Timeline UI Enhancements**: Real-time live/past/upcoming session status, hype indicators, animated capacity bars, glassmorphism dropdown panels, golden crown for top-ranked players, gradient dividers, and enriched match/player insights.
-- **Club Merchandise System**: Premium merchandise shopping experience with category-based entry view, product listing with filters, card-flip animations, featured product hero cards, save/favourite functionality, and a structured order request form. Orders capture an optional "Name on back" customisation (max 40 chars), editable by both the customer (while pending) and admin. Admin system with full CRUD for products and order management dashboard. Customers can amend their own pending orders (size, gender, style, quantity, notes, name on back) — locked once an admin marks the order approved/ready/collected/cancelled. Admins can multi-select orders and download a price-free branded PDF Supplier Order Sheet (no monetary values shown, since the sheet is sent to the supplier) with summary cards, per-product variant aggregation, customisation counts, and a per-customer detailed table including sizes, customisation, name-on-back highlighted in bold, comments, product description, and orderer. The orders tab also offers an "All my clubs" view that merges admin orders across every club the user manages, allowing a single combined supplier sheet (PDF labels each row with its club).
-- **Community Hub System**: Social layer for clubs with events, food experiences, community feed, reviews, and admin moderation.
-- **Performance & Reliability Hardening**: LRU-based rate limiting on auth and heavy AI endpoints; idempotent hot-path DB indexes; per-user in-memory cache on `/api/badge-counts`.
-- **Notification Helper**: Unified `notifyUser()` wrapper creates an in-app notification and sends emails for high-priority types.
-- **Deals & Offers System**: Premium mobile-first experience with category discovery, filtered deals view, featured deal card, glassmorphism card design with card-flip animation, save/favorite functionality, copy-code feedback, and smooth framer-motion animations. Dynamic category system with full CRUD for categories.
-- **Admin Inbox**: Aggregator at `/admin/inbox` showing pending join requests, outstanding payments, credit requests, new merchandise orders, helpdesk tickets, incidents, in-flight trials, lesson requests, and pending referrals—all club-scoped.
-- **Operational Hardening**: `X-Request-Id` middleware for traceability; `/api/health` returns uptime, `/api/health/ready` checks DB connection; SIGTERM/SIGINT handler drains in-flight requests.
-- **Self-Service Account Reopen**: Allows users to reactivate closed accounts.
-- **Unified Sidebar Tiles**: Consistent rounded-xl tiles for side menu groups.
-- **Audit Log Viewer**: Admin page for viewing paginated, filterable audit logs.
-- **Inactive Members Bulk Delete**: OWNER-only bulk selection and bulk action bar for deleting inactive members.
-- **Session Cancellation**: Admins can mark a session as cancelled, with UI indicators and notifications to affected participants.
-- **UK Time Standard**: All event date/time inputs and displays are anchored to Europe/London (BST/GMT auto-aware).
-- **Session Banner, Formatting & Useful Links**: Sessions support an optional admin-set coloured banner with formatted messages and custom links.
-- **Club Control Center (OWNER-only)**: Unified premium dark-mode glassmorphism hub at `/admin/control-center` — restricted to OWNER (super admin) only via `OwnerRoute` guard. Surfaced exclusively from the Super Admin sidebar and Super Admin Dashboard; not present in regular Admin Panel sidebar or dashboard. Layout: searchable left club rail, top KPI bar (Plan, Members, Sessions, Venues), and 5 tabs (Overview, Features, Billing, Usage, Settings). OWNER sees all clubs and can toggle any feature. Per-club `featureOverrides` JSONB column on `clubs` with GET (any admin) and PATCH (OWNER-only) endpoints. Existing routes (`/admin/billing`, `/admin/clubs`, `/admin/clubs-management`, `/super-admin/billing`, `/super-admin/clubs`) remain alive for backward compatibility.
-- **Supplier Sheet PDF Privacy**: Merchandise supplier order sheets show ONLY the customer's display name plus an internal Order Ref (e.g. `#1234`). Email addresses, phone numbers and any other contact details are NEVER selected from the database, never passed to the PDF generator, and never rendered. The detailed-order table contains the columns: # / Customer (name only) / Order Ref / Date / Variant / Qty / Status / Notes — suppliers get just enough to match each garment to its orderer at the club without exposing contact information.
-- **Quick Session Card Actions**: The expanded session card on the Timeline view exposes one-click actions so users no longer need to drill into the session detail page. Signed-up players see a red "Withdraw" button alongside the "Joined"/"On Waitlist" badge (with a confirmation prompt that warns the spot may be reassigned to someone on the waitlist). Admins, organisers, super admins and club owners see (in the admin controls bar): a green "End" button — only visible while the session is not already completed/cancelled — that PATCHes status to COMPLETED and disables auto-match generation, plus a visible red "Delete" button (with confirmation prompts on both). The dropdown-menu Delete entry is also retained.
-
-## External Dependencies
-
-### Database
-- **PostgreSQL**: Primary relational database.
-
-### Authentication
-- **express-session**: For managing user sessions.
-- **passport / passport-local**: User authentication framework.
-
-### Frontend Libraries
-- **@tanstack/react-query**: Server state management.
-- **date-fns**: Date manipulation.
-- **recharts**: For charts and data visualizations.
-- **framer-motion**: Animation library for premium UI components.
-
-### Build & Development Tools
-- **Vite**: Frontend build tool.
-- **esbuild**: Backend bundling.
-
-### Progressive Web App (PWA)
-- **Web App Manifest**: Defines PWA properties.
-- **Service Worker**: Implements network-first caching strategy.
-
-### AI Match Input System
-- **GPT-4o vision**: Used for Image Upload & AI Vision OCR.
-
-### APIs / Integrations
-- **OpenStreetMap Nominatim API**: Geocoding addresses.
-- **Google Calendar**: Integration for importing calendar events.
-- **Badminton England**: Player insurance information.
+- **TanStack React Query**: [https://tanstack.com/query/latest](https://tanstack.com/query/latest)
+- **Drizzle ORM**: [https://orm.drizzle.team/](https://orm.drizzle.team/)
+- **Tailwind CSS**: [https://tailwindcss.com/](https://tailwindcss.com/)
+- **shadcn/ui**: [https://ui.shadcn.com/](https://ui.shadcn.com/)
+- **framer-motion**: [https://www.framer.com/motion/](https://www.framer.com/motion/)
+- **Vite**: [https://vitejs.dev/](https://vitejs.dev/)
+- **esbuild**: [https://esbuild.github.io/](https://esbuild.github.io/)
+- **OpenStreetMap Nominatim API**: [https://nominatim.org/release-docs/latest/api/Search/](https://nominatim.org/release-docs/latest/api/Search/)
+- **Google Calendar API**: [https://developers.google.com/calendar/api](https://developers.google.com/calendar/api)

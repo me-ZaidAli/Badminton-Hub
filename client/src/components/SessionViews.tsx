@@ -1203,30 +1203,57 @@ function TimelineSessionCard({
           </div>
 
           <div className="flex items-center gap-2">
+            {energyScore > 70 && !isRealTimePast && !isCancelled && (
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-semibold leading-none"
+                style={{ background: "hsl(var(--accent) / 0.14)", color: "hsl(var(--accent))", boxShadow: "inset 0 0 0 1px hsl(var(--accent) / 0.35)" }}
+                data-testid={`badge-high-energy-${session.id}`}
+                title="High-energy session"
+              >
+                <Flame className="h-3 w-3 animate-elite-pulse" />
+                Hot
+              </span>
+            )}
             <div className="flex items-center gap-0.5" data-testid={`battery-bar-${session.id}`}>
               {(() => {
                 const totalBlocks = 10;
                 const filledBlocks = Math.round((fillPercent / 100) * totalBlocks);
-                const barColor = isFull ? "bg-red-500" : fillPercent > 75 ? "bg-amber-500" : "bg-emerald-500";
-                return Array.from({ length: totalBlocks }).map((_, i) => (
-                  <div
-                    key={i}
-                    className={`w-[5px] h-[10px] rounded-[1px] ${
-                      i < filledBlocks ? `${barColor} tl-cap-block ${isFull && i === filledBlocks - 1 ? "tl-cap-pulse-only" : ""}` : "bg-muted/50 dark:bg-muted/40"
-                    }`}
-                    style={i < filledBlocks ? { animationDelay: `${i * 60}ms` } as React.CSSProperties : undefined}
-                  />
-                ));
+                return Array.from({ length: totalBlocks }).map((_, i) => {
+                  const isOn = i < filledBlocks;
+                  const isLastOn = isOn && i === filledBlocks - 1;
+                  const isLastFull = isFull && isLastOn;
+                  const fillStyle: React.CSSProperties = isOn
+                    ? isFull
+                      ? {
+                          background: "hsl(var(--destructive))",
+                          boxShadow: isLastOn ? "0 0 6px hsl(var(--destructive) / 0.55)" : undefined,
+                        }
+                      : {
+                          background: "hsl(var(--accent))",
+                          boxShadow: isLastOn ? "0 0 5px hsl(var(--accent) / 0.45)" : undefined,
+                        }
+                    : { background: "hsl(var(--muted) / 0.6)" };
+                  return (
+                    <div
+                      key={i}
+                      className={`w-[5px] h-[10px] rounded-[1px] ${isOn ? `tl-cap-block ${isLastFull ? "tl-cap-pulse-only" : ""}` : ""}`}
+                      style={{ ...fillStyle, animationDelay: isOn ? `${i * 60}ms` : undefined }}
+                    />
+                  );
+                });
               })()}
             </div>
-            <span className={`text-[11px] font-semibold tabular-nums ${isFull ? "text-red-500" : "text-foreground dark:text-white/80"}`}>
+            <span
+              className="text-[11px] font-semibold tabular-nums text-foreground"
+              style={isFull ? { color: "hsl(var(--destructive))" } : undefined}
+            >
               {playerCount}/{session.maxPlayers}
             </span>
           </div>
         </div>
 
         {clubName && (
-          <div className="mt-2 text-sm font-semibold text-blue-600 dark:text-blue-400">{clubName}</div>
+          <div className="mt-2 text-sm font-semibold text-foreground/85">{clubName}</div>
         )}
 
         {(session as any).waitingCount > 0 && (
