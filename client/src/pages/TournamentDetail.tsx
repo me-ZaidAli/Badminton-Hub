@@ -5919,7 +5919,8 @@ function AdminTournamentDetailsSection({ tournament, tournamentId }: { tournamen
               <label className={labelCls}>Status</label>
               <select value={status} onChange={(e) => setStatus(e.target.value)} className={inputCls} data-testid="select-tournament-status">
                 <option value="DRAFT">Draft</option>
-                <option value="REGISTRATION">Registration Open</option>
+                <option value="PUBLISHED">Published</option>
+                <option value="REGISTRATION_OPEN">Registration Open</option>
                 <option value="IN_PROGRESS">In Progress</option>
                 <option value="COMPLETED">Completed</option>
                 <option value="CANCELLED">Cancelled</option>
