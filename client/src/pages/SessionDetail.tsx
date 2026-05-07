@@ -5706,21 +5706,24 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
 }
 
 function SignupFeeEditor({ signup, canEdit, onSave, isSaving }: { signup: any; canEdit: boolean; onSave: (fee: number) => void; isSaving: boolean }) {
-  const currentFee = Number(signup?.fee ?? 0);
+  const currentFeePence = Number(signup?.fee ?? 0);
+  const currentFeePounds = currentFeePence / 100;
+  const displayPounds = Number.isInteger(currentFeePounds) ? String(currentFeePounds) : currentFeePounds.toFixed(2);
   const [editing, setEditing] = useState(false);
-  const [value, setValue] = useState<string>(String(currentFee));
-  useEffect(() => { setValue(String(currentFee)); }, [currentFee]);
+  const [value, setValue] = useState<string>(displayPounds);
+  useEffect(() => { setValue(displayPounds); }, [displayPounds]);
 
   const commit = () => {
-    const n = Number(value);
-    if (!Number.isFinite(n) || n < 0) { setValue(String(currentFee)); setEditing(false); return; }
-    if (Math.round(n) !== currentFee) onSave(Math.round(n));
+    const pounds = Number(value);
+    if (!Number.isFinite(pounds) || pounds < 0) { setValue(displayPounds); setEditing(false); return; }
+    const newPence = Math.round(pounds * 100);
+    if (newPence !== currentFeePence) onSave(newPence);
     setEditing(false);
   };
 
   if (!canEdit) {
     return (
-      <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 ml-1" data-testid={`text-fee-${signup.id}`}>£{currentFee}</span>
+      <span className="text-[11px] font-medium text-emerald-700 dark:text-emerald-400 ml-1" data-testid={`text-fee-${signup.id}`}>£{displayPounds}</span>
     );
   }
 
@@ -5730,9 +5733,10 @@ function SignupFeeEditor({ signup, canEdit, onSave, isSaving }: { signup: any; c
       <Input
         type="number"
         min="0"
+        step="0.01"
         value={value}
         onChange={(e) => setValue(e.target.value)}
-        onKeyDown={(e) => { if (e.key === "Enter") commit(); else if (e.key === "Escape") { setValue(String(currentFee)); setEditing(false); } }}
+        onKeyDown={(e) => { if (e.key === "Enter") commit(); else if (e.key === "Escape") { setValue(displayPounds); setEditing(false); } }}
         onBlur={commit}
         autoFocus
         disabled={isSaving}
@@ -5748,7 +5752,7 @@ function SignupFeeEditor({ signup, canEdit, onSave, isSaving }: { signup: any; c
       data-testid={`button-edit-fee-${signup.id}`}
       title="Click to edit fee"
     >
-      £{currentFee}
+      £{displayPounds}
       <Pencil className="w-2.5 h-2.5 opacity-70" />
     </button>
   );
