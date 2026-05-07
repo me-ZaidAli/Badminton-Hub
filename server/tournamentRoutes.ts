@@ -104,9 +104,11 @@ export function registerTournamentRoutes(app: Express) {
         isOwner = (req.user as any).role === "OWNER";
         const memberships = await db.select({ clubId: clubMemberships.clubId })
           .from(clubMemberships).where(
-            and(eq(clubMemberships.userId, userId), inArray(clubMemberships.status, ["ACTIVE", "EXPIRING"]))
+            and(eq(clubMemberships.userId, userId), inArray(clubMemberships.status, ["ACTIVE", "EXPIRING", "PENDING"]))
           );
-        userClubIds = memberships.map(m => m.clubId);
+        const profileClubs = await db.select({ clubId: playerProfiles.clubId })
+          .from(playerProfiles).where(eq(playerProfiles.userId, userId));
+        userClubIds = Array.from(new Set([...memberships.map(m => m.clubId), ...profileClubs.map(p => p.clubId)]));
         const adminProfiles = await db.select({ clubId: playerProfiles.clubId })
           .from(playerProfiles)
           .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubRole, "ADMIN")));
