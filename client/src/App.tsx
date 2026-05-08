@@ -164,6 +164,7 @@ const BslAdminVerify = lazy(() => import("@/pages/bsl/AdminVerify"));
 const BslFixtureBoard = lazy(() => import("@/pages/bsl/FixtureBoard"));
 const BslAdminDashboard = lazy(() => import("@/pages/bsl/admin/Dashboard"));
 const BslAdminLeague = lazy(() => import("@/pages/bsl/admin/LeagueControl"));
+const BslAdminFixtureSetup = lazy(() => import("@/pages/bsl/admin/FixtureSetup"));
 const BslAdminMatchDay = lazy(() => import("@/pages/bsl/admin/MatchDayControl"));
 const BslAdminClubs = lazy(() => import("@/pages/bsl/admin/ClubsAdmin"));
 const BslAdminPlayers = lazy(() => import("@/pages/bsl/admin/PlayersAdmin"));
@@ -576,6 +577,9 @@ function Router() {
       </Route>
       <Route path="/bsl/admin/fixtures">
         <BslAdminRoute component={() => <BslAdminMatchDay />} />
+      </Route>
+      <Route path="/bsl/admin/fixtures/:id/setup">
+        <BslAdminRoute component={() => <BslAdminFixtureSetup />} />
       </Route>
       <Route path="/tournaments">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TournamentsPage /></Suspense>} />

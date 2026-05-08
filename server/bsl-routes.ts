@@ -70,22 +70,53 @@ const bslUpload = multer({
 });
 
 // ========== STANDINGS RECOMPUTE ==========
-async function recomputeStandings(leagueId = 1) {
+// Two fixture flavours feed standings:
+//   1. Legacy pair-vs-pair (homeTeamId/awayTeamId on the fixture itself).
+//   2. New club-vs-club (homeClubId/awayClubId on fixture, each rubber records
+//      which pair from each club played via bslRubbers.homeTeamId/awayTeamId).
+// For #2 we credit each pair's stats per-rubber (they only play one rubber in
+// the fixture), so "played" reflects matches played by that pair, not by the
+// club — which keeps the bslTeams table the single source of truth for the
+// per-club aggregation downstream (`/api/bsl/standings`).
+async function recomputeStandings(_leagueId = 1) {
   const teams = await db.select().from(bslTeams);
   const fixtures = await db.select().from(bslFixtures);
   const finished = fixtures.filter(f => f.status === "FINISHED");
   const stats: Record<number, { p: number; w: number; d: number; l: number; rf: number; ra: number; pts: number }> = {};
   teams.forEach(t => { stats[t.id] = { p: 0, w: 0, d: 0, l: 0, rf: 0, ra: 0, pts: 0 }; });
+
   for (const f of finished) {
-    const h = stats[f.homeTeamId]; const a = stats[f.awayTeamId];
-    if (!h || !a) continue;
-    h.p++; a.p++;
-    h.rf += f.homeRubbers; h.ra += f.awayRubbers;
-    a.rf += f.awayRubbers; a.ra += f.homeRubbers;
-    if (f.homeRubbers > f.awayRubbers) { h.w++; a.l++; h.pts += 3; }
-    else if (f.homeRubbers < f.awayRubbers) { a.w++; h.l++; a.pts += 3; }
-    else { h.d++; a.d++; h.pts++; a.pts++; }
+    if (f.homeTeamId != null && f.awayTeamId != null) {
+      const h = stats[f.homeTeamId]; const a = stats[f.awayTeamId];
+      if (!h || !a) continue;
+      h.p++; a.p++;
+      h.rf += f.homeRubbers; h.ra += f.awayRubbers;
+      a.rf += f.awayRubbers; a.ra += f.homeRubbers;
+      if (f.homeRubbers > f.awayRubbers) { h.w++; a.l++; h.pts += 3; }
+      else if (f.homeRubbers < f.awayRubbers) { a.w++; h.l++; a.pts += 3; }
+      else { h.d++; a.d++; h.pts++; a.pts++; }
+    }
   }
+
+  // Club-vs-club: credit per-rubber for any finished club fixture.
+  const finishedClubFixtureIds = finished
+    .filter(f => f.homeClubId != null && f.awayClubId != null)
+    .map(f => f.id);
+  if (finishedClubFixtureIds.length) {
+    const rubbers = await db.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, finishedClubFixtureIds));
+    for (const r of rubbers) {
+      if (r.homeTeamId == null || r.awayTeamId == null) continue;
+      const h = stats[r.homeTeamId]; const a = stats[r.awayTeamId];
+      if (!h || !a) continue;
+      h.p++; a.p++;
+      h.rf += r.homeScore; h.ra += r.awayScore;
+      a.rf += r.awayScore; a.ra += r.homeScore;
+      if (r.homeScore > r.awayScore) { h.w++; a.l++; h.pts += 3; }
+      else if (r.homeScore < r.awayScore) { a.w++; h.l++; a.pts += 3; }
+      else { h.d++; a.d++; h.pts++; a.pts++; }
+    }
+  }
+
   for (const t of teams) {
     const s = stats[t.id];
     await db.update(bslTeams).set({
@@ -445,14 +476,20 @@ export function registerBslRoutes(app: Express) {
       const tMap = new Map(teams.map(t => [t.id, t]));
       const cMap = new Map(clubs.map(c => [c.id, c]));
       const enriched = all.map(f => {
-        const ht = tMap.get(f.homeTeamId);
-        const at = tMap.get(f.awayTeamId);
+        const ht = f.homeTeamId != null ? tMap.get(f.homeTeamId) : null;
+        const at = f.awayTeamId != null ? tMap.get(f.awayTeamId) : null;
+        const hc = f.homeClubId != null ? cMap.get(f.homeClubId) : (ht ? cMap.get(ht.bslClubId) : null);
+        const ac = f.awayClubId != null ? cMap.get(f.awayClubId) : (at ? cMap.get(at.bslClubId) : null);
         return {
           ...f,
-          homeTeamName: ht?.name || "TBD",
-          awayTeamName: at?.name || "TBD",
-          homeClubLogo: ht ? cMap.get(ht.bslClubId)?.logoUrl : null,
-          awayClubLogo: at ? cMap.get(at.bslClubId)?.logoUrl : null,
+          // For club-vs-club fixtures (no team set yet) show the club name as
+          // the headline. Pair-vs-pair fixtures keep the original team name.
+          homeTeamName: ht?.name || hc?.name || "TBD",
+          awayTeamName: at?.name || ac?.name || "TBD",
+          homeClubName: hc?.name || null,
+          awayClubName: ac?.name || null,
+          homeClubLogo: hc?.logoUrl || null,
+          awayClubLogo: ac?.logoUrl || null,
         };
       });
       const filtered = status ? enriched.filter(f => f.status === status) : enriched;
@@ -465,8 +502,20 @@ export function registerBslRoutes(app: Express) {
       const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, id)).limit(1);
       if (!fixture) return res.status(404).json({ message: "Not found" });
       const rubbers = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, id)).orderBy(bslRubbers.rubberNumber);
-      const teams = await db.select().from(bslTeams).where(inArray(bslTeams.id, [fixture.homeTeamId, fixture.awayTeamId]));
-      res.json({ ...fixture, rubbers, teams });
+      const teamIds = [fixture.homeTeamId, fixture.awayTeamId].filter((x): x is number => x != null);
+      const teams = teamIds.length
+        ? await db.select().from(bslTeams).where(inArray(bslTeams.id, teamIds))
+        : [];
+      // Hydrate club info too so club-vs-club fixtures (no team set on the
+      // fixture itself) still render names + logos in MatchDetail.
+      const clubIds = [fixture.homeClubId, fixture.awayClubId].filter((x): x is number => x != null);
+      const clubRows = clubIds.length
+        ? await db.select().from(bslClubs).where(inArray(bslClubs.id, clubIds))
+        : [];
+      const cMap = new Map(clubRows.map(c => [c.id, c]));
+      const homeClub = fixture.homeClubId != null ? cMap.get(fixture.homeClubId) || null : null;
+      const awayClub = fixture.awayClubId != null ? cMap.get(fixture.awayClubId) || null : null;
+      res.json({ ...fixture, rubbers, teams, homeClub, awayClub });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   app.post("/api/bsl/fixtures", requireAdmin, async (req, res) => {
@@ -498,6 +547,136 @@ export function registerBslRoutes(app: Express) {
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
+  // === ADMIN: club-vs-club fixture creation + drag-drop pair assignment ===
+  // Default rubber lineup for a club-vs-club fixture: 6 doubles slots split
+  // 2× MD, 2× WD, 2× XD. Admin can override via body.types if they want a
+  // different mix (must be 6 entries from MD/WD/XD).
+  const DEFAULT_CVC_TYPES: any[] = ["MD", "MD", "WD", "WD", "XD", "XD"];
+  app.post("/api/bsl/admin/club-fixtures", requireAdmin, async (req, res) => {
+    try {
+      const { homeClubId, awayClubId, leagueDayId, court, startTime, types } = req.body as {
+        homeClubId: number; awayClubId: number; leagueDayId?: number;
+        court?: number | null; startTime?: string; types?: string[];
+      };
+      if (!homeClubId || !awayClubId) return res.status(400).json({ message: "homeClubId + awayClubId required" });
+      if (homeClubId === awayClubId) return res.status(400).json({ message: "Home and away must differ" });
+      const lineup = Array.isArray(types) && types.length === 6 ? types : DEFAULT_CVC_TYPES;
+      const allowed = new Set(["MS1", "MS2", "WS", "MD", "WD", "XD"]);
+      for (const t of lineup) if (!allowed.has(t)) return res.status(400).json({ message: `Invalid rubber type: ${t}` });
+      const clubs = await db.select().from(bslClubs).where(inArray(bslClubs.id, [homeClubId, awayClubId]));
+      if (clubs.length !== 2) return res.status(404).json({ message: "Club(s) not found" });
+      const [f] = await db.insert(bslFixtures).values({
+        bslLeagueDayId: leagueDayId ?? null,
+        homeClubId, awayClubId,
+        homeTeamId: null, awayTeamId: null,
+        court: court ?? null,
+        startTime: startTime ? new Date(startTime) : null,
+      }).returning();
+      for (let k = 0; k < 6; k++) {
+        await db.insert(bslRubbers).values({
+          bslFixtureId: f.id, rubberNumber: k + 1, rubberType: lineup[k] as any,
+        });
+      }
+      await audit(req, "CREATE_CLUB_FIXTURE", "bsl_fixture", f.id, { homeClubId, awayClubId, types: lineup });
+      res.json(f);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Returns everything the admin pair-assignment UI needs in one round trip:
+  // the fixture + both clubs (logo/name/division), all 6 rubbers, and each
+  // side's confirmed pairs grouped by category with member names hydrated.
+  app.get("/api/bsl/admin/fixtures/:id/setup", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, id)).limit(1);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      const rubbers = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, id)).orderBy(bslRubbers.rubberNumber);
+      const clubIds = [fixture.homeClubId, fixture.awayClubId].filter((x): x is number => x != null);
+      const clubs = clubIds.length ? await db.select().from(bslClubs).where(inArray(bslClubs.id, clubIds)) : [];
+      const teams = clubIds.length ? await db.select().from(bslTeams).where(inArray(bslTeams.bslClubId, clubIds)) : [];
+      const teamIds = teams.map(t => t.id);
+      const memberRows = teamIds.length
+        ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
+        : [];
+      const playerIds = Array.from(new Set(memberRows.map(m => m.bslPlayerId)));
+      const players = playerIds.length
+        ? await db.select().from(bslPlayers).where(inArray(bslPlayers.id, playerIds))
+        : [];
+      const userIds = Array.from(new Set(players.map(p => p.userId)));
+      const userRows = userIds.length
+        ? await db.select({ id: users.id, name: users.fullName }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map(u => [u.id, u]));
+      const playerMap = new Map(players.map(p => [p.id, {
+        ...p,
+        name: p.displayName || userMap.get(p.userId)?.name || `Player #${p.id}`,
+      }]));
+      const teamWithMembers = teams.map(t => ({
+        ...t,
+        members: memberRows
+          .filter(m => m.bslTeamId === t.id)
+          .map(m => playerMap.get(m.bslPlayerId))
+          .filter(Boolean),
+      }));
+      const sideOf = (clubId: number) => teamWithMembers.filter(t => t.bslClubId === clubId);
+      res.json({
+        fixture,
+        rubbers,
+        homeClub: clubs.find(c => c.id === fixture.homeClubId) || null,
+        awayClub: clubs.find(c => c.id === fixture.awayClubId) || null,
+        homePairs: fixture.homeClubId ? sideOf(fixture.homeClubId) : [],
+        awayPairs: fixture.awayClubId ? sideOf(fixture.awayClubId) : [],
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Assign (or clear) one side of a rubber to a pair. The pair must belong to
+  // the rubber's fixture's corresponding club. Pair members are mirrored into
+  // homePlayer1/2 / awayPlayer1/2 so existing scoring + perspective resolution
+  // continues to work without touching MatchDetail.
+  app.patch("/api/bsl/admin/rubbers/:id/assign", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { side, bslTeamId } = req.body as { side: "home" | "away"; bslTeamId: number | null };
+      if (side !== "home" && side !== "away") return res.status(400).json({ message: "side must be 'home' or 'away'" });
+      const [rubber] = await db.select().from(bslRubbers).where(eq(bslRubbers.id, id)).limit(1);
+      if (!rubber) return res.status(404).json({ message: "Rubber not found" });
+      const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, rubber.bslFixtureId)).limit(1);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      const targetClubId = side === "home" ? fixture.homeClubId : fixture.awayClubId;
+      const patch: any = {};
+      if (bslTeamId == null) {
+        if (side === "home") { patch.homeTeamId = null; patch.homePlayer1Id = null; patch.homePlayer2Id = null; }
+        else { patch.awayTeamId = null; patch.awayPlayer1Id = null; patch.awayPlayer2Id = null; }
+      } else {
+        const [team] = await db.select().from(bslTeams).where(eq(bslTeams.id, bslTeamId)).limit(1);
+        if (!team) return res.status(404).json({ message: "Pair not found" });
+        if (targetClubId == null) return res.status(400).json({ message: "Fixture has no club on that side" });
+        if (team.bslClubId !== targetClubId) return res.status(400).json({ message: "Pair does not belong to this club" });
+        // Category check only matters when rubber type is a doubles type.
+        if (["MD", "WD", "XD"].includes(rubber.rubberType) && team.category !== rubber.rubberType) {
+          return res.status(400).json({ message: `This rubber is ${rubber.rubberType} — pair is ${team.category}` });
+        }
+        // Block double-booking the same pair in two rubbers of the same fixture
+        // (a pair can't physically play two rubbers at once).
+        const sibling = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, rubber.bslFixtureId));
+        const conflict = sibling.find(r =>
+          r.id !== rubber.id &&
+          ((side === "home" && r.homeTeamId === bslTeamId) ||
+           (side === "away" && r.awayTeamId === bslTeamId))
+        );
+        if (conflict) return res.status(400).json({ message: `This pair is already in rubber ${conflict.rubberNumber}` });
+        const members = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslTeamId, bslTeamId));
+        const [p1, p2] = members.map(m => m.bslPlayerId);
+        if (side === "home") { patch.homeTeamId = bslTeamId; patch.homePlayer1Id = p1 ?? null; patch.homePlayer2Id = p2 ?? null; }
+        else { patch.awayTeamId = bslTeamId; patch.awayPlayer1Id = p1 ?? null; patch.awayPlayer2Id = p2 ?? null; }
+      }
+      const [updated] = await db.update(bslRubbers).set(patch).where(eq(bslRubbers.id, id)).returning();
+      await audit(req, "ASSIGN_RUBBER", "bsl_rubber", id, { side, bslTeamId });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.patch("/api/bsl/rubbers/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);

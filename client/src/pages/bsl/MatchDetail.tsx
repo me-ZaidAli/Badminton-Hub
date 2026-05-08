@@ -122,8 +122,12 @@ export default function MatchDetail() {
       </div>
     );
   }
-  const home = match.teams?.find((t: any) => t.id === match.homeTeamId);
-  const away = match.teams?.find((t: any) => t.id === match.awayTeamId);
+  // Pair-vs-pair fixtures put the name on the team row; club-vs-club fixtures
+  // put it on the hydrated homeClub/awayClub the API now returns.
+  const homeTeam = match.teams?.find((t: any) => t.id === match.homeTeamId);
+  const awayTeam = match.teams?.find((t: any) => t.id === match.awayTeamId);
+  const home = { name: homeTeam?.name || match.homeClub?.name };
+  const away = { name: awayTeam?.name || match.awayClub?.name };
 
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>

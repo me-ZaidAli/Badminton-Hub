@@ -3189,8 +3189,14 @@ export const bslLeagueDays = pgTable("bsl_league_days", {
 export const bslFixtures = pgTable("bsl_fixtures", {
   id: serial("id").primaryKey(),
   bslLeagueDayId: integer("bsl_league_day_id").references(() => bslLeagueDays.id, { onDelete: "cascade" }),
-  homeTeamId: integer("home_team_id").notNull().references(() => bslTeams.id),
-  awayTeamId: integer("away_team_id").notNull().references(() => bslTeams.id),
+  // Club-vs-club fixture (preferred): admin allocates 2 clubs, then assigns
+  // pairs into the 6 rubber slots inside the fixture. Legacy team-vs-team
+  // fixtures (one pair vs one pair) remain supported via homeTeamId/awayTeamId
+  // for back-compat with old round-robin generation.
+  homeClubId: integer("home_club_id").references(() => bslClubs.id),
+  awayClubId: integer("away_club_id").references(() => bslClubs.id),
+  homeTeamId: integer("home_team_id").references(() => bslTeams.id),
+  awayTeamId: integer("away_team_id").references(() => bslTeams.id),
   court: integer("court"), // null = unassigned, set by drag-drop
   startTime: timestamp("start_time"),
   status: bslFixtureStatusEnum("status").notNull().default("SCHEDULED"),
@@ -3204,6 +3210,11 @@ export const bslRubbers = pgTable("bsl_rubbers", {
   bslFixtureId: integer("bsl_fixture_id").notNull().references(() => bslFixtures.id, { onDelete: "cascade" }),
   rubberNumber: integer("rubber_number").notNull(), // 1..6
   rubberType: bslRubberTypeEnum("rubber_type").notNull(),
+  // For club-vs-club fixtures: which pair from each club is playing this
+  // rubber. Players are mirrored into homePlayer1/2 / awayPlayer1/2 below
+  // so the existing match scoring + perspective resolver keeps working.
+  homeTeamId: integer("home_team_id").references(() => bslTeams.id),
+  awayTeamId: integer("away_team_id").references(() => bslTeams.id),
   homePlayer1Id: integer("home_player1_id").references(() => bslPlayers.id),
   homePlayer2Id: integer("home_player2_id").references(() => bslPlayers.id),
   awayPlayer1Id: integer("away_player1_id").references(() => bslPlayers.id),

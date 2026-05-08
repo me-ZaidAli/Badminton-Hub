@@ -1,7 +1,8 @@
 import { useState } from "react";
+import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Calendar, Trophy, Plus, Trash2, Wand2, Sparkles } from "lucide-react";
+import { Calendar, Trophy, Plus, Trash2, Wand2, Sparkles, Building2, Settings, ArrowRight } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -15,9 +16,13 @@ export default function LeagueControl() {
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: days } = useQuery<any[]>({ queryKey: ["/api/bsl/admin/league-days"] });
   const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/bsl/admin/clubs"] });
+  const { data: fixtures } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures"] });
   const [newDate, setNewDate] = useState("");
   const [genDivision, setGenDivision] = useState("");
   const [genDayId, setGenDayId] = useState<string>("");
+  const [cvcHome, setCvcHome] = useState("");
+  const [cvcAway, setCvcAway] = useState("");
+  const [cvcDayId, setCvcDayId] = useState<string>("");
 
   const divisions: string[] = league?.divisions || [];
   const teamCountByDiv: Record<string, number> = {};
@@ -42,8 +47,24 @@ export default function LeagueControl() {
       division: genDivision, leagueDayId: genDayId ? Number(genDayId) : undefined,
     })).json(),
     onSuccess: (d: any) => { qc.invalidateQueries({ queryKey: ["/api/bsl/fixtures"] }); toast({ title: `Generated ${d.created} fixtures` }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Failed", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
   });
+
+  const createClubFixture = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/club-fixtures", {
+      homeClubId: Number(cvcHome), awayClubId: Number(cvcAway),
+      leagueDayId: cvcDayId ? Number(cvcDayId) : undefined,
+    })).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/fixtures"] });
+      toast({ title: "Club-vs-club fixture created", description: "Open it to assign pairs to rubbers." });
+      setCvcHome(""); setCvcAway("");
+    },
+    onError: (e: any) => toast({ title: "Couldn't create fixture", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
+  });
+
+  const activeClubs = (clubs || []).filter((c: any) => c.status === "ACTIVE");
+  const clubFixtures = (fixtures || []).filter((f: any) => f.homeClubId != null && f.awayClubId != null);
 
   return (
     <AdminLayout active="league">
@@ -109,6 +130,67 @@ export default function LeagueControl() {
           </div>
         </GlowPanel>
       </div>
+
+      {/* === Club-vs-Club fixtures === */}
+      <GlowPanel title="Club-vs-Club Fixtures" subtitle="Allocate two clubs to a fixture, then assign pairs to each rubber" tone="cyan" icon={<Building2 className="h-4 w-4" />}>
+        <div className="grid grid-cols-1 md:grid-cols-4 gap-2 mb-4">
+          <div>
+            <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Home club</label>
+            <select value={cvcHome} onChange={e => setCvcHome(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-cvc-home">
+              <option value="">Select home…</option>
+              {activeClubs.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({c.division})</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Away club</label>
+            <select value={cvcAway} onChange={e => setCvcAway(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-cvc-away">
+              <option value="">Select away…</option>
+              {activeClubs.filter((c: any) => String(c.id) !== cvcHome).map((c: any) => <option key={c.id} value={c.id}>{c.name} ({c.division})</option>)}
+            </select>
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>League day (optional)</label>
+            <select value={cvcDayId} onChange={e => setCvcDayId(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-cvc-day">
+              <option value="">— Unassigned —</option>
+              {(days || []).map(d => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString("en-GB")}</option>)}
+            </select>
+          </div>
+          <div className="flex items-end">
+            <ActionButton variant="cyan" onClick={() => createClubFixture.mutate()} disabled={!cvcHome || !cvcAway || createClubFixture.isPending} icon={<Plus className="h-3 w-3" />} data-testid="button-create-cvc">
+              {createClubFixture.isPending ? "Creating…" : "Create fixture"}
+            </ActionButton>
+          </div>
+        </div>
+        {clubFixtures.length === 0 ? (
+          <div className="text-xs py-3 text-center" style={{ color: BSL.muted }}>No club-vs-club fixtures yet. Create one above.</div>
+        ) : (
+          <div className="space-y-2">
+            {clubFixtures.slice(0, 12).map((f: any) => {
+              return (
+                <div key={f.id} className="flex items-center justify-between rounded-lg px-3 py-2"
+                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-cvc-fixture-${f.id}`}>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded font-black" style={{ background: `${BSL.gold}22`, color: BSL.gold }}>#{f.id}</span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold truncate">{f.homeClubName || f.homeTeamName} <span style={{ color: BSL.gold }}>vs</span> {f.awayClubName || f.awayTeamName}</div>
+                      <div className="text-[10px]" style={{ color: BSL.muted }}>
+                        {f.status} · {f.startTime ? new Date(f.startTime).toLocaleString("en-GB") : "Unscheduled"}
+                      </div>
+                    </div>
+                  </div>
+                  <Link href={`/bsl/admin/fixtures/${f.id}/setup`}>
+                    <a className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }} data-testid={`link-setup-${f.id}`}>
+                      <Settings className="h-3 w-3" /> Setup pairs <ArrowRight className="h-3 w-3" />
+                    </a>
+                  </Link>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </GlowPanel>
+
+      <div className="h-5" />
 
       <GlowPanel title="League Days" subtitle="Match-day schedule" tone="gold" icon={<Calendar className="h-4 w-4" />}>
         <div className="flex gap-2 mb-3">
