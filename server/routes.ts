@@ -15338,7 +15338,94 @@ export async function registerRoutes(
 
       const body = z.object({
         paymentConfirmed: z.boolean(),
+        paymentMethod: z.enum(["external", "wallet"]).optional(),
       }).parse(req.body);
+
+      // When marking PAID via wallet, atomically deduct the price from the
+      // user's combined credit_ledger + mirror to wallets.balance / wallet_transactions
+      // (same lockstep pattern as god-mode set-balance). External bank just
+      // flips the flag; the membership counts toward club income via the
+      // existing Financials aggregations.
+      if (body.paymentConfirmed && body.paymentMethod === "wallet") {
+        const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, membership.planId));
+        const price = membership.proratedPrice ?? plan?.annualPrice ?? 0;
+        if (price <= 0) {
+          return res.status(400).json({ message: "Membership has no price; cannot deduct from wallet." });
+        }
+        try {
+          const updated = await db.transaction(async (trx) => {
+            // 1) Lock the membership row first — prevents two concurrent
+            //    "mark paid" requests from both passing the not-yet-paid check
+            //    and double-debiting.
+            const memLock = await trx.execute(sql`SELECT id, payment_confirmed FROM club_memberships WHERE id = ${membershipId} FOR UPDATE`);
+            const memRow = memLock.rows?.[0] as any;
+            if (!memRow) throw new Error("NOT_FOUND");
+            if (memRow.payment_confirmed) throw new Error("ALREADY_PAID");
+
+            // 2) Find and lock the user's eligible wallet. Wallet path requires
+            //    a real wallet so the credit_ledger debit and wallets/wallet_transactions
+            //    debit always stay in lockstep — never one without the other.
+            const userWallets = await trx.select().from(wallets).where(
+              and(eq(wallets.userId, membership.userId), eq(wallets.isActive, true))
+            );
+            const eligible = userWallets.find(w => w.isGlobal || (w.allowedClubIds || []).includes(membership.clubId));
+            if (!eligible) throw new Error("NO_WALLET");
+            await trx.execute(sql`SELECT id FROM wallets WHERE id = ${eligible.id} FOR UPDATE`);
+
+            // 3) Re-read combined balance AFTER acquiring the wallet lock so a
+            //    concurrent debit on this wallet can't slip in between check and write.
+            const balRes = await trx.execute(sql`
+              SELECT COALESCE(SUM(amount), 0)::int AS balance FROM (
+                SELECT cl.amount FROM credit_ledger cl
+                  WHERE cl.user_id = ${membership.userId} AND cl.club_id = ${membership.clubId}
+                UNION ALL
+                SELECT rl.credits AS amount FROM player_reward_ledger rl
+                  WHERE rl.player_id = ${membership.userId} AND rl.club_id = ${membership.clubId}
+                    AND rl.credits > 0 AND rl.status = 'AVAILABLE'
+              ) combined
+            `);
+            const currentBalance = Number((balRes.rows?.[0] as any)?.balance ?? 0);
+            if (currentBalance < price) throw new Error(`INSUFFICIENT:${currentBalance}:${price}`);
+
+            // 4) Lockstep debit: credit_ledger + wallets.balance + wallet_transactions.
+            const note = `Membership #${membership.id} paid from wallet (£${(price / 100).toFixed(2)})`;
+            await trx.insert(creditLedger).values({
+              userId: membership.userId,
+              clubId: membership.clubId,
+              amount: -price,
+              reason: note,
+              createdById: req.user!.id,
+            });
+            await trx.update(wallets)
+              .set({ balance: sql`${wallets.balance} - ${price}`, updatedAt: new Date() })
+              .where(eq(wallets.id, eligible.id));
+            await trx.insert(walletTransactions).values({
+              walletId: eligible.id,
+              userId: membership.userId,
+              clubId: membership.clubId,
+              amount: -price,
+              type: "DEBIT" as const,
+              reason: note,
+              createdById: req.user!.id,
+            });
+            const [u] = await trx.update(clubMemberships).set({
+              paymentConfirmed: true,
+            }).where(eq(clubMemberships.id, membershipId)).returning();
+            return u;
+          });
+          console.log(`[AUDIT] Membership ${membershipId} paid from wallet: userId=${membership.userId}, clubId=${membership.clubId}, amount=${price}, by=${req.user!.id}`);
+          return res.json(updated);
+        } catch (e: any) {
+          if (typeof e.message === "string" && e.message.startsWith("INSUFFICIENT:")) {
+            const [, cur, need] = e.message.split(":");
+            return res.status(400).json({ message: `Insufficient credit: £${(Number(cur) / 100).toFixed(2)} available, £${(Number(need) / 100).toFixed(2)} required.` });
+          }
+          if (e.message === "ALREADY_PAID") return res.status(409).json({ message: "Membership is already marked paid." });
+          if (e.message === "NO_WALLET") return res.status(400).json({ message: "Member has no eligible wallet for this club; cannot deduct from wallet." });
+          if (e.message === "NOT_FOUND") return res.status(404).json({ message: "Membership not found." });
+          throw e;
+        }
+      }
 
       const [updated] = await db.update(clubMemberships).set({
         paymentConfirmed: body.paymentConfirmed,
@@ -33490,10 +33577,35 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         isGlobal: wallets.isGlobal,
         allowedClubIds: wallets.allowedClubIds,
         isActive: wallets.isActive,
+        lowBalanceThreshold: wallets.lowBalanceThreshold,
       }).from(wallets)
         .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)))
         .orderBy(desc(wallets.createdAt));
       res.json(myWallets);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // User-editable low-balance alert threshold. Writes to the same
+  // wallets.lowBalanceThreshold field admins use, so both sides stay in sync.
+  app.patch("/api/my-wallets/:walletId/threshold", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      const { lowBalanceThreshold } = req.body || {};
+      if (isNaN(walletId)) return res.status(400).json({ message: "Invalid wallet ID" });
+      if (typeof lowBalanceThreshold !== "number" || !Number.isFinite(lowBalanceThreshold) || lowBalanceThreshold < 0) {
+        return res.status(400).json({ message: "lowBalanceThreshold (pence, >=0) required" });
+      }
+      const [w] = await db.select().from(wallets).where(eq(wallets.id, walletId));
+      if (!w) return res.status(404).json({ message: "Wallet not found" });
+      if (w.userId !== req.user!.id) return res.sendStatus(403);
+      const [updated] = await db.update(wallets)
+        .set({ lowBalanceThreshold: Math.round(lowBalanceThreshold), updatedAt: new Date() })
+        .where(eq(wallets.id, walletId))
+        .returning();
+      res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
     }

@@ -164,6 +164,9 @@ export default function MembershipBoard() {
 
   const [bulkAction, setBulkAction] = useState<string>("");
 
+  const [payMethodDialog, setPayMethodDialog] = useState<{ id: number; fullName: string; planName: string; price: number } | null>(null);
+  const [payMethod, setPayMethod] = useState<"external" | "wallet">("external");
+
   const [plansOpen, setPlansOpen] = useState(false);
   const [createPlanDialog, setCreatePlanDialog] = useState(false);
   const [planName, setPlanName] = useState("");
@@ -560,15 +563,24 @@ export default function MembershipBoard() {
   });
 
   const markPaidMutation = useMutation({
-    mutationFn: async ({ id, paymentConfirmed }: { id: number; paymentConfirmed: boolean }) => {
-      await apiRequest("PATCH", `/api/club-memberships/${id}/payment`, { paymentConfirmed });
+    mutationFn: async ({ id, paymentConfirmed, paymentMethod }: { id: number; paymentConfirmed: boolean; paymentMethod?: "external" | "wallet" }) => {
+      await apiRequest("PATCH", `/api/club-memberships/${id}/payment`, { paymentConfirmed, paymentMethod });
     },
-    onSuccess: () => {
+    onSuccess: (_d, vars) => {
       invalidateMemberships();
-      toast({ title: "Payment Updated", description: "Payment status has been updated." });
+      setPayMethodDialog(null);
+      toast({
+        title: "Payment Updated",
+        description: vars.paymentMethod === "wallet"
+          ? "Marked paid and amount deducted from member's wallet."
+          : vars.paymentMethod === "external"
+            ? "Marked paid via external bank transfer."
+            : "Payment status has been updated.",
+      });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to update payment.", variant: "destructive" });
+      const msg = String(error?.message || "Failed to update payment.").replace(/^\d+:\s*/, "");
+      toast({ title: "Error", description: msg, variant: "destructive" });
     },
   });
 
@@ -1168,7 +1180,15 @@ export default function MembershipBoard() {
                                 {membership.paymentStatus !== "PAID" && (
                                   <Button
                                     size="sm"
-                                    onClick={() => markPaidMutation.mutate({ id: membership.id, paymentConfirmed: true })}
+                                    onClick={() => {
+                                      setPayMethod("external");
+                                      setPayMethodDialog({
+                                        id: membership.id,
+                                        fullName: membership.fullName,
+                                        planName: membership.planName,
+                                        price: membership.proratedPrice ?? membership.planAnnualPrice ?? 0,
+                                      });
+                                    }}
                                     disabled={markPaidMutation.isPending}
                                     data-testid={`button-mark-paid-${membership.id}`}
                                   >
@@ -2492,6 +2512,67 @@ export default function MembershipBoard() {
             >
               {assignDiscountMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
               Save Assignment
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!payMethodDialog} onOpenChange={(o) => { if (!o) setPayMethodDialog(null); }}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-payment-method">
+          <DialogHeader>
+            <DialogTitle>Mark Membership Paid</DialogTitle>
+          </DialogHeader>
+          {payMethodDialog && (
+            <div className="space-y-4">
+              <div className="rounded-md border p-3 text-sm">
+                <div className="font-medium" data-testid="text-pay-method-member">{payMethodDialog.fullName}</div>
+                <div className="text-xs text-muted-foreground">{payMethodDialog.planName}</div>
+                {payMethodDialog.price > 0 && (
+                  <div className="text-xs mt-1">Amount: <span className="font-semibold">£{formatPounds(payMethodDialog.price)}</span></div>
+                )}
+              </div>
+              <div className="space-y-2">
+                <Label className="text-xs">Payment method</Label>
+                <div className="grid grid-cols-1 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setPayMethod("external")}
+                    className={`text-left rounded-md border p-3 hover-elevate ${payMethod === "external" ? "border-primary ring-1 ring-primary" : ""}`}
+                    data-testid="option-pay-external"
+                  >
+                    <div className="text-sm font-medium">External bank transfer</div>
+                    <div className="text-xs text-muted-foreground">Marks paid only — no wallet change. Counts toward club income.</div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setPayMethod("wallet")}
+                    disabled={payMethodDialog.price <= 0}
+                    className={`text-left rounded-md border p-3 hover-elevate ${payMethod === "wallet" ? "border-primary ring-1 ring-primary" : ""} ${payMethodDialog.price <= 0 ? "opacity-50 cursor-not-allowed" : ""}`}
+                    data-testid="option-pay-wallet"
+                  >
+                    <div className="text-sm font-medium">Member's wallet credit</div>
+                    <div className="text-xs text-muted-foreground">
+                      {payMethodDialog.price > 0
+                        ? `Deducts £${formatPounds(payMethodDialog.price)} from member's wallet credit.`
+                        : "Membership has no price; wallet payment unavailable."}
+                    </div>
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setPayMethodDialog(null)} data-testid="button-pay-method-cancel">Cancel</Button>
+            <Button
+              onClick={() => {
+                if (!payMethodDialog) return;
+                markPaidMutation.mutate({ id: payMethodDialog.id, paymentConfirmed: true, paymentMethod: payMethod });
+              }}
+              disabled={markPaidMutation.isPending || !payMethodDialog || (payMethod === "wallet" && payMethodDialog.price <= 0)}
+              data-testid="button-pay-method-confirm"
+            >
+              {markPaidMutation.isPending && <Loader2 className="h-4 w-4 mr-1 animate-spin" />}
+              Confirm Payment
             </Button>
           </DialogFooter>
         </DialogContent>

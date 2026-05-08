@@ -1782,7 +1782,25 @@ function CreditHistoryModal({ open, onClose, history, creditBalances }: {
   open: boolean; onClose: () => void; history: any[] | undefined;
   creditBalances?: { clubId: number; clubName: string; balance: number }[];
 }) {
+  const { toast } = useToast();
   const totalBalance = (creditBalances || []).reduce((sum, cb) => sum + Number(cb.balance), 0);
+  const { data: myWallets } = useQuery<any[]>({ queryKey: ["/api/my-wallets"], enabled: open });
+  const [editingWalletId, setEditingWalletId] = useState<number | null>(null);
+  const [thresholdInput, setThresholdInput] = useState<string>("");
+  const thresholdMutation = useMutation({
+    mutationFn: async ({ walletId, lowBalanceThreshold }: { walletId: number; lowBalanceThreshold: number }) => {
+      await apiRequest("PATCH", `/api/my-wallets/${walletId}/threshold`, { lowBalanceThreshold });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/my-wallets"] });
+      setEditingWalletId(null);
+      toast({ title: "Alert updated", description: "Your low-balance alert threshold has been saved." });
+    },
+    onError: (e: any) => {
+      const msg = String(e?.message || "Failed to update threshold.").replace(/^\d+:\s*/, "");
+      toast({ title: "Error", description: msg, variant: "destructive" });
+    },
+  });
 
   return (
     <Dialog open={open} onOpenChange={(o) => !o && onClose()}>
@@ -1820,6 +1838,78 @@ function CreditHistoryModal({ open, onClose, history, creditBalances }: {
             </div>
           )}
         </div>
+
+        {myWallets && myWallets.length > 0 && (
+          <div className="rounded-lg border bg-card/50 p-3 mb-2" data-testid="section-low-balance-alert">
+            <div className="text-xs font-medium mb-2">Low-balance alert</div>
+            <p className="text-[11px] text-muted-foreground mb-2">
+              Get notified when your wallet drops to or below this amount.
+            </p>
+            <div className="space-y-2">
+              {myWallets.map((w: any) => {
+                const isEditing = editingWalletId === w.id;
+                const currentPounds = ((w.lowBalanceThreshold ?? 500) / 100).toFixed(2);
+                return (
+                  <div key={w.id} className="flex items-center gap-2 flex-wrap" data-testid={`row-wallet-threshold-${w.id}`}>
+                    <span className="text-xs flex-1 min-w-[120px] truncate">{w.name || "Wallet"}</span>
+                    {isEditing ? (
+                      <>
+                        <span className="text-xs text-muted-foreground">£</span>
+                        <Input
+                          type="number"
+                          step="0.01"
+                          min="0"
+                          value={thresholdInput}
+                          onChange={(e) => setThresholdInput(e.target.value)}
+                          className="h-7 w-24 text-xs"
+                          data-testid={`input-threshold-${w.id}`}
+                        />
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            const val = Math.round(parseFloat(thresholdInput || "0") * 100);
+                            if (!isFinite(val) || val < 0) return;
+                            thresholdMutation.mutate({ walletId: w.id, lowBalanceThreshold: val });
+                          }}
+                          disabled={thresholdMutation.isPending}
+                          data-testid={`button-save-threshold-${w.id}`}
+                        >
+                          Save
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => setEditingWalletId(null)}
+                          data-testid={`button-cancel-threshold-${w.id}`}
+                        >
+                          Cancel
+                        </Button>
+                      </>
+                    ) : (
+                      <>
+                        <span className="text-xs font-semibold" data-testid={`text-threshold-${w.id}`}>£{currentPounds}</span>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-xs"
+                          onClick={() => {
+                            setEditingWalletId(w.id);
+                            setThresholdInput(currentPounds);
+                          }}
+                          data-testid={`button-edit-threshold-${w.id}`}
+                        >
+                          Edit
+                        </Button>
+                      </>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {!history || history.length === 0 ? (
           <div className="text-center py-8">
