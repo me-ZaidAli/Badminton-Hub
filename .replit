@@ -56,4 +56,4 @@ timeoutMs = 20000
 [userenv]
 
 [userenv.shared]
-ONESIGNAL_REST_API_KEY = "os_v2_app_ukkhvoimuzc77hqn6kykgbz2cig6guvrkbve5rfdqnl2xbk46hppzquyrus3uwc3mmewu6flgeazce6mk7vxy6w4lppdr3pim3cc57i"
+ONESIGNAL_REST_API_KEY = "os_v2_app_ukkhvoimuzc77hqn6kykgbz2cltpewnynsqe5iutytghaw7efr3ek64xtvktleac265sz74kwmjytijse7gl7h7p4v7ihhy4m22wlpa"
