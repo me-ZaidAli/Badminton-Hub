@@ -1,10 +1,11 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Crown, Pencil, Save, AlertTriangle, UserCheck, UserX,
-  Users, Plus, Trash2, Shield, X, Check,
+  Users, Plus, Trash2, Shield, X, Check, Trophy, BarChart3, PoundSterling,
+  Gauge,
 } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
@@ -21,6 +22,7 @@ type ClubData = {
   teams: Array<any & { members: number[] }>;
   pending: any[];
   confirmed: any[];
+  summary?: { roster: number; pending: number; matchesPlayed: number; matchesWon: number; moneyIn: number; pairs: number };
 };
 
 export default function ClubManager() {
@@ -33,12 +35,31 @@ export default function ClubManager() {
     name: "", logoUrl: "", division: "", adminNotes: "",
   });
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
+  const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string }>({ displayName: "", bio: "" });
 
   const club = data?.club;
   const teams = data?.teams || [];
   const pending = data?.pending || [];
   const confirmed = data?.confirmed || [];
+  const summary = data?.summary;
   const memberMap = new Map<number, any>(confirmed.map(p => [p.id, p]));
+
+  // For each category, compute the set of player IDs already placed in some
+  // pair. Used to hide them from the "+ Add player" dropdowns of sibling pairs
+  // in that category — server already enforces the unique-per-category rule
+  // but the dropdown has to mirror it so club owners aren't tricked into
+  // picking a name that just throws an error toast.
+  const placedByCat = useMemo(() => {
+    const m: Record<string, Set<number>> = {};
+    for (const t of teams) {
+      const cat = t.category;
+      if (!cat) continue;
+      if (!m[cat]) m[cat] = new Set();
+      for (const pid of (t.members || [])) m[cat].add(pid);
+    }
+    return m;
+  }, [teams]);
 
   const startEdit = () => {
     if (!club) return;
@@ -49,84 +70,64 @@ export default function ClubManager() {
     setEditing(true);
   };
 
+  const onErr = (action: string) => (e: any) =>
+    toast({ title: action, description: (e?.message || "Error").replace(/^\d{3}:\s*/, ""), variant: "destructive" });
+  const inv = () => qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] });
+
   const saveDetails = useMutation({
-    mutationFn: async () => {
-      const r = await apiRequest("PATCH", `/api/bsl/clubs/${club.id}/manage`, form);
-      return r.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] });
-      setEditing(false);
-      toast({ title: "Club details saved" });
-    },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async () => (await apiRequest("PATCH", `/api/bsl/clubs/${club.id}/manage`, form)).json(),
+    onSuccess: () => { inv(); setEditing(false); toast({ title: "Club details saved" }); },
+    onError: onErr("Failed to save"),
   });
 
   const withdraw = useMutation({
-    mutationFn: async (reason: string) => {
-      const r = await apiRequest("POST", `/api/bsl/clubs/${club.id}/withdraw`, { reason });
-      return r.json();
-    },
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] });
-      setConfirmWithdraw(false);
-      toast({ title: "Club withdrawn from league", description: "An admin must reinstate before you can play again." });
-    },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async (reason: string) => (await apiRequest("POST", `/api/bsl/clubs/${club.id}/withdraw`, { reason })).json(),
+    onSuccess: () => { inv(); setConfirmWithdraw(false); toast({ title: "Club withdrawn", description: "An admin must reinstate before you can play again." }); },
+    onError: onErr("Failed to withdraw"),
   });
 
   const confirmPlayer = useMutation({
-    mutationFn: async (playerId: number) => {
-      const r = await apiRequest("POST", `/api/bsl/clubs/${club.id}/players/${playerId}/confirm`, {});
-      return r.json();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Player confirmed" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async (playerId: number) => (await apiRequest("POST", `/api/bsl/clubs/${club.id}/players/${playerId}/confirm`, {})).json(),
+    onSuccess: () => { inv(); toast({ title: "Player confirmed" }); },
+    onError: onErr("Couldn't confirm"),
   });
 
   const removePlayer = useMutation({
-    mutationFn: async (playerId: number) => {
-      const r = await apiRequest("DELETE", `/api/bsl/clubs/${club.id}/players/${playerId}`);
-      return r.json();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Player removed" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async (playerId: number) => (await apiRequest("DELETE", `/api/bsl/clubs/${club.id}/players/${playerId}`)).json(),
+    onSuccess: () => { inv(); toast({ title: "Player removed" }); },
+    onError: onErr("Couldn't remove"),
+  });
+
+  const updatePlayer = useMutation({
+    mutationFn: async () => (await apiRequest("PATCH", `/api/bsl/clubs/${club.id}/players/${editingPlayer.id}`, playerForm)).json(),
+    onSuccess: () => { inv(); setEditingPlayer(null); toast({ title: "Player updated" }); },
+    onError: onErr("Couldn't update player"),
   });
 
   const createPair = useMutation({
-    mutationFn: async (category: string) => {
-      const r = await apiRequest("POST", `/api/bsl/clubs/${club.id}/teams`, { category });
-      return r.json();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Pair created" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async (category: string) => (await apiRequest("POST", `/api/bsl/clubs/${club.id}/teams`, { category })).json(),
+    onSuccess: () => { inv(); toast({ title: "Pair created" }); },
+    onError: onErr("Couldn't create pair"),
   });
 
   const deletePair = useMutation({
-    mutationFn: async (teamId: number) => {
-      const r = await apiRequest("DELETE", `/api/bsl/teams/${teamId}/manage`);
-      return r.json();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Pair deleted" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async (teamId: number) => (await apiRequest("DELETE", `/api/bsl/teams/${teamId}/manage`)).json(),
+    onSuccess: () => { inv(); toast({ title: "Pair deleted" }); },
+    onError: onErr("Couldn't delete pair"),
   });
 
   const addMember = useMutation({
-    mutationFn: async (vars: { teamId: number; bslPlayerId: number }) => {
-      const r = await apiRequest("POST", `/api/bsl/teams/${vars.teamId}/members`, { bslPlayerId: vars.bslPlayerId });
-      return r.json();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Player added to pair" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async (vars: { teamId: number; bslPlayerId: number }) =>
+      (await apiRequest("POST", `/api/bsl/teams/${vars.teamId}/members`, { bslPlayerId: vars.bslPlayerId })).json(),
+    onSuccess: () => { inv(); toast({ title: "Player added to pair" }); },
+    onError: onErr("Couldn't add to pair"),
   });
 
   const removeMember = useMutation({
-    mutationFn: async (vars: { teamId: number; playerId: number }) => {
-      const r = await apiRequest("DELETE", `/api/bsl/teams/${vars.teamId}/members/${vars.playerId}`);
-      return r.json();
-    },
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Removed from pair" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+    mutationFn: async (vars: { teamId: number; playerId: number }) =>
+      (await apiRequest("DELETE", `/api/bsl/teams/${vars.teamId}/members/${vars.playerId}`)).json(),
+    onSuccess: () => { inv(); toast({ title: "Removed from pair" }); },
+    onError: onErr("Couldn't remove from pair"),
   });
 
   if (isLoading) {
@@ -174,10 +175,22 @@ export default function ClubManager() {
             </p>
           </div>
           <div className="flex gap-2">
-            {!editing && <ActionButton variant="cyan" icon={<Pencil className="h-3 w-3" />} onClick={startEdit} testid="button-edit-club">Edit details</ActionButton>}
-            {!club.withdrawnAt && <ActionButton variant="ghost" icon={<AlertTriangle className="h-3 w-3" />} onClick={() => setConfirmWithdraw(true)} testid="button-withdraw-club">Withdraw club</ActionButton>}
+            {!editing && <ActionButton variant="cyan" icon={<Pencil className="h-3 w-3" />} onClick={startEdit} data-testid="button-edit-club">Edit details</ActionButton>}
+            {!club.withdrawnAt && <ActionButton variant="ghost" icon={<AlertTriangle className="h-3 w-3" />} onClick={() => setConfirmWithdraw(true)} data-testid="button-withdraw-club">Withdraw club</ActionButton>}
           </div>
         </motion.div>
+
+        {/* DASHBOARD STAT TILES */}
+        {summary && (
+          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-3">
+            <DashTile icon={<Users className="h-4 w-4" />} label="Roster" value={summary.roster} sub={`${summary.pending} pending`} tone="gold" testid="tile-roster" />
+            <DashTile icon={<Shield className="h-4 w-4" />} label="Pairs" value={summary.pairs} sub="across MD/WD/XD" tone="cyan" testid="tile-pairs" />
+            <DashTile icon={<Trophy className="h-4 w-4" />} label="Wins" value={summary.matchesWon} sub={`of ${summary.matchesPlayed}`} tone="gold" testid="tile-wins" />
+            <DashTile icon={<Gauge className="h-4 w-4" />} label="Win %" value={summary.matchesPlayed > 0 ? `${Math.round((summary.matchesWon / summary.matchesPlayed) * 100)}%` : "—"} sub="club average" tone="cyan" testid="tile-winrate" />
+            <DashTile icon={<BarChart3 className="h-4 w-4" />} label="Matches" value={summary.matchesPlayed} sub="all categories" tone="cyan" testid="tile-matches" />
+            <DashTile icon={<PoundSterling className="h-4 w-4" />} label="Money in" value={`£${(summary.moneyIn / 100).toFixed(0)}`} sub="from members" tone="gold" testid="tile-money-in" />
+          </div>
+        )}
 
         {/* Edit form */}
         <AnimatePresence>
@@ -191,8 +204,8 @@ export default function ClubManager() {
                   <Field label="Notes (visible to admin)"><TextInput value={form.adminNotes} onChange={v => setForm({ ...form, adminNotes: v })} testid="input-club-notes" /></Field>
                 </div>
                 <div className="mt-4 flex gap-2 justify-end">
-                  <ActionButton variant="ghost" onClick={() => setEditing(false)} icon={<X className="h-3 w-3" />} testid="button-cancel-edit">Cancel</ActionButton>
-                  <ActionButton variant="gold" onClick={() => saveDetails.mutate()} disabled={saveDetails.isPending} icon={<Save className="h-3 w-3" />} testid="button-save-edit">
+                  <ActionButton variant="ghost" onClick={() => setEditing(false)} icon={<X className="h-3 w-3" />} data-testid="button-cancel-edit">Cancel</ActionButton>
+                  <ActionButton variant="gold" onClick={() => saveDetails.mutate()} disabled={saveDetails.isPending} icon={<Save className="h-3 w-3" />} data-testid="button-save-edit">
                     {saveDetails.isPending ? "Saving…" : "Save"}
                   </ActionButton>
                 </div>
@@ -201,59 +214,114 @@ export default function ClubManager() {
           )}
         </AnimatePresence>
 
-        {/* Players */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-          <GlowPanel title={`Pending requests (${pending.length})`} tone="cyan" icon={<UserCheck className="h-4 w-4" />}>
-            {pending.length === 0 ? <Empty text="No players waiting for confirmation." /> : (
-              <ul className="space-y-2">
-                {pending.map(p => (
-                  <li key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2"
-                    style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-pending-player-${p.id}`}>
-                    <div>
-                      <div className="font-semibold text-sm">{p.displayName || p.user?.name || "Player"}</div>
-                      <div className="text-xs" style={{ color: BSL.muted }}>{p.user?.email}</div>
-                    </div>
-                    <div className="flex gap-2">
-                      <ActionButton variant="gold" onClick={() => confirmPlayer.mutate(p.id)} disabled={confirmPlayer.isPending} icon={<Check className="h-3 w-3" />} testid={`button-confirm-${p.id}`}>Confirm</ActionButton>
-                      <ActionButton variant="ghost" onClick={() => removePlayer.mutate(p.id)} disabled={removePlayer.isPending} icon={<X className="h-3 w-3" />} testid={`button-reject-${p.id}`}>Decline</ActionButton>
-                    </div>
-                  </li>
-                ))}
-              </ul>
-            )}
+        {/* Pending requests */}
+        {pending.length > 0 && (
+          <GlowPanel title={`Pending join requests (${pending.length})`} tone="cyan" icon={<UserCheck className="h-4 w-4" />}>
+            <ul className="space-y-2">
+              {pending.map(p => (
+                <li key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2"
+                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-pending-player-${p.id}`}>
+                  <div>
+                    <div className="font-semibold text-sm">{p.displayName || p.user?.name || "Player"}</div>
+                    <div className="text-xs" style={{ color: BSL.muted }}>{p.user?.email}</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <ActionButton variant="gold" onClick={() => confirmPlayer.mutate(p.id)} disabled={confirmPlayer.isPending} icon={<Check className="h-3 w-3" />} data-testid={`button-confirm-${p.id}`}>Confirm</ActionButton>
+                    <ActionButton variant="ghost" onClick={() => removePlayer.mutate(p.id)} disabled={removePlayer.isPending} icon={<X className="h-3 w-3" />} data-testid={`button-reject-${p.id}`}>Decline</ActionButton>
+                  </div>
+                </li>
+              ))}
+            </ul>
           </GlowPanel>
+        )}
 
-          <GlowPanel title={`Confirmed roster (${confirmed.length})`} tone="gold" icon={<Shield className="h-4 w-4" />}>
-            {confirmed.length === 0 ? <Empty text="No confirmed players yet." /> : (
-              <ul className="space-y-2">
-                {confirmed.map(p => (
-                  <li key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2"
-                    style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-roster-player-${p.id}`}>
-                    <div>
-                      <div className="font-semibold text-sm">{p.displayName || p.user?.name || "Player"}</div>
-                      <div className="text-xs flex gap-1 mt-0.5">
-                        {(p.categories || []).length === 0
-                          ? <span style={{ color: BSL.muted }}>No category yet</span>
-                          : (p.categories || []).map((c: string) => (
-                            <span key={c} className="px-1.5 py-0.5 rounded text-[10px] font-bold"
-                              style={{ background: `${BSL.cyan}20`, color: BSL.cyan }}>{c}</span>
-                          ))}
-                      </div>
-                    </div>
-                    <ActionButton variant="ghost" onClick={() => removePlayer.mutate(p.id)} disabled={removePlayer.isPending} icon={<UserX className="h-3 w-3" />} testid={`button-remove-${p.id}`}>Remove</ActionButton>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </GlowPanel>
-        </div>
+        {/* Confirmed roster — full breakdown */}
+        <GlowPanel title={`Members (${confirmed.length})`} subtitle="Stats, payments & profile" tone="gold" icon={<Shield className="h-4 w-4" />}>
+          {confirmed.length === 0 ? <Empty text="No confirmed players yet. Share your invite code to get started." /> : (
+            <div className="overflow-x-auto -mx-2">
+              <table className="w-full text-sm" style={{ minWidth: 720 }}>
+                <thead>
+                  <tr className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>
+                    <th className="text-left px-3 py-2">Player</th>
+                    <th className="text-left px-3 py-2">Categories</th>
+                    <th className="text-left px-3 py-2">Status</th>
+                    <th className="text-right px-3 py-2">P / W / L</th>
+                    <th className="text-right px-3 py-2">Win %</th>
+                    <th className="text-right px-3 py-2">Paid</th>
+                    <th className="text-right px-3 py-2">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {confirmed.map(p => {
+                    const played = p.matchesPlayed || 0;
+                    const won = p.matchesWon || 0;
+                    const lost = Math.max(0, played - won);
+                    const winPct = played > 0 ? Math.round((won / played) * 100) : null;
+                    const statusTone = p.status === "ACTIVE" ? BSL.success : p.status === "PENDING_PAYMENT" ? BSL.gold : BSL.muted;
+                    return (
+                      <tr key={p.id} className="border-t" style={{ borderColor: BSL.border }} data-testid={`row-member-${p.id}`}>
+                        <td className="px-3 py-2.5">
+                          <div className="font-semibold">{p.displayName || p.user?.name || "Player"}</div>
+                          <div className="text-[11px]" style={{ color: BSL.muted }}>{p.user?.email}</div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <div className="flex flex-wrap gap-1">
+                            {(p.categories || []).length === 0
+                              ? <span className="text-[11px]" style={{ color: BSL.muted }}>—</span>
+                              : (p.categories || []).map((c: string) => (
+                                <span key={c} className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                                  style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>{c}</span>
+                              ))}
+                          </div>
+                        </td>
+                        <td className="px-3 py-2.5">
+                          <span className="px-1.5 py-0.5 rounded text-[10px] font-bold uppercase tracking-widest"
+                            style={{ background: `${statusTone}22`, color: statusTone }}
+                            data-testid={`text-status-${p.id}`}>{p.status}</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right tabular-nums" style={{ color: BSL.muted }}>
+                          <span style={{ color: BSL.text }}>{played}</span>
+                          <span> · </span>
+                          <span style={{ color: BSL.success }}>{won}</span>
+                          <span> · </span>
+                          <span style={{ color: BSL.danger }}>{lost}</span>
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-bold tabular-nums" style={{ color: winPct == null ? BSL.muted : BSL.gold }}>
+                          {winPct == null ? "—" : `${winPct}%`}
+                        </td>
+                        <td className="px-3 py-2.5 text-right font-bold tabular-nums" style={{ color: BSL.gold }} data-testid={`text-paid-${p.id}`}>
+                          £{((p.paidTotal || 0) / 100).toFixed(2)}
+                        </td>
+                        <td className="px-3 py-2.5 text-right">
+                          <div className="inline-flex gap-1">
+                            <button onClick={() => { setEditingPlayer(p); setPlayerForm({ displayName: p.displayName || "", bio: p.bio || "" }); }}
+                              className="p-1.5 rounded-md" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}
+                              data-testid={`button-edit-player-${p.id}`} title="Edit player">
+                              <Pencil className="h-3 w-3" />
+                            </button>
+                            <button onClick={() => { if (confirm(`Remove ${p.displayName || p.user?.name || "player"} from the club?`)) removePlayer.mutate(p.id); }}
+                              className="p-1.5 rounded-md" style={{ background: `${BSL.danger}22`, color: BSL.danger }}
+                              data-testid={`button-remove-player-${p.id}`} title="Remove from club">
+                              <UserX className="h-3 w-3" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </GlowPanel>
 
         {/* Pairs by category */}
-        <GlowPanel title="Pairs by category" tone="gold" icon={<Users className="h-4 w-4" />}>
+        <GlowPanel title="Pairs by category" subtitle="Each player can only join one pair per category" tone="gold" icon={<Users className="h-4 w-4" />}>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {CATEGORIES.map(cat => {
               const catTeams = teams.filter(t => t.category === cat).sort((a, b) => (a.pairNumber || 0) - (b.pairNumber || 0));
               const eligible = confirmed.filter(p => (p.categories || []).includes(cat));
+              const placed = placedByCat[cat] || new Set<number>();
               return (
                 <div key={cat} className="rounded-xl p-3" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}>
                   <div className="flex items-center justify-between mb-2">
@@ -261,55 +329,69 @@ export default function ClubManager() {
                       <div className="font-bold text-sm" style={{ color: BSL.gold }}>{cat}</div>
                       <div className="text-[10px]" style={{ color: BSL.muted }}>{CAT_LABEL[cat]}</div>
                     </div>
-                    <ActionButton variant="cyan" onClick={() => createPair.mutate(cat)} disabled={createPair.isPending} icon={<Plus className="h-3 w-3" />} testid={`button-add-pair-${cat}`}>Pair</ActionButton>
+                    <ActionButton variant="cyan" onClick={() => createPair.mutate(cat)} disabled={createPair.isPending} icon={<Plus className="h-3 w-3" />} data-testid={`button-add-pair-${cat}`}>Pair</ActionButton>
                   </div>
                   {catTeams.length === 0 ? <Empty text="No pairs yet." /> : (
                     <div className="space-y-2">
-                      {catTeams.map(t => (
-                        <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`pair-${t.id}`}>
-                          <div className="flex items-center justify-between mb-1.5">
-                            <div className="text-xs font-bold">Pair {String.fromCharCode(64 + (t.pairNumber || 1))}</div>
-                            {(t.members || []).length === 0 && (
-                              <button onClick={() => deletePair.mutate(t.id)} className="text-[10px] hover:underline" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}>
-                                <Trash2 className="h-3 w-3 inline" />
-                              </button>
-                            )}
+                      {catTeams.map(t => {
+                        const teamMembers = t.members || [];
+                        // Hide players already in any sibling pair in this same
+                        // category (server enforces it too — keeps the UI honest).
+                        const dropdownOptions = eligible.filter(p =>
+                          !teamMembers.includes(p.id) && !placed.has(p.id)
+                        );
+                        return (
+                          <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`pair-${t.id}`}>
+                            <div className="flex items-center justify-between mb-1.5">
+                              <div className="text-xs font-bold">Pair {String.fromCharCode(64 + (t.pairNumber || 1))}</div>
+                              {teamMembers.length === 0 && (
+                                <button onClick={() => deletePair.mutate(t.id)} className="text-[10px] hover:underline" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}>
+                                  <Trash2 className="h-3 w-3 inline" />
+                                </button>
+                              )}
+                            </div>
+                            <div className="space-y-1">
+                              {teamMembers.map((pid: number) => {
+                                const p = memberMap.get(pid);
+                                if (!p) return null;
+                                return (
+                                  <div key={pid} className="flex items-center justify-between text-xs px-2 py-1 rounded"
+                                    style={{ background: `${BSL.gold}15` }} data-testid={`pair-member-${t.id}-${pid}`}>
+                                    <span>{p.displayName || p.user?.name || "Player"}</span>
+                                    <button onClick={() => removeMember.mutate({ teamId: t.id, playerId: pid })}
+                                      className="hover:opacity-70" data-testid={`button-remove-member-${t.id}-${pid}`}>
+                                      <X className="h-3 w-3" />
+                                    </button>
+                                  </div>
+                                );
+                              })}
+                              {teamMembers.length < 2 && (
+                                dropdownOptions.length === 0 ? (
+                                  <div className="text-[10px] italic px-2 py-1" style={{ color: BSL.muted }}>
+                                    {eligible.length === 0 ? "No eligible players yet" : "All eligible players already paired"}
+                                  </div>
+                                ) : (
+                                  <select onChange={e => {
+                                    const v = Number(e.target.value);
+                                    if (v) { addMember.mutate({ teamId: t.id, bslPlayerId: v }); e.currentTarget.value = ""; }
+                                  }} className="w-full text-xs rounded px-2 py-1"
+                                    style={{ background: BSL.cardSoft, color: "white", border: `1px solid ${BSL.border}` }}
+                                    data-testid={`select-add-member-${t.id}`} defaultValue="">
+                                    <option value="">+ Add player…</option>
+                                    {dropdownOptions.map(p => (
+                                      <option key={p.id} value={p.id}>{p.displayName || p.user?.name || "Player"}</option>
+                                    ))}
+                                  </select>
+                                )
+                              )}
+                            </div>
                           </div>
-                          <div className="space-y-1">
-                            {(t.members || []).map((pid: number) => {
-                              const p = memberMap.get(pid);
-                              if (!p) return null;
-                              return (
-                                <div key={pid} className="flex items-center justify-between text-xs px-2 py-1 rounded"
-                                  style={{ background: `${BSL.gold}15` }} data-testid={`pair-member-${t.id}-${pid}`}>
-                                  <span>{p.displayName || p.user?.name || "Player"}</span>
-                                  <button onClick={() => removeMember.mutate({ teamId: t.id, playerId: pid })}
-                                    className="hover:opacity-70" data-testid={`button-remove-member-${t.id}-${pid}`}>
-                                    <X className="h-3 w-3" />
-                                  </button>
-                                </div>
-                              );
-                            })}
-                            {(t.members || []).length < 2 && (
-                              <select onChange={e => {
-                                const v = Number(e.target.value);
-                                if (v) { addMember.mutate({ teamId: t.id, bslPlayerId: v }); e.currentTarget.value = ""; }
-                              }} className="w-full text-xs rounded px-2 py-1"
-                                style={{ background: BSL.cardSoft, color: "white", border: `1px solid ${BSL.border}` }}
-                                data-testid={`select-add-member-${t.id}`} defaultValue="">
-                                <option value="">+ Add player…</option>
-                                {eligible
-                                  .filter(p => !(t.members || []).includes(p.id))
-                                  .map(p => <option key={p.id} value={p.id}>{p.displayName || p.user?.name || "Player"}</option>)}
-                              </select>
-                            )}
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                   <div className="mt-2 text-[10px]" style={{ color: BSL.muted }}>
-                    {eligible.length} player{eligible.length === 1 ? "" : "s"} registered for {cat}
+                    {eligible.length} player{eligible.length === 1 ? "" : "s"} registered · {placed.size} placed
                   </div>
                 </div>
               );
@@ -317,6 +399,42 @@ export default function ClubManager() {
           </div>
         </GlowPanel>
       </div>
+
+      {/* Player edit modal */}
+      <AnimatePresence>
+        {editingPlayer && (
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setEditingPlayer(null)}>
+            <motion.div className="w-full max-w-md rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.cyan}55` }}
+              initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              onClick={e => e.stopPropagation()} data-testid="modal-edit-player">
+              <div className="flex items-center gap-3 mb-4">
+                <Pencil className="h-5 w-5" style={{ color: BSL.cyan }} />
+                <h3 className="text-lg font-bold">Edit {editingPlayer.user?.name || "player"}</h3>
+              </div>
+              <Field label="Display name (shown on leaderboard)">
+                <TextInput value={playerForm.displayName} onChange={v => setPlayerForm({ ...playerForm, displayName: v })} testid="input-edit-player-display" />
+              </Field>
+              <div className="mt-3">
+                <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Bio</span>
+                <textarea value={playerForm.bio} onChange={e => setPlayerForm({ ...playerForm, bio: e.target.value })}
+                  rows={3} maxLength={600}
+                  className="w-full px-3 py-2 rounded-lg text-sm mt-1"
+                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                  data-testid="input-edit-player-bio" />
+              </div>
+              <div className="mt-4 flex gap-2 justify-end">
+                <ActionButton variant="ghost" onClick={() => setEditingPlayer(null)} icon={<X className="h-3 w-3" />} data-testid="button-cancel-edit-player">Cancel</ActionButton>
+                <ActionButton variant="gold" onClick={() => updatePlayer.mutate()} disabled={updatePlayer.isPending} icon={<Save className="h-3 w-3" />} data-testid="button-save-edit-player">
+                  {updatePlayer.isPending ? "Saving…" : "Save"}
+                </ActionButton>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Withdraw confirmation */}
       <AnimatePresence>
@@ -336,8 +454,8 @@ export default function ClubManager() {
                 Your club will be removed from upcoming fixtures and standings. An admin must reinstate it before you can compete again. This does not refund any fees.
               </p>
               <div className="flex gap-2 justify-end">
-                <ActionButton variant="ghost" onClick={() => setConfirmWithdraw(false)} testid="button-cancel-withdraw">Cancel</ActionButton>
-                <ActionButton variant="gold" onClick={() => withdraw.mutate(prompt("Reason for withdrawal? (optional)") || "")} disabled={withdraw.isPending} testid="button-confirm-withdraw">
+                <ActionButton variant="ghost" onClick={() => setConfirmWithdraw(false)} data-testid="button-cancel-withdraw">Cancel</ActionButton>
+                <ActionButton variant="gold" onClick={() => withdraw.mutate(prompt("Reason for withdrawal? (optional)") || "")} disabled={withdraw.isPending} data-testid="button-confirm-withdraw">
                   {withdraw.isPending ? "Withdrawing…" : "Yes, withdraw"}
                 </ActionButton>
               </div>
@@ -346,6 +464,23 @@ export default function ClubManager() {
         )}
       </AnimatePresence>
     </div>
+  );
+}
+
+function DashTile({ icon, label, value, sub, tone, testid }: { icon: React.ReactNode; label: string; value: string | number; sub?: string; tone: "gold" | "cyan"; testid?: string }) {
+  const c = tone === "gold" ? BSL.gold : BSL.cyan;
+  return (
+    <motion.div initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}
+      className="rounded-xl p-3"
+      style={{ background: BSL.card, border: `1px solid ${c}33` }}
+      data-testid={testid}>
+      <div className="flex items-center justify-between text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>
+        <span>{label}</span>
+        <span style={{ color: c }}>{icon}</span>
+      </div>
+      <div className="text-2xl font-black mt-1 tabular-nums" style={{ color: c }}>{value}</div>
+      {sub && <div className="text-[10px]" style={{ color: BSL.muted }}>{sub}</div>}
+    </motion.div>
   );
 }
 

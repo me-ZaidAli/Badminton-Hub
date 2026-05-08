@@ -282,7 +282,7 @@ export default function LeagueMode() {
                   <div key={p.id} className="flex items-center gap-3 px-2 py-2 rounded-lg" style={{ background: i === 0 ? `${BSL.cyan}10` : "transparent" }} data-testid={`mvp-row-${p.id}`}>
                     <div className="text-sm font-black w-6 text-center" style={{ color: i === 0 ? BSL.cyan : BSL.muted }}>#{i + 1}</div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-semibold truncate">Player #{p.userId}</div>
+                      <div className="text-sm font-semibold truncate" data-testid={`mvp-name-${p.id}`}>{p.displayName || `Player #${p.id}`}</div>
                       <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>
                         {p.matchesWon}W · {p.matchesPlayed}P
                       </div>

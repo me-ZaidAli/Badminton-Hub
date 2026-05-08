@@ -518,13 +518,25 @@ export function registerBslRoutes(app: Express) {
   });
 
   // === MVP / TOP PERFORMERS ===
+  // Only surface players who have actually played at least one match — empty
+  // stat rows make the leaderboard look broken. Names are hydrated from
+  // bslPlayers.displayName, falling back to the linked user's full name.
   app.get("/api/bsl/mvp", async (_req, res) => {
     try {
       const players = await db.select().from(bslPlayers).where(eq(bslPlayers.status, "ACTIVE"));
-      const top = players
+      const active = players.filter(p => (p.matchesPlayed || 0) > 0);
+      const top = active
         .sort((a, b) => b.matchesWon - a.matchesWon || b.pointsScored - a.pointsScored)
         .slice(0, 5);
-      res.json(top);
+      const userIds = Array.from(new Set(top.map(p => p.userId)));
+      const userRows = userIds.length
+        ? await db.select({ id: users.id, name: users.fullName }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map(u => [u.id, u]));
+      res.json(top.map(p => ({
+        ...p,
+        displayName: p.displayName || userMap.get(p.userId)?.name || `Player #${p.id}`,
+      })));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -928,7 +940,8 @@ export function registerBslRoutes(app: Express) {
     return { club };
   }
 
-  // Manager dashboard: club + teams (with members) + roster + pending join requests
+  // Manager dashboard: club + teams (with members) + roster + pending join
+  // requests + per-player paid totals + club-wide stats.
   app.get("/api/bsl/my-club", requireAuth, async (req, res) => {
     try {
       const { club } = await loadOwnedClub(req);
@@ -938,24 +951,85 @@ export function registerBslRoutes(app: Express) {
       const members = teamIds.length
         ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
         : [];
-      // Confirmed roster = players linked to this club
       const roster = await db.select().from(bslPlayers).where(eq(bslPlayers.bslClubId, club.id));
-      // Pending join requests = players who joined via invite code but not confirmed
       const pending = roster.filter(p => p.confirmedByOwnerAt == null);
       const confirmed = roster.filter(p => p.confirmedByOwnerAt != null);
-      // Hydrate user names
+
       const userIds = Array.from(new Set(roster.map(p => p.userId)));
       const userRows = userIds.length
-        ? await db.select({ id: users.id, name: users.fullName, email: users.email }).from(users).where(inArray(users.id, userIds))
+        ? await db.select({ id: users.id, name: users.fullName, email: users.email, phone: users.phone }).from(users).where(inArray(users.id, userIds))
         : [];
       const userMap = new Map(userRows.map(r => [r.id, r]));
-      const hydrate = (p: any) => ({ ...p, user: userMap.get(p.userId) || null });
+
+      // Money in: sum of APPROVED TOPUPs per player + the one-off player league
+      // fee they had to clear to reach status=ACTIVE.
+      const playerIds = roster.map(p => p.id);
+      const txRows = playerIds.length
+        ? await db.select().from(bslWalletTransactions).where(inArray(bslWalletTransactions.bslPlayerId, playerIds))
+        : [];
+      const [league] = await db.select().from(bslLeagues).limit(1);
+      const leagueFee = league?.playerFee || 0;
+      const topupByPlayer = new Map<number, number>();
+      const debitByPlayer = new Map<number, number>();
+      for (const tx of txRows) {
+        if (tx.type === "TOPUP" && tx.status === "APPROVED") {
+          topupByPlayer.set(tx.bslPlayerId, (topupByPlayer.get(tx.bslPlayerId) || 0) + tx.amount);
+        } else if (tx.type === "DEBIT") {
+          debitByPlayer.set(tx.bslPlayerId, (debitByPlayer.get(tx.bslPlayerId) || 0) + tx.amount);
+        }
+      }
+      const hydrate = (p: any) => {
+        const topupTotal = topupByPlayer.get(p.id) || 0;
+        const spent = debitByPlayer.get(p.id) || 0;
+        const leagueFeePaid = p.status === "ACTIVE" ? leagueFee : 0;
+        return {
+          ...p,
+          user: userMap.get(p.userId) || null,
+          paidTotal: topupTotal + leagueFeePaid, // money the player has put into BSL
+          spentTotal: spent,                     // money debited (cat fees etc.)
+        };
+      };
+
+      const summary = {
+        roster: confirmed.length,
+        pending: pending.length,
+        matchesPlayed: confirmed.reduce((s, p) => s + (p.matchesPlayed || 0), 0),
+        matchesWon: confirmed.reduce((s, p) => s + (p.matchesWon || 0), 0),
+        moneyIn: confirmed.reduce((s, p) => {
+          const topup = topupByPlayer.get(p.id) || 0;
+          return s + topup + (p.status === "ACTIVE" ? leagueFee : 0);
+        }, 0),
+        pairs: teams.length,
+      };
+
       res.json({
         club,
         teams: teams.map(t => ({ ...t, members: members.filter(m => m.bslTeamId === t.id).map(m => m.bslPlayerId) })),
         pending: pending.map(hydrate),
         confirmed: confirmed.map(hydrate),
+        summary,
       });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager edits a player's profile fields (display name + bio). Same fields
+  // the player can edit themselves on /bsl/profile — keeps scope tight.
+  app.patch("/api/bsl/clubs/:clubId/players/:playerId", requireAuth, async (req, res) => {
+    try {
+      const clubId = Number(req.params.clubId);
+      const playerId = Number(req.params.playerId);
+      const { club, reason } = await loadClubForManager(req, clubId);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const [p] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, playerId)).limit(1);
+      if (!p) return res.status(404).json({ message: "Player not found" });
+      if (p.bslClubId !== clubId) return res.status(403).json({ message: "Player not in this club" });
+      const patch: any = {};
+      if (typeof req.body.displayName === "string") patch.displayName = req.body.displayName.slice(0, 80);
+      if (typeof req.body.bio === "string") patch.bio = req.body.bio.slice(0, 600);
+      if (!Object.keys(patch).length) return res.status(400).json({ message: "Nothing to update" });
+      const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, playerId)).returning();
+      await audit(req, "MANAGER_UPDATE_PLAYER", "bsl_players", playerId, patch);
+      res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
