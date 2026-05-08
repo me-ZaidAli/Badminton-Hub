@@ -158,6 +158,8 @@ const BslRegisterClub = lazy(() => import("@/pages/bsl/RegisterClub"));
 const BslJoinPlayer = lazy(() => import("@/pages/bsl/JoinPlayer"));
 const BslWallet = lazy(() => import("@/pages/bsl/Wallet"));
 const BslMatchDetail = lazy(() => import("@/pages/bsl/MatchDetail"));
+const BslClubManager = lazy(() => import("@/pages/bsl/ClubManager"));
+const BslPlayerProfile = lazy(() => import("@/pages/bsl/PlayerProfile"));
 const BslAdminVerify = lazy(() => import("@/pages/bsl/AdminVerify"));
 const BslFixtureBoard = lazy(() => import("@/pages/bsl/FixtureBoard"));
 const BslAdminDashboard = lazy(() => import("@/pages/bsl/admin/Dashboard"));
@@ -535,6 +537,12 @@ function Router() {
       </Route>
       <Route path="/bsl/wallet">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslWallet /></Suspense>} />
+      </Route>
+      <Route path="/bsl/my-club">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslClubManager /></Suspense>} />
+      </Route>
+      <Route path="/bsl/profile">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslPlayerProfile /></Suspense>} />
       </Route>
       <Route path="/bsl/match/:id">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslMatchDetail /></Suspense>} />

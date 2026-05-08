@@ -7,6 +7,7 @@ import fs from "fs";
 import {
   bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays,
   bslFixtures, bslRubbers, bslWalletTransactions, bslAuditLog, bslMedia, users,
+  bslTeamMembers,
 } from "@shared/schema";
 import { sendRulePush } from "./notificationRules";
 
@@ -835,6 +836,318 @@ export function registerBslRoutes(app: Express) {
       await db.delete(bslMedia).where(eq(bslMedia.id, id));
       await audit(req, "DELETE_MEDIA", "bsl_media", id, null);
       res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ============================================================
+  // CLUB-OWNER CONTROL CENTER  (manager of bslClubs.managerUserId)
+  // ============================================================
+  const ALLOWED_CATS = ["MD", "WD", "XD"] as const;
+  type Cat = typeof ALLOWED_CATS[number];
+
+  async function loadOwnedClub(req: Request): Promise<{ club: any | null; canManage: boolean }> {
+    const u = (req as any).user;
+    if (!u) return { club: null, canManage: false };
+    const [club] = await db.select().from(bslClubs).where(eq(bslClubs.managerUserId, u.id)).limit(1);
+    return { club: club ?? null, canManage: !!club || isAdminish(u) };
+  }
+
+  async function loadClubForManager(req: Request, clubId: number): Promise<{ club: any | null; reason?: string }> {
+    const u = (req as any).user;
+    const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, clubId)).limit(1);
+    if (!club) return { club: null, reason: "Club not found" };
+    if (club.managerUserId !== u.id && !isAdminish(u)) return { club: null, reason: "Not your club" };
+    return { club };
+  }
+
+  // Manager dashboard: club + teams (with members) + roster + pending join requests
+  app.get("/api/bsl/my-club", requireAuth, async (req, res) => {
+    try {
+      const { club } = await loadOwnedClub(req);
+      if (!club) return res.json({ club: null });
+      const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, club.id));
+      const teamIds = teams.map(t => t.id);
+      const members = teamIds.length
+        ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
+        : [];
+      // Confirmed roster = players linked to this club
+      const roster = await db.select().from(bslPlayers).where(eq(bslPlayers.bslClubId, club.id));
+      // Pending join requests = players who joined via invite code but not confirmed
+      const pending = roster.filter(p => p.confirmedByOwnerAt == null);
+      const confirmed = roster.filter(p => p.confirmedByOwnerAt != null);
+      // Hydrate user names
+      const userIds = Array.from(new Set(roster.map(p => p.userId)));
+      const userRows = userIds.length
+        ? await db.select({ id: users.id, name: users.fullName, email: users.email }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map(r => [r.id, r]));
+      const hydrate = (p: any) => ({ ...p, user: userMap.get(p.userId) || null });
+      res.json({
+        club,
+        teams: teams.map(t => ({ ...t, members: members.filter(m => m.bslTeamId === t.id).map(m => m.bslPlayerId) })),
+        pending: pending.map(hydrate),
+        confirmed: confirmed.map(hydrate),
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager (or admin) edits club details
+  app.patch("/api/bsl/clubs/:id/manage", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const allow = ["name", "logoUrl", "division", "adminNotes"];
+      const patch: any = {};
+      for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      if (!Object.keys(patch).length) return res.status(400).json({ message: "Nothing to update" });
+      const [updated] = await db.update(bslClubs).set(patch).where(eq(bslClubs.id, id)).returning();
+      await audit(req, "MANAGER_UPDATE_CLUB", "bsl_clubs", id, patch);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager withdraws their club from the league (sets withdrawnAt + isSuspended)
+  app.post("/api/bsl/clubs/:id/withdraw", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      if (club.withdrawnAt) return res.status(400).json({ message: "Club already withdrawn" });
+      const [updated] = await db.update(bslClubs).set({
+        withdrawnAt: new Date(), isSuspended: true,
+        adminNotes: [club.adminNotes, `Withdrawn by manager ${new Date().toISOString()}: ${req.body.reason || "(no reason)"}`].filter(Boolean).join("\n"),
+      }).where(eq(bslClubs.id, id)).returning();
+      await audit(req, "MANAGER_WITHDRAW_CLUB", "bsl_clubs", id, { reason: req.body.reason });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin can reinstate a withdrawn club
+  app.post("/api/bsl/clubs/:id/reinstate", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [updated] = await db.update(bslClubs).set({
+        withdrawnAt: null, isSuspended: false,
+      }).where(eq(bslClubs.id, id)).returning();
+      await audit(req, "REINSTATE_CLUB", "bsl_clubs", id, null);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager confirms a pending player onto the roster
+  app.post("/api/bsl/clubs/:id/players/:playerId/confirm", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const playerId = Number(req.params.playerId);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const [player] = await db.select().from(bslPlayers).where(and(eq(bslPlayers.id, playerId), eq(bslPlayers.bslClubId, id))).limit(1);
+      if (!player) return res.status(404).json({ message: "Player not in your club" });
+      const [updated] = await db.update(bslPlayers).set({
+        confirmedByOwnerAt: new Date(),
+      }).where(eq(bslPlayers.id, playerId)).returning();
+      await audit(req, "MANAGER_CONFIRM_PLAYER", "bsl_players", playerId, null);
+      try {
+        await sendRulePush("bslClubApproved", [player.userId], { clubName: club.name }, { url: "/bsl", dedupe: { refType: "bsl-player-confirmed", refId: playerId } });
+      } catch {}
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager removes a player from the roster (also strips them from any pairs)
+  app.delete("/api/bsl/clubs/:id/players/:playerId", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const playerId = Number(req.params.playerId);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const [player] = await db.select().from(bslPlayers).where(and(eq(bslPlayers.id, playerId), eq(bslPlayers.bslClubId, id))).limit(1);
+      if (!player) return res.status(404).json({ message: "Player not in your club" });
+      await db.delete(bslTeamMembers).where(eq(bslTeamMembers.bslPlayerId, playerId));
+      await db.update(bslPlayers).set({
+        bslClubId: null, bslTeamId: null, confirmedByOwnerAt: null,
+      }).where(eq(bslPlayers.id, playerId));
+      await audit(req, "MANAGER_REMOVE_PLAYER", "bsl_players", playerId, { fromClub: id });
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager creates an extra pair within a category
+  app.post("/api/bsl/clubs/:id/teams", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const category = String(req.body.category || "");
+      if (!ALLOWED_CATS.includes(category as Cat)) return res.status(400).json({ message: "Invalid category" });
+      const existing = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, id), eq(bslTeams.category, category)));
+      const pairNumber = (existing.reduce((m, t) => Math.max(m, t.pairNumber || 0), 0) || 0) + 1;
+      const letter = String.fromCharCode(64 + pairNumber); // A, B, C…
+      const [created] = await db.insert(bslTeams).values({
+        bslClubId: id,
+        name: `${club.name} ${category} Pair ${letter}`,
+        division: club.division,
+        category, pairNumber,
+      } as any).returning();
+      await audit(req, "MANAGER_CREATE_PAIR", "bsl_teams", created.id, { category, pairNumber });
+      res.json(created);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager deletes an empty pair
+  app.delete("/api/bsl/teams/:id/manage", requireAuth, async (req, res) => {
+    try {
+      const teamId = Number(req.params.id);
+      const [team] = await db.select().from(bslTeams).where(eq(bslTeams.id, teamId)).limit(1);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const { club, reason } = await loadClubForManager(req, team.bslClubId);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      // Detach all members and delete
+      await db.delete(bslTeamMembers).where(eq(bslTeamMembers.bslTeamId, teamId));
+      await db.delete(bslTeams).where(eq(bslTeams.id, teamId));
+      await audit(req, "MANAGER_DELETE_PAIR", "bsl_teams", teamId, null);
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager assigns a confirmed player into a pair (max 2 per pair)
+  app.post("/api/bsl/teams/:id/members", requireAuth, async (req, res) => {
+    try {
+      const teamId = Number(req.params.id);
+      const playerId = Number(req.body.bslPlayerId);
+      if (!Number.isFinite(playerId)) return res.status(400).json({ message: "bslPlayerId required" });
+      const [team] = await db.select().from(bslTeams).where(eq(bslTeams.id, teamId)).limit(1);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const { club, reason } = await loadClubForManager(req, team.bslClubId);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, playerId)).limit(1);
+      if (!player || player.bslClubId !== club.id) return res.status(400).json({ message: "Player not in this club" });
+      if (!player.confirmedByOwnerAt) return res.status(400).json({ message: "Confirm the player first" });
+      // Player must be registered for this category
+      if (team.category && !(player.categories || []).includes(team.category)) {
+        return res.status(400).json({ message: `Player has not registered for ${team.category}` });
+      }
+      const existing = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslTeamId, teamId));
+      if (existing.length >= 2) return res.status(400).json({ message: "Pair is full (2 players max)" });
+      if (existing.some(m => m.bslPlayerId === playerId)) return res.status(400).json({ message: "Already in pair" });
+      // One player can only be in one pair per category — pull them off siblings first
+      if (team.category) {
+        const siblings = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, club.id), eq(bslTeams.category, team.category)));
+        if (siblings.length) {
+          await db.delete(bslTeamMembers).where(and(
+            inArray(bslTeamMembers.bslTeamId, siblings.map(s => s.id)),
+            eq(bslTeamMembers.bslPlayerId, playerId),
+          ));
+        }
+      }
+      const [row] = await db.insert(bslTeamMembers).values({ bslTeamId: teamId, bslPlayerId: playerId }).returning();
+      // Mirror primary team for legacy code paths
+      await db.update(bslPlayers).set({ bslTeamId: teamId }).where(eq(bslPlayers.id, playerId));
+      await audit(req, "MANAGER_ADD_PAIR_MEMBER", "bsl_team_members", row.id, { teamId, playerId });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Manager removes a player from a pair
+  app.delete("/api/bsl/teams/:id/members/:playerId", requireAuth, async (req, res) => {
+    try {
+      const teamId = Number(req.params.id);
+      const playerId = Number(req.params.playerId);
+      const [team] = await db.select().from(bslTeams).where(eq(bslTeams.id, teamId)).limit(1);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const { club, reason } = await loadClubForManager(req, team.bslClubId);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      await db.delete(bslTeamMembers).where(and(eq(bslTeamMembers.bslTeamId, teamId), eq(bslTeamMembers.bslPlayerId, playerId)));
+      await audit(req, "MANAGER_REMOVE_PAIR_MEMBER", "bsl_team_members", null, { teamId, playerId });
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ============================================================
+  // PLAYER PROFILE  (the player themselves, not the manager)
+  // ============================================================
+
+  // Update display name + bio on /api/bsl/players/me
+  app.patch("/api/bsl/players/me", requireAuth, async (req, res) => {
+    try {
+      const u = (req as any).user;
+      const [me] = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, u.id)).limit(1);
+      if (!me) return res.status(404).json({ message: "No BSL player profile yet" });
+      const allow = ["displayName", "bio"];
+      const patch: any = {};
+      for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      if (typeof patch.displayName === "string" && patch.displayName.length > 80) return res.status(400).json({ message: "Display name too long" });
+      if (typeof patch.bio === "string" && patch.bio.length > 600) return res.status(400).json({ message: "Bio too long" });
+      const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, me.id)).returning();
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Player registers for a category — debits the per-category fee from wallet balance
+  app.post("/api/bsl/players/me/categories", requireAuth, async (req, res) => {
+    try {
+      const u = (req as any).user;
+      const category = String(req.body.category || "").toUpperCase();
+      if (!ALLOWED_CATS.includes(category as Cat)) return res.status(400).json({ message: "Invalid category (MD/WD/XD)" });
+      const [me] = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, u.id)).limit(1);
+      if (!me) return res.status(404).json({ message: "Join a club first" });
+      if (me.status !== "ACTIVE") return res.status(400).json({ message: "Pay your league fee first" });
+      const cur = me.categories || [];
+      if (cur.includes(category)) return res.status(400).json({ message: "Already registered for this category" });
+      const [league] = await db.select().from(bslLeagues).limit(1);
+      const fees = (league?.categoryFees || {}) as Record<string, number>;
+      const fee = Number.isFinite(fees[category]) ? fees[category] : (league?.playerFee ?? 2500);
+      // Atomic conditional update — guards against double-click double-spend AND
+      // a concurrent registration for the same category. Both balance and the
+      // "category not yet present" predicate are checked at the SQL level.
+      const [updated] = await db.update(bslPlayers).set({
+        walletBalance: dsql`${bslPlayers.walletBalance} - ${fee}`,
+        categories: dsql`array_append(${bslPlayers.categories}, ${category})`,
+      }).where(and(
+        eq(bslPlayers.id, me.id),
+        dsql`${bslPlayers.walletBalance} >= ${fee}`,
+        dsql`NOT (${category} = ANY(${bslPlayers.categories}))`,
+      )).returning();
+      if (!updated) {
+        // Either the balance dropped below the fee or another request claimed the category first.
+        const [fresh] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, me.id)).limit(1);
+        if (fresh && (fresh.categories || []).includes(category)) {
+          return res.status(400).json({ message: "Already registered for this category" });
+        }
+        return res.status(402).json({ message: `Need £${(fee/100).toFixed(2)} in your wallet — top up first.`, fee, balance: fresh?.walletBalance ?? me.walletBalance });
+      }
+      await db.insert(bslWalletTransactions).values({
+        bslPlayerId: me.id, type: "DEBIT", amount: fee, status: "APPROVED",
+        reference: `CAT-${category}-${Date.now().toString(36).toUpperCase()}`,
+        description: `Registered for ${category}`,
+        reviewedById: u.id, reviewedAt: new Date(),
+      } as any);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Player unregisters from a category (no automatic refund — admin handles refunds)
+  app.delete("/api/bsl/players/me/categories/:cat", requireAuth, async (req, res) => {
+    try {
+      const u = (req as any).user;
+      const category = String(req.params.cat || "").toUpperCase();
+      const [me] = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, u.id)).limit(1);
+      if (!me) return res.status(404).json({ message: "No BSL player profile yet" });
+      const cur = me.categories || [];
+      if (!cur.includes(category)) return res.status(400).json({ message: "Not registered for this category" });
+      // Pull off any pair in this category
+      const myTeams = await db.select().from(bslTeams).where(eq(bslTeams.category, category));
+      if (myTeams.length) {
+        await db.delete(bslTeamMembers).where(and(
+          inArray(bslTeamMembers.bslTeamId, myTeams.map(t => t.id)),
+          eq(bslTeamMembers.bslPlayerId, me.id),
+        ));
+      }
+      const [updated] = await db.update(bslPlayers).set({
+        categories: cur.filter(c => c !== category),
+      }).where(eq(bslPlayers.id, me.id)).returning();
+      res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 }

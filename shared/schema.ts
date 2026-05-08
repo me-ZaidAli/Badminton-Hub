@@ -3088,6 +3088,9 @@ export const bslLeagues = pgTable("bsl_leagues", {
   notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
   brandingPrimary: text("branding_primary").default("hsl(42 95% 55%)"),
   brandingAccent: text("branding_accent").default("hsl(195 100% 60%)"),
+  // Per-category player registration fees in pence (admin-editable in Settings).
+  // Falls back to playerFee when a category is missing.
+  categoryFees: jsonb("category_fees").$type<Record<string, number>>().notNull().default({ MD: 2500, WD: 2500, XD: 3000 }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -3112,6 +3115,8 @@ export const bslClubs = pgTable("bsl_clubs", {
   isFlagged: boolean("is_flagged").notNull().default(false),
   isSuspended: boolean("is_suspended").notNull().default(false),
   adminNotes: text("admin_notes"),
+  // Owner-initiated withdrawal from the league. Non-null = club has stepped out.
+  withdrawnAt: timestamp("withdrawn_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -3154,8 +3159,24 @@ export const bslPlayers = pgTable("bsl_players", {
   isSuspended: boolean("is_suspended").notNull().default(false),
   matchBanCount: integer("match_ban_count").notNull().default(0),
   disciplineNotes: text("discipline_notes"),
+  // Player profile fields (editable by the player themselves at /bsl/profile)
+  displayName: text("display_name"),
+  bio: text("bio"),
+  // Categories the player has registered (and paid) for. Subset of MD / WD / XD.
+  categories: text("categories").array().notNull().default(sql`ARRAY[]::text[]`),
+  // Set when the BSL club owner confirms this player onto their roster.
+  confirmedByOwnerAt: timestamp("confirmed_by_owner_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Pair / team membership join table — each bslTeams row holds at most 2 players.
+export const bslTeamMembers = pgTable("bsl_team_members", {
+  id: serial("id").primaryKey(),
+  bslTeamId: integer("bsl_team_id").notNull().references(() => bslTeams.id, { onDelete: "cascade" }),
+  bslPlayerId: integer("bsl_player_id").notNull().references(() => bslPlayers.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export type BslTeamMember = typeof bslTeamMembers.$inferSelect;
 
 export const bslLeagueDays = pgTable("bsl_league_days", {
   id: serial("id").primaryKey(),

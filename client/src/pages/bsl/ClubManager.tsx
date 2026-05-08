@@ -1,0 +1,382 @@
+import { useState } from "react";
+import { Link } from "wouter";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { motion, AnimatePresence } from "framer-motion";
+import {
+  ArrowLeft, Crown, Pencil, Save, AlertTriangle, UserCheck, UserX,
+  Users, Plus, Trash2, Shield, X, Check,
+} from "lucide-react";
+import { BSLBackground } from "./components/BSLBackground";
+import { GlowPanel } from "./components/GlowPanel";
+import { ActionButton } from "./components/ActionButton";
+import { BSL } from "./components/BSLPalette";
+import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
+
+const CATEGORIES = ["MD", "WD", "XD"] as const;
+const CAT_LABEL: Record<string, string> = { MD: "Men's Doubles", WD: "Women's Doubles", XD: "Mixed Doubles" };
+
+type ClubData = {
+  club: any | null;
+  teams: Array<any & { members: number[] }>;
+  pending: any[];
+  confirmed: any[];
+};
+
+export default function ClubManager() {
+  const qc = useQueryClient();
+  const { toast } = useToast();
+  const { data, isLoading } = useQuery<ClubData>({ queryKey: ["/api/bsl/my-club"] });
+
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState<{ name: string; logoUrl: string; division: string; adminNotes: string }>({
+    name: "", logoUrl: "", division: "", adminNotes: "",
+  });
+  const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+
+  const club = data?.club;
+  const teams = data?.teams || [];
+  const pending = data?.pending || [];
+  const confirmed = data?.confirmed || [];
+  const memberMap = new Map<number, any>(confirmed.map(p => [p.id, p]));
+
+  const startEdit = () => {
+    if (!club) return;
+    setForm({
+      name: club.name || "", logoUrl: club.logoUrl || "",
+      division: club.division || "", adminNotes: club.adminNotes || "",
+    });
+    setEditing(true);
+  };
+
+  const saveDetails = useMutation({
+    mutationFn: async () => {
+      const r = await apiRequest("PATCH", `/api/bsl/clubs/${club.id}/manage`, form);
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] });
+      setEditing(false);
+      toast({ title: "Club details saved" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const withdraw = useMutation({
+    mutationFn: async (reason: string) => {
+      const r = await apiRequest("POST", `/api/bsl/clubs/${club.id}/withdraw`, { reason });
+      return r.json();
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] });
+      setConfirmWithdraw(false);
+      toast({ title: "Club withdrawn from league", description: "An admin must reinstate before you can play again." });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const confirmPlayer = useMutation({
+    mutationFn: async (playerId: number) => {
+      const r = await apiRequest("POST", `/api/bsl/clubs/${club.id}/players/${playerId}/confirm`, {});
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Player confirmed" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const removePlayer = useMutation({
+    mutationFn: async (playerId: number) => {
+      const r = await apiRequest("DELETE", `/api/bsl/clubs/${club.id}/players/${playerId}`);
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Player removed" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const createPair = useMutation({
+    mutationFn: async (category: string) => {
+      const r = await apiRequest("POST", `/api/bsl/clubs/${club.id}/teams`, { category });
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Pair created" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const deletePair = useMutation({
+    mutationFn: async (teamId: number) => {
+      const r = await apiRequest("DELETE", `/api/bsl/teams/${teamId}/manage`);
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Pair deleted" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const addMember = useMutation({
+    mutationFn: async (vars: { teamId: number; bslPlayerId: number }) => {
+      const r = await apiRequest("POST", `/api/bsl/teams/${vars.teamId}/members`, { bslPlayerId: vars.bslPlayerId });
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Player added to pair" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  const removeMember = useMutation({
+    mutationFn: async (vars: { teamId: number; playerId: number }) => {
+      const r = await apiRequest("DELETE", `/api/bsl/teams/${vars.teamId}/members/${vars.playerId}`);
+      return r.json();
+    },
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] }); toast({ title: "Removed from pair" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return (
+      <div className="min-h-screen text-white" style={{ background: BSL.bgDeep }}>
+        <BSLBackground />
+        <div className="max-w-6xl mx-auto px-4 py-12 text-center" style={{ color: BSL.muted }}>Loading…</div>
+      </div>
+    );
+  }
+
+  if (!club) {
+    return (
+      <div className="min-h-screen text-white" style={{ background: BSL.bgDeep }}>
+        <BSLBackground />
+        <div className="max-w-3xl mx-auto px-4 py-12">
+          <BackBar />
+          <GlowPanel title="No BSL club yet" tone="gold" icon={<Crown className="h-4 w-4" />}>
+            <p className="text-sm mb-4" style={{ color: BSL.muted }}>You haven't registered a club for the Birmingham Super League.</p>
+            <Link href="/bsl/register-club"><ActionButton variant="gold" icon={<Plus className="h-3 w-3" />}>Register your club</ActionButton></Link>
+          </GlowPanel>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
+      <BSLBackground />
+      <div className="max-w-6xl mx-auto px-4 md:px-8 py-6 space-y-6">
+        <BackBar />
+
+        {/* Header */}
+        <motion.div initial={{ opacity: 0, y: -8 }} animate={{ opacity: 1, y: 0 }}
+          className="flex flex-wrap items-end justify-between gap-3" data-testid="header-club-manager">
+          <div>
+            <div className="text-xs uppercase tracking-widest" style={{ color: BSL.cyan }}>Club Owner Control</div>
+            <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">
+              {club.name} <span style={{ color: BSL.gold }}>· Manage</span>
+            </h1>
+            <p className="text-sm mt-1" style={{ color: BSL.muted }}>
+              Status: <span style={{ color: club.withdrawnAt ? BSL.danger : BSL.success }} data-testid="text-club-status">
+                {club.withdrawnAt ? "WITHDRAWN" : club.status}
+              </span>{" · "}Division: {club.division}{" · "}Invite code: <span style={{ color: BSL.gold }} data-testid="text-invite-code">{club.inviteCode || "—"}</span>
+            </p>
+          </div>
+          <div className="flex gap-2">
+            {!editing && <ActionButton variant="cyan" icon={<Pencil className="h-3 w-3" />} onClick={startEdit} testid="button-edit-club">Edit details</ActionButton>}
+            {!club.withdrawnAt && <ActionButton variant="ghost" icon={<AlertTriangle className="h-3 w-3" />} onClick={() => setConfirmWithdraw(true)} testid="button-withdraw-club">Withdraw club</ActionButton>}
+          </div>
+        </motion.div>
+
+        {/* Edit form */}
+        <AnimatePresence>
+          {editing && (
+            <motion.div initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }} exit={{ opacity: 0, height: 0 }}>
+              <GlowPanel title="Edit club details" tone="cyan" icon={<Pencil className="h-4 w-4" />}>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Field label="Club name"><TextInput value={form.name} onChange={v => setForm({ ...form, name: v })} testid="input-club-name" /></Field>
+                  <Field label="Division"><TextInput value={form.division} onChange={v => setForm({ ...form, division: v })} testid="input-club-division" /></Field>
+                  <Field label="Logo URL"><TextInput value={form.logoUrl} onChange={v => setForm({ ...form, logoUrl: v })} testid="input-club-logo" /></Field>
+                  <Field label="Notes (visible to admin)"><TextInput value={form.adminNotes} onChange={v => setForm({ ...form, adminNotes: v })} testid="input-club-notes" /></Field>
+                </div>
+                <div className="mt-4 flex gap-2 justify-end">
+                  <ActionButton variant="ghost" onClick={() => setEditing(false)} icon={<X className="h-3 w-3" />} testid="button-cancel-edit">Cancel</ActionButton>
+                  <ActionButton variant="gold" onClick={() => saveDetails.mutate()} disabled={saveDetails.isPending} icon={<Save className="h-3 w-3" />} testid="button-save-edit">
+                    {saveDetails.isPending ? "Saving…" : "Save"}
+                  </ActionButton>
+                </div>
+              </GlowPanel>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Players */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+          <GlowPanel title={`Pending requests (${pending.length})`} tone="cyan" icon={<UserCheck className="h-4 w-4" />}>
+            {pending.length === 0 ? <Empty text="No players waiting for confirmation." /> : (
+              <ul className="space-y-2">
+                {pending.map(p => (
+                  <li key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2"
+                    style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-pending-player-${p.id}`}>
+                    <div>
+                      <div className="font-semibold text-sm">{p.displayName || p.user?.name || "Player"}</div>
+                      <div className="text-xs" style={{ color: BSL.muted }}>{p.user?.email}</div>
+                    </div>
+                    <div className="flex gap-2">
+                      <ActionButton variant="gold" onClick={() => confirmPlayer.mutate(p.id)} disabled={confirmPlayer.isPending} icon={<Check className="h-3 w-3" />} testid={`button-confirm-${p.id}`}>Confirm</ActionButton>
+                      <ActionButton variant="ghost" onClick={() => removePlayer.mutate(p.id)} disabled={removePlayer.isPending} icon={<X className="h-3 w-3" />} testid={`button-reject-${p.id}`}>Decline</ActionButton>
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </GlowPanel>
+
+          <GlowPanel title={`Confirmed roster (${confirmed.length})`} tone="gold" icon={<Shield className="h-4 w-4" />}>
+            {confirmed.length === 0 ? <Empty text="No confirmed players yet." /> : (
+              <ul className="space-y-2">
+                {confirmed.map(p => (
+                  <li key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2"
+                    style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-roster-player-${p.id}`}>
+                    <div>
+                      <div className="font-semibold text-sm">{p.displayName || p.user?.name || "Player"}</div>
+                      <div className="text-xs flex gap-1 mt-0.5">
+                        {(p.categories || []).length === 0
+                          ? <span style={{ color: BSL.muted }}>No category yet</span>
+                          : (p.categories || []).map((c: string) => (
+                            <span key={c} className="px-1.5 py-0.5 rounded text-[10px] font-bold"
+                              style={{ background: `${BSL.cyan}20`, color: BSL.cyan }}>{c}</span>
+                          ))}
+                      </div>
+                    </div>
+                    <ActionButton variant="ghost" onClick={() => removePlayer.mutate(p.id)} disabled={removePlayer.isPending} icon={<UserX className="h-3 w-3" />} testid={`button-remove-${p.id}`}>Remove</ActionButton>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </GlowPanel>
+        </div>
+
+        {/* Pairs by category */}
+        <GlowPanel title="Pairs by category" tone="gold" icon={<Users className="h-4 w-4" />}>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {CATEGORIES.map(cat => {
+              const catTeams = teams.filter(t => t.category === cat).sort((a, b) => (a.pairNumber || 0) - (b.pairNumber || 0));
+              const eligible = confirmed.filter(p => (p.categories || []).includes(cat));
+              return (
+                <div key={cat} className="rounded-xl p-3" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="font-bold text-sm" style={{ color: BSL.gold }}>{cat}</div>
+                      <div className="text-[10px]" style={{ color: BSL.muted }}>{CAT_LABEL[cat]}</div>
+                    </div>
+                    <ActionButton variant="cyan" onClick={() => createPair.mutate(cat)} disabled={createPair.isPending} icon={<Plus className="h-3 w-3" />} testid={`button-add-pair-${cat}`}>Pair</ActionButton>
+                  </div>
+                  {catTeams.length === 0 ? <Empty text="No pairs yet." /> : (
+                    <div className="space-y-2">
+                      {catTeams.map(t => (
+                        <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`pair-${t.id}`}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="text-xs font-bold">Pair {String.fromCharCode(64 + (t.pairNumber || 1))}</div>
+                            {(t.members || []).length === 0 && (
+                              <button onClick={() => deletePair.mutate(t.id)} className="text-[10px] hover:underline" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}>
+                                <Trash2 className="h-3 w-3 inline" />
+                              </button>
+                            )}
+                          </div>
+                          <div className="space-y-1">
+                            {(t.members || []).map((pid: number) => {
+                              const p = memberMap.get(pid);
+                              if (!p) return null;
+                              return (
+                                <div key={pid} className="flex items-center justify-between text-xs px-2 py-1 rounded"
+                                  style={{ background: `${BSL.gold}15` }} data-testid={`pair-member-${t.id}-${pid}`}>
+                                  <span>{p.displayName || p.user?.name || "Player"}</span>
+                                  <button onClick={() => removeMember.mutate({ teamId: t.id, playerId: pid })}
+                                    className="hover:opacity-70" data-testid={`button-remove-member-${t.id}-${pid}`}>
+                                    <X className="h-3 w-3" />
+                                  </button>
+                                </div>
+                              );
+                            })}
+                            {(t.members || []).length < 2 && (
+                              <select onChange={e => {
+                                const v = Number(e.target.value);
+                                if (v) { addMember.mutate({ teamId: t.id, bslPlayerId: v }); e.currentTarget.value = ""; }
+                              }} className="w-full text-xs rounded px-2 py-1"
+                                style={{ background: BSL.cardSoft, color: "white", border: `1px solid ${BSL.border}` }}
+                                data-testid={`select-add-member-${t.id}`} defaultValue="">
+                                <option value="">+ Add player…</option>
+                                {eligible
+                                  .filter(p => !(t.members || []).includes(p.id))
+                                  .map(p => <option key={p.id} value={p.id}>{p.displayName || p.user?.name || "Player"}</option>)}
+                              </select>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  <div className="mt-2 text-[10px]" style={{ color: BSL.muted }}>
+                    {eligible.length} player{eligible.length === 1 ? "" : "s"} registered for {cat}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </GlowPanel>
+      </div>
+
+      {/* Withdraw confirmation */}
+      <AnimatePresence>
+        {confirmWithdraw && (
+          <motion.div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+            style={{ background: "rgba(0,0,0,0.7)" }}
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+            onClick={() => setConfirmWithdraw(false)}>
+            <motion.div className="w-full max-w-md rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.gold}55` }}
+              initial={{ scale: 0.9 }} animate={{ scale: 1 }} exit={{ scale: 0.9 }}
+              onClick={e => e.stopPropagation()} data-testid="modal-withdraw">
+              <div className="flex items-center gap-3 mb-4">
+                <AlertTriangle className="h-6 w-6" style={{ color: BSL.danger }} />
+                <h3 className="text-xl font-bold">Withdraw {club.name}?</h3>
+              </div>
+              <p className="text-sm mb-4" style={{ color: BSL.muted }}>
+                Your club will be removed from upcoming fixtures and standings. An admin must reinstate it before you can compete again. This does not refund any fees.
+              </p>
+              <div className="flex gap-2 justify-end">
+                <ActionButton variant="ghost" onClick={() => setConfirmWithdraw(false)} testid="button-cancel-withdraw">Cancel</ActionButton>
+                <ActionButton variant="gold" onClick={() => withdraw.mutate(prompt("Reason for withdrawal? (optional)") || "")} disabled={withdraw.isPending} testid="button-confirm-withdraw">
+                  {withdraw.isPending ? "Withdrawing…" : "Yes, withdraw"}
+                </ActionButton>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
+function BackBar() {
+  return (
+    <Link href="/bsl">
+      <a className="inline-flex items-center gap-1.5 text-xs hover:opacity-80" style={{ color: BSL.muted }} data-testid="link-back-bsl">
+        <ArrowLeft className="h-3 w-3" /> Back to BSL hub
+      </a>
+    </Link>
+  );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <label className="block">
+      <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{label}</span>
+      <div className="mt-1">{children}</div>
+    </label>
+  );
+}
+
+function TextInput({ value, onChange, testid }: { value: string; onChange: (v: string) => void; testid?: string }) {
+  return (
+    <input value={value} onChange={e => onChange(e.target.value)}
+      className="w-full px-3 py-2 rounded-lg text-sm"
+      style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+      data-testid={testid} />
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return <div className="text-xs py-3 text-center" style={{ color: BSL.muted }}>{text}</div>;
+}

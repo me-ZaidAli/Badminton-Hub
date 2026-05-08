@@ -21,6 +21,9 @@ export default function SettingsAdmin() {
     clubFeePounds: league.clubFee != null ? String(league.clubFee / 100) : "",
     playerFeePounds: league.playerFee != null ? String(league.playerFee / 100) : "",
     pointsWin: league.pointsWin ?? 3, pointsDraw: league.pointsDraw ?? 1, pointsLoss: league.pointsLoss ?? 0,
+    feeMD: league.categoryFees?.MD != null ? String(league.categoryFees.MD / 100) : "",
+    feeWD: league.categoryFees?.WD != null ? String(league.categoryFees.WD / 100) : "",
+    feeXD: league.categoryFees?.XD != null ? String(league.categoryFees.XD / 100) : "",
     matchFormat: league.matchFormat ?? "6-RUBBER", courtCount: league.courtCount ?? 6,
     notificationsEnabled: !!league.notificationsEnabled,
     brandingPrimary: league.brandingPrimary ?? "", brandingAccent: league.brandingAccent ?? "",
@@ -42,6 +45,15 @@ export default function SettingsAdmin() {
       const pf = parseFloat(form.playerFeePounds);
       if (Number.isFinite(cf)) payload.clubFee = Math.round(cf * 100);
       if (Number.isFinite(pf)) payload.playerFee = Math.round(pf * 100);
+      // Per-category fees (only send when at least one is set)
+      const md = parseFloat(form.feeMD), wd = parseFloat(form.feeWD), xd = parseFloat(form.feeXD);
+      if ([md, wd, xd].some(Number.isFinite)) {
+        payload.categoryFees = {
+          MD: Number.isFinite(md) ? Math.round(md * 100) : (league?.categoryFees?.MD ?? 2500),
+          WD: Number.isFinite(wd) ? Math.round(wd * 100) : (league?.categoryFees?.WD ?? 2500),
+          XD: Number.isFinite(xd) ? Math.round(xd * 100) : (league?.categoryFees?.XD ?? 3000),
+        };
+      }
       // Convert datetime-local string → ISO; only send when non-empty
       if (form.nextLeagueDay) payload.nextLeagueDay = new Date(form.nextLeagueDay).toISOString();
       // Strip undefined keys so the server doesn't try to write them
@@ -101,6 +113,15 @@ export default function SettingsAdmin() {
             <Field label="Player fee (£)"><MoneyInput value={form.playerFeePounds} onChange={v => F("playerFeePounds", v)} placeholder="25" testid="input-player-fee" /></Field>
           </div>
           <div className="text-xs mt-2" style={{ color: BSL.muted }}>Currently: <span style={{ color: BSL.gold }}>£{fmtPounds(form.clubFeePounds)} per club</span> · <span style={{ color: BSL.gold }}>£{fmtPounds(form.playerFeePounds)} per player</span></div>
+          <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BSL.border}` }}>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: BSL.gold }}>Per-category fees (£)</div>
+            <div className="grid grid-cols-3 gap-3">
+              <Field label="Men's Doubles"><MoneyInput value={form.feeMD} onChange={(v: any) => F("feeMD", v)} placeholder="25" testid="input-fee-md" /></Field>
+              <Field label="Women's Doubles"><MoneyInput value={form.feeWD} onChange={(v: any) => F("feeWD", v)} placeholder="25" testid="input-fee-wd" /></Field>
+              <Field label="Mixed Doubles"><MoneyInput value={form.feeXD} onChange={(v: any) => F("feeXD", v)} placeholder="30" testid="input-fee-xd" /></Field>
+            </div>
+            <div className="text-xs mt-1" style={{ color: BSL.muted }}>Players pay this from their BSL wallet on category registration. Falls back to player fee if blank.</div>
+          </div>
         </GlowPanel>
 
         <GlowPanel title="Notifications & Branding" tone="cyan" icon={<Bell className="h-4 w-4" />}>

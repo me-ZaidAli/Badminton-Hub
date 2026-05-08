@@ -31,6 +31,8 @@ export default function LeagueMode() {
   const { data: mvp = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/mvp"] });
   const { data: clubs = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/clubs"] });
   const { data: mePlayer } = useQuery<any>({ queryKey: ["/api/bsl/players/me"], enabled: !!user });
+  const { data: myClub } = useQuery<any>({ queryKey: ["/api/bsl/my-club"], enabled: !!user });
+  const isClubManager = !!myClub?.club;
 
   const activeClubs = clubs.filter(c => c.status === "ACTIVE").length;
   const totalTeams = standings.length;
@@ -118,13 +120,22 @@ export default function LeagueMode() {
               <Link href="/bsl/join"><a><ActionButton variant="cyan" icon={<Zap className="h-4 w-4" />}>Join as Player</ActionButton></a></Link>
             )}
             {mePlayer && (
-              <Link href="/bsl/wallet"><a>
-                <ActionButton variant="cyan" icon={<WalletIcon className="h-4 w-4" />}>
-                  Wallet · £{((mePlayer.walletBalance || 0) / 100).toFixed(2)}
-                </ActionButton>
-              </a></Link>
+              <>
+                <Link href="/bsl/profile"><a>
+                  <ActionButton variant="cyan" icon={<Crown className="h-4 w-4" />}>My BSL Profile</ActionButton>
+                </a></Link>
+                <Link href="/bsl/wallet"><a>
+                  <ActionButton variant="cyan" icon={<WalletIcon className="h-4 w-4" />}>
+                    Wallet · £{((mePlayer.walletBalance || 0) / 100).toFixed(2)}
+                  </ActionButton>
+                </a></Link>
+              </>
             )}
-            <Link href="/bsl/register-club"><a><ActionButton variant="gold" icon={<Shield className="h-4 w-4" />}>Register a Club</ActionButton></a></Link>
+            {isClubManager ? (
+              <Link href="/bsl/my-club"><a><ActionButton variant="gold" icon={<Shield className="h-4 w-4" />}>Manage My Club</ActionButton></a></Link>
+            ) : (
+              <Link href="/bsl/register-club"><a><ActionButton variant="gold" icon={<Shield className="h-4 w-4" />}>Register a Club</ActionButton></a></Link>
+            )}
             {isAdmin && (
               <>
                 <Link href="/bsl/admin/verify"><a><ActionButton variant="ghost" icon={<Sparkles className="h-4 w-4" />}>Verify Payments</ActionButton></a></Link>
