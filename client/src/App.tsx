@@ -15,6 +15,7 @@ import { lazy, Suspense, useEffect, createContext, useContext } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useThemeProvider, ThemeContext, useTheme } from "@/hooks/use-theme";
 import { IosFirstVisitPrompt } from "@/components/PwaInstallPrompt";
+import { OneSignalBootstrap } from "@/components/OneSignalBootstrap";
 import { GlobalRouteProgress } from "@/components/ui/premium-loader";
 import { useBackground } from "@/hooks/use-background";
 import { useTypography } from "@/hooks/use-typography";
@@ -82,6 +83,8 @@ const Rewards = lazy(() => import("@/pages/Rewards"));
 const Deals = lazy(() => import("@/pages/Deals"));
 const AdminReferrals = lazy(() => import("@/pages/admin/AdminReferrals"));
 const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications"));
+const PushBroadcast = lazy(() => import("@/pages/admin/PushBroadcast"));
+const NotificationSettings = lazy(() => import("@/pages/NotificationSettings"));
 const AttendanceRewards = lazy(() => import("@/pages/admin/AttendanceRewards"));
 const ClubRewards = lazy(() => import("@/pages/admin/ClubRewards"));
 const RewardsDashboard = lazy(() => import("@/pages/admin/RewardsDashboard"));
@@ -730,6 +733,12 @@ function Router() {
       <Route path="/admin/notifications">
         <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminNotifications /></Suspense>} />
       </Route>
+      <Route path="/admin/push-broadcast">
+        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><PushBroadcast /></Suspense>} />
+      </Route>
+      <Route path="/settings/notifications">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><NotificationSettings /></Suspense>} />
+      </Route>
       <Route path="/admin/attendance-rewards">
         <PremiumRoute component={() => <Suspense fallback={<LazyFallback />}><AttendanceRewards /></Suspense>} />
       </Route>
@@ -882,6 +891,7 @@ function ThemeWrapper() {
         <Toaster />
         <Router />
         <IosFirstVisitPrompt />
+        <OneSignalBootstrap />
       </TooltipProvider>
     </ThemeContext.Provider>
   );

@@ -9,6 +9,7 @@ import { createServer } from "http";
 import { evaluateAllClubsGrades } from "./grading";
 import { autoCloseInactiveTickets } from "./ticket-autoclose";
 import { runNotificationScheduler } from "./notification-scheduler";
+import { runPostSessionUnpaidReminder } from "./pushScheduler";
 import { syncParentChildLinks } from "./parentLinkSync";
 import { ensureHotIndexes } from "./dbIndexes";
 import { randomUUID } from "crypto";
@@ -194,6 +195,14 @@ app.use((req, res, next) => {
           console.error("Initial notification scheduler run failed:", err);
         }
       }, 30 * 1000);
+
+      // Push: post-session unpaid reminder, runs hourly + once on boot
+      setInterval(async () => {
+        try { await runPostSessionUnpaidReminder(); } catch (e) { console.error("postSessionUnpaidReminder failed:", e); }
+      }, 60 * 60 * 1000);
+      setTimeout(async () => {
+        try { await runPostSessionUnpaidReminder(); } catch (e) { console.error("Initial postSessionUnpaidReminder failed:", e); }
+      }, 45 * 1000);
     },
   );
 

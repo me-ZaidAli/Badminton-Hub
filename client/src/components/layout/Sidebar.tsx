@@ -25,6 +25,7 @@ import {
   Mail,
   Trophy,
   Bell,
+  BellRing,
   Megaphone,
   Ticket,
   Gift,
@@ -192,6 +193,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements", premiumOnly: true },
     { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },
+    { href: "/settings/notifications", label: "Push Settings", icon: BellRing, group: "comms" },
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages", premiumOnly: true },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets", ...(isAdminOrOwner && { secondaryBadgeKey: "pendingTickets" as keyof BadgeCounts }) },
     { href: "/incidents", label: "Incidents", icon: Shield, group: "comms", badgeKey: "pendingIncidents", premiumOnly: true },
@@ -213,6 +215,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "adminInbox" });
     items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
     items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
+    items.push({ href: "/admin/push-broadcast", label: "Push Broadcast", icon: Megaphone, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
     items.push({ href: "/bsl/admin", label: "BSL · Control Panel", icon: Trophy, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
@@ -221,6 +224,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     if (!isOrganiserOnly) {
       items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
+      items.push({ href: "/admin/push-broadcast", label: "Push Broadcast", icon: Megaphone, group: "admin" });
     }
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";

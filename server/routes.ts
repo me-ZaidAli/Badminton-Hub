@@ -26,6 +26,8 @@ import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
 import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
 import { registerBslRoutes } from "./bsl-routes";
+import { registerNotificationRoutes } from "./notificationRoutes";
+import { sendPushToUsers } from "./oneSignal";
 import { generateSupplierOrderSheet } from "./supplierOrderSheetPdf";
 import { aiHeavyLimiter } from "./rateLimit";
 import { notifyUser, notifyUsers } from "./notify";
@@ -3093,6 +3095,42 @@ export async function registerRoutes(
         console.error("[SESSION CREATE] Failed to auto-create session chat:", chatErr);
       }
 
+      // Push: notify club members whose grade matches the session's skill range
+      try {
+        const { GRADE_ORDER } = await import("@shared/schema");
+        const minIdx = (session as any).skillLevelMin ? GRADE_ORDER.indexOf((session as any).skillLevelMin as any) : -1;
+        const maxIdx = (session as any).skillLevelMax ? GRADE_ORDER.indexOf((session as any).skillLevelMax as any) : -1;
+        const profiles = await db.select().from(playerProfiles).where(eq(playerProfiles.clubId, input.clubId));
+        const matchingUserIds: number[] = [];
+        for (const p of profiles) {
+          if (p.userId === req.user!.id) continue;
+          if (minIdx === -1 && maxIdx === -1) {
+            matchingUserIds.push(p.userId);
+            continue;
+          }
+          const g = GRADE_ORDER.indexOf((p.grade || "C3") as any);
+          if (g === -1) continue;
+          if (minIdx !== -1 && g < minIdx) continue;
+          if (maxIdx !== -1 && g > maxIdx) continue;
+          matchingUserIds.push(p.userId);
+        }
+        if (matchingUserIds.length > 0) {
+          const dateStr = new Date(input.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+          sendPushToUsers(
+            Array.from(new Set(matchingUserIds)),
+            "newSessionMatchingLevel",
+            {
+              title: "New session at your level",
+              message: `"${session.title}" is on ${dateStr}. Tap to sign up.`,
+              url: `/sessions/${session.id}`,
+            },
+            { refType: "new-session", refId: session.id },
+          ).catch(e => console.error("[push newSessionMatchingLevel]", e));
+        }
+      } catch (lvlErr) {
+        console.error("[SESSION CREATE] level-match push failed:", lvlErr);
+      }
+
       res.status(201).json(session);
     } catch (err) {
       if (err instanceof z.ZodError) {
@@ -4274,14 +4312,25 @@ export async function registerRoutes(
         if (signup) {
           const playerUserId = (signup as any).player?.userId;
           if (playerUserId) {
+            const dateStr = new Date(session.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
             await db.insert(notifications).values({
               userId: playerUserId,
               type: "PAYMENT",
               title: "Payment Verified",
-              message: `Your payment for "${session.title}" on ${new Date(session.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })} has been verified by an admin.`,
+              message: `Your payment for "${session.title}" on ${dateStr} has been verified by an admin.`,
               linkUrl: `/sessions/${sessionId}`,
               status: "in_progress",
             });
+            sendPushToUsers(
+              [playerUserId],
+              "paymentReceived",
+              {
+                title: "Payment received",
+                message: `Your payment for "${session.title}" on ${dateStr} has been confirmed.`,
+                url: `/sessions/${sessionId}`,
+              },
+              { refType: "signup-paid", refId: signupId },
+            ).catch(e => console.error("[push paymentReceived]", e));
           }
         }
       } catch (err) {
@@ -4625,6 +4674,22 @@ export async function registerRoutes(
       signupStatus: "CONFIRMED",
       waitingListPosition: null,
     });
+    try {
+      const promotedUserId = (target as any).player?.userId;
+      if (promotedUserId) {
+        const dateStr = new Date(session.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+        sendPushToUsers(
+          [promotedUserId],
+          "waitlistPromoted",
+          {
+            title: "A spot just opened up!",
+            message: `You're now confirmed for "${session.title}" on ${dateStr}.`,
+            url: `/sessions/${sessionId}`,
+          },
+          { refType: "waitlist-promote", refId: signupId },
+        ).catch(e => console.error("[push waitlistPromoted]", e));
+      }
+    } catch (e) { console.error("[promote-waiting push]", e); }
     res.json(updated);
   });
 
@@ -30959,6 +31024,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   registerDebtRoutes(app);
   registerMerchandiseAdminRoutes(app);
   registerInboxAndAuditRoutes(app);
+  registerNotificationRoutes(app);
 
   // === INCIDENT REPORTS ===
   const incidentUploadsDir = path.join(process.cwd(), "public", "uploads", "incidents");

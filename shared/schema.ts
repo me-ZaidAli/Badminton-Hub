@@ -3255,3 +3255,36 @@ export const bslMedia = pgTable("bsl_media", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export type BslMedia = typeof bslMedia.$inferSelect;
+
+// === PUSH NOTIFICATIONS (OneSignal) ===
+export const userPushSubscriptions = pgTable("user_push_subscriptions", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  oneSignalPlayerId: text("onesignal_player_id").notNull(),
+  platform: text("platform"),
+  userAgent: text("user_agent"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  lastSeenAt: timestamp("last_seen_at").defaultNow().notNull(),
+});
+export type UserPushSubscription = typeof userPushSubscriptions.$inferSelect;
+
+export const userNotificationPrefs = pgTable("user_notification_prefs", {
+  userId: integer("user_id").primaryKey().references(() => users.id, { onDelete: "cascade" }),
+  paymentReceived: boolean("payment_received").default(true).notNull(),
+  waitlistPromoted: boolean("waitlist_promoted").default(true).notNull(),
+  newSessionMatchingLevel: boolean("new_session_matching_level").default(true).notNull(),
+  postSessionUnpaidReminder: boolean("post_session_unpaid_reminder").default(true).notNull(),
+  adminAnnouncement: boolean("admin_announcement").default(true).notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export type UserNotificationPrefs = typeof userNotificationPrefs.$inferSelect;
+
+export const pushSendLog = pgTable("push_send_log", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  category: text("category").notNull(),
+  refType: text("ref_type"),
+  refId: integer("ref_id"),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+});
+export type PushSendLog = typeof pushSendLog.$inferSelect;
