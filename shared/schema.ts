@@ -3293,6 +3293,7 @@ export const notificationRules = pgTable("notification_rules", {
   id: serial("id").primaryKey(),
   ruleKey: text("rule_key").notNull().unique(),
   enabled: boolean("enabled").notNull().default(true),
+  category: text("category").notNull().default("General"),
   title: text("title").notNull(),
   message: text("message").notNull(),
   settings: jsonb("settings").notNull().default({}),

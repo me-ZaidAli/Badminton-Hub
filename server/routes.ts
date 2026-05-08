@@ -3083,6 +3083,12 @@ export async function registerRoutes(
               message: `You've been invited to "${session.title}" at ${clubName} on ${new Date(input.date).toLocaleDateString()}. Sign up now to confirm your spot!`,
               linkUrl: `/sessions/${session.id}`,
             });
+            sendRulePush(
+              "sessionInvited",
+              [member.userId],
+              { sessionTitle: session.title, date: new Date(input.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) },
+              { url: `/sessions/${session.id}`, dedupe: { refType: "session-invite", refId: session.id } },
+            ).catch(e => console.error("[push sessionInvited]", e));
           }
         } catch (inviteErr) {
           console.error("[SESSION CREATE] Failed to send invitations:", inviteErr);
@@ -3597,6 +3603,12 @@ export async function registerRoutes(
         linkUrl: `/sessions/${sessionId}`,
         email: true,
       });
+      sendRulePush(
+        "sessionCancelled",
+        Array.from(userIdsToNotify),
+        { sessionTitle: session.title || "", date: dateStr },
+        { url: `/sessions/${sessionId}`, dedupe: { refType: "session-cancelled", refId: sessionId } },
+      ).catch(e => console.error("[push sessionCancelled]", e));
     } catch (err: any) {
       console.error("[SESSION CANCEL] notify failed:", err?.message || err);
     }
@@ -3646,6 +3658,12 @@ export async function registerRoutes(
         linkUrl: `/sessions/${sessionId}`,
         email: true,
       });
+      sendRulePush(
+        "sessionReactivated",
+        Array.from(userIdsToNotify),
+        { sessionTitle: session.title || "", date: dateStr },
+        { url: `/sessions/${sessionId}`, dedupe: { refType: "session-reactivated", refId: sessionId } },
+      ).catch(e => console.error("[push sessionReactivated]", e));
     } catch (err: any) {
       console.error("[SESSION REACTIVATE] notify failed:", err?.message || err);
     }
@@ -12532,6 +12550,12 @@ export async function registerRoutes(
       message: message || `Payment of ${feeDisplay} is due for "${session.title}" at ${club?.name || "your club"}. Please arrange payment.`,
       linkUrl: "/profile",
     });
+    sendRulePush(
+      "paymentRequested",
+      [profile[0].userId],
+      { amount: feeDisplay, sessionTitle: session.title || "" },
+      { url: "/profile" },
+    ).catch(e => console.error("[push paymentRequested]", e));
 
     res.json({ success: true });
   });
@@ -12692,6 +12716,12 @@ export async function registerRoutes(
           message: `Your payment of ${feeDisplay} for "${session.title}" on ${sessionDate} at ${club?.name || "your club"} is outstanding. Please pay to ${bankInfo}. You can confirm your payment on your Profile page.`,
           linkUrl: "/profile",
         });
+        sendRulePush(
+          "paymentReminder",
+          [profile.userId],
+          { amount: feeDisplay, sessionTitle: session.title || "", date: sessionDate },
+          { url: "/profile" },
+        ).catch(e => console.error("[push paymentReminder]", e));
 
         await db.insert(internalMessages).values({
           senderId: req.user!.id,
@@ -17444,6 +17474,12 @@ export async function registerRoutes(
           linkUrl: "/admin/approvals",
         });
       }
+      sendRulePush(
+        "membershipLeft",
+        Array.from(notifyUserIds),
+        { fullName: req.user!.fullName || "A member", clubName: club?.name || "the club" },
+        { url: "/admin/approvals" },
+      ).catch(e => console.error("[push membershipLeft]", e));
       console.log(`[CLUB] User ${userId} left club ${clubId}`);
       res.json({ success: true });
     } catch (err: any) {

@@ -8,6 +8,7 @@ import {
   bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays,
   bslFixtures, bslRubbers, bslWalletTransactions, bslAuditLog, bslMedia, users,
 } from "@shared/schema";
+import { sendRulePush } from "./notificationRules";
 
 async function audit(req: Request, action: string, entity: string, entityId: number | null, detail?: any) {
   try {
@@ -234,6 +235,17 @@ export function registerBslRoutes(app: Express) {
         status: "ACTIVE", inviteCode, approvedAt: new Date(), approvedById: user.id,
       }).where(and(eq(bslClubs.id, id), eq(bslClubs.status, existing.status))).returning();
       if (!updated) return res.status(409).json({ message: "Status changed during approval, please retry" });
+      // Notify the club's primary contact
+      try {
+        if (updated.contactUserId) {
+          sendRulePush(
+            "bslClubApproved",
+            [updated.contactUserId],
+            { inviteCode: updated.inviteCode || "" },
+            { url: "/bsl", dedupe: { refType: "bsl-club-approved", refId: updated.id } },
+          ).catch(e => console.error("[push bslClubApproved]", e));
+        }
+      } catch {}
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -497,6 +509,18 @@ export function registerBslRoutes(app: Express) {
       const delta = tx.type === "TOPUP" ? tx.amount : -tx.amount;
       await db.update(bslPlayers).set({ walletBalance: dsql`${bslPlayers.walletBalance} + ${delta}` })
         .where(eq(bslPlayers.id, tx.bslPlayerId));
+      try {
+        const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, tx.bslPlayerId)).limit(1);
+        if (player?.userId && tx.type === "TOPUP") {
+          const amountStr = `£${(tx.amount / 100).toFixed(2)}`;
+          sendRulePush(
+            "bslWalletApproved",
+            [player.userId],
+            { amount: amountStr },
+            { url: "/bsl/wallet", dedupe: { refType: "bsl-wallet-approved", refId: tx.id } },
+          ).catch(e => console.error("[push bslWalletApproved]", e));
+        }
+      } catch {}
       res.json(updatedRows[0]);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

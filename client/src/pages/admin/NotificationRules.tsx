@@ -15,41 +15,70 @@ type Rule = {
   id: number;
   ruleKey: string;
   enabled: boolean;
+  category: string;
   title: string;
   message: string;
   settings: Record<string, any>;
   updatedAt: string;
 };
 
-const META: Record<string, { label: string; description: string; placeholders: string[] }> = {
-  paymentReceived: {
-    label: "Payment received",
-    description: "Sent when an admin marks a session payment as paid.",
-    placeholders: ["{sessionTitle}", "{date}"],
-  },
-  waitlistPromoted: {
-    label: "Waiting list promotion",
-    description: "Sent when a user is moved from the waiting list into a confirmed spot.",
-    placeholders: ["{sessionTitle}", "{date}"],
-  },
-  newSessionMatchingLevel: {
-    label: "New session at user's level",
-    description: "Sent to club members whose grade matches a newly created session.",
-    placeholders: ["{sessionTitle}", "{date}"],
-  },
-  postSessionUnpaidReminder: {
-    label: "Unpaid reminder after session",
-    description: "Sent hourly for finished sessions where payment is still UNPAID (deduped per signup).",
-    placeholders: ["{sessionTitle}", "{date}"],
-  },
+// Friendly labels keyed by ruleKey. Falls back to a humanized version of the key.
+const LABELS: Record<string, string> = {
+  paymentReceived: "Payment received",
+  paymentRequested: "Payment requested",
+  paymentReminder: "Payment reminder",
+  paymentFailed: "Payment failed",
+  paymentRefunded: "Refund issued",
+  creditAdded: "Credit added",
+  debtChargeAdded: "New charge added",
+  waitlistPromoted: "Waiting list promotion",
+  newSessionMatchingLevel: "New session at user's level",
+  postSessionUnpaidReminder: "Unpaid reminder after session",
+  sessionInvited: "Session invitation",
+  sessionBooked: "Session booking confirmed",
+  sessionCancelled: "Session cancelled",
+  sessionReactivated: "Session reactivated",
+  sessionReminder: "Session reminder",
+  attendanceMarked: "Attendance marked",
+  rewardsPointsAdded: "Points added",
+  rewardsBadgeEarned: "Badge earned",
+  rewardsRedeemed: "Reward redeemed",
+  rewardsExpiring: "Points expiring",
+  accountCreated: "Account created (welcome)",
+  accountPasswordChanged: "Password changed",
+  accountRoleChanged: "Role changed",
+  membershipApproved: "Membership approved",
+  membershipRejected: "Membership rejected",
+  membershipExpiring: "Membership expiring",
+  membershipLeft: "Member left club",
+  bslClubApproved: "BSL club approved",
+  bslFixturePublished: "BSL fixture published",
+  bslMatchReminder: "BSL match reminder",
+  bslResultsSubmitted: "BSL results submitted",
+  bslWalletApproved: "BSL wallet top-up approved",
+  tournamentPublished: "Tournament published",
+  tournamentMatchScored: "Tournament match scored",
+  announcementPosted: "Club announcement",
+  profileIncomplete: "Profile incomplete reminder",
 };
+
+function humanize(key: string): string {
+  return LABELS[key] || key.replace(/([A-Z])/g, " $1").replace(/^./, c => c.toUpperCase());
+}
+
+function extractPlaceholders(template: string): string[] {
+  const set = new Set<string>();
+  template.replace(/\{(\w+)\}/g, (_m, k) => { set.add(`{${k}}`); return ""; });
+  return Array.from(set);
+}
 
 function RuleEditor({ rule }: { rule: Rule }) {
   const { toast } = useToast();
   const [enabled, setEnabled] = useState(rule.enabled);
   const [title, setTitle] = useState(rule.title);
   const [message, setMessage] = useState(rule.message);
-  const meta = META[rule.ruleKey] || { label: rule.ruleKey, description: "", placeholders: [] };
+  const label = humanize(rule.ruleKey);
+  const placeholders = Array.from(new Set([...extractPlaceholders(rule.title), ...extractPlaceholders(rule.message)]));
 
   useEffect(() => {
     setEnabled(rule.enabled);
@@ -75,8 +104,8 @@ function RuleEditor({ rule }: { rule: Rule }) {
     <Card data-testid={`card-rule-${rule.ruleKey}`}>
       <CardHeader className="flex flex-row items-start justify-between gap-4">
         <div className="space-y-1">
-          <CardTitle className="text-base">{meta.label}</CardTitle>
-          <p className="text-sm text-muted-foreground">{meta.description}</p>
+          <CardTitle className="text-base">{label}</CardTitle>
+          <p className="text-xs text-muted-foreground font-mono">{rule.ruleKey}</p>
         </div>
         <div className="flex items-center gap-2 shrink-0">
           <Badge variant={enabled ? "default" : "secondary"} data-testid={`badge-status-${rule.ruleKey}`}>
@@ -115,10 +144,10 @@ function RuleEditor({ rule }: { rule: Rule }) {
             data-testid={`input-message-${rule.ruleKey}`}
           />
         </div>
-        {meta.placeholders.length > 0 && (
+        {placeholders.length > 0 && (
           <div className="text-xs text-muted-foreground">
-            Available placeholders:{" "}
-            {meta.placeholders.map((p) => (
+            Placeholders in this template:{" "}
+            {placeholders.map((p) => (
               <code key={p} className="mr-2 rounded bg-muted px-1.5 py-0.5">{p}</code>
             ))}
           </div>
@@ -167,9 +196,40 @@ export default function NotificationRules() {
           </CardContent>
         </Card>
       ) : (
-        <div className="space-y-4">
-          {data.map((r) => <RuleEditor key={r.id} rule={r} />)}
-        </div>
+        (() => {
+          const grouped = new Map<string, Rule[]>();
+          for (const r of data) {
+            const cat = r.category || "General";
+            if (!grouped.has(cat)) grouped.set(cat, []);
+            grouped.get(cat)!.push(r);
+          }
+          const ORDER = ["Account", "Membership", "Sessions", "Payments", "Rewards", "League (BSL)", "Tournaments", "Communication", "Profile", "General"];
+          const cats = Array.from(grouped.keys()).sort((a, b) => {
+            const ai = ORDER.indexOf(a); const bi = ORDER.indexOf(b);
+            return (ai === -1 ? 999 : ai) - (bi === -1 ? 999 : bi);
+          });
+          return (
+            <div className="space-y-8">
+              {cats.map((cat) => {
+                const rules = grouped.get(cat)!;
+                const onCount = rules.filter(r => r.enabled).length;
+                return (
+                  <section key={cat} data-testid={`section-${cat}`}>
+                    <div className="flex items-center justify-between mb-3">
+                      <h2 className="text-lg font-semibold">{cat}</h2>
+                      <Badge variant="outline" data-testid={`badge-cat-count-${cat}`}>
+                        {onCount}/{rules.length} on
+                      </Badge>
+                    </div>
+                    <div className="space-y-4">
+                      {rules.map((r) => <RuleEditor key={r.id} rule={r} />)}
+                    </div>
+                  </section>
+                );
+              })}
+            </div>
+          );
+        })()
       )}
     </div>
   );

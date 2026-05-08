@@ -11,6 +11,7 @@ import { db } from "./db";
 import { ensureOwnerProfilesInAllClubs } from "./ownerSync";
 import { sendEmail } from "./email";
 import { notifyUser } from "./notify";
+import { sendRulePush } from "./notificationRules";
 import { authLoginLimiter, authRegisterLimiter } from "./rateLimit";
 
 const scryptAsync = promisify(scrypt);
@@ -194,6 +195,14 @@ export function setupAuth(app: Express) {
       } catch (notifErr) {
         console.error("[AUTH] Failed to send registration notifications:", notifErr);
       }
+
+      // Welcome push to the newly registered user
+      sendRulePush(
+        "accountCreated",
+        [user.id],
+        { fullName: user.fullName || "there", clubName: "Club Master" },
+        { url: "/profile" },
+      ).catch(e => console.error("[push accountCreated]", e));
 
       req.login(user, (err) => {
         if (err) return next(err);
