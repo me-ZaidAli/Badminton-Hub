@@ -52,3 +52,8 @@ integrations = ["google-calendar:1.0.0", "javascript_openai_ai_integrations:2.0.
 [postMerge]
 path = "scripts/post-merge.sh"
 timeoutMs = 20000
+
+[userenv]
+
+[userenv.shared]
+ONESIGNAL_REST_API_KEY = "os_v2_app_ukkhvoimuzc77hqn6kykgbz2cig6guvrkbve5rfdqnl2xbk46hppzquyrus3uwc3mmewu6flgeazce6mk7vxy6w4lppdr3pim3cc57i"
