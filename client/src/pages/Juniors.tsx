@@ -2964,7 +2964,7 @@ const DIFFICULTY_COLORS: Record<string, string> = {
 
 const DAY_NAMES = ["Mon", "Tue", "Wed", "Thu", "Fri"];
 
-function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; juniors: any[] | undefined }) {
+export function ExerciseChallengePanel({ isAdmin, juniors, isSelfView = false }: { isAdmin: boolean; juniors: any[] | undefined; isSelfView?: boolean }) {
   const [activeTab, setActiveTab] = useState<"challenges" | "exercises" | "videos">("challenges");
   const [selectedWeek, setSelectedWeek] = useState<number | null>(null);
   const [selectedDay, setSelectedDay] = useState<number>(1);
@@ -3131,14 +3131,14 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
           <Dumbbell className="h-5 w-5 text-orange-500" />
           <h2 className="text-xl font-bold" data-testid="text-training-title">Training Challenges</h2>
           <SectionInfoButton title="Training Challenges">
-            <p className="font-medium text-foreground">Your child's exercise and training programme</p>
-            <p>Training Challenges give your child structured weekly exercise routines they can follow at home, in the gym, or on the court. It's designed to build their fitness and sporting skills between sessions.</p>
+            <p className="font-medium text-foreground">{isSelfView ? "Your exercise and training programme" : "Your child's exercise and training programme"}</p>
+            <p>Training Challenges give {isSelfView ? "you" : "your child"} structured weekly exercise routines {isSelfView ? "you" : "they"} can follow at home, in the gym, or on the court. It's designed to build {isSelfView ? "your" : "their"} fitness and sporting skills between sessions.</p>
             <p className="font-medium text-foreground mt-2">How it works:</p>
             <ul className="list-disc pl-4 space-y-1">
-              <li><strong>Weekly Challenges</strong> — Each week has a set of exercises spread across 5 days (Monday to Friday). New weeks are unlocked by the coach as your child progresses.</li>
+              <li><strong>Weekly Challenges</strong> — Each week has a set of exercises spread across 5 days (Monday to Friday). New weeks are unlocked by the coach as {isSelfView ? "you progress" : "your child progresses"}.</li>
               <li><strong>Difficulty Levels</strong> — Weeks 1-4 are Beginner level, Weeks 5-8 are Intermediate, and Weeks 9-12 are Advanced. Each exercise is marked as Easy (green), Medium (amber), or Hard (red).</li>
-              <li><strong>Completing Exercises</strong> — Tap the circle next to an exercise to mark it as done. Your child earns skill points for each exercise they complete!</li>
-              <li><strong>Progress Bar</strong> — The orange bar at the top shows how much of the current week your child has completed.</li>
+              <li><strong>Completing Exercises</strong> — Tap the circle next to an exercise to mark it as done. {isSelfView ? "You earn" : "Your child earns"} skill points for each exercise completed!</li>
+              <li><strong>Progress Bar</strong> — The orange bar at the top shows how much of the current week {isSelfView ? "you have" : "your child has"} completed.</li>
               <li><strong>Skill Points</strong> — The golden points counter in the top right tracks total points earned. More exercises completed = more points!</li>
             </ul>
             <p className="font-medium text-foreground mt-2">The three tabs:</p>
@@ -3148,8 +3148,8 @@ function ExerciseChallengePanel({ isAdmin, juniors }: { isAdmin: boolean; junior
               <li><strong>Videos</strong> — Watch tutorial videos grouped by category to learn the correct technique.</li>
             </ul>
             <p className="font-medium text-foreground mt-2">Daily Reminders:</p>
-            <p>Use the bell button to turn daily reminders on or off. When turned on, your child will get a gentle nudge about any exercises they haven't completed yet.</p>
-            <p className="mt-2">Encourage your child to complete as many exercises as they can each week — consistency is the key to improvement!</p>
+            <p>Use the bell button to turn daily reminders on or off. When turned on, {isSelfView ? "you'll" : "your child will"} get a gentle nudge about any exercises {isSelfView ? "you haven't" : "they haven't"} completed yet.</p>
+            <p className="mt-2">{isSelfView ? "Try to complete as many exercises as you can each week" : "Encourage your child to complete as many exercises as they can each week"} — consistency is the key to improvement!</p>
           </SectionInfoButton>
         </div>
         <div className="flex items-center gap-2">

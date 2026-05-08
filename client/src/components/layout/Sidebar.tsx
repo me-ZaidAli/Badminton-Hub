@@ -244,6 +244,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/sessions", label: "Sessions", icon: Calendar, group: "activity", badgeKey: "upcomingSessions" },
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity", badgeKey: "myOutstandingPayments" },
     { href: "/juniors", label: "Juniors", icon: Baby, group: "activity", hidden: !isAdminOrOwner && !(user as any)?.hasChildren },
+    { href: "/training-challenges", label: "Training Challenges", icon: Dumbbell, group: "activity" },
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/tournaments", label: "Tournaments", icon: Award, group: "activity" },
     { href: "/bsl", label: "Birmingham Super League", icon: Trophy, group: "activity" },

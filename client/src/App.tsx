@@ -53,6 +53,7 @@ const Demo = lazy(() => import("@/pages/Demo"));
 const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
 const MyInsights = lazy(() => import("@/pages/MyInsights"));
 const ActivityHub = lazy(() => import("@/pages/hubs/ActivityHub"));
+const TrainingChallenges = lazy(() => import("@/pages/TrainingChallenges"));
 const MyClubHub = lazy(() => import("@/pages/hubs/MyClubHub"));
 const CommunicationHub = lazy(() => import("@/pages/hubs/CommunicationHub"));
 const CommunityHub = lazy(() => import("@/pages/CommunityHub"));
@@ -493,6 +494,9 @@ function Router() {
       </Route>
       <Route path="/hub/activity">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><ActivityHub /></Suspense>} />
+      </Route>
+      <Route path="/training-challenges">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TrainingChallenges /></Suspense>} />
       </Route>
       <Route path="/hub/club">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><MyClubHub /></Suspense>} />

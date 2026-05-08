@@ -26312,7 +26312,7 @@ export async function registerRoutes(
 
   // === JUNIOR EXERCISE & CHALLENGE ROUTES ===
 
-  app.get("/api/junior-exercises", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/junior-exercises", async (req, res) => {
     try {
       const category = req.query.category as string | undefined;
       let exercises;
@@ -26355,7 +26355,7 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/junior-weekly-challenges", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/junior-weekly-challenges", async (req, res) => {
     try {
       const challenges = await db.select().from(juniorWeeklyChallenges).orderBy(juniorWeeklyChallenges.weekNumber);
       const allDays = await db.select().from(juniorChallengeDays).orderBy(juniorChallengeDays.dayOfWeek, juniorChallengeDays.displayOrder);
@@ -26427,8 +26427,18 @@ export async function registerRoutes(
   });
 
   app.get("/api/junior-challenge-completions/:userId", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const completions = await db.select().from(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.userId, parseInt(req.params.userId)));
+      const targetUserId = parseInt(req.params.userId);
+      const me = req.user as any;
+      const isAdmin = me.role === "OWNER" || me.role === "ADMIN";
+      let allowed = isAdmin || me.id === targetUserId;
+      if (!allowed) {
+        const [child] = await db.select({ parentUserId: users.parentUserId }).from(users).where(eq(users.id, targetUserId));
+        allowed = !!child && child.parentUserId === me.id;
+      }
+      if (!allowed) return res.status(403).json({ message: "Forbidden" });
+      const completions = await db.select().from(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.userId, targetUserId));
       res.json(completions);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -26437,6 +26447,14 @@ export async function registerRoutes(
     if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     try {
       const { userId, challengeDayId, challengeId } = req.body;
+      const me = req.user as any;
+      const isAdmin = me.role === "OWNER" || me.role === "ADMIN";
+      let allowed = isAdmin || me.id === userId;
+      if (!allowed) {
+        const [child] = await db.select({ parentUserId: users.parentUserId }).from(users).where(eq(users.id, userId));
+        allowed = !!child && child.parentUserId === me.id;
+      }
+      if (!allowed) return res.status(403).json({ message: "Forbidden" });
       const existing = await db.select().from(juniorChallengeCompletions).where(and(eq(juniorChallengeCompletions.userId, userId), eq(juniorChallengeCompletions.challengeDayId, challengeDayId)));
       if (existing.length > 0) return res.status(400).json({ message: "Already completed" });
 
@@ -26462,14 +26480,24 @@ export async function registerRoutes(
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/junior-skill-points/:userId", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/junior-skill-points/:userId", async (req, res) => {
+    if (!req.isAuthenticated() || !req.user) return res.status(401).json({ message: "Not authenticated" });
     try {
-      const result = await db.select({ total: sql<number>`COALESCE(SUM(${juniorChallengeCompletions.skillPointsEarned}), 0)` }).from(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.userId, parseInt(req.params.userId)));
+      const targetUserId = parseInt(req.params.userId);
+      const me = req.user as any;
+      const isAdmin = me.role === "OWNER" || me.role === "ADMIN";
+      let allowed = isAdmin || me.id === targetUserId;
+      if (!allowed) {
+        const [child] = await db.select({ parentUserId: users.parentUserId }).from(users).where(eq(users.id, targetUserId));
+        allowed = !!child && child.parentUserId === me.id;
+      }
+      if (!allowed) return res.status(403).json({ message: "Forbidden" });
+      const result = await db.select({ total: sql<number>`COALESCE(SUM(${juniorChallengeCompletions.skillPointsEarned}), 0)` }).from(juniorChallengeCompletions).where(eq(juniorChallengeCompletions.userId, targetUserId));
       res.json({ totalPoints: Number(result[0]?.total || 0) });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  app.get("/api/junior-exercise-videos", requirePremium(clubIdFromSession), async (req, res) => {
+  app.get("/api/junior-exercise-videos", async (req, res) => {
     try {
       const category = req.query.category as string | undefined;
       let videos;
