@@ -139,35 +139,66 @@ export default function NotificationSettings() {
 
           {permState === "denied" && !browserOptedIn && (
             <div
-              className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 space-y-2"
+              className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 space-y-3"
               data-testid="banner-push-blocked"
             >
               <div className="flex items-start gap-2">
                 <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
                 <div className="text-sm">
-                  <div className="font-semibold text-destructive">Notifications are blocked by your browser</div>
+                  <div className="font-semibold text-destructive">Notifications are blocked by Chrome</div>
                   <div className="text-muted-foreground mt-1">
-                    Your phone allows the app to send notifications, but Chrome itself
-                    is blocking this site. You'll need to re-enable it from Chrome.
+                    Your phone is fine — Chrome itself has remembered "Block" for
+                    <span className="font-mono"> {typeof window !== "undefined" ? window.location.hostname : "this site"}</span>.
+                    Reset it in Chrome's site settings, then reload this page.
                   </div>
                 </div>
               </div>
-              <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 pl-1">
-                <li>Tap the lock icon at the top of Chrome (next to badmintonhub.org).</li>
-                <li>Tap <strong>Permissions</strong>.</li>
-                <li>Tap <strong>Subscribe</strong> next to Notifications (or tap <strong>Reset permissions</strong>).</li>
-                <li>Come back to this page and tap <strong>Try again</strong> below.</li>
-              </ol>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={enablePush}
-                disabled={enabling}
-                data-testid="button-retry-enable-push"
-              >
-                {enabling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-                Try again
-              </Button>
+
+              <div className="text-sm space-y-2">
+                <div className="font-semibold text-foreground">On Android Chrome</div>
+                <ol className="text-muted-foreground list-decimal list-inside space-y-1 pl-1">
+                  <li>Tap the <strong>lock icon</strong> (or the small page icon) on the left of the address bar.</li>
+                  <li>Tap <strong>Permissions</strong> → <strong>Notifications</strong>.</li>
+                  <li>Choose <strong>Allow</strong>. If only "Block" is shown, tap <strong>Reset permissions</strong> at the bottom.</li>
+                  <li>Tap <strong>Reload page</strong> below, then tap <strong>Try again</strong>.</li>
+                </ol>
+
+                <div className="font-semibold text-foreground pt-1">If you don't see a lock icon</div>
+                <ol className="text-muted-foreground list-decimal list-inside space-y-1 pl-1">
+                  <li>Tap the <strong>three dots</strong> (⋮) at the top right of Chrome.</li>
+                  <li>Tap <strong>Settings</strong> → <strong>Site settings</strong> → <strong>Notifications</strong>.</li>
+                  <li>Find this site under "Blocked", tap it, then tap <strong>Allow</strong> (or <strong>Clear &amp; reset</strong>).</li>
+                  <li>Come back here, tap <strong>Reload page</strong>, then <strong>Try again</strong>.</li>
+                </ol>
+
+                <div className="font-semibold text-foreground pt-1">On desktop Chrome</div>
+                <ol className="text-muted-foreground list-decimal list-inside space-y-1 pl-1">
+                  <li>Click the <strong>lock / tune icon</strong> on the left of the address bar.</li>
+                  <li>Click <strong>Site settings</strong> → set <strong>Notifications</strong> to <strong>Allow</strong>.</li>
+                  <li>Reload this page and tap <strong>Try again</strong>.</li>
+                </ol>
+              </div>
+
+              <div className="flex flex-wrap gap-2 pt-1">
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => window.location.reload()}
+                  data-testid="button-reload-page"
+                >
+                  Reload page
+                </Button>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={enablePush}
+                  disabled={enabling}
+                  data-testid="button-retry-enable-push"
+                >
+                  {enabling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                  Try again
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>
