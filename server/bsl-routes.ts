@@ -1,5 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import { eq, desc, and, sql as dsql, inArray } from "drizzle-orm";
+import { eq, desc, and, or, sql as dsql, inArray } from "drizzle-orm";
 import { db } from "./db";
 import multer from "multer";
 import path from "path";
@@ -1149,6 +1149,153 @@ export function registerBslRoutes(app: Express) {
       if (typeof patch.bio === "string" && patch.bio.length > 600) return res.status(400).json({ message: "Bio too long" });
       const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, me.id)).returning();
       res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Rich player dashboard: profile + club + per-category team + partner +
+  // match history + next fixture. One round-trip for the /bsl/profile screen.
+  app.get("/api/bsl/players/me/dashboard", requireAuth, async (req, res) => {
+    try {
+      const u = (req as any).user;
+      const [me] = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, u.id)).limit(1);
+      if (!me) return res.json({ player: null });
+      const [league] = await db.select().from(bslLeagues).limit(1);
+      const club = me.bslClubId
+        ? (await db.select().from(bslClubs).where(eq(bslClubs.id, me.bslClubId)).limit(1))[0] || null
+        : null;
+
+      // Teams I belong to (via the join table) — gives partner + category context.
+      const myMemberships = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslPlayerId, me.id));
+      const myTeamIds = myMemberships.map(m => m.bslTeamId);
+      const myTeams = myTeamIds.length
+        ? await db.select().from(bslTeams).where(inArray(bslTeams.id, myTeamIds))
+        : [];
+      // All other members of those teams = my partners
+      const allMembers = myTeamIds.length
+        ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, myTeamIds))
+        : [];
+      const partnerPlayerIds = Array.from(new Set(allMembers.map(m => m.bslPlayerId).filter(id => id !== me.id)));
+      const partnerPlayers = partnerPlayerIds.length
+        ? await db.select().from(bslPlayers).where(inArray(bslPlayers.id, partnerPlayerIds))
+        : [];
+      const partnerUserIds = Array.from(new Set(partnerPlayers.map(p => p.userId)));
+      const partnerUserRows = partnerUserIds.length
+        ? await db.select({ id: users.id, name: users.fullName, nickname: users.nickname, avatarUrl: users.profilePictureUrl }).from(users).where(inArray(users.id, partnerUserIds))
+        : [];
+      const userMap = new Map(partnerUserRows.map(r => [r.id, r]));
+      const playerMap = new Map(partnerPlayers.map(p => [p.id, p]));
+      const teamPartners: Record<number, any[]> = {};
+      for (const m of allMembers) {
+        if (m.bslPlayerId === me.id) continue;
+        const p = playerMap.get(m.bslPlayerId);
+        const u2 = p ? userMap.get(p.userId) : null;
+        if (!teamPartners[m.bslTeamId]) teamPartners[m.bslTeamId] = [];
+        teamPartners[m.bslTeamId].push({
+          playerId: m.bslPlayerId,
+          displayName: p?.displayName || u2?.name || u2?.nickname || `Player #${m.bslPlayerId}`,
+          avatarUrl: u2?.avatarUrl || null,
+        });
+      }
+      const categories = (me.categories || []).map((cat: string) => {
+        const team = myTeams.find(t => t.category === cat) || null;
+        return {
+          category: cat,
+          team: team ? { id: team.id, name: team.name, division: team.division, pairNumber: team.pairNumber } : null,
+          partners: team ? (teamPartners[team.id] || []) : [],
+        };
+      });
+
+      // Match history + upcoming match: pull rubbers where I'm assigned, join
+      // back to fixtures + teams. Cap to last 20 for the profile view.
+      const myRubbers = await db.select().from(bslRubbers).where(or(
+        eq(bslRubbers.homePlayer1Id, me.id),
+        eq(bslRubbers.homePlayer2Id, me.id),
+        eq(bslRubbers.awayPlayer1Id, me.id),
+        eq(bslRubbers.awayPlayer2Id, me.id),
+      ));
+      const fixtureIds = Array.from(new Set(myRubbers.map(r => r.bslFixtureId)));
+      const myFixtures = fixtureIds.length
+        ? await db.select().from(bslFixtures).where(inArray(bslFixtures.id, fixtureIds))
+        : [];
+      const fxTeamIds = Array.from(new Set(myFixtures.flatMap(f => [f.homeTeamId, f.awayTeamId])));
+      const fxTeams = fxTeamIds.length
+        ? await db.select().from(bslTeams).where(inArray(bslTeams.id, fxTeamIds))
+        : [];
+      const fxClubIds = Array.from(new Set(fxTeams.map(t => t.bslClubId)));
+      const fxClubs = fxClubIds.length
+        ? await db.select().from(bslClubs).where(inArray(bslClubs.id, fxClubIds))
+        : [];
+      const fxTeamMap = new Map(fxTeams.map(t => [t.id, t]));
+      const fxClubMap = new Map(fxClubs.map(c => [c.id, c]));
+      const myTeamIdSet = new Set(myTeamIds);
+      // Authoritative side per fixture = where the player actually appears in
+      // a rubber slot. Falls back to team-membership / bslTeamId if the player
+      // hasn't been slotted yet so upcoming fixtures still render correctly.
+      const sideByFixture = new Map<number, "HOME" | "AWAY">();
+      for (const r of myRubbers) {
+        if (sideByFixture.has(r.bslFixtureId)) continue;
+        if (r.homePlayer1Id === me.id || r.homePlayer2Id === me.id) sideByFixture.set(r.bslFixtureId, "HOME");
+        else if (r.awayPlayer1Id === me.id || r.awayPlayer2Id === me.id) sideByFixture.set(r.bslFixtureId, "AWAY");
+      }
+      const enrichFixture = (f: any) => {
+        const ht = fxTeamMap.get(f.homeTeamId);
+        const at = fxTeamMap.get(f.awayTeamId);
+        const hc = ht ? fxClubMap.get(ht.bslClubId) : null;
+        const ac = at ? fxClubMap.get(at.bslClubId) : null;
+        const slot = sideByFixture.get(f.id);
+        const myIsHome = slot
+          ? slot === "HOME"
+          : (ht && (myTeamIdSet.has(ht.id) || ht.id === me.bslTeamId)) ? true
+          : (at && (myTeamIdSet.has(at.id) || at.id === me.bslTeamId)) ? false
+          : false;
+        const us = myIsHome ? hc : ac;
+        const them = myIsHome ? ac : hc;
+        const usRubbers = myIsHome ? f.homeRubbers : f.awayRubbers;
+        const themRubbers = myIsHome ? f.awayRubbers : f.homeRubbers;
+        let outcome: "WIN" | "LOSS" | "DRAW" | null = null;
+        if (f.status === "FINISHED") {
+          if (usRubbers > themRubbers) outcome = "WIN";
+          else if (usRubbers < themRubbers) outcome = "LOSS";
+          else outcome = "DRAW";
+        }
+        return {
+          id: f.id, status: f.status, court: f.court, startTime: f.startTime,
+          us: { name: us?.name || "We", logoUrl: us?.logoUrl || null, rubbers: usRubbers },
+          them: { name: them?.name || "Opponent", logoUrl: them?.logoUrl || null, rubbers: themRubbers },
+          outcome,
+        };
+      };
+      const finished = myFixtures.filter(f => f.status === "FINISHED")
+        .sort((a, b) => (b.startTime?.getTime() || 0) - (a.startTime?.getTime() || 0))
+        .slice(0, 20)
+        .map(enrichFixture);
+      const upcoming = myFixtures.filter(f => f.status !== "FINISHED")
+        .sort((a, b) => (a.startTime?.getTime() || Infinity) - (b.startTime?.getTime() || Infinity))
+        .slice(0, 5)
+        .map(enrichFixture);
+
+      // Wallet activity (last 8) for the profile snapshot
+      const walletTx = await db.select().from(bslWalletTransactions)
+        .where(eq(bslWalletTransactions.bslPlayerId, me.id))
+        .orderBy(desc(bslWalletTransactions.createdAt))
+        .limit(8);
+
+      res.json({
+        player: me,
+        club,
+        league: league ? {
+          name: league.name,
+          venueName: league.venueName,
+          nextLeagueDay: league.nextLeagueDay,
+          categoryFees: league.categoryFees,
+          playerFee: league.playerFee,
+        } : null,
+        categories,
+        nextMatch: upcoming[0] || null,
+        upcoming,
+        history: finished,
+        walletTx,
+      });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
