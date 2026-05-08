@@ -3288,3 +3288,14 @@ export const pushSendLog = pgTable("push_send_log", {
   sentAt: timestamp("sent_at").defaultNow().notNull(),
 });
 export type PushSendLog = typeof pushSendLog.$inferSelect;
+
+export const notificationRules = pgTable("notification_rules", {
+  id: serial("id").primaryKey(),
+  ruleKey: text("rule_key").notNull().unique(),
+  enabled: boolean("enabled").notNull().default(true),
+  title: text("title").notNull(),
+  message: text("message").notNull(),
+  settings: jsonb("settings").notNull().default({}),
+  updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
+});
+export type NotificationRule = typeof notificationRules.$inferSelect;

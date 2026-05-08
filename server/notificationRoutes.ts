@@ -8,9 +8,11 @@ import {
   playerProfiles,
   bslPlayers,
   tournamentRegistrations,
+  notificationRules,
 } from "@shared/schema";
 import { eq, and, inArray } from "drizzle-orm";
 import { sendPushBySegment } from "./oneSignal";
+import { invalidateRuleCache, RULE_KEYS, type RuleKey } from "./notificationRules";
 
 export function registerNotificationRoutes(app: Express) {
   // Register OneSignal player ID for the current user
@@ -102,6 +104,46 @@ export function registerNotificationRoutes(app: Express) {
       .set(patch)
       .where(eq(userNotificationPrefs.userId, userId))
       .returning();
+    res.json(updated);
+  });
+
+  // Admin: list/edit notification rules (template + enabled toggle)
+  app.get("/api/admin/notification-rules", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "OWNER" && role !== "ADMIN") return res.sendStatus(403);
+    const rows = await db.select().from(notificationRules).orderBy(notificationRules.id);
+    res.json(rows);
+  });
+
+  app.patch("/api/admin/notification-rules/:key", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "OWNER" && role !== "ADMIN") return res.sendStatus(403);
+    const key = req.params.key;
+    if (!(RULE_KEYS as readonly string[]).includes(key)) {
+      return res.status(400).json({ message: "Unknown rule key" });
+    }
+    const patch: any = { updatedAt: new Date() };
+    if (typeof req.body?.enabled === "boolean") patch.enabled = req.body.enabled;
+    if (typeof req.body?.title === "string") {
+      const t = req.body.title.trim();
+      if (t.length === 0) return res.status(400).json({ message: "Title cannot be blank" });
+      patch.title = t.slice(0, 200);
+    }
+    if (typeof req.body?.message === "string") {
+      const m = req.body.message.trim();
+      if (m.length === 0) return res.status(400).json({ message: "Message cannot be blank" });
+      patch.message = m.slice(0, 600);
+    }
+    if (req.body?.settings && typeof req.body.settings === "object") patch.settings = req.body.settings;
+    const [updated] = await db
+      .update(notificationRules)
+      .set(patch)
+      .where(eq(notificationRules.ruleKey, key))
+      .returning();
+    if (!updated) return res.status(404).json({ message: "Rule not found" });
+    invalidateRuleCache(key as RuleKey);
     res.json(updated);
   });
 

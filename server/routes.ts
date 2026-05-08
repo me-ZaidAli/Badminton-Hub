@@ -27,7 +27,7 @@ import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
 import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
 import { registerBslRoutes } from "./bsl-routes";
 import { registerNotificationRoutes } from "./notificationRoutes";
-import { sendPushToUsers } from "./oneSignal";
+import { sendRulePush } from "./notificationRules";
 import { generateSupplierOrderSheet } from "./supplierOrderSheetPdf";
 import { aiHeavyLimiter } from "./rateLimit";
 import { notifyUser, notifyUsers } from "./notify";
@@ -3116,15 +3116,11 @@ export async function registerRoutes(
         }
         if (matchingUserIds.length > 0) {
           const dateStr = new Date(input.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-          sendPushToUsers(
-            Array.from(new Set(matchingUserIds)),
+          sendRulePush(
             "newSessionMatchingLevel",
-            {
-              title: "New session at your level",
-              message: `"${session.title}" is on ${dateStr}. Tap to sign up.`,
-              url: `/sessions/${session.id}`,
-            },
-            { refType: "new-session", refId: session.id },
+            Array.from(new Set(matchingUserIds)),
+            { sessionTitle: session.title, date: dateStr },
+            { url: `/sessions/${session.id}`, dedupe: { refType: "new-session", refId: session.id } },
           ).catch(e => console.error("[push newSessionMatchingLevel]", e));
         }
       } catch (lvlErr) {
@@ -4321,15 +4317,11 @@ export async function registerRoutes(
               linkUrl: `/sessions/${sessionId}`,
               status: "in_progress",
             });
-            sendPushToUsers(
-              [playerUserId],
+            sendRulePush(
               "paymentReceived",
-              {
-                title: "Payment received",
-                message: `Your payment for "${session.title}" on ${dateStr} has been confirmed.`,
-                url: `/sessions/${sessionId}`,
-              },
-              { refType: "signup-paid", refId: signupId },
+              [playerUserId],
+              { sessionTitle: session.title, date: dateStr },
+              { url: `/sessions/${sessionId}`, dedupe: { refType: "signup-paid", refId: signupId } },
             ).catch(e => console.error("[push paymentReceived]", e));
           }
         }
@@ -4678,15 +4670,11 @@ export async function registerRoutes(
       const promotedUserId = (target as any).player?.userId;
       if (promotedUserId) {
         const dateStr = new Date(session.date).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
-        sendPushToUsers(
-          [promotedUserId],
+        sendRulePush(
           "waitlistPromoted",
-          {
-            title: "A spot just opened up!",
-            message: `You're now confirmed for "${session.title}" on ${dateStr}.`,
-            url: `/sessions/${sessionId}`,
-          },
-          { refType: "waitlist-promote", refId: signupId },
+          [promotedUserId],
+          { sessionTitle: session.title, date: dateStr },
+          { url: `/sessions/${sessionId}`, dedupe: { refType: "waitlist-promote", refId: signupId } },
         ).catch(e => console.error("[push waitlistPromoted]", e));
       }
     } catch (e) { console.error("[promote-waiting push]", e); }

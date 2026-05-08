@@ -10,6 +10,7 @@ import { evaluateAllClubsGrades } from "./grading";
 import { autoCloseInactiveTickets } from "./ticket-autoclose";
 import { runNotificationScheduler } from "./notification-scheduler";
 import { runPostSessionUnpaidReminder } from "./pushScheduler";
+import { ensureRuleSeeds } from "./notificationRules";
 import { syncParentChildLinks } from "./parentLinkSync";
 import { ensureHotIndexes } from "./dbIndexes";
 import { randomUUID } from "crypto";
@@ -153,6 +154,7 @@ app.use((req, res, next) => {
       console.log(`[APP BASE URL] ${process.env.APP_URL || process.env.REPLIT_DEPLOYMENT_URL || process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || 'none detected'}`);
 
       ensureHotIndexes().catch(err => console.error("Ensure hot indexes failed:", err));
+      ensureRuleSeeds().catch(err => console.error("Ensure rule seeds failed:", err));
       seedJuniorSkills().catch(err => console.error("Seed junior skills failed:", err));
       seedExercises().catch(err => console.error("Seed exercises failed:", err));
       seedPlayerSkillCategories().catch(err => console.error("Seed player skills failed:", err));

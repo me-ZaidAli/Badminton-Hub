@@ -2,6 +2,7 @@ import { db } from "./db";
 import { sessions, sessionSignups, playerProfiles, users } from "@shared/schema";
 import { eq, and, lt, inArray } from "drizzle-orm";
 import { sendPushToUsers } from "./oneSignal";
+import { sendRulePush } from "./notificationRules";
 
 function parseSessionEnd(sess: { date: Date; startTime: string | null; durationMinutes: number | null }): Date {
   const d = new Date(sess.date);
@@ -57,15 +58,11 @@ export async function runPostSessionUnpaidReminder(): Promise<void> {
       const userId = profByPlayerId.get(su.playerId);
       if (!userId) continue;
       try {
-        await sendPushToUsers(
-          [userId],
+        await sendRulePush(
           "postSessionUnpaidReminder",
-          {
-            title: "Payment outstanding",
-            message: `Your fee for "${sess.title}" on ${dateStr} hasn't been paid yet. Please settle it as soon as possible.`,
-            url: `/sessions/${sess.id}`,
-          },
-          { refType: "unpaid-after-session", refId: su.id },
+          [userId],
+          { sessionTitle: sess.title, date: dateStr },
+          { url: `/sessions/${sess.id}`, dedupe: { refType: "unpaid-after-session", refId: su.id } },
         );
         totalReminders++;
       } catch (e) {

@@ -285,6 +285,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
     items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
     items.push({ href: "/admin/push-broadcast", label: "Push Broadcast", icon: Megaphone, group: "admin" });
+    items.push({ href: "/admin/notification-rules", label: "Auto Reminders", icon: Bell, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
     items.push({ href: "/bsl/admin", label: "BSL · Control Panel", icon: Trophy, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
@@ -294,6 +295,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
       items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
       items.push({ href: "/admin/push-broadcast", label: "Push Broadcast", icon: Megaphone, group: "admin" });
+      items.push({ href: "/admin/notification-rules", label: "Auto Reminders", icon: Bell, group: "admin" });
     }
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
