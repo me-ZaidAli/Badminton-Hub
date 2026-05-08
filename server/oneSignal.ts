@@ -5,12 +5,8 @@ import { eq, and, inArray } from "drizzle-orm";
 const APP_ID = process.env.VITE_ONESIGNAL_APP_ID || "";
 const REST_KEY = process.env.ONESIGNAL_REST_API_KEY || "";
 
-type Category =
-  | "paymentReceived"
-  | "waitlistPromoted"
-  | "newSessionMatchingLevel"
-  | "postSessionUnpaidReminder"
-  | "adminAnnouncement";
+type Category = string; // Any rule key from RULE_REGISTRY
+export type Channel = "push" | "inapp" | "email";
 
 export interface PushPayload {
   title: string;
@@ -46,7 +42,16 @@ async function postOneSignal(body: any): Promise<any> {
   }
 }
 
-async function getOptedInUserIds(userIds: number[], category: Category): Promise<number[]> {
+// Returns user IDs who are opted-in for the given (ruleCategory, channel).
+// `category` may be a legacy column name (e.g. "paymentReceived") or a
+// RULE_REGISTRY category like "Payments". The JSONB categoryPrefs takes
+// precedence; legacy boolean columns are honored for back-compat.
+export async function getOptedInUserIdsByCategory(
+  userIds: number[],
+  ruleCategory: string | undefined,
+  legacyKey: string | undefined,
+  channel: Channel,
+): Promise<number[]> {
   if (userIds.length === 0) return [];
   const prefs = await db
     .select()
@@ -56,8 +61,19 @@ async function getOptedInUserIds(userIds: number[], category: Category): Promise
   return userIds.filter(uid => {
     const p = prefMap.get(uid);
     if (!p) return true; // default opted-in
-    return (p as any)[category] !== false;
+    if (legacyKey && (p as any)[legacyKey] === false) return false;
+    if (ruleCategory) {
+      const cp = (p as any).categoryPrefs as Record<string, Partial<Record<Channel, boolean>>> | null;
+      const entry = cp?.[ruleCategory];
+      if (entry && entry[channel] === false) return false;
+    }
+    return true;
   });
+}
+
+async function getOptedInUserIds(userIds: number[], category: Category): Promise<number[]> {
+  // Back-compat shim: original callers passed legacy column name as category
+  return getOptedInUserIdsByCategory(userIds, undefined, category, "push");
 }
 
 export async function sendPushToUsers(
@@ -65,8 +81,13 @@ export async function sendPushToUsers(
   category: Category,
   payload: PushPayload,
   dedupe?: { refType: string; refId: number },
+  ruleCategory?: string,
 ): Promise<void> {
-  const filtered = await getOptedInUserIds(userIds, category);
+  // If a rule category is supplied, honor the new JSONB matrix for the push
+  // channel; otherwise fall back to legacy per-key column.
+  const filtered = ruleCategory
+    ? await getOptedInUserIdsByCategory(userIds, ruleCategory, category, "push")
+    : await getOptedInUserIds(userIds, category);
   if (filtered.length === 0) return;
 
   let recipients = filtered;

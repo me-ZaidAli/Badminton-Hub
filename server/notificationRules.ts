@@ -1,7 +1,7 @@
 import { db } from "./db";
-import { notificationRules } from "@shared/schema";
+import { notificationRules, notifications } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
-import { sendPushToUsers, type PushPayload } from "./oneSignal";
+import { sendPushToUsers, getOptedInUserIdsByCategory, type PushPayload } from "./oneSignal";
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Universal Notification Event Registry
@@ -201,24 +201,55 @@ function render(template: string, vars: Record<string, string | number | undefin
   });
 }
 
-// Send a push driven by the admin-configurable notification_rules row.
-// If the rule is disabled (or missing), this is a no-op.
+// Send a notification driven by the admin-configurable notification_rules row.
+// Routes to push (always when channel-allowed) and optionally writes an in-app
+// notification row when opts.inApp === true. If the rule is disabled or every
+// recipient has opted out of every channel, this is a no-op.
 export async function sendRulePush(
   ruleKey: RuleKey,
   userIds: number[],
   vars: Record<string, string | number | undefined>,
-  opts: { url?: string; data?: Record<string, any>; dedupe?: { refType: string; refId: number } } = {},
+  opts: {
+    url?: string;
+    data?: Record<string, any>;
+    dedupe?: { refType: string; refId: number };
+    inApp?: boolean;        // when true, also writes a row to `notifications` for opted-in users
+    inAppType?: string;     // notifications.type — defaults to ruleKey
+  } = {},
 ): Promise<void> {
   if (!userIds || userIds.length === 0) return;
   const rule = await getRule(ruleKey);
   if (!rule || rule.enabled === false) return;
+  const renderedTitle = render(rule.title, vars);
+  const renderedMessage = render(rule.message, vars);
   const payload: PushPayload = {
-    title: render(rule.title, vars),
-    message: render(rule.message, vars),
+    title: renderedTitle,
+    message: renderedMessage,
     url: opts.url,
     data: opts.data,
   };
-  await sendPushToUsers(userIds, ruleKey as any, payload, opts.dedupe);
+  // Push channel — filtered by category × push pref
+  await sendPushToUsers(userIds, ruleKey as any, payload, opts.dedupe, rule.category);
+
+  // In-app channel — opt-in via opts.inApp; filtered by category × inapp pref
+  if (opts.inApp) {
+    const inappRecipients = await getOptedInUserIdsByCategory(userIds, rule.category, undefined, "inapp");
+    if (inappRecipients.length > 0) {
+      try {
+        await db.insert(notifications).values(
+          inappRecipients.map(uid => ({
+            userId: uid,
+            type: opts.inAppType || ruleKey,
+            title: renderedTitle,
+            message: renderedMessage,
+            linkUrl: opts.url || null,
+          })),
+        );
+      } catch (e) {
+        console.error("[sendRulePush in-app insert]", e);
+      }
+    }
+  }
 }
 
 // Convenience alias — preferred name going forward.

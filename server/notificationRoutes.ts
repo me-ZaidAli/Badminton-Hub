@@ -10,7 +10,7 @@ import {
   tournamentRegistrations,
   notificationRules,
 } from "@shared/schema";
-import { eq, and, inArray } from "drizzle-orm";
+import { eq, and, inArray, sql } from "drizzle-orm";
 import { sendPushBySegment } from "./oneSignal";
 import { invalidateRuleCache, RULE_KEYS, type RuleKey } from "./notificationRules";
 
@@ -73,10 +73,12 @@ export function registerNotificationRoutes(app: Express) {
     res.json({ ...pref, isSubscribed: !!sub });
   });
 
-  // Update preferences
+  // Update preferences. Accepts either legacy boolean flags OR a categoryPrefs
+  // patch of shape { "<Category>": { push?: bool, inapp?: bool, email?: bool } }.
   app.patch("/api/notifications/preferences", async (req: Request, res: Response) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const userId = req.user!.id;
+    const ALLOWED_CHANNELS = new Set(["push", "inapp", "email"]);
     const allowed = [
       "paymentReceived",
       "waitlistPromoted",
@@ -88,23 +90,65 @@ export function registerNotificationRoutes(app: Express) {
     for (const k of allowed) {
       if (typeof req.body?.[k] === "boolean") patch[k] = req.body[k];
     }
+
+    // Sanitize categoryPrefs payload — reject unknown channels, coerce bool only.
+    let sanitizedCategoryPrefs: Record<string, Record<string, boolean>> | undefined;
+    if (req.body?.categoryPrefs && typeof req.body.categoryPrefs === "object") {
+      sanitizedCategoryPrefs = {};
+      for (const [cat, channels] of Object.entries(req.body.categoryPrefs as Record<string, any>)) {
+        if (!channels || typeof channels !== "object") continue;
+        const cleaned: Record<string, boolean> = {};
+        for (const [ch, v] of Object.entries(channels)) {
+          if (!ALLOWED_CHANNELS.has(ch)) continue;
+          if (typeof v === "boolean") cleaned[ch] = v;
+        }
+        if (Object.keys(cleaned).length > 0) sanitizedCategoryPrefs[cat] = cleaned;
+      }
+    }
+
+    // Ensure the row exists, then atomically merge categoryPrefs at the DB level
+    // using JSONB recursive concat (`||`). This avoids the read-modify-write
+    // race when two PATCHes from the same user arrive concurrently.
     const existing = await db
-      .select()
+      .select({ userId: userNotificationPrefs.userId })
       .from(userNotificationPrefs)
       .where(eq(userNotificationPrefs.userId, userId));
     if (existing.length === 0) {
-      const [row] = await db
+      await db
         .insert(userNotificationPrefs)
-        .values({ userId, ...patch })
-        .returning();
-      return res.json(row);
+        .values({ userId, ...patch, ...(sanitizedCategoryPrefs ? { categoryPrefs: sanitizedCategoryPrefs } : {}) })
+        .onConflictDoNothing();
+    }
+
+    if (Object.keys(patch).length > 1) { // updatedAt is always there
+      await db
+        .update(userNotificationPrefs)
+        .set(patch)
+        .where(eq(userNotificationPrefs.userId, userId));
+    }
+    if (sanitizedCategoryPrefs) {
+      await db
+        .update(userNotificationPrefs)
+        .set({
+          categoryPrefs: sql`COALESCE(${userNotificationPrefs.categoryPrefs}, '{}'::jsonb) || ${JSON.stringify(sanitizedCategoryPrefs)}::jsonb`,
+          updatedAt: new Date(),
+        })
+        .where(eq(userNotificationPrefs.userId, userId));
     }
     const [updated] = await db
-      .update(userNotificationPrefs)
-      .set(patch)
-      .where(eq(userNotificationPrefs.userId, userId))
-      .returning();
+      .select()
+      .from(userNotificationPrefs)
+      .where(eq(userNotificationPrefs.userId, userId));
     res.json(updated);
+  });
+
+  // Public list of categories — drives the prefs UI grid
+  app.get("/api/notifications/categories", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const rows = await db
+      .selectDistinct({ category: notificationRules.category })
+      .from(notificationRules);
+    res.json(rows.map(r => r.category).filter(Boolean).sort());
   });
 
   // Admin: list/edit notification rules (template + enabled toggle)

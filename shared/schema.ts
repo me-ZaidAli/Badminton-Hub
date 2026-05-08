@@ -3275,6 +3275,9 @@ export const userNotificationPrefs = pgTable("user_notification_prefs", {
   newSessionMatchingLevel: boolean("new_session_matching_level").default(true).notNull(),
   postSessionUnpaidReminder: boolean("post_session_unpaid_reminder").default(true).notNull(),
   adminAnnouncement: boolean("admin_announcement").default(true).notNull(),
+  // Category × channel matrix. Shape: { "<Category>": { push?: bool, inapp?: bool, email?: bool } }
+  // Missing entries default to true (opted-in). Categories match RULE_REGISTRY categories.
+  categoryPrefs: jsonb("category_prefs").notNull().default({}),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 export type UserNotificationPrefs = typeof userNotificationPrefs.$inferSelect;
