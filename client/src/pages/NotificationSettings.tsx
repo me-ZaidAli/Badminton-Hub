@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, BellRing, Loader2 } from "lucide-react";
+import { Bell, BellRing, Loader2, AlertTriangle } from "lucide-react";
 import {
   initOneSignal,
   isPushOptedIn,
@@ -35,6 +35,13 @@ export default function NotificationSettings() {
   const { toast } = useToast();
   const [browserOptedIn, setBrowserOptedIn] = useState(false);
   const [enabling, setEnabling] = useState(false);
+  const [permState, setPermState] = useState<NotificationPermission | "unsupported">(
+    typeof Notification !== "undefined" ? Notification.permission : "unsupported"
+  );
+
+  const refreshPermState = () => {
+    if (typeof Notification !== "undefined") setPermState(Notification.permission);
+  };
 
   const { data: prefs, isLoading } = useQuery<Prefs>({
     queryKey: ["/api/notifications/preferences"],
@@ -46,6 +53,7 @@ export default function NotificationSettings() {
     (async () => {
       await initOneSignal(appId);
       setBrowserOptedIn(isPushOptedIn());
+      refreshPermState();
     })();
   }, []);
 
@@ -71,6 +79,7 @@ export default function NotificationSettings() {
       await initOneSignal(appId);
       const ok = await requestPushPermission();
       setBrowserOptedIn(ok);
+      refreshPermState();
       if (ok) {
         const subId = getOneSignalSubscriptionId();
         if (subId) {
@@ -118,6 +127,8 @@ export default function NotificationSettings() {
             </div>
             {browserOptedIn ? (
               <Badge variant="default" data-testid="badge-push-status">Enabled</Badge>
+            ) : permState === "denied" ? (
+              <Badge variant="destructive" data-testid="badge-push-blocked">Blocked</Badge>
             ) : (
               <Button onClick={enablePush} disabled={enabling} data-testid="button-enable-push">
                 {enabling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
@@ -125,6 +136,40 @@ export default function NotificationSettings() {
               </Button>
             )}
           </div>
+
+          {permState === "denied" && !browserOptedIn && (
+            <div
+              className="rounded-lg border border-destructive/40 bg-destructive/10 p-3 space-y-2"
+              data-testid="banner-push-blocked"
+            >
+              <div className="flex items-start gap-2">
+                <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                <div className="text-sm">
+                  <div className="font-semibold text-destructive">Notifications are blocked by your browser</div>
+                  <div className="text-muted-foreground mt-1">
+                    Your phone allows the app to send notifications, but Chrome itself
+                    is blocking this site. You'll need to re-enable it from Chrome.
+                  </div>
+                </div>
+              </div>
+              <ol className="text-sm text-muted-foreground list-decimal list-inside space-y-1 pl-1">
+                <li>Tap the lock icon at the top of Chrome (next to badmintonhub.org).</li>
+                <li>Tap <strong>Permissions</strong>.</li>
+                <li>Tap <strong>Subscribe</strong> next to Notifications (or tap <strong>Reset permissions</strong>).</li>
+                <li>Come back to this page and tap <strong>Try again</strong> below.</li>
+              </ol>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={enablePush}
+                disabled={enabling}
+                data-testid="button-retry-enable-push"
+              >
+                {enabling ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                Try again
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
 
