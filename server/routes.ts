@@ -15235,16 +15235,24 @@ export async function registerRoutes(
         paymentConfirmed: true,
       }).where(eq(clubMemberships.id, membershipId)).returning();
 
-      const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, membership.planId));
-      const amount = membership.proratedPrice || (plan ? plan.annualPrice : 0);
-
-      await db.insert(creditLedger).values({
-        userId: membership.userId,
-        clubId: membership.clubId,
-        amount: -amount,
-        reason: "Membership payment - " + (plan?.name || "membership"),
-        createdById: req.user!.id,
-      });
+      // Only deduct from the player's wallet credit if the admin explicitly
+      // says "charge wallet" (e.g. for in-app top-up payment). Default is
+      // OFF: most members pay externally (cash / bank transfer) and
+      // activating should simply record payment, not double-charge them.
+      // Matches the bulk "mark_paid" action which never touches the ledger.
+      if (req.body?.payFromWallet === true) {
+        const [plan] = await db.select().from(membershipPlans).where(eq(membershipPlans.id, membership.planId));
+        const amount = membership.proratedPrice || (plan ? plan.annualPrice : 0);
+        if (amount > 0) {
+          await db.insert(creditLedger).values({
+            userId: membership.userId,
+            clubId: membership.clubId,
+            amount: -amount,
+            reason: "Membership payment - " + (plan?.name || "membership"),
+            createdById: req.user!.id,
+          });
+        }
+      }
 
       res.json(updated);
     } catch (err: any) {
