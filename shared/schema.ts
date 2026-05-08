@@ -3282,6 +3282,36 @@ export const userNotificationPrefs = pgTable("user_notification_prefs", {
 });
 export type UserNotificationPrefs = typeof userNotificationPrefs.$inferSelect;
 
+// One-off scheduled notifications. Either rule-driven (ruleKey + vars) or
+// ad-hoc (title + message). A cron sweeps pending rows whose scheduleAt is past.
+export const notificationSchedules = pgTable("notification_schedules", {
+  id: serial("id").primaryKey(),
+  ruleKey: text("rule_key"),
+  title: text("title"),
+  message: text("message"),
+  url: text("url"),
+  segment: jsonb("segment").notNull(),
+  vars: jsonb("vars").notNull().default({}),
+  scheduleAt: timestamp("schedule_at").notNull(),
+  status: text("status").notNull().default("pending"), // pending|sent|cancelled|failed
+  createdBy: integer("created_by").notNull().references(() => users.id, { onDelete: "cascade" }),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  sentAt: timestamp("sent_at"),
+  errorMessage: text("error_message"),
+});
+export type NotificationSchedule = typeof notificationSchedules.$inferSelect;
+
+// Lightweight per-channel send analytics. One row per sendRulePush channel
+// dispatch (after channel-pref filtering). Drives the admin stats panel.
+export const notificationSendMetrics = pgTable("notification_send_metrics", {
+  id: serial("id").primaryKey(),
+  ruleKey: text("rule_key"),
+  channel: text("channel").notNull(), // push|inapp|email
+  recipientsCount: integer("recipients_count").notNull(),
+  sentAt: timestamp("sent_at").defaultNow().notNull(),
+});
+export type NotificationSendMetric = typeof notificationSendMetrics.$inferSelect;
+
 export const pushSendLog = pgTable("push_send_log", {
   id: serial("id").primaryKey(),
   userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),

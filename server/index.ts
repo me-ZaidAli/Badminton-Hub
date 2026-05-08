@@ -10,6 +10,7 @@ import { evaluateAllClubsGrades } from "./grading";
 import { autoCloseInactiveTickets } from "./ticket-autoclose";
 import { runNotificationScheduler } from "./notification-scheduler";
 import { runPostSessionUnpaidReminder } from "./pushScheduler";
+import { runProfileIncompleteReminder, runScheduledNotifications } from "./notificationCrons";
 import { ensureRuleSeeds } from "./notificationRules";
 import { syncParentChildLinks } from "./parentLinkSync";
 import { ensureHotIndexes } from "./dbIndexes";
@@ -205,6 +206,19 @@ app.use((req, res, next) => {
       setTimeout(async () => {
         try { await runPostSessionUnpaidReminder(); } catch (e) { console.error("Initial postSessionUnpaidReminder failed:", e); }
       }, 45 * 1000);
+
+      // Phase 2: profile-incomplete reminder, weekly + once an hour after boot to pick up new signups
+      setInterval(async () => {
+        try { await runProfileIncompleteReminder(); } catch (e) { console.error("profileIncompleteReminder failed:", e); }
+      }, 7 * 24 * 60 * 60 * 1000);
+      setTimeout(async () => {
+        try { await runProfileIncompleteReminder(); } catch (e) { console.error("Initial profileIncompleteReminder failed:", e); }
+      }, 60 * 1000);
+
+      // Phase 4: scheduled notifications cron — sweep due rows every minute
+      setInterval(async () => {
+        try { await runScheduledNotifications(); } catch (e) { console.error("scheduledNotifications failed:", e); }
+      }, 60 * 1000);
     },
   );
 

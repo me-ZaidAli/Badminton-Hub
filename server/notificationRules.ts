@@ -1,7 +1,17 @@
 import { db } from "./db";
-import { notificationRules, notifications } from "@shared/schema";
+import { notificationRules, notifications, notificationSendMetrics } from "@shared/schema";
 import { eq, sql } from "drizzle-orm";
 import { sendPushToUsers, getOptedInUserIdsByCategory, type PushPayload } from "./oneSignal";
+import { sendEmailToUsers, wrapEmailHtml } from "./emailSender";
+
+async function logMetric(ruleKey: string | null, channel: "push" | "inapp" | "email", count: number) {
+  if (count <= 0) return;
+  try {
+    await db.insert(notificationSendMetrics).values({ ruleKey, channel, recipientsCount: count });
+  } catch (e) {
+    console.error("[metric] log failed", e);
+  }
+}
 
 // ───────────────────────────────────────────────────────────────────────────────
 // Universal Notification Event Registry
@@ -215,6 +225,7 @@ export async function sendRulePush(
     dedupe?: { refType: string; refId: number };
     inApp?: boolean;        // when true, also writes a row to `notifications` for opted-in users
     inAppType?: string;     // notifications.type — defaults to ruleKey
+    email?: boolean;        // when true, also sends an email via Resend (channel-pref filtered)
   } = {},
 ): Promise<void> {
   if (!userIds || userIds.length === 0) return;
@@ -229,7 +240,11 @@ export async function sendRulePush(
     data: opts.data,
   };
   // Push channel — filtered by category × push pref
-  await sendPushToUsers(userIds, ruleKey as any, payload, opts.dedupe, rule.category);
+  const pushRecipients = await getOptedInUserIdsByCategory(userIds, rule.category, ruleKey, "push");
+  if (pushRecipients.length > 0) {
+    await sendPushToUsers(pushRecipients, ruleKey as any, payload, opts.dedupe);
+    logMetric(ruleKey, "push", pushRecipients.length);
+  }
 
   // In-app channel — opt-in via opts.inApp; filtered by category × inapp pref
   if (opts.inApp) {
@@ -245,9 +260,24 @@ export async function sendRulePush(
             linkUrl: opts.url || null,
           })),
         );
+        logMetric(ruleKey, "inapp", inappRecipients.length);
       } catch (e) {
         console.error("[sendRulePush in-app insert]", e);
       }
+    }
+  }
+
+  // Email channel — opt-in via opts.email; filtered by category × email pref
+  if (opts.email) {
+    try {
+      const sent = await sendEmailToUsers(
+        userIds,
+        { subject: renderedTitle, html: wrapEmailHtml(renderedTitle, renderedMessage, opts.url) },
+        rule.category,
+      );
+      logMetric(ruleKey, "email", sent);
+    } catch (e) {
+      console.error("[sendRulePush email]", e);
     }
   }
 }

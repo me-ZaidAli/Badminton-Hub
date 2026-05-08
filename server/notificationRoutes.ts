@@ -9,10 +9,12 @@ import {
   bslPlayers,
   tournamentRegistrations,
   notificationRules,
+  notificationSchedules,
+  notificationSendMetrics,
 } from "@shared/schema";
-import { eq, and, inArray, sql } from "drizzle-orm";
+import { eq, and, inArray, sql, gte, desc } from "drizzle-orm";
 import { sendPushBySegment } from "./oneSignal";
-import { invalidateRuleCache, RULE_KEYS, type RuleKey } from "./notificationRules";
+import { invalidateRuleCache, RULE_KEYS, type RuleKey, sendRulePush } from "./notificationRules";
 
 export function registerNotificationRoutes(app: Express) {
   // Register OneSignal player ID for the current user
@@ -189,6 +191,166 @@ export function registerNotificationRoutes(app: Express) {
     if (!updated) return res.status(404).json({ message: "Rule not found" });
     invalidateRuleCache(key as RuleKey);
     res.json(updated);
+  });
+
+  // ─── Phase 4: Test send for a rule ──────────────────────────────────────────
+  // Sends the rule (with provided vars) to the calling admin only — push + in-app.
+  app.post("/api/admin/notification-rules/:key/test", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "OWNER" && role !== "ADMIN") return res.sendStatus(403);
+    const key = req.params.key;
+    if (!(RULE_KEYS as readonly string[]).includes(key)) {
+      return res.status(400).json({ message: "Unknown rule key" });
+    }
+    const vars = (req.body?.vars && typeof req.body.vars === "object") ? req.body.vars : {};
+    const url = typeof req.body?.url === "string" ? req.body.url : undefined;
+    try {
+      await sendRulePush(key as RuleKey, [req.user!.id], vars, { url, inApp: true });
+      res.json({ ok: true });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─── Phase 5: Per-rule analytics ────────────────────────────────────────────
+  app.get("/api/admin/notification-rules/:key/stats", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "OWNER" && role !== "ADMIN") return res.sendStatus(403);
+    const key = req.params.key;
+    const days = Math.min(Math.max(parseInt(String(req.query.days || "30"), 10) || 30, 1), 365);
+    const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+    const rows = await db
+      .select({
+        channel: notificationSendMetrics.channel,
+        total: sql<number>`COALESCE(SUM(${notificationSendMetrics.recipientsCount}), 0)::int`,
+        sends: sql<number>`COUNT(*)::int`,
+      })
+      .from(notificationSendMetrics)
+      .where(and(eq(notificationSendMetrics.ruleKey, key), gte(notificationSendMetrics.sentAt, since)))
+      .groupBy(notificationSendMetrics.channel);
+    const out: Record<string, { total: number; sends: number }> = {
+      push: { total: 0, sends: 0 },
+      inapp: { total: 0, sends: 0 },
+      email: { total: 0, sends: 0 },
+    };
+    for (const r of rows) out[r.channel] = { total: Number(r.total), sends: Number(r.sends) };
+    res.json({ days, byChannel: out });
+  });
+
+  // ─── Phase 4: Scheduled notifications CRUD ─────────────────────────────────
+  // Tenant scope: OWNER sees/manages everything; ADMIN is restricted to rows
+  // they themselves created AND segments targeting clubs they administer.
+  async function adminClubIds(userId: number): Promise<Set<number>> {
+    // Admin/Owner club access lives on playerProfiles.clubRole, plus any clubs
+    // the user directly owns via clubs.ownerId.
+    const profs = await db
+      .select({ clubId: playerProfiles.clubId })
+      .from(playerProfiles)
+      .where(and(
+        eq(playerProfiles.userId, userId),
+        inArray(playerProfiles.clubRole, ["OWNER", "ADMIN", "ORGANISER"]),
+      ));
+    const { clubs } = await import("@shared/schema");
+    const owned = await db
+      .select({ id: clubs.id })
+      .from(clubs)
+      .where(eq(clubs.ownerId, userId));
+    return new Set([...profs.map(p => p.clubId), ...owned.map(c => c.id)]);
+  }
+
+  async function adminCanTargetSegment(userId: number, role: string, segment: any): Promise<boolean> {
+    if (role === "OWNER") return true;
+    if (!segment?.type) return false;
+    switch (segment.type) {
+      case "ALL": return false; // OWNER-only above
+      case "USER": return Array.isArray(segment.userIds) && segment.userIds.length > 0;
+      case "CLUB": {
+        const ids = await adminClubIds(userId);
+        return ids.has(Number(segment.clubId));
+      }
+      case "TEAM": {
+        const teamId = Number(segment.teamId);
+        if (!Number.isFinite(teamId)) return false;
+        // Look up the team's club then verify admin owns it
+        const [team] = await db.select({ clubId: bslPlayers.clubId })
+          .from(bslPlayers).where(eq(bslPlayers.bslTeamId, teamId)).limit(1);
+        if (!team?.clubId) return false;
+        const ids = await adminClubIds(userId);
+        return ids.has(team.clubId);
+      }
+      case "TOURNAMENT": {
+        const tournamentId = Number(segment.tournamentId);
+        if (!Number.isFinite(tournamentId)) return false;
+        const ids = await adminClubIds(userId);
+        // Tournaments include a clubId; only allow if admin owns that club
+        const { tournaments } = await import("@shared/schema");
+        const [t] = await db.select({ clubId: tournaments.clubId })
+          .from(tournaments).where(eq(tournaments.id, tournamentId)).limit(1);
+        return !!t && ids.has(t.clubId);
+      }
+      default: return false;
+    }
+  }
+
+  app.get("/api/admin/notification-schedules", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "OWNER" && role !== "ADMIN") return res.sendStatus(403);
+    const userId = req.user!.id;
+    const where = role === "OWNER" ? undefined : eq(notificationSchedules.createdBy, userId);
+    const q = db.select().from(notificationSchedules);
+    const rows = await (where ? q.where(where) : q)
+      .orderBy(desc(notificationSchedules.scheduleAt))
+      .limit(100);
+    res.json(rows);
+  });
+
+  app.post("/api/admin/notification-schedules", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "OWNER" && role !== "ADMIN") return res.sendStatus(403);
+    const { ruleKey, title, message, url, segment, vars, scheduleAt } = req.body || {};
+    if (!segment?.type) return res.status(400).json({ message: "segment.type required" });
+    if (segment.type === "ALL" && role !== "OWNER") return res.sendStatus(403);
+    if (!scheduleAt) return res.status(400).json({ message: "scheduleAt required" });
+    const when = new Date(scheduleAt);
+    if (isNaN(when.getTime())) return res.status(400).json({ message: "Invalid scheduleAt" });
+    if (ruleKey && !(RULE_KEYS as readonly string[]).includes(ruleKey)) {
+      return res.status(400).json({ message: "Unknown rule key" });
+    }
+    if (!ruleKey && (!title || !message)) {
+      return res.status(400).json({ message: "Provide ruleKey OR title+message" });
+    }
+    const allowed = await adminCanTargetSegment(req.user!.id, role, segment);
+    if (!allowed) return res.status(403).json({ message: "Segment outside your admin scope" });
+    const [row] = await db.insert(notificationSchedules).values({
+      ruleKey: ruleKey || null,
+      title: title || null,
+      message: message || null,
+      url: url || null,
+      segment,
+      vars: vars && typeof vars === "object" ? vars : {},
+      scheduleAt: when,
+      createdBy: req.user!.id,
+    }).returning();
+    res.json(row);
+  });
+
+  app.delete("/api/admin/notification-schedules/:id", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const role = (req.user as any).role;
+    if (role !== "OWNER" && role !== "ADMIN") return res.sendStatus(403);
+    const id = parseInt(req.params.id, 10);
+    const conds = [eq(notificationSchedules.id, id), eq(notificationSchedules.status, "pending")];
+    if (role !== "OWNER") conds.push(eq(notificationSchedules.createdBy, req.user!.id));
+    const [row] = await db.update(notificationSchedules)
+      .set({ status: "cancelled" })
+      .where(and(...conds))
+      .returning();
+    if (!row) return res.status(404).json({ message: "Not found, already sent, or outside scope" });
+    res.json(row);
   });
 
   // Admin: send broadcast notification by segment

@@ -10,7 +10,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { useUser } from "@/hooks/use-auth";
-import { Megaphone, Send, Loader2 } from "lucide-react";
+import { Megaphone, Send, Loader2, Clock, X } from "lucide-react";
+import { queryClient } from "@/lib/queryClient";
 
 type SegmentType = "USER" | "CLUB" | "TEAM" | "TOURNAMENT" | "ALL";
 
@@ -27,6 +28,7 @@ export default function PushBroadcast() {
   const [teamId, setTeamId] = useState("");
   const [tournamentId, setTournamentId] = useState("");
   const [userIds, setUserIds] = useState("");
+  const [scheduleAt, setScheduleAt] = useState("");
 
   const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/my-admin-clubs"] });
   const { data: tournaments } = useQuery<any[]>({ queryKey: ["/api/tournaments"] });
@@ -48,6 +50,46 @@ export default function PushBroadcast() {
       setTitle(""); setMessage(""); setUrl("");
     },
     onError: (e: any) => toast({ title: "Could not send", description: e.message, variant: "destructive" }),
+  });
+
+  const buildSegment = () => {
+    const segment: any = { type: segmentType };
+    if (segmentType === "CLUB") segment.clubId = Number(clubId);
+    if (segmentType === "TEAM") segment.teamId = Number(teamId);
+    if (segmentType === "TOURNAMENT") segment.tournamentId = Number(tournamentId);
+    if (segmentType === "USER") segment.userIds = userIds.split(/[\s,]+/).map(s => Number(s.trim())).filter(Boolean);
+    return segment;
+  };
+
+  const schedule = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/admin/notification-schedules", {
+        title, message, url: url || undefined,
+        segment: buildSegment(),
+        scheduleAt: new Date(scheduleAt).toISOString(),
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Scheduled", description: "We'll send it at the scheduled time." });
+      setTitle(""); setMessage(""); setUrl(""); setScheduleAt("");
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/notification-schedules"] });
+    },
+    onError: (e: any) => toast({ title: "Could not schedule", description: e.message, variant: "destructive" }),
+  });
+
+  const { data: schedules } = useQuery<any[]>({ queryKey: ["/api/admin/notification-schedules"] });
+
+  const cancelSchedule = useMutation({
+    mutationFn: async (id: number) => {
+      const res = await apiRequest("DELETE", `/api/admin/notification-schedules/${id}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/notification-schedules"] });
+      toast({ title: "Cancelled" });
+    },
+    onError: (e: any) => toast({ title: "Could not cancel", description: e.message, variant: "destructive" }),
   });
 
   const canSubmit =
@@ -149,13 +191,86 @@ export default function PushBroadcast() {
             )}
           </div>
 
-          <div className="flex items-center justify-between pt-2">
-            <Badge variant="secondary">Recipients respect their "Club announcements" preference</Badge>
-            <Button onClick={() => send.mutate()} disabled={!canSubmit || send.isPending} data-testid="button-send">
-              {send.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
-              Send broadcast
-            </Button>
+          <div className="flex items-end gap-3 pt-2">
+            <div className="flex-1">
+              <Label htmlFor="scheduleAt" className="text-xs flex items-center gap-1">
+                <Clock className="h-3 w-3" /> Schedule for later (optional)
+              </Label>
+              <Input
+                id="scheduleAt"
+                type="datetime-local"
+                value={scheduleAt}
+                onChange={(e) => setScheduleAt(e.target.value)}
+                data-testid="input-schedule-at"
+              />
+            </div>
           </div>
+
+          <div className="flex items-center justify-between pt-2 flex-wrap gap-2">
+            <Badge variant="secondary">Recipients respect their notification preferences</Badge>
+            <div className="flex gap-2">
+              {scheduleAt && (
+                <Button
+                  variant="outline"
+                  onClick={() => schedule.mutate()}
+                  disabled={!canSubmit || schedule.isPending}
+                  data-testid="button-schedule"
+                >
+                  {schedule.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Clock className="h-4 w-4 mr-2" />}
+                  Schedule
+                </Button>
+              )}
+              <Button onClick={() => send.mutate()} disabled={!canSubmit || send.isPending || !!scheduleAt} data-testid="button-send">
+                {send.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Send className="h-4 w-4 mr-2" />}
+                Send now
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2"><Clock className="h-5 w-5" /> Upcoming &amp; recent</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-2">
+          {!schedules || schedules.length === 0 ? (
+            <div className="text-sm text-muted-foreground" data-testid="state-no-schedules">No scheduled broadcasts yet.</div>
+          ) : (
+            schedules.map((s: any) => (
+              <div
+                key={s.id}
+                className="flex items-center justify-between gap-3 rounded-md border p-3 text-sm"
+                data-testid={`row-schedule-${s.id}`}
+              >
+                <div className="min-w-0 flex-1">
+                  <div className="font-medium truncate">
+                    {s.ruleKey ? <code className="text-xs">{s.ruleKey}</code> : (s.title || "Untitled")}
+                  </div>
+                  <div className="text-xs text-muted-foreground truncate">
+                    {new Date(s.scheduleAt).toLocaleString("en-GB")} · {s.segment?.type || "?"} · {s.message?.slice(0, 80) || ""}
+                  </div>
+                </div>
+                <Badge
+                  variant={s.status === "sent" ? "default" : s.status === "pending" ? "secondary" : s.status === "failed" ? "destructive" : "outline"}
+                  data-testid={`badge-status-${s.id}`}
+                >
+                  {s.status}
+                </Badge>
+                {s.status === "pending" && (
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    onClick={() => cancelSchedule.mutate(s.id)}
+                    disabled={cancelSchedule.isPending}
+                    data-testid={`button-cancel-${s.id}`}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+            ))
+          )}
         </CardContent>
       </Card>
     </div>

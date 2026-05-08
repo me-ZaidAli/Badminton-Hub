@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-import { Bell, Loader2, Save } from "lucide-react";
+import { Bell, Loader2, Save, Send, BarChart3, Eye } from "lucide-react";
 
 type Rule = {
   id: number;
@@ -77,14 +77,19 @@ function RuleEditor({ rule }: { rule: Rule }) {
   const [enabled, setEnabled] = useState(rule.enabled);
   const [title, setTitle] = useState(rule.title);
   const [message, setMessage] = useState(rule.message);
+  const [previewVars, setPreviewVars] = useState<Record<string, string>>({});
+  const [showStats, setShowStats] = useState(false);
   const label = humanize(rule.ruleKey);
-  const placeholders = Array.from(new Set([...extractPlaceholders(rule.title), ...extractPlaceholders(rule.message)]));
+  const placeholders = Array.from(new Set([...extractPlaceholders(title), ...extractPlaceholders(message)]));
 
   useEffect(() => {
     setEnabled(rule.enabled);
     setTitle(rule.title);
     setMessage(rule.message);
   }, [rule.id, rule.updatedAt]);
+
+  const renderPreview = (tpl: string) =>
+    tpl.replace(/\{(\w+)\}/g, (_m, k) => (previewVars[k] && previewVars[k].length > 0 ? previewVars[k] : `{${k}}`));
 
   const save = useMutation({
     mutationFn: async (patch: Partial<Pick<Rule, "enabled" | "title" | "message">>) => {
@@ -96,6 +101,25 @@ function RuleEditor({ rule }: { rule: Rule }) {
       toast({ title: "Saved" });
     },
     onError: (e: any) => toast({ title: "Could not save", description: e.message, variant: "destructive" }),
+  });
+
+  const test = useMutation({
+    mutationFn: async () => {
+      const vars: Record<string, string> = {};
+      for (const ph of placeholders) {
+        const k = ph.replace(/[{}]/g, "");
+        if (previewVars[k]) vars[k] = previewVars[k];
+      }
+      const res = await apiRequest("POST", `/api/admin/notification-rules/${rule.ruleKey}/test`, { vars });
+      return res.json();
+    },
+    onSuccess: () => toast({ title: "Test sent", description: "Check your push + in-app inbox." }),
+    onError: (e: any) => toast({ title: "Test failed", description: e.message, variant: "destructive" }),
+  });
+
+  const stats = useQuery<{ days: number; byChannel: Record<string, { total: number; sends: number }> }>({
+    queryKey: ["/api/admin/notification-rules", rule.ruleKey, "stats"],
+    enabled: showStats,
   });
 
   const dirty = enabled !== rule.enabled || title !== rule.title || message !== rule.message;
@@ -145,14 +169,81 @@ function RuleEditor({ rule }: { rule: Rule }) {
           />
         </div>
         {placeholders.length > 0 && (
-          <div className="text-xs text-muted-foreground">
-            Placeholders in this template:{" "}
-            {placeholders.map((p) => (
-              <code key={p} className="mr-2 rounded bg-muted px-1.5 py-0.5">{p}</code>
-            ))}
+          <div className="space-y-2 rounded-md border border-dashed p-3">
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Preview values
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              {placeholders.map((p) => {
+                const k = p.replace(/[{}]/g, "");
+                return (
+                  <div key={p}>
+                    <Label className="text-xs font-mono">{p}</Label>
+                    <Input
+                      value={previewVars[k] || ""}
+                      onChange={(e) => setPreviewVars(v => ({ ...v, [k]: e.target.value }))}
+                      placeholder={`Sample ${k}`}
+                      data-testid={`input-var-${rule.ruleKey}-${k}`}
+                    />
+                  </div>
+                );
+              })}
+            </div>
+            <div className="rounded bg-muted/50 p-3 text-sm">
+              <div className="text-xs font-medium text-muted-foreground mb-1 flex items-center gap-1">
+                <Eye className="h-3 w-3" /> Preview
+              </div>
+              <div className="font-medium" data-testid={`text-preview-title-${rule.ruleKey}`}>{renderPreview(title)}</div>
+              <div className="text-muted-foreground" data-testid={`text-preview-message-${rule.ruleKey}`}>{renderPreview(message)}</div>
+            </div>
           </div>
         )}
-        <div className="flex justify-end pt-1">
+
+        {showStats && (
+          <div className="rounded-md border p-3 space-y-2" data-testid={`stats-${rule.ruleKey}`}>
+            <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+              Last 30 days
+            </div>
+            {stats.isLoading ? (
+              <Loader2 className="h-4 w-4 animate-spin" />
+            ) : (
+              <div className="grid grid-cols-3 gap-2 text-sm">
+                {(["push", "inapp", "email"] as const).map(ch => (
+                  <div key={ch} className="rounded bg-muted/50 p-2 text-center">
+                    <div className="text-xs uppercase text-muted-foreground">{ch}</div>
+                    <div className="text-lg font-semibold" data-testid={`stat-${rule.ruleKey}-${ch}-total`}>
+                      {stats.data?.byChannel?.[ch]?.total ?? 0}
+                    </div>
+                    <div className="text-xs text-muted-foreground">
+                      {stats.data?.byChannel?.[ch]?.sends ?? 0} sends
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <div className="flex flex-wrap justify-end gap-2 pt-1">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => setShowStats(s => !s)}
+            data-testid={`button-stats-${rule.ruleKey}`}
+          >
+            <BarChart3 className="h-4 w-4 mr-2" />
+            {showStats ? "Hide stats" : "Stats"}
+          </Button>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={test.isPending}
+            onClick={() => test.mutate()}
+            data-testid={`button-test-${rule.ruleKey}`}
+          >
+            {test.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Send className="h-4 w-4 mr-2" />}
+            Test send to me
+          </Button>
           <Button
             size="sm"
             disabled={!dirty || save.isPending}
