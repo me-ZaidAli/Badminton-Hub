@@ -147,13 +147,24 @@ export default function PlayerProfile() {
 
         {/* Category registration */}
         <GlowPanel title="Compete in categories" tone="gold" icon={<Plus className="h-4 w-4" />}>
-          <p className="text-xs mb-4" style={{ color: BSL.muted }}>
+          <p className="text-xs mb-1" style={{ color: BSL.muted }}>
             Each category has its own fee — debited from your BSL wallet on registration. Your club owner places you in a pair after you register.
           </p>
+          <div className="text-[11px] mb-4 flex flex-wrap gap-x-3 gap-y-1" style={{ color: BSL.cyan }}>
+            <span>Multi-category loyalty:</span>
+            <span><span style={{ color: BSL.gold }}>1st</span> full price</span>
+            <span><span style={{ color: BSL.gold }}>2nd</span> 50% off</span>
+            <span><span style={{ color: BSL.gold }}>3rd</span> 70% off</span>
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {CATEGORIES.map(cat => {
-              const fee = Number.isFinite(fees[cat]) ? fees[cat] : playerFee;
+              const baseFee = Number.isFinite(fees[cat]) ? fees[cat] : playerFee;
               const registered = myCats.includes(cat);
+              // Discount tier is decided by how many cats the player will have
+              // *before* this registration. Mirrors the server's SQL CASE.
+              const tierCount = myCats.length;
+              const fee = registered ? baseFee : tierCount === 0 ? baseFee : tierCount === 1 ? Math.floor(baseFee * 50 / 100) : Math.floor(baseFee * 30 / 100);
+              const discountPct = !registered && tierCount > 0 ? (tierCount === 1 ? 50 : 70) : 0;
               const canAfford = balance >= fee;
               return (
                 <div key={cat} className="rounded-xl p-4 relative overflow-hidden"
@@ -170,11 +181,19 @@ export default function PlayerProfile() {
                   )}
                   <div className="text-xs uppercase tracking-widest" style={{ color: BSL.cyan }}>{cat}</div>
                   <div className="text-sm font-bold mt-0.5">{CAT_LABEL[cat]}</div>
-                  <div className="text-2xl font-black mt-3" style={{ color: registered ? BSL.gold : "white" }}>
-                    £{(fee / 100).toFixed(2)}
+                  <div className="mt-3 flex items-baseline gap-2">
+                    <div className="text-2xl font-black" style={{ color: registered ? BSL.gold : "white" }}>
+                      £{(fee / 100).toFixed(2)}
+                    </div>
+                    {discountPct > 0 && (
+                      <>
+                        <div className="text-xs line-through" style={{ color: BSL.muted }}>£{(baseFee / 100).toFixed(2)}</div>
+                        <div className="text-[10px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>−{discountPct}%</div>
+                      </>
+                    )}
                   </div>
                   <div className="text-[10px] mb-3" style={{ color: BSL.muted }}>
-                    one-off, per season
+                    one-off, per season{discountPct > 0 ? " · multi-cat discount applied" : ""}
                   </div>
                   {registered ? (
                     <ActionButton variant="ghost" onClick={() => unregisterCat.mutate(cat)} disabled={unregisterCat.isPending} icon={<X className="h-3 w-3" />} testid={`button-unregister-${cat}`}>

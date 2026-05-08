@@ -1097,16 +1097,24 @@ export function registerBslRoutes(app: Express) {
       if (cur.includes(category)) return res.status(400).json({ message: "Already registered for this category" });
       const [league] = await db.select().from(bslLeagues).limit(1);
       const fees = (league?.categoryFees || {}) as Record<string, number>;
-      const fee = Number.isFinite(fees[category]) ? fees[category] : (league?.playerFee ?? 2500);
+      const baseFee = Number.isFinite(fees[category]) ? fees[category] : (league?.playerFee ?? 2500);
+      // Multi-category loyalty discount: 1st cat full price, 2nd cat 50% off,
+      // 3rd cat 70% off. Tier is decided in SQL from the current array length
+      // so concurrent registrations can never both claim the same tier.
+      // Pence stay integer: `fee * 50 / 100` uses Postgres int division.
+      const discountedFeeSql = dsql`CASE COALESCE(array_length(${bslPlayers.categories}, 1), 0)
+        WHEN 0 THEN ${baseFee}
+        WHEN 1 THEN (${baseFee} * 50 / 100)
+        ELSE (${baseFee} * 30 / 100) END`;
       // Atomic conditional update — guards against double-click double-spend AND
       // a concurrent registration for the same category. Both balance and the
       // "category not yet present" predicate are checked at the SQL level.
       const [updated] = await db.update(bslPlayers).set({
-        walletBalance: dsql`${bslPlayers.walletBalance} - ${fee}`,
+        walletBalance: dsql`${bslPlayers.walletBalance} - (${discountedFeeSql})`,
         categories: dsql`array_append(${bslPlayers.categories}, ${category})`,
       }).where(and(
         eq(bslPlayers.id, me.id),
-        dsql`${bslPlayers.walletBalance} >= ${fee}`,
+        dsql`${bslPlayers.walletBalance} >= (${discountedFeeSql})`,
         dsql`NOT (${category} = ANY(${bslPlayers.categories}))`,
       )).returning();
       if (!updated) {
@@ -1115,12 +1123,19 @@ export function registerBslRoutes(app: Express) {
         if (fresh && (fresh.categories || []).includes(category)) {
           return res.status(400).json({ message: "Already registered for this category" });
         }
-        return res.status(402).json({ message: `Need £${(fee/100).toFixed(2)} in your wallet — top up first.`, fee, balance: fresh?.walletBalance ?? me.walletBalance });
+        // Quote the worst-case (lowest) price they would pay had they qualified.
+        const tierCount = (fresh?.categories || []).length;
+        const wouldPay = tierCount === 0 ? baseFee : tierCount === 1 ? Math.floor(baseFee * 50 / 100) : Math.floor(baseFee * 30 / 100);
+        return res.status(402).json({ message: `Need £${(wouldPay/100).toFixed(2)} in your wallet — top up first.`, fee: wouldPay, balance: fresh?.walletBalance ?? me.walletBalance });
       }
+      // Compute the actual amount charged from the balance delta — robust to
+      // whatever tier the SQL CASE picked.
+      const charged = (me.walletBalance ?? 0) - (updated.walletBalance ?? 0);
+      const tierLabel = cur.length === 0 ? "" : cur.length === 1 ? " (50% multi-cat discount)" : " (70% multi-cat discount)";
       await db.insert(bslWalletTransactions).values({
-        bslPlayerId: me.id, type: "DEBIT", amount: fee, status: "APPROVED",
+        bslPlayerId: me.id, type: "DEBIT", amount: charged, status: "APPROVED",
         reference: `CAT-${category}-${Date.now().toString(36).toUpperCase()}`,
-        description: `Registered for ${category}`,
+        description: `Registered for ${category}${tierLabel}`,
         reviewedById: u.id, reviewedAt: new Date(),
       } as any);
       res.json(updated);
