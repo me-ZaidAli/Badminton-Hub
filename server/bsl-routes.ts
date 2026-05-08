@@ -236,6 +236,7 @@ export function registerBslRoutes(app: Express) {
         status: "ACTIVE", inviteCode, approvedAt: new Date(), approvedById: user.id,
       }).where(and(eq(bslClubs.id, id), eq(bslClubs.status, existing.status))).returning();
       if (!updated) return res.status(409).json({ message: "Status changed during approval, please retry" });
+      await audit(req, "club.approved", "bsl_club", id, { from: existing.status, to: "ACTIVE", inviteCode });
       // Notify the club's primary contact
       try {
         if (updated.contactUserId) {
@@ -260,6 +261,64 @@ export function registerBslRoutes(app: Express) {
       const [updated] = await db.update(bslClubs).set({
         status: "REJECTED", rejectionReason: req.body.reason || "Rejected by admin",
       }).where(and(eq(bslClubs.id, id), eq(bslClubs.status, existing.status))).returning();
+      await audit(req, "club.rejected", "bsl_club", id, { from: existing.status, reason: req.body.reason || null });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin toggle a club's registration payment between MARKED-PAID (ACTIVE) and
+  // PENDING_PAYMENT. PENDING_PAYMENT removes the club from the public list
+  // (the public `/api/bsl/clubs` filter only returns ACTIVE clubs to non-admins).
+  // Both transitions are recorded in the BSL audit log.
+  app.patch("/api/bsl/admin/clubs/:id/payment-status", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const u = (req as any).user;
+      const target = String(req.body?.status || "").toUpperCase();
+      if (target !== "ACTIVE" && target !== "PENDING_PAYMENT") {
+        return res.status(400).json({ message: "status must be ACTIVE or PENDING_PAYMENT" });
+      }
+      const [existing] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (existing.status === target) return res.status(409).json({ message: `Club already ${target}`, club: existing });
+
+      if (target === "ACTIVE") {
+        const inviteCode = existing.inviteCode || genInvite();
+        const [updated] = await db.update(bslClubs).set({
+          status: "ACTIVE",
+          inviteCode,
+          approvedAt: new Date(),
+          approvedById: u.id,
+          rejectionReason: null,
+        }).where(and(eq(bslClubs.id, id), eq(bslClubs.status, existing.status))).returning();
+        if (!updated) return res.status(409).json({ message: "Status changed during update, please retry" });
+        await audit(req, "club.payment.marked-paid", "bsl_club", id, {
+          from: existing.status, to: "ACTIVE", inviteCode, reason: req.body?.reason || null,
+        });
+        // Reuse the same notification as a regular approval
+        try {
+          if ((updated as any).contactUserId) {
+            sendRulePush(
+              "bslClubApproved",
+              [(updated as any).contactUserId],
+              { inviteCode: updated.inviteCode || "" },
+              { url: "/bsl", dedupe: { refType: "bsl-club-approved", refId: updated.id } },
+            ).catch(e => console.error("[push bslClubApproved]", e));
+          }
+        } catch {}
+        return res.json(updated);
+      }
+
+      // target === "PENDING_PAYMENT" — flip the club back to awaiting payment.
+      // We deliberately keep inviteCode/approvedAt so re-marking paid restores
+      // the same invite code; the public list filter already hides the club.
+      const [updated] = await db.update(bslClubs).set({
+        status: "PENDING_PAYMENT",
+      }).where(and(eq(bslClubs.id, id), eq(bslClubs.status, existing.status))).returning();
+      if (!updated) return res.status(409).json({ message: "Status changed during update, please retry" });
+      await audit(req, "club.payment.marked-pending", "bsl_club", id, {
+        from: existing.status, to: "PENDING_PAYMENT", reason: req.body?.reason || null,
+      });
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

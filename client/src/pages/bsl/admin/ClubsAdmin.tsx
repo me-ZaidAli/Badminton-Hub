@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check,
+  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check, BadgeCheck, CircleDollarSign,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
@@ -44,7 +44,25 @@ export default function ClubsAdmin() {
   });
   const approve = useMutation({
     mutationFn: async (id: number) => (await apiRequest("PATCH", `/api/bsl/clubs/${id}/approve`, {})).json(),
-    onSuccess: (d: any) => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/pending"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] }); toast({ title: "Approved", description: `Invite: ${d.inviteCode}` }); },
+    onSuccess: (d: any) => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/pending"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/audit"] }); toast({ title: "Approved", description: `Invite: ${d.inviteCode}` }); },
+  });
+  // Mark-paid / mark-pending — flips the club's registration payment status.
+  // Marking pending hides the club from the public `/api/bsl/clubs` list.
+  const setPaymentStatus = useMutation({
+    mutationFn: async (v: { id: number; status: "ACTIVE" | "PENDING_PAYMENT" }) =>
+      (await apiRequest("PATCH", `/api/bsl/admin/clubs/${v.id}/payment-status`, { status: v.status })).json(),
+    onSuccess: (d: any, v) => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/pending"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/audit"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/clubs"] });
+      toast({
+        title: v.status === "ACTIVE" ? "Marked as paid" : "Marked pending payment",
+        description: v.status === "ACTIVE" ? `Invite: ${d.inviteCode}` : "Club hidden from public list",
+      });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -132,9 +150,35 @@ export default function ClubsAdmin() {
                       </div>
                     </td>
                     <td className="px-2 py-3 text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1 flex-wrap">
                         {c.status === "PENDING_VERIFICATION" && (
                           <ActionButton variant="cyan" onClick={() => approve.mutate(c.id)}>Approve</ActionButton>
+                        )}
+                        {c.status !== "ACTIVE" && c.status !== "REJECTED" && (
+                          <ActionButton
+                            variant="cyan"
+                            icon={<BadgeCheck className="h-3 w-3" />}
+                            onClick={() => setPaymentStatus.mutate({ id: c.id, status: "ACTIVE" })}
+                            disabled={setPaymentStatus.isPending}
+                            testid={`button-mark-paid-${c.id}`}
+                          >
+                            Mark paid
+                          </ActionButton>
+                        )}
+                        {c.status === "ACTIVE" && (
+                          <ActionButton
+                            variant="ghost"
+                            icon={<CircleDollarSign className="h-3 w-3" />}
+                            onClick={() => {
+                              if (confirm(`Mark "${c.name}" as PENDING PAYMENT?\n\nThis will hide the club from the public list until payment is reconfirmed.`)) {
+                                setPaymentStatus.mutate({ id: c.id, status: "PENDING_PAYMENT" });
+                              }
+                            }}
+                            disabled={setPaymentStatus.isPending}
+                            testid={`button-mark-pending-${c.id}`}
+                          >
+                            Mark unpaid
+                          </ActionButton>
                         )}
                         <ActionButton variant="gold" onClick={() => setEditId(c.id)}>Edit</ActionButton>
                       </div>
