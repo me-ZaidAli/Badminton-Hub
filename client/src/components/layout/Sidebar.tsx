@@ -97,6 +97,7 @@ interface NavItem {
   isGodMode?: boolean;
   premiumOnly?: boolean;
   hidden?: boolean;
+  _hubBadgeKeys?: (keyof BadgeCounts)[];
 }
 
 interface NavGroup {
@@ -123,6 +124,74 @@ export function useBadgeCounts() {
     enabled: !!user,
     refetchInterval: 30000,
   });
+}
+
+// Collapse user-facing groups (activity, club+design, comms+info) into 3
+// single-link "hub" entries that route to the corresponding tile pages. This
+// keeps the sidebar short while still surfacing all destinations behind the
+// hub icons. Admin/godmode/main groups are returned unchanged.
+export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
+  const passthroughKeys = new Set(["main", "admin", "godmode"]);
+  const passthrough = groups.filter(g => passthroughKeys.has(g.key));
+
+  const collect = (keys: string[]): NavItem[] =>
+    groups.filter(g => keys.includes(g.key)).flatMap(g => g.items);
+
+  const activityItems = collect(["activity"]);
+  const clubItems = collect(["club", "design"]);
+  const commsItems = collect(["comms", "info"]);
+
+  const aggregateBadgeKeys = (items: NavItem[]): { primary?: keyof BadgeCounts; secondary?: keyof BadgeCounts } => {
+    // Sum badge counts via a synthetic key list; we use the *first* primary
+    // and secondary keys we find so the BadgeCount component continues to
+    // render. Counts are merged later via the `_aggregatedBadgeKeys` flag.
+    const primary = items.find(i => i.badgeKey)?.badgeKey;
+    const secondary = items.find(i => i.secondaryBadgeKey)?.secondaryBadgeKey;
+    return { primary, secondary };
+  };
+
+  const makeHub = (
+    key: string,
+    href: string,
+    label: string,
+    icon: React.ComponentType<{ className?: string }>,
+    items: NavItem[],
+  ): NavGroup | null => {
+    if (items.length === 0) return null;
+    const badges = aggregateBadgeKeys(items);
+    const allBadgeKeys = items
+      .flatMap(i => [i.badgeKey, i.secondaryBadgeKey])
+      .filter(Boolean) as (keyof BadgeCounts)[];
+    return {
+      key,
+      label,
+      items: [{
+        href,
+        label,
+        icon,
+        group: key,
+        badgeKey: badges.primary,
+        secondaryBadgeKey: badges.secondary,
+        _hubBadgeKeys: Array.from(new Set(allBadgeKeys)),
+      }],
+    };
+  };
+
+  const hubGroups: NavGroup[] = [];
+  const main = passthrough.find(g => g.key === "main");
+  if (main) hubGroups.push(main);
+
+  const activityHub = makeHub("activity", "/hub/activity", "Activity", Activity, activityItems);
+  const clubHub = makeHub("club", "/hub/club", "My Club", Building2, clubItems);
+  const commsHub = makeHub("comms", "/hub/comms", "Communication", MessageSquare, commsItems);
+  if (activityHub) hubGroups.push(activityHub);
+  if (clubHub) hubGroups.push(clubHub);
+  if (commsHub) hubGroups.push(commsHub);
+
+  for (const g of passthrough) {
+    if (g.key !== "main") hubGroups.push(g);
+  }
+  return hubGroups;
 }
 
 export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planStatus: string } {
@@ -759,7 +828,8 @@ export function Sidebar() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const { groups: navGroups, isPremium, planStatus } = useNavGroups();
+  const { groups: rawNavGroups, isPremium, planStatus } = useNavGroups();
+  const navGroups = collapseToHubs(rawNavGroups);
   const { data: badgeCounts } = useBadgeCounts();
   const { hidden, hide, show } = useSidebarHidden();
   const [pinDialogOpen, setPinDialogOpen] = useState(false);
@@ -855,9 +925,10 @@ export function Sidebar() {
               <div className="space-y-0.5">
                 {group.items.map((item) => {
                   const isActive = location === item.href || (item.href !== "/" && item.href !== "/admin" && location.startsWith(`${item.href}/`));
-                  const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-                  const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
-                  const badgeCount = primaryCount + secondaryCount;
+                  const badgeCount = item._hubBadgeKeys && badgeCounts
+                    ? item._hubBadgeKeys.reduce((sum, k) => sum + (badgeCounts[k] || 0), 0)
+                    : ((item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0)
+                      + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0));
                   const isLocked = item.premiumOnly && !isPremium;
 
                   const itemClass = cn(
@@ -986,7 +1057,8 @@ export function MobileTopNav() {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const { groups: navGroups } = useNavGroups();
+  const { groups: rawNavGroups } = useNavGroups();
+  const navGroups = collapseToHubs(rawNavGroups);
   const { data: badgeCounts } = useBadgeCounts();
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -1061,9 +1133,10 @@ export function MobileTopNav() {
                   <div className="space-y-0.5">
                     {group.items.map((item) => {
                       const isActive = location === item.href || (item.href !== "/" && item.href !== "/admin" && location.startsWith(`${item.href}/`));
-                      const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-                      const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
-                      const badgeCount = primaryCount + secondaryCount;
+                      const badgeCount = item._hubBadgeKeys && badgeCounts
+                        ? item._hubBadgeKeys.reduce((sum, k) => sum + (badgeCounts[k] || 0), 0)
+                        : ((item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0)
+                          + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0));
 
                       const buttonVariant = isAdminGroup && isActive
                         ? "default" as const

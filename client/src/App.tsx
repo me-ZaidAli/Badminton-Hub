@@ -52,6 +52,9 @@ const PlaySessions = lazy(() => import("@/pages/PlaySessions"));
 const Demo = lazy(() => import("@/pages/Demo"));
 const ClaimAccount = lazy(() => import("@/pages/ClaimAccount"));
 const MyInsights = lazy(() => import("@/pages/MyInsights"));
+const ActivityHub = lazy(() => import("@/pages/hubs/ActivityHub"));
+const MyClubHub = lazy(() => import("@/pages/hubs/MyClubHub"));
+const CommunicationHub = lazy(() => import("@/pages/hubs/CommunicationHub"));
 const CommunityHub = lazy(() => import("@/pages/CommunityHub"));
 const CommunityEventDetail = lazy(() => import("@/pages/CommunityEventDetail"));
 const CommunityTeamEventDetail = lazy(() => import("@/pages/CommunityTeamEventDetail"));
@@ -483,6 +486,15 @@ function Router() {
       </Route>
       <Route path="/my-insights">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><MyInsights /></Suspense>} />
+      </Route>
+      <Route path="/hub/activity">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><ActivityHub /></Suspense>} />
+      </Route>
+      <Route path="/hub/club">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><MyClubHub /></Suspense>} />
+      </Route>
+      <Route path="/hub/comms">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><CommunicationHub /></Suspense>} />
       </Route>
       <Route path="/juniors">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><Juniors /></Suspense>} />
