@@ -56,28 +56,53 @@ export async function logoutOneSignalUser(): Promise<void> {
 export async function requestPushPermission(): Promise<boolean> {
   if (!window.OneSignal) return false;
   try {
-    await window.OneSignal.Notifications.requestPermission();
-    return await isPushOptedIn();
+    const browserPerm: NotificationPermission =
+      typeof Notification !== "undefined" ? Notification.permission : "default";
+
+    // If permission was previously denied, the browser will not re-prompt.
+    if (browserPerm === "denied") {
+      console.warn("[OneSignal] Notifications previously blocked by the browser.");
+      return false;
+    }
+
+    // v16 prefers the Slidedown prompt to trigger the native dialog reliably.
+    // Fall back to direct requestPermission if Slidedown is unavailable.
+    if (window.OneSignal.Slidedown?.promptPush) {
+      try {
+        await window.OneSignal.Slidedown.promptPush({ force: true });
+      } catch (e) {
+        console.warn("[OneSignal] Slidedown failed, falling back", e);
+      }
+    }
+    if (typeof window.OneSignal.Notifications?.requestPermission === "function") {
+      try { await window.OneSignal.Notifications.requestPermission(); } catch {}
+    }
+
+    // Wait briefly for the SDK to register the subscription after consent.
+    for (let i = 0; i < 20; i++) {
+      if (isPushOptedIn()) return true;
+      await new Promise(r => setTimeout(r, 250));
+    }
+    return isPushOptedIn();
   } catch (e) {
     console.error("[OneSignal] requestPermission failed", e);
     return false;
   }
 }
 
-export async function isPushOptedIn(): Promise<boolean> {
+export function isPushOptedIn(): boolean {
   if (!window.OneSignal) return false;
   try {
-    return !!(await window.OneSignal.User.PushSubscription.optedIn);
+    return !!window.OneSignal.User?.PushSubscription?.optedIn;
   } catch {
     return false;
   }
 }
 
-export async function getOneSignalSubscriptionId(): Promise<string | null> {
+export function getOneSignalSubscriptionId(): string | null {
   if (!window.OneSignal) return null;
   try {
-    const id = await window.OneSignal.User.PushSubscription.id;
-    return id || null;
+    return window.OneSignal.User?.PushSubscription?.id || null;
   } catch {
     return null;
   }

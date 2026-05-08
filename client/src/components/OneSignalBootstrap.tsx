@@ -33,7 +33,7 @@ export function OneSignalBootstrap() {
       await initOneSignal(import.meta.env.VITE_ONESIGNAL_APP_ID);
       if (currentId) {
         await loginOneSignalUser(currentId);
-        const subId = await getOneSignalSubscriptionId();
+        const subId = getOneSignalSubscriptionId();
         if (subId && subId !== lastRegisteredIdRef.current) {
           lastRegisteredIdRef.current = subId;
           try {

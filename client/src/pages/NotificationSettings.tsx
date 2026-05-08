@@ -45,7 +45,7 @@ export default function NotificationSettings() {
     if (!appId) return;
     (async () => {
       await initOneSignal(appId);
-      setBrowserOptedIn(await isPushOptedIn());
+      setBrowserOptedIn(isPushOptedIn());
     })();
   }, []);
 
@@ -72,13 +72,20 @@ export default function NotificationSettings() {
       const ok = await requestPushPermission();
       setBrowserOptedIn(ok);
       if (ok) {
-        const subId = await getOneSignalSubscriptionId();
+        const subId = getOneSignalSubscriptionId();
         if (subId) {
           await apiRequest("POST", "/api/notifications/register", { oneSignalPlayerId: subId, platform: "web" });
         }
         toast({ title: "Push enabled", description: "You'll start receiving notifications." });
       } else {
-        toast({ title: "Permission not granted", description: "Please allow notifications in your browser." });
+        const blocked = typeof Notification !== "undefined" && Notification.permission === "denied";
+        toast({
+          title: blocked ? "Notifications are blocked" : "Permission not granted",
+          description: blocked
+            ? "Tap the lock icon in your browser's address bar and allow notifications, then try again."
+            : "Please allow notifications when your browser asks.",
+          variant: "destructive",
+        });
       }
     } finally {
       setEnabling(false);
