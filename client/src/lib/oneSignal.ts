@@ -65,22 +65,36 @@ export async function requestPushPermission(): Promise<boolean> {
       return false;
     }
 
-    // v16 prefers the Slidedown prompt to trigger the native dialog reliably.
-    // Fall back to direct requestPermission if Slidedown is unavailable.
-    if (window.OneSignal.Slidedown?.promptPush) {
-      try {
-        await window.OneSignal.Slidedown.promptPush({ force: true });
-      } catch (e) {
-        console.warn("[OneSignal] Slidedown failed, falling back", e);
-      }
-    }
+    // Trigger the native browser prompt directly. v16's
+    // Notifications.requestPermission shows the OS-level dialog when
+    // permission is "default". Slidedown is skipped because it requires
+    // dashboard configuration and silently no-ops without it.
+    let nativePerm: NotificationPermission = browserPerm;
     if (typeof window.OneSignal.Notifications?.requestPermission === "function") {
-      try { await window.OneSignal.Notifications.requestPermission(); } catch {}
+      try {
+        await window.OneSignal.Notifications.requestPermission();
+      } catch (e) {
+        console.warn("[OneSignal] Notifications.requestPermission threw", e);
+      }
+    } else if (typeof Notification !== "undefined") {
+      // Last-resort fallback to the raw browser API
+      try { nativePerm = await Notification.requestPermission(); } catch {}
+    }
+    nativePerm = typeof Notification !== "undefined" ? Notification.permission : nativePerm;
+    if (nativePerm !== "granted") return false;
+
+    // Tell the SDK the user opted in (creates the push subscription).
+    try {
+      if (typeof window.OneSignal.User?.PushSubscription?.optIn === "function") {
+        await window.OneSignal.User.PushSubscription.optIn();
+      }
+    } catch (e) {
+      console.warn("[OneSignal] optIn failed", e);
     }
 
     // Wait briefly for the SDK to register the subscription after consent.
     for (let i = 0; i < 20; i++) {
-      if (isPushOptedIn()) return true;
+      if (isPushOptedIn() && getOneSignalSubscriptionId()) return true;
       await new Promise(r => setTimeout(r, 250));
     }
     return isPushOptedIn();
