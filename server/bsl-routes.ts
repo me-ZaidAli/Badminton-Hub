@@ -120,6 +120,15 @@ export function registerBslRoutes(app: Express) {
         }
       }
       if ("notificationsEnabled" in body) update.notificationsEnabled = !!body.notificationsEnabled;
+      // Per-category player fees (pence). Only accept known cats, coerce to non-negative ints.
+      if ("categoryFees" in body && body.categoryFees && typeof body.categoryFees === "object") {
+        const cleaned: Record<string, number> = {};
+        for (const cat of ["MD", "WD", "XD"]) {
+          const n = Number((body.categoryFees as any)[cat]);
+          if (Number.isFinite(n)) cleaned[cat] = Math.max(0, Math.round(n));
+        }
+        if (Object.keys(cleaned).length > 0) update.categoryFees = cleaned;
+      }
       if ("nextLeagueDay" in body) {
         const v = body.nextLeagueDay;
         if (!v) update.nextLeagueDay = null;
