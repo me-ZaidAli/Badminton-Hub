@@ -5,7 +5,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import {
   Wallet, Search, Plus, Loader2, AlertTriangle, ArrowUpCircle, ArrowDownCircle,
-  Eye, Globe, Lock, Pencil, Save, ArrowLeft, PoundSterling, RotateCcw,
+  Eye, Globe, Lock, Pencil, Save, ArrowLeft, PoundSterling, RotateCcw, Sliders, CheckCircle2,
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -179,52 +179,287 @@ function FundsModal({ wallet, mode, clubs, open, onClose, onSubmit, isPending }:
   );
 }
 
-function TransactionLogModal({ walletId, transactions, open, onClose }: {
-  walletId: number; transactions: any[]; open: boolean; onClose: () => void;
+function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
+  walletId: number; wallet: any; clubs: any[]; open: boolean; onClose: () => void;
 }) {
+  const { toast } = useToast();
+  const { data: unified, isLoading } = useQuery<any>({
+    queryKey: ["/api/god-mode/wallets", walletId, "unified-view"],
+    queryFn: async () => {
+      const res = await fetch(`/api/god-mode/wallets/${walletId}/unified-view`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load unified view");
+      return res.json();
+    },
+    enabled: open && !!walletId,
+  });
+
+  const [amendClubId, setAmendClubId] = useState<string>("");
+  const [amendTarget, setAmendTarget] = useState<string>("");
+  const [amendReason, setAmendReason] = useState<string>("");
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
+  const setBalanceMutation = useMutation({
+    mutationFn: async (data: { clubId: number; targetBalance: number; reason?: string }) => {
+      const res = await apiRequest("POST", `/api/god-mode/wallets/${walletId}/set-balance`, data);
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: data.noop ? "No change" : "Balance updated",
+        description: data.noop
+          ? `Already at £${(data.newBalance / 100).toFixed(2)}.`
+          : `£${(data.previousBalance / 100).toFixed(2)} → £${(data.newBalance / 100).toFixed(2)} (${data.delta >= 0 ? "+" : ""}£${(data.delta / 100).toFixed(2)})`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/god-mode/wallets"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/god-mode/wallets", walletId, "unified-view"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/my-credits") });
+      setAmendTarget("");
+      setAmendReason("");
+      setConfirmOpen(false);
+    },
+    onError: (err: any) => toast({ title: "Failed", description: err.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  const balances: { clubId: number; clubName: string; balance: number }[] = unified?.balances || [];
+  const history: any[] = unified?.history || [];
+  const userFacingTotal: number = unified?.userFacingTotal ?? 0;
+  const userFacingInScope: number = unified?.userFacingInScope ?? userFacingTotal;
+  const walletBalance: number = unified?.walletBalance ?? wallet?.balance ?? 0;
+  const drift: number = unified?.drift ?? 0;
+  const hasDrift = Math.abs(drift) > 0;
+  const driftScope: string = unified?.driftScope ?? "global";
+
+  const targetClubBalance = balances.find(b => b.clubId === Number(amendClubId))?.balance ?? 0;
+  const targetPence = amendTarget === "" ? null : Math.round(parseFloat(amendTarget) * 100);
+  const delta = targetPence === null ? null : targetPence - targetClubBalance;
+  const canSubmit = !!amendClubId && targetPence !== null && Number.isFinite(targetPence);
+
   return (
     <Dialog open={open} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+      <DialogContent className="max-w-3xl max-h-[88vh] overflow-y-auto" data-testid="modal-wallet-unified-view">
         <DialogHeader>
-          <DialogTitle>Transaction Log — Wallet #{walletId}</DialogTitle>
-          <DialogDescription>Full audit trail of all wallet transactions.</DialogDescription>
+          <DialogTitle className="flex items-center gap-2">
+            <Wallet className="h-5 w-5" /> {wallet?.userName || "User"}'s Wallet · {wallet?.name}
+          </DialogTitle>
+          <DialogDescription>
+            What the user actually sees on their profile (sourced from the credit ledger), plus the wallet-table balance for drift detection and a manual amend tool.
+          </DialogDescription>
         </DialogHeader>
-        {transactions.length === 0 ? (
-          <p className="text-center py-8 text-muted-foreground">No transactions yet.</p>
+
+        {isLoading ? (
+          <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : (
-          <div className="overflow-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Date</TableHead>
-                  <TableHead>Type</TableHead>
-                  <TableHead>Amount</TableHead>
-                  <TableHead>Club</TableHead>
-                  <TableHead>Reason</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {transactions.map((tx: any) => (
-                  <TableRow key={tx.id} data-testid={`row-tx-${tx.id}`}>
-                    <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
-                      {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant="outline" className={`text-xs ${tx.type === "CREDIT" ? "text-green-600 border-green-300" : tx.type === "DEBIT" ? "text-red-500 border-red-300" : "text-blue-600 border-blue-300"}`}>
-                        {tx.type}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className={`font-semibold text-sm ${tx.amount >= 0 ? "text-green-600" : "text-red-500"}`}>
-                      {tx.amount >= 0 ? "+" : ""}£{(Math.abs(tx.amount) / 100).toFixed(2)}
-                    </TableCell>
-                    <TableCell className="text-sm">{tx.clubName || "—"}</TableCell>
-                    <TableCell className="text-sm text-muted-foreground max-w-[200px] truncate">{tx.reason}</TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+          <div className="space-y-4">
+            {/* Drift summary */}
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Card data-testid="card-user-facing-total">
+                <CardContent className="p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
+                    User sees {driftScope === "scoped" ? "(in this wallet's clubs)" : "(profile total)"}
+                  </div>
+                  <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-user-facing-total">
+                    £{(userFacingInScope / 100).toFixed(2)}
+                  </div>
+                  {driftScope === "scoped" && userFacingTotal !== userFacingInScope && (
+                    <div className="text-[10px] text-muted-foreground mt-0.5">All clubs: £{(userFacingTotal / 100).toFixed(2)}</div>
+                  )}
+                </CardContent>
+              </Card>
+              <Card data-testid="card-wallet-balance">
+                <CardContent className="p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Wallet table balance</div>
+                  <div className="text-xl font-bold" data-testid="text-wallet-balance-value">
+                    £{(walletBalance / 100).toFixed(2)}
+                  </div>
+                </CardContent>
+              </Card>
+              <Card className={hasDrift ? "border-amber-300 bg-amber-50/50 dark:bg-amber-950/30" : "border-green-300 bg-green-50/40 dark:bg-green-950/20"} data-testid="card-drift">
+                <CardContent className="p-3">
+                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium flex items-center gap-1">
+                    {hasDrift ? <AlertTriangle className="h-3 w-3 text-amber-500" /> : <CheckCircle2 className="h-3 w-3 text-green-600" />}
+                    Drift (wallet − user)
+                  </div>
+                  <div className={`text-xl font-bold ${hasDrift ? "text-amber-600 dark:text-amber-400" : "text-green-600"}`} data-testid="text-drift-value">
+                    {drift >= 0 ? "+" : ""}£{(drift / 100).toFixed(2)}
+                  </div>
+                </CardContent>
+              </Card>
+            </div>
+
+            {/* Per-club balances (matches what user sees on profile) */}
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Per-club balances (live from credit ledger)</div>
+              {balances.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic">No credit-ledger entries for this user.</p>
+              ) : (
+                <div className="flex flex-wrap gap-2" data-testid="list-per-club-balances">
+                  {balances.map(b => (
+                    <Badge
+                      key={b.clubId}
+                      variant="outline"
+                      className={`text-xs ${b.balance < 0 ? "border-red-300 text-red-600" : "border-emerald-300 text-emerald-700 dark:text-emerald-400"}`}
+                      data-testid={`badge-club-balance-${b.clubId}`}
+                    >
+                      {b.clubName}: {b.balance < 0 ? "-" : ""}£{(Math.abs(b.balance) / 100).toFixed(2)}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Manual amend */}
+            <Card className="border-dashed" data-testid="card-manual-amend">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Sliders className="h-4 w-4" /> Set exact balance (manual fix)
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <p className="text-xs text-muted-foreground">
+                  Pick the club, enter the user-facing balance you want it to land on. Writes a corrective entry to BOTH the credit ledger (what users see) and the wallets table — keeps them in lockstep so drift can't reappear.
+                </p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+                  <div>
+                    <Label className="text-xs">Club</Label>
+                    <Select value={amendClubId} onValueChange={setAmendClubId}>
+                      <SelectTrigger data-testid="select-amend-club"><SelectValue placeholder="Select club" /></SelectTrigger>
+                      <SelectContent>
+                        {(() => {
+                          const balanceMap = new Map(balances.map(b => [b.clubId, b]));
+                          const inScope = (cid: number) => wallet?.isGlobal || (Array.isArray(wallet?.allowedClubIds) && wallet.allowedClubIds.includes(cid));
+                          const candidateIds = new Set<number>();
+                          balances.forEach(b => { if (inScope(b.clubId)) candidateIds.add(b.clubId); });
+                          (clubs || []).forEach((c: any) => { if (inScope(c.id)) candidateIds.add(c.id); });
+                          return Array.from(candidateIds).map(cid => {
+                            const existing = balanceMap.get(cid);
+                            const name = existing?.clubName || (clubs || []).find((c: any) => c.id === cid)?.name || `Club #${cid}`;
+                            const bal = existing?.balance ?? 0;
+                            return (
+                              <SelectItem key={cid} value={String(cid)}>
+                                {name} (£{(bal / 100).toFixed(2)}{!existing ? " · no history" : ""})
+                              </SelectItem>
+                            );
+                          });
+                        })()}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs">Target balance (£)</Label>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      value={amendTarget}
+                      onChange={(e) => setAmendTarget(e.target.value)}
+                      placeholder="e.g. 20.00"
+                      data-testid="input-amend-target"
+                    />
+                  </div>
+                  <div>
+                    <Label className="text-xs">Reason (optional)</Label>
+                    <Input
+                      value={amendReason}
+                      onChange={(e) => setAmendReason(e.target.value)}
+                      placeholder="Manual fix"
+                      data-testid="input-amend-reason"
+                    />
+                  </div>
+                </div>
+                {canSubmit && delta !== null && (
+                  <div className="text-xs rounded-md border bg-muted/40 p-2" data-testid="text-amend-preview">
+                    Will record <strong>{delta >= 0 ? "+" : ""}£{(delta / 100).toFixed(2)}</strong> against{" "}
+                    <strong>{balances.find(b => b.clubId === Number(amendClubId))?.clubName}</strong>:{" "}
+                    £{(targetClubBalance / 100).toFixed(2)} → £{((targetPence ?? 0) / 100).toFixed(2)}.
+                  </div>
+                )}
+                <div className="flex justify-end">
+                  <Button
+                    size="sm"
+                    disabled={!canSubmit || setBalanceMutation.isPending}
+                    onClick={() => setConfirmOpen(true)}
+                    data-testid="button-amend-balance"
+                  >
+                    <Sliders className="h-4 w-4 mr-1" /> Set balance
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Unified history (matches user's profile) */}
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">
+                Transactions ({history.length}) · same feed as the user's profile
+              </div>
+              {history.length === 0 ? (
+                <p className="text-sm text-muted-foreground italic py-4 text-center">No transactions yet.</p>
+              ) : (
+                <div className="overflow-auto max-h-[40vh] border rounded-md">
+                  <Table>
+                    <TableHeader className="bg-muted/40 sticky top-0">
+                      <TableRow>
+                        <TableHead className="text-xs">Date</TableHead>
+                        <TableHead className="text-xs">Source</TableHead>
+                        <TableHead className="text-xs">Amount</TableHead>
+                        <TableHead className="text-xs">Club</TableHead>
+                        <TableHead className="text-xs">Reason</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {history.map((tx: any) => (
+                        <TableRow key={tx.id} data-testid={`row-unified-tx-${tx.id}`}>
+                          <TableCell className="text-xs text-muted-foreground whitespace-nowrap">
+                            {tx.createdAt ? new Date(tx.createdAt).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : "-"}
+                          </TableCell>
+                          <TableCell>
+                            <Badge variant="outline" className={`text-[10px] ${tx.source === "reward" ? "text-amber-600 border-amber-300" : "text-blue-600 border-blue-300"}`}>
+                              {tx.source}
+                            </Badge>
+                          </TableCell>
+                          <TableCell className={`font-semibold text-sm ${tx.amount >= 0 ? "text-green-600" : "text-red-500"}`}>
+                            {tx.amount >= 0 ? "+" : ""}£{(Math.abs(tx.amount) / 100).toFixed(2)}
+                          </TableCell>
+                          <TableCell className="text-xs">{tx.clubName || "—"}</TableCell>
+                          <TableCell className="text-xs text-muted-foreground max-w-[260px] truncate" title={tx.reason}>
+                            {tx.sessionTitle ? `Session: ${tx.sessionTitle} · ` : ""}{tx.reason}
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+              )}
+            </div>
           </div>
         )}
+
+        <Dialog open={confirmOpen} onOpenChange={setConfirmOpen}>
+          <DialogContent className="sm:max-w-md" data-testid="modal-confirm-amend">
+            <DialogHeader>
+              <DialogTitle>Confirm balance change</DialogTitle>
+              <DialogDescription>
+                Set <strong>{balances.find(b => b.clubId === Number(amendClubId))?.clubName}</strong> balance to{" "}
+                <strong>£{((targetPence ?? 0) / 100).toFixed(2)}</strong> ({delta !== null && delta >= 0 ? "+" : ""}£{((delta ?? 0) / 100).toFixed(2)}).
+                Writes to credit ledger AND wallets table.
+              </DialogDescription>
+            </DialogHeader>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setConfirmOpen(false)} data-testid="button-cancel-amend">Cancel</Button>
+              <Button
+                disabled={setBalanceMutation.isPending || !canSubmit}
+                onClick={() => setBalanceMutation.mutate({
+                  clubId: Number(amendClubId),
+                  targetBalance: targetPence!,
+                  reason: amendReason || undefined,
+                })}
+                data-testid="button-confirm-amend"
+              >
+                {setBalanceMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Sliders className="h-4 w-4 mr-1" />}
+                Apply
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </DialogContent>
     </Dialog>
   );
@@ -239,7 +474,7 @@ export default function WalletManagement() {
   const [fundsWallet, setFundsWallet] = useState<any>(null);
   const [fundsMode, setFundsMode] = useState<"add" | "remove">("add");
   const [txModalOpen, setTxModalOpen] = useState(false);
-  const [txWalletId, setTxWalletId] = useState<number | null>(null);
+  const [txWallet, setTxWallet] = useState<any>(null);
 
   const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/clubs"] });
 
@@ -260,16 +495,6 @@ export default function WalletManagement() {
     if (!allWallets) return [];
     return allWallets.filter((w: any) => w.isActive && w.balance <= (w.lowBalanceThreshold || 500));
   }, [allWallets]);
-
-  const { data: txData } = useQuery<any[]>({
-    queryKey: ["/api/god-mode/wallets", txWalletId, "transactions"],
-    queryFn: async () => {
-      const res = await fetch(`/api/god-mode/wallets/${txWalletId}/transactions`, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed");
-      return res.json();
-    },
-    enabled: !!txWalletId && txModalOpen,
-  });
 
   const { data: allUsers } = useQuery<any[]>({
     queryKey: ["/api/admin/users"],
@@ -510,7 +735,7 @@ export default function WalletManagement() {
                               <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setFundsWallet(w); setFundsMode("remove"); setFundsModalOpen(true); }} data-testid={`button-remove-funds-${w.id}`}>
                                 <ArrowDownCircle className="h-3 w-3 mr-0.5 text-red-500" />Remove
                               </Button>
-                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setTxWalletId(w.id); setTxModalOpen(true); }} data-testid={`button-view-tx-${w.id}`}>
+                              <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => { setTxWallet(w); setTxModalOpen(true); }} data-testid={`button-view-tx-${w.id}`}>
                                 <Eye className="h-3 w-3 mr-0.5" />Log
                               </Button>
                               <Button size="sm" variant="outline" className="h-7 text-xs text-orange-600 border-orange-300 hover:bg-orange-50" onClick={() => setResetWalletConfirm(w)} data-testid={`button-reset-wallet-${w.id}`}>
@@ -560,12 +785,13 @@ export default function WalletManagement() {
         />
       )}
 
-      {txModalOpen && txWalletId && (
+      {txModalOpen && txWallet && (
         <TransactionLogModal
-          walletId={txWalletId}
-          transactions={txData || []}
+          walletId={txWallet.id}
+          wallet={txWallet}
+          clubs={clubs || []}
           open={txModalOpen}
-          onClose={() => { setTxModalOpen(false); setTxWalletId(null); }}
+          onClose={() => { setTxModalOpen(false); setTxWallet(null); }}
         />
       )}
 

@@ -33321,6 +33321,164 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     }
   });
 
+  // Unified view: returns the EXACT data the user sees on their profile
+  // (per-club credit balances + combined credit_ledger + reward history),
+  // alongside the wallet-table balance so admins can see drift at a glance.
+  app.get("/api/god-mode/wallets/:walletId/unified-view", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      if (isNaN(walletId)) return res.status(400).json({ message: "Invalid wallet ID" });
+      const [w] = await db.select().from(wallets).where(eq(wallets.id, walletId));
+      if (!w) return res.status(404).json({ message: "Wallet not found" });
+
+      const balancesQ = sql`
+        SELECT "clubId", "clubName", COALESCE(SUM(amount), 0)::int AS balance FROM (
+          SELECT cl.club_id AS "clubId", c.name AS "clubName", cl.amount
+          FROM credit_ledger cl
+          INNER JOIN clubs c ON cl.club_id = c.id
+          WHERE cl.user_id = ${w.userId}
+          UNION ALL
+          SELECT rl.club_id AS "clubId", c.name AS "clubName", rl.credits AS amount
+          FROM player_reward_ledger rl
+          INNER JOIN clubs c ON rl.club_id = c.id
+          WHERE rl.player_id = ${w.userId} AND rl.credits > 0 AND rl.status = 'AVAILABLE'
+        ) combined
+        GROUP BY "clubId", "clubName"
+        ORDER BY "clubName"`;
+      // Like-for-like drift: scope user-facing total to clubs this wallet is
+      // allowed to spend at (all clubs if global). Drift is otherwise
+      // cross-scope and shows false positives when the user has multiple wallets.
+      const allowedClubsForDrift: number[] | null = w.isGlobal ? null : (w.allowedClubIds || []);
+      const historyQ = sql`
+        SELECT * FROM (
+          SELECT 'credit-' || cl.id::text AS id, 'credit' AS source, cl.club_id AS "clubId",
+            cl.amount, cl.reason, cl.linked_session_id AS "linkedSessionId",
+            cl.created_at AS "createdAt", c.name AS "clubName",
+            s.title AS "sessionTitle"
+          FROM credit_ledger cl
+          INNER JOIN clubs c ON cl.club_id = c.id
+          LEFT JOIN sessions s ON cl.linked_session_id = s.id
+          WHERE cl.user_id = ${w.userId}
+          UNION ALL
+          SELECT 'reward-' || rl.id::text AS id, 'reward' AS source, rl.club_id AS "clubId",
+            rl.credits AS amount, rl.description AS reason, NULL::int AS "linkedSessionId",
+            rl.created_at AS "createdAt", c.name AS "clubName",
+            NULL::text AS "sessionTitle"
+          FROM player_reward_ledger rl
+          INNER JOIN clubs c ON rl.club_id = c.id
+          WHERE rl.player_id = ${w.userId} AND rl.credits > 0 AND rl.status = 'AVAILABLE'
+        ) combined
+        ORDER BY "createdAt" DESC
+        LIMIT 200`;
+
+      const [balRes, histRes] = await Promise.all([db.execute(balancesQ), db.execute(historyQ)]);
+      const balances = (balRes.rows as any[]) || [];
+      const history = (histRes.rows as any[]) || [];
+      const userFacingTotal = balances.reduce((s, b) => s + Number(b.balance || 0), 0);
+      // Drift compares wallet vs user balance restricted to this wallet's scope.
+      const inScope = (cid: number) => allowedClubsForDrift === null || allowedClubsForDrift.includes(cid);
+      const userFacingInScope = balances.filter(b => inScope(Number(b.clubId))).reduce((s, b) => s + Number(b.balance || 0), 0);
+      res.json({
+        walletId: w.id,
+        userId: w.userId,
+        walletName: w.name,
+        walletBalance: w.balance,
+        userFacingTotal,
+        userFacingInScope,
+        drift: w.balance - userFacingInScope,
+        driftScope: allowedClubsForDrift === null ? "global" : "scoped",
+        balances,
+        history,
+      });
+    } catch (err: any) {
+      console.error("Unified wallet view error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Manually set the user-facing balance for a specific (user, club) pair.
+  // Computes delta vs current credit_ledger sum, inserts a corrective ledger
+  // row AND mirrors the same delta into wallets.balance + wallet_transactions
+  // so both ledgers stay in lockstep.
+  app.post("/api/god-mode/wallets/:walletId/set-balance", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const u = req.user as any;
+    if (u.role !== "OWNER" && u.role !== "ADMIN") return res.sendStatus(403);
+    try {
+      const walletId = parseInt(req.params.walletId);
+      const { clubId, targetBalance, reason } = req.body || {};
+      if (isNaN(walletId)) return res.status(400).json({ message: "Invalid wallet ID" });
+      if (!clubId || typeof clubId !== "number") return res.status(400).json({ message: "clubId is required" });
+      if (typeof targetBalance !== "number" || !Number.isFinite(targetBalance)) {
+        return res.status(400).json({ message: "targetBalance (pence) is required" });
+      }
+      const result = await db.transaction(async (trx) => {
+        // Row-lock the wallet so concurrent admin amends serialize on it,
+        // preventing two operators both computing delta from the same snapshot.
+        const lockRes = await trx.execute(sql`SELECT * FROM wallets WHERE id = ${walletId} FOR UPDATE`);
+        const w = lockRes.rows?.[0] as any;
+        if (!w) throw new Error("NOT_FOUND");
+        // Enforce wallet scope: scoped wallets can only be amended for clubs
+        // they're allowed to spend at. Global wallets accept any club.
+        if (!w.is_global) {
+          const allowed: number[] = Array.isArray(w.allowed_club_ids) ? w.allowed_club_ids.map(Number) : [];
+          if (!allowed.includes(Number(clubId))) {
+            throw new Error("OUT_OF_SCOPE");
+          }
+        }
+        // Baseline must match what the user sees on /profile: combined
+        // credit_ledger + AVAILABLE positive reward_ledger entries.
+        const currRes = await trx.execute(sql`
+          SELECT COALESCE(SUM(amount), 0)::int AS balance FROM (
+            SELECT cl.amount FROM credit_ledger cl
+              WHERE cl.user_id = ${w.user_id} AND cl.club_id = ${clubId}
+            UNION ALL
+            SELECT rl.credits AS amount FROM player_reward_ledger rl
+              WHERE rl.player_id = ${w.user_id} AND rl.club_id = ${clubId}
+                AND rl.credits > 0 AND rl.status = 'AVAILABLE'
+          ) combined
+        `);
+        const currentBalance = Number((currRes.rows?.[0] as any)?.balance ?? 0);
+        const delta = Math.round(targetBalance - currentBalance);
+        if (delta === 0) {
+          return { walletId, clubId, previousBalance: currentBalance, newBalance: currentBalance, delta: 0, noop: true };
+        }
+        const note = reason || `Manual balance set to £${(targetBalance / 100).toFixed(2)} by admin (was £${(currentBalance / 100).toFixed(2)})`;
+        const ownerUserId = Number(w.user_id);
+        await trx.insert(creditLedger).values({
+          userId: ownerUserId,
+          clubId,
+          amount: delta,
+          reason: note,
+          createdById: u.id,
+        });
+        await trx.update(wallets)
+          .set({ balance: sql`${wallets.balance} + ${delta}`, updatedAt: new Date() })
+          .where(eq(wallets.id, walletId));
+        await trx.insert(walletTransactions).values({
+          walletId,
+          userId: ownerUserId,
+          clubId,
+          amount: delta,
+          type: delta >= 0 ? ("CREDIT" as const) : ("DEBIT" as const),
+          reason: note,
+          createdById: u.id,
+        });
+        return { walletId, clubId, previousBalance: currentBalance, newBalance: targetBalance, delta };
+      });
+      console.log(`[AUDIT] Wallet balance set: walletId=${walletId}, clubId=${(result as any).clubId}, prev=${(result as any).previousBalance}, new=${(result as any).newBalance}, delta=${(result as any).delta}, by=${u.id}`);
+      res.json(result);
+    } catch (err: any) {
+      if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
+      if (err.message === "OUT_OF_SCOPE") return res.status(400).json({ message: "Selected club is not in this wallet's allowed clubs" });
+      console.error("Set wallet balance error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/my-wallets", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

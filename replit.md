@@ -55,6 +55,8 @@ _Populate as you build_
 
 Preferred communication style: Simple, everyday language.
 
+- **Admin Wallet Unified View + Manual Amend**: `/super-admin/wallet-management` (`client/src/pages/super-admin/WalletManagement.tsx`) "Log" button now opens a unified modal that mirrors what users see on `/profile` (sourced from `credit_ledger` + `player_reward_ledger`, same UNION as `/api/my-credits` + `/api/my-credits/history`). Modal shows three cards: **User sees** (sum of credit ledger per club), **Wallet table balance**, and **Drift** (wallet − user) with amber warning when non-zero. Per-club balance chips, full unified history (200 rows), and a "Set exact balance" form (pick club, enter target £, optional reason → confirm) that calls `POST /api/god-mode/wallets/:walletId/set-balance` `{clubId, targetBalance (pence), reason?}`. Endpoint computes `delta = target − currentLedgerSum(user, club)` and atomically writes a corrective row to BOTH `credit_ledger` AND `wallets.balance` + `wallet_transactions` so the two systems stay in lockstep — drift can't reappear from this surface. Read endpoint: `GET /api/god-mode/wallets/:walletId/unified-view` returns `{walletBalance, userFacingTotal, drift, balances[], history[]}`. Both endpoints OWNER/ADMIN-only with `[AUDIT]` log lines.
+
 ## Gotchas
 
 - Express JSON body limit is path-aware in `server/index.ts`: default 256kb for the API surface, with `/api/bsl/clubs*` opted into an 8mb cap so the BSL club registration flow can accept the base64 image fallback when the file-upload endpoint is unavailable. Raise the cap on additional routes by extending `jsonLargeRoutes`, never globally.
