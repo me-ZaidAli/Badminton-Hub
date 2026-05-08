@@ -54,7 +54,7 @@ import {
   SheetDescription,
   SheetTrigger,
 } from "@/components/ui/sheet";
-import { useNavGroups, useBadgeCounts } from "@/components/layout/Sidebar";
+import { useNavGroups, useBadgeCounts, collapseToHubs } from "@/components/layout/Sidebar";
 
 const ALL_NAV_OPTIONS: { id: string; label: string; href: string; icon: any }[] = [
   { id: "dashboard", label: "Dashboard", href: "/dashboard", icon: LayoutDashboard },
@@ -221,7 +221,8 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
   const [location] = useLocation();
   const { data: user } = useUser();
   const { mutate: logout } = useLogout();
-  const { groups: navGroups } = useNavGroups();
+  const { groups: rawNavGroups } = useNavGroups();
+  const navGroups = collapseToHubs(rawNavGroups);
   const { data: badgeCounts } = useBadgeCounts();
 
   if (!user) return null;
@@ -243,9 +244,10 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
                 </span>
                 {group.items.map((item) => {
                   const isActive = location === item.href || (item.href !== "/" && location.startsWith(`${item.href}/`));
-                  const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-                  const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
-                  const badgeCount = primaryCount + secondaryCount;
+                  const badgeCount = item._hubBadgeKeys && badgeCounts
+                    ? item._hubBadgeKeys.reduce((s, k) => s + (badgeCounts[k] || 0), 0)
+                    : ((item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0)
+                      + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0));
                   return (
                     <Link key={item.href} href={item.href}>
                       <button
@@ -302,9 +304,10 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
                 <div className="mt-1 space-y-0.5">
                   {group.items.map((item) => {
                     const isActive = location === item.href || (item.href !== "/" && item.href !== "/dashboard" && location.startsWith(`${item.href}/`));
-                    const primaryCount = item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0;
-                    const secondaryCount = item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0;
-                    const badgeCount = primaryCount + secondaryCount;
+                    const badgeCount = item._hubBadgeKeys && badgeCounts
+                      ? item._hubBadgeKeys.reduce((s, k) => s + (badgeCounts[k] || 0), 0)
+                      : ((item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0)
+                        + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0));
                     return (
                       <Link key={item.href} href={item.href}>
                         <button
