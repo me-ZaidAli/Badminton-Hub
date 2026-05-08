@@ -318,8 +318,63 @@ export function IosFirstVisitPrompt() {
 
 export function PwaInstallButton({ compact = false }: { compact?: boolean }) {
   const { canInstall, isInstalled, install, isIosDevice, showIosGuide, setShowIosGuide } = usePwaInstall();
+  const [showGenericGuide, setShowGenericGuide] = useState(false);
 
-  if (isInstalled || !canInstall) return null;
+  if (isInstalled) return null;
+
+  const handleClick = () => {
+    if (canInstall) {
+      install();
+    } else {
+      // Native prompt not available — show generic instructions so the
+      // button is always actionable from the menu bar.
+      setShowGenericGuide(true);
+    }
+  };
+
+  const guide = showGenericGuide
+    ? createPortal(
+        <div
+          className="fixed inset-0 z-[9999] flex items-end justify-center bg-black/60"
+          onClick={() => setShowGenericGuide(false)}
+        >
+          <div
+            className="w-full max-w-md mx-4 mb-8 rounded-2xl bg-card border border-border p-5 shadow-2xl space-y-4 animate-in slide-in-from-bottom-5 duration-300"
+            onClick={(e) => e.stopPropagation()}
+            data-testid="generic-install-guide"
+          >
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="p-1.5 rounded-lg bg-primary/10">
+                  <Smartphone className="h-5 w-5 text-primary" />
+                </div>
+                <h3 className="text-base font-bold">Install Club Master</h3>
+              </div>
+              <button
+                onClick={() => setShowGenericGuide(false)}
+                className="p-1 rounded-full hover:bg-muted transition-colors"
+                data-testid="button-close-generic-guide-x"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              To install Club Master on your device:
+            </p>
+            <ol className="space-y-2 text-sm list-decimal list-inside">
+              <li>Open this site in <strong>Chrome</strong> (Android) or <strong>Safari</strong> (iOS).</li>
+              <li>Tap the browser menu (three dots on Android, Share icon on iOS).</li>
+              <li>Choose <strong>Install app</strong> or <strong>Add to Home Screen</strong>.</li>
+              <li>Confirm — the app will appear on your home screen.</li>
+            </ol>
+            <Button size="sm" className="w-full" onClick={() => setShowGenericGuide(false)} data-testid="button-close-generic-guide">
+              Got it
+            </Button>
+          </div>
+        </div>,
+        document.body,
+      )
+    : null;
 
   if (compact) {
     return (
@@ -328,13 +383,14 @@ export function PwaInstallButton({ compact = false }: { compact?: boolean }) {
           variant="ghost"
           size="sm"
           className="w-full justify-start gap-3"
-          onClick={install}
+          onClick={handleClick}
           data-testid="button-install-pwa-compact"
         >
           <Download className="w-4 h-4" />
           Install App
         </Button>
         {showIosGuide && <IosInstallGuide onClose={() => setShowIosGuide(false)} />}
+        {guide}
       </>
     );
   }
@@ -345,13 +401,14 @@ export function PwaInstallButton({ compact = false }: { compact?: boolean }) {
         variant="outline"
         size="sm"
         className="w-full justify-start gap-2 h-8 text-xs"
-        onClick={install}
+        onClick={handleClick}
         data-testid="button-install-pwa-main"
       >
         <Download className="h-3.5 w-3.5" />
         Install App
       </Button>
       {showIosGuide && <IosInstallGuide onClose={() => setShowIosGuide(false)} />}
+      {guide}
     </>
   );
 }

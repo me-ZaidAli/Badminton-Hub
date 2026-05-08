@@ -5,6 +5,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useState, useEffect, useMemo } from "react";
+import { PwaInstallButton } from "@/components/PwaInstallPrompt";
 import {
   Activity,
   Calendar,
@@ -355,6 +356,9 @@ function FullMenuSheet({ onClose }: { onClose: () => void }) {
             <span className="flex-1 text-left">Customise Bottom Menu</span>
           </button>
         </Link>
+        <div className="px-1 py-1" onClick={onClose}>
+          <PwaInstallButton compact />
+        </div>
         <button
           onClick={() => {
             onClose();
