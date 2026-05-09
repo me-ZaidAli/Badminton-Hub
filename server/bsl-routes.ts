@@ -806,7 +806,40 @@ export function registerBslRoutes(app: Express) {
       const clubs = await db.select().from(bslClubs).where(eq(bslClubs.status, "PENDING_VERIFICATION"));
       const players = await db.select().from(bslPlayers).where(eq(bslPlayers.status, "PENDING_VERIFICATION"));
       const wallets = await db.select().from(bslWalletTransactions).where(eq(bslWalletTransactions.status, "PENDING"));
-      res.json({ clubs, players, wallets });
+
+      // Hydrate displayName + email on pending players via linked user.
+      const playerUserIds = [...new Set(players.map(p => p.userId).filter(Boolean))] as number[];
+      const playerUserRows = playerUserIds.length
+        ? await db.select({ id: users.id, name: users.fullName, email: users.email }).from(users).where(inArray(users.id, playerUserIds))
+        : [];
+      const playerUserMap = new Map(playerUserRows.map(u => [u.id, u]));
+      const hydratedPlayers = players.map(p => ({
+        ...p,
+        displayName: p.displayName || playerUserMap.get(p.userId)?.name || `Player #${p.id}`,
+        email: playerUserMap.get(p.userId)?.email || null,
+      }));
+
+      // Hydrate wallet top-up rows with bslPlayer + user displayName.
+      const txPlayerIds = [...new Set(wallets.map(w => w.bslPlayerId).filter(Boolean))] as number[];
+      const txPlayerRows = txPlayerIds.length
+        ? await db.select().from(bslPlayers).where(inArray(bslPlayers.id, txPlayerIds))
+        : [];
+      const txUserIds = [...new Set(txPlayerRows.map(p => p.userId).filter(Boolean))] as number[];
+      const txUserRows = txUserIds.length
+        ? await db.select({ id: users.id, name: users.fullName }).from(users).where(inArray(users.id, txUserIds))
+        : [];
+      const txUserMap = new Map(txUserRows.map(u => [u.id, u]));
+      const txPlayerMap = new Map(txPlayerRows.map(p => [p.id, p]));
+      const hydratedWallets = wallets.map(w => {
+        const bp = w.bslPlayerId ? txPlayerMap.get(w.bslPlayerId) : null;
+        const u = bp?.userId ? txUserMap.get(bp.userId) : null;
+        return {
+          ...w,
+          playerName: bp?.displayName || u?.name || (w.bslPlayerId ? `Player #${w.bslPlayerId}` : null),
+        };
+      });
+
+      res.json({ clubs, players: hydratedPlayers, wallets: hydratedWallets });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

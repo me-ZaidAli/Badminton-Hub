@@ -99,8 +99,8 @@ export default function AdminVerify() {
                 {pending.players.map((p: any) => (
                   <div key={p.id} className="flex flex-wrap items-center gap-3 p-3 rounded-lg" style={{ background: "hsla(0,0%,100%,0.03)" }} data-testid={`pending-player-${p.id}`}>
                     <div className="flex-1 min-w-0">
-                      <div className="font-bold">Player #{p.userId}</div>
-                      <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>ref {p.paymentReference}</div>
+                      <div className="font-bold" data-testid={`text-player-name-${p.id}`}>{p.displayName || `Player #${p.userId}`}</div>
+                      <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{p.email ? `${p.email} · ` : ""}ref {p.paymentReference}</div>
                     </div>
                     {p.paymentProofUrl && (
                       <a href={p.paymentProofUrl} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-lg"

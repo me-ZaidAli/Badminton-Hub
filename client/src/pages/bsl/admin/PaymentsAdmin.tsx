@@ -65,13 +65,13 @@ export default function PaymentsAdmin() {
           />} />
 
           <Queue title="Pending Players" tone="cyan" items={pending?.players} renderItem={(p: any) => <Row key={p.id} testid={`pending-player-${p.id}`}
-            left={<><div><div className="font-bold">Player #{p.userId}</div><div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>ref {p.paymentReference}</div></div></>}
+            left={<><div><div className="font-bold" data-testid={`text-pending-player-name-${p.id}`}>{p.displayName || `Player #${p.userId}`}</div><div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{p.email ? `${p.email} · ` : ""}ref {p.paymentReference}</div></div></>}
             proof={p.paymentProofUrl}
             actions={<><ActionButton variant="cyan" onClick={() => approvePlayer.mutate(p.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton><ActionButton variant="danger" onClick={() => rejectPlayer.mutate(p.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton></>}
           />} />
 
           <Queue title="Wallet Top-Ups" tone="gold" items={pending?.wallets} renderItem={(w: any) => <Row key={w.id} testid={`pending-tx-${w.id}`}
-            left={<><WalletIcon className="h-5 w-5" style={{ color: BSL.gold }} /><div><div className="font-bold">£{(w.amount/100).toFixed(2)} · {w.description || w.type}</div><div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>player #{w.bslPlayerId} · ref {w.reference}</div></div></>}
+            left={<><WalletIcon className="h-5 w-5" style={{ color: BSL.gold }} /><div><div className="font-bold">£{(w.amount/100).toFixed(2)} · {w.description || w.type}</div><div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}><span data-testid={`text-tx-player-${w.id}`}>{w.playerName || (w.bslPlayerId ? `Player #${w.bslPlayerId}` : "—")}</span> · ref {w.reference}</div></div></>}
             proof={w.proofUrl}
             actions={<><ActionButton variant="gold" onClick={() => approveTx.mutate(w.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton><ActionButton variant="danger" onClick={() => rejectTx.mutate(w.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton></>}
           />} />
