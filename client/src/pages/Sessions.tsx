@@ -35,6 +35,8 @@ import { useToast } from "@/hooks/use-toast";
 import { CalendarView, TimelineView, GroupedView } from "@/components/SessionViews";
 import { addWeeks, addMonths } from "date-fns";
 import TeamEventsTab from "@/components/TeamEventsTab";
+import { MemberSelector } from "@/components/session/MemberSelector";
+import { SessionTeamBadges } from "@/components/session/SessionTeamBadges";
 
 const CATEGORIES = [
   { value: "A1", label: "A1 (Elite)" },
@@ -1705,6 +1707,17 @@ export default function Sessions() {
                   )}
                 </div>
 
+                {(((session as any).coordinatorUser) || ((session as any).organiserUser) || ((session as any).coachUser)) && (
+                  <div className="mt-3" data-testid={`team-row-${session.id}`}>
+                    <SessionTeamBadges
+                      coordinator={(session as any).coordinatorUser}
+                      organiser={(session as any).organiserUser}
+                      coach={(session as any).coachUser}
+                      sessionId={session.id}
+                    />
+                  </div>
+                )}
+
                 {(session as any).waitingCount > 0 && (
                   <div className="mt-2 flex items-center justify-between gap-2" data-testid={`bar-waiting-list-${session.id}`}>
                     <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300 ring-1 ring-amber-300/50 dark:ring-amber-700/50">
@@ -3210,6 +3223,9 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       customLinks: prefillData?.customLinks ?? [],
       hallName: prefillData?.hallName ?? "",
       courtNames: prefillData?.courtNames ?? [],
+      coachUserId: prefillData?.coachUserId ?? null,
+      organiserUserId: prefillData?.organiserUserId ?? null,
+      coordinatorUserId: prefillData?.coordinatorUserId ?? null,
     }
   });
   const [bannerEnabled, setBannerEnabled] = useState<boolean>(!!prefillData?.bannerMessage);
@@ -3615,6 +3631,42 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                   />
                 </FormControl>
               </FormItem>
+            </div>
+            <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team On Duty (optional)</div>
+              <div>
+                <Label className="text-xs">Coordinator</Label>
+                <MemberSelector
+                  clubId={watchClubId}
+                  value={form.watch("coordinatorUserId" as any) as any}
+                  onChange={(uid) => form.setValue("coordinatorUserId" as any, uid as any, { shouldDirty: true })}
+                  preferredRole="COORDINATOR"
+                  placeholder="Assign a coordinator"
+                  testId="select-create-coordinator"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Organiser</Label>
+                <MemberSelector
+                  clubId={watchClubId}
+                  value={form.watch("organiserUserId" as any) as any}
+                  onChange={(uid) => form.setValue("organiserUserId" as any, uid as any, { shouldDirty: true })}
+                  preferredRole="ORGANISER"
+                  placeholder="Assign an organiser"
+                  testId="select-create-organiser"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Coach</Label>
+                <MemberSelector
+                  clubId={watchClubId}
+                  value={form.watch("coachUserId" as any) as any}
+                  onChange={(uid) => form.setValue("coachUserId" as any, uid as any, { shouldDirty: true })}
+                  preferredRole="COACH"
+                  placeholder="Assign a coach"
+                  testId="select-create-coach"
+                />
+              </div>
             </div>
             <FormField
               control={form.control}
@@ -4062,6 +4114,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const { data: editUser } = useUser();
   const isEditSuperAdmin = editUser?.role === "OWNER";
   const [editGuestClubIds, setEditGuestClubIds] = useState<number[]>([]);
+  const [editCoachUserId, setEditCoachUserId] = useState<number | null>(null);
+  const [editOrganiserUserId, setEditOrganiserUserId] = useState<number | null>(null);
+  const [editCoordinatorUserId, setEditCoordinatorUserId] = useState<number | null>(null);
 
   const applyToSeriesMutation = useMutation({
     mutationFn: async ({ recurringEventId, fromDate, updates }: { recurringEventId: number; fromDate?: string; updates: any }) => {
@@ -4127,6 +4182,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditHallName(session.hallName || "");
     setEditCourtNames(session.courtNames?.join(", ") || "");
     setEditGuestClubIds(session.guestClubIds || []);
+    setEditCoachUserId(session.coachUserId ?? null);
+    setEditOrganiserUserId(session.organiserUserId ?? null);
+    setEditCoordinatorUserId(session.coordinatorUserId ?? null);
     if (session.publishAt) {
       setEditScheduleEnabled(true);
       const sessionDate = new Date(session.date);
@@ -4199,6 +4257,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       publishAt: publishAt?.toISOString() || null,
       scheduleWeeksBefore: editScheduleEnabled ? editWeeksBefore : undefined,
       ...(isEditSuperAdmin ? { guestClubIds: editGuestClubIds.length > 0 ? editGuestClubIds : null } : {}),
+      coachUserId: editCoachUserId,
+      organiserUserId: editOrganiserUserId,
+      coordinatorUserId: editCoordinatorUserId,
     };
   };
 
@@ -4563,6 +4624,42 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                 <SelectItem value="TRAINING">Training</SelectItem>
               </SelectContent>
             </Select>
+          </div>
+          <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team On Duty (optional)</div>
+            <div>
+              <Label className="text-xs">Coordinator</Label>
+              <MemberSelector
+                clubId={editClubId}
+                value={editCoordinatorUserId}
+                onChange={setEditCoordinatorUserId}
+                preferredRole="COORDINATOR"
+                placeholder="Assign a coordinator"
+                testId="select-edit-coordinator"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Organiser</Label>
+              <MemberSelector
+                clubId={editClubId}
+                value={editOrganiserUserId}
+                onChange={setEditOrganiserUserId}
+                preferredRole="ORGANISER"
+                placeholder="Assign an organiser"
+                testId="select-edit-organiser"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Coach</Label>
+              <MemberSelector
+                clubId={editClubId}
+                value={editCoachUserId}
+                onChange={setEditCoachUserId}
+                preferredRole="COACH"
+                placeholder="Assign a coach"
+                testId="select-edit-coach"
+              />
+            </div>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>

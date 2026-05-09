@@ -4858,7 +4858,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, customLinks, hallName, guestClubIds } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, customLinks, hallName, guestClubIds, coachUserId, organiserUserId, coordinatorUserId } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -4955,6 +4955,23 @@ export async function registerRoutes(
           return res.status(403).json({ message: "Only super admins can set guest club access" });
         }
         updates.guestClubIds = Array.isArray(guestClubIds) && guestClubIds.length > 0 ? guestClubIds : null;
+      }
+      const teamUserFields = { coachUserId, organiserUserId, coordinatorUserId };
+      for (const [key, val] of Object.entries(teamUserFields)) {
+        if (val === undefined) continue;
+        if (val === null) {
+          updates[key] = null;
+          continue;
+        }
+        const numId = Number(val);
+        if (!Number.isInteger(numId) || numId <= 0) {
+          return res.status(400).json({ message: `${key} must be a positive integer or null` });
+        }
+        const profile = await storage.getPlayerProfile(numId, session.clubId);
+        if (!profile) {
+          return res.status(400).json({ message: `Selected ${key.replace("UserId", "")} is not a member of this club` });
+        }
+        updates[key] = numId;
       }
 
       const updated = await storage.updateSession(sessionId, updates);
@@ -10011,13 +10028,23 @@ export async function registerRoutes(
         return res.status(404).json({ message: "Member not found in this club" });
       }
 
-      const { membershipStatus, clubRole, category, grade: gradeField, gender, fullName } = req.body;
+      const { membershipStatus, clubRole, category, grade: gradeField, gender, fullName, teamRoles } = req.body;
       
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
         return res.status(400).json({ message: "Invalid membership status" });
       }
       if (clubRole && !["OWNER", "ADMIN", "ORGANISER", "PLAYER"].includes(clubRole)) {
         return res.status(400).json({ message: "Invalid club role" });
+      }
+      if (teamRoles !== undefined) {
+        if (!Array.isArray(teamRoles)) {
+          return res.status(400).json({ message: "teamRoles must be an array of strings" });
+        }
+        for (const r of teamRoles) {
+          if (typeof r !== "string" || r.trim().length === 0 || r.length > 64) {
+            return res.status(400).json({ message: "Each team role must be a non-empty string up to 64 chars" });
+          }
+        }
       }
       const gradeInput = gradeField || category;
       if (gradeInput && !["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"].includes(gradeInput)) {
@@ -10038,6 +10065,10 @@ export async function registerRoutes(
         updates.grade = gradeInput;
       }
       if (gender) updates.gender = gender;
+      if (teamRoles !== undefined) {
+        const cleaned = (teamRoles as string[]).map(r => r.trim()).filter(Boolean);
+        updates.teamRoles = Array.from(new Set(cleaned));
+      }
 
       if (membershipStatus === "APPROVED" && !clubRole) {
         updates.clubRole = "ADMIN";

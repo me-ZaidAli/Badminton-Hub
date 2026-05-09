@@ -61,8 +61,8 @@ export interface IStorage {
   deleteVenue(id: number): Promise<void>;
 
   // Sessions
-  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; waitingCount: number; matchCount: number; venue?: Venue })[]>;
-  getSession(id: number): Promise<(Session & { venue?: Venue }) | undefined>;
+  getSessions(from?: Date, to?: Date): Promise<(Session & { signupCount: number; waitingCount: number; matchCount: number; venue?: Venue; coachUser?: { id: number; fullName: string }; organiserUser?: { id: number; fullName: string }; coordinatorUser?: { id: number; fullName: string } })[]>;
+  getSession(id: number): Promise<(Session & { venue?: Venue; coachUser?: { id: number; fullName: string }; organiserUser?: { id: number; fullName: string }; coordinatorUser?: { id: number; fullName: string } }) | undefined>;
   createSession(session: InsertSession & { createdBy: number }): Promise<Session>;
   updateSession(id: number, updates: Partial<Session>): Promise<Session>;
   deleteSession(id: number): Promise<void>;
@@ -535,12 +535,23 @@ export class DatabaseStorage implements IStorage {
     const venueRows = venueIds.length > 0 ? await db.select().from(venues).where(inArray(venues.id, venueIds)) : [];
     const venueMap = new Map(venueRows.map(v => [v.id, v]));
 
+    const teamUserIds = [...new Set(
+      allSessions.flatMap(s => [s.coachUserId, s.organiserUserId, s.coordinatorUserId]).filter(Boolean)
+    )] as number[];
+    const teamUserRows = teamUserIds.length > 0
+      ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, teamUserIds))
+      : [];
+    const teamUserMap = new Map(teamUserRows.map(u => [u.id, u]));
+
     const sessionsWithData = allSessions.map((s) => ({
       ...s,
       signupCount: countsBySession.get(s.id) || 0,
       waitingCount: waitingBySession.get(s.id) || 0,
       matchCount: matchCountsBySession.get(s.id) || 0,
       venue: s.venueId ? venueMap.get(s.venueId) : undefined,
+      coachUser: s.coachUserId ? teamUserMap.get(s.coachUserId) : undefined,
+      organiserUser: s.organiserUserId ? teamUserMap.get(s.organiserUserId) : undefined,
+      coordinatorUser: s.coordinatorUserId ? teamUserMap.get(s.coordinatorUserId) : undefined,
     }));
 
     return sessionsWithData;
@@ -574,7 +585,7 @@ export class DatabaseStorage implements IStorage {
     }));
   }
 
-  async getSession(id: number): Promise<(Session & { venue?: Venue }) | undefined> {
+  async getSession(id: number): Promise<(Session & { venue?: Venue; coachUser?: { id: number; fullName: string }; organiserUser?: { id: number; fullName: string }; coordinatorUser?: { id: number; fullName: string } }) | undefined> {
     const [session] = await db.select().from(sessions).where(eq(sessions.id, id));
     if (!session) return undefined;
     
@@ -583,8 +594,20 @@ export class DatabaseStorage implements IStorage {
       const [v] = await db.select().from(venues).where(eq(venues.id, session.venueId));
       venue = v;
     }
-    
-    return { ...session, venue };
+
+    const teamUserIds = [session.coachUserId, session.organiserUserId, session.coordinatorUserId].filter(Boolean) as number[];
+    const teamUserRows = teamUserIds.length > 0
+      ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, teamUserIds))
+      : [];
+    const teamUserMap = new Map(teamUserRows.map(u => [u.id, u]));
+
+    return {
+      ...session,
+      venue,
+      coachUser: session.coachUserId ? teamUserMap.get(session.coachUserId) : undefined,
+      organiserUser: session.organiserUserId ? teamUserMap.get(session.organiserUserId) : undefined,
+      coordinatorUser: session.coordinatorUserId ? teamUserMap.get(session.coordinatorUserId) : undefined,
+    };
   }
 
   async createSession(session: InsertSession & { createdBy: number }): Promise<Session> {

@@ -13,10 +13,114 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save, Archive, Pause, Play, Crown, Search, UserPlus } from "lucide-react";
+import { Plus, Building2, Users, Settings, Check, X, Loader2, Trash2, Shield, Clock, CheckCircle, XCircle, UserCog, MapPin, ExternalLink, Save, Archive, Pause, Play, Crown, Search, UserPlus, GraduationCap, ShieldCheck } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { useToast } from "@/hooks/use-toast";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Club, PlayerProfile, User as UserType } from "@shared/schema";
+
+const STANDARD_TEAM_ROLES = ["COORDINATOR", "ORGANISER", "COACH"] as const;
+const TEAM_ROLE_META: Record<string, { label: string; chip: string }> = {
+  COORDINATOR: { label: "Coordinator", chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30" },
+  ORGANISER: { label: "Organiser", chip: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30" },
+  COACH: { label: "Coach", chip: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30" },
+};
+
+function teamRoleLabel(role: string) {
+  if (role.startsWith("CUSTOM:")) return role.slice(7);
+  return TEAM_ROLE_META[role]?.label ?? role;
+}
+function teamRoleChip(role: string) {
+  if (role.startsWith("CUSTOM:")) return "bg-muted text-foreground border-border";
+  return TEAM_ROLE_META[role]?.chip ?? "bg-muted text-foreground border-border";
+}
+
+function TeamRolesEditor({ roles, onChange, testId }: { roles: string[]; onChange: (next: string[]) => void; testId: string }) {
+  const [open, setOpen] = useState(false);
+  const [customDraft, setCustomDraft] = useState("");
+  const standardActive = (r: string) => roles.includes(r);
+  const customRoles = roles.filter((r) => r.startsWith("CUSTOM:"));
+
+  const toggle = (role: string) => {
+    onChange(standardActive(role) ? roles.filter((r) => r !== role) : [...roles, role]);
+  };
+  const addCustom = () => {
+    const trimmed = customDraft.trim();
+    if (!trimmed) return;
+    const encoded = `CUSTOM:${trimmed.slice(0, 56)}`;
+    if (roles.includes(encoded)) {
+      setCustomDraft("");
+      return;
+    }
+    onChange([...roles, encoded]);
+    setCustomDraft("");
+  };
+  const removeRole = (role: string) => onChange(roles.filter((r) => r !== role));
+
+  return (
+    <div className="flex flex-wrap items-center gap-1.5" data-testid={testId}>
+      {roles.map((role) => (
+        <span
+          key={role}
+          className={`inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-medium ${teamRoleChip(role)}`}
+          data-testid={`${testId}-chip-${role}`}
+        >
+          {teamRoleLabel(role)}
+          <button
+            type="button"
+            onClick={() => removeRole(role)}
+            className="opacity-60 hover:opacity-100"
+            aria-label={`Remove ${teamRoleLabel(role)}`}
+            data-testid={`${testId}-remove-${role}`}
+          >
+            <X className="h-3 w-3" />
+          </button>
+        </span>
+      ))}
+      <Popover open={open} onOpenChange={setOpen}>
+        <PopoverTrigger asChild>
+          <Button type="button" size="sm" variant="outline" className="h-7 px-2 text-xs" data-testid={`${testId}-add`}>
+            <Plus className="h-3 w-3 mr-1" /> Role
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent align="start" className="w-64 p-3 space-y-3">
+          <div className="space-y-1">
+            {STANDARD_TEAM_ROLES.map((r) => (
+              <label key={r} className="flex items-center gap-2 cursor-pointer text-sm">
+                <Checkbox
+                  checked={standardActive(r)}
+                  onCheckedChange={() => toggle(r)}
+                  data-testid={`${testId}-toggle-${r}`}
+                />
+                <span>{TEAM_ROLE_META[r].label}</span>
+              </label>
+            ))}
+          </div>
+          <div className="border-t pt-2 space-y-2">
+            <Label className="text-xs uppercase text-muted-foreground">Custom role</Label>
+            <div className="flex gap-1">
+              <Input
+                value={customDraft}
+                onChange={(e) => setCustomDraft(e.target.value)}
+                placeholder="e.g. Captain"
+                maxLength={56}
+                onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addCustom(); } }}
+                className="h-8 text-sm"
+                data-testid={`${testId}-custom-input`}
+              />
+              <Button type="button" size="sm" onClick={addCustom} disabled={!customDraft.trim()} data-testid={`${testId}-custom-add`}>
+                Add
+              </Button>
+            </div>
+            {customRoles.length > 0 && (
+              <p className="text-[11px] text-muted-foreground">Click X on a chip to remove it.</p>
+            )}
+          </div>
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
+}
 
 type MemberWithUser = PlayerProfile & { user: UserType };
 type UserWithProfile = UserType & { playerProfile: PlayerProfile | null };
@@ -126,7 +230,7 @@ export default function ClubManagement() {
   });
 
   const updateMemberMutation = useMutation({
-    mutationFn: async ({ profileId, updates }: { profileId: number; updates: { membershipStatus?: string; clubRole?: string } }) => {
+    mutationFn: async ({ profileId, updates }: { profileId: number; updates: { membershipStatus?: string; clubRole?: string; teamRoles?: string[] } }) => {
       const res = await apiRequest("PATCH", `/api/clubs/${manageClub!.id}/members/${profileId}`, updates);
       return res.json();
     },
@@ -955,6 +1059,7 @@ export default function ClubManagement() {
                       <TableHead>Member</TableHead>
                       <TableHead>Status</TableHead>
                       <TableHead>Club Role</TableHead>
+                      <TableHead>Team Roles</TableHead>
                       <TableHead>Points</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -1003,6 +1108,13 @@ export default function ClubManagement() {
                               <SelectItem value="PLAYER">Player</SelectItem>
                             </SelectContent>
                           </Select>
+                        </TableCell>
+                        <TableCell>
+                          <TeamRolesEditor
+                            roles={(member as any).teamRoles ?? []}
+                            onChange={(next) => updateMemberMutation.mutate({ profileId: member.id, updates: { teamRoles: next } })}
+                            testId={`team-roles-${member.id}`}
+                          />
                         </TableCell>
                         <TableCell>{(member as any).eloRating ?? 0}</TableCell>
                       </TableRow>

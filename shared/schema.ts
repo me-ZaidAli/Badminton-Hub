@@ -305,6 +305,11 @@ export const playerProfiles = pgTable("player_profiles", {
   matchesPlayed: integer("matches_played").default(0).notNull(),
   matchesWon: integer("matches_won").default(0).notNull(),
   membershipId: integer("membership_id").references(() => membershipPlans.id),
+  // Team roles assigned by the club admin. Standard slots are stored as bare
+  // strings ("COACH", "ORGANISER", "COORDINATOR"). Custom roles are encoded
+  // as `CUSTOM:<Display Name>` so we can extend the role set without an
+  // enum migration.
+  teamRoles: text("team_roles").array().default(sql`'{}'::text[]`).notNull(),
   joinedAt: timestamp("joined_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
 });
@@ -391,6 +396,12 @@ export const sessions = pgTable("sessions", {
   bannerColor: text("banner_color"),
   customLinks: jsonb("custom_links").$type<{ title: string; url: string }[]>().default([]),
   guestClubIds: jsonb("guest_club_ids").$type<number[]>(),
+  // Team member assignments (references users.id; null when unassigned).
+  // These are the headline roles surfaced on session cards. Custom team
+  // roles per club are tracked on `playerProfiles.teamRoles`.
+  coachUserId: integer("coach_user_id").references(() => users.id),
+  organiserUserId: integer("organiser_user_id").references(() => users.id),
+  coordinatorUserId: integer("coordinator_user_id").references(() => users.id),
 });
 
 // === SESSION SIGNUPS ===

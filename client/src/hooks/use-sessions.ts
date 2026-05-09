@@ -92,6 +92,9 @@ export function useUpdateSession() {
       courtNames?: string[];
       liveStreamUrl?: string;
       autoGenerateActive?: boolean;
+      coachUserId?: number | null;
+      organiserUserId?: number | null;
+      coordinatorUserId?: number | null;
     } }) => {
       const res = await fetch(`/api/sessions/${sessionId}`, {
         method: "PATCH",
