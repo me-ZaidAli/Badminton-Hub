@@ -1876,7 +1876,7 @@ export function CalendarView({ sessions, clubs, onSessionClick, adminActions }: 
                   onClick={() => setSelectedDay(day)}
                   data-testid={`calendar-day-${key}`}
                 >
-                  <span className={`text-xs sm:text-sm ${isToday ? "font-bold text-primary" : ""}`}>
+                  <span className={`text-xs sm:text-sm ${isToday ? "font-bold text-black" : ""}`}>
                     {format(day, "d")}
                   </span>
                   {daySessions.length > 0 && (
