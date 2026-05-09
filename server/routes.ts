@@ -4957,6 +4957,7 @@ export async function registerRoutes(
         updates.guestClubIds = Array.isArray(guestClubIds) && guestClubIds.length > 0 ? guestClubIds : null;
       }
       const teamUserFields = { coachUserId, organiserUserId, coordinatorUserId };
+      const effectiveClubId = updates.clubId ?? session.clubId;
       for (const [key, val] of Object.entries(teamUserFields)) {
         if (val === undefined) continue;
         if (val === null) {
@@ -4967,9 +4968,12 @@ export async function registerRoutes(
         if (!Number.isInteger(numId) || numId <= 0) {
           return res.status(400).json({ message: `${key} must be a positive integer or null` });
         }
-        const profile = await storage.getPlayerProfile(numId, session.clubId);
+        const profile = await storage.getPlayerProfile(numId, effectiveClubId);
         if (!profile) {
           return res.status(400).json({ message: `Selected ${key.replace("UserId", "")} is not a member of this club` });
+        }
+        if (profile.membershipStatus !== "APPROVED") {
+          return res.status(400).json({ message: `Selected ${key.replace("UserId", "")} is not an approved member of this club` });
         }
         updates[key] = numId;
       }
@@ -10062,10 +10066,24 @@ export async function registerRoutes(
         if (!Array.isArray(teamRoles)) {
           return res.status(400).json({ message: "teamRoles must be an array of strings" });
         }
+        const STANDARD_ROLES = new Set(["COACH", "ORGANISER", "COORDINATOR"]);
         for (const r of teamRoles) {
-          if (typeof r !== "string" || r.trim().length === 0 || r.length > 64) {
-            return res.status(400).json({ message: "Each team role must be a non-empty string up to 64 chars" });
+          if (typeof r !== "string") {
+            return res.status(400).json({ message: "Each team role must be a string" });
           }
+          const trimmed = r.trim();
+          if (trimmed.length === 0 || trimmed.length > 64) {
+            return res.status(400).json({ message: "Each team role must be 1-64 chars" });
+          }
+          if (STANDARD_ROLES.has(trimmed)) continue;
+          if (trimmed.startsWith("CUSTOM:")) {
+            const label = trimmed.slice(7).trim();
+            if (label.length === 0 || label.length > 56) {
+              return res.status(400).json({ message: "Custom team role label must be 1-56 chars" });
+            }
+            continue;
+          }
+          return res.status(400).json({ message: `Invalid team role: ${trimmed}. Must be COACH, ORGANISER, COORDINATOR, or CUSTOM:<label>` });
         }
       }
       const gradeInput = gradeField || category;

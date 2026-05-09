@@ -9,6 +9,7 @@ import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
 import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, CheckCircle2, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X } from "lucide-react";
 import { Link } from "wouter";
+import { SessionTeamBadges } from "@/components/session/SessionTeamBadges";
 
 const SESSION_BANNER_COLORS = {
   red:    { bar: "bg-red-500 dark:bg-red-600",       text: "text-white", icon: AlertTriangle },
@@ -1254,6 +1255,17 @@ function TimelineSessionCard({
 
         {clubName && (
           <div className="mt-2 text-sm font-semibold text-foreground/85">{clubName}</div>
+        )}
+
+        {(((session as any).coordinatorUser) || ((session as any).organiserUser) || ((session as any).coachUser)) && (
+          <div className="mt-2" data-testid={`timeline-team-row-${session.id}`}>
+            <SessionTeamBadges
+              coordinator={(session as any).coordinatorUser}
+              organiser={(session as any).organiserUser}
+              coach={(session as any).coachUser}
+              sessionId={session.id}
+            />
+          </div>
         )}
 
         {(session as any).waitingCount > 0 && (
