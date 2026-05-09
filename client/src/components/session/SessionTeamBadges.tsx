@@ -17,20 +17,20 @@ const ROLE_STYLES: Record<string, { label: string; icon: React.ComponentType<{ c
   coordinator: {
     label: "Coordinator",
     icon: Crown,
-    chip: "bg-amber-500/15 text-amber-700 dark:text-amber-300 border-amber-500/30",
-    ring: "ring-2 ring-amber-400/60",
+    chip: "bg-amber-500/25 text-amber-900 dark:text-amber-100 border-amber-400/60",
+    ring: "ring-2 ring-amber-400/70",
   },
   organiser: {
     label: "Organiser",
     icon: ShieldCheck,
-    chip: "bg-blue-500/15 text-blue-700 dark:text-blue-300 border-blue-500/30",
-    ring: "ring-2 ring-blue-400/50",
+    chip: "bg-blue-500/25 text-blue-900 dark:text-blue-100 border-blue-400/60",
+    ring: "ring-2 ring-blue-400/60",
   },
   coach: {
     label: "Coach",
     icon: GraduationCap,
-    chip: "bg-violet-500/15 text-violet-700 dark:text-violet-300 border-violet-500/30",
-    ring: "ring-2 ring-violet-400/50",
+    chip: "bg-violet-500/25 text-violet-900 dark:text-violet-50 border-violet-400/60",
+    ring: "ring-2 ring-violet-400/60",
   },
 };
 
@@ -50,8 +50,8 @@ export function SessionTeamBadges({
 
   if (items.length === 0) return null;
 
-  const avatarSize = size === "md" ? "h-7 w-7" : "h-5 w-5";
-  const textSize = size === "md" ? "text-xs" : "text-[11px]";
+  const avatarSize = size === "md" ? "h-7 w-7" : "h-6 w-6";
+  const textSize = size === "md" ? "text-sm" : "text-xs";
 
   return (
     <div
@@ -65,7 +65,7 @@ export function SessionTeamBadges({
           <div
             key={key as string}
             className={cn(
-              "inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5",
+              "inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 font-semibold",
               style.chip,
               textSize,
             )}
@@ -74,13 +74,13 @@ export function SessionTeamBadges({
           >
             <Avatar className={cn(avatarSize, style.ring)}>
               <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${person.fullName}`} />
-              <AvatarFallback className="text-[9px]">
+              <AvatarFallback className="text-[10px] font-bold">
                 {person.fullName.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <Icon className="h-3 w-3" />
-            <span className="font-semibold">{style.label}</span>
-            <span className="opacity-80 truncate max-w-[100px]">{person.fullName.split(" ")[0]}</span>
+            <Icon className="h-3.5 w-3.5" />
+            <span>{style.label}</span>
+            <span className="opacity-90 truncate max-w-[120px]">{person.fullName.split(" ")[0]}</span>
           </div>
         );
       })}
