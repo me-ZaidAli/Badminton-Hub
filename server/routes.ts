@@ -10002,7 +10002,29 @@ export async function registerRoutes(
 
     try {
       const members = await storage.getClubMembers(clubId);
-      res.json(members);
+      // Sanitize: never leak password / reset tokens / internal account fields.
+      const safe = members.map((m: any) => ({
+        id: m.id,
+        userId: m.userId,
+        clubId: m.clubId,
+        clubRole: m.clubRole,
+        membershipStatus: m.membershipStatus,
+        grade: m.grade,
+        gender: m.gender,
+        eloRating: m.eloRating,
+        rankingPoints: m.rankingPoints,
+        teamRoles: m.teamRoles ?? [],
+        joinedAt: m.joinedAt,
+        user: m.user ? {
+          id: m.user.id,
+          fullName: m.user.fullName,
+          email: m.user.email,
+          phone: m.user.phone ?? null,
+          avatarUrl: m.user.avatarUrl ?? null,
+          role: m.user.role,
+        } : undefined,
+      }));
+      res.json(safe);
     } catch (err: any) {
       console.error("Error fetching club members:", err);
       res.status(500).json({ message: err.message || "Failed to fetch members" });
