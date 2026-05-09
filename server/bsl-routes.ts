@@ -1053,7 +1053,26 @@ export function registerBslRoutes(app: Express) {
       const status = req.query.status as string | undefined;
       let rows = await db.select().from(bslWalletTransactions).orderBy(desc(bslWalletTransactions.createdAt));
       if (status) rows = rows.filter(r => r.status === status);
-      res.json(rows);
+
+      const playerIds = [...new Set(rows.map(r => r.bslPlayerId).filter(Boolean))] as number[];
+      const playerRows = playerIds.length
+        ? await db.select().from(bslPlayers).where(inArray(bslPlayers.id, playerIds))
+        : [];
+      const userIds = [...new Set(playerRows.map(p => p.userId).filter(Boolean))] as number[];
+      const userRows = userIds.length
+        ? await db.select({ id: users.id, name: users.fullName }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map(u => [u.id, u]));
+      const playerMap = new Map(playerRows.map(p => [p.id, p]));
+      const hydrated = rows.map(r => {
+        const bp = r.bslPlayerId ? playerMap.get(r.bslPlayerId) : null;
+        const u = bp?.userId ? userMap.get(bp.userId) : null;
+        return {
+          ...r,
+          playerName: bp?.displayName || u?.name || (r.bslPlayerId ? `Player #${r.bslPlayerId}` : null),
+        };
+      });
+      res.json(hydrated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   app.get("/api/bsl/admin/payments/export.csv", requireAdmin, async (_req, res) => {

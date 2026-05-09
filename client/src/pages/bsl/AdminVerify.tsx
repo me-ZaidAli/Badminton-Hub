@@ -125,7 +125,7 @@ export default function AdminVerify() {
                   <div key={w.id} className="flex flex-wrap items-center gap-3 p-3 rounded-lg" style={{ background: "hsla(0,0%,100%,0.03)" }} data-testid={`pending-tx-${w.id}`}>
                     <div className="flex-1 min-w-0">
                       <div className="font-bold">£{(w.amount / 100).toFixed(2)} · {w.description || w.type}</div>
-                      <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>player #{w.bslPlayerId} · ref {w.reference}</div>
+                      <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}><span data-testid={`text-pending-tx-player-${w.id}`}>{w.playerName || (w.bslPlayerId ? `Player #${w.bslPlayerId}` : "—")}</span> · ref {w.reference}</div>
                     </div>
                     {w.proofUrl && (
                       <a href={w.proofUrl} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-lg"

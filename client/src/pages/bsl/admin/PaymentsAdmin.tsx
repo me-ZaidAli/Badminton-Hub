@@ -93,7 +93,7 @@ export default function PaymentsAdmin() {
                   {history.map((t: any, i: number) => (
                     <motion.tr key={t.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: i * 0.01 }} className="border-t" style={{ borderColor: BSL.border }} data-testid={`tx-${t.id}`}>
                       <td className="px-2 py-2 text-xs">{new Date(t.createdAt).toLocaleString("en-GB")}</td>
-                      <td className="px-2 py-2">#{t.bslPlayerId}</td>
+                      <td className="px-2 py-2" data-testid={`text-history-player-${t.id}`}>{t.playerName || (t.bslPlayerId ? `Player #${t.bslPlayerId}` : "—")}</td>
                       <td className="px-2 py-2"><span className="text-[10px] font-black uppercase tracking-widest" style={{ color: t.type === "TOPUP" ? BSL.success : BSL.gold }}>{t.type}</span></td>
                       <td className="px-2 py-2 text-right tabular-nums font-bold" style={{ color: BSL.gold }}>£{(t.amount/100).toFixed(2)}</td>
                       <td className="px-2 py-2"><span className="text-[10px] uppercase font-black px-2 py-0.5 rounded" style={{ background: `${TX_COLOR[t.status]}22`, color: TX_COLOR[t.status] }}>{t.status}</span></td>
