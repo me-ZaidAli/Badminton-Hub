@@ -70,6 +70,8 @@ interface SessionDetail {
   matchMode?: string | null;
   venue?: { id: number; name: string; address?: string | null; city?: string | null } | null;
   creator?: { id: number; fullName: string; email?: string | null; profilePictureUrl?: string | null } | null;
+  coachUser?: { id: number; fullName: string; profilePictureUrl?: string | null } | null;
+  coachUserId?: number | null;
 }
 
 interface ExpenseRow {
@@ -229,7 +231,7 @@ export default function SessionFinancialSnapshot({
   });
 
   const venue = sessionDetail?.venue ?? null;
-  const coachUser = sessionDetail?.creator ?? null;
+  const coachUser = sessionDetail?.coachUser ?? sessionDetail?.creator ?? null;
 
   const totals = useMemo(() => {
     const expected = entries.reduce((s, e) => s + (e.fee || 0), 0);
@@ -246,7 +248,7 @@ export default function SessionFinancialSnapshot({
       collected,
       outstanding,
       expensesTotal,
-      coachEarnings: collected,
+      coachEarnings: expected,
     };
   }, [entries, expenses]);
 
@@ -558,7 +560,7 @@ export default function SessionFinancialSnapshot({
                 </div>
               </div>
               <Separator className="my-4" />
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-sm">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 text-sm">
                 <div className="space-y-0.5">
                   <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
                     <CalendarDays className="h-3 w-3" /> Date
@@ -573,6 +575,14 @@ export default function SessionFinancialSnapshot({
                   </div>
                   <div className="font-medium" data-testid="text-snapshot-time">
                     {startTime ? `${startTime}${endTime ? ` – ${endTime}` : ""}` : "—"}
+                  </div>
+                </div>
+                <div className="space-y-0.5">
+                  <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+                    <Clock className="h-3 w-3" /> Duration
+                  </div>
+                  <div className="font-medium" data-testid="text-snapshot-duration">
+                    {sessionDetail?.durationMinutes ? `${sessionDetail.durationMinutes} min` : "—"}
                   </div>
                 </div>
                 <div className="space-y-0.5">
@@ -632,8 +642,8 @@ export default function SessionFinancialSnapshot({
                 />
               </div>
               <p className="mt-3 text-[11px] text-muted-foreground leading-snug">
-                Coach earnings = total collected. Expenses are shown for reference only and are
-                not deducted (coach paid them in advance).
+                Coach earnings = total session fee (full expected income). Expenses are shown for
+                reference only and are not deducted (coach paid them in advance).
               </p>
             </div>
 

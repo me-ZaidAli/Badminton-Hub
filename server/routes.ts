@@ -2756,7 +2756,14 @@ export async function registerRoutes(
           if (u) creator = { id: u.id, fullName: u.fullName, profilePictureUrl: (u as any).profilePictureUrl ?? null };
         } catch {}
       }
-      res.json({ ...session, venue, creator });
+      let coachUser: any = (session as any).coachUser ?? null;
+      if (!coachUser && (session as any).coachUserId) {
+        try {
+          const u = await storage.getUser((session as any).coachUserId);
+          if (u) coachUser = { id: u.id, fullName: u.fullName, profilePictureUrl: (u as any).profilePictureUrl ?? null };
+        } catch {}
+      }
+      res.json({ ...session, venue, creator, coachUser });
     } catch (err: any) {
       console.error("[GET session] Error:", err);
       res.status(500).json({ message: err.message });
