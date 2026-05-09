@@ -2484,9 +2484,10 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       customLinks: prefillData?.customLinks ?? [],
       hallName: prefillData?.hallName ?? "",
       courtNames: prefillData?.courtNames ?? [],
-      coachUserId: prefillData?.coachUserId ?? null,
-      organiserUserId: prefillData?.organiserUserId ?? null,
-      coordinatorUserId: prefillData?.coordinatorUserId ?? null,
+      coachUserIds: prefillData?.coachUserIds ?? [],
+      organiserUserIds: prefillData?.organiserUserIds ?? [],
+      coordinatorUserIds: prefillData?.coordinatorUserIds ?? [],
+      supportCoachUserIds: prefillData?.supportCoachUserIds ?? [],
     }
   });
   const [bannerEnabled, setBannerEnabled] = useState<boolean>(!!prefillData?.bannerMessage);
@@ -2894,38 +2895,49 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
               </FormItem>
             </div>
             <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team On Duty (optional)</div>
+              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team On Duty (optional · multiple allowed)</div>
               <div>
-                <Label className="text-xs">Coordinator</Label>
+                <Label className="text-xs">Coordinators</Label>
                 <MemberSelector
                   clubId={watchClubId}
-                  value={form.watch("coordinatorUserId" as any) as any}
-                  onChange={(uid) => form.setValue("coordinatorUserId" as any, uid as any, { shouldDirty: true })}
+                  values={(form.watch("coordinatorUserIds" as any) as any) || []}
+                  onChange={(ids) => form.setValue("coordinatorUserIds" as any, ids as any, { shouldDirty: true })}
                   preferredRole="COORDINATOR"
-                  placeholder="Assign a coordinator"
+                  placeholder="Add a coordinator"
                   testId="select-create-coordinator"
                 />
               </div>
               <div>
-                <Label className="text-xs">Organiser</Label>
+                <Label className="text-xs">Organisers</Label>
                 <MemberSelector
                   clubId={watchClubId}
-                  value={form.watch("organiserUserId" as any) as any}
-                  onChange={(uid) => form.setValue("organiserUserId" as any, uid as any, { shouldDirty: true })}
+                  values={(form.watch("organiserUserIds" as any) as any) || []}
+                  onChange={(ids) => form.setValue("organiserUserIds" as any, ids as any, { shouldDirty: true })}
                   preferredRole="ORGANISER"
-                  placeholder="Assign an organiser"
+                  placeholder="Add an organiser"
                   testId="select-create-organiser"
                 />
               </div>
               <div>
-                <Label className="text-xs">Coach</Label>
+                <Label className="text-xs">Coaches</Label>
                 <MemberSelector
                   clubId={watchClubId}
-                  value={form.watch("coachUserId" as any) as any}
-                  onChange={(uid) => form.setValue("coachUserId" as any, uid as any, { shouldDirty: true })}
+                  values={(form.watch("coachUserIds" as any) as any) || []}
+                  onChange={(ids) => form.setValue("coachUserIds" as any, ids as any, { shouldDirty: true })}
                   preferredRole="COACH"
-                  placeholder="Assign a coach"
+                  placeholder="Add a coach"
                   testId="select-create-coach"
+                />
+              </div>
+              <div>
+                <Label className="text-xs">Support Coaches</Label>
+                <MemberSelector
+                  clubId={watchClubId}
+                  values={(form.watch("supportCoachUserIds" as any) as any) || []}
+                  onChange={(ids) => form.setValue("supportCoachUserIds" as any, ids as any, { shouldDirty: true })}
+                  preferredRole="SUPPORT_COACH"
+                  placeholder="Add a support coach"
+                  testId="select-create-support-coach"
                 />
               </div>
             </div>
@@ -3375,9 +3387,10 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const { data: editUser } = useUser();
   const isEditSuperAdmin = editUser?.role === "OWNER";
   const [editGuestClubIds, setEditGuestClubIds] = useState<number[]>([]);
-  const [editCoachUserId, setEditCoachUserId] = useState<number | null>(null);
-  const [editOrganiserUserId, setEditOrganiserUserId] = useState<number | null>(null);
-  const [editCoordinatorUserId, setEditCoordinatorUserId] = useState<number | null>(null);
+  const [editCoachUserIds, setEditCoachUserIds] = useState<number[]>([]);
+  const [editOrganiserUserIds, setEditOrganiserUserIds] = useState<number[]>([]);
+  const [editCoordinatorUserIds, setEditCoordinatorUserIds] = useState<number[]>([]);
+  const [editSupportCoachUserIds, setEditSupportCoachUserIds] = useState<number[]>([]);
 
   const applyToSeriesMutation = useMutation({
     mutationFn: async ({ recurringEventId, fromDate, updates }: { recurringEventId: number; fromDate?: string; updates: any }) => {
@@ -3443,9 +3456,12 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditHallName(session.hallName || "");
     setEditCourtNames(session.courtNames?.join(", ") || "");
     setEditGuestClubIds(session.guestClubIds || []);
-    setEditCoachUserId(session.coachUserId ?? null);
-    setEditOrganiserUserId(session.organiserUserId ?? null);
-    setEditCoordinatorUserId(session.coordinatorUserId ?? null);
+    const sAny = session as any;
+    const arrOr = (arr: any, single: any) => Array.isArray(arr) && arr.length > 0 ? arr : (single ? [single] : []);
+    setEditCoachUserIds(arrOr(sAny.coachUserIds, sAny.coachUserId));
+    setEditOrganiserUserIds(arrOr(sAny.organiserUserIds, sAny.organiserUserId));
+    setEditCoordinatorUserIds(arrOr(sAny.coordinatorUserIds, sAny.coordinatorUserId));
+    setEditSupportCoachUserIds(Array.isArray(sAny.supportCoachUserIds) ? sAny.supportCoachUserIds : []);
     if (session.publishAt) {
       setEditScheduleEnabled(true);
       const sessionDate = new Date(session.date);
@@ -3518,9 +3534,10 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       publishAt: publishAt?.toISOString() || null,
       scheduleWeeksBefore: editScheduleEnabled ? editWeeksBefore : undefined,
       ...(isEditSuperAdmin ? { guestClubIds: editGuestClubIds.length > 0 ? editGuestClubIds : null } : {}),
-      coachUserId: editCoachUserId,
-      organiserUserId: editOrganiserUserId,
-      coordinatorUserId: editCoordinatorUserId,
+      coachUserIds: editCoachUserIds,
+      organiserUserIds: editOrganiserUserIds,
+      coordinatorUserIds: editCoordinatorUserIds,
+      supportCoachUserIds: editSupportCoachUserIds,
     };
   };
 
@@ -3887,38 +3904,49 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
             </Select>
           </div>
           <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
-            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team On Duty (optional)</div>
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Team On Duty (optional · multiple allowed)</div>
             <div>
-              <Label className="text-xs">Coordinator</Label>
+              <Label className="text-xs">Coordinators</Label>
               <MemberSelector
                 clubId={editClubId}
-                value={editCoordinatorUserId}
-                onChange={setEditCoordinatorUserId}
+                values={editCoordinatorUserIds}
+                onChange={setEditCoordinatorUserIds}
                 preferredRole="COORDINATOR"
-                placeholder="Assign a coordinator"
+                placeholder="Add a coordinator"
                 testId="select-edit-coordinator"
               />
             </div>
             <div>
-              <Label className="text-xs">Organiser</Label>
+              <Label className="text-xs">Organisers</Label>
               <MemberSelector
                 clubId={editClubId}
-                value={editOrganiserUserId}
-                onChange={setEditOrganiserUserId}
+                values={editOrganiserUserIds}
+                onChange={setEditOrganiserUserIds}
                 preferredRole="ORGANISER"
-                placeholder="Assign an organiser"
+                placeholder="Add an organiser"
                 testId="select-edit-organiser"
               />
             </div>
             <div>
-              <Label className="text-xs">Coach</Label>
+              <Label className="text-xs">Coaches</Label>
               <MemberSelector
                 clubId={editClubId}
-                value={editCoachUserId}
-                onChange={setEditCoachUserId}
+                values={editCoachUserIds}
+                onChange={setEditCoachUserIds}
                 preferredRole="COACH"
-                placeholder="Assign a coach"
+                placeholder="Add a coach"
                 testId="select-edit-coach"
+              />
+            </div>
+            <div>
+              <Label className="text-xs">Support Coaches</Label>
+              <MemberSelector
+                clubId={editClubId}
+                values={editSupportCoachUserIds}
+                onChange={setEditSupportCoachUserIds}
+                preferredRole="SUPPORT_COACH"
+                placeholder="Add a support coach"
+                testId="select-edit-support-coach"
               />
             </div>
           </div>

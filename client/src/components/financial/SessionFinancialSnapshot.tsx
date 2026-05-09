@@ -71,6 +71,8 @@ interface SessionDetail {
   venue?: { id: number; name: string; address?: string | null; city?: string | null } | null;
   creator?: { id: number; fullName: string; email?: string | null; profilePictureUrl?: string | null } | null;
   coachUser?: { id: number; fullName: string; profilePictureUrl?: string | null } | null;
+  coachUsers?: { id: number; fullName: string }[];
+  supportCoachUsers?: { id: number; fullName: string }[];
   coachUserId?: number | null;
 }
 
@@ -272,7 +274,14 @@ export default function SessionFinancialSnapshot({
     session.clubName ||
     "Venue not set";
   const status = sessionDetail?.status || "—";
-  const coachName = coachUser?.fullName || "—";
+  const coachList = (sessionDetail?.coachUsers && sessionDetail.coachUsers.length > 0)
+    ? sessionDetail.coachUsers
+    : (coachUser ? [{ id: coachUser.id, fullName: coachUser.fullName }] : []);
+  const supportList = sessionDetail?.supportCoachUsers ?? [];
+  const coachName = coachList.length > 0
+    ? coachList.map((c) => c.fullName).join(", ")
+    + (supportList.length > 0 ? ` (+${supportList.length} support)` : "")
+    : "—";
 
   async function captureCanvas(scale = 2) {
     if (!reportRef.current) return null;
