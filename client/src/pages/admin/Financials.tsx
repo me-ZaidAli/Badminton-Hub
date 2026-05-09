@@ -73,6 +73,7 @@ import ProfitabilityView from "@/components/financial/ProfitabilityView";
 import CashflowView from "@/components/financial/CashflowView";
 import ReportsView from "@/components/financial/ReportsView";
 import SmartInsights from "@/components/financial/SmartInsights";
+import SessionFinancialSnapshot, { type SnapshotEntry, type SnapshotSessionInfo } from "@/components/financial/SessionFinancialSnapshot";
 
 interface FinancialEntry {
   signupId: number;
@@ -594,6 +595,7 @@ export default function Financials() {
 
   const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
   const [bulkDeleteDialog, setBulkDeleteDialog] = useState(false);
+  const [snapshotSession, setSnapshotSession] = useState<{ session: SnapshotSessionInfo; entries: SnapshotEntry[] } | null>(null);
 
   const [bulkFeeSessionId, setBulkFeeSessionId] = useState<number | null>(null);
   const [bulkFeeAmount, setBulkFeeAmount] = useState("");
@@ -5603,6 +5605,44 @@ export default function Financials() {
                           </Badge>
                         )}
                         <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setSnapshotSession({
+                              session: {
+                                sessionId,
+                                sessionTitle: first.sessionTitle,
+                                sessionType: first.sessionType,
+                                matchMode: first.matchMode,
+                                sessionDate: first.sessionDate,
+                                clubName: first.clubName,
+                                clubId: first.clubId,
+                                invoiceNumber: first.invoiceNumber,
+                              },
+                              entries: entries.map((e) => ({
+                                signupId: e.signupId,
+                                playerId: e.playerId,
+                                playerName: e.playerName,
+                                playerEmail: e.playerEmail,
+                                playerUserId: e.playerUserId,
+                                fee: e.fee,
+                                paymentStatus: e.paymentStatus,
+                                paymentMethod: e.paymentMethod,
+                                attendanceStatus: e.attendanceStatus,
+                                partialPercentage: e.partialPercentage,
+                                creditApplied: e.creditApplied,
+                                signupStatus: e.signupStatus,
+                                membershipStatus: e.membershipStatus,
+                              })),
+                            });
+                          }}
+                          data-testid={`button-snapshot-session-${sessionId}`}
+                        >
+                          <Receipt className="h-3.5 w-3.5 mr-1.5" />
+                          View Snapshot
+                        </Button>
+                        <Button
                           size="icon"
                           variant="ghost"
                           className="text-destructive"
@@ -6918,6 +6958,15 @@ export default function Financials() {
           )}
         </DialogContent>
       </Dialog>
+
+      {snapshotSession && (
+        <SessionFinancialSnapshot
+          open={!!snapshotSession}
+          onClose={() => setSnapshotSession(null)}
+          session={snapshotSession.session}
+          entries={snapshotSession.entries}
+        />
+      )}
 
       <Dialog open={!!deleteSessionDialog} onOpenChange={(open) => { if (!open) setDeleteSessionDialog(null); }}>
         <DialogContent data-testid="dialog-delete-session">

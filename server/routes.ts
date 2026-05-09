@@ -2731,6 +2731,38 @@ export async function registerRoutes(
     res.json(leaderboard);
   });
 
+  // GET /api/sessions/:id - Get session details (with venue + creator) for snapshot
+  app.get("/api/sessions/:id", async (req: any, res) => {
+    try {
+      if (!req.user) return res.status(401).json({ message: "Unauthorized" });
+      const sessionId = Number(req.params.id);
+      if (!sessionId || isNaN(sessionId)) return res.status(400).json({ message: "Invalid session ID" });
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const sessionClubId = (session as any).clubId;
+      if (sessionClubId) {
+        const access = await canPerform({ id: req.user.id, role: req.user.role }, "VIEW_CLUB", sessionClubId);
+        log_rbac("VIEW_CLUB", req.user.id, access, { clubId: sessionClubId, sessionId });
+        if (!access.allowed) return res.status(403).json({ message: "Forbidden" });
+      }
+      let venue: any = null;
+      if ((session as any).venueId) {
+        try { venue = await storage.getVenue((session as any).venueId); } catch {}
+      }
+      let creator: any = null;
+      if ((session as any).createdBy) {
+        try {
+          const u = await storage.getUser((session as any).createdBy);
+          if (u) creator = { id: u.id, fullName: u.fullName, profilePictureUrl: (u as any).profilePictureUrl ?? null };
+        } catch {}
+      }
+      res.json({ ...session, venue, creator });
+    } catch (err: any) {
+      console.error("[GET session] Error:", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // GET /api/sessions/:id/matches - Get all matches for a session
   app.get("/api/sessions/:id/matches", async (req, res) => {
     try {
