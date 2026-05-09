@@ -1449,6 +1449,27 @@ export default function Sessions() {
         </div>
       )}
 
+      {statusFilter !== "scheduled" && viewMode === "timeline" && filteredSessions && (
+        <TimelineView
+          sessions={filteredSessions}
+          clubs={clubs || []}
+          onSessionClick={handleSessionClickFromView}
+          mySignupsBySession={mySignupsBySession}
+          onSignUp={(session) => setJoinSession(session)}
+          onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
+          adminActions={viewAdminActions}
+        />
+      )}
+
+      {statusFilter !== "scheduled" && viewMode === "calendar" && filteredSessions && (
+        <CalendarView
+          sessions={filteredSessions}
+          clubs={clubs || []}
+          onSessionClick={handleSessionClickFromView}
+          adminActions={viewAdminActions}
+        />
+      )}
+
       </>)}
 
       {sessionsScope === "juniors" && (
