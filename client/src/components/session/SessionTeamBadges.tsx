@@ -17,30 +17,36 @@ interface SessionTeamBadgesProps {
   sessionId?: number | string;
 }
 
-const ROLE_STYLES: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; chip: string; ring: string }> = {
+// White text on a near-opaque dark chip with a bright role-coloured icon and
+// ring. Guarantees readable contrast on any background (light, dark, navy).
+const ROLE_STYLES: Record<string, { label: string; icon: React.ComponentType<{ className?: string }>; chip: string; ring: string; iconColor: string }> = {
   coordinator: {
     label: "Coordinator",
     icon: Crown,
-    chip: "bg-amber-500/25 text-amber-900 dark:text-amber-100 border-amber-400/60",
-    ring: "ring-2 ring-amber-400/70",
+    chip: "bg-slate-900/85 text-white border-amber-400/80 shadow-sm",
+    ring: "ring-2 ring-amber-300",
+    iconColor: "text-amber-300",
   },
   organiser: {
     label: "Organiser",
     icon: ShieldCheck,
-    chip: "bg-blue-500/25 text-blue-900 dark:text-blue-100 border-blue-400/60",
-    ring: "ring-2 ring-blue-400/60",
+    chip: "bg-slate-900/85 text-white border-amber-300/80 shadow-sm",
+    ring: "ring-2 ring-amber-200",
+    iconColor: "text-amber-200",
   },
   coach: {
     label: "Coach",
     icon: GraduationCap,
-    chip: "bg-violet-500/25 text-violet-900 dark:text-violet-50 border-violet-400/60",
-    ring: "ring-2 ring-violet-400/60",
+    chip: "bg-slate-900/85 text-white border-yellow-400/80 shadow-sm",
+    ring: "ring-2 ring-yellow-300",
+    iconColor: "text-yellow-300",
   },
   supportCoach: {
     label: "Support Coach",
     icon: Sparkles,
-    chip: "bg-emerald-500/25 text-emerald-900 dark:text-emerald-50 border-emerald-400/60",
-    ring: "ring-2 ring-emerald-400/60",
+    chip: "bg-slate-900/85 text-white border-white/70 shadow-sm",
+    ring: "ring-2 ring-white/80",
+    iconColor: "text-white",
   },
 };
 
@@ -102,9 +108,9 @@ export function SessionTeamBadges({
                 {person.fullName.substring(0, 2).toUpperCase()}
               </AvatarFallback>
             </Avatar>
-            <Icon className="h-3.5 w-3.5" />
-            <span>{style.label}</span>
-            <span className="opacity-90 truncate max-w-[120px]">{person.fullName.split(" ")[0]}</span>
+            <Icon className={cn("h-3.5 w-3.5", style.iconColor)} />
+            <span className="text-white">{style.label}</span>
+            <span className="text-white/90 truncate max-w-[120px]">{person.fullName.split(" ")[0]}</span>
           </div>
         );
       })}
