@@ -1,5 +1,5 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { Crown, ShieldCheck, GraduationCap } from "lucide-react";
+import { Crown, ShieldCheck, GraduationCap, Sparkles } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 type Person = { id: number; fullName: string } | null | undefined;
@@ -8,6 +8,10 @@ interface SessionTeamBadgesProps {
   coordinator?: Person;
   organiser?: Person;
   coach?: Person;
+  coordinators?: Person[];
+  organisers?: Person[];
+  coaches?: Person[];
+  supportCoaches?: Person[];
   size?: "sm" | "md";
   className?: string;
   sessionId?: number | string;
@@ -32,21 +36,41 @@ const ROLE_STYLES: Record<string, { label: string; icon: React.ComponentType<{ c
     chip: "bg-violet-500/25 text-violet-900 dark:text-violet-50 border-violet-400/60",
     ring: "ring-2 ring-violet-400/60",
   },
+  supportCoach: {
+    label: "Support Coach",
+    icon: Sparkles,
+    chip: "bg-emerald-500/25 text-emerald-900 dark:text-emerald-50 border-emerald-400/60",
+    ring: "ring-2 ring-emerald-400/60",
+  },
 };
 
 export function SessionTeamBadges({
   coordinator,
   organiser,
   coach,
+  coordinators,
+  organisers,
+  coaches,
+  supportCoaches,
   size = "sm",
   className,
   sessionId,
 }: SessionTeamBadgesProps) {
+  const norm = (arr: Person[] | undefined, single: Person | undefined): Person[] => {
+    if (Array.isArray(arr) && arr.length > 0) return arr.filter(Boolean) as Person[];
+    return single ? [single] : [];
+  };
+  const coordList = norm(coordinators, coordinator);
+  const orgList = norm(organisers, organiser);
+  const coachList = norm(coaches, coach);
+  const supportList = norm(supportCoaches, undefined);
+
   const items = [
-    coordinator ? { key: "coordinator", person: coordinator } : null,
-    organiser ? { key: "organiser", person: organiser } : null,
-    coach ? { key: "coach", person: coach } : null,
-  ].filter(Boolean) as { key: keyof typeof ROLE_STYLES | string; person: { id: number; fullName: string } }[];
+    ...coordList.map((p) => ({ key: "coordinator", person: p! })),
+    ...orgList.map((p) => ({ key: "organiser", person: p! })),
+    ...coachList.map((p) => ({ key: "coach", person: p! })),
+    ...supportList.map((p) => ({ key: "supportCoach", person: p! })),
+  ];
 
   if (items.length === 0) return null;
 

@@ -2756,14 +2756,12 @@ export async function registerRoutes(
           if (u) creator = { id: u.id, fullName: u.fullName, profilePictureUrl: (u as any).profilePictureUrl ?? null };
         } catch {}
       }
-      let coachUser: any = (session as any).coachUser ?? null;
-      if (!coachUser && (session as any).coachUserId) {
-        try {
-          const u = await storage.getUser((session as any).coachUserId);
-          if (u) coachUser = { id: u.id, fullName: u.fullName, profilePictureUrl: (u as any).profilePictureUrl ?? null };
-        } catch {}
-      }
-      res.json({ ...session, venue, creator, coachUser });
+      const coachUsers = (session as any).coachUsers ?? [];
+      const organiserUsers = (session as any).organiserUsers ?? [];
+      const coordinatorUsers = (session as any).coordinatorUsers ?? [];
+      const supportCoachUsers = (session as any).supportCoachUsers ?? [];
+      const coachUser = (session as any).coachUser ?? coachUsers[0] ?? null;
+      res.json({ ...session, venue, creator, coachUser, coachUsers, organiserUsers, coordinatorUsers, supportCoachUsers });
     } catch (err: any) {
       console.error("[GET session] Error:", err);
       res.status(500).json({ message: err.message });
@@ -4865,7 +4863,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, customLinks, hallName, guestClubIds, coachUserId, organiserUserId, coordinatorUserId } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, customLinks, hallName, guestClubIds, coachUserId, organiserUserId, coordinatorUserId, coachUserIds, organiserUserIds, coordinatorUserIds, supportCoachUserIds } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -4963,26 +4961,53 @@ export async function registerRoutes(
         }
         updates.guestClubIds = Array.isArray(guestClubIds) && guestClubIds.length > 0 ? guestClubIds : null;
       }
-      const teamUserFields = { coachUserId, organiserUserId, coordinatorUserId };
       const effectiveClubId = updates.clubId ?? session.clubId;
-      for (const [key, val] of Object.entries(teamUserFields)) {
+      const validateMember = async (id: number, label: string) => {
+        const profile = await storage.getPlayerProfile(id, effectiveClubId);
+        if (!profile) return `Selected ${label} (user ${id}) is not a member of this club`;
+        if (profile.membershipStatus !== "APPROVED") return `Selected ${label} (user ${id}) is not an approved member of this club`;
+        return null;
+      };
+      const teamArrayFields: Array<[string, any, string]> = [
+        ["coachUserIds", coachUserIds, "coach"],
+        ["organiserUserIds", organiserUserIds, "organiser"],
+        ["coordinatorUserIds", coordinatorUserIds, "coordinator"],
+        ["supportCoachUserIds", supportCoachUserIds, "support coach"],
+      ];
+      for (const [key, val, label] of teamArrayFields) {
         if (val === undefined) continue;
-        if (val === null) {
-          updates[key] = null;
-          continue;
+        if (!Array.isArray(val)) {
+          return res.status(400).json({ message: `${key} must be an array of user ids` });
         }
+        const ids = val.map((x: any) => Number(x)).filter((n: number) => Number.isInteger(n) && n > 0);
+        const unique = Array.from(new Set(ids));
+        for (const id of unique) {
+          const err = await validateMember(id, label);
+          if (err) return res.status(400).json({ message: err });
+        }
+        updates[key] = unique;
+        // Mirror into legacy single column for back-compat (first id or null).
+        if (key === "coachUserIds") updates.coachUserId = unique[0] ?? null;
+        if (key === "organiserUserIds") updates.organiserUserId = unique[0] ?? null;
+        if (key === "coordinatorUserIds") updates.coordinatorUserId = unique[0] ?? null;
+      }
+      // Legacy single-id back-compat: if caller still sends coachUserId etc. and not arrays.
+      const legacySingles: Array<[string, any, string]> = [
+        ["coachUserId", coachUserId, "coachUserIds"],
+        ["organiserUserId", organiserUserId, "organiserUserIds"],
+        ["coordinatorUserId", coordinatorUserId, "coordinatorUserIds"],
+      ];
+      for (const [legacyKey, val, arrKey] of legacySingles) {
+        if (val === undefined || updates[arrKey] !== undefined) continue;
+        if (val === null) { updates[legacyKey] = null; updates[arrKey] = []; continue; }
         const numId = Number(val);
         if (!Number.isInteger(numId) || numId <= 0) {
-          return res.status(400).json({ message: `${key} must be a positive integer or null` });
+          return res.status(400).json({ message: `${legacyKey} must be a positive integer or null` });
         }
-        const profile = await storage.getPlayerProfile(numId, effectiveClubId);
-        if (!profile) {
-          return res.status(400).json({ message: `Selected ${key.replace("UserId", "")} is not a member of this club` });
-        }
-        if (profile.membershipStatus !== "APPROVED") {
-          return res.status(400).json({ message: `Selected ${key.replace("UserId", "")} is not an approved member of this club` });
-        }
-        updates[key] = numId;
+        const err = await validateMember(numId, legacyKey.replace("UserId", ""));
+        if (err) return res.status(400).json({ message: err });
+        updates[legacyKey] = numId;
+        updates[arrKey] = [numId];
       }
 
       const updated = await storage.updateSession(sessionId, updates);
@@ -10073,7 +10098,7 @@ export async function registerRoutes(
         if (!Array.isArray(teamRoles)) {
           return res.status(400).json({ message: "teamRoles must be an array of strings" });
         }
-        const STANDARD_ROLES = new Set(["COACH", "ORGANISER", "COORDINATOR"]);
+        const STANDARD_ROLES = new Set(["COACH", "SUPPORT_COACH", "ORGANISER", "COORDINATOR"]);
         for (const r of teamRoles) {
           if (typeof r !== "string") {
             return res.status(400).json({ message: "Each team role must be a string" });
@@ -10090,7 +10115,7 @@ export async function registerRoutes(
             }
             continue;
           }
-          return res.status(400).json({ message: `Invalid team role: ${trimmed}. Must be COACH, ORGANISER, COORDINATOR, or CUSTOM:<label>` });
+          return res.status(400).json({ message: `Invalid team role: ${trimmed}. Must be COACH, SUPPORT_COACH, ORGANISER, COORDINATOR, or CUSTOM:<label>` });
         }
       }
       const gradeInput = gradeField || category;

@@ -1257,16 +1257,26 @@ function TimelineSessionCard({
           <div className="mt-2 text-sm font-semibold text-foreground/85">{clubName}</div>
         )}
 
-        {(((session as any).coordinatorUser) || ((session as any).organiserUser) || ((session as any).coachUser)) && (
-          <div className="mt-2" data-testid={`timeline-team-row-${session.id}`}>
-            <SessionTeamBadges
-              coordinator={(session as any).coordinatorUser}
-              organiser={(session as any).organiserUser}
-              coach={(session as any).coachUser}
-              sessionId={session.id}
-            />
-          </div>
-        )}
+        {(() => {
+          const s: any = session;
+          const coords = Array.isArray(s.coordinatorUsers) && s.coordinatorUsers.length > 0 ? s.coordinatorUsers : (s.coordinatorUser ? [s.coordinatorUser] : []);
+          const orgs = Array.isArray(s.organiserUsers) && s.organiserUsers.length > 0 ? s.organiserUsers : (s.organiserUser ? [s.organiserUser] : []);
+          const coaches = Array.isArray(s.coachUsers) && s.coachUsers.length > 0 ? s.coachUsers : (s.coachUser ? [s.coachUser] : []);
+          const supports = Array.isArray(s.supportCoachUsers) ? s.supportCoachUsers : [];
+          const total = coords.length + orgs.length + coaches.length + supports.length;
+          if (total === 0) return null;
+          return (
+            <div className="mt-2" data-testid={`timeline-team-row-${session.id}`}>
+              <SessionTeamBadges
+                coordinators={coords}
+                organisers={orgs}
+                coaches={coaches}
+                supportCoaches={supports}
+                sessionId={session.id}
+              />
+            </div>
+          );
+        })()}
 
         {(session as any).waitingCount > 0 && (
           <div className="mt-2 flex items-center justify-between gap-2" data-testid={`timeline-waiting-list-${session.id}`}>

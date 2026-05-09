@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Check, ChevronsUpDown, X } from "lucide-react";
+import { Check, ChevronsUpDown, X, Plus } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -31,18 +31,18 @@ type Member = {
 
 interface MemberSelectorProps {
   clubId: number | null | undefined;
-  value: number | null | undefined;
-  onChange: (userId: number | null) => void;
+  values: number[];
+  onChange: (userIds: number[]) => void;
   placeholder?: string;
-  preferredRole?: "COACH" | "ORGANISER" | "COORDINATOR";
+  preferredRole?: "COACH" | "SUPPORT_COACH" | "ORGANISER" | "COORDINATOR";
   testId?: string;
 }
 
 export function MemberSelector({
   clubId,
-  value,
+  values,
   onChange,
-  placeholder = "Select a club member",
+  placeholder = "Add a club member",
   preferredRole,
   testId,
 }: MemberSelectorProps) {
@@ -57,6 +57,8 @@ export function MemberSelector({
     enabled: !!clubId,
   });
 
+  const selectedSet = useMemo(() => new Set(values || []), [values]);
+
   const sortedMembers = useMemo(() => {
     if (!members) return [];
     const list = members.filter((m) => m.user);
@@ -68,10 +70,51 @@ export function MemberSelector({
     });
   }, [members, preferredRole]);
 
-  const selected = members?.find((m) => m.userId === value);
+  const selectedMembers = useMemo(
+    () => (members || []).filter((m) => selectedSet.has(m.userId)),
+    [members, selectedSet],
+  );
+
+  const toggle = (userId: number) => {
+    if (selectedSet.has(userId)) {
+      onChange((values || []).filter((id) => id !== userId));
+    } else {
+      onChange([...(values || []), userId]);
+    }
+  };
+
+  const remove = (userId: number) => {
+    onChange((values || []).filter((id) => id !== userId));
+  };
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="space-y-2 mt-2">
+      {selectedMembers.length > 0 && (
+        <div className="flex flex-wrap gap-1.5" data-testid={`${testId ?? "select-member"}-chips`}>
+          {selectedMembers.map((m) => (
+            <span
+              key={m.userId}
+              className="inline-flex items-center gap-1.5 rounded-full border bg-muted/50 pl-1 pr-2 py-0.5 text-xs"
+              data-testid={`${testId ?? "select-member"}-chip-${m.userId}`}
+            >
+              <Avatar className="h-5 w-5">
+                <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${m.user.fullName}`} />
+                <AvatarFallback className="text-[9px]">{m.user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+              </Avatar>
+              <span className="truncate max-w-[140px]">{m.user.fullName}</span>
+              <button
+                type="button"
+                className="hover-elevate rounded-full p-0.5"
+                onClick={() => remove(m.userId)}
+                aria-label={`Remove ${m.user.fullName}`}
+                data-testid={`${testId ?? "select-member"}-remove-${m.userId}`}
+              >
+                <X className="h-3 w-3" />
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <Popover open={open} onOpenChange={setOpen}>
         <PopoverTrigger asChild>
           <Button
@@ -80,20 +123,13 @@ export function MemberSelector({
             role="combobox"
             aria-expanded={open}
             disabled={!clubId}
-            className="w-full justify-between mt-2"
+            className="w-full justify-between"
             data-testid={testId ?? "select-member"}
           >
-            {selected ? (
-              <span className="flex items-center gap-2 truncate">
-                <Avatar className="h-5 w-5">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${selected.user.fullName}`} />
-                  <AvatarFallback>{selected.user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <span className="truncate">{selected.user.fullName}</span>
-              </span>
-            ) : (
-              <span className="text-muted-foreground">{isLoading ? "Loading members..." : placeholder}</span>
-            )}
+            <span className="flex items-center gap-2 text-muted-foreground">
+              <Plus className="h-4 w-4" />
+              {isLoading ? "Loading members..." : placeholder}
+            </span>
             <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
           </Button>
         </PopoverTrigger>
@@ -105,17 +141,17 @@ export function MemberSelector({
               <CommandGroup>
                 {sortedMembers.map((m) => {
                   const hasPreferred = preferredRole && (m.teamRoles || []).includes(preferredRole);
+                  const isSelected = selectedSet.has(m.userId);
                   return (
                     <CommandItem
                       key={m.userId}
                       value={`${m.user.fullName} ${m.user.email ?? ""}`}
                       onSelect={() => {
-                        onChange(m.userId);
-                        setOpen(false);
+                        toggle(m.userId);
                       }}
                       data-testid={`option-member-${m.userId}`}
                     >
-                      <Check className={cn("mr-2 h-4 w-4", value === m.userId ? "opacity-100" : "opacity-0")} />
+                      <Check className={cn("mr-2 h-4 w-4", isSelected ? "opacity-100" : "opacity-0")} />
                       <Avatar className="h-6 w-6 mr-2">
                         <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${m.user.fullName}`} />
                         <AvatarFallback>{m.user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
@@ -139,19 +175,6 @@ export function MemberSelector({
           </Command>
         </PopoverContent>
       </Popover>
-      {value != null && (
-        <Button
-          type="button"
-          size="icon"
-          variant="ghost"
-          className="mt-2 h-9 w-9 shrink-0"
-          onClick={() => onChange(null)}
-          data-testid={`${testId ?? "select-member"}-clear`}
-          aria-label="Clear selection"
-        >
-          <X className="h-4 w-4" />
-        </Button>
-      )}
     </div>
   );
 }

@@ -535,24 +535,44 @@ export class DatabaseStorage implements IStorage {
     const venueRows = venueIds.length > 0 ? await db.select().from(venues).where(inArray(venues.id, venueIds)) : [];
     const venueMap = new Map(venueRows.map(v => [v.id, v]));
 
-    const teamUserIds = [...new Set(
-      allSessions.flatMap(s => [s.coachUserId, s.organiserUserId, s.coordinatorUserId]).filter(Boolean)
-    )] as number[];
+    const collectIds = (s: any): number[] => {
+      const a = Array.isArray(s.coachUserIds) ? s.coachUserIds : [];
+      const b = Array.isArray(s.organiserUserIds) ? s.organiserUserIds : [];
+      const c = Array.isArray(s.coordinatorUserIds) ? s.coordinatorUserIds : [];
+      const d = Array.isArray(s.supportCoachUserIds) ? s.supportCoachUserIds : [];
+      const legacy = [s.coachUserId, s.organiserUserId, s.coordinatorUserId].filter(Boolean) as number[];
+      return [...a, ...b, ...c, ...d, ...legacy];
+    };
+    const teamUserIds = [...new Set(allSessions.flatMap(collectIds))] as number[];
     const teamUserRows = teamUserIds.length > 0
       ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, teamUserIds))
       : [];
     const teamUserMap = new Map(teamUserRows.map(u => [u.id, u]));
+    const hydrate = (ids: number[] | null | undefined, fallback: number | null | undefined) => {
+      const arr = Array.isArray(ids) && ids.length > 0 ? ids : (fallback ? [fallback] : []);
+      return arr.map(id => teamUserMap.get(id)).filter(Boolean) as { id: number; fullName: string }[];
+    };
 
-    const sessionsWithData = allSessions.map((s) => ({
-      ...s,
-      signupCount: countsBySession.get(s.id) || 0,
-      waitingCount: waitingBySession.get(s.id) || 0,
-      matchCount: matchCountsBySession.get(s.id) || 0,
-      venue: s.venueId ? venueMap.get(s.venueId) : undefined,
-      coachUser: s.coachUserId ? teamUserMap.get(s.coachUserId) : undefined,
-      organiserUser: s.organiserUserId ? teamUserMap.get(s.organiserUserId) : undefined,
-      coordinatorUser: s.coordinatorUserId ? teamUserMap.get(s.coordinatorUserId) : undefined,
-    }));
+    const sessionsWithData = allSessions.map((s) => {
+      const coachUsers = hydrate(s.coachUserIds as any, s.coachUserId);
+      const organiserUsers = hydrate(s.organiserUserIds as any, s.organiserUserId);
+      const coordinatorUsers = hydrate(s.coordinatorUserIds as any, s.coordinatorUserId);
+      const supportCoachUsers = hydrate(s.supportCoachUserIds as any, null);
+      return {
+        ...s,
+        signupCount: countsBySession.get(s.id) || 0,
+        waitingCount: waitingBySession.get(s.id) || 0,
+        matchCount: matchCountsBySession.get(s.id) || 0,
+        venue: s.venueId ? venueMap.get(s.venueId) : undefined,
+        coachUsers,
+        organiserUsers,
+        coordinatorUsers,
+        supportCoachUsers,
+        coachUser: coachUsers[0],
+        organiserUser: organiserUsers[0],
+        coordinatorUser: coordinatorUsers[0],
+      };
+    });
 
     return sessionsWithData;
   }
@@ -595,19 +615,32 @@ export class DatabaseStorage implements IStorage {
       venue = v;
     }
 
-    const teamUserIds = [session.coachUserId, session.organiserUserId, session.coordinatorUserId].filter(Boolean) as number[];
+    const coachIds = (Array.isArray((session as any).coachUserIds) && (session as any).coachUserIds.length > 0) ? (session as any).coachUserIds : (session.coachUserId ? [session.coachUserId] : []);
+    const orgIds = (Array.isArray((session as any).organiserUserIds) && (session as any).organiserUserIds.length > 0) ? (session as any).organiserUserIds : (session.organiserUserId ? [session.organiserUserId] : []);
+    const coordIds = (Array.isArray((session as any).coordinatorUserIds) && (session as any).coordinatorUserIds.length > 0) ? (session as any).coordinatorUserIds : (session.coordinatorUserId ? [session.coordinatorUserId] : []);
+    const supportIds = Array.isArray((session as any).supportCoachUserIds) ? (session as any).supportCoachUserIds : [];
+    const teamUserIds = [...new Set([...coachIds, ...orgIds, ...coordIds, ...supportIds])] as number[];
     const teamUserRows = teamUserIds.length > 0
       ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, teamUserIds))
       : [];
     const teamUserMap = new Map(teamUserRows.map(u => [u.id, u]));
+    const hyd = (ids: number[]) => ids.map(id => teamUserMap.get(id)).filter(Boolean) as { id: number; fullName: string }[];
+    const coachUsers = hyd(coachIds);
+    const organiserUsers = hyd(orgIds);
+    const coordinatorUsers = hyd(coordIds);
+    const supportCoachUsers = hyd(supportIds);
 
     return {
       ...session,
       venue,
-      coachUser: session.coachUserId ? teamUserMap.get(session.coachUserId) : undefined,
-      organiserUser: session.organiserUserId ? teamUserMap.get(session.organiserUserId) : undefined,
-      coordinatorUser: session.coordinatorUserId ? teamUserMap.get(session.coordinatorUserId) : undefined,
-    };
+      coachUsers,
+      organiserUsers,
+      coordinatorUsers,
+      supportCoachUsers,
+      coachUser: coachUsers[0],
+      organiserUser: organiserUsers[0],
+      coordinatorUser: coordinatorUsers[0],
+    } as any;
   }
 
   async createSession(session: InsertSession & { createdBy: number }): Promise<Session> {

@@ -399,9 +399,15 @@ export const sessions = pgTable("sessions", {
   // Team member assignments (references users.id; null when unassigned).
   // These are the headline roles surfaced on session cards. Custom team
   // roles per club are tracked on `playerProfiles.teamRoles`.
+  // DEPRECATED single-id columns — kept for back-compat reads only.
   coachUserId: integer("coach_user_id").references(() => users.id),
   organiserUserId: integer("organiser_user_id").references(() => users.id),
   coordinatorUserId: integer("coordinator_user_id").references(() => users.id),
+  // Multi-assignment arrays (canonical source of truth going forward).
+  coachUserIds: integer("coach_user_ids").array().default([]).notNull(),
+  organiserUserIds: integer("organiser_user_ids").array().default([]).notNull(),
+  coordinatorUserIds: integer("coordinator_user_ids").array().default([]).notNull(),
+  supportCoachUserIds: integer("support_coach_user_ids").array().default([]).notNull(),
 });
 
 // === SESSION SIGNUPS ===
