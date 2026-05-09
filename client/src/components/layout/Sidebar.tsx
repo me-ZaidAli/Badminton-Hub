@@ -60,6 +60,7 @@ import {
   HelpCircle,
   PoundSterling,
   Dumbbell,
+  Inbox,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
@@ -142,6 +143,11 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
   const clubItems = collect(["club", "design"]);
   const commsItems = collect(["comms", "info"]);
 
+  // Pinned passthrough items that should remain visible in the sidebar even
+  // though they also appear inside their hub page as tiles.
+  const pinnedActivityHrefs = new Set(["/sessions"]);
+  const pinnedActivity = activityItems.filter(i => pinnedActivityHrefs.has(i.href));
+
   const aggregateBadgeKeys = (items: NavItem[]): { primary?: keyof BadgeCounts; secondary?: keyof BadgeCounts } => {
     // Sum badge counts via a synthetic key list; we use the *first* primary
     // and secondary keys we find so the BadgeCount component continues to
@@ -183,6 +189,9 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
   if (main) hubGroups.push(main);
 
   const activityHub = makeHub("activity", "/hub/activity", "Activity", Activity, activityItems);
+  if (activityHub && pinnedActivity.length > 0) {
+    activityHub.items = [...pinnedActivity, ...activityHub.items];
+  }
   const clubHub = makeHub("club", "/hub/club", "My Club", Building2, clubItems);
   const commsHub = makeHub("comms", "/hub/comms", "Communication", MessageSquare, commsItems);
   if (activityHub) hubGroups.push(activityHub);
@@ -277,34 +286,30 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/terms-conditions", label: "Terms & Conditions", icon: FileText, group: "info" },
   ];
 
-  // The sidebar Management tile now holds a single "Admin Panel" entry only.
-  // Secondary admin tools (Admin Inbox, Audit Log, Grading Progress, AI Match
-  // Input) are surfaced as tiles *inside* the Admin Panel page so the sidebar
-  // stays uncluttered. The `adminInbox` badge piggy-backs on the Admin Panel
-  // entry so admins still see the pending count at a glance.
+  // The sidebar Management section is intentionally short: Admin Panel,
+  // Financials, and Admin Inbox only. Secondary tools (Club Control, Push
+  // Broadcast, Auto Reminders, Audit Log, Grading Progress, AI Match Input)
+  // are surfaced as tiles *inside* the Admin Panel page so the sidebar stays
+  // uncluttered. The `adminInbox` badge attaches to the Admin Inbox entry.
   if (user?.role === "OWNER") {
-    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin", badgeKey: "adminInbox" });
-    items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
+    items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin" });
     items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
-    items.push({ href: "/admin/push-broadcast", label: "Push Broadcast", icon: Megaphone, group: "admin" });
-    items.push({ href: "/admin/notification-rules", label: "Auto Reminders", icon: Bell, group: "admin" });
+    items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
     items.push({ href: "/bsl/admin", label: "BSL · Control Panel", icon: Trophy, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
-    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
     if (!isOrganiserOnly) {
-      items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
-      items.push({ href: "/admin/push-broadcast", label: "Push Broadcast", icon: Megaphone, group: "admin" });
-      items.push({ href: "/admin/notification-rules", label: "Auto Reminders", icon: Bell, group: "admin" });
+      items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" as keyof BadgeCounts });
     }
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
-    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin", ...(isOrganiserOnly ? {} : { badgeKey: "adminInbox" as keyof BadgeCounts }) });
+    items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
     if (!isOrganiserOnly) {
-      items.push({ href: "/admin/control-center", label: "Club Control", icon: Building2, group: "admin" });
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
+      items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" as keyof BadgeCounts });
     }
   }
 

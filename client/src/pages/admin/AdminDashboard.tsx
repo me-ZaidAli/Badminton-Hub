@@ -451,6 +451,8 @@ export default function AdminDashboard() {
   // Admin Panel so they don't clutter the sidebar.
   const adminToolsSections: AdminTile[] = [
     ...(!isOrganiserOnly ? [{ href: "/admin/inbox", label: "Admin Inbox", description: "Pending requests, payments, orders, and tickets in one place", icon: Inbox, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/push-broadcast", label: "Push Broadcast", description: "Send a one-off push notification to a segment of users", icon: Megaphone, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/notification-rules", label: "Auto Reminders", description: "Edit templates and toggle automated event-driven notifications", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/audit-log", label: "Audit Log", description: "Searchable history of admin actions across your clubs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" }] : []),
     { href: "/admin/grading", label: "Grading Progress", description: "Review automatic skill promotions and demotions", icon: Activity, color: "text-amber-500", bg: "bg-amber-500/10" },
     { href: "/admin/ai-match-input", label: "AI Match Input", description: "Upload score sheets and extract matches with AI vision", icon: ScanText, color: "text-indigo-500", bg: "bg-indigo-500/10" },

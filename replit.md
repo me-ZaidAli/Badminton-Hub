@@ -73,6 +73,11 @@ Preferred communication style: Simple, everyday language.
 
 - **Admin Wallet Unified View + Manual Amend** (`/super-admin/wallet-management`, `client/src/pages/super-admin/WalletManagement.tsx`): "Log" button opens modal mirroring user view (UNION of `credit_ledger` + `player_reward_ledger`, same as `/api/my-credits*`). Three cards: User sees / Wallet table balance / Drift (with amber warning if non-zero). Per-club balance chips, history (200 rows), "Set exact balance" form → `POST /api/god-mode/wallets/:walletId/set-balance` `{clubId, targetBalance (pence), reason?}`. Endpoint computes `delta = target − currentLedgerSum` and atomically writes corrective row to BOTH `credit_ledger` AND `wallets.balance`/`wallet_transactions`. Read: `GET /api/god-mode/wallets/:walletId/unified-view`. Both OWNER/ADMIN-only with `[AUDIT]` log lines.
 
+## Sidebar layout
+
+- `client/src/components/layout/Sidebar.tsx` `collapseToHubs()` collapses `activity`, `club+design`, `comms+info` into single hub links pointing at `/hub/*`. Pinned passthrough hrefs (`pinnedActivityHrefs = ["/sessions"]`) stay visible at the top of their hub group in the sidebar AND continue to render as tiles inside the hub page (`Hub.tsx` still iterates the original `activity` group).
+- Admin sidebar (`useNavGroups`) intentionally short: **Admin Panel**, **Financials**, **Admin Inbox** only. Club Control, Push Broadcast, Auto Reminders are surfaced as tiles inside `/admin` via `adminToolsSections` / `clubSettingsSections` in `client/src/pages/admin/AdminDashboard.tsx`. The `adminInbox` badge piggy-backs on the **Admin Inbox** entry.
+
 ## Gotchas
 
 - Express JSON body limit is path-aware in `server/index.ts`: default 256kb, with `/api/bsl/clubs*` opted into 8mb for base64 image fallback. Extend `jsonLargeRoutes` to raise per-route — never globally.
