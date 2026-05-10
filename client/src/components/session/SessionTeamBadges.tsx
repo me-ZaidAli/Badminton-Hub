@@ -63,8 +63,9 @@ export function SessionTeamBadges({
   sessionId,
 }: SessionTeamBadgesProps) {
   const norm = (arr: Person[] | undefined, single: Person | undefined): Person[] => {
-    if (Array.isArray(arr) && arr.length > 0) return arr.filter(Boolean) as Person[];
-    return single ? [single] : [];
+    const ok = (p: any): p is Person => !!p && typeof p.fullName === "string" && p.fullName.length > 0;
+    if (Array.isArray(arr) && arr.length > 0) return arr.filter(ok);
+    return ok(single) ? [single] : [];
   };
   const coordList = norm(coordinators, coordinator);
   const orgList = norm(organisers, organiser);

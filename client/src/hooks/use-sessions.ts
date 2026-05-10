@@ -19,10 +19,20 @@ export function useSession(id: number) {
     queryFn: async () => {
       const url = buildUrl(api.sessions.get.path, { id });
       const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) throw new Error("Failed to fetch session");
+      if (!res.ok) {
+        const body = await res.json().catch(() => ({} as any));
+        const msg = body?.message || `HTTP ${res.status}`;
+        const err: any = new Error(msg);
+        err.status = res.status;
+        throw err;
+      }
       return api.sessions.get.responses[200].parse(await res.json());
     },
-    enabled: !!id,
+    enabled: Number.isFinite(id) && id > 0,
+    retry: (failureCount, err: any) => {
+      if (err?.status === 404 || err?.status === 403 || err?.status === 401) return false;
+      return failureCount < 2;
+    },
   });
 }
 

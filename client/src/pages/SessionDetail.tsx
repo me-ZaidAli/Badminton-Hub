@@ -56,7 +56,7 @@ export default function SessionDetail() {
   const id = Number(params.id);
   const [, setLocation] = useLocation();
   const { data: user } = useUser();
-  const { data: session, isLoading: isLoadingSession } = useSession(id);
+  const { data: session, isLoading: isLoadingSession, error: sessionError } = useSession(id);
   const { data: signups, isLoading: isLoadingSignups } = useSessionSignups(id);
   const { data: allPlayers } = usePlayers();
   const { data: clubMembers } = useQuery({
@@ -502,7 +502,28 @@ export default function SessionDetail() {
   }, []);
 
   if (isLoadingSession || isLoadingSignups) return <div className="flex justify-center p-20"><Loader2 className="animate-spin h-8 w-8 text-primary" /></div>;
-  if (!session) return <div>Session not found</div>;
+  if (!session) {
+    const status = (sessionError as any)?.status;
+    const msg = (sessionError as any)?.message;
+    return (
+      <div className="max-w-md mx-auto mt-12 p-6 rounded-xl border bg-card text-card-foreground space-y-3" data-testid="text-session-not-found">
+        <div className="text-lg font-semibold">Session not available</div>
+        <div className="text-sm text-muted-foreground">
+          {status === 404 && <>This session doesn't exist or has been deleted.</>}
+          {status === 403 && <>You don't have access to this session's club.</>}
+          {status === 401 && <>You need to sign in again to view this session.</>}
+          {!status && <>We couldn't load this session right now. Please check your connection and try again.</>}
+        </div>
+        <div className="text-xs text-muted-foreground/70 font-mono">
+          id: {Number.isFinite(id) ? id : String(params.id)} {status ? `· ${status}` : ""} {msg ? `· ${msg}` : ""}
+        </div>
+        <div className="flex gap-2 pt-2">
+          <Button size="sm" variant="outline" onClick={() => setLocation("/sessions")} data-testid="button-back-to-sessions">Back to sessions</Button>
+          <Button size="sm" onClick={() => qc.invalidateQueries({ queryKey: ["/api/sessions/:id", id] })} data-testid="button-retry-session">Retry</Button>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4 sm:space-y-8">

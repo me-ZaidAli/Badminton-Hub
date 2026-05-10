@@ -4991,14 +4991,17 @@ export async function registerRoutes(
         if (key === "organiserUserIds") updates.organiserUserId = unique[0] ?? null;
         if (key === "coordinatorUserIds") updates.coordinatorUserId = unique[0] ?? null;
       }
-      // Legacy single-id back-compat: if caller still sends coachUserId etc. and not arrays.
+      // Legacy single-id back-compat: if caller still sends coachUserId etc.
+      // If both are sent, the array is canonical; ignore the legacy single (the array
+      // path above already mirrored arr[0] into the legacy column, so they stay in sync).
       const legacySingles: Array<[string, any, string]> = [
         ["coachUserId", coachUserId, "coachUserIds"],
         ["organiserUserId", organiserUserId, "organiserUserIds"],
         ["coordinatorUserId", coordinatorUserId, "coordinatorUserIds"],
       ];
       for (const [legacyKey, val, arrKey] of legacySingles) {
-        if (val === undefined || updates[arrKey] !== undefined) continue;
+        if (val === undefined) continue;
+        if (updates[arrKey] !== undefined) continue; // array already authoritative
         if (val === null) { updates[legacyKey] = null; updates[arrKey] = []; continue; }
         const numId = Number(val);
         if (!Number.isInteger(numId) || numId <= 0) {
