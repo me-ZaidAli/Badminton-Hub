@@ -267,7 +267,9 @@ export default function PlayerProfile() {
         {/* Category registration */}
         <GlowPanel title="Compete in categories" tone="gold" icon={<Plus className="h-4 w-4" />}>
           {me.status !== "ACTIVE" && (() => {
-            const canPayFromWallet = balance >= playerFee && me.status !== "REJECTED";
+            // PENDING_VERIFICATION ALWAYS shows the wait message — never the pay-from-wallet
+            // CTA — to avoid double payment when bank-transfer proof is already in the queue.
+            const canPayFromWallet = balance >= playerFee && me.status === "PENDING_PAYMENT";
             return (
               <div
                 className="mb-3 rounded-lg px-3 py-2.5 text-xs"

@@ -1615,31 +1615,38 @@ export function registerBslRoutes(app: Express) {
       if (!me) return res.status(404).json({ message: "Join a club first" });
       if (me.status === "ACTIVE") return res.status(400).json({ message: "League fee already paid" });
       if (me.status === "REJECTED") return res.status(400).json({ message: "Your registration was rejected — contact an admin" });
+      if (me.status === "PENDING_VERIFICATION") return res.status(400).json({ message: "Your bank-transfer proof is already in the admin queue. Wait for verification instead of paying twice." });
       const [league] = await db.select().from(bslLeagues).limit(1);
       const fee = league?.playerFee ?? 900;
       if ((me.walletBalance ?? 0) < fee) {
         return res.status(402).json({ message: `Need £${(fee/100).toFixed(2)} in your wallet — top up first.`, fee, balance: me.walletBalance ?? 0 });
       }
-      // Atomic: deduct fee + flip status only if balance still covers it AND status hasn't changed.
-      const [updated] = await db.update(bslPlayers).set({
-        walletBalance: dsql`${bslPlayers.walletBalance} - ${fee}`,
-        status: "ACTIVE",
-        approvedAt: new Date(),
-        approvedById: u.id,
-      }).where(and(
-        eq(bslPlayers.id, me.id),
-        dsql`${bslPlayers.walletBalance} >= ${fee}`,
-        dsql`${bslPlayers.status} <> 'ACTIVE'`,
-      )).returning();
+      // Atomic: deduct + flip status + write ledger row in ONE DB transaction.
+      const reference = `LEAGUE-FEE-${Date.now().toString(36).toUpperCase()}`;
+      const updated = await db.transaction(async (tx) => {
+        const [row] = await tx.update(bslPlayers).set({
+          walletBalance: dsql`${bslPlayers.walletBalance} - ${fee}`,
+          status: "ACTIVE",
+          approvedAt: new Date(),
+          approvedById: u.id,
+        }).where(and(
+          eq(bslPlayers.id, me.id),
+          dsql`${bslPlayers.walletBalance} >= ${fee}`,
+          dsql`${bslPlayers.status} <> 'ACTIVE'`,
+          dsql`${bslPlayers.status} <> 'PENDING_VERIFICATION'`,
+        )).returning();
+        if (!row) return null;
+        await tx.insert(bslWalletTransactions).values({
+          bslPlayerId: me.id, type: "DEBIT", amount: fee, status: "APPROVED",
+          reference, description: "League fee paid from wallet",
+          reviewedById: u.id, reviewedAt: new Date(),
+        } as any);
+        return row;
+      });
       if (!updated) {
         return res.status(409).json({ message: "Couldn't activate — balance or status changed. Refresh and try again." });
       }
-      await db.insert(bslWalletTransactions).values({
-        bslPlayerId: me.id, type: "DEBIT", amount: fee, status: "APPROVED",
-        reference: `LEAGUE-FEE-${Date.now().toString(36).toUpperCase()}`,
-        description: "League fee paid from wallet",
-        reviewedById: u.id, reviewedAt: new Date(),
-      } as any);
+      await audit(req, "PLAYER_SELF_ACTIVATE_FROM_WALLET", "bsl_player", me.id, { fee, reference, previousStatus: me.status });
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
