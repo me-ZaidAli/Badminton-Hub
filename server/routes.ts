@@ -31473,21 +31473,36 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const userId = req.user!.id;
-      const isOwner = req.user!.role === "OWNER";
+      const userRole = req.user!.role;
       const { clubId, status, severity, isArchived } = req.query;
       const showArchived = isArchived === "true";
 
-      const userClubIds = isOwner
-        ? (await db.select({ id: clubs.id }).from(clubs)).map(c => c.id)
-        : (await db.select({ clubId: playerProfiles.clubId }).from(playerProfiles)
-            .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.membershipStatus, "APPROVED")))).map(p => p.clubId);
+      // Clubs in which this user has admin/owner authority (platform OWNER/ADMIN → all clubs)
+      const adminClubIds = await getUserAdminClubIds(userId, userRole);
+      const requestedClubId = clubId ? Number(clubId) : null;
 
-      if (userClubIds.length === 0) return res.json([]);
+      // Visibility scope: admin clubs OR (incidents reported by me OR where I am listed as affected)
+      const visibilityConditions: any[] = [];
+      if (adminClubIds.length > 0) {
+        const adminScope = requestedClubId
+          ? (adminClubIds.includes(requestedClubId) ? [requestedClubId] : [])
+          : adminClubIds;
+        if (adminScope.length > 0) {
+          visibilityConditions.push(inArray(incidentReports.clubId, adminScope));
+        }
+      }
+      // Self-reported
+      visibilityConditions.push(eq(incidentReports.reportedByUserId, userId));
+      // Listed as affected
+      visibilityConditions.push(
+        sql`${incidentReports.id} IN (SELECT ${incidentAffectedMembers.incidentId} FROM ${incidentAffectedMembers} WHERE ${incidentAffectedMembers.userId} = ${userId})`
+      );
 
       const conditions: any[] = [
-        inArray(incidentReports.clubId, clubId ? [Number(clubId)] : userClubIds),
         eq(incidentReports.isArchived, showArchived),
+        or(...visibilityConditions)!,
       ];
+      if (requestedClubId) conditions.push(eq(incidentReports.clubId, requestedClubId));
       if (status) conditions.push(eq(incidentReports.status, status as any));
       if (severity) conditions.push(eq(incidentReports.severity, severity as any));
 
