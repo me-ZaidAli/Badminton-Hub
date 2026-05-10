@@ -1637,7 +1637,7 @@ export function registerBslRoutes(app: Express) {
         )).returning();
         if (!row) return null;
         await tx.insert(bslWalletTransactions).values({
-          bslPlayerId: me.id, type: "DEBIT", amount: fee, status: "APPROVED",
+          bslPlayerId: me.id, type: "DEDUCTION", amount: fee, status: "APPROVED",
           reference, description: "League fee paid from wallet",
           reviewedById: u.id, reviewedAt: new Date(),
         } as any);
