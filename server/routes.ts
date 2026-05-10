@@ -2741,9 +2741,9 @@ export async function registerRoutes(
       if (!session) return res.status(404).json({ message: "Session not found" });
       const sessionClubId = (session as any).clubId;
       if (sessionClubId) {
-        const access = await canPerform({ id: req.user.id, role: req.user.role }, "VIEW_CLUB", sessionClubId);
-        log_rbac("VIEW_CLUB", req.user.id, access, { clubId: sessionClubId, sessionId });
-        if (!access.allowed) return res.status(403).json({ message: "Forbidden" });
+        const allowed = await canPerform({ id: req.user.id, role: req.user.role }, "VIEW_CLUB", sessionClubId);
+        log_rbac("VIEW_CLUB", req.user.id, allowed, { clubId: sessionClubId, sessionId });
+        if (!allowed) return res.status(403).json({ message: "Forbidden" });
       }
       let venue: any = null;
       if ((session as any).venueId) {
