@@ -257,6 +257,18 @@ export default function PlayerProfile() {
 
         {/* Category registration */}
         <GlowPanel title="Compete in categories" tone="gold" icon={<Plus className="h-4 w-4" />}>
+          {me.status !== "ACTIVE" && (
+            <div
+              className="mb-3 rounded-lg px-3 py-2.5 text-xs"
+              style={{ background: `${BSL.gold}15`, border: `1px solid ${BSL.gold}55`, color: BSL.gold }}
+              data-testid="banner-pending-approval"
+            >
+              <div className="font-bold uppercase tracking-widest text-[10px] mb-0.5">Awaiting admin verification</div>
+              <div className="text-white/80 text-[11px] leading-snug">
+                Your league fee payment has been submitted. An admin needs to verify it before you can register for categories. This usually happens within a day — check back shortly.
+              </div>
+            </div>
+          )}
           <p className="text-xs mb-1" style={{ color: BSL.muted }}>
             Each category has its own fee — debited from your BSL wallet on registration. Your club owner places you in a pair after you register.
           </p>

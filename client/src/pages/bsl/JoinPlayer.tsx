@@ -27,6 +27,21 @@ export default function JoinPlayer() {
   const [proofFile, setProofFile] = useState<File | null>(null);
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
+  // If the user is already a BSL player, don't keep them stuck in the join wizard —
+  // bounce them to the right place based on their current status.
+  const { data: existingPlayer } = useQuery<any>({ queryKey: ["/api/bsl/players/me"] });
+  useEffect(() => {
+    if (!existingPlayer) return;
+    if (existingPlayer.status === "ACTIVE") {
+      toast({ title: "You're already a BSL player", description: "Taking you to your profile…" });
+      setLoc("/bsl/profile");
+    } else if (existingPlayer.status === "PENDING_VERIFICATION") {
+      toast({ title: "Already submitted", description: "Your payment is awaiting admin verification." });
+      setLoc("/bsl/profile");
+    }
+    // PENDING_PAYMENT / DRAFT players stay in the wizard so they can finish paying.
+  }, [existingPlayer?.id, existingPlayer?.status]);
+
   const { data: clubTeams = [] } = useQuery<any[]>({
     queryKey: ["/api/bsl/clubs", validatedClub?.id, "teams"],
     enabled: !!validatedClub?.id,
@@ -35,6 +50,10 @@ export default function JoinPlayer() {
       return r.json();
     },
   });
+  // Auto-select if there's only one team — saves the user a guess-and-tap.
+  useEffect(() => {
+    if (clubTeams.length === 1 && teamId == null) setTeamId(clubTeams[0].id);
+  }, [clubTeams.length]);
 
   const validateMutation = useMutation({
     mutationFn: async () => {
@@ -132,26 +151,47 @@ export default function JoinPlayer() {
                       <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{validatedClub.division}</div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                    {clubTeams.map(t => (
-                      <button
-                        key={t.id}
-                        onClick={() => setTeamId(t.id)}
-                        className="rounded-xl px-4 py-4 text-left transition-all"
-                        style={{
-                          background: teamId === t.id ? `${BSL.cyan}22` : "hsla(0,0%,100%,0.04)",
-                          border: `1px solid ${teamId === t.id ? BSL.cyan : "hsla(0,0%,100%,0.1)"}`,
-                        }}
-                        data-testid={`team-${t.id}`}
-                      >
-                        <Users className="h-4 w-4 mb-2" style={{ color: teamId === t.id ? BSL.cyan : BSL.muted }} />
-                        <div className="font-bold">{t.name}</div>
-                        <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{t.division}</div>
-                      </button>
-                    ))}
-                  </div>
-                  <ActionButton variant="cyan" fullWidth onClick={() => joinMutation.mutate()} loading={joinMutation.isPending} disabled={!teamId} icon={<ArrowRight className="h-4 w-4" />}>
-                    Confirm Team
+                  {clubTeams.length === 0 ? (
+                    <div className="rounded-xl px-4 py-6 text-center text-sm" style={{ background: "hsla(0,0%,100%,0.04)", color: BSL.muted, border: `1px dashed ${BSL.cyan}55` }}>
+                      Your club hasn't set up any teams yet — that's fine. You can still join and your club captain will assign you to a pair later.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                      {clubTeams.map(t => (
+                        <button
+                          key={t.id}
+                          onClick={() => setTeamId(t.id)}
+                          className="rounded-xl px-4 py-4 text-left transition-all"
+                          style={{
+                            background: teamId === t.id ? `${BSL.cyan}22` : "hsla(0,0%,100%,0.04)",
+                            border: `2px solid ${teamId === t.id ? BSL.cyan : "hsla(0,0%,100%,0.1)"}`,
+                            boxShadow: teamId === t.id ? `0 0 24px ${BSL.cyan}55` : "none",
+                          }}
+                          data-testid={`team-${t.id}`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <Users className="h-4 w-4" style={{ color: teamId === t.id ? BSL.cyan : BSL.muted }} />
+                            {teamId === t.id && (
+                              <span className="inline-flex items-center gap-1 text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded-full" style={{ background: BSL.cyan, color: BSL.bgDeep }}>
+                                <Check className="h-2.5 w-2.5" /> Selected
+                              </span>
+                            )}
+                          </div>
+                          <div className="font-bold">{t.name}</div>
+                          <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{t.division}</div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                  <ActionButton
+                    variant="cyan"
+                    fullWidth
+                    onClick={() => joinMutation.mutate()}
+                    loading={joinMutation.isPending}
+                    disabled={clubTeams.length > 0 && !teamId}
+                    icon={<ArrowRight className="h-4 w-4" />}
+                  >
+                    {clubTeams.length === 0 ? "Continue" : teamId ? "Confirm Team" : "Pick a team above"}
                   </ActionButton>
                 </div>
               )}
