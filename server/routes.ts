@@ -2719,7 +2719,7 @@ export async function registerRoutes(
     }
   });
 
-  app.get("/api/leaderboard/:clubId", requirePremium(clubIdFromParam), async (req, res) => {
+  app.get("/api/leaderboard/:clubId", async (req, res) => {
     const clubId = Number(req.params.clubId);
     
     const club = await storage.getClub(clubId);
@@ -2807,7 +2807,7 @@ export async function registerRoutes(
   });
 
   // === Enhanced Leaderboard with filters ===
-  app.get("/api/leaderboard", requirePremium(clubIdFromQuery), async (req, res) => {
+  app.get("/api/leaderboard", async (req, res) => {
     try {
       const filters: any = {};
       if (req.query.clubId) filters.clubId = Number(req.query.clubId);
