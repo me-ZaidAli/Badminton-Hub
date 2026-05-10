@@ -1576,6 +1576,37 @@ function SessionPreviewDialog({
   const confirmed = (previewSignups || []).filter((s: any) => s.signupStatus === "CONFIRMED" || !s.signupStatus);
   const waiting = (previewSignups || []).filter((s: any) => s.signupStatus === "WAITING");
 
+  const { data: clubLeaderboard } = useQuery<any[]>({
+    queryKey: ["/api/leaderboard", { clubId: session.clubId }],
+    queryFn: async () => {
+      const r = await fetch(`/api/leaderboard?clubId=${session.clubId}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: open,
+    staleTime: 60000,
+  });
+  const rankByProfileId = useMemo(() => {
+    const map = new Map<number, number>();
+    if (!clubLeaderboard?.length) return map;
+    const sorted = [...clubLeaderboard].sort((a: any, b: any) =>
+      (b.matchesWon || 0) - (a.matchesWon || 0) ||
+      (b.winPercentage || 0) - (a.winPercentage || 0) ||
+      (b.matchesPlayed || 0) - (a.matchesPlayed || 0)
+    );
+    let currentRank = 0;
+    let lastWins = -1;
+    let lastPct = -1;
+    sorted.forEach((p: any, idx: number) => {
+      const tied = (p.matchesWon || 0) === lastWins && (p.winPercentage || 0) === lastPct;
+      if (!tied) currentRank = idx + 1;
+      lastWins = p.matchesWon || 0;
+      lastPct = p.winPercentage || 0;
+      if (p.id != null) map.set(p.id, currentRank);
+    });
+    return map;
+  }, [clubLeaderboard]);
+
   const gradeChipClass = (grade?: string | null) => {
     if (!grade) return "bg-muted text-muted-foreground";
     const tier = grade.charAt(0);
@@ -1583,21 +1614,12 @@ function SessionPreviewDialog({
     if (tier === "B") return "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300";
     return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300";
   };
-  const formatCategory = (cat?: string | null) => {
-    if (!cat) return "";
-    if (cat === "MENS" || cat === "MALE") return "Men";
-    if (cat === "WOMENS" || cat === "FEMALE") return "Women";
-    if (cat === "MIXED") return "Mixed";
-    if (cat === "JUNIORS") return "Juniors";
-    return cat.charAt(0) + cat.slice(1).toLowerCase();
-  };
-
   const renderRsvpRow = (s: any, idx: number) => {
     const player = s.player || {};
     const user = player.user || {};
     const fullName = user.fullName || "Player";
     const grade = player.grade || null;
-    const cat = formatCategory(player.category);
+    const rank = player.id != null ? rankByProfileId.get(player.id) : undefined;
     const initials = fullName.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
     const paid = s.paymentStatus === "PAID";
     return (
@@ -1616,9 +1638,13 @@ function SessionPreviewDialog({
               {grade}
             </span>
           )}
-          {cat && (
-            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" data-testid={`rsvp-category-${s.id ?? idx}`}>
-              {cat}
+          {rank ? (
+            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-violet-100 text-violet-700 dark:bg-violet-900/50 dark:text-violet-300" data-testid={`rsvp-rank-${s.id ?? idx}`}>
+              #{rank}
+            </span>
+          ) : (
+            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-500 dark:bg-slate-800 dark:text-slate-400" data-testid={`rsvp-rank-unranked-${s.id ?? idx}`}>
+              Unranked
             </span>
           )}
         </div>
