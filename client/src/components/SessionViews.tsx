@@ -1561,6 +1561,77 @@ function SessionPreviewDialog({
   const spotsLeft = session.maxPlayers - (session.signupCount || 0);
   const isFull = spotsLeft <= 0;
   const isScheduledLater = (session as any).publishAt && new Date((session as any).publishAt) > new Date();
+  const isAdmin = !!adminActions?.editableClubIds.has(session.clubId);
+
+  const { data: previewSignups } = useQuery<any[]>({
+    queryKey: ["/api/sessions", session.id, "signups"],
+    queryFn: async () => {
+      const r = await fetch(`/api/sessions/${session.id}/signups`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load signups");
+      return r.json();
+    },
+    enabled: open,
+    staleTime: 30000,
+  });
+  const confirmed = (previewSignups || []).filter((s: any) => s.signupStatus === "CONFIRMED" || !s.signupStatus);
+  const waiting = (previewSignups || []).filter((s: any) => s.signupStatus === "WAITING");
+
+  const gradeChipClass = (grade?: string | null) => {
+    if (!grade) return "bg-muted text-muted-foreground";
+    const tier = grade.charAt(0);
+    if (tier === "A") return "bg-amber-100 text-amber-800 dark:bg-amber-900/50 dark:text-amber-300";
+    if (tier === "B") return "bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300";
+    return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/50 dark:text-emerald-300";
+  };
+  const formatCategory = (cat?: string | null) => {
+    if (!cat) return "";
+    if (cat === "MENS" || cat === "MALE") return "Men";
+    if (cat === "WOMENS" || cat === "FEMALE") return "Women";
+    if (cat === "MIXED") return "Mixed";
+    if (cat === "JUNIORS") return "Juniors";
+    return cat.charAt(0) + cat.slice(1).toLowerCase();
+  };
+
+  const renderRsvpRow = (s: any, idx: number) => {
+    const player = s.player || {};
+    const user = player.user || {};
+    const fullName = user.fullName || "Player";
+    const grade = player.grade || null;
+    const cat = formatCategory(player.category);
+    const initials = fullName.split(" ").map((p: string) => p[0]).join("").slice(0, 2).toUpperCase();
+    const paid = s.paymentStatus === "PAID";
+    return (
+      <div
+        key={s.id ?? idx}
+        className="flex items-center gap-2 py-1.5"
+        data-testid={`rsvp-row-${session.id}-${s.id ?? idx}`}
+      >
+        <div className="h-7 w-7 rounded-full bg-muted text-muted-foreground text-[10px] font-bold flex items-center justify-center shrink-0">
+          {initials}
+        </div>
+        <div className="flex-1 min-w-0 flex items-center gap-1.5 flex-wrap">
+          <span className="text-sm font-medium truncate" data-testid={`rsvp-name-${s.id ?? idx}`}>{fullName}</span>
+          {grade && (
+            <span className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-bold ${gradeChipClass(grade)}`} data-testid={`rsvp-grade-${s.id ?? idx}`}>
+              {grade}
+            </span>
+          )}
+          {cat && (
+            <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300" data-testid={`rsvp-category-${s.id ?? idx}`}>
+              {cat}
+            </span>
+          )}
+        </div>
+        {isAdmin && (
+          paid ? (
+            <CircleDollarSign className="h-3.5 w-3.5 text-emerald-500 shrink-0" data-testid={`rsvp-paid-${s.id ?? idx}`} />
+          ) : (
+            <CircleDollarSign className="h-3.5 w-3.5 text-amber-500 shrink-0" data-testid={`rsvp-unpaid-${s.id ?? idx}`} />
+          )
+        )}
+      </div>
+    );
+  };
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -1700,6 +1771,33 @@ function SessionPreviewDialog({
               })()
             )}
             {isLive && <Badge className="bg-green-600 text-white">LIVE</Badge>}
+          </div>
+
+          <div className="rounded-xl border bg-muted/30 p-3 space-y-2" data-testid={`rsvp-list-${session.id}`}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm font-semibold">RSVP'd Players</span>
+              </div>
+              <span className="text-xs text-muted-foreground" data-testid={`rsvp-count-${session.id}`}>
+                {confirmed.length}{session.maxPlayers ? ` / ${session.maxPlayers}` : ""}
+              </span>
+            </div>
+            {confirmed.length === 0 ? (
+              <p className="text-xs text-muted-foreground py-1">No one has signed up yet.</p>
+            ) : (
+              <div className="max-h-64 overflow-y-auto pr-1 divide-y divide-border/40">
+                {confirmed.map(renderRsvpRow)}
+              </div>
+            )}
+            {waiting.length > 0 && (
+              <div className="pt-2 border-t border-border/40">
+                <p className="text-[11px] uppercase tracking-wide text-muted-foreground mb-1">Waiting list ({waiting.length})</p>
+                <div className="max-h-32 overflow-y-auto pr-1 divide-y divide-border/40">
+                  {waiting.map(renderRsvpRow)}
+                </div>
+              </div>
+            )}
           </div>
 
           {isSignedUp ? (
