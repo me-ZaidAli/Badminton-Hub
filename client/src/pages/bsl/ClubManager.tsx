@@ -5,12 +5,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Crown, Pencil, Save, AlertTriangle, UserCheck, UserX,
   Users, Plus, Trash2, Shield, X, Check, Trophy, BarChart3, PoundSterling,
-  Gauge,
+  Gauge, Share2,
 } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
 import { BSL } from "./components/BSLPalette";
+import { ShareInviteDialog } from "./components/ShareInviteDialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -35,6 +36,7 @@ export default function ClubManager() {
     name: "", logoUrl: "", division: "", adminNotes: "",
   });
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
   const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string }>({ displayName: "", bio: "" });
 
@@ -174,11 +176,26 @@ export default function ClubManager() {
               </span>{" · "}Division: {club.division}{" · "}Invite code: <span style={{ color: BSL.gold }} data-testid="text-invite-code">{club.inviteCode || "—"}</span>
             </p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex gap-2 flex-wrap">
+            {club.inviteCode && club.status === "ACTIVE" && (
+              <ActionButton variant="gold" icon={<Share2 className="h-3 w-3" />} onClick={() => setShareOpen(true)} data-testid="button-share-club">Share invite</ActionButton>
+            )}
             {!editing && <ActionButton variant="cyan" icon={<Pencil className="h-3 w-3" />} onClick={startEdit} data-testid="button-edit-club">Edit details</ActionButton>}
             {!club.withdrawnAt && <ActionButton variant="ghost" icon={<AlertTriangle className="h-3 w-3" />} onClick={() => setConfirmWithdraw(true)} data-testid="button-withdraw-club">Withdraw club</ActionButton>}
           </div>
         </motion.div>
+
+        {club.inviteCode && (
+          <ShareInviteDialog
+            open={shareOpen}
+            onOpenChange={setShareOpen}
+            title={`Share · ${club.name}`}
+            subtitle="Send this to your players. Anyone with the link or QR can sign up and join your club in the BSL."
+            shareUrl={`${window.location.origin}/bsl/join?code=${club.inviteCode}`}
+            inviteCode={club.inviteCode}
+            filenameSlug={`bsl-${club.name}`}
+          />
+        )}
 
         {/* DASHBOARD STAT TILES */}
         {summary && (

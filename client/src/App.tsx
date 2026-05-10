@@ -208,7 +208,8 @@ function PrivateRoute({ component: Component, allowTrial }: { component: React.C
   }
 
   if (!user) {
-    setLocation("/login");
+    const here = location + (typeof window !== "undefined" ? window.location.search : "");
+    setLocation(`/login?next=${encodeURIComponent(here)}`);
     return null;
   }
 

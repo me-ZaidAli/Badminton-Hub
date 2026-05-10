@@ -49,6 +49,15 @@ const ACQUISITION_OPTIONS = [
   { value: "OTHER", label: "Other" },
 ] as const;
 
+function safeNext(raw: string | null | undefined): string | null {
+  if (!raw) return null;
+  try {
+    const decoded = decodeURIComponent(raw);
+    if (decoded.startsWith("/") && !decoded.startsWith("//")) return decoded;
+  } catch {}
+  return null;
+}
+
 const formSchema = z.object({
   fullName: z.string().min(2, "Name must be at least 2 characters"),
   nickname: z.string().optional(),
@@ -66,6 +75,7 @@ const formSchema = z.object({
   selfAssessedLevel: z.string().optional(),
   trialExperience: z.string().optional(),
   preferredDays: z.array(z.string()).default([]),
+  joinClubIds: z.array(z.number()).default([]),
   confirmAccurate: z.boolean().refine(val => val === true, { message: "You must confirm your information is accurate" }),
   acceptTerms: z.boolean().refine(val => val === true, { message: "You must agree to the Terms & Conditions" }),
   acceptPrivacy: z.boolean().refine(val => val === true, { message: "You must agree to the Privacy Policy" }),
@@ -123,6 +133,7 @@ const formSchema = z.object({
 export default function Register() {
   const [, setLocation] = useLocation();
   const searchString = useSearch();
+  const nextUrl = safeNext(new URLSearchParams(searchString).get("next"));
   const { mutate: register, isPending } = useRegister();
   const [showPassword, setShowPassword] = useState(false);
   const [showClaimDialog, setShowClaimDialog] = useState(false);
@@ -187,6 +198,7 @@ export default function Register() {
       selfAssessedLevel: "",
       trialExperience: "",
       preferredDays: [],
+      joinClubIds: [],
       confirmAccurate: false,
       acceptTerms: false,
       acceptPrivacy: false,
@@ -200,7 +212,6 @@ export default function Register() {
 
   const { data: clubsList } = useQuery<{ id: number; name: string }[]>({
     queryKey: ["/api/clubs"],
-    enabled: isTrialPlayer,
   });
 
   useEffect(() => {
@@ -278,11 +289,42 @@ export default function Register() {
             });
           } catch {}
         }
-        const toastDesc = values.isTrialPlayer
-          ? "Your trial registration has been submitted. Check your Trial Dashboard for updates."
-          : "Welcome! Complete your profile and browse clubs to get started.";
+        // Fire optional membership requests for any clubs the user opted into.
+        // Each requires the club's first membership plan; we fetch and pick the
+        // cheapest annual plan, then POST the request. Failures are non-fatal —
+        // the user can still complete their account flow.
+        if (values.joinClubIds && values.joinClubIds.length > 0) {
+          await Promise.all(values.joinClubIds.map(async (clubId) => {
+            try {
+              const planRes = await fetch(`/api/clubs/${clubId}/membership-plans`, { credentials: "include" });
+              if (!planRes.ok) return;
+              const plans: any[] = await planRes.json();
+              if (!plans.length) return;
+              const plan = plans.slice().sort((a, b) => (a.annualPrice ?? 0) - (b.annualPrice ?? 0))[0];
+              await fetch("/api/membership-requests", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                credentials: "include",
+                body: JSON.stringify({ clubId, planId: plan.id }),
+              });
+            } catch {}
+          }));
+        }
+
+        const sentRequests = (values.joinClubIds || []).length;
+        const toastDesc = nextUrl
+          ? "Welcome! Taking you to where you left off…"
+          : values.isTrialPlayer
+            ? "Your trial registration has been submitted. Check your Trial Dashboard for updates."
+            : sentRequests > 0
+              ? `Membership requests sent to ${sentRequests} club${sentRequests === 1 ? "" : "s"}.`
+              : "Welcome! Complete your profile and browse clubs to get started.";
         toast({ title: "Account created", description: toastDesc });
-        setLocation(values.isTrialPlayer ? "/trial-dashboard" : "/clubs");
+        if (nextUrl) {
+          setLocation(nextUrl);
+        } else {
+          setLocation(values.isTrialPlayer ? "/trial-dashboard" : "/clubs");
+        }
       })
       .catch(err => {
         console.error(err);
@@ -326,7 +368,11 @@ export default function Register() {
       <Card className="w-full max-w-lg border-border/50 shadow-2xl shadow-primary/5">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Create an account</CardTitle>
-          <CardDescription>Join Club Master and start playing today</CardDescription>
+          <CardDescription>
+            {nextUrl?.startsWith("/bsl")
+              ? "Sign up to join the Birmingham Super League. We'll take you back to finish joining once you're done."
+              : "Join Club Master and start playing today"}
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -688,6 +734,53 @@ export default function Register() {
                 )}
               </div>
 
+              <FormField
+                control={form.control}
+                name="joinClubIds"
+                render={({ field }) => (
+                  <FormItem className="space-y-2 rounded-md border border-border bg-muted/30 p-3">
+                    <FormLabel className="flex items-center gap-2 text-sm font-medium">
+                      <Shield className="h-4 w-4 text-primary" />
+                      Request to join clubs (optional)
+                    </FormLabel>
+                    <p className="text-xs text-muted-foreground">
+                      Tick any clubs you'd like to join. We'll send your membership request to each — no waiting required to access the league.
+                    </p>
+                    <div className="flex flex-wrap gap-2 pt-1" data-testid="group-join-clubs">
+                      {(clubsList || []).length === 0 && (
+                        <span className="text-xs text-muted-foreground">No clubs available right now.</span>
+                      )}
+                      {(clubsList || []).map((club) => {
+                        const selected = (field.value || []).includes(club.id);
+                        return (
+                          <button
+                            key={club.id}
+                            type="button"
+                            onClick={() => {
+                              const current = field.value || [];
+                              field.onChange(
+                                selected
+                                  ? current.filter((id: number) => id !== club.id)
+                                  : [...current, club.id]
+                              );
+                            }}
+                            className={`px-3 py-1.5 text-sm rounded-md border transition-colors ${
+                              selected
+                                ? "bg-primary text-primary-foreground border-primary"
+                                : "bg-background border-border hover-elevate"
+                            }`}
+                            data-testid={`button-join-club-${club.id}`}
+                          >
+                            {selected && <Check className="inline h-3 w-3 mr-1" />}
+                            {club.name}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </FormItem>
+                )}
+              />
+
               <div className="space-y-3 rounded-md border border-border bg-muted/30 p-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
                   <Megaphone className="h-4 w-4 text-primary" />
@@ -884,7 +977,7 @@ export default function Register() {
           </Form>
           <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">Already have an account? </span>
-            <Link href="/login" className="text-primary hover:underline font-medium">
+            <Link href={nextUrl ? `/login?next=${encodeURIComponent(nextUrl)}` : "/login"} className="text-primary hover:underline font-medium">
               Sign in
             </Link>
           </div>

@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { Eye, EyeOff, AlertCircle, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -16,8 +16,20 @@ const formSchema = z.object({
   password: z.string().min(1, "Password is required"),
 });
 
+function safeNext(raw: string | null | undefined): string {
+  if (!raw) return "/dashboard";
+  try {
+    const decoded = decodeURIComponent(raw);
+    // Only allow internal redirects that begin with a single forward slash
+    if (decoded.startsWith("/") && !decoded.startsWith("//")) return decoded;
+  } catch {}
+  return "/dashboard";
+}
+
 export default function Login() {
   const [, setLocation] = useLocation();
+  const search = useSearch();
+  const nextUrl = safeNext(new URLSearchParams(search).get("next"));
   const { mutate: login, isPending } = useLogin();
   const { mutate: reopenAccount, isPending: isReopening } = useReopenAccount();
   const { toast } = useToast();
@@ -36,7 +48,7 @@ export default function Login() {
     setErrorCode(null);
     setClosedCredentials(null);
     login(values, {
-      onSuccess: () => setLocation("/dashboard"),
+      onSuccess: () => setLocation(nextUrl),
       onError: (error: any) => {
         const code: string | undefined = error instanceof LoginError ? error.code : error?.code;
         if (code === "ACCOUNT_CLOSED") {
@@ -65,7 +77,7 @@ export default function Login() {
           title: "Welcome back!",
           description: "Your account has been reopened.",
         });
-        setLocation("/dashboard");
+        setLocation(nextUrl);
       },
       onError: (error: any) => {
         setLoginError(error?.message || "Failed to reopen account. Please try again or contact your club administrator.");
@@ -171,7 +183,7 @@ export default function Login() {
           </div>
           <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
-            <Link href="/register" className="text-primary hover:underline font-medium">
+            <Link href={nextUrl !== "/dashboard" ? `/register?next=${encodeURIComponent(nextUrl)}` : "/register"} className="text-primary hover:underline font-medium">
               Join now
             </Link>
           </div>

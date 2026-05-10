@@ -2,12 +2,13 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check, BadgeCheck, CircleDollarSign,
+  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check, BadgeCheck, CircleDollarSign, Share2,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
 import { BSL } from "../components/BSLPalette";
+import { ShareInviteDialog } from "../components/ShareInviteDialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -23,6 +24,7 @@ export default function ClubsAdmin() {
   const [divFilter, setDivFilter] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
+  const [shareClub, setShareClub] = useState<any | null>(null);
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: clubs } = useQuery<any[]>({
@@ -180,6 +182,16 @@ export default function ClubsAdmin() {
                             Mark unpaid
                           </ActionButton>
                         )}
+                        {c.inviteCode && (
+                          <ActionButton
+                            variant="ghost"
+                            icon={<Share2 className="h-3 w-3" />}
+                            onClick={() => setShareClub(c)}
+                            testid={`button-share-club-${c.id}`}
+                          >
+                            Share
+                          </ActionButton>
+                        )}
                         <ActionButton variant="gold" onClick={() => setEditId(c.id)}>Edit</ActionButton>
                       </div>
                     </td>
@@ -190,6 +202,18 @@ export default function ClubsAdmin() {
           </div>
         )}
       </GlowPanel>
+
+      {shareClub && (
+        <ShareInviteDialog
+          open={!!shareClub}
+          onOpenChange={(o) => !o && setShareClub(null)}
+          title={`Share · ${shareClub.name}`}
+          subtitle="Anyone with this link or QR can sign up and join this club in the BSL."
+          shareUrl={`${window.location.origin}/bsl/join?code=${shareClub.inviteCode}`}
+          inviteCode={shareClub.inviteCode}
+          filenameSlug={`bsl-${shareClub.name}`}
+        />
+      )}
 
       {editing && (
         <ClubEditor

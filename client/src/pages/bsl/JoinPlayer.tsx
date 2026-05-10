@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { Link, useLocation } from "wouter";
+import { Link, useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, ArrowRight, Check, Copy, Hash, Upload, Hourglass, Banknote, Users, Sparkles } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
@@ -16,8 +16,11 @@ export default function JoinPlayer() {
   const [, setLoc] = useLocation();
   const { toast } = useToast();
   const qc = useQueryClient();
+  const search = useSearch();
+  const initialCode = (new URLSearchParams(search).get("code") || "").toUpperCase();
   const [step, setStep] = useState<typeof STEPS[number]>("code");
-  const [code, setCode] = useState("");
+  const [code, setCode] = useState(initialCode);
+  const [autoValidated, setAutoValidated] = useState(false);
   const [validatedClub, setValidatedClub] = useState<any>(null);
   const [teamId, setTeamId] = useState<number | null>(null);
   const [createdPlayer, setCreatedPlayer] = useState<any>(null);
@@ -44,6 +47,14 @@ export default function JoinPlayer() {
     onSuccess: (club) => { setValidatedClub(club); setStep("team"); },
     onError: (e: any) => toast({ title: "Invalid code", description: e.message, variant: "destructive" }),
   });
+
+  // Auto-validate when arriving with ?code=… in the URL (QR / shared link)
+  useEffect(() => {
+    if (initialCode && initialCode.length >= 6 && !autoValidated && step === "code") {
+      setAutoValidated(true);
+      validateMutation.mutate();
+    }
+  }, [initialCode, autoValidated, step]);
 
   const joinMutation = useMutation({
     mutationFn: async () => {

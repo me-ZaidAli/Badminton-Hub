@@ -1,11 +1,13 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Trophy, Users, Wallet as WalletIcon, Calendar, Zap, Crown, Shield, MapPin, Sparkles, ChevronRight, Activity } from "lucide-react";
+import { Trophy, Users, Wallet as WalletIcon, Calendar, Zap, Crown, Shield, MapPin, Sparkles, ChevronRight, Activity, Share2 } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
 import { CountdownTimer } from "./components/CountdownTimer";
 import { ActionButton } from "./components/ActionButton";
+import { ShareInviteDialog } from "./components/ShareInviteDialog";
 import { StatTile } from "./components/StatTile";
 import { MatchCard } from "./components/MatchCard";
 import { LeaderRow } from "./components/LeaderRow";
@@ -17,6 +19,7 @@ import bslHeroPhoto from "@assets/1778089289327_1778089305815.png";
 export default function LeagueMode() {
   const { data: user } = useUser();
   const isAdmin = (user as any)?.role === "OWNER" || (user as any)?.role === "ADMIN";
+  const [shareOpen, setShareOpen] = useState(false);
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: standings = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/standings"] });
@@ -40,6 +43,14 @@ export default function LeagueMode() {
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
+      <ShareInviteDialog
+        open={shareOpen}
+        onOpenChange={setShareOpen}
+        title="Share the Birmingham Super League"
+        subtitle="Send this link or QR to anyone who wants to sign up and join the BSL."
+        shareUrl={`${window.location.origin}/bsl`}
+        filenameSlug="bsl-league"
+      />
       {/* HERO BANNER */}
       <div className="relative">
         <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8">
@@ -136,6 +147,9 @@ export default function LeagueMode() {
             ) : (
               <Link href="/bsl/register-club"><a><ActionButton variant="gold" icon={<Shield className="h-4 w-4" />}>Register a Club</ActionButton></a></Link>
             )}
+            <ActionButton variant="ghost" icon={<Share2 className="h-4 w-4" />} onClick={() => setShareOpen(true)} data-testid="button-share-bsl">
+              Share BSL
+            </ActionButton>
             {isAdmin && (
               <>
                 <Link href="/bsl/admin/verify"><a><ActionButton variant="ghost" icon={<Sparkles className="h-4 w-4" />}>Verify Payments</ActionButton></a></Link>
