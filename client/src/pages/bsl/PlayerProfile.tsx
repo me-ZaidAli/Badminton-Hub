@@ -81,6 +81,15 @@ export default function PlayerProfile() {
     onError: (e: any) => toast({ title: "Heads up", description: cleanErr(e) }),
   });
 
+  const payLeagueFee = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/bsl/players/me/pay-league-fee-from-wallet", {})).json(),
+    onSuccess: () => {
+      invalidatePlayer();
+      toast({ title: "You're in!", description: "League fee paid from your wallet — you can now register for categories." });
+    },
+    onError: (e: any) => toast({ title: "Couldn't activate", description: cleanErr(e), variant: "destructive" }),
+  });
+
   const unregisterCat = useMutation({
     mutationFn: async (category: string) => (await apiRequest("DELETE", `/api/bsl/players/me/categories/${category}`)).json(),
     onSuccess: () => { invalidatePlayer(); toast({ title: "Removed from category", description: "No automatic refund — admin will handle it." }); },
@@ -257,18 +266,51 @@ export default function PlayerProfile() {
 
         {/* Category registration */}
         <GlowPanel title="Compete in categories" tone="gold" icon={<Plus className="h-4 w-4" />}>
-          {me.status !== "ACTIVE" && (
-            <div
-              className="mb-3 rounded-lg px-3 py-2.5 text-xs"
-              style={{ background: `${BSL.gold}15`, border: `1px solid ${BSL.gold}55`, color: BSL.gold }}
-              data-testid="banner-pending-approval"
-            >
-              <div className="font-bold uppercase tracking-widest text-[10px] mb-0.5">Awaiting admin verification</div>
-              <div className="text-white/80 text-[11px] leading-snug">
-                Your league fee payment has been submitted. An admin needs to verify it before you can register for categories. This usually happens within a day — check back shortly.
+          {me.status !== "ACTIVE" && (() => {
+            const canPayFromWallet = balance >= playerFee && me.status !== "REJECTED";
+            return (
+              <div
+                className="mb-3 rounded-lg px-3 py-2.5 text-xs"
+                style={{ background: `${BSL.gold}15`, border: `1px solid ${BSL.gold}55`, color: BSL.gold }}
+                data-testid="banner-pending-approval"
+              >
+                <div className="font-bold uppercase tracking-widest text-[10px] mb-0.5">
+                  {canPayFromWallet ? "One more step to activate" : me.status === "PENDING_VERIFICATION" ? "Awaiting admin verification" : "League fee not paid yet"}
+                </div>
+                <div className="text-white/80 text-[11px] leading-snug">
+                  {canPayFromWallet ? (
+                    <>You have £{(balance/100).toFixed(2)} in your wallet. Pay the £{(playerFee/100).toFixed(2)} league fee to unlock category registration immediately — no waiting on an admin.</>
+                  ) : me.status === "PENDING_VERIFICATION" ? (
+                    <>Your league fee payment proof is in the admin queue. Once verified you'll be activated and can register for categories.</>
+                  ) : (
+                    <>Top up your wallet to at least £{(playerFee/100).toFixed(2)}, then pay the league fee from there to activate instantly. Or upload bank-transfer proof from the join flow.</>
+                  )}
+                </div>
+                {canPayFromWallet && (
+                  <div className="mt-2.5">
+                    <ActionButton
+                      variant="gold"
+                      onClick={() => payLeagueFee.mutate()}
+                      disabled={payLeagueFee.isPending}
+                      icon={<Check className="h-3 w-3" />}
+                      data-testid="button-pay-league-fee-from-wallet"
+                    >
+                      {payLeagueFee.isPending ? "Activating…" : `Pay £${(playerFee/100).toFixed(2)} & activate`}
+                    </ActionButton>
+                  </div>
+                )}
+                {!canPayFromWallet && me.status !== "PENDING_VERIFICATION" && me.status !== "REJECTED" && (
+                  <div className="mt-2.5">
+                    <Link href="/bsl/wallet">
+                      <ActionButton variant="cyan" icon={<WalletIcon className="h-3 w-3" />} data-testid="button-go-topup">
+                        Top up wallet
+                      </ActionButton>
+                    </Link>
+                  </div>
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
           <p className="text-xs mb-1" style={{ color: BSL.muted }}>
             Each category has its own fee — debited from your BSL wallet on registration. Your club owner places you in a pair after you register.
           </p>

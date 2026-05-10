@@ -38,8 +38,12 @@ export default function JoinPlayer() {
     } else if (existingPlayer.status === "PENDING_VERIFICATION") {
       toast({ title: "Already submitted", description: "Your payment is awaiting admin verification." });
       setLoc("/bsl/profile");
+    } else if (existingPlayer.status === "PENDING_PAYMENT") {
+      // They've already joined the club — send them to the profile where they can
+      // pay the league fee from wallet (if topped up) or be guided to top up.
+      toast({ title: "Finish activating", description: "You've joined — now pay the league fee to unlock the league." });
+      setLoc("/bsl/profile");
     }
-    // PENDING_PAYMENT / DRAFT players stay in the wizard so they can finish paying.
   }, [existingPlayer?.id, existingPlayer?.status]);
 
   const { data: clubTeams = [] } = useQuery<any[]>({
