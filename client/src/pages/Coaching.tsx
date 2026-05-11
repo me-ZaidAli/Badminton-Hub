@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
-import { GraduationCap, Loader2, Search, BookOpen, Settings, Sparkles } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { GraduationCap, Loader2, Search, BookOpen, Settings, Sparkles, UserPlus } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser } from "@/hooks/use-auth";
 
@@ -8,6 +9,7 @@ const FindCoach = lazy(() => import("@/pages/FindCoach"));
 const MyLessons = lazy(() => import("@/pages/MyLessons"));
 const CoachDashboard = lazy(() => import("@/pages/CoachDashboard"));
 const MyTrainingProfile = lazy(() => import("@/pages/MyTrainingProfile"));
+const RegisterCoach = lazy(() => import("@/pages/RegisterCoach"));
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-20">
@@ -21,6 +23,14 @@ export default function Coaching() {
   const { data: user } = useUser();
   const u = user as any;
   const isCoachish = u && (u.role === "COACH" || (u.secondaryRoles ?? []).includes("COACH") || u.role === "OWNER" || u.role === "ADMIN");
+
+  // Detect a pending/approved coach record so we hide the Become-a-Coach tab once submitted
+  const { data: myCoach } = useQuery<{ id: number; status: string } | null>({
+    queryKey: ["/api/coaches/me"],
+    enabled: !!u,
+    retry: false,
+  });
+  const showRegister = !!u && !isCoachish && !myCoach;
 
   const params = useMemo(() => new URLSearchParams(search), [search]);
   const tab = params.get("tab") || "find";
@@ -64,6 +74,16 @@ export default function Coaching() {
                 <Settings className="w-3.5 h-3.5 mr-1.5" /> Coach Dashboard
               </TabsTrigger>
             )}
+            {showRegister && (
+              <TabsTrigger value="register" data-testid="tab-coaching-register" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-emerald-500 data-[state=active]:to-cyan-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(16,185,129,0.45)]">
+                <UserPlus className="w-3.5 h-3.5 mr-1.5" /> Become a Coach
+              </TabsTrigger>
+            )}
+            {myCoach && myCoach.status === "PENDING" && !isCoachish && (
+              <TabsTrigger value="register" data-testid="tab-coaching-pending" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-amber-500 data-[state=active]:to-orange-500 data-[state=active]:text-white">
+                <Loader2 className="w-3.5 h-3.5 mr-1.5" /> Application Pending
+              </TabsTrigger>
+            )}
           </TabsList>
 
           <TabsContent value="find" className="mt-4">
@@ -78,6 +98,11 @@ export default function Coaching() {
           {isCoachish && (
             <TabsContent value="dashboard" className="mt-4">
               <Suspense fallback={<Fallback />}><CoachDashboard /></Suspense>
+            </TabsContent>
+          )}
+          {(showRegister || (myCoach && !isCoachish)) && (
+            <TabsContent value="register" className="mt-4">
+              <Suspense fallback={<Fallback />}><RegisterCoach /></Suspense>
             </TabsContent>
           )}
         </Tabs>
