@@ -332,6 +332,14 @@ function DashboardContent({
         </div>
       </div>
 
+      {((myTournaments && myTournaments.length > 0) || featuredJoinTournament || upcomingList.length > 0) && (
+        <div className="flex items-center gap-2 pt-2">
+          <Trophy className="h-4 w-4 text-amber-500" />
+          <h2 className="text-lg font-bold tracking-tight" data-testid="heading-tournaments">Tournaments</h2>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+      )}
+
       {myTournaments && myTournaments.length > 0 && myTournaments.map((tournament: any) => (
         <Link key={tournament.tournamentId} href={`/tournaments/${tournament.tournamentId}`}>
           <div
@@ -730,6 +738,14 @@ function DashboardContent({
         </CardContent>
       </Card>
 
+      {((myLeagueSelections && myLeagueSelections.length > 0) || nextLeagueMatch) && (
+        <div className="flex items-center gap-2 pt-2">
+          <Swords className="h-4 w-4 text-emerald-500" />
+          <h2 className="text-lg font-bold tracking-tight" data-testid="heading-league">Your League</h2>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+      )}
+
       {myLeagueSelections && myLeagueSelections.length > 0 && (
         <div className="space-y-3" data-testid="league-selections-banner">
           {myLeagueSelections.map((sel: any) => {
@@ -986,6 +1002,14 @@ function DashboardContent({
       )}
 
       {nextBslFixture && (
+        <div className="flex items-center gap-2 pt-2">
+          <Trophy className="h-4 w-4 text-cyan-500" />
+          <h2 className="text-lg font-bold tracking-tight" data-testid="heading-bsl">Birmingham Super League</h2>
+          <div className="flex-1 h-px bg-border" />
+        </div>
+      )}
+
+      {nextBslFixture && (
         <Link href={`/bsl/match/${nextBslFixture.id}`} className="mt-4 block">
           <div
             className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
@@ -1063,6 +1087,12 @@ function DashboardContent({
         </Link>
       )}
 
+      <div className="flex items-center gap-2 pt-2">
+        <Calendar className="h-4 w-4 text-blue-500" />
+        <h2 className="text-lg font-bold tracking-tight" data-testid="heading-sessions">Your Sessions</h2>
+        <div className="flex-1 h-px bg-border" />
+      </div>
+
       <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-violet-500/15 p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.25)] text-white" data-testid="card-my-upcoming-sessions">
         <div className="pointer-events-none absolute -top-20 -right-12 w-72 h-72 rounded-full bg-blue-500/25 blur-3xl" />
         <div className="pointer-events-none absolute -bottom-24 -left-12 w-72 h-72 rounded-full bg-violet-500/15 blur-3xl" />
@@ -1131,6 +1161,12 @@ function DashboardContent({
             </div>
           )}
         </div>
+      </div>
+
+      <div className="flex items-center gap-2 pt-2">
+        <Activity className="h-4 w-4 text-violet-500" />
+        <h2 className="text-lg font-bold tracking-tight" data-testid="heading-at-a-glance">At a Glance</h2>
+        <div className="flex-1 h-px bg-border" />
       </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="stats-grid">
