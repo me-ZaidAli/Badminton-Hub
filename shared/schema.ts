@@ -3208,6 +3208,10 @@ export const bslLeagueDays = pgTable("bsl_league_days", {
   division: text("division"),
   category: text("category"),
   rubbersPerFixture: integer("rubbers_per_fixture"),
+  // Free-text venue / address shown on the public match-day card and in the
+  // admin Match Days hub so each day can be hosted at a different location.
+  venue: text("venue"),
+  notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

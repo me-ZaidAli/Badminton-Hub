@@ -3,7 +3,7 @@ import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   LayoutDashboard, Trophy, Radio, Building2, Users, CreditCard,
-  Image as ImageIcon, Settings, Menu, X, ArrowLeft, ShieldCheck, Bell, Sliders,
+  Image as ImageIcon, Settings, Menu, X, ArrowLeft, ShieldCheck, Bell, Sliders, CalendarDays,
 } from "lucide-react";
 import { BSL } from "../components/BSLPalette";
 import { BSLBackground } from "../components/BSLBackground";
@@ -15,7 +15,8 @@ const NAV = [
   { key: "dashboard", href: "/bsl/admin", label: "Dashboard", icon: LayoutDashboard },
   { key: "league", href: "/bsl/admin/league", label: "League Control", icon: Trophy },
   { key: "competition", href: "/bsl/admin/competition", label: "Competition Rules", icon: Sliders },
-  { key: "match-day", href: "/bsl/admin/match-day", label: "Match Day", icon: Radio },
+  { key: "match-days", href: "/bsl/admin/match-days", label: "Match Days", icon: CalendarDays },
+  { key: "match-day", href: "/bsl/admin/match-day", label: "Match Day Live", icon: Radio },
   { key: "clubs", href: "/bsl/admin/clubs", label: "Clubs", icon: Building2 },
   { key: "players", href: "/bsl/admin/players", label: "Players", icon: Users },
   { key: "payments", href: "/bsl/admin/payments", label: "Payments", icon: CreditCard },

@@ -572,11 +572,12 @@ export function registerBslRoutes(app: Express) {
   app.patch("/api/bsl/fixtures/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const { court, status, startTime } = req.body;
+      const { court, status, startTime, homeClubId, awayClubId, bslLeagueDayId } = req.body;
       // Lifecycle guard — block edits on CLOSED days; allow ONLY pure status
       // changes when LIVE. A mixed payload (status + court/startTime) during
       // LIVE is rejected so we don't silently sneak forbidden edits in.
-      const hasNonStatus = court !== undefined || startTime !== undefined;
+      const structural = homeClubId !== undefined || awayClubId !== undefined || bslLeagueDayId !== undefined;
+      const hasNonStatus = court !== undefined || startTime !== undefined || structural;
       const action = hasNonStatus ? "edit" : (status ? "status" : "edit");
       const block = await assertFixtureMutable(id, new Set(["status"]), action);
       if (block) return res.status(409).json({ message: block });
@@ -584,9 +585,53 @@ export function registerBslRoutes(app: Express) {
       if (court !== undefined) patch.court = court;
       if (status) patch.status = status;
       if (startTime) patch.startTime = new Date(startTime);
+      if (homeClubId !== undefined) patch.homeClubId = homeClubId == null ? null : Number(homeClubId);
+      if (awayClubId !== undefined) patch.awayClubId = awayClubId == null ? null : Number(awayClubId);
+      if (bslLeagueDayId !== undefined) patch.bslLeagueDayId = bslLeagueDayId == null ? null : Number(bslLeagueDayId);
+      if (patch.homeClubId != null && patch.awayClubId != null && patch.homeClubId === patch.awayClubId) {
+        return res.status(400).json({ message: "Home and away clubs must differ" });
+      }
       const [updated] = await db.update(bslFixtures).set(patch).where(eq(bslFixtures.id, id)).returning();
       if (status === "FINISHED") await recomputeStandings();
       res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  // Match-day "details" endpoint — returns the day plus all its fixtures with
+  // hydrated home/away club names + logos and rubber counts. Powers the new
+  // /bsl/admin/match-days hub so a single round-trip backs the editor modal.
+  app.get("/api/bsl/admin/league-days/:id/details", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, id)).limit(1);
+      if (!day) return res.status(404).json({ message: "League day not found" });
+      const fixtures = await db.select().from(bslFixtures).where(eq(bslFixtures.bslLeagueDayId, id)).orderBy(bslFixtures.startTime);
+      const fixtureIds = fixtures.map(f => f.id);
+      const clubIds = Array.from(new Set(fixtures.flatMap(f => [f.homeClubId, f.awayClubId]).filter((x): x is number => x != null)));
+      const teamIds = Array.from(new Set(fixtures.flatMap(f => [f.homeTeamId, f.awayTeamId]).filter((x): x is number => x != null)));
+      const [clubs, teams, rubbers] = await Promise.all([
+        clubIds.length ? db.select().from(bslClubs).where(inArray(bslClubs.id, clubIds)) : Promise.resolve([] as any[]),
+        teamIds.length ? db.select().from(bslTeams).where(inArray(bslTeams.id, teamIds)) : Promise.resolve([] as any[]),
+        fixtureIds.length ? db.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, fixtureIds)) : Promise.resolve([] as any[]),
+      ]);
+      const cMap = new Map(clubs.map(c => [c.id, c]));
+      const tMap = new Map(teams.map(t => [t.id, t]));
+      const rubberCount = new Map<number, number>();
+      for (const r of rubbers) rubberCount.set(r.bslFixtureId!, (rubberCount.get(r.bslFixtureId!) || 0) + 1);
+      const enriched = fixtures.map(f => {
+        const ht = f.homeTeamId != null ? tMap.get(f.homeTeamId) : null;
+        const at = f.awayTeamId != null ? tMap.get(f.awayTeamId) : null;
+        const hc = f.homeClubId != null ? cMap.get(f.homeClubId) : (ht ? cMap.get(ht.bslClubId) : null);
+        const ac = f.awayClubId != null ? cMap.get(f.awayClubId) : (at ? cMap.get(at.bslClubId) : null);
+        return {
+          ...f,
+          rubberCount: rubberCount.get(f.id) || 0,
+          homeClubName: hc?.name || ht?.name || null,
+          awayClubName: ac?.name || at?.name || null,
+          homeClubLogo: hc?.logoUrl || null,
+          awayClubLogo: ac?.logoUrl || null,
+        };
+      });
+      res.json({ day, fixtures: enriched });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   // === ADMIN: club-vs-club fixture creation + drag-drop pair assignment ===
@@ -1625,6 +1670,8 @@ export function registerBslRoutes(app: Express) {
       const rpf = rubbersPerFixture == null || rubbersPerFixture === ""
         ? null
         : Math.max(1, Math.min(60, Math.round(Number(rubbersPerFixture))));
+      const venueIn = req.body?.venue;
+      const notesIn = req.body?.notes;
       const [row] = await db.insert(bslLeagueDays).values({
         bslLeagueId: 1,
         date: new Date(date),
@@ -1632,6 +1679,8 @@ export function registerBslRoutes(app: Express) {
         rubbersPerFixture: rpf,
         division: division ? String(division).trim().slice(0, 56) || null : null,
         category: category ? String(category).trim().toUpperCase().slice(0, 16) || null : null,
+        venue: typeof venueIn === "string" && venueIn.trim() ? venueIn.trim().slice(0, 240) : null,
+        notes: typeof notesIn === "string" && notesIn.trim() ? notesIn.trim().slice(0, 2000) : null,
       } as any).returning();
       await audit(req, "CREATE_LEAGUE_DAY", "bsl_league_day", row.id, { date, rubbersPerFixture: rpf, division, category });
       res.json(row);
@@ -1665,6 +1714,14 @@ export function registerBslRoutes(app: Express) {
         patch.rubbersPerFixture = v == null || v === ""
           ? null
           : Math.max(1, Math.min(60, Math.round(Number(v))));
+      }
+      if ("venue" in body) {
+        const v = body.venue;
+        patch.venue = typeof v === "string" && v.trim() ? v.trim().slice(0, 240) : null;
+      }
+      if ("notes" in body) {
+        const v = body.notes;
+        patch.notes = typeof v === "string" && v.trim() ? v.trim().slice(0, 2000) : null;
       }
       if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
       // Lifecycle guard. Date can be edited any time. Structural fields
