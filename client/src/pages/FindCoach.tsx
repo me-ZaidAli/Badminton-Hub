@@ -718,7 +718,8 @@ export default function FindCoach() {
     },
   });
 
-  const isActive = membership?.status === "ACTIVE";
+  // Find-a-Coach is free for everyone — paywall fully removed.
+  const isActive = true;
 
   const { data: coaches, isLoading: coachesLoading } = useQuery<Coach[]>({
     queryKey: ["/api/coaches"],
