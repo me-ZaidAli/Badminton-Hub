@@ -7,6 +7,7 @@ import {
   Users, Trophy, CalendarClock, History, Shield, MapPin,
 } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
+import { BslSubNav } from "@/components/SubNav";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
 import { BSL } from "./components/BSLPalette";
@@ -129,6 +130,7 @@ export default function PlayerProfile() {
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
+      <BslSubNav />
       <div className="max-w-5xl mx-auto px-4 md:px-8 py-6 space-y-6">
         <BackBar />
 

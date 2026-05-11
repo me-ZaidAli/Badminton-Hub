@@ -21,6 +21,7 @@ import {
   Loader2, Sparkles, Sun, AlertCircle, Camera, ExternalLink, User, MapPin, BellRing,
   Banknote, Info, PoundSterling, Users as UsersIcon, Wallet,
 } from "lucide-react";
+import { CoachSubNav } from "@/components/SubNav";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 const STATUS_TONE: Record<string, string> = {
@@ -102,7 +103,9 @@ export default function CoachDashboard() {
   const pendingCount = bookings?.filter((b) => b.status === "PENDING").length ?? 0;
 
   return (
-    <div className="container max-w-6xl mx-auto py-6 px-4 space-y-6">
+    <div>
+      <CoachSubNav />
+      <div className="container max-w-6xl mx-auto py-6 px-4 space-y-6">
       <PageHeader
         title="Coach Dashboard"
         description={`Manage your availability, gallery, pricing and incoming bookings — ${coach.fullName}`}
@@ -151,6 +154,7 @@ export default function CoachDashboard() {
         <Link href={`/coach/${coach.id}`}>
           <Button variant="outline" data-testid="link-public-profile"><ExternalLink className="w-4 h-4 mr-2" />View public profile</Button>
         </Link>
+      </div>
       </div>
     </div>
   );

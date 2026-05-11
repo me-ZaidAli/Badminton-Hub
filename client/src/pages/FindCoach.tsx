@@ -18,6 +18,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, PoundSterling, Languages, HeartHandshake, Trophy, Star, SendHorizonal } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReviewSection from "@/components/ReviewSection";
+import { CoachSubNav } from "@/components/SubNav";
 
 delete (L.Icon.Default.prototype as any)._getIconUrl;
 L.Icon.Default.mergeOptions({
@@ -903,6 +904,7 @@ export default function FindCoach() {
 
   return (
     <div data-testid="section-find-coach">
+      <CoachSubNav />
       <div className="mb-6">
         <h1 className="text-2xl font-bold flex items-center gap-2" data-testid="text-page-title">
           <GraduationCap className="w-6 h-6 text-primary" />

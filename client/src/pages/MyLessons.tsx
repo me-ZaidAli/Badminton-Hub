@@ -16,6 +16,7 @@ import {
   GraduationCap, Calendar, Clock, MapPin, User, MessageSquare, Check, X, Loader2, BookOpen,
   PoundSterling, Sparkles, ChevronLeft, ChevronRight, Trophy, AlarmClock,
 } from "lucide-react";
+import { CoachSubNav } from "@/components/SubNav";
 
 interface LessonRequest {
   id: number;
@@ -448,7 +449,9 @@ export default function MyLessons() {
   const pendingCount = coachRequests?.filter((r) => r.status === "PENDING").length || 0;
 
   return (
-    <div className="container max-w-6xl mx-auto py-6 px-4 space-y-6">
+    <div>
+      <CoachSubNav />
+      <div className="container max-w-6xl mx-auto py-6 px-4 space-y-6">
       <PageHeader
         title="My Lessons"
         description="Track your bookings and respond to requests"
@@ -468,6 +471,7 @@ export default function MyLessons() {
         <TabsContent value="player" className="mt-6"><PlayerLessonsView /></TabsContent>
         <TabsContent value="coach" className="mt-6"><CoachLessonsView /></TabsContent>
       </Tabs>
+      </div>
     </div>
   );
 }

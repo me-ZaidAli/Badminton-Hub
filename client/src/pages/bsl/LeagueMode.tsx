@@ -8,6 +8,7 @@ import { GlowPanel } from "./components/GlowPanel";
 import { CountdownTimer } from "./components/CountdownTimer";
 import { ActionButton } from "./components/ActionButton";
 import { ShareInviteDialog } from "./components/ShareInviteDialog";
+import { BslSubNav } from "@/components/SubNav";
 import { StatTile } from "./components/StatTile";
 import { MatchCard } from "./components/MatchCard";
 import { LeaderRow } from "./components/LeaderRow";
@@ -43,6 +44,7 @@ export default function LeagueMode() {
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
+      <BslSubNav />
       <ShareInviteDialog
         open={shareOpen}
         onOpenChange={setShareOpen}

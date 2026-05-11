@@ -19,6 +19,7 @@ import {
   Camera, ShieldCheck, Lock,
 } from "lucide-react";
 import ReviewSection from "@/components/ReviewSection";
+import { CoachSubNav } from "@/components/SubNav";
 
 const DAY_LABEL = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
@@ -130,6 +131,7 @@ export default function CoachPublicProfile() {
 
   return (
     <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
+      <CoachSubNav />
       <div className="container max-w-5xl mx-auto py-6 px-4 space-y-6">
         <Link href="/find-coach">
           <Button variant="ghost" size="sm" className="text-violet-300" data-testid="button-back"><ArrowLeft className="w-4 h-4 mr-1" />Back</Button>

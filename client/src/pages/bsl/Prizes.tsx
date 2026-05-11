@@ -7,6 +7,7 @@ import { BSLBackground } from "./components/BSLBackground";
 import { BSL } from "./components/BSLPalette";
 import { ActionButton } from "./components/ActionButton";
 import { ShareInviteDialog } from "./components/ShareInviteDialog";
+import { BslSubNav } from "@/components/SubNav";
 import { useUser } from "@/hooks/use-auth";
 
 type Prize = {
@@ -78,6 +79,7 @@ export default function BslPrizes() {
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
+      <BslSubNav />
       <ShareInviteDialog
         open={shareOpen}
         onOpenChange={setShareOpen}

@@ -4,6 +4,7 @@ import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { ArrowLeft, Plus, Wallet as WalletIcon, Upload, Check, X, Hourglass, Copy, Banknote } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
+import { BslSubNav } from "@/components/SubNav";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
 import { BSL } from "./components/BSLPalette";
@@ -42,6 +43,7 @@ export default function Wallet() {
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
+      <BslSubNav />
       <div className="max-w-3xl mx-auto px-4 md:px-8 pt-8">
         <Link href="/bsl"><a className="inline-flex items-center gap-2 text-xs uppercase tracking-widest mb-4" style={{ color: BSL.muted }}>
           <ArrowLeft className="h-3 w-3" /> Back to BSL
