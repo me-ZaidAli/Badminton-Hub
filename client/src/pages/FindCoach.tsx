@@ -181,113 +181,232 @@ function CoachMap({ coaches, className = "" }: { coaches: Coach[]; className?: s
   );
 }
 
+type Slot = { time: string; available: boolean; reason?: string };
+type AvailRule = { dayOfWeek: number; startTime: string; endTime: string; isActive: boolean };
+type AvailSummary = { rules: AvailRule[]; settings: { slotDurationMinutes: number; advanceNoticeHours: number; maxAdvanceDays: number; holidayMode: boolean; holidayMessage?: string; defaultPricePence?: number } | null };
+
+function ymd(d: Date) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, "0");
+  const day = String(d.getDate()).padStart(2, "0");
+  return `${y}-${m}-${day}`;
+}
+
 function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | null; open: boolean; onOpenChange: (v: boolean) => void }) {
   const queryClient = useQueryClient();
   const { toast } = useToast();
-  const [preferredDate, setPreferredDate] = useState("");
-  const [preferredTime, setPreferredTime] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState("60");
+  const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
+  const [selectedDate, setSelectedDate] = useState<string | null>(null);
+  const [selectedTime, setSelectedTime] = useState<string | null>(null);
   const [lessonType, setLessonType] = useState("ONE_TO_ONE");
   const [location, setLocation] = useState("");
   const [playerMessage, setPlayerMessage] = useState("");
 
-  const createMutation = useMutation({
-    mutationFn: async (data: any) => {
-      const res = await apiRequest("POST", "/api/lesson-requests", data);
-      return res.json();
+  const coachId = coach?.id ?? 0;
+  const { data: summary } = useQuery<AvailSummary>({
+    queryKey: [`/api/coaches/${coachId}/availability-summary`],
+    enabled: open && !!coachId,
+  });
+  const { data: slotsData, isLoading: slotsLoading, refetch: refetchSlots } = useQuery<{ date: string; slots: Slot[] }>({
+    queryKey: [`/api/coaches/${coachId}/availability-slots`, selectedDate],
+    queryFn: async () => {
+      const r = await fetch(`/api/coaches/${coachId}/availability-slots?date=${selectedDate}`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load slots");
+      return r.json();
     },
+    enabled: open && !!coachId && !!selectedDate,
+  });
+
+  const createMutation = useMutation({
+    mutationFn: async (data: any) => (await apiRequest("POST", "/api/coach-bookings", data)).json(),
     onSuccess: () => {
-      toast({ title: "Lesson request sent!", description: "The coach will be notified and can accept or decline." });
+      toast({ title: "Booking sent!", description: summary?.settings && (coach as any)?.autoApprove ? "Auto-approved." : "The coach will confirm shortly." });
       queryClient.invalidateQueries({ queryKey: ["/api/lesson-requests/my"] });
       onOpenChange(false);
-      setPreferredDate("");
-      setPreferredTime("");
-      setDurationMinutes("60");
-      setLessonType("ONE_TO_ONE");
-      setLocation("");
-      setPlayerMessage("");
+      setSelectedDate(null); setSelectedTime(null); setLocation(""); setPlayerMessage("");
     },
     onError: (err: any) => {
-      toast({ title: "Failed to send request", description: err.message, variant: "destructive" });
+      toast({ title: "Failed to book", description: err.message, variant: "destructive" });
+      if (/slot/i.test(err.message)) refetchSlots();
     },
   });
 
+  // Days that the coach has *some* recurring availability — used to dim unavailable days.
+  const availableDows = useMemo(() => {
+    if (!summary?.rules) return new Set<number>();
+    return new Set(summary.rules.filter((r) => r.isActive).map((r) => r.dayOfWeek));
+  }, [summary]);
+
+  const monthDays = useMemo(() => {
+    const first = new Date(monthCursor);
+    first.setDate(1);
+    const startDow = first.getDay();
+    const daysInMonth = new Date(first.getFullYear(), first.getMonth() + 1, 0).getDate();
+    const cells: Array<{ date: Date | null }> = [];
+    for (let i = 0; i < startDow; i++) cells.push({ date: null });
+    for (let d = 1; d <= daysInMonth; d++) cells.push({ date: new Date(first.getFullYear(), first.getMonth(), d) });
+    while (cells.length % 7 !== 0) cells.push({ date: null });
+    return cells;
+  }, [monthCursor]);
+
+  const today = useMemo(() => { const t = new Date(); t.setHours(0, 0, 0, 0); return t; }, []);
+  const maxDate = useMemo(() => {
+    const max = new Date(today);
+    max.setDate(max.getDate() + (summary?.settings?.maxAdvanceDays ?? 60));
+    return max;
+  }, [today, summary]);
+
   if (!coach) return null;
+  const dur = summary?.settings?.slotDurationMinutes ?? 60;
+  const holidayMode = summary?.settings?.holidayMode;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-md" data-testid="dialog-request-lesson">
+      <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto" data-testid="dialog-request-lesson">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <SendHorizonal className="w-5 h-5 text-primary" />
-            Request Lesson with {coach.fullName}
+            Book {coach.fullName}
           </DialogTitle>
         </DialogHeader>
-        <div className="space-y-4 mt-2">
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Preferred Date</Label>
-              <Input type="date" value={preferredDate} onChange={(e) => setPreferredDate(e.target.value)} data-testid="input-lesson-date" />
-            </div>
-            <div>
-              <Label>Preferred Time</Label>
-              <Input type="time" value={preferredTime} onChange={(e) => setPreferredTime(e.target.value)} data-testid="input-lesson-time" />
-            </div>
+
+        {holidayMode ? (
+          <div className="rounded-xl border border-amber-400/30 bg-amber-500/10 p-4 text-sm text-amber-200" data-testid="text-holiday-mode">
+            <p className="font-bold mb-1">Currently away</p>
+            <p className="text-amber-200/80">{summary?.settings?.holidayMessage || "This coach isn't taking bookings right now."}</p>
           </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label>Duration</Label>
-              <Select value={durationMinutes} onValueChange={setDurationMinutes}>
-                <SelectTrigger data-testid="select-lesson-duration">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="30">30 minutes</SelectItem>
-                  <SelectItem value="45">45 minutes</SelectItem>
-                  <SelectItem value="60">1 hour</SelectItem>
-                  <SelectItem value="90">1.5 hours</SelectItem>
-                  <SelectItem value="120">2 hours</SelectItem>
-                </SelectContent>
-              </Select>
+        ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mt-2">
+          {/* LEFT: calendar */}
+          <div className="space-y-3">
+            <div className="flex items-center justify-between">
+              <button type="button" onClick={() => { const d = new Date(monthCursor); d.setMonth(d.getMonth() - 1); setMonthCursor(d); }} className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center" data-testid="button-month-prev"><ChevronLeft className="w-4 h-4" /></button>
+              <div className="font-bold text-sm tracking-wide" data-testid="text-month-label">
+                {monthCursor.toLocaleDateString("en-GB", { month: "long", year: "numeric" })}
+              </div>
+              <button type="button" onClick={() => { const d = new Date(monthCursor); d.setMonth(d.getMonth() + 1); setMonthCursor(d); }} className="h-8 w-8 rounded-md hover:bg-muted flex items-center justify-center" data-testid="button-month-next"><ChevronRight className="w-4 h-4" /></button>
             </div>
+            <div className="grid grid-cols-7 gap-1 text-[10px] text-center text-muted-foreground font-bold uppercase tracking-wider">
+              {["S", "M", "T", "W", "T", "F", "S"].map((d, i) => <div key={i}>{d}</div>)}
+            </div>
+            <div className="grid grid-cols-7 gap-1">
+              {monthDays.map((cell, i) => {
+                if (!cell.date) return <div key={i} className="aspect-square" />;
+                const dateStr = ymd(cell.date);
+                const isPast = cell.date < today;
+                const tooFar = cell.date > maxDate;
+                const dowOk = availableDows.has(cell.date.getDay());
+                const disabled = isPast || tooFar || !dowOk;
+                const isSelected = dateStr === selectedDate;
+                const isToday = dateStr === ymd(today);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    disabled={disabled}
+                    onClick={() => { setSelectedDate(dateStr); setSelectedTime(null); }}
+                    className={`aspect-square rounded-md text-xs font-semibold border transition-colors ${
+                      isSelected
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : disabled
+                        ? "text-muted-foreground/30 border-transparent cursor-not-allowed"
+                        : "border-border hover:bg-muted"
+                    } ${isToday && !isSelected ? "ring-1 ring-primary/40" : ""}`}
+                    data-testid={`button-day-${dateStr}`}
+                  >
+                    {cell.date.getDate()}
+                    {!disabled && !isSelected && <div className="w-1 h-1 rounded-full bg-emerald-400 mx-auto mt-0.5" />}
+                  </button>
+                );
+              })}
+            </div>
+            <p className="text-[10px] text-muted-foreground flex items-center gap-1.5">
+              <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 inline-block" />
+              Coach available · pick a day
+            </p>
+          </div>
+
+          {/* RIGHT: time slots + booking form */}
+          <div className="space-y-3">
             <div>
-              <Label>Lesson Type</Label>
+              <Label className="text-xs uppercase tracking-wider">Available times</Label>
+              {!selectedDate && <p className="text-sm text-muted-foreground mt-2" data-testid="text-pick-date">Pick a date on the left to see open slots.</p>}
+              {selectedDate && slotsLoading && <p className="text-sm text-muted-foreground mt-2">Loading slots…</p>}
+              {selectedDate && !slotsLoading && (slotsData?.slots?.length ?? 0) === 0 && (
+                <p className="text-sm text-muted-foreground mt-2" data-testid="text-no-slots">No open slots on this day.</p>
+              )}
+              {selectedDate && !slotsLoading && (slotsData?.slots?.length ?? 0) > 0 && (
+                <div className="grid grid-cols-3 gap-1.5 mt-2 max-h-44 overflow-y-auto pr-1" data-testid="grid-slots">
+                  {slotsData!.slots.map((s) => (
+                    <button
+                      key={s.time}
+                      type="button"
+                      disabled={!s.available}
+                      onClick={() => setSelectedTime(s.time)}
+                      className={`text-xs font-semibold py-2 rounded-md border transition-colors ${
+                        selectedTime === s.time
+                          ? "bg-primary text-primary-foreground border-primary"
+                          : s.available
+                          ? "border-border hover:bg-muted"
+                          : "border-transparent text-muted-foreground/40 line-through cursor-not-allowed"
+                      }`}
+                      title={s.reason || ""}
+                      data-testid={`button-slot-${s.time}`}
+                    >
+                      {s.time}
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            <div>
+              <Label>Lesson type</Label>
               <Select value={lessonType} onValueChange={setLessonType}>
-                <SelectTrigger data-testid="select-lesson-type">
-                  <SelectValue />
-                </SelectTrigger>
+                <SelectTrigger data-testid="select-lesson-type"><SelectValue /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ONE_TO_ONE">Private (1-to-1)</SelectItem>
                   <SelectItem value="GROUP">Group</SelectItem>
                 </SelectContent>
               </Select>
             </div>
+            <div>
+              <Label>Preferred location <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Input placeholder="e.g. Local leisure centre" value={location} onChange={(e) => setLocation(e.target.value)} data-testid="input-lesson-location" />
+            </div>
+            <div>
+              <Label>Message to coach <span className="text-muted-foreground text-xs">(optional)</span></Label>
+              <Textarea placeholder="Tell the coach about your level, what you'd like to work on…" value={playerMessage} onChange={(e) => setPlayerMessage(e.target.value)} rows={3} data-testid="input-lesson-message" />
+            </div>
+
+            {selectedDate && selectedTime && (
+              <div className="rounded-md bg-muted/50 border border-border p-2.5 text-xs" data-testid="text-summary">
+                <p><strong>{new Date(selectedDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</strong> · {selectedTime} · {dur} min</p>
+                {summary?.settings?.defaultPricePence != null && summary.settings.defaultPricePence > 0 && (
+                  <p className="text-muted-foreground mt-0.5">Approx. £{(summary.settings.defaultPricePence / 100).toFixed(2)}</p>
+                )}
+              </div>
+            )}
+
+            <Button
+              className="w-full"
+              disabled={!selectedDate || !selectedTime || createMutation.isPending}
+              onClick={() => createMutation.mutate({
+                coachId: coach.id,
+                date: selectedDate,
+                time: selectedTime,
+                durationMinutes: dur,
+                lessonType,
+                location: location || null,
+                playerMessage: playerMessage || null,
+              })}
+              data-testid="button-submit-lesson-request"
+            >
+              {createMutation.isPending ? "Sending…" : "Confirm booking"}
+            </Button>
           </div>
-          <div>
-            <Label>Preferred Location</Label>
-            <Input placeholder="e.g. Local leisure centre" value={location} onChange={(e) => setLocation(e.target.value)} data-testid="input-lesson-location" />
-          </div>
-          <div>
-            <Label>Message to Coach</Label>
-            <Textarea placeholder="Tell the coach about your skill level, what you'd like to work on..." value={playerMessage} onChange={(e) => setPlayerMessage(e.target.value)} rows={3} data-testid="input-lesson-message" />
-          </div>
-          <Button
-            className="w-full"
-            disabled={!preferredDate || !preferredTime || createMutation.isPending}
-            onClick={() => createMutation.mutate({
-              coachId: coach.id,
-              lessonType,
-              preferredDate,
-              preferredTime,
-              durationMinutes: parseInt(durationMinutes),
-              location: location || null,
-              playerMessage: playerMessage || null,
-            })}
-            data-testid="button-submit-lesson-request"
-          >
-            {createMutation.isPending ? "Sending..." : "Send Request"}
-          </Button>
         </div>
+        )}
       </DialogContent>
     </Dialog>
   );
