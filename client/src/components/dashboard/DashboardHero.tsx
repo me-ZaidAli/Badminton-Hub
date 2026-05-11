@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import {
   Calendar, MapPin, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudFog, Sparkles, Clock,
   GraduationCap, ChevronRight, Loader2, Wind, Droplets, Dumbbell, Trophy, Users, Tag, Lightbulb, Moon, Sunrise, Sunset, Activity,
-  Quote, GlassWater, Plus, Minus, BarChart3, PartyPopper,
+  Quote, GlassWater, Plus, Minus, BarChart3, PartyPopper, ExternalLink,
 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO, startOfWeek, getISOWeek, getDayOfYear, differenceInMinutes } from "date-fns";
 
@@ -101,11 +101,7 @@ const TIPS = [
   "Visualise your next point during change-overs. Mental reps count.",
 ];
 
-const PARTNERS = [
-  { name: "RacketLab Restringing", offer: "20% off restrings", color: "text-amber-300" },
-  { name: "ProShop Birmingham", offer: "15% off rackets", color: "text-emerald-300" },
-  { name: "Sports Nutrition Co", offer: "Free protein sample", color: "text-rose-300" },
-];
+const DEAL_COLORS = ["text-amber-300", "text-emerald-300", "text-rose-300", "text-cyan-300", "text-violet-300", "text-lime-300"];
 
 export default function DashboardHero({ userName, sessions, profilePictureUrl }: DashboardHeroProps) {
   const now = useLiveClock();
@@ -191,8 +187,21 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
 
   // Pro-tip rotates by day-of-year
   const tip = TIPS[getDayOfYear(now) % TIPS.length];
-  // Partner rotates by week
-  const partner = PARTNERS[isoWeek % PARTNERS.length];
+
+  // AI-SOURCED DAILY DEALS (web)
+  const { data: dealsData } = useQuery<{ deals: Array<{ brand: string; offer: string; url: string; category: string }> }>({
+    queryKey: ["/api/daily-content/deals"],
+    staleTime: 60 * 60_000,
+  });
+  const deals = dealsData?.deals || [];
+  const [dealIdx, setDealIdx] = useState(0);
+  useEffect(() => {
+    if (deals.length <= 1) return;
+    const id = setInterval(() => setDealIdx((i) => (i + 1) % deals.length), 6000);
+    return () => clearInterval(id);
+  }, [deals.length]);
+  const deal = deals[dealIdx % Math.max(1, deals.length)] || null;
+  const dealColor = DEAL_COLORS[dealIdx % DEAL_COLORS.length];
 
   // HYDRATION (localStorage, daily reset)
   const hydrationKey = `cm-hydration-${todayKey}`;
@@ -490,24 +499,41 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         )}
       </Tile>
 
-      {/* 8. PARTNER DEAL */}
-      <Link href="/deals" className="block group" data-testid="hero-partner">
-        <Tile accent="from-lime-500/20 via-emerald-500/15 to-teal-500/15" glowA="bg-lime-400/25" glowB="bg-teal-500/20" className="h-full transition group-hover:border-lime-300/40">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-lime-200/80">
-              <Tag className="w-3 h-3" /><span>Member perk</span>
+      {/* 8. AI WEB DEAL */}
+      <Tile accent="from-lime-500/20 via-emerald-500/15 to-teal-500/15" glowA="bg-lime-400/25" glowB="bg-teal-500/20" testId="hero-partner">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-lime-200/80">
+            <Tag className="w-3 h-3" /><span>Today's deal</span>
+          </div>
+          {deals.length > 1 && (
+            <span className="text-[9px] text-white/40 uppercase tracking-wider tabular-nums" data-testid="text-deal-counter">
+              {dealIdx + 1}/{deals.length}
+            </span>
+          )}
+        </div>
+        {deal ? (
+          <a href={deal.url} target="_blank" rel="noopener noreferrer" className="block group" data-testid={`link-deal-${dealIdx}`}>
+            <div className="mt-3">
+              <div className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[9px] uppercase tracking-wider text-white/65 mb-1.5">
+                {deal.category}
+              </div>
+              <h3 className="text-sm font-extrabold text-white leading-tight truncate group-hover:text-lime-200 transition" data-testid="text-deal-brand">
+                {deal.brand}
+              </h3>
+              <p className={`text-lg font-extrabold mt-0.5 leading-tight line-clamp-2 ${dealColor}`} data-testid="text-deal-offer">
+                {deal.offer}
+              </p>
             </div>
-            <ChevronRight className="w-3.5 h-3.5 text-lime-200/60 group-hover:text-white" />
+            <div className="mt-2 inline-flex items-center gap-1 text-[10px] text-lime-200 group-hover:text-white">
+              Visit site <ExternalLink className="w-3 h-3" />
+            </div>
+          </a>
+        ) : (
+          <div className="mt-6 flex items-center gap-2 text-white/55">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Finding deals…</span>
           </div>
-          <div className="mt-3">
-            <h3 className="text-sm font-extrabold text-white leading-tight">{partner.name}</h3>
-            <p className={`text-lg font-extrabold mt-1 ${partner.color}`} data-testid="text-partner-offer">{partner.offer}</p>
-          </div>
-          <div className="mt-3 inline-flex items-center gap-1 text-[10px] text-lime-200 group-hover:text-white">
-            View all deals <ChevronRight className="w-3 h-3" />
-          </div>
-        </Tile>
-      </Link>
+        )}
+      </Tile>
 
       {/* 9. PRO TIP */}
       <Tile accent="from-indigo-500/20 via-violet-500/15 to-purple-500/15" glowA="bg-indigo-400/25" glowB="bg-purple-500/20" testId="hero-tip">

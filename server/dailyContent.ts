@@ -16,6 +16,17 @@ const FALLBACK_QUOTES = [
   { text: "What you do today can improve all your tomorrows.", author: "Ralph Marston" },
 ];
 
+const FALLBACK_DEALS = [
+  { brand: "Yonex", offer: "Up to 25% off rackets", url: "https://www.yonex.com/deals", category: "Rackets" },
+  { brand: "Wilson", offer: "Free string with racket", url: "https://www.wilson.com", category: "Rackets" },
+  { brand: "Decathlon", offer: "20% off Perfly badminton range", url: "https://www.decathlon.co.uk", category: "Apparel" },
+  { brand: "Sports Direct", offer: "Buy 2 get 1 free shuttles", url: "https://www.sportsdirect.com", category: "Shuttles" },
+  { brand: "Babolat", offer: "10% off junior rackets", url: "https://www.babolat.com", category: "Junior" },
+  { brand: "Li-Ning", offer: "Free shipping over £50", url: "https://lining.com", category: "Shipping" },
+  { brand: "MyProtein", offer: "30% off whey + free shaker", url: "https://www.myprotein.com", category: "Nutrition" },
+  { brand: "RacketDepot", offer: "15% off restringing service", url: "https://racketdepot.co.uk", category: "Service" },
+];
+
 const FALLBACK_POLLS = [
   { question: "Coffee or tea before a match?", options: ["Coffee", "Tea", "Neither"] },
   { question: "Best surface to play on?", options: ["Wood", "Synthetic", "Concrete"] },
@@ -28,9 +39,12 @@ const FALLBACK_POLLS = [
 
 type CachedQuote = { date: string; text: string; author: string };
 type CachedPoll = { date: string; question: string; options: string[] };
+type Deal = { brand: string; offer: string; url: string; category: string };
+type CachedDeals = { date: string; deals: Deal[] };
 
 let quoteCache: CachedQuote | null = null;
 let pollCache: CachedPoll | null = null;
+let dealsCache: CachedDeals | null = null;
 
 // In-memory tally per day. Key = YYYY-MM-DD, value = Map<optionIndex, Set<userId>>
 const pollVotes = new Map<string, Map<number, Set<number>>>();
@@ -98,6 +112,78 @@ async function generatePoll(dateStr: string): Promise<CachedPoll> {
   return { date: dateStr, question: f.question, options: f.options };
 }
 
+async function generateDeals(dateStr: string): Promise<CachedDeals> {
+  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    return { date: dateStr, deals: FALLBACK_DEALS.slice(0, 6) };
+  }
+  // Try OpenAI Responses API with web_search tool first (real-time web results)
+  try {
+    const r = await fetch(`${process.env.AI_INTEGRATIONS_OPENAI_BASE_URL || "https://api.openai.com/v1"}/responses`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${process.env.AI_INTEGRATIONS_OPENAI_API_KEY}`,
+      },
+      body: JSON.stringify({
+        model: "gpt-5.1",
+        tools: [{ type: "web_search" }],
+        input: `Search the web right now for the 6 best CURRENT live deals, discounts, or promotional offers on badminton/racket-sports gear (rackets, shuttlecocks, strings, shoes, apparel, restringing services, sports nutrition) available to UK shoppers today (${dateStr}). Return STRICT JSON ONLY (no prose, no markdown) in this exact shape: {"deals":[{"brand":"...","offer":"short under 40 chars","url":"https://...","category":"Rackets|Apparel|Shuttles|Shoes|Strings|Service|Nutrition|Junior"}]}. Use the real product URLs you found. Only include offers that look genuinely current.`,
+      }),
+    });
+    if (r.ok) {
+      const data: any = await r.json();
+      const text = data?.output_text
+        || data?.output?.flatMap((o: any) => o?.content || []).map((c: any) => c?.text).filter(Boolean).join("\n")
+        || "";
+      const m = text.match(/\{[\s\S]*\}/);
+      if (m) {
+        const parsed = JSON.parse(m[0]);
+        if (Array.isArray(parsed?.deals) && parsed.deals.length > 0) {
+          const cleaned: Deal[] = parsed.deals.slice(0, 8).map((d: any) => ({
+            brand: String(d.brand || "").slice(0, 40),
+            offer: String(d.offer || "").slice(0, 60),
+            url: String(d.url || "").slice(0, 400),
+            category: String(d.category || "Deal").slice(0, 24),
+          })).filter((d: Deal) => d.brand && d.offer && d.url.startsWith("http"));
+          if (cleaned.length > 0) {
+            console.log(`[DAILY DEALS] web-search returned ${cleaned.length} deals for ${dateStr}`);
+            return { date: dateStr, deals: cleaned };
+          }
+        }
+      }
+    } else {
+      console.warn(`[DAILY DEALS] responses API ${r.status}, falling back to chat completions`);
+    }
+  } catch (e) {
+    console.warn("[DAILY DEALS] web_search path failed:", (e as any)?.message);
+  }
+  // Fallback: ask the model from its training knowledge
+  try {
+    const completion = await openai.chat.completions.create({
+      model: "gpt-5.1",
+      messages: [
+        { role: "system", content: "Return STRICT JSON only: {\"deals\":[{\"brand\":\"...\",\"offer\":\"under 40 chars\",\"url\":\"https://realbrand.com\",\"category\":\"Rackets|Apparel|Shuttles|Shoes|Strings|Service|Nutrition|Junior\"}]}. List 6 plausible CURRENT-STYLE promotional offers on badminton/racket-sports gear from real UK-available brands (Yonex, Victor, Li-Ning, Babolat, Wilson, Decathlon, Sports Direct, MyProtein, RacketDepot, Pro:Direct, etc). Use the brand's real homepage as the URL. Vary categories." },
+        { role: "user", content: `Today is ${dateStr}. Give 6 deals.` },
+      ],
+      response_format: { type: "json_object" },
+    });
+    const raw = completion.choices?.[0]?.message?.content || "{}";
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed?.deals) && parsed.deals.length > 0) {
+      const cleaned: Deal[] = parsed.deals.slice(0, 8).map((d: any) => ({
+        brand: String(d.brand || "").slice(0, 40),
+        offer: String(d.offer || "").slice(0, 60),
+        url: String(d.url || "").slice(0, 400),
+        category: String(d.category || "Deal").slice(0, 24),
+      })).filter((d: Deal) => d.brand && d.offer && d.url.startsWith("http"));
+      if (cleaned.length > 0) return { date: dateStr, deals: cleaned };
+    }
+  } catch (e) {
+    console.warn("[DAILY DEALS] chat fallback failed:", (e as any)?.message);
+  }
+  return { date: dateStr, deals: FALLBACK_DEALS.slice(0, 6) };
+}
+
 export function registerDailyContentRoutes(app: Express): void {
   // GET /api/daily-content/quote
   app.get("/api/daily-content/quote", async (_req: Request, res: Response) => {
@@ -106,6 +192,15 @@ export function registerDailyContentRoutes(app: Express): void {
       quoteCache = await generateQuote(day);
     }
     res.json(quoteCache);
+  });
+
+  // GET /api/daily-content/deals
+  app.get("/api/daily-content/deals", async (_req: Request, res: Response) => {
+    const day = todayKey();
+    if (!dealsCache || dealsCache.date !== day) {
+      dealsCache = await generateDeals(day);
+    }
+    res.json(dealsCache);
   });
 
   // GET /api/daily-content/poll
