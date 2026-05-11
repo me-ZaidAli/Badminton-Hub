@@ -3552,3 +3552,35 @@ export const coachGalleryImages = pgTable("coach_gallery_images", {
 export const insertCoachGalleryImageSchema = createInsertSchema(coachGalleryImages).omit({ id: true, createdAt: true });
 export type CoachGalleryImage = typeof coachGalleryImages.$inferSelect;
 export type InsertCoachGalleryImage = z.infer<typeof insertCoachGalleryImageSchema>;
+
+// === CUSTOM POLLS (audience-targeted, club-scoped, multi-option) ===
+export const customPolls = pgTable("custom_polls", {
+  id: serial("id").primaryKey(),
+  title: text("title").notNull(),
+  question: text("question").notNull(),
+  options: text("options").array().notNull().default(sql`'{}'::text[]`),
+  allowMultiple: boolean("allow_multiple").notNull().default(false),
+  audience: text("audience").notNull().default("SELECTED"), // ALL | SELECTED
+  targetClubIds: integer("target_club_ids").array().notNull().default(sql`'{}'::integer[]`),
+  isActive: boolean("is_active").notNull().default(true),
+  expiresAt: timestamp("expires_at"),
+  createdById: integer("created_by_id").references(() => users.id).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertCustomPollSchema = createInsertSchema(customPolls).omit({ id: true, createdAt: true });
+export type CustomPoll = typeof customPolls.$inferSelect;
+export type InsertCustomPoll = z.infer<typeof insertCustomPollSchema>;
+
+export const customPollResponses = pgTable("custom_poll_responses", {
+  id: serial("id").primaryKey(),
+  pollId: integer("poll_id").references(() => customPolls.id, { onDelete: "cascade" }).notNull(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  optionIndices: integer("option_indices").array().notNull().default(sql`'{}'::integer[]`),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  uniqUserPoll: uniqueIndex("custom_poll_responses_user_poll_uq").on(t.pollId, t.userId),
+}));
+export const insertCustomPollResponseSchema = createInsertSchema(customPollResponses).omit({ id: true, createdAt: true, updatedAt: true });
+export type CustomPollResponse = typeof customPollResponses.$inferSelect;
+export type InsertCustomPollResponse = z.infer<typeof insertCustomPollResponseSchema>;

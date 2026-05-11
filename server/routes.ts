@@ -21,6 +21,7 @@ import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } fr
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
 import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, removeUserFromSessionChat, sendSystemChatMessage } from "./chatRoutes";
 import { registerDailyContentRoutes } from "./dailyContent";
+import { registerCustomPollRoutes } from "./customPolls";
 import { registerTournamentRoutes } from "./tournamentRoutes";
 import { registerCommunityRoutes } from "./communityRoutes";
 import { registerDebtRoutes } from "./debtRoutes";
@@ -35943,6 +35944,7 @@ Return ONLY valid JSON in this exact format:
 
   registerBslRoutes(app);
   registerCoachBookingRoutes(app);
+  registerCustomPollRoutes(app);
 
   return httpServer;
 }
