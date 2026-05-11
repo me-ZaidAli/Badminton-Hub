@@ -520,14 +520,25 @@ export function UnifiedMemberEditDialog({
                   </div>
                 )}
                 <div className="col-span-2">
-                  <label
-                    className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition cursor-pointer p-3"
+                  <div
+                    role="button"
+                    tabIndex={0}
+                    onClick={() => setForm(f => ({ ...f, isCoach: !f.isCoach }))}
+                    onKeyDown={(e) => {
+                      if (e.key === " " || e.key === "Enter") {
+                        e.preventDefault();
+                        setForm(f => ({ ...f, isCoach: !f.isCoach }));
+                      }
+                    }}
+                    className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition cursor-pointer p-3 select-none"
                     data-testid="toggle-edit-is-coach"
                   >
                     <Checkbox
                       checked={form.isCoach}
+                      tabIndex={-1}
+                      onClick={(e) => e.stopPropagation()}
                       onCheckedChange={(v) => setForm(f => ({ ...f, isCoach: v === true }))}
-                      className="mt-0.5 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                      className="mt-0.5 pointer-events-none data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
                       data-testid="checkbox-edit-is-coach"
                     />
                     <div className="flex-1 min-w-0">
@@ -541,7 +552,7 @@ export function UnifiedMemberEditDialog({
                         Tick to mark this user as a coach so they can access all coach features (lessons, dashboard, payouts, gallery).
                       </p>
                     </div>
-                  </label>
+                  </div>
                 </div>
                 {clubs.length > 0 && context === "admin" && (
                   <div className="col-span-2">
