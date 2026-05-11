@@ -1255,8 +1255,15 @@ export function registerBslRoutes(app: Express) {
       const id = Number(req.params.id);
       const allow = ["bslTeamId", "bslClubId", "warnings", "isSuspended", "matchBanCount", "disciplineNotes",
                      "matchesPlayed", "matchesWon", "pointsScored", "walletBalance"];
+      const nullableInts = new Set(["bslTeamId", "bslClubId"]);
       const patch: any = {};
-      for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      for (const k of allow) {
+        if (!(k in req.body)) continue;
+        let v = req.body[k];
+        // Coerce "" → null for nullable FK ints so Postgres doesn't choke.
+        if (nullableInts.has(k) && (v === "" || v === undefined)) v = null;
+        patch[k] = v;
+      }
       if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
       const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, id)).returning();
       if (!updated) return res.status(404).json({ message: "Player not found" });

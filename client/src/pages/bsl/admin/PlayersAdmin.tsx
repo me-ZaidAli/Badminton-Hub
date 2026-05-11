@@ -48,8 +48,15 @@ export default function PlayersAdmin() {
   };
 
   const update = useMutation({
-    mutationFn: async (v: { id: number; data: any }) => (await apiRequest("PATCH", `/api/bsl/admin/players/${v.id}`, v.data)).json(),
+    mutationFn: async (v: { id: number; data: any }) => {
+      // Coerce empty-string FK ids → null so Postgres doesn't reject them.
+      const clean = { ...v.data };
+      if (clean.bslClubId === "") clean.bslClubId = null;
+      if (clean.bslTeamId === "") clean.bslTeamId = null;
+      return (await apiRequest("PATCH", `/api/bsl/admin/players/${v.id}`, clean)).json();
+    },
     onSuccess: () => { invAll(); toast({ title: "Saved" }); },
+    onError: (e: any) => toast({ title: "Save failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
   });
   const approve = useMutation({
     mutationFn: async (id: number) => (await apiRequest("PATCH", `/api/bsl/players/${id}/approve`, {})).json(),
@@ -133,7 +140,7 @@ export default function PlayersAdmin() {
       </GlowPanel>
 
       {creating && <CreatePlayerDialog clubs={clubs || []} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); invAll(); }} />}
-      {editing && <PlayerEditor player={editing} clubs={clubs || []} onClose={() => setEditId(null)} onSave={(data: any) => update.mutateAsync({ id: editing.id, data }).then(() => setEditId(null))} onChanged={invAll} />}
+      {editing && <PlayerEditor player={editing} clubs={clubs || []} onClose={() => setEditId(null)} onSave={(data: any) => update.mutateAsync({ id: editing.id, data }).then(() => setEditId(null)).catch(() => {/* toast already shown */})} onChanged={invAll} />}
     </AdminLayout>
   );
 }
