@@ -60,12 +60,14 @@ function NavStrip({ items, variant }: { items: Item[]; variant: "default" | "bsl
 
 export function CoachSubNav() {
   const { data: user } = useUser();
+  const [loc] = useLocation();
   const u = user as any;
+  if (loc.startsWith("/coaching")) return null;
   const isCoachish = u && (u.role === "COACH" || (u.secondaryRoles ?? []).includes("COACH") || u.role === "OWNER" || u.role === "ADMIN");
   const items: Item[] = [
-    { href: "/find-coach", label: "Find a Coach", icon: Search, match: (p) => p === "/find-coach" || p.startsWith("/coach/") },
-    { href: "/my-lessons", label: "My Lessons", icon: BookOpen },
-    { href: "/coach-dashboard", label: "Coach Dashboard", icon: GraduationCap, show: !!isCoachish },
+    { href: "/coaching?tab=find", label: "Find a Coach", icon: Search, match: (p) => p === "/find-coach" || p.startsWith("/coach/") },
+    { href: "/coaching?tab=lessons", label: "My Lessons", icon: BookOpen, match: (p) => p === "/my-lessons" },
+    { href: "/coaching?tab=dashboard", label: "Coach Dashboard", icon: GraduationCap, show: !!isCoachish, match: (p) => p === "/coach-dashboard" },
   ];
   return <NavStrip items={items} variant="default" />;
 }

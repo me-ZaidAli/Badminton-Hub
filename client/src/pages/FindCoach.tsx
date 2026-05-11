@@ -621,12 +621,89 @@ function CoachDetailDialog({ coach, open, onOpenChange, onRequestLesson }: { coa
             </div>
           ))}
 
+          <CoachPlayerFeedback coachId={coach.id} />
+
           <div className="border-t border-zinc-800 pt-4 mt-2">
             <ReviewSection targetType="COACH" targetId={coach.id} />
           </div>
         </div>
       </DialogContent>
     </Dialog>
+  );
+}
+
+type CoachFeedbackItem = {
+  kind: "evaluation" | "note";
+  id: string;
+  player: string;
+  skill: string | null;
+  rating: number | null;
+  comment: string | null;
+  at: string;
+};
+
+function CoachPlayerFeedback({ coachId }: { coachId: number }) {
+  const { data, isLoading } = useQuery<{ items: CoachFeedbackItem[] }>({
+    queryKey: ["/api/coaches", coachId, "feedback"],
+    queryFn: async () => {
+      const res = await fetch(`/api/coaches/${coachId}/feedback`, { credentials: "include" });
+      if (!res.ok) return { items: [] };
+      return res.json();
+    },
+  });
+  if (isLoading) {
+    return (
+      <div className="rounded-2xl border border-violet-400/20 bg-zinc-900/60 p-4 text-xs text-zinc-500" data-testid="dialog-coach-feedback-loading">
+        Loading player feedback…
+      </div>
+    );
+  }
+  const items = data?.items ?? [];
+  if (!items.length) return null;
+
+  return (
+    <div data-testid="dialog-coach-player-feedback">
+      <div className="flex items-center gap-2 mb-3">
+        <h4 className="text-[11px] uppercase tracking-[0.18em] text-zinc-400 font-semibold">Player Feedback</h4>
+        <span className="text-[10px] px-2 py-0.5 rounded-full bg-violet-500/15 border border-violet-400/40 text-violet-200 font-bold">{items.length}</span>
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+        {items.map((it) => {
+          const isEval = it.kind === "evaluation";
+          return (
+            <div
+              key={it.id}
+              className={`relative rounded-2xl p-3 border overflow-hidden bg-gradient-to-br from-zinc-900/90 to-zinc-950 ${
+                isEval ? "border-violet-400/30 shadow-[0_0_18px_rgba(167,139,250,0.18)]" : "border-cyan-400/30 shadow-[0_0_18px_rgba(34,211,238,0.15)]"
+              }`}
+              data-testid={`feedback-item-${it.id}`}
+            >
+              <div className={`absolute -top-10 -right-10 w-24 h-24 rounded-full blur-2xl ${isEval ? "bg-violet-500/25" : "bg-cyan-500/20"}`} />
+              <div className="relative flex items-start justify-between gap-2 mb-1.5">
+                <div className="flex items-center gap-1.5 min-w-0">
+                  <UserIconLucide className={`w-3.5 h-3.5 shrink-0 ${isEval ? "text-violet-300" : "text-cyan-300"}`} />
+                  <span className="text-xs font-bold text-white truncate">{it.player}</span>
+                </div>
+                {isEval && it.rating != null && (
+                  <span className="shrink-0 text-[10px] px-2 py-0.5 rounded-full bg-amber-500/20 border border-amber-400/50 text-amber-200 font-bold flex items-center gap-1">
+                    <Star className="w-2.5 h-2.5 fill-amber-300 text-amber-300" />{it.rating}
+                  </span>
+                )}
+              </div>
+              {it.skill && (
+                <div className="mb-1.5">
+                  <span className="text-[10px] uppercase tracking-widest text-violet-300/80 font-semibold">{it.skill}</span>
+                </div>
+              )}
+              <p className="text-[12px] leading-snug text-zinc-300 line-clamp-4">{it.comment}</p>
+              <div className="mt-2 text-[10px] text-zinc-500">
+                {it.at ? new Date(it.at).toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }) : ""}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 

@@ -13631,6 +13631,89 @@ export async function registerRoutes(
     }
   });
 
+  // Authenticated: recent player-skill feedback authored by a coach (fully anonymised)
+  app.get("/api/coaches/:id/feedback", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const coachId = parseInt(req.params.id, 10);
+      if (!Number.isFinite(coachId)) return res.status(400).json({ message: "Invalid coach id" });
+      const coach = await storage.getCoach(coachId);
+      if (!coach || coach.status !== "APPROVED") return res.json({ items: [] });
+
+      const labelMap = new Map<string, string>();
+      const anonName = (full?: string | null) => {
+        const key = (full ?? "").trim().toLowerCase() || `__${labelMap.size}`;
+        let label = labelMap.get(key);
+        if (!label) {
+          const i = labelMap.size;
+          label = `Player ${String.fromCharCode(65 + (i % 26))}${i >= 26 ? Math.floor(i / 26) : ""}`;
+          labelMap.set(key, label);
+        }
+        return label;
+      };
+
+      const evals = await db
+        .select({
+          id: playerSkillEvaluations.id,
+          rating: playerSkillEvaluations.rating,
+          comment: playerSkillEvaluations.comment,
+          evaluatedAt: playerSkillEvaluations.evaluatedAt,
+          skillName: playerSkills.name,
+          playerName: users.fullName,
+        })
+        .from(playerSkillEvaluations)
+        .leftJoin(playerSkills, eq(playerSkillEvaluations.skillId, playerSkills.id))
+        .leftJoin(playerProfiles, eq(playerSkillEvaluations.playerId, playerProfiles.id))
+        .leftJoin(users, eq(playerProfiles.userId, users.id))
+        .where(eq(playerSkillEvaluations.evaluatedByUserId, coach.userId))
+        .orderBy(desc(playerSkillEvaluations.evaluatedAt))
+        .limit(24);
+
+      const notes = await db
+        .select({
+          id: playerCoachNotes.id,
+          note: playerCoachNotes.note,
+          createdAt: playerCoachNotes.createdAt,
+          playerName: users.fullName,
+        })
+        .from(playerCoachNotes)
+        .leftJoin(playerProfiles, eq(playerCoachNotes.playerId, playerProfiles.id))
+        .leftJoin(users, eq(playerProfiles.userId, users.id))
+        .where(eq(playerCoachNotes.createdByUserId, coach.userId))
+        .orderBy(desc(playerCoachNotes.createdAt))
+        .limit(24);
+
+      const items = [
+        ...evals.map(e => ({
+          kind: "evaluation" as const,
+          id: `e-${e.id}`,
+          player: anonName(e.playerName),
+          skill: e.skillName ?? null,
+          rating: e.rating ?? null,
+          comment: e.comment ?? null,
+          at: e.evaluatedAt,
+        })),
+        ...notes.map(n => ({
+          kind: "note" as const,
+          id: `n-${n.id}`,
+          player: anonName(n.playerName),
+          skill: null,
+          rating: null,
+          comment: n.note,
+          at: n.createdAt,
+        })),
+      ]
+        .filter(i => i.comment && i.comment.trim().length > 0)
+        .sort((a, b) => (new Date(b.at as any).getTime() - new Date(a.at as any).getTime()))
+        .slice(0, 30);
+
+      res.json({ items });
+    } catch (err) {
+      console.error("Error fetching coach feedback:", err);
+      res.status(500).json({ message: "Failed to fetch feedback" });
+    }
+  });
+
   // Register as coach (authenticated users)
   app.post("/api/coaches/register", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
