@@ -361,53 +361,96 @@ export default function CoachProfile() {
                 <div className="space-y-6">
                   <h3 className="font-semibold text-lg border-b pb-2">Core Information</h3>
 
-                  <div className="flex items-center gap-6">
-                    <div className="flex flex-col items-center gap-2">
-                      <Avatar className="h-24 w-24 border-2 border-border">
-                        {(photoPreview || form.watch("profilePhoto")) ? (
-                          <AvatarImage src={photoPreview || form.watch("profilePhoto")} alt="Profile" />
-                        ) : null}
-                        <AvatarFallback className="text-2xl">{form.watch("fullName")?.charAt(0) || "?"}</AvatarFallback>
-                      </Avatar>
-                      <input
-                        ref={fileInputRef}
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        onChange={(e) => {
-                          const f = e.target.files?.[0];
-                          if (f) handlePhotoUpload(f);
-                        }}
-                        data-testid="input-photo-upload"
-                      />
-                      <Button
-                        type="button"
-                        variant="outline"
-                        size="sm"
-                        onClick={() => fileInputRef.current?.click()}
-                        disabled={uploading}
-                        data-testid="button-upload-photo"
-                      >
-                        {uploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Camera className="h-4 w-4 mr-1" />}
-                        {uploading ? "Uploading..." : "Upload Photo"}
-                      </Button>
-                      <FormField control={form.control} name="profilePhoto" render={({ field }) => (
-                        <FormItem className="w-full max-w-[220px]">
-                          <FormLabel className="text-xs">…or paste a photo URL</FormLabel>
-                          <FormControl>
-                            <Input
-                              placeholder="https://…/me.jpg"
-                              value={field.value || ""}
-                              onChange={(e) => { field.onChange(e.target.value); setPhotoPreview(e.target.value || null); }}
-                              data-testid="input-photo-url"
+                  {/* PROMINENT PROFILE PHOTO BLOCK */}
+                  <div className="rounded-2xl border border-violet-400/30 bg-gradient-to-br from-violet-500/10 via-fuchsia-500/5 to-cyan-500/10 p-5 relative overflow-hidden" data-testid="block-profile-photo">
+                    <div className="pointer-events-none absolute -top-12 -right-12 w-40 h-40 rounded-full bg-violet-500/25 blur-3xl" />
+                    <div className="relative flex flex-col sm:flex-row items-center gap-5">
+                      <div className="relative shrink-0 group">
+                        <div className="absolute -inset-1 rounded-full bg-gradient-to-br from-violet-500 via-fuchsia-500 to-cyan-400 opacity-60 blur-md group-hover:opacity-90 transition" />
+                        <div className="relative w-32 h-32 rounded-full overflow-hidden border-[3px] border-white/40 bg-slate-900 shadow-xl">
+                          {(photoPreview || form.watch("profilePhoto")) ? (
+                            <img
+                              src={photoPreview || form.watch("profilePhoto")}
+                              alt="Profile"
+                              className="w-full h-full object-cover"
+                              onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; }}
+                              data-testid="img-photo-preview"
                             />
-                          </FormControl>
-                          <FormMessage />
-                        </FormItem>
-                      )} />
+                          ) : (
+                            <div className="w-full h-full flex items-center justify-center text-4xl font-black text-white bg-gradient-to-br from-violet-600 to-fuchsia-600">
+                              {form.watch("fullName")?.charAt(0) || "?"}
+                            </div>
+                          )}
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => fileInputRef.current?.click()}
+                          disabled={uploading}
+                          className="absolute bottom-0 right-0 w-9 h-9 rounded-full bg-violet-500 hover:bg-violet-400 text-white flex items-center justify-center shadow-lg ring-2 ring-background"
+                          data-testid="button-photo-camera"
+                          aria-label="Upload photo"
+                        >
+                          {uploading ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
+                        </button>
+                        <input
+                          ref={fileInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const f = e.target.files?.[0];
+                            if (f) handlePhotoUpload(f);
+                          }}
+                          data-testid="input-photo-upload"
+                        />
+                      </div>
+                      <div className="flex-1 w-full space-y-2 text-center sm:text-left">
+                        <div>
+                          <h4 className="font-bold text-base">Profile Photo</h4>
+                          <p className="text-xs text-muted-foreground">Shown on the coach finder, your public profile, and bookings. Square, head-and-shoulders works best.</p>
+                        </div>
+                        <div className="flex flex-col sm:flex-row gap-2 justify-center sm:justify-start">
+                          <Button
+                            type="button"
+                            onClick={() => fileInputRef.current?.click()}
+                            disabled={uploading}
+                            className="bg-violet-500 hover:bg-violet-400 text-white"
+                            data-testid="button-upload-photo"
+                          >
+                            {uploading ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Camera className="h-4 w-4 mr-2" />}
+                            {uploading ? "Uploading…" : "Upload from device"}
+                          </Button>
+                          {(photoPreview || form.watch("profilePhoto")) && (
+                            <Button
+                              type="button"
+                              variant="outline"
+                              onClick={() => { form.setValue("profilePhoto", ""); setPhotoPreview(null); }}
+                              data-testid="button-remove-photo"
+                            >
+                              <X className="h-4 w-4 mr-2" />Remove
+                            </Button>
+                          )}
+                        </div>
+                        <FormField control={form.control} name="profilePhoto" render={({ field }) => (
+                          <FormItem>
+                            <FormLabel className="text-[11px] text-muted-foreground uppercase tracking-wider">Or paste a photo URL</FormLabel>
+                            <FormControl>
+                              <Input
+                                placeholder="https://example.com/photo.jpg"
+                                value={field.value || ""}
+                                onChange={(e) => { field.onChange(e.target.value); setPhotoPreview(e.target.value || null); }}
+                                data-testid="input-photo-url"
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )} />
+                      </div>
                     </div>
-                    <div className="flex-1 space-y-4">
-                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  </div>
+
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <FormField control={form.control} name="fullName" render={({ field }) => (
                           <FormItem>
                             <FormLabel>Full Name *</FormLabel>
@@ -922,16 +965,34 @@ export default function CoachProfile() {
         Back to Dashboard
       </Button>
 
+      {!coach.profilePhoto && (
+        <div className="mb-4 rounded-2xl border border-amber-400/40 bg-gradient-to-br from-amber-500/15 via-orange-500/10 to-transparent p-4 flex items-center gap-4 flex-wrap" data-testid="banner-missing-photo">
+          <div className="w-12 h-12 rounded-full bg-amber-500/20 flex items-center justify-center shrink-0">
+            <Camera className="w-6 h-6 text-amber-300" />
+          </div>
+          <div className="flex-1 min-w-[200px]">
+            <p className="font-semibold text-amber-100">Add a profile photo</p>
+            <p className="text-xs text-amber-200/80">Your photo appears on the coach finder hero, your public profile, and every booking. Coaches with photos get up to 3× more enquiries.</p>
+          </div>
+          <Button onClick={startEditing} className="bg-amber-500 hover:bg-amber-400 text-amber-950 font-semibold" data-testid="button-add-photo-banner">
+            <Camera className="w-4 h-4 mr-2" />Upload now
+          </Button>
+        </div>
+      )}
+
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between flex-wrap gap-3">
             <div className="flex items-center gap-4">
-              <Avatar className="h-16 w-16 border-2 border-border">
-                {coach.profilePhoto ? (
-                  <AvatarImage src={coach.profilePhoto} alt={coach.fullName} />
-                ) : null}
-                <AvatarFallback className="text-xl">{coach.fullName?.charAt(0) || "?"}</AvatarFallback>
-              </Avatar>
+              <div className="relative shrink-0">
+                <div className="absolute -inset-0.5 rounded-full bg-gradient-to-br from-violet-500 to-cyan-400 opacity-50 blur-sm" />
+                <Avatar className="relative h-20 w-20 border-2 border-white/30 shadow-lg">
+                  {coach.profilePhoto ? (
+                    <AvatarImage src={coach.profilePhoto} alt={coach.fullName} className="object-cover" />
+                  ) : null}
+                  <AvatarFallback className="text-2xl bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white font-black">{coach.fullName?.charAt(0) || "?"}</AvatarFallback>
+                </Avatar>
+              </div>
               <div>
                 <CardTitle data-testid="text-coach-name">{coach.fullName}</CardTitle>
                 {coach.roleTitle && (
