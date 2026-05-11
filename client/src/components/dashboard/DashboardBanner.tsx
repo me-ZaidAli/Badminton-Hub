@@ -19,10 +19,9 @@ interface DashboardBannerProps {
   heightVh?: number;
 }
 
-export default function DashboardBanner({ heightVh = 32 }: DashboardBannerProps) {
+export default function DashboardBanner({ heightVh = 28 }: DashboardBannerProps) {
   const [idx, setIdx] = useState(0);
 
-  // Preload all images once
   useEffect(() => {
     NATURE_IMAGES.forEach(src => {
       const img = new Image();
@@ -30,25 +29,22 @@ export default function DashboardBanner({ heightVh = 32 }: DashboardBannerProps)
     });
   }, []);
 
-  // Cycle index every ROTATION_MS
   useEffect(() => {
-    const id = setInterval(() => {
-      setIdx(i => (i + 1) % NATURE_IMAGES.length);
-    }, ROTATION_MS);
+    const id = setInterval(() => setIdx(i => (i + 1) % NATURE_IMAGES.length), ROTATION_MS);
     return () => clearInterval(id);
   }, []);
 
   return (
     <div
-      className="relative -mx-3 sm:-mx-4 lg:-mx-6 -mt-2 mb-[-3rem] sm:mb-[-3.5rem] lg:mb-[-4rem] overflow-hidden"
-      style={{ height: `${heightVh}vh`, minHeight: 220 }}
+      className="relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl mb-[-2.5rem] sm:mb-[-3rem] lg:mb-[-3.5rem]"
+      style={{ height: `${heightVh}vh`, minHeight: 200 }}
       data-testid="dashboard-banner"
     >
-      {/* Image stack — cross-fade */}
+      {/* Cross-fading image stack */}
       {NATURE_IMAGES.map((src, i) => (
         <div
           key={i}
-          className="absolute inset-0 bg-center bg-cover ease-in-out"
+          className="absolute inset-0 bg-center bg-cover"
           style={{
             backgroundImage: `url(${src})`,
             opacity: i === idx ? 1 : 0,
@@ -60,12 +56,9 @@ export default function DashboardBanner({ heightVh = 32 }: DashboardBannerProps)
         />
       ))}
 
-      {/* Cinematic overlays for legibility + brand tint */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-background pointer-events-none" />
+      {/* Cinematic overlays */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-black/40 pointer-events-none" />
       <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-900/15 via-transparent to-cyan-500/10 pointer-events-none mix-blend-overlay" />
-
-      {/* Soft bottom mask so the next-row tiles "rise" out of the banner */}
-      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background pointer-events-none" />
     </div>
   );
 }
