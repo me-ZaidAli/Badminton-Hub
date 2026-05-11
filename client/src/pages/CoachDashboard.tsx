@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -19,8 +19,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   GraduationCap, Calendar, Clock, Image as ImageIcon, Settings, Plus, Trash2, Check, X,
   Loader2, Sparkles, Sun, AlertCircle, Camera, ExternalLink, User, MapPin, BellRing,
-  Banknote, Info, PoundSterling, Users as UsersIcon, Wallet,
+  Banknote, Info, PoundSterling, Users as UsersIcon, Wallet, Save, IdCard,
 } from "lucide-react";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { CoachSubNav } from "@/components/SubNav";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -70,6 +71,9 @@ function MoneyInput({
 interface Coach {
   id: number; fullName: string; email: string; phone?: string; profilePhoto?: string;
   bio?: string; city?: string; postcode?: string; status: string;
+  roleTitle?: string; location?: string; areaCoverage?: string; availability?: string;
+  languagesSpoken?: string; qualifications?: string; coachingPhilosophy?: string;
+  yearsTraining?: number; preferredGroupSize?: string; coachingCertifications?: string;
 }
 interface Rule { id: number; dayOfWeek: number; startTime: string; endTime: string; isActive: boolean; }
 interface Override { id: number; date: string; isClosed: boolean; startTime?: string; endTime?: string; note?: string; }
@@ -163,8 +167,9 @@ export default function CoachDashboard() {
         ))}
       </motion.div>
 
-      <Tabs defaultValue="bookings" className="w-full">
-        <TabsList className="w-full overflow-x-auto" data-testid="tabs-coach-dashboard">
+      <Tabs defaultValue="profile" className="w-full">
+        <TabsList className="w-full overflow-x-auto flex-wrap h-auto gap-1" data-testid="tabs-coach-dashboard">
+          <TabsTrigger value="profile" className="flex-1" data-testid="tab-profile">Profile</TabsTrigger>
           <TabsTrigger value="bookings" className="flex-1" data-testid="tab-bookings">
             Bookings {pendingCount > 0 && <Badge variant="destructive" className="ml-2">{pendingCount}</Badge>}
           </TabsTrigger>
@@ -174,6 +179,7 @@ export default function CoachDashboard() {
           <TabsTrigger value="gallery" className="flex-1" data-testid="tab-gallery">Gallery</TabsTrigger>
         </TabsList>
 
+        <TabsContent value="profile" className="mt-4"><ProfileEditor coach={coach} /></TabsContent>
         <TabsContent value="bookings" className="mt-4"><BookingsList bookings={bookings ?? []} /></TabsContent>
         <TabsContent value="availability" className="mt-4"><AvailabilityRules rules={rules ?? []} /></TabsContent>
         <TabsContent value="overrides" className="mt-4"><OverridesList overrides={overrides ?? []} /></TabsContent>
@@ -413,6 +419,241 @@ function OverridesList({ overrides }: { overrides: Override[] }) {
             </CardContent>
           </GlassCard>
         ))}
+      </div>
+    </div>
+  );
+}
+
+// ─── Profile editor (photo + details) ────────────────────────────────────────
+function ProfileEditor({ coach }: { coach: Coach }) {
+  const { toast } = useToast();
+  const fileRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+  const [form, setForm] = useState({
+    fullName: coach.fullName || "",
+    email: coach.email || "",
+    phone: coach.phone || "",
+    profilePhoto: coach.profilePhoto || "",
+    roleTitle: coach.roleTitle || "",
+    bio: coach.bio || "",
+    location: coach.location || "",
+    city: coach.city || "",
+    postcode: coach.postcode || "",
+    areaCoverage: coach.areaCoverage || "",
+    availability: coach.availability || "",
+    languagesSpoken: coach.languagesSpoken || "",
+    qualifications: coach.qualifications || "",
+    coachingPhilosophy: coach.coachingPhilosophy || "",
+    coachingCertifications: coach.coachingCertifications || "",
+    preferredGroupSize: coach.preferredGroupSize || "",
+    yearsTraining: coach.yearsTraining ?? 0,
+  });
+  useEffect(() => {
+    setForm({
+      fullName: coach.fullName || "", email: coach.email || "", phone: coach.phone || "",
+      profilePhoto: coach.profilePhoto || "", roleTitle: coach.roleTitle || "",
+      bio: coach.bio || "", location: coach.location || "", city: coach.city || "",
+      postcode: coach.postcode || "", areaCoverage: coach.areaCoverage || "",
+      availability: coach.availability || "", languagesSpoken: coach.languagesSpoken || "",
+      qualifications: coach.qualifications || "", coachingPhilosophy: coach.coachingPhilosophy || "",
+      coachingCertifications: coach.coachingCertifications || "",
+      preferredGroupSize: coach.preferredGroupSize || "", yearsTraining: coach.yearsTraining ?? 0,
+    });
+  }, [coach.id]);
+
+  const set = (k: keyof typeof form, v: any) => setForm((s) => ({ ...s, [k]: v }));
+
+  const save = useMutation({
+    mutationFn: async () => (await apiRequest("PATCH", "/api/coaches/me", form)).json(),
+    onSuccess: () => {
+      toast({ title: "Profile saved" });
+      queryClient.invalidateQueries({ queryKey: ["/api/coaches/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/coaches"] });
+    },
+    onError: (e: any) => toast({ title: "Save failed", description: e.message, variant: "destructive" }),
+  });
+
+  const handlePhoto = async (file: File) => {
+    setUploading(true);
+    try {
+      const fd = new FormData();
+      fd.append("photo", file);
+      const r = await fetch("/api/coaches/upload-photo", { method: "POST", body: fd, credentials: "include" });
+      if (!r.ok) throw new Error(await r.text());
+      const { url } = await r.json();
+      set("profilePhoto", url);
+      // Persist immediately so the photo shows everywhere even before user clicks Save
+      const res = await apiRequest("PATCH", "/api/coaches/me", { profilePhoto: url });
+      await res.json();
+      queryClient.invalidateQueries({ queryKey: ["/api/coaches/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/coaches"] });
+      toast({ title: "Photo updated" });
+    } catch (e: any) {
+      toast({ title: "Upload failed", description: e.message, variant: "destructive" });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const removePhoto = async () => {
+    set("profilePhoto", "");
+    try {
+      await apiRequest("PATCH", "/api/coaches/me", { profilePhoto: "" });
+      queryClient.invalidateQueries({ queryKey: ["/api/coaches/me"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/coaches"] });
+      toast({ title: "Photo removed" });
+    } catch (e: any) {
+      toast({ title: "Failed", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const initials = (form.fullName || "?").split(" ").map((n) => n[0]).join("").slice(0, 2).toUpperCase();
+
+  return (
+    <div className="space-y-4">
+      {/* Photo */}
+      <GlassCard>
+        <CardContent className="p-5">
+          <div className="flex items-center gap-5 flex-wrap">
+            <Avatar className="h-24 w-24 border-2 border-violet-400/40 ring-4 ring-violet-500/20">
+              {form.profilePhoto ? <AvatarImage src={form.profilePhoto} alt={form.fullName} className="object-cover" /> : null}
+              <AvatarFallback className="bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-2xl font-black">
+                {initials}
+              </AvatarFallback>
+            </Avatar>
+            <div className="flex-1 min-w-[200px]">
+              <h3 className="font-bold flex items-center gap-2"><Camera className="w-4 h-4 text-violet-300" />Profile photo</h3>
+              <p className="text-xs text-muted-foreground mt-1">Used on your public profile and on every booking. JPG/PNG, square works best.</p>
+              <div className="flex gap-2 mt-3 flex-wrap">
+                <input ref={fileRef} type="file" accept="image/*" className="hidden"
+                  onChange={(e) => { const f = e.target.files?.[0]; if (f) handlePhoto(f); }}
+                  data-testid="input-coach-photo" />
+                <Button size="sm" onClick={() => fileRef.current?.click()} disabled={uploading} data-testid="button-coach-upload-photo">
+                  {uploading ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Camera className="w-4 h-4 mr-1" />}
+                  {uploading ? "Uploading…" : (form.profilePhoto ? "Change photo" : "Upload photo")}
+                </Button>
+                {form.profilePhoto && (
+                  <Button size="sm" variant="outline" onClick={removePhoto} data-testid="button-coach-remove-photo">
+                    <Trash2 className="w-4 h-4 mr-1" />Remove
+                  </Button>
+                )}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </GlassCard>
+
+      {/* Core details */}
+      <GlassCard>
+        <CardContent className="p-5 space-y-4">
+          <h3 className="font-bold flex items-center gap-2"><IdCard className="w-4 h-4 text-violet-300" />Core details</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Full name</Label>
+              <Input value={form.fullName} onChange={(e) => set("fullName", e.target.value)} data-testid="input-coach-fullname" />
+            </div>
+            <div>
+              <Label>Role / title</Label>
+              <Input value={form.roleTitle} onChange={(e) => set("roleTitle", e.target.value)} placeholder="e.g. Head Coach" data-testid="input-coach-role" />
+            </div>
+            <div>
+              <Label>Email</Label>
+              <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} data-testid="input-coach-email" />
+            </div>
+            <div>
+              <Label>Phone</Label>
+              <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} data-testid="input-coach-phone" />
+            </div>
+          </div>
+          <div>
+            <Label>Bio</Label>
+            <Textarea rows={4} value={form.bio} onChange={(e) => set("bio", e.target.value)}
+              placeholder="A short intro shown at the top of your public profile."
+              data-testid="textarea-coach-bio" />
+          </div>
+        </CardContent>
+      </GlassCard>
+
+      {/* Location */}
+      <GlassCard>
+        <CardContent className="p-5 space-y-4">
+          <h3 className="font-bold flex items-center gap-2"><MapPin className="w-4 h-4 text-violet-300" />Location</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Town / City</Label>
+              <Input value={form.city} onChange={(e) => set("city", e.target.value)} data-testid="input-coach-city" />
+            </div>
+            <div>
+              <Label>Postcode</Label>
+              <Input value={form.postcode} onChange={(e) => set("postcode", e.target.value)} data-testid="input-coach-postcode" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Address / venue (optional)</Label>
+              <Input value={form.location} onChange={(e) => set("location", e.target.value)} data-testid="input-coach-location" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Areas covered</Label>
+              <Input value={form.areaCoverage} onChange={(e) => set("areaCoverage", e.target.value)}
+                placeholder="e.g. Birmingham, Solihull, Sutton Coldfield" data-testid="input-coach-area" />
+            </div>
+          </div>
+        </CardContent>
+      </GlassCard>
+
+      {/* Coaching info */}
+      <GlassCard>
+        <CardContent className="p-5 space-y-4">
+          <h3 className="font-bold flex items-center gap-2"><GraduationCap className="w-4 h-4 text-violet-300" />Coaching info</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <Label>Years training/playing</Label>
+              <Input type="number" min={0} value={form.yearsTraining}
+                onChange={(e) => set("yearsTraining", Number(e.target.value) || 0)}
+                data-testid="input-coach-years" />
+            </div>
+            <div>
+              <Label>Preferred group size</Label>
+              <Input value={form.preferredGroupSize} onChange={(e) => set("preferredGroupSize", e.target.value)}
+                placeholder="e.g. 1-to-1, small groups (4-6)" data-testid="input-coach-group-size" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Languages spoken</Label>
+              <Input value={form.languagesSpoken} onChange={(e) => set("languagesSpoken", e.target.value)}
+                placeholder="e.g. English, Punjabi" data-testid="input-coach-languages" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Qualifications</Label>
+              <Textarea rows={2} value={form.qualifications} onChange={(e) => set("qualifications", e.target.value)}
+                placeholder="e.g. Badminton England Level 2, Safeguarding, First Aid"
+                data-testid="textarea-coach-quals" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Certifications (free text)</Label>
+              <Textarea rows={2} value={form.coachingCertifications} onChange={(e) => set("coachingCertifications", e.target.value)}
+                data-testid="textarea-coach-certs" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>Coaching philosophy</Label>
+              <Textarea rows={3} value={form.coachingPhilosophy} onChange={(e) => set("coachingPhilosophy", e.target.value)}
+                placeholder="What players can expect from working with you."
+                data-testid="textarea-coach-philosophy" />
+            </div>
+            <div className="sm:col-span-2">
+              <Label>General availability (free text)</Label>
+              <Textarea rows={2} value={form.availability} onChange={(e) => set("availability", e.target.value)}
+                placeholder="e.g. Weekday evenings + Saturday mornings"
+                data-testid="textarea-coach-availability" />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground">Need to edit specialisms, age groups or pricing? Use the <strong>Settings</strong> tab for booking rules &amp; packages.</p>
+        </CardContent>
+      </GlassCard>
+
+      <div className="flex justify-end">
+        <Button onClick={() => save.mutate()} disabled={save.isPending} size="lg" data-testid="button-save-coach-profile">
+          {save.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <Save className="w-4 h-4 mr-2" />}
+          Save profile
+        </Button>
       </div>
     </div>
   );
