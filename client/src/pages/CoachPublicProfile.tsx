@@ -95,6 +95,17 @@ export default function CoachPublicProfile() {
     onError: (e: any) => toast({ title: "Booking failed", description: e.message, variant: "destructive" }),
   });
 
+  // Build a 14-day strip — must be declared before any early returns to satisfy rules of hooks.
+  const dateStrip = useMemo(() => {
+    const arr: { d: string; weekday: string; day: number }[] = [];
+    const max = summary?.settings?.maxAdvanceDays ?? 60;
+    for (let i = 0; i < Math.min(14, max + 1); i++) {
+      const d = new Date(); d.setDate(d.getDate() + i);
+      arr.push({ d: fmtDate(d), weekday: DAY_LABEL[d.getDay()], day: d.getDate() });
+    }
+    return arr;
+  }, [summary]);
+
   if (cLoading || sLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-violet-400" /></div>;
   if (!coach) {
     return (
@@ -105,17 +116,6 @@ export default function CoachPublicProfile() {
       </div>
     );
   }
-
-  // Build a 14-day strip
-  const dateStrip = useMemo(() => {
-    const arr: { d: string; weekday: string; day: number }[] = [];
-    const max = summary?.settings?.maxAdvanceDays ?? 60;
-    for (let i = 0; i < Math.min(14, max + 1); i++) {
-      const d = new Date(); d.setDate(d.getDate() + i);
-      arr.push({ d: fmtDate(d), weekday: DAY_LABEL[d.getDay()], day: d.getDate() });
-    }
-    return arr;
-  }, [summary]);
 
   const gallery = summary?.gallery ?? [];
   const slots = slotData?.slots ?? [];
