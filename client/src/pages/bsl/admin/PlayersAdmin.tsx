@@ -148,11 +148,16 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
   const [clubId, setClubId] = useState<number | "">("");
   const [displayName, setDisplayName] = useState("");
   const [activate, setActivate] = useState(true);
+  const [showCreateUser, setShowCreateUser] = useState(false);
+  const [newUser, setNewUser] = useState({ fullName: "", email: "", password: "" });
+  const [tempPassword, setTempPassword] = useState<string | null>(null);
 
-  const { data: results } = useQuery<any[]>({
+  // Always populate the dropdown — empty search returns top 50 users so the
+  // admin sees the full list immediately, then can type to filter.
+  const { data: results, isLoading: searching } = useQuery<any[]>({
     queryKey: ["/api/bsl/admin/users/search", search],
-    queryFn: async () => search.length < 2 ? [] : (await fetch(`/api/bsl/admin/users/search?q=${encodeURIComponent(search)}`, { credentials: "include" })).json(),
-    enabled: search.length >= 2 && !picked,
+    queryFn: async () => (await fetch(`/api/bsl/admin/users/search?q=${encodeURIComponent(search)}`, { credentials: "include" })).json(),
+    enabled: !picked,
   });
 
   const create = useMutation({
@@ -162,6 +167,18 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
     })).json(),
     onSuccess: () => { toast({ title: "Player created" }); onCreated(); },
     onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  const createUser = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/users", newUser)).json(),
+    onSuccess: (u: any) => {
+      setPicked(u);
+      setDisplayName(u.fullName || "");
+      if (u.tempPassword) setTempPassword(u.tempPassword);
+      setShowCreateUser(false);
+      toast({ title: "User account created", description: u.tempPassword ? `Temp password: ${u.tempPassword}` : "Account ready" });
+    },
+    onError: (e: any) => toast({ title: "Couldn't create user", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
   });
 
   return (
@@ -175,26 +192,48 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
         <Section title="1. Pick the user account">
           {!picked ? (
             <>
-              <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email (min 2 chars)…" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-user-search" />
-              {(results || []).length > 0 && (
-                <div className="mt-2 max-h-60 overflow-y-auto rounded-lg" style={{ border: `1px solid ${BSL.border}` }}>
-                  {(results || []).map((u: any) => (
-                    <button key={u.id} onClick={() => { setPicked(u); setDisplayName(u.fullName || ""); }} className="w-full text-left px-3 py-2 text-sm flex justify-between hover:opacity-80" style={{ background: BSL.cardSoft, borderTop: `1px solid ${BSL.border}` }} data-testid={`button-pick-user-${u.id}`}>
-                      <span className="font-bold">{u.fullName || u.username}</span>
-                      <span className="text-xs" style={{ color: BSL.muted }}>{u.email}</span>
-                    </button>
-                  ))}
+              {!showCreateUser ? (
+                <>
+                  <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Type a name or email to filter…" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-user-search" />
+                  <div className="mt-2 max-h-60 overflow-y-auto rounded-lg" style={{ border: `1px solid ${BSL.border}` }}>
+                    {searching && !results ? (
+                      <div className="px-3 py-3 text-xs" style={{ color: BSL.faint }}>Loading users…</div>
+                    ) : (results || []).length === 0 ? (
+                      <div className="px-3 py-3 text-xs" style={{ color: BSL.faint }}>{search ? "No users match that search." : "No users found."}</div>
+                    ) : (results || []).map((u: any) => (
+                      <button key={u.id} onClick={() => { setPicked(u); setDisplayName(u.fullName || ""); }} className="w-full text-left px-3 py-2 text-sm flex justify-between gap-2 hover:opacity-80" style={{ background: BSL.cardSoft, borderTop: `1px solid ${BSL.border}` }} data-testid={`button-pick-user-${u.id}`}>
+                        <span className="font-bold truncate">{u.fullName || u.username}</span>
+                        <span className="text-xs truncate" style={{ color: BSL.muted }}>{u.email}</span>
+                      </button>
+                    ))}
+                  </div>
+                  <button onClick={() => { setShowCreateUser(true); setNewUser({ fullName: search, email: "", password: "" }); }} className="mt-2 inline-flex items-center gap-1.5 text-xs font-bold px-3 py-2 rounded-lg" style={{ background: `${BSL.gold}1f`, color: BSL.gold, border: `1px solid ${BSL.gold}55` }} data-testid="button-show-create-user">
+                    <UserPlus className="h-3 w-3" /> Can't find them? Create a new user account
+                  </button>
+                </>
+              ) : (
+                <div className="rounded-lg p-3 space-y-2" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.gold}55` }}>
+                  <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: BSL.gold }}>New user account</div>
+                  <input value={newUser.fullName} onChange={e => setNewUser({ ...newUser, fullName: e.target.value })} placeholder="Full name *" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-newuser-name" />
+                  <input value={newUser.email} onChange={e => setNewUser({ ...newUser, email: e.target.value })} type="email" placeholder="Email *" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-newuser-email" />
+                  <input value={newUser.password} onChange={e => setNewUser({ ...newUser, password: e.target.value })} type="password" autoComplete="new-password" placeholder="Password (optional · auto-generated if blank, min 6 chars)" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-newuser-password" />
+                  <div className="flex gap-2 justify-end pt-1">
+                    <button onClick={() => setShowCreateUser(false)} className="px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: BSL.card, color: BSL.muted }} data-testid="button-cancel-newuser">Cancel</button>
+                    <ActionButton variant="gold" icon={<UserPlus className="h-3 w-3" />} onClick={() => createUser.mutate()} disabled={!newUser.fullName.trim() || !newUser.email.trim() || createUser.isPending} testid="button-create-newuser">
+                      {createUser.isPending ? "Creating…" : "Create account"}
+                    </ActionButton>
+                  </div>
                 </div>
               )}
-              {search.length >= 2 && (results || []).length === 0 && <div className="text-xs mt-2" style={{ color: BSL.faint }}>No users match.</div>}
             </>
           ) : (
             <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.cyan}55` }}>
               <div>
                 <div className="font-bold text-sm">{picked.fullName || picked.username}</div>
                 <div className="text-xs" style={{ color: BSL.muted }}>{picked.email}</div>
+                {tempPassword && <div className="text-[10px] mt-1" style={{ color: BSL.gold }}>Temp password: <span className="font-mono">{tempPassword}</span> — share with player</div>}
               </div>
-              <button onClick={() => setPicked(null)} className="text-xs underline" style={{ color: BSL.muted }} data-testid="button-change-user">Change</button>
+              <button onClick={() => { setPicked(null); setTempPassword(null); }} className="text-xs underline" style={{ color: BSL.muted }} data-testid="button-change-user">Change</button>
             </div>
           )}
         </Section>

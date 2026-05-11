@@ -10,6 +10,9 @@ import {
   bslTeamMembers,
 } from "@shared/schema";
 import { sendRulePush } from "./notificationRules";
+import { hashPassword } from "./auth";
+import { storage } from "./storage";
+import { randomBytes } from "crypto";
 
 async function audit(req: Request, action: string, entity: string, entityId: number | null, detail?: any) {
   try {
@@ -810,16 +813,55 @@ export function registerBslRoutes(app: Express) {
   app.get("/api/bsl/admin/users/search", requireAdmin, async (req, res) => {
     try {
       const q = String(req.query.q || "").trim().toLowerCase();
-      if (q.length < 2) return res.json([]);
+      // Pull a generous slice so the dropdown is populated even with no query.
       const rows = await db.select({
         id: users.id, fullName: users.fullName, email: users.email, username: users.username,
-      }).from(users).limit(200);
-      const filtered = rows.filter(r =>
+      }).from(users).orderBy(desc(users.id)).limit(500);
+      const filtered = q.length === 0 ? rows.slice(0, 50) : rows.filter(r =>
         (r.fullName || "").toLowerCase().includes(q) ||
         (r.email || "").toLowerCase().includes(q) ||
         (r.username || "").toLowerCase().includes(q)
-      ).slice(0, 20);
+      ).slice(0, 50);
       res.json(filtered);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin creates a brand-new user account from inside the BSL "Create player"
+  // dialog. Returns the lightweight shape the search endpoint uses so the UI can
+  // pre-pick the freshly created user without an extra round-trip.
+  app.post("/api/bsl/admin/users", requireAdmin, async (req, res) => {
+    try {
+      const fullName = String(req.body?.fullName || "").trim();
+      const emailRaw = String(req.body?.email || "").trim().toLowerCase();
+      const passwordRaw = String(req.body?.password || "").trim();
+      if (!fullName) return res.status(400).json({ message: "Full name is required" });
+      if (!emailRaw || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailRaw)) {
+        return res.status(400).json({ message: "Valid email is required" });
+      }
+      const existing = await storage.getUserByUsername(emailRaw);
+      if (existing) {
+        return res.status(409).json({
+          message: "A user with this email already exists",
+          user: { id: existing.id, fullName: existing.fullName, email: existing.email, username: existing.username },
+        });
+      }
+      // Use CSPRNG for the auto-generated temp password so it can't be guessed.
+      const password = passwordRaw.length >= 6
+        ? passwordRaw
+        : `BSL-${randomBytes(6).toString("base64url")}`;
+      const hashed = await hashPassword(password);
+      const created = await storage.createUser({
+        fullName, email: emailRaw, password: hashed,
+        role: "PLAYER", emailVerified: false, lastActivityAt: new Date(),
+      } as any);
+      await audit(req, "ADMIN_CREATE_USER", "user", created.id, { fullName, email: emailRaw });
+      res.json({
+        id: created.id,
+        fullName: created.fullName,
+        email: created.email,
+        username: created.username,
+        tempPassword: passwordRaw.length >= 6 ? null : password,
+      });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
