@@ -1,6 +1,6 @@
 import { db } from "./db";
 import { sessions, sessionSignups, playerProfiles, users } from "@shared/schema";
-import { eq, and, lt, inArray } from "drizzle-orm";
+import { eq, and, lt, inArray, sql } from "drizzle-orm";
 import { sendPushToUsers } from "./oneSignal";
 import { sendRulePush } from "./notificationRules";
 
@@ -38,7 +38,10 @@ export async function runPostSessionUnpaidReminder(): Promise<void> {
         and(
           eq(sessionSignups.sessionId, sess.id),
           eq(sessionSignups.paymentStatus, "UNPAID"),
+          // Never remind waitlisted/invited/cancelled players — only CONFIRMED owes.
           inArray(sessionSignups.signupStatus, ["CONFIRMED"]),
+          // Skip no-shows / justified cancellations — they didn't actually play.
+          sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY')`,
         ),
       );
     if (unpaid.length === 0) continue;

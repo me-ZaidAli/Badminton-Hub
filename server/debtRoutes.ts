@@ -52,8 +52,13 @@ async function getSessionCharges(filterClubIds: number[]) {
     .where(and(
       inArray(sessions.clubId, filterClubIds),
       sql`${sessionSignups.paymentStatus} != 'PAID'`,
+      // Only CONFIRMED players owe — waitlisted/invited/cancelled players are
+      // never billed even after the session ends.
       eq(sessionSignups.signupStatus, "CONFIRMED"),
       lte(sessions.date, now),
+      // Drop no-show/cancellation attendance statuses from debt aggregation —
+      // matches the convention used elsewhere (routes.ts ~lines 4767, 21648, 22945).
+      sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY')`,
     ));
   return rows.filter(r => (r.fee ?? 0) > 0).map(r => ({
     id: r.signupId,

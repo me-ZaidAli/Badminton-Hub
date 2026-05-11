@@ -12389,7 +12389,14 @@ export async function registerRoutes(
           and(
             inArray(sessionSignups.playerId, profileIds),
             eq(sessionSignups.paymentStatus, "UNPAID"),
-            inArray(sessionSignups.signupStatus, ["CONFIRMED", "WAITING"])
+            // Only CONFIRMED players owe — never WAITING/INVITED/NOT_ATTENDING/CANCELLED.
+            // Players on the waiting list (or removed from the session) must not be
+            // billed even after the session has ended.
+            eq(sessionSignups.signupStatus, "CONFIRMED"),
+            // For past sessions, exclude players who didn't actually play
+            // (no-shows, sickness, emergency, justified cancellations). Future
+            // sessions still owe regardless of attendance.
+            sql`(${sessions.date} > NOW() OR ${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY'))`,
           )
         )
         .orderBy(desc(sessions.date));
@@ -12910,7 +12917,9 @@ export async function registerRoutes(
             eq(sessionSignups.playerId, playerId),
             eq(sessions.clubId, clubId),
             eq(sessionSignups.paymentStatus, "UNPAID"),
-            inArray(sessionSignups.signupStatus, ["CONFIRMED", "WAITING"])
+            // Only CONFIRMED players owe — never WAITING/INVITED/NOT_ATTENDING/CANCELLED.
+            eq(sessionSignups.signupStatus, "CONFIRMED"),
+            sql`(${sessions.date} > NOW() OR ${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY'))`,
           )
         )
         .orderBy(desc(sessions.date));
