@@ -330,6 +330,82 @@ export function registerCoachBookingRoutes(app: Express) {
     res.json({ date, slots });
   });
 
+  // ── PUBLIC: All approved coaches' availability for a month ─────────────────
+  // Returns one entry per coach with their weekly rules + any overrides /
+  // bookings inside the requested month, so the front-end can paint a
+  // multi-coach month-view calendar in one round-trip.
+  app.get("/api/coaches/availability-month", async (req, res) => {
+    try {
+      const monthStr = String(req.query.month || ""); // YYYY-MM
+      if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(monthStr)) {
+        return res.status(400).json({ message: "month YYYY-MM required" });
+      }
+      const [yy, mm] = monthStr.split("-").map(Number);
+      if (yy < 2000 || yy > 2100) return res.status(400).json({ message: "year out of range" });
+      const monthStart = `${monthStr}-01`;
+      const lastDay = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+      const monthEnd = `${monthStr}-${String(lastDay).padStart(2, "0")}`;
+
+      const approved = await db
+        .select({
+          id: coaches.id, fullName: coaches.fullName, profilePhoto: coaches.profilePhoto,
+          city: coaches.city, roleTitle: coaches.roleTitle,
+        })
+        .from(coaches)
+        .where(eq(coaches.status, "APPROVED"))
+        .orderBy(asc(coaches.fullName));
+      if (approved.length === 0) return res.json({ month: monthStr, coaches: [] });
+      const ids = approved.map((c) => c.id);
+
+      const [allRules, allOverrides, allSettings] = await Promise.all([
+        db.select().from(coachAvailabilityRules)
+          .where(and(inArray(coachAvailabilityRules.coachId, ids), eq(coachAvailabilityRules.isActive, true))),
+        db.select().from(coachAvailabilityOverrides)
+          .where(and(
+            inArray(coachAvailabilityOverrides.coachId, ids),
+            gte(coachAvailabilityOverrides.date, monthStart),
+            lte(coachAvailabilityOverrides.date, monthEnd),
+          )),
+        db.select().from(coachBookingSettings).where(inArray(coachBookingSettings.coachId, ids)),
+      ]);
+
+      const rulesByCoach = new Map<number, any[]>();
+      const overridesByCoach = new Map<number, any[]>();
+      const settingsByCoach = new Map<number, any>();
+      for (const r of allRules) {
+        const arr = rulesByCoach.get(r.coachId) ?? [];
+        arr.push({ dayOfWeek: r.dayOfWeek, startTime: r.startTime, endTime: r.endTime });
+        rulesByCoach.set(r.coachId, arr);
+      }
+      for (const o of allOverrides) {
+        const arr = overridesByCoach.get(o.coachId) ?? [];
+        // NB: `note` is intentionally omitted — it can contain private reasons
+        // for closure and this endpoint is public.
+        arr.push({ date: o.date, isClosed: o.isClosed, startTime: o.startTime, endTime: o.endTime });
+        overridesByCoach.set(o.coachId, arr);
+      }
+      for (const s of allSettings) settingsByCoach.set(s.coachId, s);
+
+      res.json({
+        month: monthStr,
+        coaches: approved.map((c) => {
+          const s = settingsByCoach.get(c.id);
+          return {
+            ...c,
+            holidayMode: !!s?.holidayMode,
+            slotDurationMinutes: s?.slotDurationMinutes ?? 60,
+            defaultPricePence: s?.defaultPricePence ?? 0,
+            rules: rulesByCoach.get(c.id) ?? [],
+            overrides: overridesByCoach.get(c.id) ?? [],
+          };
+        }),
+      });
+    } catch (err) {
+      console.error("Error loading availability-month:", err);
+      res.status(500).json({ message: "Failed to load availability" });
+    }
+  });
+
   // ── PUBLIC: Coach availability rules + settings (read-only summary) ──────
   app.get("/api/coaches/:id/availability-summary", async (req, res) => {
     const coachId = Number(req.params.id);

@@ -1,7 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
 import { useQuery } from "@tanstack/react-query";
-import { GraduationCap, Loader2, Search, BookOpen, Settings, Sparkles, UserPlus } from "lucide-react";
+import { GraduationCap, Loader2, Search, BookOpen, Settings, Sparkles, UserPlus, Calendar } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser } from "@/hooks/use-auth";
 
@@ -10,6 +10,7 @@ const MyLessons = lazy(() => import("@/pages/MyLessons"));
 const CoachDashboard = lazy(() => import("@/pages/CoachDashboard"));
 const MyTrainingProfile = lazy(() => import("@/pages/MyTrainingProfile"));
 const RegisterCoach = lazy(() => import("@/pages/RegisterCoach"));
+const CoachesAvailabilityCalendar = lazy(() => import("@/pages/CoachesAvailabilityCalendar"));
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-20">
@@ -63,6 +64,9 @@ export default function Coaching() {
             <TabsTrigger value="find" data-testid="tab-coaching-find" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(167,139,250,0.45)]">
               <Search className="w-3.5 h-3.5 mr-1.5" /> Find a Coach
             </TabsTrigger>
+            <TabsTrigger value="calendar" data-testid="tab-coaching-calendar" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(167,139,250,0.45)]">
+              <Calendar className="w-3.5 h-3.5 mr-1.5" /> Calendar
+            </TabsTrigger>
             <TabsTrigger value="lessons" data-testid="tab-coaching-lessons" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(167,139,250,0.45)]">
               <BookOpen className="w-3.5 h-3.5 mr-1.5" /> My Lessons
             </TabsTrigger>
@@ -88,6 +92,9 @@ export default function Coaching() {
 
           <TabsContent value="find" className="mt-4">
             <Suspense fallback={<Fallback />}><FindCoach /></Suspense>
+          </TabsContent>
+          <TabsContent value="calendar" className="mt-4">
+            <Suspense fallback={<Fallback />}><CoachesAvailabilityCalendar /></Suspense>
           </TabsContent>
           <TabsContent value="lessons" className="mt-4">
             <Suspense fallback={<Fallback />}><MyLessons /></Suspense>

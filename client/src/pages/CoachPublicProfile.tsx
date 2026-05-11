@@ -52,7 +52,11 @@ function GlassCard({ children, className = "" }: { children: any; className?: st
   );
 }
 
-function fmtDate(d: Date) { return d.toISOString().slice(0, 10); }
+// Local-date YYYY-MM-DD (avoids UTC drift around midnight/DST so the date keys
+// match the local-time math used elsewhere in this file).
+function fmtDate(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
 
 export default function CoachPublicProfile() {
   const { id } = useParams<{ id: string }>();
@@ -122,14 +126,38 @@ export default function CoachPublicProfile() {
 
   // Build a 14-day strip — must be declared before any early returns to satisfy rules of hooks.
   const dateStrip = useMemo(() => {
-    const arr: { d: string; weekday: string; day: number }[] = [];
+    const arr: { d: string; weekday: string; day: number; open: boolean }[] = [];
     const max = summary?.settings?.maxAdvanceDays ?? 60;
+    const openDows = new Set((summary?.rules ?? []).map((r) => r.dayOfWeek));
     for (let i = 0; i < Math.min(14, max + 1); i++) {
       const d = new Date(); d.setDate(d.getDate() + i);
-      arr.push({ d: fmtDate(d), weekday: DAY_LABEL[d.getDay()], day: d.getDate() });
+      arr.push({ d: fmtDate(d), weekday: DAY_LABEL[d.getDay()], day: d.getDate(), open: openDows.has(d.getDay()) });
     }
     return arr;
   }, [summary]);
+
+  // Month-view: which days the coach has any active rule (or open override) for.
+  const monthCursor = useMemo(() => {
+    const [yy, mm] = selectedDate.split("-").map(Number);
+    return { y: yy, m: mm - 1 };
+  }, [selectedDate]);
+  const monthGrid = useMemo(() => {
+    const { y, m } = monthCursor;
+    const firstDow = new Date(y, m, 1).getDay();
+    const daysInMonth = new Date(y, m + 1, 0).getDate();
+    const cells: ({ date: string; day: number; dow: number; open: boolean } | null)[] = [];
+    const openDows = new Set((summary?.rules ?? []).map((r) => r.dayOfWeek));
+    for (let i = 0; i < firstDow; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) {
+      const dow = new Date(y, m, d).getDay();
+      const dateStr = `${y}-${String(m + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
+      cells.push({ date: dateStr, day: d, dow, open: openDows.has(dow) });
+    }
+    while (cells.length % 7 !== 0) cells.push(null);
+    return cells;
+  }, [monthCursor, summary]);
+  const [showMonth, setShowMonth] = useState(false);
+  const todayStr = fmtDate(new Date());
 
   if (cLoading || sLoading) return <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-violet-400" /></div>;
   if (!coach) {
@@ -364,24 +392,78 @@ export default function CoachPublicProfile() {
               </div>
             ) : (
               <>
-                {/* Date strip */}
-                <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-thin">
-                  {dateStrip.map((d) => (
-                    <button
-                      key={d.d}
-                      onClick={() => setSelectedDate(d.d)}
-                      className={`flex-shrink-0 px-3 py-2 rounded-lg border text-center min-w-[58px] transition ${
-                        d.d === selectedDate
-                          ? "bg-gradient-to-br from-violet-500/40 to-fuchsia-500/30 border-violet-400 text-white shadow-[0_0_18px_rgba(168,85,247,0.4)]"
-                          : "border-white/10 hover:border-violet-400/40 text-zinc-300"
-                      }`}
-                      data-testid={`button-date-${d.d}`}
-                    >
-                      <div className="text-[10px] uppercase tracking-wider opacity-70">{d.weekday}</div>
-                      <div className="text-lg font-bold leading-none mt-0.5">{d.day}</div>
-                    </button>
-                  ))}
+                {/* View toggle */}
+                <div className="flex items-center justify-between gap-2 mb-3 flex-wrap">
+                  <div className="text-xs text-zinc-400">
+                    {(summary?.rules?.length ?? 0) === 0
+                      ? <span className="text-amber-300">This coach hasn't published a weekly schedule yet.</span>
+                      : <>Open on {Array.from(new Set((summary!.rules).map((r) => DAY_LABEL[r.dayOfWeek]))).join(", ")}</>
+                    }
+                  </div>
+                  <div className="flex gap-1 rounded-full bg-white/5 border border-white/10 p-0.5">
+                    <button onClick={() => setShowMonth(false)} className={`text-[11px] px-2.5 py-1 rounded-full ${!showMonth ? "bg-violet-500/40 text-white" : "text-zinc-400"}`} data-testid="button-view-strip">Next 14 days</button>
+                    <button onClick={() => setShowMonth(true)} className={`text-[11px] px-2.5 py-1 rounded-full ${showMonth ? "bg-violet-500/40 text-white" : "text-zinc-400"}`} data-testid="button-view-month">Month view</button>
+                  </div>
                 </div>
+
+                {showMonth ? (
+                  <div className="mb-3">
+                    <div className="grid grid-cols-7 gap-1 mb-1">
+                      {DAY_LABEL.map((d) => <div key={d} className="text-[9px] uppercase tracking-wider text-center text-zinc-500 font-semibold">{d}</div>)}
+                    </div>
+                    <div className="grid grid-cols-7 gap-1">
+                      {monthGrid.map((cell, idx) => {
+                        if (!cell) return <div key={`b-${idx}`} className="aspect-square" />;
+                        const isSel = cell.date === selectedDate;
+                        const isToday = cell.date === todayStr;
+                        const isPast = cell.date < todayStr;
+                        return (
+                          <button
+                            key={cell.date}
+                            onClick={() => setSelectedDate(cell.date)}
+                            disabled={isPast}
+                            className={`relative aspect-square rounded-lg border text-sm font-bold transition flex items-center justify-center ${
+                              isSel
+                                ? "border-violet-400 bg-gradient-to-br from-violet-500/40 to-fuchsia-500/30 text-white shadow-[0_0_18px_rgba(168,85,247,0.4)]"
+                                : isPast
+                                  ? "border-white/5 bg-white/[0.02] text-zinc-600 cursor-not-allowed"
+                                  : cell.open
+                                    ? "border-emerald-400/40 bg-emerald-500/5 text-emerald-100 hover:border-emerald-400"
+                                    : "border-white/5 bg-white/[0.02] text-zinc-500 hover:border-white/10"
+                            }`}
+                            data-testid={`button-month-day-${cell.date}`}
+                          >
+                            {cell.day}
+                            {isToday && !isSel && <span className="absolute bottom-0.5 left-1/2 -translate-x-1/2 w-1 h-1 rounded-full bg-violet-400" />}
+                            {!isPast && cell.open && !isSel && <span className="absolute top-0.5 right-0.5 w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                ) : (
+                  /* Date strip */
+                  <div className="flex gap-2 overflow-x-auto pb-2 mb-3 scrollbar-thin">
+                    {dateStrip.map((d) => (
+                      <button
+                        key={d.d}
+                        onClick={() => setSelectedDate(d.d)}
+                        className={`relative flex-shrink-0 px-3 py-2 rounded-lg border text-center min-w-[58px] transition ${
+                          d.d === selectedDate
+                            ? "bg-gradient-to-br from-violet-500/40 to-fuchsia-500/30 border-violet-400 text-white shadow-[0_0_18px_rgba(168,85,247,0.4)]"
+                            : d.open
+                              ? "border-emerald-400/40 bg-emerald-500/5 text-emerald-100 hover:border-emerald-400"
+                              : "border-white/10 hover:border-violet-400/40 text-zinc-300"
+                        }`}
+                        data-testid={`button-date-${d.d}`}
+                      >
+                        <div className="text-[10px] uppercase tracking-wider opacity-70">{d.weekday}</div>
+                        <div className="text-lg font-bold leading-none mt-0.5">{d.day}</div>
+                        {d.open && d.d !== selectedDate && <span className="absolute top-1 right-1 w-1.5 h-1.5 rounded-full bg-emerald-400" />}
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Slot grid */}
                 {slotsLoading ? (
