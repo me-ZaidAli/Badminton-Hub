@@ -166,6 +166,16 @@ export function registerBslRoutes(app: Express) {
       const allowedStr = ["name", "tagline", "venueName", "bankAccountName", "bankSortCode", "bankAccountNumber", "matchFormat", "brandingPrimary", "brandingAccent"];
       const allowedInt = ["clubFee", "playerFee", "pointsWin", "pointsDraw", "pointsLoss", "courtCount"];
       const update: Record<string, any> = { updatedAt: new Date() };
+      // Divisions: free-form list managed from /bsl/admin/league. Sanitised
+      // string array (trimmed, ≤56 chars, deduped, max 32 entries) so the UI
+      // can add/rename/delete. Without this, deletes silently no-op.
+      if ("divisions" in body) {
+        const raw = Array.isArray(body.divisions) ? body.divisions : [];
+        const cleaned = Array.from(new Set(
+          raw.map((s: any) => String(s ?? "").trim().slice(0, 56)).filter((s: string) => s.length > 0)
+        )).slice(0, 32);
+        update.divisions = cleaned;
+      }
       for (const k of allowedStr) {
         if (k in body) update[k] = body[k] === null ? null : String(body[k] ?? "");
       }
@@ -606,7 +616,15 @@ export function registerBslRoutes(app: Express) {
         : (settings?.rubberLineup && settings.rubberLineup.length)
           ? settings.rubberLineup
           : DEFAULT_CVC_TYPES;
-      const rubbersPerFixture = settings?.rubbersPerFixture || lineup.length;
+      // Same league-day-level override as the auto-generator: lets the admin
+      // choose how many rubbers a day's fixtures contain when they create the
+      // day, and edit it later.
+      let dayOverride: number | null = null;
+      if (leagueDayId != null) {
+        const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, leagueDayId)).limit(1);
+        if (day && day.rubbersPerFixture && day.rubbersPerFixture > 0) dayOverride = day.rubbersPerFixture;
+      }
+      const rubbersPerFixture = dayOverride || settings?.rubbersPerFixture || lineup.length;
       for (const t of lineup) if (!allowed.has(t)) return res.status(400).json({ message: `Invalid rubber type: ${t}` });
       const clubs = await db.select().from(bslClubs).where(inArray(bslClubs.id, [homeClubId, awayClubId]));
       if (clubs.length !== 2) return res.status(404).json({ message: "Club(s) not found" });
@@ -1530,7 +1548,14 @@ export function registerBslRoutes(app: Express) {
       const lineup: string[] = (settings?.rubberLineup && settings.rubberLineup.length)
         ? settings.rubberLineup
         : ["MS1","MS2","WS","MD","WD","XD"];
-      const rubbersPerFixture = settings?.rubbersPerFixture || lineup.length;
+      // League-day-level override beats the category default — lets admins
+      // pick the rubbers count when they create the day.
+      let dayOverride: number | null = null;
+      if (leagueDayId != null) {
+        const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, leagueDayId)).limit(1);
+        if (day && day.rubbersPerFixture && day.rubbersPerFixture > 0) dayOverride = day.rubbersPerFixture;
+      }
+      const rubbersPerFixture = dayOverride || settings?.rubbersPerFixture || lineup.length;
       // Round-robin (circle method)
       const list = teams.slice();
       if (list.length % 2 === 1) list.push({ id: -1 } as any); // bye marker
@@ -1595,13 +1620,72 @@ export function registerBslRoutes(app: Express) {
   });
   app.post("/api/bsl/admin/league-days", requireAdmin, async (req, res) => {
     try {
-      const { date, status } = req.body;
+      const { date, status, rubbersPerFixture, division, category } = req.body || {};
       if (!date) return res.status(400).json({ message: "date required" });
+      const rpf = rubbersPerFixture == null || rubbersPerFixture === ""
+        ? null
+        : Math.max(1, Math.min(60, Math.round(Number(rubbersPerFixture))));
       const [row] = await db.insert(bslLeagueDays).values({
-        bslLeagueId: 1, date: new Date(date), status: status || "UPCOMING",
-      }).returning();
-      await audit(req, "CREATE_LEAGUE_DAY", "bsl_league_day", row.id, { date });
+        bslLeagueId: 1,
+        date: new Date(date),
+        status: status || "UPCOMING",
+        rubbersPerFixture: rpf,
+        division: division ? String(division).trim().slice(0, 56) || null : null,
+        category: category ? String(category).trim().toUpperCase().slice(0, 16) || null : null,
+      } as any).returning();
+      await audit(req, "CREATE_LEAGUE_DAY", "bsl_league_day", row.id, { date, rubbersPerFixture: rpf, division, category });
       res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  // Generic PATCH for league-day details (date, division, category, rubbers
+  // per fixture, legacy status). Use the dedicated /:id/state route for
+  // lifecycle transitions — that one runs the DRAFT→PUBLISHED→LIVE→CLOSED
+  // guards which we don't want to duplicate here.
+  app.patch("/api/bsl/admin/league-days/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const body = req.body || {};
+      const patch: Record<string, any> = {};
+      if ("date" in body) {
+        const d = body.date ? new Date(body.date) : null;
+        if (!d || isNaN(d.getTime())) return res.status(400).json({ message: "Invalid date" });
+        patch.date = d;
+      }
+      if ("status" in body && body.status) patch.status = String(body.status);
+      if ("division" in body) {
+        const v = body.division == null ? null : String(body.division).trim().slice(0, 56);
+        patch.division = v && v.length > 0 ? v : null;
+      }
+      if ("category" in body) {
+        const v = body.category == null ? null : String(body.category).trim().toUpperCase().slice(0, 16);
+        patch.category = v && v.length > 0 ? v : null;
+      }
+      if ("rubbersPerFixture" in body) {
+        const v = body.rubbersPerFixture;
+        patch.rubbersPerFixture = v == null || v === ""
+          ? null
+          : Math.max(1, Math.min(60, Math.round(Number(v))));
+      }
+      if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
+      // Lifecycle guard. Date can be edited any time. Structural fields
+      // (division/category/rubbersPerFixture/status) would desync from already-
+      // snapshotted fixtures, so refuse them once the day is LIVE or CLOSED.
+      const structuralKeys = ["division", "category", "rubbersPerFixture", "status"];
+      const touchesStructural = structuralKeys.some(k => k in patch);
+      if (touchesStructural) {
+        const [existing] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, id)).limit(1);
+        if (!existing) return res.status(404).json({ message: "League day not found" });
+        const state = (existing.state || "DRAFT").toUpperCase();
+        if (state === "LIVE" || state === "CLOSED") {
+          return res.status(409).json({
+            message: `League day is ${state} — only the date can be edited at this stage. Move it back to DRAFT or PUBLISHED to change division/category/rubbers, then Regenerate fixtures.`,
+          });
+        }
+      }
+      const [updated] = await db.update(bslLeagueDays).set(patch).where(eq(bslLeagueDays.id, id)).returning();
+      if (!updated) return res.status(404).json({ message: "League day not found" });
+      await audit(req, "UPDATE_LEAGUE_DAY", "bsl_league_day", id, patch);
+      res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   app.delete("/api/bsl/admin/league-days/:id", requireAdmin, async (req, res) => {

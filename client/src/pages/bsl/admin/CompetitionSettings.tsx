@@ -58,10 +58,25 @@ function Field({ label, hint, children }: any) {
 }
 
 function NumberInput({ value, onChange, min = 0, max = 99, testid }: any) {
+  // Allow the field to be fully cleared while typing — only clamp on blur.
+  // Otherwise typing one character (or deleting) snaps the value back to 0/min
+  // and the user can never type a multi-digit number.
   return (
     <input
-      type="number" min={min} max={max} value={value ?? ""}
-      onChange={e => onChange(e.target.value === "" ? 0 : Number(e.target.value))}
+      type="number" min={min} max={max}
+      value={value === "" || value == null ? "" : value}
+      onChange={e => {
+        const v = e.target.value;
+        onChange(v === "" ? "" : Number(v));
+      }}
+      onBlur={e => {
+        const v = e.target.value;
+        if (v === "") { onChange(min); return; }
+        const n = Number(v);
+        if (!Number.isFinite(n)) onChange(min);
+        else if (n < min) onChange(min);
+        else if (n > max) onChange(max);
+      }}
       className="w-full px-3 py-2 rounded-lg text-sm tabular-nums"
       style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
       data-testid={testid}

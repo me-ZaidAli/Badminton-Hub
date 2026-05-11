@@ -18,6 +18,7 @@ export default function LeagueControl() {
   const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/bsl/admin/clubs"] });
   const { data: fixtures } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures"] });
   const [newDate, setNewDate] = useState("");
+  const [newRubbers, setNewRubbers] = useState<string>("");
   const [genDivision, setGenDivision] = useState("");
   const [genDayId, setGenDayId] = useState<string>("");
   const [cvcHome, setCvcHome] = useState("");
@@ -35,12 +36,25 @@ export default function LeagueControl() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/league"] }); toast({ title: "Divisions updated" }); },
   });
   const addDay = useMutation({
-    mutationFn: async (date: string) => (await apiRequest("POST", "/api/bsl/admin/league-days", { date })).json(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/league-days"] }); setNewDate(""); toast({ title: "League day added" }); },
+    mutationFn: async (payload: { date: string; rubbersPerFixture?: number | null }) =>
+      (await apiRequest("POST", "/api/bsl/admin/league-days", payload)).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/league-days"] });
+      setNewDate(""); setNewRubbers("");
+      toast({ title: "League day added" });
+    },
+    onError: (e: any) => toast({ title: "Couldn't add day", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
+  });
+  const editDay = useMutation({
+    mutationFn: async ({ id, ...patch }: { id: number; date?: string; rubbersPerFixture?: number | null }) =>
+      (await apiRequest("PATCH", `/api/bsl/admin/league-days/${id}`, patch)).json(),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/league-days"] }); toast({ title: "League day updated" }); },
+    onError: (e: any) => toast({ title: "Couldn't update day", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
   });
   const delDay = useMutation({
     mutationFn: async (id: number) => (await apiRequest("DELETE", `/api/bsl/admin/league-days/${id}`, {})).json(),
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/league-days"] }); toast({ title: "Removed" }); },
+    onError: (e: any) => toast({ title: "Couldn't delete", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
   });
   const generate = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/fixtures/generate", {
@@ -88,7 +102,16 @@ export default function LeagueControl() {
                   className="flex-1 bg-transparent border-0 font-bold focus:outline-none"
                 />
                 <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.cyan }}>{teamCountByDiv[d] || 0} teams</span>
-                <button onClick={() => updateDivisions.mutate(divisions.filter((_, j) => j !== i))} className="p-1.5 rounded-md" style={{ background: `${BSL.danger}22`, color: BSL.danger }} data-testid={`button-remove-division-${i}`}>
+                <button
+                  onClick={() => {
+                    if (!confirm(`Delete division "${d}"? Clubs/teams in this division will keep their record but will no longer match any division filter.`)) return;
+                    updateDivisions.mutate(divisions.filter((_, j) => j !== i));
+                  }}
+                  disabled={updateDivisions.isPending}
+                  className="p-1.5 rounded-md disabled:opacity-50"
+                  style={{ background: `${BSL.danger}22`, color: BSL.danger }}
+                  data-testid={`button-remove-division-${i}`}
+                >
                   <Trash2 className="h-3 w-3" />
                 </button>
               </div>
@@ -192,31 +215,88 @@ export default function LeagueControl() {
 
       <div className="h-5" />
 
-      <GlowPanel title="League Days" subtitle="Match-day schedule" tone="gold" icon={<Calendar className="h-4 w-4" />}>
-        <div className="flex gap-2 mb-3">
-          <input type="datetime-local" value={newDate} onChange={e => setNewDate(e.target.value)} className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-new-day" />
-          <ActionButton variant="gold" onClick={() => newDate && addDay.mutate(newDate)} disabled={!newDate || addDay.isPending} icon={<Plus className="h-3 w-3" />}>Add</ActionButton>
+      <GlowPanel title="League Days" subtitle="Match-day schedule · set the rubbers count when you create the day, edit any time" tone="gold" icon={<Calendar className="h-4 w-4" />}>
+        <div className="grid grid-cols-1 sm:grid-cols-[1fr_auto_auto] gap-2 mb-3">
+          <input type="datetime-local" value={newDate} onChange={e => setNewDate(e.target.value)} className="px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-new-day" />
+          <input
+            type="number" min={1} max={60} placeholder="Rubbers"
+            value={newRubbers}
+            onChange={e => setNewRubbers(e.target.value)}
+            className="w-full sm:w-28 px-3 py-2 rounded-lg text-sm tabular-nums"
+            style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+            title="How many rubbers per fixture? Leave blank to use the per-category default."
+            data-testid="input-new-day-rubbers"
+          />
+          <ActionButton variant="gold"
+            onClick={() => newDate && addDay.mutate({
+              date: newDate,
+              rubbersPerFixture: newRubbers === "" ? null : Math.max(1, Math.min(60, Math.round(Number(newRubbers)))),
+            })}
+            disabled={!newDate || addDay.isPending}
+            icon={<Plus className="h-3 w-3" />}
+          >Add</ActionButton>
         </div>
+        <div className="text-[10px] mb-3" style={{ color: BSL.faint }}>Tip: leave the rubbers field blank to fall back to whatever the category settings say. Set a number to override for this day.</div>
         {!days?.length ? (
           <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>No league days scheduled.</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {days.map((d, i) => (
-              <motion.div
-                key={d.id}
-                initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
-                className="p-4 rounded-xl"
-                style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}
-                data-testid={`day-${d.id}`}
-              >
-                <div className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.cyan }}>{d.status}</div>
-                <div className="text-lg font-black mt-1">{new Date(d.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</div>
-                <div className="text-xs" style={{ color: BSL.muted }}>{new Date(d.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
-                <button onClick={() => confirm("Delete this league day?") && delDay.mutate(d.id)} className="mt-3 text-xs inline-flex items-center gap-1" style={{ color: BSL.danger }} data-testid={`button-delete-day-${d.id}`}>
-                  <Trash2 className="h-3 w-3" /> Remove
-                </button>
-              </motion.div>
-            ))}
+            {days.map((d, i) => {
+              // Pre-format date for the datetime-local input (UTC → local).
+              const local = new Date(d.date);
+              const pad = (n: number) => String(n).padStart(2, "0");
+              const dtLocal = `${local.getFullYear()}-${pad(local.getMonth() + 1)}-${pad(local.getDate())}T${pad(local.getHours())}:${pad(local.getMinutes())}`;
+              return (
+                <motion.div
+                  key={d.id}
+                  initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: i * 0.04 }}
+                  className="p-4 rounded-xl space-y-2"
+                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}
+                  data-testid={`day-${d.id}`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.cyan }}>{d.state || d.status}</div>
+                    <div className="text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded" style={{ background: `${BSL.gold}22`, color: BSL.gold }}>
+                      {d.rubbersPerFixture ? `${d.rubbersPerFixture} rubbers` : "default"}
+                    </div>
+                  </div>
+                  <div className="text-lg font-black">{new Date(d.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</div>
+                  <div className="text-xs" style={{ color: BSL.muted }}>{new Date(d.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
+
+                  <div className="pt-2 space-y-1.5 border-t" style={{ borderColor: BSL.border }}>
+                    <label className="text-[10px] uppercase tracking-widest font-bold block" style={{ color: BSL.muted }}>Date / time</label>
+                    <input
+                      type="datetime-local"
+                      defaultValue={dtLocal}
+                      onBlur={(e) => {
+                        const v = e.target.value;
+                        if (v && v !== dtLocal) editDay.mutate({ id: d.id, date: new Date(v).toISOString() });
+                      }}
+                      className="w-full px-2 py-1.5 rounded-lg text-xs"
+                      style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                      data-testid={`input-edit-day-date-${d.id}`}
+                    />
+                    <label className="text-[10px] uppercase tracking-widest font-bold block pt-1" style={{ color: BSL.muted }}>Rubbers per fixture (override)</label>
+                    <input
+                      type="number" min={1} max={60} placeholder="default"
+                      defaultValue={d.rubbersPerFixture ?? ""}
+                      onBlur={(e) => {
+                        const raw = e.target.value;
+                        const next = raw === "" ? null : Math.max(1, Math.min(60, Math.round(Number(raw))));
+                        if (next !== (d.rubbersPerFixture ?? null)) editDay.mutate({ id: d.id, rubbersPerFixture: next });
+                      }}
+                      className="w-full px-2 py-1.5 rounded-lg text-xs tabular-nums"
+                      style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                      data-testid={`input-edit-day-rubbers-${d.id}`}
+                    />
+                  </div>
+
+                  <button onClick={() => confirm("Delete this league day?") && delDay.mutate(d.id)} className="mt-2 text-xs inline-flex items-center gap-1" style={{ color: BSL.danger }} data-testid={`button-delete-day-${d.id}`}>
+                    <Trash2 className="h-3 w-3" /> Remove
+                  </button>
+                </motion.div>
+              );
+            })}
           </div>
         )}
       </GlowPanel>

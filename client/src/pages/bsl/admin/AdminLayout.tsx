@@ -37,12 +37,20 @@ export function AdminLayout({ active, children }: { active: string; children: Re
       <BSLBackground />
       {/* === TOPBAR === */}
       <div className="sticky top-0 z-40 backdrop-blur-xl border-b" style={{ borderColor: BSL.border, background: "hsla(222,55%,5%,0.85)" }}>
-        <div className="flex items-center gap-3 px-4 lg:px-6 h-14">
-          <button onClick={() => setOpen(o => !o)} className="lg:hidden p-2 rounded-lg" style={{ background: BSL.cardSoft }} data-testid="button-mobile-nav">
-            {open ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
+        <div className="flex items-center gap-3 px-4 lg:px-6 h-16 lg:h-14">
+          <button
+            onClick={() => setOpen(o => !o)}
+            className="lg:hidden p-3 rounded-xl active:scale-95 transition"
+            style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}
+            aria-label="Toggle navigation"
+            data-testid="button-mobile-nav"
+          >
+            {open ? <X className="h-7 w-7" /> : <Menu className="h-7 w-7" />}
           </button>
-          <Link href="/bsl"><a className="inline-flex items-center gap-2 text-xs uppercase tracking-widest" style={{ color: BSL.muted }} data-testid="link-back-to-bsl">
-            <ArrowLeft className="h-3 w-3" />
+          {/* Spacer pushes the back-arrow well clear of the menu button on mobile */}
+          <div className="lg:hidden w-3" />
+          <Link href="/bsl"><a className="inline-flex items-center justify-center h-10 w-10 lg:h-auto lg:w-auto rounded-lg lg:rounded-none lg:gap-2 text-xs uppercase tracking-widest" style={{ color: BSL.muted, background: "transparent" }} data-testid="link-back-to-bsl">
+            <ArrowLeft className="h-4 w-4 lg:h-3 lg:w-3" />
           </a></Link>
           <Link href="/bsl/admin"><a className="inline-flex items-center gap-2.5" data-testid="link-bsl-logo">
             <img src={bslLogo} alt="BSL" className="h-8 w-auto select-none" draggable={false} style={{ filter: `drop-shadow(0 0 12px ${BSL.cyan}55)` }} />

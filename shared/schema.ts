@@ -3207,6 +3207,7 @@ export const bslLeagueDays = pgTable("bsl_league_days", {
   state: text("state").notNull().default("DRAFT"),
   division: text("division"),
   category: text("category"),
+  rubbersPerFixture: integer("rubbers_per_fixture"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
