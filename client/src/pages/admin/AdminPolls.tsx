@@ -308,13 +308,9 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
         allowMultiple,
         expiresAt: expiresAt ? new Date(expiresAt).toISOString() : null,
       };
-      if (!isEdit) {
-        payload.audience = audience;
-        payload.targetClubIds = audience === "ALL" ? [] : targetClubIds;
-      } else {
-        payload.isActive = isActive;
-        if (existing!.audience === "SELECTED") payload.targetClubIds = targetClubIds;
-      }
+      payload.audience = audience;
+      payload.targetClubIds = audience === "ALL" ? [] : targetClubIds;
+      if (isEdit) payload.isActive = isActive;
       if (isEdit) {
         return apiRequest("PATCH", `/api/admin/custom-polls/${existing!.id}`, payload);
       }
@@ -386,37 +382,26 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
             <Label className="cursor-pointer" onClick={() => setAllowMultiple(!allowMultiple)}>Allow multiple answers</Label>
           </div>
 
-          {/* Audience picker */}
-          {!isEdit && (
-            <div className="rounded-lg border p-3">
-              <Label className="mb-2 block">Audience</Label>
-              <div className="flex gap-2 mb-3">
-                {targetable.canTargetAll && (
-                  <Button type="button" size="sm" variant={audience === "ALL" ? "default" : "outline"} onClick={() => setAudience("ALL")} data-testid="button-audience-all">
-                    All clubs
-                  </Button>
-                )}
-                <Button type="button" size="sm" variant={audience === "SELECTED" ? "default" : "outline"} onClick={() => setAudience("SELECTED")} data-testid="button-audience-selected">
-                  Pick clubs
+          {/* Audience picker — available on both create and edit */}
+          <div className="rounded-lg border p-3">
+            <Label className="mb-2 block">Clubs that can see this poll</Label>
+            <div className="flex gap-2 mb-3">
+              {targetable.canTargetAll && (
+                <Button type="button" size="sm" variant={audience === "ALL" ? "default" : "outline"} onClick={() => setAudience("ALL")} data-testid="button-audience-all">
+                  All clubs
                 </Button>
-              </div>
-              {audience === "SELECTED" && (
-                <ClubChips clubs={targetable.clubs} selected={targetClubIds} onChange={setTargetClubIds} />
               )}
+              <Button type="button" size="sm" variant={audience === "SELECTED" ? "default" : "outline"} onClick={() => setAudience("SELECTED")} data-testid="button-audience-selected">
+                Pick specific clubs
+              </Button>
             </div>
-          )}
-          {isEdit && existing!.audience === "SELECTED" && (
-            <div className="rounded-lg border p-3">
-              <Label className="mb-2 block">Target clubs</Label>
+            {audience === "SELECTED" && (
               <ClubChips clubs={targetable.clubs} selected={targetClubIds} onChange={setTargetClubIds} />
-            </div>
-          )}
-          {isEdit && existing!.audience === "ALL" && (
-            <div className="rounded-lg border p-3 bg-amber-500/5">
-              <Label className="block">Audience</Label>
-              <p className="text-xs text-muted-foreground mt-1">This poll targets <b>all clubs</b>. Audience type can't be changed after creation.</p>
-            </div>
-          )}
+            )}
+            {audience === "ALL" && (
+              <p className="text-xs text-muted-foreground">Every member of every club will see this poll on their dashboard.</p>
+            )}
+          </div>
 
           {isEdit && (
             <div className="flex items-center gap-2">

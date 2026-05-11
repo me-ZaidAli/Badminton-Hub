@@ -222,13 +222,32 @@ export function registerCustomPollRoutes(app: Express): void {
       if (typeof req.body?.allowMultiple === "boolean") patch.allowMultiple = req.body.allowMultiple;
       if (typeof req.body?.isActive === "boolean") patch.isActive = req.body.isActive;
       if (req.body?.expiresAt !== undefined) patch.expiresAt = req.body.expiresAt ? new Date(req.body.expiresAt) : null;
-      if (Array.isArray(req.body?.targetClubIds) && existing.audience === "SELECTED") {
+
+      // Audience can be changed during edit
+      const newAudience: "ALL" | "SELECTED" | undefined =
+        req.body?.audience === "ALL" ? "ALL" : req.body?.audience === "SELECTED" ? "SELECTED" : undefined;
+      if (newAudience) {
+        if (newAudience === "ALL" && !isAdminish(user)) {
+          return res.status(403).json({ message: "Only platform admins can target all clubs" });
+        }
+        patch.audience = newAudience;
+      }
+      const effectiveAudience = newAudience || existing.audience;
+      if (Array.isArray(req.body?.targetClubIds)) {
         let ids = req.body.targetClubIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0);
         if (!isAdminish(user)) {
           const owned = (await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id))).map(c => c.id);
           ids = ids.filter((id: number) => owned.includes(id));
         }
-        patch.targetClubIds = ids;
+        patch.targetClubIds = effectiveAudience === "ALL" ? [] : ids;
+      } else if (newAudience === "ALL") {
+        patch.targetClubIds = [];
+      }
+      if (effectiveAudience === "SELECTED") {
+        const finalIds = patch.targetClubIds ?? (existing.targetClubIds as number[] | null) ?? [];
+        if (!Array.isArray(finalIds) || finalIds.length === 0) {
+          return res.status(400).json({ message: "Pick at least one club" });
+        }
       }
 
       const [updated] = await db.update(customPolls).set(patch).where(eq(customPolls.id, pollId)).returning();
