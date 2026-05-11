@@ -685,6 +685,62 @@ function CoachFormFields({ form, setForm, photoUploading, onPhotoUpload, fileInp
   );
 }
 
+function PromoteUserToCoachPanel() {
+  const { toast } = useToast();
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState("");
+  const { data: results = [] } = useQuery<{ id: number; fullName: string; email: string; role: string }[]>({
+    queryKey: ["/api/admin/users/search-for-coach", search],
+    queryFn: async () => {
+      if (!search || search.length < 2) return [];
+      const r = await fetch(`/api/admin/users/search-for-coach?q=${encodeURIComponent(search)}`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: open && search.length >= 2,
+  });
+  const grant = useMutation({
+    mutationFn: async (userId: number) => (await apiRequest("POST", `/api/admin/users/${userId}/grant-coach`)).json(),
+    onSuccess: () => {
+      toast({ title: "Promoted to COACH" });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/coaches"] });
+      setOpen(false); setSearch("");
+    },
+    onError: (e: Error) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
+  });
+  return (
+    <>
+      <div className="flex justify-end">
+        <Button variant="outline" onClick={() => setOpen(true)} data-testid="button-open-promote">
+          <GraduationCap className="w-4 h-4 mr-1" />Promote user to coach
+        </Button>
+      </div>
+      <Dialog open={open} onOpenChange={setOpen}>
+        <DialogContent className="sm:max-w-md" data-testid="dialog-promote-coach">
+          <DialogHeader><DialogTitle>Promote user to coach</DialogTitle></DialogHeader>
+          <div className="space-y-3">
+            <Input placeholder="Search by name or email…" value={search} onChange={(e) => setSearch(e.target.value)} autoFocus data-testid="input-promote-search" />
+            <div className="space-y-1 max-h-[300px] overflow-y-auto">
+              {results.length === 0 && search.length >= 2 && <p className="text-sm text-muted-foreground text-center py-2">No matches.</p>}
+              {results.map((u) => (
+                <div key={u.id} className="flex items-center justify-between gap-2 p-2 rounded border" data-testid={`row-user-${u.id}`}>
+                  <div className="min-w-0 flex-1">
+                    <div className="font-medium text-sm truncate">{u.fullName}</div>
+                    <div className="text-xs text-muted-foreground truncate">{u.email} · {u.role}</div>
+                  </div>
+                  <Button size="sm" disabled={grant.isPending || u.role === "COACH"} onClick={() => grant.mutate(u.id)} data-testid={`button-grant-${u.id}`}>
+                    {u.role === "COACH" ? "Already" : "Grant"}
+                  </Button>
+                </div>
+              ))}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+    </>
+  );
+}
+
 export default function CoachManagement() {
   const { data: user } = useUser();
   const { toast } = useToast();
@@ -1054,6 +1110,8 @@ export default function CoachManagement() {
         </TabsList>
 
         <TabsContent value="coaches" className="mt-6 space-y-6">
+          <PromoteUserToCoachPanel />
+
           <div className="grid gap-4 grid-cols-2 md:grid-cols-4">
             <Card className="border-border/50">
               <CardHeader className="flex flex-row items-center justify-between gap-1 pb-2">

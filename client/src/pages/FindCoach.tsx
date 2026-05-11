@@ -590,7 +590,14 @@ export default function FindCoach() {
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="grid-coaches">
           {filteredCoaches.map((coach) => (
-            <Card key={coach.id} className="hover-elevate cursor-pointer" onClick={() => { if (isActive) { setSelectedCoach(coach); } else { setShowPaywall(true); } }} data-testid={`card-coach-${coach.id}`}>
+            <Card key={coach.id} className="hover-elevate cursor-pointer relative overflow-hidden border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)] hover:shadow-[0_0_30px_rgba(168,85,247,0.25)] hover:border-violet-400/40 transition-all" onClick={() => { if (isActive) { setSelectedCoach(coach); } else { setShowPaywall(true); } }} data-testid={`card-coach-${coach.id}`}>
+              {isActive && (
+                <Link href={`/coach/${coach.id}`}>
+                  <Button size="sm" variant="outline" className="absolute top-3 right-3 z-10 h-7 px-2 text-xs border-violet-400/50 bg-violet-500/10 text-violet-200 hover:bg-violet-500/20" onClick={(e) => e.stopPropagation()} data-testid={`button-book-${coach.id}`}>
+                    <Calendar className="w-3 h-3 mr-1" />Book
+                  </Button>
+                </Link>
+              )}
               <CardHeader className="pb-2">
                 <div className="flex items-start gap-3">
                   <Avatar className="h-12 w-12 border border-border flex-shrink-0">

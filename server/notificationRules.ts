@@ -158,6 +158,29 @@ export const RULE_REGISTRY: RuleSeed[] = [
   { key: "profileIncomplete", category: "Profile", title: "Complete your profile",
     message: "Your {field} is missing. Tap to update.",
     placeholders: ["{field}"] },
+
+  // Coaching (Find a Coach v2)
+  { key: "coachRoleGranted", category: "Coaching", title: "You're now a coach",
+    message: "Hi {name}, your COACH role is active. Set your availability and start taking bookings.",
+    placeholders: ["{name}"] },
+  { key: "coachLessonRequested", category: "Coaching", title: "New booking request",
+    message: "{playerName} requested a lesson on {date}. Tap to respond.",
+    placeholders: ["{playerName}", "{date}"] },
+  { key: "coachLessonApproved", category: "Coaching", title: "Booking approved",
+    message: "{coachName} approved your booking on {date} at {time}.",
+    placeholders: ["{coachName}", "{date}", "{time}"] },
+  { key: "coachLessonRejected", category: "Coaching", title: "Booking declined",
+    message: "{coachName} couldn't take your booking on {date} at {time}.",
+    placeholders: ["{coachName}", "{date}", "{time}"] },
+  { key: "coachLessonCompleted", category: "Coaching", title: "Lesson completed",
+    message: "Your lesson with {coachName} on {date} is marked complete. Leave a review!",
+    placeholders: ["{coachName}", "{date}"] },
+  { key: "coachLessonNoShow", category: "Coaching", title: "Marked as no-show",
+    message: "{coachName} marked your {date} {time} booking as a no-show.",
+    placeholders: ["{coachName}", "{date}", "{time}"] },
+  { key: "coachLessonReminder", category: "Coaching", title: "Lesson reminder",
+    message: "Your lesson with {coachName} starts {date} at {time}.",
+    placeholders: ["{coachName}", "{date}", "{time}"] },
 ];
 
 export const RULE_KEYS = RULE_REGISTRY.map(r => r.key) as readonly string[];

@@ -26,6 +26,7 @@ import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
 import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
 import { registerBslRoutes } from "./bsl-routes";
+import { registerCoachBookingRoutes } from "./coachBookingRoutes";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { sendRulePush } from "./notificationRules";
 import { generateSupplierOrderSheet } from "./supplierOrderSheetPdf";
@@ -35785,6 +35786,7 @@ Return ONLY valid JSON in this exact format:
   });
 
   registerBslRoutes(app);
+  registerCoachBookingRoutes(app);
 
   return httpServer;
 }
