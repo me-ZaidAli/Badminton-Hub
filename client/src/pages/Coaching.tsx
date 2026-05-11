@@ -1,12 +1,13 @@
 import { lazy, Suspense, useEffect, useMemo } from "react";
 import { useLocation, useSearch } from "wouter";
-import { GraduationCap, Loader2, Search, BookOpen, Settings } from "lucide-react";
+import { GraduationCap, Loader2, Search, BookOpen, Settings, Sparkles } from "lucide-react";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useUser } from "@/hooks/use-auth";
 
 const FindCoach = lazy(() => import("@/pages/FindCoach"));
 const MyLessons = lazy(() => import("@/pages/MyLessons"));
 const CoachDashboard = lazy(() => import("@/pages/CoachDashboard"));
+const MyTrainingProfile = lazy(() => import("@/pages/MyTrainingProfile"));
 
 const Fallback = () => (
   <div className="flex items-center justify-center py-20">
@@ -48,12 +49,15 @@ export default function Coaching() {
         </div>
 
         <Tabs value={tab} onValueChange={onTabChange} className="w-full">
-          <TabsList className="bg-zinc-900/70 border border-violet-400/20 backdrop-blur p-1 rounded-full">
+          <TabsList className="bg-zinc-900/70 border border-violet-400/20 backdrop-blur p-1 rounded-full flex flex-wrap gap-1 h-auto">
             <TabsTrigger value="find" data-testid="tab-coaching-find" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(167,139,250,0.45)]">
               <Search className="w-3.5 h-3.5 mr-1.5" /> Find a Coach
             </TabsTrigger>
             <TabsTrigger value="lessons" data-testid="tab-coaching-lessons" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(167,139,250,0.45)]">
               <BookOpen className="w-3.5 h-3.5 mr-1.5" /> My Lessons
+            </TabsTrigger>
+            <TabsTrigger value="training-profile" data-testid="tab-coaching-training-profile" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(167,139,250,0.45)]">
+              <Sparkles className="w-3.5 h-3.5 mr-1.5" /> My Training Profile
             </TabsTrigger>
             {isCoachish && (
               <TabsTrigger value="dashboard" data-testid="tab-coaching-dashboard" className="rounded-full data-[state=active]:bg-gradient-to-r data-[state=active]:from-violet-500 data-[state=active]:to-fuchsia-500 data-[state=active]:text-white data-[state=active]:shadow-[0_0_14px_rgba(167,139,250,0.45)]">
@@ -67,6 +71,9 @@ export default function Coaching() {
           </TabsContent>
           <TabsContent value="lessons" className="mt-4">
             <Suspense fallback={<Fallback />}><MyLessons /></Suspense>
+          </TabsContent>
+          <TabsContent value="training-profile" className="mt-4">
+            <Suspense fallback={<Fallback />}><MyTrainingProfile /></Suspense>
           </TabsContent>
           {isCoachish && (
             <TabsContent value="dashboard" className="mt-4">

@@ -6,6 +6,34 @@ import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Sparkles, Star, Zap, MessageSquare, Target, TrendingUp, Trophy, Award, Filter } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
+import imgServing from "@/assets/skills/serving.png";
+import imgForecourt from "@/assets/skills/forecourt.png";
+import imgMidcourt from "@/assets/skills/midcourt.png";
+import imgRearcourt from "@/assets/skills/rearcourt.png";
+import imgFootwork from "@/assets/skills/footwork.png";
+import imgGrip from "@/assets/skills/grip.png";
+import imgDeception from "@/assets/skills/deception.png";
+import imgTactical from "@/assets/skills/tactical.png";
+import imgDoubles from "@/assets/skills/doubles.png";
+import imgFitness from "@/assets/skills/fitness.png";
+import imgMental from "@/assets/skills/mental.png";
+import imgDefault from "@/assets/skills/default.png";
+
+function imageForCategory(name: string): string {
+  const n = (name || "").toLowerCase();
+  if (n.includes("serv")) return imgServing;
+  if (n.includes("fore") && n.includes("court")) return imgForecourt;
+  if (n.includes("mid")) return imgMidcourt;
+  if (n.includes("rear") || n.includes("back court") || n.includes("smash")) return imgRearcourt;
+  if (n.includes("foot")) return imgFootwork;
+  if (n.includes("grip") || n.includes("racket")) return imgGrip;
+  if (n.includes("decep") || n.includes("advanced")) return imgDeception;
+  if (n.includes("tactic") || n.includes("strategy")) return imgTactical;
+  if (n.includes("double")) return imgDoubles;
+  if (n.includes("fit") || n.includes("physical") || n.includes("strength")) return imgFitness;
+  if (n.includes("mental") || n.includes("focus") || n.includes("mind")) return imgMental;
+  return imgDefault;
+}
 
 interface PlayerProfile { id: number; clubId: number; membershipStatus: string }
 interface Club { id: number; name: string }
@@ -260,6 +288,7 @@ export default function MyTrainingProfile() {
                           onClick={() => setSelectedSkill({ skill, progress: prog, category: cat })}
                           pct={pct}
                           level={lvl}
+                          imageUrl={imageForCategory(cat.name)}
                         />
                       );
                     })}
@@ -282,7 +311,8 @@ export default function MyTrainingProfile() {
             return (
               <>
                 <div className={`relative overflow-hidden -mx-6 -mt-6 px-6 pt-6 pb-8 mb-2 bg-gradient-to-br ${g.ring}`}>
-                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent to-zinc-950/70" />
+                  <img src={imageForCategory(selectedSkill.category?.name || "")} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                  <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent to-zinc-950/85" />
                   <div className="relative">
                     <Badge className={`${g.chip} mb-2 text-[10px] uppercase tracking-wider`}>{selectedSkill.category?.name}</Badge>
                     <DialogHeader className="space-y-1">
@@ -363,9 +393,9 @@ function StatTile({ label, value, icon: Icon, accent, testId }: { label: string;
   );
 }
 
-function SkillTile({ skill, progress, gradient, extraClass, onClick, pct, level }: {
+function SkillTile({ skill, progress, gradient, extraClass, onClick, pct, level, imageUrl }: {
   skill: Skill; progress: Progress | null; gradient: typeof TILE_GRADIENTS[number]; extraClass: string;
-  onClick: () => void; pct: number; level: number;
+  onClick: () => void; pct: number; level: number; imageUrl: string;
 }) {
   const filled = pct > 0;
   const isPriority = !!progress?.priority;
@@ -377,11 +407,18 @@ function SkillTile({ skill, progress, gradient, extraClass, onClick, pct, level 
       className={`group relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-zinc-900/80 text-left p-3 flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-violet-400/60 ${extraClass}`}
       data-testid={`tile-skill-${skill.id}`}
     >
-      <div
-        className={`absolute inset-0 bg-gradient-to-br ${gradient.ring} opacity-${filled ? "100" : "40"} transition-opacity`}
-        style={{ opacity: filled ? Math.max(0.35, pct / 100) : 0.15 }}
+      <img
+        src={imageUrl}
+        alt=""
+        loading="lazy"
+        className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
+        style={{ filter: filled ? "saturate(1.05) contrast(1.05)" : "grayscale(0.6) brightness(0.7)" }}
       />
-      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/80 via-zinc-950/30 to-transparent" />
+      <div
+        className={`absolute inset-0 bg-gradient-to-br ${gradient.ring} mix-blend-overlay transition-opacity`}
+        style={{ opacity: filled ? Math.min(0.85, 0.35 + pct / 200) : 0.5 }}
+      />
+      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/40 to-zinc-950/10" />
       {isPriority && (
         <span className="absolute top-2 right-2 z-10 inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400/90 text-amber-950 shadow-[0_0_10px_rgba(251,191,36,0.7)]" data-testid={`badge-priority-${skill.id}`}>
           <Zap className="w-3 h-3" />

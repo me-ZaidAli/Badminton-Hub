@@ -48,6 +48,78 @@ uri = "file://attached_assets/generated_images/deal_cat_fashion.png"
 type = "image"
 title = "fashion deals category"
 
+[[generated]]
+id = "ULwAyaHjDgJ4sIPwStqj4"
+uri = "file://client/src/assets/skills/serving.png"
+type = "image"
+title = "serving"
+
+[[generated]]
+id = "DEAtovgiFNL7C1AVdA5J0"
+uri = "file://client/src/assets/skills/forecourt.png"
+type = "image"
+title = "forecourt"
+
+[[generated]]
+id = "D6bQyrIRMRw43vt24WA9b"
+uri = "file://client/src/assets/skills/midcourt.png"
+type = "image"
+title = "midcourt"
+
+[[generated]]
+id = "QdD7n1Hv0sBncLN6n41Rf"
+uri = "file://client/src/assets/skills/rearcourt.png"
+type = "image"
+title = "rearcourt"
+
+[[generated]]
+id = "0j-wuuOrwBweo6HuQ9bjd"
+uri = "file://client/src/assets/skills/footwork.png"
+type = "image"
+title = "footwork"
+
+[[generated]]
+id = "R1VIGCWbXns8SkgQv_a_v"
+uri = "file://client/src/assets/skills/grip.png"
+type = "image"
+title = "grip"
+
+[[generated]]
+id = "1XW-DNTktpuS_j2LRjiRV"
+uri = "file://client/src/assets/skills/deception.png"
+type = "image"
+title = "deception"
+
+[[generated]]
+id = "v7ThzRtuTMCLxaVZDl6nJ"
+uri = "file://client/src/assets/skills/tactical.png"
+type = "image"
+title = "tactical"
+
+[[generated]]
+id = "EaS15P8as8c8w06YHZ-eB"
+uri = "file://client/src/assets/skills/doubles.png"
+type = "image"
+title = "doubles"
+
+[[generated]]
+id = "TOHfWXtDcEUpBgQ9FptVU"
+uri = "file://client/src/assets/skills/fitness.png"
+type = "image"
+title = "fitness"
+
+[[generated]]
+id = "Xy33_6IoBAWulpmJm4Cjk"
+uri = "file://client/src/assets/skills/mental.png"
+type = "image"
+title = "mental"
+
+[[generated]]
+id = "mb6Gmpq9UUQ8Al6710ehc"
+uri = "file://client/src/assets/skills/default.png"
+type = "image"
+title = "default"
+
 [[outputs]]
 id = "_DTq5o-onEE6_4AMQp_uJ"
 uri = "file://Smart-Match-Engine-Algorithm.md"
