@@ -156,7 +156,12 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
   // admin sees the full list immediately, then can type to filter.
   const { data: results, isLoading: searching } = useQuery<any[]>({
     queryKey: ["/api/bsl/admin/users/search", search],
-    queryFn: async () => (await fetch(`/api/bsl/admin/users/search?q=${encodeURIComponent(search)}`, { credentials: "include" })).json(),
+    queryFn: async () => {
+      const r = await fetch(`/api/bsl/admin/users/search?q=${encodeURIComponent(search)}`, { credentials: "include" });
+      if (!r.ok) return [];
+      const json = await r.json();
+      return Array.isArray(json) ? json : [];
+    },
     enabled: !picked,
   });
 
@@ -202,7 +207,7 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
                       <div className="px-3 py-3 text-xs" style={{ color: BSL.faint }}>{search ? "No users match that search." : "No users found."}</div>
                     ) : (results || []).map((u: any) => (
                       <button key={u.id} onClick={() => { setPicked(u); setDisplayName(u.fullName || ""); }} className="w-full text-left px-3 py-2 text-sm flex justify-between gap-2 hover:opacity-80" style={{ background: BSL.cardSoft, borderTop: `1px solid ${BSL.border}` }} data-testid={`button-pick-user-${u.id}`}>
-                        <span className="font-bold truncate">{u.fullName || u.username}</span>
+                        <span className="font-bold truncate">{u.fullName || u.email}</span>
                         <span className="text-xs truncate" style={{ color: BSL.muted }}>{u.email}</span>
                       </button>
                     ))}
@@ -229,7 +234,7 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
           ) : (
             <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.cyan}55` }}>
               <div>
-                <div className="font-bold text-sm">{picked.fullName || picked.username}</div>
+                <div className="font-bold text-sm">{picked.fullName || picked.email}</div>
                 <div className="text-xs" style={{ color: BSL.muted }}>{picked.email}</div>
                 {tempPassword && <div className="text-[10px] mt-1" style={{ color: BSL.gold }}>Temp password: <span className="font-mono">{tempPassword}</span> — share with player</div>}
               </div>

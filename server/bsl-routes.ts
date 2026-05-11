@@ -814,13 +814,13 @@ export function registerBslRoutes(app: Express) {
     try {
       const q = String(req.query.q || "").trim().toLowerCase();
       // Pull a generous slice so the dropdown is populated even with no query.
+      // NOTE: users table has no `username` column — match on fullName + email only.
       const rows = await db.select({
-        id: users.id, fullName: users.fullName, email: users.email, username: users.username,
+        id: users.id, fullName: users.fullName, email: users.email,
       }).from(users).orderBy(desc(users.id)).limit(500);
       const filtered = q.length === 0 ? rows.slice(0, 50) : rows.filter(r =>
         (r.fullName || "").toLowerCase().includes(q) ||
-        (r.email || "").toLowerCase().includes(q) ||
-        (r.username || "").toLowerCase().includes(q)
+        (r.email || "").toLowerCase().includes(q)
       ).slice(0, 50);
       res.json(filtered);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -859,7 +859,6 @@ export function registerBslRoutes(app: Express) {
         id: created.id,
         fullName: created.fullName,
         email: created.email,
-        username: created.username,
         tempPassword: passwordRaw.length >= 6 ? null : password,
       });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
