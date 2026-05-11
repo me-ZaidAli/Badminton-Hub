@@ -365,7 +365,11 @@ function CoachDaySlots({ coach, date, onPickSlot, onBook }: { coach: CoachAvail;
       {isLoading ? (
         <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-violet-400" /></div>
       ) : open.length === 0 ? (
-        <p className="text-[11px] text-zinc-500 italic">No bookable times remaining on this date.</p>
+        <p className="text-[11px] text-amber-300/80 italic">
+          {slots.length === 0
+            ? "This coach hasn't published any open hours for this date."
+            : "Fully booked or too late to book today — try another date."}
+        </p>
       ) : (
         <>
           <div className="text-[10px] uppercase tracking-wider text-violet-200 mb-1.5 inline-flex items-center gap-1">
@@ -533,7 +537,10 @@ function BookSessionDialog({ coach, date, initialSlot, onClose }: { coach: Coach
               {slotsLoading ? (
                 <div className="flex justify-center py-6"><Loader2 className="w-5 h-5 animate-spin text-violet-400" /></div>
               ) : slots.length === 0 ? (
-                <p className="text-sm text-zinc-400 text-center py-4">No slots on this date.</p>
+                <div className="text-center py-4 space-y-1">
+                  <p className="text-sm text-amber-300">No bookable times on this date.</p>
+                  <p className="text-[11px] text-zinc-500">The coach hasn't set hours for this day, or they're all taken / past the booking window.</p>
+                </div>
               ) : (
                 <div className="grid grid-cols-3 sm:grid-cols-4 gap-2 max-h-48 overflow-y-auto pr-1">
                   {slots.map((s) => (
