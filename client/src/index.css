@@ -8317,3 +8317,64 @@ html.theme-transitioning * {
   animation: esports-energy-flow 3s ease-in-out infinite;
 }
 
+
+/* ============================================================
+   Premium Tile — applied to every <Card> by default.
+   Theme-token-aware (uses --card / --primary / --accent) so it
+   adapts to whichever of the 64 themes is active. Pseudo-elements
+   provide the soft ambient halos seen in the dashboard hero cards.
+   ============================================================ */
+.premium-tile {
+  position: relative;
+  isolation: isolate;
+  overflow: hidden;
+  border-radius: 1rem;
+  border: 1px solid hsl(var(--border) / 0.55);
+  background:
+    linear-gradient(135deg,
+      hsl(var(--primary) / 0.10) 0%,
+      hsl(var(--accent) / 0.05) 45%,
+      hsl(var(--card) / 0.92) 100%),
+    hsl(var(--card));
+  color: hsl(var(--card-foreground));
+  box-shadow:
+    0 8px 30px -12px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 hsl(var(--foreground) / 0.05);
+  backdrop-filter: blur(6px);
+  transition: border-color 200ms ease, box-shadow 200ms ease, transform 200ms ease;
+}
+.premium-tile::before {
+  content: "";
+  position: absolute;
+  top: -3.5rem;
+  right: -3rem;
+  width: 14rem;
+  height: 14rem;
+  background: hsl(var(--primary) / 0.22);
+  filter: blur(56px);
+  pointer-events: none;
+  border-radius: 9999px;
+  z-index: -1;
+}
+.premium-tile::after {
+  content: "";
+  position: absolute;
+  bottom: -4rem;
+  left: -3.5rem;
+  width: 16rem;
+  height: 16rem;
+  background: hsl(var(--accent) / 0.16);
+  filter: blur(64px);
+  pointer-events: none;
+  border-radius: 9999px;
+  z-index: -1;
+}
+/* Opt-out class for surfaces that need flat backgrounds (charts, embedded contexts) */
+.premium-tile-flat {
+  background: hsl(var(--card)) !important;
+  box-shadow: none !important;
+}
+.premium-tile-flat::before,
+.premium-tile-flat::after {
+  display: none !important;
+}
