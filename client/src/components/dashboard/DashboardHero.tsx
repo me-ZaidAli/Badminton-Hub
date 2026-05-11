@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Link } from "wouter";
 import {
   Calendar, MapPin, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudFog, Sparkles, Clock,
   GraduationCap, ChevronRight, Loader2, Wind, Droplets, Dumbbell, Trophy, Users, Tag, Lightbulb, Moon, Sunrise, Sunset, Activity,
+  Quote, GlassWater, Plus, Minus, BarChart3, PartyPopper,
 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO, startOfWeek, getISOWeek, getDayOfYear, differenceInMinutes } from "date-fns";
 
@@ -191,6 +193,57 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
   const tip = TIPS[getDayOfYear(now) % TIPS.length];
   // Partner rotates by week
   const partner = PARTNERS[isoWeek % PARTNERS.length];
+
+  // HYDRATION (localStorage, daily reset)
+  const hydrationKey = `cm-hydration-${todayKey}`;
+  const HYDRATION_GOAL = 8;
+  const [cups, setCups] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const v = localStorage.getItem(hydrationKey);
+    return v ? Math.max(0, Math.min(20, parseInt(v, 10) || 0)) : 0;
+  });
+  useEffect(() => {
+    // reset when day rolls over
+    const v = localStorage.getItem(hydrationKey);
+    setCups(v ? Math.max(0, Math.min(20, parseInt(v, 10) || 0)) : 0);
+  }, [hydrationKey]);
+  useEffect(() => {
+    localStorage.setItem(hydrationKey, String(cups));
+  }, [cups, hydrationKey]);
+  const hydroPct = Math.min(100, Math.round((cups / HYDRATION_GOAL) * 100));
+
+  // DAILY QUOTE
+  const { data: quoteData } = useQuery<{ text: string; author: string }>({
+    queryKey: ["/api/daily-content/quote"],
+    staleTime: 60 * 60_000,
+  });
+
+  // DAILY POLL
+  const { data: pollData } = useQuery<{ question: string; options: string[]; counts: number[]; total: number; myVote: number | null }>({
+    queryKey: ["/api/daily-content/poll"],
+    staleTime: 60_000,
+  });
+  const voteMutation = useMutation({
+    mutationFn: async (optionIndex: number) => {
+      return await apiRequest("POST", "/api/daily-content/poll/vote", { optionIndex });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/daily-content/poll"] });
+    },
+  });
+
+  // NEXT TEAM EVENT
+  const { data: events = [] } = useQuery<any[]>({
+    queryKey: ["/api/team-events"],
+    staleTime: 5 * 60_000,
+  });
+  const nextEvent = useMemo(() => {
+    return (events || [])
+      .filter((e: any) => e?.status === "UPCOMING" && e?.date && new Date(e.date) >= new Date(now.getFullYear(), now.getMonth(), now.getDate()))
+      .map((e: any) => ({ e, d: new Date(e.date) }))
+      .filter((x) => !Number.isNaN(x.d.getTime()))
+      .sort((a, b) => a.d.getTime() - b.d.getTime())[0] || null;
+  }, [events, now]);
 
   const firstName = (userName || "").split(" ")[0] || "there";
   const initials = firstName.slice(0, 1).toUpperCase();
@@ -470,6 +523,172 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
           </div>
           <p className="text-[12px] leading-snug text-white/90 italic" data-testid="text-pro-tip">"{tip}"</p>
         </div>
+      </Tile>
+
+      {/* 10. HYDRATION TRACKER */}
+      <Tile accent="from-sky-500/20 via-cyan-500/15 to-blue-500/15" glowA="bg-cyan-400/25" glowB="bg-blue-500/20" testId="hero-hydration">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">
+            <GlassWater className="w-3 h-3" /><span>Hydration</span>
+          </div>
+          <span className="text-[9px] text-white/40 uppercase tracking-wider">Goal {HYDRATION_GOAL}</span>
+        </div>
+        <div className="mt-3 flex items-center gap-3">
+          {/* Bottle SVG */}
+          <div className="relative w-10 h-20 shrink-0">
+            <svg viewBox="0 0 32 64" className="w-full h-full">
+              <defs>
+                <clipPath id="bottle-clip">
+                  <path d="M11 4 h10 v6 q0 2 2 4 q4 4 4 10 v32 q0 4 -4 4 h-12 q-4 0 -4 -4 v-32 q0 -6 4 -10 q2 -2 2 -4 z" />
+                </clipPath>
+                <linearGradient id="water-grad" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor="#67e8f9" />
+                  <stop offset="100%" stopColor="#3b82f6" />
+                </linearGradient>
+              </defs>
+              <path d="M11 4 h10 v6 q0 2 2 4 q4 4 4 10 v32 q0 4 -4 4 h-12 q-4 0 -4 -4 v-32 q0 -6 4 -10 q2 -2 2 -4 z" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
+              <rect x="0" y={64 - (60 * hydroPct) / 100} width="32" height={(60 * hydroPct) / 100} fill="url(#water-grad)" clipPath="url(#bottle-clip)" />
+            </svg>
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="text-2xl font-extrabold text-white tabular-nums" data-testid="text-hydration-cups">{cups}<span className="text-sm text-white/55">/{HYDRATION_GOAL}</span></div>
+            <div className="text-[10px] text-cyan-100/80">cups today ({hydroPct}%)</div>
+            <div className="mt-2 flex items-center gap-1.5">
+              <button
+                onClick={() => setCups((c) => Math.max(0, c - 1))}
+                disabled={cups === 0}
+                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white"
+                data-testid="button-hydration-minus"
+              >
+                <Minus className="w-3.5 h-3.5" />
+              </button>
+              <button
+                onClick={() => setCups((c) => Math.min(20, c + 1))}
+                className="flex-1 h-7 rounded-full bg-cyan-400/30 hover:bg-cyan-400/45 border border-cyan-300/30 text-[11px] font-bold text-white inline-flex items-center justify-center gap-1"
+                data-testid="button-hydration-plus"
+              >
+                <Plus className="w-3.5 h-3.5" /> Cup
+              </button>
+            </div>
+          </div>
+        </div>
+      </Tile>
+
+      {/* 11. DAILY QUOTE / MINDSET */}
+      <Tile accent="from-fuchsia-500/20 via-purple-500/15 to-violet-500/15" glowA="bg-fuchsia-400/25" glowB="bg-violet-500/20" testId="hero-quote">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-fuchsia-200/80">
+            <Quote className="w-3 h-3" /><span>Mindset</span>
+          </div>
+          <span className="text-[9px] text-white/40 uppercase tracking-wider">Daily</span>
+        </div>
+        {quoteData ? (
+          <div className="mt-3">
+            <Quote className="w-5 h-5 text-fuchsia-300/40" />
+            <p className="text-[12px] leading-snug text-white/95 italic mt-1 line-clamp-4" data-testid="text-daily-quote">{quoteData.text}</p>
+            <p className="text-[10px] text-fuchsia-200/80 mt-1.5 font-semibold">— {quoteData.author}</p>
+          </div>
+        ) : (
+          <div className="mt-6 flex items-center gap-2 text-white/55"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
+        )}
+      </Tile>
+
+      {/* 12. DAILY POLL */}
+      <Tile accent="from-orange-500/20 via-amber-500/15 to-yellow-500/15" glowA="bg-orange-400/25" glowB="bg-yellow-500/20" testId="hero-poll">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-amber-200/80">
+            <BarChart3 className="w-3 h-3" /><span>Daily poll</span>
+          </div>
+          <span className="text-[9px] text-white/40 uppercase tracking-wider">{pollData?.total ?? 0} votes</span>
+        </div>
+        {pollData ? (
+          <>
+            <p className="mt-2 text-xs font-semibold text-white leading-snug line-clamp-2" data-testid="text-poll-question">{pollData.question}</p>
+            <div className="mt-2 space-y-1">
+              {pollData.options.map((opt, i) => {
+                const count = pollData.counts[i] || 0;
+                const pct = pollData.total > 0 ? Math.round((count / pollData.total) * 100) : 0;
+                const mine = pollData.myVote === i;
+                const voted = pollData.myVote !== null;
+                return (
+                  <button
+                    key={i}
+                    onClick={() => !voteMutation.isPending && voteMutation.mutate(i)}
+                    disabled={voteMutation.isPending}
+                    className={`relative w-full text-left rounded-lg border overflow-hidden transition px-2.5 py-1.5 ${mine ? "border-amber-300/60 bg-amber-400/10" : "border-white/10 bg-white/5 hover:bg-white/10"}`}
+                    data-testid={`button-poll-option-${i}`}
+                  >
+                    {voted && (
+                      <div
+                        className={`absolute inset-y-0 left-0 ${mine ? "bg-amber-400/30" : "bg-white/10"} transition-all`}
+                        style={{ width: `${pct}%` }}
+                      />
+                    )}
+                    <div className="relative flex items-center justify-between text-[11px]">
+                      <span className={`font-semibold ${mine ? "text-white" : "text-white/85"} truncate`}>{opt}</span>
+                      {voted && <span className="text-white/70 tabular-nums shrink-0 ml-2">{pct}%</span>}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          </>
+        ) : (
+          <div className="mt-6 flex items-center gap-2 text-white/55"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
+        )}
+      </Tile>
+
+      {/* 13. NEXT EVENT */}
+      <Tile accent="from-pink-500/20 via-rose-500/15 to-orange-500/15" glowA="bg-pink-400/25" glowB="bg-orange-500/20" testId="hero-event">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-pink-200/80">
+            <PartyPopper className="w-3 h-3" /><span>Next event</span>
+          </div>
+          <Link href="/events">
+            <button className="text-[10px] text-pink-200 hover:text-white inline-flex items-center gap-0.5">
+              All <ChevronRight className="w-3 h-3" />
+            </button>
+          </Link>
+        </div>
+        {nextEvent ? (
+          <Link href={`/events/${nextEvent.e.id}`}>
+            <div className="mt-3 group cursor-pointer" data-testid={`event-${nextEvent.e.id}`}>
+              <div className="flex items-start gap-2.5">
+                <div className="shrink-0 flex flex-col items-center justify-center w-12 rounded-lg bg-pink-400/25 border border-pink-300/30 py-1.5">
+                  <span className="text-[9px] uppercase tracking-wider text-pink-100">{format(nextEvent.d, "MMM")}</span>
+                  <span className="text-base font-extrabold text-white leading-none">{format(nextEvent.d, "d")}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-extrabold text-white truncate" data-testid="text-event-title">{nextEvent.e.title}</p>
+                  <p className="text-[10px] text-white/65 truncate flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3 h-3" />{nextEvent.e.startTime || format(nextEvent.d, "HH:mm")}
+                  </p>
+                  {nextEvent.e.location && (
+                    <p className="text-[10px] text-white/60 truncate flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />{nextEvent.e.location}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-[10px] text-white/55 inline-flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  {(nextEvent.e.signupCount || 0)}/{nextEvent.e.maxParticipants} signed up
+                </span>
+                {nextEvent.e.isSignedUp && (
+                  <span className="text-[9px] uppercase tracking-wider text-emerald-300 font-bold">You're in</span>
+                )}
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <div className="mt-4">
+            <p className="text-xs text-white/65">No upcoming club events.</p>
+            <Link href="/events">
+              <span className="mt-2 inline-flex items-center gap-1 text-[11px] text-pink-200 hover:text-white underline cursor-pointer">Browse events</span>
+            </Link>
+          </div>
+        )}
       </Tile>
 
     </div>

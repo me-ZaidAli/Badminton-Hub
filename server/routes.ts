@@ -20,6 +20,7 @@ import { sendTicketReplyNotification, sendNewMessageNotification, sendWithdrawSp
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
 import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, removeUserFromSessionChat, sendSystemChatMessage } from "./chatRoutes";
+import { registerDailyContentRoutes } from "./dailyContent";
 import { registerTournamentRoutes } from "./tournamentRoutes";
 import { registerCommunityRoutes } from "./communityRoutes";
 import { registerDebtRoutes } from "./debtRoutes";
@@ -31468,6 +31469,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
   // === GROUP CHAT ROUTES ===
   registerChatRoutes(app);
+  registerDailyContentRoutes(app);
   registerTournamentRoutes(app);
   registerCommunityRoutes(app);
   registerDebtRoutes(app);
