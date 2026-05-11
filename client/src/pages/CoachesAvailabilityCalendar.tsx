@@ -25,6 +25,8 @@ interface CoachAvail {
   holidayMode: boolean;
   slotDurationMinutes: number;
   defaultPricePence: number;
+  advanceNoticeHours?: number;
+  maxAdvanceDays?: number;
   rules: { dayOfWeek: number; startTime: string; endTime: string }[];
   overrides: { date: string; isClosed: boolean; startTime?: string | null; endTime?: string | null }[];
 }
@@ -51,6 +53,34 @@ function windowsForDate(c: CoachAvail, dateStr: string, dow: number): { start: s
     if (ov.startTime && ov.endTime) return [{ start: ov.startTime, end: ov.endTime }];
   }
   return c.rules.filter((r) => r.dayOfWeek === dow).map((r) => ({ start: r.startTime, end: r.endTime }));
+}
+
+// True if this coach has a bookable window AND the date is inside the
+// configured booking window (max-advance + not in the past). The calendar
+// uses this so the dot only lights up on dates the user can ACTUALLY book —
+// otherwise users tap a future Monday and get a confusing empty list.
+function isBookableForDate(c: CoachAvail, dateStr: string, dow: number, todayStr: string): boolean {
+  if (dateStr < todayStr) return false;
+  const max = c.maxAdvanceDays ?? 60;
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const [ty, tm, td] = todayStr.split("-").map(Number);
+  const diffDays = Math.floor(
+    (Date.UTC(y, m - 1, d) - Date.UTC(ty, tm - 1, td)) / 86400000,
+  );
+  if (diffDays > max) return false;
+  return windowsForDate(c, dateStr, dow).length > 0;
+}
+
+// Find the next date this coach is bookable on (within their booking window).
+function nextBookableDate(c: CoachAvail, fromDateStr: string): string | null {
+  const max = c.maxAdvanceDays ?? 60;
+  const [y, m, d] = fromDateStr.split("-").map(Number);
+  for (let i = 1; i <= max; i++) {
+    const dt = new Date(y, m - 1, d + i);
+    const ds = fmtDay(dt.getFullYear(), dt.getMonth(), dt.getDate());
+    if (isBookableForDate(c, ds, dt.getDay(), fromDateStr)) return ds;
+  }
+  return null;
 }
 
 export default function CoachesAvailabilityCalendar() {
@@ -90,25 +120,25 @@ export default function CoachesAvailabilityCalendar() {
     return grid;
   }, [cursor]);
 
+  const todayStr = fmtDay(today.getFullYear(), today.getMonth(), today.getDate());
+
   const availPerDay = useMemo(() => {
     const map = new Map<string, CoachAvail[]>();
     for (const cell of cells) {
       if (!cell) continue;
-      const list = visibleCoaches.filter((c) => windowsForDate(c, cell.date, cell.dow).length > 0);
+      const list = visibleCoaches.filter((c) => isBookableForDate(c, cell.date, cell.dow, todayStr));
       map.set(cell.date, list);
     }
     return map;
-  }, [visibleCoaches, cells]);
+  }, [visibleCoaches, cells, todayStr]);
 
   const selectedDow = useMemo(() => {
     const [yy, mm, dd] = selectedDate.split("-").map(Number);
     return new Date(yy, mm - 1, dd).getDay();
   }, [selectedDate]);
   const selectedCoaches = useMemo(() => {
-    return visibleCoaches.filter((c) => windowsForDate(c, selectedDate, selectedDow).length > 0);
-  }, [visibleCoaches, selectedDate, selectedDow]);
-
-  const todayStr = fmtDay(today.getFullYear(), today.getMonth(), today.getDate());
+    return visibleCoaches.filter((c) => isBookableForDate(c, selectedDate, selectedDow, todayStr));
+  }, [visibleCoaches, selectedDate, selectedDow, todayStr]);
 
   const goPrev = () => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() - 1, 1));
   const goNext = () => setCursor(new Date(cursor.getFullYear(), cursor.getMonth() + 1, 1));
@@ -123,15 +153,8 @@ export default function CoachesAvailabilityCalendar() {
     setBookDate(date);
     setBookSlot(time ?? null);
   };
-  const handleDayClick = (date: string, dow: number) => {
+  const handleDayClick = (date: string, _dow: number) => {
     setSelectedDate(date);
-    // If filtered to a single coach and they're available — jump straight to booking dialog.
-    if (selectedCoachId) {
-      const c = data?.coaches.find((x) => x.id === selectedCoachId);
-      if (c && windowsForDate(c, date, dow).length > 0) {
-        openBooking(selectedCoachId, date);
-      }
-    }
   };
 
   return (
@@ -281,8 +304,8 @@ export default function CoachesAvailabilityCalendar() {
         </CardContent>
       </Card>
 
-      {/* Selected day list (only when no single coach is filtered) */}
-      {!selectedCoachId && (
+      {/* Selected day list — always visible so users get feedback when they tap. */}
+      {(
         <Card className="border-white/10 bg-zinc-950/50 backdrop-blur-xl">
           <CardContent className="p-4">
             <div className="flex items-center gap-2 mb-3">
@@ -290,9 +313,37 @@ export default function CoachesAvailabilityCalendar() {
               <h3 className="font-bold text-white">{selectedDate} — {selectedCoaches.length} {selectedCoaches.length === 1 ? "coach" : "coaches"} available</h3>
             </div>
             {selectedCoaches.length === 0 ? (
-              <div className="text-center py-8 text-sm text-zinc-500">
-                <Sun className="w-6 h-6 mx-auto mb-2 opacity-50" />
-                No coaches have published availability for this date yet.
+              <div className="space-y-3">
+                <div className="text-center py-4 text-sm text-zinc-500">
+                  <Sun className="w-6 h-6 mx-auto mb-2 opacity-50" />
+                  No coaches are open on this day.
+                </div>
+                {/* Show every coach with their next available date so the user
+                    has a one-tap path to a bookable day. */}
+                <div className="space-y-2" data-testid="list-day-coaches-empty">
+                  {visibleCoaches.map((c) => {
+                    const nxt = nextBookableDate(c, selectedDate < todayStr ? todayStr : selectedDate);
+                    return (
+                      <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 flex items-center gap-3" data-testid={`row-next-open-${c.id}`}>
+                        <Avatar className="h-9 w-9 border border-violet-400/30 flex-shrink-0">
+                          {c.profilePhoto ? <AvatarImage src={c.profilePhoto} alt={c.fullName} className="object-cover" /> : null}
+                          <AvatarFallback className="bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-[10px] font-bold">{initials(c.fullName)}</AvatarFallback>
+                        </Avatar>
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-semibold text-zinc-100 truncate">{c.fullName}</div>
+                          <div className="text-[11px] text-zinc-400">
+                            {nxt ? <>Next open: <span className="text-violet-200 font-medium">{fmtPrettyDate(nxt)}</span></> : "No open days in the booking window"}
+                          </div>
+                        </div>
+                        {nxt && (
+                          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" onClick={() => setSelectedDate(nxt)} data-testid={`button-goto-next-${c.id}`}>
+                            Go
+                          </Button>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
             ) : (
               <div className="space-y-3" data-testid="list-day-coaches">
@@ -303,6 +354,7 @@ export default function CoachesAvailabilityCalendar() {
                     date={selectedDate}
                     onPickSlot={(time) => openBooking(c.id, selectedDate, time)}
                     onBook={() => openBooking(c.id, selectedDate)}
+                    onJumpToDate={(d) => setSelectedDate(d)}
                   />
                 ))}
               </div>
@@ -329,8 +381,13 @@ export default function CoachesAvailabilityCalendar() {
   );
 }
 
+function fmtPrettyDate(ds: string) {
+  const [y, m, d] = ds.split("-").map(Number);
+  return new Date(y, m - 1, d).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" });
+}
+
 // ─── Per-coach inline slot row on the selected-day card ────────────────────
-function CoachDaySlots({ coach, date, onPickSlot, onBook }: { coach: CoachAvail; date: string; onPickSlot: (time: string) => void; onBook: () => void }) {
+function CoachDaySlots({ coach, date, onPickSlot, onBook, onJumpToDate }: { coach: CoachAvail; date: string; onPickSlot: (time: string) => void; onBook: () => void; onJumpToDate?: (d: string) => void }) {
   const { data, isLoading } = useQuery<{ slots: Slot[] }>({
     queryKey: [`/api/coaches/${coach.id}/availability-slots`, date],
     queryFn: async () => {
@@ -365,11 +422,30 @@ function CoachDaySlots({ coach, date, onPickSlot, onBook }: { coach: CoachAvail;
       {isLoading ? (
         <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-violet-400" /></div>
       ) : open.length === 0 ? (
-        <p className="text-[11px] text-amber-300/80 italic">
-          {slots.length === 0
-            ? "This coach hasn't published any open hours for this date."
-            : "Fully booked or too late to book today — try another date."}
-        </p>
+        (() => {
+          const nxt = nextBookableDate(coach, date);
+          const reason = slots.length === 0
+            ? (coach.holidayMode
+                ? "Coach is on holiday."
+                : (coach.rules.length === 0
+                    ? "This coach hasn't set any weekly hours yet."
+                    : "Coach is closed on this day."))
+            : "All times are booked or past the cut-off.";
+          return (
+            <div className="space-y-1.5">
+              <p className="text-[11px] text-amber-300/80 italic" data-testid={`text-empty-reason-${coach.id}`}>{reason}</p>
+              {nxt && onJumpToDate && (
+                <button
+                  onClick={() => onJumpToDate(nxt)}
+                  className="text-[11px] font-semibold text-violet-300 hover:text-violet-200 underline inline-flex items-center gap-1"
+                  data-testid={`button-jump-next-${coach.id}`}
+                >
+                  Next open: {fmtPrettyDate(nxt)} →
+                </button>
+              )}
+            </div>
+          );
+        })()
       ) : (
         <>
           <div className="text-[10px] uppercase tracking-wider text-violet-200 mb-1.5 inline-flex items-center gap-1">

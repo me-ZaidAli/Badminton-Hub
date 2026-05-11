@@ -395,6 +395,8 @@ export function registerCoachBookingRoutes(app: Express) {
             holidayMode: !!s?.holidayMode,
             slotDurationMinutes: s?.slotDurationMinutes ?? 60,
             defaultPricePence: s?.defaultPricePence ?? 0,
+            advanceNoticeHours: s?.advanceNoticeHours ?? 12,
+            maxAdvanceDays: s?.maxAdvanceDays ?? 60,
             rules: rulesByCoach.get(c.id) ?? [],
             overrides: overridesByCoach.get(c.id) ?? [],
           };
