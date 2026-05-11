@@ -3481,3 +3481,67 @@ export const notificationRules = pgTable("notification_rules", {
   updatedAt: timestamp("updated_at", { withTimezone: true }).defaultNow().notNull(),
 });
 export type NotificationRule = typeof notificationRules.$inferSelect;
+
+// === COACH BOOKING & AVAILABILITY (Find a Coach v2) ===
+export const coachBookingStatusEnum = pgEnum("coach_booking_status_v2", ["PENDING", "APPROVED", "REJECTED", "CANCELLED", "COMPLETED", "NO_SHOW"]);
+
+// Weekly recurring open hours per coach (dayOfWeek 0=Sun..6=Sat)
+export const coachAvailabilityRules = pgTable("coach_availability_rules", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").references(() => coaches.id, { onDelete: "cascade" }).notNull(),
+  dayOfWeek: integer("day_of_week").notNull(),
+  startTime: text("start_time").notNull(), // "HH:MM"
+  endTime: text("end_time").notNull(),
+  isActive: boolean("is_active").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertCoachAvailabilityRuleSchema = createInsertSchema(coachAvailabilityRules).omit({ id: true, createdAt: true });
+export type CoachAvailabilityRule = typeof coachAvailabilityRules.$inferSelect;
+export type InsertCoachAvailabilityRule = z.infer<typeof insertCoachAvailabilityRuleSchema>;
+
+// Per-date overrides — closed (blocked/holiday) OR extra hours
+export const coachAvailabilityOverrides = pgTable("coach_availability_overrides", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").references(() => coaches.id, { onDelete: "cascade" }).notNull(),
+  date: text("date").notNull(), // "YYYY-MM-DD" Europe/London
+  isClosed: boolean("is_closed").notNull().default(false),
+  startTime: text("start_time"),
+  endTime: text("end_time"),
+  note: text("note"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertCoachAvailabilityOverrideSchema = createInsertSchema(coachAvailabilityOverrides).omit({ id: true, createdAt: true });
+export type CoachAvailabilityOverride = typeof coachAvailabilityOverrides.$inferSelect;
+export type InsertCoachAvailabilityOverride = z.infer<typeof insertCoachAvailabilityOverrideSchema>;
+
+// Per-coach booking settings
+export const coachBookingSettings = pgTable("coach_booking_settings", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").references(() => coaches.id, { onDelete: "cascade" }).notNull().unique(),
+  slotDurationMinutes: integer("slot_duration_minutes").notNull().default(60),
+  bufferBeforeMinutes: integer("buffer_before_minutes").notNull().default(0),
+  bufferAfterMinutes: integer("buffer_after_minutes").notNull().default(15),
+  advanceNoticeHours: integer("advance_notice_hours").notNull().default(12),
+  maxAdvanceDays: integer("max_advance_days").notNull().default(60),
+  holidayMode: boolean("holiday_mode").notNull().default(false),
+  holidayMessage: text("holiday_message"),
+  defaultPricePence: integer("default_price_pence").notNull().default(2500),
+  autoApprove: boolean("auto_approve").notNull().default(false),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export const insertCoachBookingSettingsSchema = createInsertSchema(coachBookingSettings).omit({ id: true, updatedAt: true });
+export type CoachBookingSettings = typeof coachBookingSettings.$inferSelect;
+export type InsertCoachBookingSettings = z.infer<typeof insertCoachBookingSettingsSchema>;
+
+// Gallery images per coach
+export const coachGalleryImages = pgTable("coach_gallery_images", {
+  id: serial("id").primaryKey(),
+  coachId: integer("coach_id").references(() => coaches.id, { onDelete: "cascade" }).notNull(),
+  imageUrl: text("image_url").notNull(),
+  caption: text("caption"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertCoachGalleryImageSchema = createInsertSchema(coachGalleryImages).omit({ id: true, createdAt: true });
+export type CoachGalleryImage = typeof coachGalleryImages.$inferSelect;
+export type InsertCoachGalleryImage = z.infer<typeof insertCoachGalleryImageSchema>;
