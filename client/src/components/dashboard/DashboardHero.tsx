@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO, startOfWeek, getISOWeek, getDayOfYear, differenceInMinutes } from "date-fns";
 import { CustomPollTile } from "./CustomPollTile";
+import { NewsTile } from "./NewsTile";
 
 interface DashboardHeroProps {
   userName: string;
@@ -272,6 +273,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4" data-testid="dashboard-hero">
       <CustomPollTile />
+      <NewsTile />
 
       {/* 1. GREETING + PROFILE PHOTO + CLOCK */}
       <Tile accent={tod.grad} glowA={tod.glowA} glowB={tod.glowB} testId="hero-greeting">

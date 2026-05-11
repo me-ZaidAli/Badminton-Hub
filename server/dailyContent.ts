@@ -41,10 +41,21 @@ type CachedQuote = { date: string; text: string; author: string };
 type CachedPoll = { date: string; question: string; options: string[] };
 type Deal = { brand: string; offer: string; url: string; category: string };
 type CachedDeals = { date: string; deals: Deal[] };
+type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string };
+type CachedNews = { fetchedAt: number; items: NewsItem[] };
+
+const FALLBACK_NEWS: NewsItem[] = [
+  { title: "BWF World Tour: Latest results & upcoming events", source: "BWF", url: "https://bwfbadminton.com/news/", summary: "Catch up on the latest match results, rankings and tournament schedules from the world tour." },
+  { title: "Badminton England news hub", source: "Badminton England", url: "https://www.badmintonengland.co.uk/news/", summary: "National news, county updates, league results and grassroots stories." },
+  { title: "Badminton Central — community & gear", source: "Badminton Central", url: "https://www.badmintoncentral.com/forums/", summary: "Discussions on rackets, strings and player tactics from the global community." },
+  { title: "Yonex player news", source: "Yonex", url: "https://www.yonex.com/badminton/news", summary: "Sponsored player updates, new releases and tournament wins." },
+];
 
 let quoteCache: CachedQuote | null = null;
 let pollCache: CachedPoll | null = null;
 let dealsCache: CachedDeals | null = null;
+let newsCache: CachedNews | null = null;
+const NEWS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
 
 // In-memory tally per day. Key = YYYY-MM-DD, value = Map<optionIndex, Set<userId>>
 const pollVotes = new Map<string, Map<number, Set<number>>>();
@@ -184,6 +195,43 @@ async function generateDeals(dateStr: string): Promise<CachedDeals> {
   return { date: dateStr, deals: FALLBACK_DEALS.slice(0, 6) };
 }
 
+async function generateNews(): Promise<CachedNews> {
+  const now = Date.now();
+  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    return { fetchedAt: now, items: FALLBACK_NEWS };
+  }
+  const todayStr = new Date().toISOString().slice(0, 10);
+  // Try OpenAI Responses API with web_search for live news
+  try {
+    const resp: any = await (openai as any).responses.create({
+      model: "gpt-5.1",
+      tools: [{ type: "web_search" }],
+      input: `Search the web RIGHT NOW for the 6 most important and recent badminton news stories worldwide (today is ${todayStr}). Cover BWF World Tour results, player news, transfers, tournament announcements, equipment launches, English/UK badminton news. Return STRICT JSON ONLY (no prose, no markdown) in this exact shape: {"items":[{"title":"...","source":"site name","url":"https://...","summary":"one sentence under 140 chars","publishedAt":"YYYY-MM-DD or relative"}]}. Use REAL article URLs you actually found in the search results. Prefer reputable sources: BWF, Badminton England, BadmintonCentral, BWF Insidious, Olympic.org, ESPN, Yonex, Victor.`,
+    });
+    const text: string = resp?.output_text || "";
+    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
+        const cleaned: NewsItem[] = parsed.items.slice(0, 8).map((n: any) => ({
+          title: String(n.title || "").slice(0, 140).trim(),
+          source: String(n.source || "").slice(0, 40).trim(),
+          url: String(n.url || "").trim(),
+          summary: String(n.summary || "").slice(0, 200).trim(),
+          publishedAt: n.publishedAt ? String(n.publishedAt).slice(0, 30) : undefined,
+        })).filter((n: NewsItem) => n.title && n.url.startsWith("http"));
+        if (cleaned.length > 0) {
+          console.log(`[DAILY NEWS] web-search returned ${cleaned.length} items`);
+          return { fetchedAt: now, items: cleaned };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[DAILY NEWS] web_search path failed:", (e as any)?.message);
+  }
+  return { fetchedAt: now, items: FALLBACK_NEWS };
+}
+
 export function registerDailyContentRoutes(app: Express): void {
   // GET /api/daily-content/quote
   app.get("/api/daily-content/quote", async (_req: Request, res: Response) => {
@@ -192,6 +240,15 @@ export function registerDailyContentRoutes(app: Express): void {
       quoteCache = await generateQuote(day);
     }
     res.json(quoteCache);
+  });
+
+  // GET /api/daily-content/news
+  app.get("/api/daily-content/news", async (_req: Request, res: Response) => {
+    const now = Date.now();
+    if (!newsCache || now - newsCache.fetchedAt > NEWS_TTL_MS) {
+      newsCache = await generateNews();
+    }
+    res.json(newsCache);
   });
 
   // GET /api/daily-content/deals
