@@ -493,8 +493,14 @@ export function registerCoachBookingRoutes(app: Express) {
     const userId = Number(req.params.id);
     const [u] = await db.select().from(users).where(eq(users.id, userId));
     if (!u) return res.status(404).json({ message: "User not found" });
-    // Set role
-    await db.update(users).set({ role: "COACH" as any }).where(eq(users.id, userId));
+    // Multi-role: keep their existing primary role (e.g. OWNER, ADMIN) and add COACH to secondaryRoles.
+    // Only fall back to changing primary role when the user is a plain PLAYER.
+    if (u.role === "PLAYER") {
+      await db.update(users).set({ role: "COACH" as any }).where(eq(users.id, userId));
+    } else if (!(u.secondaryRoles ?? []).includes("COACH")) {
+      const next = Array.from(new Set([...(u.secondaryRoles ?? []), "COACH"]));
+      await db.update(users).set({ secondaryRoles: next }).where(eq(users.id, userId));
+    }
     // Ensure coach profile exists
     let coach = await getMyCoach(userId);
     if (!coach) {
@@ -522,6 +528,10 @@ export function registerCoachBookingRoutes(app: Express) {
     const [u] = await db.select().from(users).where(eq(users.id, userId));
     if (!u) return res.status(404).json({ message: "User not found" });
     if (u.role === "COACH") await db.update(users).set({ role: "PLAYER" as any }).where(eq(users.id, userId));
+    const cleaned = (u.secondaryRoles ?? []).filter((r) => r !== "COACH");
+    if (cleaned.length !== (u.secondaryRoles ?? []).length) {
+      await db.update(users).set({ secondaryRoles: cleaned }).where(eq(users.id, userId));
+    }
     const coach = await getMyCoach(userId);
     if (coach) await db.update(coaches).set({ status: "SUSPENDED" }).where(eq(coaches.id, coach.id));
     res.json({ ok: true });

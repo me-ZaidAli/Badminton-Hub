@@ -263,7 +263,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/coach/player-skills", label: "Player Skills", icon: BarChart3, group: "activity", hidden: !isAdminOrOwner, premiumOnly: true },
     { href: "/find-coach", label: "Find a Coach", icon: GraduationCap, group: "activity" },
     { href: "/my-lessons", label: "My Lessons", icon: GraduationCap, group: "activity" },
-    { href: "/coach-dashboard", label: "Coach Dashboard", icon: GraduationCap, group: "activity", hidden: !(user?.role === "COACH" || isAdminOrOwner) },
+    { href: "/coach-dashboard", label: "Coach Dashboard", icon: GraduationCap, group: "activity", hidden: !(user?.role === "COACH" || (user?.secondaryRoles ?? []).includes("COACH") || isAdminOrOwner) },
 
     { href: "/clubs", label: "Clubs", icon: Building2, group: "club", badgeKey: "pendingMemberships" },
     { href: "/merchandise", label: "Club Merchandise", icon: Shirt, group: "club", ...(isAdminOrOwner || hasClubAdminAccess ? { badgeKey: "merchandiseNewOrders" as keyof BadgeCounts } : {}) },

@@ -10015,12 +10015,26 @@ export async function registerRoutes(
 
     try {
       const userId = Number(req.params.id);
-      const { role } = req.body;
-      if (!["OWNER", "ADMIN", "PLAYER"].includes(role)) {
-        return res.status(400).json({ message: "Invalid role" });
+      const { role, secondaryRoles } = req.body;
+      const updates: Record<string, any> = {};
+      if (role !== undefined) {
+        if (!["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"].includes(role)) {
+          return res.status(400).json({ message: "Invalid role" });
+        }
+        updates.role = role;
       }
-      
-      const updated = await storage.updateUser(userId, { role });
+      if (secondaryRoles !== undefined) {
+        if (!Array.isArray(secondaryRoles)) {
+          return res.status(400).json({ message: "secondaryRoles must be an array" });
+        }
+        const ALLOWED = new Set(["OWNER", "ADMIN", "ORGANISER", "COACH", "PLAYER"]);
+        const cleaned = Array.from(new Set(secondaryRoles.map((r: any) => String(r).toUpperCase())))
+          .filter((r) => ALLOWED.has(r) && r !== (updates.role ?? ""));
+        updates.secondaryRoles = cleaned;
+      }
+      if (!Object.keys(updates).length) return res.status(400).json({ message: "Nothing to update" });
+
+      const updated = await storage.updateUser(userId, updates);
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating user role:", err);

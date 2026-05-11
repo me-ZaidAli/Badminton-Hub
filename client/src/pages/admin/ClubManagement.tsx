@@ -307,13 +307,16 @@ export default function ClubManagement() {
   });
 
   const updateUserRoleMutation = useMutation({
-    mutationFn: async ({ userId, role }: { userId: number; role: string }) => {
-      const res = await apiRequest("PATCH", `/api/admin/users/${userId}/role`, { role });
+    mutationFn: async ({ userId, role, secondaryRoles }: { userId: number; role?: string; secondaryRoles?: string[] }) => {
+      const body: any = {};
+      if (role !== undefined) body.role = role;
+      if (secondaryRoles !== undefined) body.secondaryRoles = secondaryRoles;
+      const res = await apiRequest("PATCH", `/api/admin/users/${userId}/role`, body);
       return res.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
-      toast({ title: "User role updated successfully" });
+      toast({ title: "User role updated" });
     },
     onError: (error: Error) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -1336,13 +1339,20 @@ export default function ClubManagement() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
-                  <TableHead>Current Role</TableHead>
-                  <TableHead>Change Role</TableHead>
+                  <TableHead>Primary role</TableHead>
+                  <TableHead>Extra roles</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {allUsers?.map(user => (
-                  <TableRow key={user.id}>
+                {allUsers?.map(user => {
+                  const secondary: string[] = (user as any).secondaryRoles ?? [];
+                  const ALL_EXTRAS = ["OWNER", "ADMIN", "ORGANISER", "COACH"];
+                  const toggleExtra = (r: string) => {
+                    const next = secondary.includes(r) ? secondary.filter(x => x !== r) : [...secondary, r];
+                    updateUserRoleMutation.mutate({ userId: user.id, secondaryRoles: next });
+                  };
+                  return (
+                  <TableRow key={user.id} data-testid={`row-user-${user.id}`}>
                     <TableCell>
                       <div>
                         <div className="font-medium">{user.fullName}</div>
@@ -1350,25 +1360,48 @@ export default function ClubManagement() {
                       </div>
                     </TableCell>
                     <TableCell>
-                      <Badge variant="outline">{user.role}</Badge>
-                    </TableCell>
-                    <TableCell>
                       <Select
                         value={user.role}
                         onValueChange={(role) => updateUserRoleMutation.mutate({ userId: user.id, role })}
                       >
-                        <SelectTrigger className="w-[130px]">
+                        <SelectTrigger className="w-[130px]" data-testid={`select-role-${user.id}`}>
                           <SelectValue />
                         </SelectTrigger>
                         <SelectContent>
                           <SelectItem value="OWNER">Owner</SelectItem>
                           <SelectItem value="ADMIN">Admin</SelectItem>
+                          <SelectItem value="ORGANISER">Organiser</SelectItem>
+                          <SelectItem value="COACH">Coach</SelectItem>
                           <SelectItem value="PLAYER">Player</SelectItem>
                         </SelectContent>
                       </Select>
                     </TableCell>
+                    <TableCell>
+                      <div className="flex flex-wrap gap-1.5">
+                        {ALL_EXTRAS.filter(r => r !== user.role).map((r) => {
+                          const on = secondary.includes(r);
+                          return (
+                            <button
+                              key={r}
+                              type="button"
+                              onClick={() => toggleExtra(r)}
+                              disabled={updateUserRoleMutation.isPending}
+                              className={`text-xs px-2 py-1 rounded-full border transition-colors ${
+                                on
+                                  ? "bg-primary text-primary-foreground border-primary"
+                                  : "bg-background text-muted-foreground border-border hover:bg-muted"
+                              }`}
+                              data-testid={`chip-extra-${r}-${user.id}`}
+                            >
+                              {on ? "✓ " : "+ "}{r}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </TableCell>
                   </TableRow>
-                ))}
+                  );
+                })}
               </TableBody>
             </Table>
           )}

@@ -52,6 +52,7 @@ export const users = pgTable("users", {
   email: text("email").notNull().unique(),
   password: text("password").notNull(),
   role: roleEnum("role").default("PLAYER").notNull(),
+  secondaryRoles: text("secondary_roles").array().notNull().default(sql`'{}'::text[]`),
   emailVerified: boolean("email_verified").default(false).notNull(),
   accountStatus: accountStatusEnum("account_status").default("PENDING").notNull(),
   claimedProfileId: integer("claimed_profile_id"),
