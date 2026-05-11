@@ -1,7 +1,7 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { Vote, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, Users } from "lucide-react";
+import { Vote, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, Users, PartyPopper } from "lucide-react";
 
 type ActivePoll = {
   id: number;
@@ -24,17 +24,25 @@ export function CustomPollTile() {
 
   const [idx, setIdx] = useState(0);
   const [draft, setDraft] = useState<number[]>([]);
+  const [justVoted, setJustVoted] = useState<number | null>(null);
 
   const poll = polls[idx % Math.max(1, polls.length)] || null;
 
   const respond = useMutation({
     mutationFn: async ({ pollId, optionIndices }: { pollId: number; optionIndices: number[] }) =>
       apiRequest("POST", `/api/custom-polls/${pollId}/respond`, { optionIndices }),
-    onSuccess: () => {
+    onSuccess: (_data, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/custom-polls/active"] });
       setDraft([]);
+      setJustVoted(vars.pollId);
     },
   });
+
+  useEffect(() => {
+    if (justVoted == null) return;
+    const t = setTimeout(() => setJustVoted(null), 2400);
+    return () => clearTimeout(t);
+  }, [justVoted]);
 
   const isMulti = poll?.allowMultiple ?? false;
   const hasVoted = (poll?.myVote?.length ?? 0) > 0;
@@ -59,13 +67,24 @@ export function CustomPollTile() {
 
   return (
     <div
-      className="relative col-span-1 md:col-span-2 lg:col-span-3 overflow-hidden rounded-2xl border border-fuchsia-300/35 bg-gradient-to-br from-fuchsia-600/55 via-violet-700/60 to-indigo-900/75 p-5 shadow-2xl backdrop-blur-sm"
+      className="relative col-span-1 overflow-hidden rounded-2xl border border-fuchsia-300/35 bg-gradient-to-br from-fuchsia-600/55 via-violet-700/60 to-indigo-900/75 p-5 shadow-2xl backdrop-blur-sm"
       data-testid="hero-custom-poll"
     >
       {/* Glow halos */}
       <div className="absolute -top-12 -right-12 w-56 h-56 rounded-full bg-fuchsia-500/30 blur-3xl pointer-events-none" />
       <div className="absolute -bottom-16 -left-12 w-72 h-72 rounded-full bg-indigo-500/25 blur-3xl pointer-events-none" />
       <div className="absolute inset-0 bg-[radial-gradient(circle_at_30%_20%,rgba(244,114,182,0.15),transparent_55%)] pointer-events-none" />
+
+      {/* Thank-you celebration overlay */}
+      {justVoted === poll?.id && (
+        <div className="absolute inset-0 z-20 flex flex-col items-center justify-center bg-gradient-to-br from-emerald-500/85 via-fuchsia-600/80 to-violet-700/85 backdrop-blur-sm animate-in fade-in zoom-in-95 duration-300">
+          <div className="w-16 h-16 rounded-full bg-white/20 border-2 border-white/60 flex items-center justify-center shadow-2xl shadow-emerald-400/50 mb-3 animate-bounce">
+            <PartyPopper className="w-8 h-8 text-white" />
+          </div>
+          <div className="text-xl font-extrabold text-white drop-shadow-lg">Thanks for voting!</div>
+          <div className="text-xs text-white/90 mt-1 font-semibold uppercase tracking-wider">Your answer is in</div>
+        </div>
+      )}
 
       <div className="relative">
         {/* Header */}
@@ -123,7 +142,7 @@ export function CustomPollTile() {
           <>
             <p className="mt-3 text-base font-semibold text-white leading-snug" data-testid="text-poll-question">{poll.question}</p>
 
-            <div className="mt-4 grid gap-2 md:grid-cols-2">
+            <div className="mt-4 grid gap-2">
               {poll.options.map((opt, i) => {
                 const count = poll.counts[i] || 0;
                 const pct = poll.total > 0 ? Math.round((count / poll.total) * 100) : 0;
