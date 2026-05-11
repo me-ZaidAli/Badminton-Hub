@@ -13578,6 +13578,19 @@ export async function registerRoutes(
         } catch {}
       }
 
+      const genderMap = new Map<number, string | null>();
+      try {
+        const userIds = approved.map(c => c.userId).filter((x): x is number => typeof x === "number");
+        if (userIds.length) {
+          for (const uid of userIds) {
+            try {
+              const pp = await storage.getPlayerProfile(uid);
+              if (pp?.gender) genderMap.set(uid, pp.gender);
+            } catch {}
+          }
+        }
+      } catch {}
+
       if (req.isAuthenticated()) {
         const membership = await storage.getCoachSeekerMembership(req.user!.id);
         const isSuperAdminUser = req.user!.role === "OWNER";
@@ -13587,6 +13600,7 @@ export async function registerRoutes(
             ...c,
             averageRating: ratingsMap.get(c.id)?.avg ?? null,
             reviewCount: ratingsMap.get(c.id)?.count ?? 0,
+            gender: genderMap.get(c.userId) ?? null,
           }));
           res.json(enriched);
           return;
@@ -13608,6 +13622,7 @@ export async function registerRoutes(
         longitude: c.longitude,
         averageRating: ratingsMap.get(c.id)?.avg ?? null,
         reviewCount: ratingsMap.get(c.id)?.count ?? 0,
+        gender: genderMap.get(c.userId) ?? null,
       }));
       res.json(limited);
     } catch (err) {

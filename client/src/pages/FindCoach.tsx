@@ -15,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, PoundSterling, Languages, HeartHandshake, Trophy, Star, SendHorizonal } from "lucide-react";
+import { MapPin, Phone, Mail, Award, GraduationCap, Shield, Search, Users, Clock, Briefcase, Target, Calendar, PoundSterling, Languages, HeartHandshake, Trophy, Star, SendHorizonal, User as UserIconLucide } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import ReviewSection from "@/components/ReviewSection";
 import { CoachSubNav } from "@/components/SubNav";
@@ -69,6 +69,7 @@ interface Coach {
   googleMapsUrl?: string;
   averageRating?: number | null;
   reviewCount?: number;
+  gender?: string | null;
 }
 
 interface Membership {
@@ -451,147 +452,176 @@ function CoachDetailDialog({ coach, open, onOpenChange, onRequestLesson }: { coa
     { label: "Experience Summary", value: coach.experience, icon: <GraduationCap className="w-4 h-4" /> },
   ];
 
+  const initials = coach.fullName.split(/\s+/).map(s => s[0]).slice(0, 2).join("").toUpperCase();
+  const locText = [coach.city, coach.postcode].filter(Boolean).join(", ");
+  const gmapsUrl = coach.googleMapsUrl || (coach.latitude && coach.longitude ? `https://www.google.com/maps?q=${coach.latitude},${coach.longitude}` : null);
+  const rating = coach.averageRating ?? 0;
+  const reviewCount = coach.reviewCount ?? 0;
+  const genderLabel = coach.gender ? coach.gender.charAt(0).toUpperCase() + coach.gender.slice(1).toLowerCase() : null;
+
+  const ChipGroup = ({ title, items, tone }: { title: string; items: string[]; tone: "violet" | "cyan" | "amber" | "emerald" }) => {
+    if (!items?.length) return null;
+    const tones = {
+      violet: "bg-violet-500/10 border-violet-400/40 text-violet-100 hover:bg-violet-500/20 hover:border-violet-300/70 shadow-[0_0_12px_rgba(167,139,250,0.15)]",
+      cyan:   "bg-cyan-500/10 border-cyan-400/40 text-cyan-100 hover:bg-cyan-500/20 hover:border-cyan-300/70 shadow-[0_0_12px_rgba(34,211,238,0.15)]",
+      amber:  "bg-amber-500/10 border-amber-400/40 text-amber-100 hover:bg-amber-500/20 hover:border-amber-300/70 shadow-[0_0_12px_rgba(251,191,36,0.15)]",
+      emerald:"bg-emerald-500/10 border-emerald-400/40 text-emerald-100 hover:bg-emerald-500/20 hover:border-emerald-300/70 shadow-[0_0_12px_rgba(52,211,153,0.15)]",
+    } as const;
+    return (
+      <div data-testid={`dialog-coach-${title.toLowerCase().replace(/\s+/g, "-")}`}>
+        <h4 className="text-[11px] uppercase tracking-[0.18em] text-zinc-400 font-semibold mb-2">{title}</h4>
+        <div className="flex flex-wrap gap-1.5">
+          {items.map(s => (
+            <span key={s} className={`px-3 py-1 rounded-full border text-xs font-medium transition ${tones[tone]}`}>{s}</span>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-2xl max-h-[85vh] overflow-y-auto">
-        <DialogHeader>
-          <div className="flex items-center gap-4">
-            <Avatar className="h-20 w-20 border-2 border-border">
-              {coach.profilePhoto ? <AvatarImage src={coach.profilePhoto} alt={coach.fullName} /> : null}
-              <AvatarFallback className="text-xl">{coach.fullName.charAt(0)}</AvatarFallback>
-            </Avatar>
-            <div>
-              <DialogTitle className="text-xl" data-testid="dialog-coach-name">{coach.fullName}</DialogTitle>
-              {coach.roleTitle && <p className="text-muted-foreground" data-testid="dialog-coach-role">{coach.roleTitle}</p>}
-              <div className="flex items-center gap-2 mt-1 flex-wrap">
-                {coach.badmintonEnglandCert && <Badge data-testid="dialog-badge-be"><Award className="w-3 h-3 mr-1" />BE Certified</Badge>}
-                {coach.firstAidCert && <Badge variant="outline" data-testid="dialog-badge-firstaid">First Aid</Badge>}
-                {coach.yearsTraining != null && <Badge variant="secondary" data-testid="dialog-badge-years"><Clock className="w-3 h-3 mr-1" />{coach.yearsTraining} yrs</Badge>}
+      <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto p-0 border-violet-500/30 bg-zinc-950 text-zinc-100">
+        {/* Hero */}
+        <div className="relative px-6 pt-8 pb-6 overflow-hidden">
+          <div className="absolute inset-0 -z-10 bg-[radial-gradient(80%_60%_at_20%_0%,rgba(139,92,246,0.35),transparent_60%),radial-gradient(60%_50%_at_100%_0%,rgba(34,211,238,0.18),transparent_60%),linear-gradient(180deg,#0b0a14_0%,#09080f_100%)]" />
+          <div className="absolute -top-20 -right-20 w-72 h-72 rounded-full bg-violet-500/20 blur-3xl -z-10" />
+
+          <DialogHeader>
+            <div className="flex items-start gap-4">
+              <div className="relative shrink-0">
+                <div className="absolute -inset-1 rounded-full bg-[conic-gradient(from_180deg,#a78bfa,#22d3ee,#a78bfa)] opacity-90 blur-[2px]" />
+                <Avatar className="relative h-20 w-20 border-2 border-violet-300/40 ring-2 ring-violet-500/30 shadow-[0_0_30px_rgba(139,92,246,0.45)]">
+                  {coach.profilePhoto ? <AvatarImage src={coach.profilePhoto} alt={coach.fullName} /> : null}
+                  <AvatarFallback className="text-xl bg-zinc-900 text-violet-200 font-bold">{initials}</AvatarFallback>
+                </Avatar>
               </div>
+              <div className="flex-1 min-w-0">
+                <DialogTitle className="text-2xl font-bold tracking-tight text-white" data-testid="dialog-coach-name">{coach.fullName}</DialogTitle>
+                {coach.roleTitle && <p className="text-sm text-zinc-400 mt-0.5" data-testid="dialog-coach-role">{coach.roleTitle}</p>}
+                <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                  {coach.badmintonEnglandCert && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white shadow-[0_0_14px_rgba(167,139,250,0.5)]" data-testid="dialog-badge-be">
+                      <Award className="w-3 h-3" />BE Certified
+                    </span>
+                  )}
+                  {coach.firstAidCert && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-emerald-400/50 text-emerald-200 bg-emerald-500/10" data-testid="dialog-badge-firstaid">First Aid</span>
+                  )}
+                  {coach.yearsTraining != null && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-cyan-400/50 text-cyan-200 bg-cyan-500/10" data-testid="dialog-badge-years">
+                      <Clock className="w-3 h-3" />{coach.yearsTraining} yrs
+                    </span>
+                  )}
+                  {genderLabel && (
+                    <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[11px] font-semibold border border-zinc-600 text-zinc-200 bg-zinc-800/60" data-testid="dialog-badge-gender">
+                      <UserIconLucide className="w-3 h-3" />{genderLabel}
+                    </span>
+                  )}
+                </div>
+              </div>
+            </div>
+          </DialogHeader>
+
+          {/* Stat strip */}
+          <div className="grid grid-cols-3 gap-2 mt-5">
+            <div className="rounded-xl border border-violet-400/20 bg-zinc-900/60 backdrop-blur px-3 py-2.5 text-center">
+              <div className="text-[10px] uppercase tracking-widest text-zinc-500">Rating</div>
+              <div className="text-lg font-bold text-amber-300 flex items-center justify-center gap-1"><Star className="w-3.5 h-3.5 fill-amber-300" />{rating ? rating.toFixed(1) : "—"}</div>
+            </div>
+            <div className="rounded-xl border border-violet-400/20 bg-zinc-900/60 backdrop-blur px-3 py-2.5 text-center">
+              <div className="text-[10px] uppercase tracking-widest text-zinc-500">Reviews</div>
+              <div className="text-lg font-bold text-white">{reviewCount}</div>
+            </div>
+            <div className="rounded-xl border border-violet-400/20 bg-zinc-900/60 backdrop-blur px-3 py-2.5 text-center">
+              <div className="text-[10px] uppercase tracking-widest text-zinc-500">Years</div>
+              <div className="text-lg font-bold text-cyan-300">{coach.yearsTraining ?? "—"}</div>
             </div>
           </div>
-        </DialogHeader>
 
-        <div className="space-y-5 mt-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {coach.email && (
-              <div className="flex items-center gap-2" data-testid="dialog-coach-email">
-                <Mail className="w-4 h-4 text-muted-foreground" />
-                <a href={`mailto:${coach.email}`} className="text-sm underline">{coach.email}</a>
-              </div>
-            )}
+          {/* Contact strip */}
+          <div className="flex flex-wrap gap-x-5 gap-y-2 mt-4 text-sm">
             {coach.phone && (
-              <div className="flex items-center gap-2" data-testid="dialog-coach-phone">
-                <Phone className="w-4 h-4 text-muted-foreground" />
-                <a href={`tel:${coach.phone}`} className="text-sm underline">{coach.phone}</a>
-              </div>
+              <a href={`tel:${coach.phone}`} className="inline-flex items-center gap-1.5 text-zinc-200 hover:text-violet-300" data-testid="dialog-coach-phone">
+                <Phone className="w-3.5 h-3.5 text-violet-400" /><span className="underline-offset-2 hover:underline">{coach.phone}</span>
+              </a>
             )}
-            <div className="flex items-center gap-2" data-testid="dialog-coach-location">
-              <MapPin className="w-4 h-4 text-muted-foreground" />
-              {(() => {
-                const loc = [coach.city, coach.postcode].filter(Boolean).join(", ") || "Not specified";
-                const gmapsUrl = coach.googleMapsUrl || (coach.latitude && coach.longitude ? `https://www.google.com/maps?q=${coach.latitude},${coach.longitude}` : null);
-                return gmapsUrl ? (
-                  <a href={gmapsUrl} target="_blank" rel="noopener noreferrer" className="text-sm underline">{loc}</a>
-                ) : (
-                  <span className="text-sm">{loc}</span>
-                );
-              })()}
-            </div>
-            {coach.areaCoverage && (
-              <div className="flex items-center gap-2" data-testid="dialog-coach-area">
-                <MapPin className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">Area: {coach.areaCoverage}</span>
-              </div>
+            {locText && (
+              gmapsUrl ? (
+                <a href={gmapsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-1.5 text-zinc-200 hover:text-violet-300" data-testid="dialog-coach-location">
+                  <MapPin className="w-3.5 h-3.5 text-violet-400" /><span className="underline-offset-2 hover:underline">{locText}</span>
+                </a>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 text-zinc-300" data-testid="dialog-coach-location">
+                  <MapPin className="w-3.5 h-3.5 text-violet-400" />{locText}
+                </span>
+              )
             )}
             {coach.languagesSpoken && (
-              <div className="flex items-center gap-2" data-testid="dialog-coach-languages">
-                <Languages className="w-4 h-4 text-muted-foreground" />
-                <span className="text-sm">{coach.languagesSpoken}</span>
-              </div>
+              <span className="inline-flex items-center gap-1.5 text-zinc-300" data-testid="dialog-coach-languages">
+                <Languages className="w-3.5 h-3.5 text-violet-400" />{coach.languagesSpoken}
+              </span>
             )}
           </div>
 
-          {coach.availability && (
-            <div data-testid="dialog-coach-availability">
-              <h4 className="text-sm font-semibold mb-1 flex items-center gap-1"><Calendar className="w-4 h-4" /> Availability</h4>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{coach.availability}</p>
-            </div>
+          {/* CTA */}
+          {onRequestLesson && (
+            <Button
+              className="w-full mt-5 h-12 text-base font-bold bg-gradient-to-r from-violet-500 via-fuchsia-500 to-violet-500 hover:from-violet-400 hover:via-fuchsia-400 hover:to-violet-400 text-white shadow-[0_0_24px_rgba(167,139,250,0.55)] border-0"
+              onClick={() => { onOpenChange(false); onRequestLesson(coach); }}
+              data-testid="button-request-lesson-detail"
+            >
+              <SendHorizonal className="w-4 h-4 mr-2" /> Request a Lesson
+            </Button>
           )}
+        </div>
+
+        {/* Body */}
+        <div className="px-6 pb-6 space-y-5">
+          <ChipGroup title="Specialism" items={coach.specialism ?? []} tone="violet" />
+          <ChipGroup title="Coaching Focus" items={coach.coachingFocus ?? []} tone="cyan" />
+          <ChipGroup title="Session Types" items={coach.sessionTypesOffered ?? []} tone="amber" />
+          <ChipGroup title="Age Groups" items={coach.ageGroupsCoached ?? []} tone="emerald" />
 
           {(coach.coachingCertifications || coach.qualifications || coach.safeguardingDbs || coach.cpdTraining) && (
-            <div data-testid="dialog-coach-creds">
-              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><GraduationCap className="w-4 h-4" /> Qualifications & Credentials</h4>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                {coach.coachingCertifications && <p><span className="font-medium text-foreground">Certifications:</span> {coach.coachingCertifications}</p>}
-                {coach.qualifications && <p><span className="font-medium text-foreground">Other:</span> {coach.qualifications}</p>}
-                {coach.safeguardingDbs && <p><span className="font-medium text-foreground">DBS:</span> {coach.safeguardingDbs}</p>}
-                {coach.cpdTraining && <p><span className="font-medium text-foreground">CPD:</span> {coach.cpdTraining}</p>}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="dialog-coach-creds">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-violet-200"><GraduationCap className="w-4 h-4" /> Qualifications & Credentials</h4>
+              <div className="space-y-1 text-sm text-zinc-300">
+                {coach.coachingCertifications && <p><span className="font-medium text-white">Certifications:</span> {coach.coachingCertifications}</p>}
+                {coach.qualifications && <p><span className="font-medium text-white">Other:</span> {coach.qualifications}</p>}
+                {coach.safeguardingDbs && <p><span className="font-medium text-white">DBS:</span> {coach.safeguardingDbs}</p>}
+                {coach.cpdTraining && <p><span className="font-medium text-white">CPD:</span> {coach.cpdTraining}</p>}
               </div>
-            </div>
-          )}
-
-          {coach.specialism && coach.specialism.length > 0 && (
-            <div data-testid="dialog-coach-specialism">
-              <h4 className="text-sm font-semibold mb-2">Specialism</h4>
-              <div className="flex flex-wrap gap-1">{coach.specialism.map(s => <Badge key={s} variant="outline">{s}</Badge>)}</div>
-            </div>
-          )}
-
-          {coach.coachingFocus && coach.coachingFocus.length > 0 && (
-            <div data-testid="dialog-coach-focus">
-              <h4 className="text-sm font-semibold mb-2">Coaching Focus</h4>
-              <div className="flex flex-wrap gap-1">{coach.coachingFocus.map(f => <Badge key={f} variant="secondary">{f}</Badge>)}</div>
-            </div>
-          )}
-
-          {coach.sessionTypesOffered && coach.sessionTypesOffered.length > 0 && (
-            <div data-testid="dialog-coach-sessions">
-              <h4 className="text-sm font-semibold mb-2">Session Types</h4>
-              <div className="flex flex-wrap gap-1">{coach.sessionTypesOffered.map(t => <Badge key={t} variant="outline">{t}</Badge>)}</div>
-            </div>
-          )}
-
-          {coach.ageGroupsCoached && coach.ageGroupsCoached.length > 0 && (
-            <div data-testid="dialog-coach-ages">
-              <h4 className="text-sm font-semibold mb-2">Age Groups</h4>
-              <div className="flex flex-wrap gap-1">{coach.ageGroupsCoached.map(a => <Badge key={a} variant="outline">{a}</Badge>)}</div>
             </div>
           )}
 
           {(coach.sessionPrices || coach.preferredGroupSize || coach.equipmentProvided || coach.cancellationPolicy) && (
-            <div data-testid="dialog-coach-practical">
-              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1"><PoundSterling className="w-4 h-4" /> Practical Info</h4>
-              <div className="space-y-1 text-sm text-muted-foreground">
-                {coach.preferredGroupSize && <p><span className="font-medium text-foreground">Group Size:</span> {coach.preferredGroupSize}</p>}
-                {coach.sessionPrices && <p><span className="font-medium text-foreground">Prices:</span> {coach.sessionPrices}</p>}
-                {coach.equipmentProvided && <p><span className="font-medium text-foreground">Equipment:</span> {coach.equipmentProvided}</p>}
-                {coach.cancellationPolicy && <p><span className="font-medium text-foreground">Cancellation:</span> {coach.cancellationPolicy}</p>}
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="dialog-coach-practical">
+              <h4 className="text-sm font-semibold mb-2 flex items-center gap-1.5 text-amber-200"><PoundSterling className="w-4 h-4" /> Practical Info</h4>
+              <div className="space-y-1 text-sm text-zinc-300">
+                {coach.preferredGroupSize && <p><span className="font-medium text-white">Group Size:</span> {coach.preferredGroupSize}</p>}
+                {coach.sessionPrices && <p><span className="font-medium text-white">Prices:</span> {coach.sessionPrices}</p>}
+                {coach.equipmentProvided && <p><span className="font-medium text-white">Equipment:</span> {coach.equipmentProvided}</p>}
+                {coach.cancellationPolicy && <p><span className="font-medium text-white">Cancellation:</span> {coach.cancellationPolicy}</p>}
               </div>
             </div>
           )}
 
+          {coach.availability && (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid="dialog-coach-availability">
+              <h4 className="text-sm font-semibold mb-1 flex items-center gap-1.5 text-cyan-200"><Calendar className="w-4 h-4" /> Availability</h4>
+              <p className="text-sm text-zinc-300 whitespace-pre-wrap">{coach.availability}</p>
+            </div>
+          )}
+
           {sections.filter(s => s.value).map(section => (
-            <div key={section.label} data-testid={`dialog-coach-${section.label.toLowerCase().replace(/\s+/g, "-")}`}>
-              <h4 className="text-sm font-semibold mb-1 flex items-center gap-1">{section.icon} {section.label}</h4>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">{section.value}</p>
+            <div key={section.label} className="rounded-xl border border-zinc-800 bg-zinc-900/60 p-4" data-testid={`dialog-coach-${section.label.toLowerCase().replace(/\s+/g, "-")}`}>
+              <h4 className="text-sm font-semibold mb-1 flex items-center gap-1.5 text-violet-200">{section.icon} {section.label}</h4>
+              <p className="text-sm text-zinc-300 whitespace-pre-wrap">{section.value}</p>
             </div>
           ))}
 
-          <div className="border-t pt-4 mt-4">
-            {onRequestLesson && (
-              <Button
-                className="w-full mb-4"
-                onClick={() => {
-                  onOpenChange(false);
-                  onRequestLesson(coach);
-                }}
-                data-testid="button-request-lesson-detail"
-              >
-                <SendHorizonal className="w-4 h-4 mr-2" />
-                Request a Lesson
-              </Button>
-            )}
+          <div className="border-t border-zinc-800 pt-4 mt-2">
             <ReviewSection targetType="COACH" targetId={coach.id} />
           </div>
         </div>
