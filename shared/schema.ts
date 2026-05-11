@@ -3332,6 +3332,29 @@ export const bslWalletTransactions = pgTable("bsl_wallet_transactions", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
+export const bslPrizes = pgTable("bsl_prizes", {
+  id: serial("id").primaryKey(),
+  bslLeagueId: integer("bsl_league_id").notNull().default(1).references(() => bslLeagues.id, { onDelete: "cascade" }),
+  season: text("season"),
+  division: text("division"),
+  category: text("category"),
+  rank: integer("rank").notNull().default(1),
+  tier: text("tier").notNull().default("GOLD"),
+  title: text("title").notNull(),
+  subtitle: text("subtitle"),
+  prizeText: text("prize_text").notNull(),
+  prizeAmountPence: integer("prize_amount_pence"),
+  icon: text("icon"),
+  accentColor: text("accent_color"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  isPublished: boolean("is_published").notNull().default(true),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+});
+export const insertBslPrizeSchema = createInsertSchema(bslPrizes).omit({ id: true, createdAt: true, updatedAt: true });
+export type BslPrize = typeof bslPrizes.$inferSelect;
+export type InsertBslPrize = z.infer<typeof insertBslPrizeSchema>;
+
 export const insertBslLeagueSchema = createInsertSchema(bslLeagues).omit({ id: true, createdAt: true, updatedAt: true });
 export type BslLeague = typeof bslLeagues.$inferSelect;
 export type InsertBslLeague = z.infer<typeof insertBslLeagueSchema>;

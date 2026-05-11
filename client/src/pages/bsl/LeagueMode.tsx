@@ -147,6 +147,7 @@ export default function LeagueMode() {
             ) : (
               <Link href="/bsl/register-club"><a><ActionButton variant="gold" icon={<Shield className="h-4 w-4" />}>Register a Club</ActionButton></a></Link>
             )}
+            <Link href="/bsl/prizes"><a><ActionButton variant="gold" icon={<Trophy className="h-4 w-4" />} data-testid="button-prizes">Prize Vault</ActionButton></a></Link>
             <ActionButton variant="ghost" icon={<Share2 className="h-4 w-4" />} onClick={() => setShareOpen(true)} data-testid="button-share-bsl">
               Share BSL
             </ActionButton>

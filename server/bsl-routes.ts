@@ -7,7 +7,7 @@ import fs from "fs";
 import {
   bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays,
   bslFixtures, bslRubbers, bslWalletTransactions, bslAuditLog, bslMedia, users,
-  bslTeamMembers, bslCategorySettings, bslFixtureVersions,
+  bslTeamMembers, bslCategorySettings, bslFixtureVersions, bslPrizes,
 } from "@shared/schema";
 import { sendRulePush } from "./notificationRules";
 import { hashPassword } from "./auth";
@@ -2789,6 +2789,134 @@ export function registerBslRoutes(app: Express) {
         categories: cur.filter(c => c !== category),
       }).where(eq(bslPlayers.id, me.id)).returning();
       res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ===================== YEAR-END PRIZES =====================
+  // Public read — only published rows for non-admins
+  app.get("/api/bsl/prizes", async (req, res) => {
+    try {
+      const u: any = (req as any).user;
+      const rows = await db.select().from(bslPrizes).orderBy(
+        bslPrizes.division, bslPrizes.category, bslPrizes.sortOrder, bslPrizes.rank,
+      );
+      const filtered = isAdminish(u) ? rows : rows.filter(r => r.isPublished);
+      res.json(filtered);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin CRUD
+  app.post("/api/bsl/admin/prizes", requireAdmin, async (req, res) => {
+    try {
+      const b = req.body || {};
+      if (!b.title || !b.prizeText) return res.status(400).json({ message: "title and prizeText required" });
+      const tier = String(b.tier || "GOLD").toUpperCase();
+      const allowedTiers = ["DIAMOND", "PLATINUM", "GOLD", "SILVER", "BRONZE", "MYTHIC", "EPIC"];
+      const [defaultLeague] = await db.select().from(bslLeagues).limit(1);
+      if (!defaultLeague) return res.status(400).json({ message: "No BSL league configured yet" });
+      const [row] = await db.insert(bslPrizes).values({
+        bslLeagueId: defaultLeague.id,
+        season: b.season ? String(b.season).slice(0, 32) : null,
+        division: b.division ? String(b.division).slice(0, 56) : null,
+        category: b.category ? String(b.category).toUpperCase().slice(0, 12) : null,
+        rank: Math.max(1, Math.min(99, Number(b.rank ?? 1))),
+        tier: allowedTiers.includes(tier) ? tier : "GOLD",
+        title: String(b.title).slice(0, 120),
+        subtitle: b.subtitle ? String(b.subtitle).slice(0, 240) : null,
+        prizeText: String(b.prizeText).slice(0, 240),
+        prizeAmountPence: b.prizeAmountPence != null ? Math.max(0, Math.round(Number(b.prizeAmountPence))) : null,
+        icon: b.icon ? String(b.icon).slice(0, 40) : null,
+        accentColor: b.accentColor ? String(b.accentColor).slice(0, 40) : null,
+        sortOrder: Math.max(0, Math.min(9999, Number(b.sortOrder ?? 0))),
+        isPublished: b.isPublished !== false,
+      }).returning();
+      await audit(req, "prize.created", "bsl_prize", row.id, { title: row.title });
+      res.status(201).json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.patch("/api/bsl/admin/prizes/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const b = req.body || {};
+      const patch: any = { updatedAt: new Date() };
+      if (b.season !== undefined) patch.season = b.season ? String(b.season).slice(0, 32) : null;
+      if (b.division !== undefined) patch.division = b.division ? String(b.division).slice(0, 56) : null;
+      if (b.category !== undefined) patch.category = b.category ? String(b.category).toUpperCase().slice(0, 12) : null;
+      if (b.rank !== undefined) patch.rank = Math.max(1, Math.min(99, Number(b.rank)));
+      if (b.tier !== undefined) {
+        const t = String(b.tier).toUpperCase();
+        if (["DIAMOND", "PLATINUM", "GOLD", "SILVER", "BRONZE", "MYTHIC", "EPIC"].includes(t)) patch.tier = t;
+      }
+      if (b.title !== undefined) patch.title = String(b.title).slice(0, 120);
+      if (b.subtitle !== undefined) patch.subtitle = b.subtitle ? String(b.subtitle).slice(0, 240) : null;
+      if (b.prizeText !== undefined) patch.prizeText = String(b.prizeText).slice(0, 240);
+      if (b.prizeAmountPence !== undefined) patch.prizeAmountPence = b.prizeAmountPence == null ? null : Math.max(0, Math.round(Number(b.prizeAmountPence)));
+      if (b.icon !== undefined) patch.icon = b.icon ? String(b.icon).slice(0, 40) : null;
+      if (b.accentColor !== undefined) patch.accentColor = b.accentColor ? String(b.accentColor).slice(0, 40) : null;
+      if (b.sortOrder !== undefined) patch.sortOrder = Math.max(0, Math.min(9999, Number(b.sortOrder)));
+      if (b.isPublished !== undefined) patch.isPublished = !!b.isPublished;
+      const [row] = await db.update(bslPrizes).set(patch).where(eq(bslPrizes.id, id)).returning();
+      if (!row) return res.status(404).json({ message: "Prize not found" });
+      await audit(req, "prize.updated", "bsl_prize", id, patch);
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/bsl/admin/prizes/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      await db.delete(bslPrizes).where(eq(bslPrizes.id, id));
+      await audit(req, "prize.deleted", "bsl_prize", id, {});
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Seed a sensible default grid: per division × MD/WD/XD × top-3
+  app.post("/api/bsl/admin/prizes/seed", requireAdmin, async (req, res) => {
+    try {
+      const [league] = await db.select().from(bslLeagues).limit(1);
+      if (!league) return res.status(400).json({ message: "No BSL league configured yet — visit Settings first." });
+      const leagueId = league.id;
+      const divisions: string[] = (league.divisions as any) || ["Premier", "Championship", "Division 1"];
+      const cats = [
+        { c: "MD", label: "Men's Doubles" },
+        { c: "WD", label: "Women's Doubles" },
+        { c: "XD", label: "Mixed Doubles" },
+      ];
+      const tierByRank = ["DIAMOND", "GOLD", "BRONZE"];
+      const trophyByRank = ["Champions", "Runners-Up", "Bronze Medal"];
+      const moneyByRank = [50000, 25000, 10000]; // pence
+      const replace = !!req.body?.replace;
+      if (replace) await db.delete(bslPrizes);
+      const rows: any[] = [];
+      let order = 0;
+      for (const div of divisions) {
+        for (const cat of cats) {
+          for (let i = 0; i < 3; i++) {
+            rows.push({
+              bslLeagueId: leagueId,
+              division: div,
+              category: cat.c,
+              rank: i + 1,
+              tier: tierByRank[i],
+              title: `${div} · ${cat.label} ${trophyByRank[i]}`,
+              subtitle: `Year-end prize for ${cat.label} pairs in ${div}`,
+              prizeText: i === 0
+                ? `£${(moneyByRank[i] / 100).toFixed(0)} cash + Engraved trophy + Champion jackets`
+                : i === 1
+                  ? `£${(moneyByRank[i] / 100).toFixed(0)} cash + Silver medals + BSL hoodies`
+                  : `£${(moneyByRank[i] / 100).toFixed(0)} cash + Bronze medals`,
+              prizeAmountPence: moneyByRank[i],
+              sortOrder: order++,
+              isPublished: true,
+            });
+          }
+        }
+      }
+      const inserted = await db.insert(bslPrizes).values(rows).returning();
+      await audit(req, "prize.seeded", "bsl_prize", null, { count: inserted.length, replace });
+      res.json({ ok: true, count: inserted.length });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 }
