@@ -999,15 +999,22 @@ export function Sidebar() {
         {user ? (
           <div className="flex items-center gap-3 mb-3">
             {(() => {
-              const av = getAvatarUrl((user as any).selectedAvatar);
+              const profilePic = (user as any).profilePictureUrl;
+              const av = !profilePic ? getAvatarUrl((user as any).selectedAvatar) : null;
+              if (profilePic) {
+                return (
+                  <div className="h-10 w-10 rounded-full overflow-hidden ring-2 ring-primary/40 shrink-0">
+                    <img src={profilePic} alt={user.fullName} className="w-full h-full object-cover" data-testid="img-sidebar-profile-pic" />
+                  </div>
+                );
+              }
               return av ? (
-                <div className="h-9 w-9 rounded-full overflow-hidden ring-1 ring-cyan-400/30 shrink-0">
+                <div className="h-10 w-10 rounded-full overflow-hidden ring-2 ring-cyan-400/30 shrink-0">
                   <img src={av} alt="Avatar" className="w-full h-full object-cover" />
                 </div>
               ) : (
-                <Avatar className="h-9 w-9">
-                  <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${user.fullName}`} />
-                  <AvatarFallback className="text-xs">{user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
+                <Avatar className="h-10 w-10 ring-2 ring-border">
+                  <AvatarFallback className="text-xs font-semibold bg-gradient-to-br from-indigo-500/30 to-purple-500/30 text-foreground">{user.fullName.substring(0, 2).toUpperCase()}</AvatarFallback>
                 </Avatar>
               );
             })()}
@@ -1105,11 +1112,31 @@ export function MobileTopNav() {
         <div className="bg-card border-b border-border shadow-lg max-h-[80vh] overflow-y-auto" data-testid="mobile-dropdown-menu" data-sidebar-mobile="dropdown">
           <div className="px-4 py-3 border-b border-border/40">
             <div className="flex items-center gap-3">
-              <Avatar className="h-10 w-10">
-                <AvatarFallback className="text-sm">
-                  {user.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
+              {(() => {
+                const profilePic = (user as any).profilePictureUrl;
+                const av = !profilePic ? getAvatarUrl((user as any).selectedAvatar) : null;
+                if (profilePic) {
+                  return (
+                    <div className="h-10 w-10 rounded-full overflow-hidden ring-2 ring-primary/40 shrink-0">
+                      <img src={profilePic} alt={user.fullName} className="w-full h-full object-cover" data-testid="img-mobile-profile-pic" />
+                    </div>
+                  );
+                }
+                if (av) {
+                  return (
+                    <div className="h-10 w-10 rounded-full overflow-hidden ring-2 ring-cyan-400/30 shrink-0">
+                      <img src={av} alt="Avatar" className="w-full h-full object-cover" />
+                    </div>
+                  );
+                }
+                return (
+                  <Avatar className="h-10 w-10">
+                    <AvatarFallback className="text-sm font-semibold bg-gradient-to-br from-indigo-500/30 to-purple-500/30">
+                      {user.fullName?.split(" ").map(n => n[0]).join("").slice(0, 2).toUpperCase()}
+                    </AvatarFallback>
+                  </Avatar>
+                );
+              })()}
               <div>
                 <p className="font-semibold text-sm text-foreground">{user.fullName}</p>
                 <p className="text-xs text-muted-foreground capitalize">{user.role.toLowerCase()}</p>

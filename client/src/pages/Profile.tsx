@@ -3,6 +3,7 @@ import { Link, useLocation } from "wouter";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import heroMalePath from "@assets/hero_male_player.png";
 import heroFemalePath from "@assets/hero_female_player.png";
+import badmintonBannerPath from "@assets/generated_images/profile_banner_badminton.png";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -2254,35 +2255,40 @@ export default function Profile() {
 
       {/* HERO BANNER */}
       {(() => {
-        const isFemale = primaryProfile?.gender?.toLowerCase() === "female";
-        const heroImg = isFemale ? heroFemalePath : heroMalePath;
         return (
-          <div className="relative rounded-2xl overflow-hidden" data-testid="card-profile-header" style={{ minHeight: "280px" }}>
-            <img src={heroImg} alt="" className="absolute inset-0 w-full h-full object-cover object-top" />
+          <div className="relative rounded-2xl overflow-hidden" data-testid="card-profile-header" style={{ minHeight: "360px" }}>
+            <img src={badmintonBannerPath} alt="" className="absolute inset-0 w-full h-full object-cover object-center" />
             <div className="absolute inset-0" style={{
-              background: "linear-gradient(90deg, rgba(15,12,41,0.92) 0%, rgba(15,12,41,0.75) 40%, rgba(15,12,41,0.3) 70%, rgba(15,12,41,0.15) 100%)",
+              background: "linear-gradient(90deg, rgba(15,12,41,0.85) 0%, rgba(15,12,41,0.55) 45%, rgba(15,12,41,0.2) 75%, rgba(15,12,41,0.1) 100%)",
             }} />
             <div className="absolute inset-0" style={{
-              background: "linear-gradient(to top, rgba(15,12,41,0.95) 0%, transparent 40%)",
+              background: "linear-gradient(to top, rgba(15,12,41,0.95) 0%, transparent 45%)",
             }} />
 
-            <div className="relative h-full flex flex-col justify-between p-4 sm:p-6 md:p-8" style={{ minHeight: "280px" }}>
-              <div className="flex items-start gap-4 sm:gap-5">
+            <div className="relative h-full flex flex-col justify-between p-4 sm:p-6 md:p-8" style={{ minHeight: "360px" }}>
+              <div className="flex items-start gap-5 sm:gap-6">
                 <div className="relative shrink-0">
                   {(() => {
-                    const avatarUrl = getAvatarUrl((user as any).selectedAvatar);
+                    const profilePic = (user as any).profilePictureUrl;
+                    const avatarUrl = !profilePic ? getAvatarUrl((user as any).selectedAvatar) : null;
+                    if (profilePic) {
+                      return (
+                        <div className="h-32 w-32 sm:h-40 sm:w-40 md:h-48 md:w-48 rounded-2xl overflow-hidden ring-4 ring-white/25 shadow-[0_0_40px_rgba(0,0,0,0.7)]">
+                          <img src={profilePic} alt="Profile" className="w-full h-full object-cover" data-testid="img-profile-picture" />
+                        </div>
+                      );
+                    }
                     return avatarUrl ? (
-                      <div className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl overflow-hidden ring-2 ring-white/20 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
+                      <div className="h-32 w-32 sm:h-40 sm:w-40 md:h-48 md:w-48 rounded-2xl overflow-hidden ring-4 ring-white/25 shadow-[0_0_40px_rgba(0,0,0,0.7)]">
                         <img src={avatarUrl} alt="Avatar" className="w-full h-full object-cover" data-testid="img-profile-3d-avatar" />
                       </div>
                     ) : (
-                      <Avatar className="h-16 w-16 sm:h-20 sm:w-20 rounded-xl ring-2 ring-white/20 shadow-[0_0_20px_rgba(0,0,0,0.5)]">
-                        {(user as any).profilePictureUrl ? <AvatarImage src={(user as any).profilePictureUrl} className="rounded-xl" /> : null}
-                        <AvatarFallback className="text-xl sm:text-2xl rounded-xl bg-indigo-900/60 text-white/90">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
+                      <Avatar className="h-32 w-32 sm:h-40 sm:w-40 md:h-48 md:w-48 rounded-2xl ring-4 ring-white/25 shadow-[0_0_40px_rgba(0,0,0,0.7)]">
+                        <AvatarFallback className="text-4xl sm:text-5xl md:text-6xl rounded-2xl bg-indigo-900/60 text-white/90 font-bold">{user.fullName?.split(" ").map((n: string) => n[0]).join("").slice(0, 2).toUpperCase() || "?"}</AvatarFallback>
                       </Avatar>
                     );
                   })()}
-                  <div className="absolute -bottom-2 -right-2 flex gap-0.5">
+                  <div className="absolute -bottom-2 -right-2 flex gap-1">
                     <AvatarPicker
                       currentAvatar={(user as any).selectedAvatar}
                       trigger={
@@ -2291,8 +2297,8 @@ export default function Profile() {
                         </button>
                       }
                     />
-                    <button className="bg-black/40 backdrop-blur text-white rounded-full p-1.5 shadow-lg border border-white/10" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
-                      {isUploadingPic ? <Loader2 className="w-3 h-3 animate-spin" /> : <Camera className="w-3 h-3" />}
+                    <button className="bg-black/50 backdrop-blur text-white rounded-full p-2 shadow-lg border border-white/15 hover:bg-black/70 transition" onClick={() => profilePicInputRef.current?.click()} disabled={isUploadingPic} data-testid="button-upload-profile-pic">
+                      {isUploadingPic ? <Loader2 className="w-4 h-4 animate-spin" /> : <Camera className="w-4 h-4" />}
                     </button>
                   </div>
                   <input type="file" accept="image/*" className="hidden" ref={profilePicInputRef}

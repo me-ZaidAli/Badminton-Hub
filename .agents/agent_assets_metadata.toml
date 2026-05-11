@@ -120,6 +120,12 @@ uri = "file://client/src/assets/skills/default.png"
 type = "image"
 title = "default"
 
+[[generated]]
+id = "vulRx5FI_7qmJm1G3beDZ"
+uri = "file://attached_assets/generated_images/profile_banner_badminton.png"
+type = "image"
+title = "badminton court banner"
+
 [[outputs]]
 id = "_DTq5o-onEE6_4AMQp_uJ"
 uri = "file://Smart-Match-Engine-Algorithm.md"
