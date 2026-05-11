@@ -2,8 +2,9 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check, BadgeCheck, CircleDollarSign, Share2,
+  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check, BadgeCheck, CircleDollarSign, Share2, Plus, Layers,
 } from "lucide-react";
+import { Link } from "wouter";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -25,6 +26,18 @@ export default function ClubsAdmin() {
   const [editId, setEditId] = useState<number | null>(null);
   const [copied, setCopied] = useState<number | null>(null);
   const [shareClub, setShareClub] = useState<any | null>(null);
+  const [creating, setCreating] = useState(false);
+  const create = useMutation({
+    mutationFn: async (v: any) => (await apiRequest("POST", "/api/bsl/admin/clubs", v)).json(),
+    onSuccess: (d: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/clubs"] });
+      setCreating(false);
+      toast({ title: "Club created", description: d.inviteCode ? `Invite: ${d.inviteCode}` : "Saved as pending payment" });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: clubs } = useQuery<any[]>({
@@ -69,9 +82,12 @@ export default function ClubsAdmin() {
 
   return (
     <AdminLayout active="clubs">
-      <div className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Clubs <span style={{ color: BSL.gold }}>Registry</span></h1>
-        <p className="text-sm mt-1" style={{ color: BSL.muted }}>Approve · suspend · flag · assign divisions · invite codes</p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Clubs <span style={{ color: BSL.gold }}>Registry</span></h1>
+          <p className="text-sm mt-1" style={{ color: BSL.muted }}>Create · approve · suspend · flag · assign divisions · invite codes · manage pairs</p>
+        </div>
+        <ActionButton variant="gold" icon={<Plus className="h-3 w-3" />} onClick={() => setCreating(true)} testid="button-create-club">New club</ActionButton>
       </div>
 
       <GlowPanel title={`${clubs?.length ?? 0} clubs`} tone="gold" icon={<Building2 className="h-4 w-4" />}>
@@ -192,6 +208,9 @@ export default function ClubsAdmin() {
                             Share
                           </ActionButton>
                         )}
+                        <Link href={`/bsl/admin/clubs/${c.id}/manage`}>
+                          <a><ActionButton variant="cyan" icon={<Layers className="h-3 w-3" />} testid={`button-manage-club-${c.id}`}>Manage</ActionButton></a>
+                        </Link>
                         <ActionButton variant="gold" onClick={() => setEditId(c.id)}>Edit</ActionButton>
                       </div>
                     </td>
@@ -212,6 +231,15 @@ export default function ClubsAdmin() {
           shareUrl={`${window.location.origin}/bsl/join?code=${shareClub.inviteCode}`}
           inviteCode={shareClub.inviteCode}
           filenameSlug={`bsl-${shareClub.name}`}
+        />
+      )}
+
+      {creating && (
+        <CreateClubDialog
+          divisions={league?.divisions || ["Premier", "Championship", "Division 1"]}
+          onClose={() => setCreating(false)}
+          onSubmit={(data) => create.mutate(data)}
+          submitting={create.isPending}
         />
       )}
 
@@ -263,6 +291,69 @@ function ClubEditor({ club, divisions, onClose, onSave }: any) {
 }
 function Field({ label, children }: any) {
   return <div><label className="text-[10px] uppercase tracking-widest font-bold block mb-1" style={{ color: BSL.muted }}>{label}</label>{children}</div>;
+}
+
+// ---------------------------------------------------------------------------
+// CREATE CLUB DIALOG — admin-only fast path that bypasses the public wizard.
+// Spins up the bslClubs row + the requested number of pair (team) rows in
+// one call. The current admin becomes managerUserId by default.
+// ---------------------------------------------------------------------------
+function CreateClubDialog({ divisions, onClose, onSubmit, submitting }: any) {
+  const CATS = ["MD", "WD", "XD"] as const;
+  const [form, setForm] = useState({
+    name: "",
+    division: divisions[0] || "Premier",
+    logoUrl: "",
+    status: "ACTIVE" as "ACTIVE" | "PENDING_PAYMENT",
+    pairs: { MD: 1, WD: 1, XD: 1 } as Record<string, number>,
+  });
+  const total = (form.pairs.MD || 0) + (form.pairs.WD || 0) + (form.pairs.XD || 0);
+  const valid = form.name.trim().length >= 2 && total > 0;
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-lg max-h-[90vh] overflow-y-auto rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.gold}55`, boxShadow: `0 24px 64px hsla(222,80%,2%,0.6), 0 0 0 1px ${BSL.gold}22` }} onClick={e => e.stopPropagation()} data-testid="dialog-create-club">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-black uppercase tracking-tight">New <span style={{ color: BSL.gold }}>Club</span></h3>
+          <button onClick={onClose} className="p-1.5 rounded" style={{ background: BSL.cardSoft }} data-testid="button-close-create-club"><X className="h-4 w-4" /></button>
+        </div>
+        <div className="space-y-3">
+          <Field label="Club name"><input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-create-club-name" /></Field>
+          <Field label="Division">
+            <select value={form.division} onChange={e => setForm({ ...form, division: e.target.value })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-create-club-division">
+              {divisions.map((d: string) => <option key={d} value={d}>{d}</option>)}
+            </select>
+          </Field>
+          <Field label="Logo URL (optional)"><input value={form.logoUrl} onChange={e => setForm({ ...form, logoUrl: e.target.value })} placeholder="https://…" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-create-club-logo" /></Field>
+          <Field label="Pairs per category">
+            <div className="grid grid-cols-3 gap-2">
+              {CATS.map(cat => (
+                <div key={cat} className="p-2 rounded-lg" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}>
+                  <div className="text-[10px] font-black uppercase tracking-widest" style={{ color: BSL.cyan }}>{cat}</div>
+                  <input type="number" min={0} max={8} value={form.pairs[cat]} onChange={e => setForm({ ...form, pairs: { ...form.pairs, [cat]: Math.max(0, Math.min(8, Number(e.target.value) || 0)) } })} className="w-full mt-1 px-2 py-1 rounded text-sm tabular-nums" style={{ background: BSL.bg, border: `1px solid ${BSL.border}`, color: "white" }} data-testid={`input-pairs-${cat}`} />
+                </div>
+              ))}
+            </div>
+            <div className="text-[10px] mt-1" style={{ color: BSL.faint }}>Total {total} pair{total === 1 ? "" : "s"}. Auto-creates pair rows.</div>
+          </Field>
+          <Field label="Status">
+            <div className="grid grid-cols-2 gap-2">
+              {(["ACTIVE", "PENDING_PAYMENT"] as const).map(s => (
+                <button key={s} onClick={() => setForm({ ...form, status: s })} className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest" style={{ background: form.status === s ? `${BSL.gold}22` : BSL.cardSoft, color: form.status === s ? BSL.gold : BSL.muted, border: `1px solid ${form.status === s ? BSL.gold : BSL.border}` }} data-testid={`select-status-${s}`}>
+                  {s === "ACTIVE" ? "Active (with invite)" : "Pending payment"}
+                </button>
+              ))}
+            </div>
+          </Field>
+          <div className="flex justify-end gap-2 pt-2">
+            <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel-create-club">Cancel</button>
+            <ActionButton variant="gold" disabled={!valid || submitting} onClick={() => onSubmit({ name: form.name.trim(), division: form.division, logoUrl: form.logoUrl || null, status: form.status, categoryPairs: form.pairs })} icon={<Save className="h-3 w-3" />} testid="button-confirm-create-club">
+              {submitting ? "Creating…" : "Create club"}
+            </ActionButton>
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 }
 function Toggle({ on, onChange, label, icon: Icon, tone, testid }: any) {
   const c = tone === "danger" ? BSL.danger : BSL.gold;

@@ -168,6 +168,7 @@ const BslAdminLeague = lazy(() => import("@/pages/bsl/admin/LeagueControl"));
 const BslAdminFixtureSetup = lazy(() => import("@/pages/bsl/admin/FixtureSetup"));
 const BslAdminMatchDay = lazy(() => import("@/pages/bsl/admin/MatchDayControl"));
 const BslAdminClubs = lazy(() => import("@/pages/bsl/admin/ClubsAdmin"));
+const BslAdminClubManager = lazy(() => import("@/pages/bsl/admin/AdminClubManager"));
 const BslAdminPlayers = lazy(() => import("@/pages/bsl/admin/PlayersAdmin"));
 const BslAdminPayments = lazy(() => import("@/pages/bsl/admin/PaymentsAdmin"));
 const BslAdminMedia = lazy(() => import("@/pages/bsl/admin/MediaAdmin"));
@@ -564,6 +565,9 @@ function Router() {
       </Route>
       <Route path="/bsl/admin/clubs">
         <BslAdminRoute component={() => <BslAdminClubs />} />
+      </Route>
+      <Route path="/bsl/admin/clubs/:id/manage">
+        <BslAdminRoute component={() => <BslAdminClubManager />} />
       </Route>
       <Route path="/bsl/admin/players">
         <BslAdminRoute component={() => <BslAdminPlayers />} />

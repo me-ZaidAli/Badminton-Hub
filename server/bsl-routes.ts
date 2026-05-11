@@ -800,6 +800,268 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // ========================================================================
+  // ====== SUPER-ADMIN POWERS: create clubs/players, adjust wallets, =======
+  // ====== assign categories, force-activate. All audit-logged. ============
+  // ========================================================================
+
+  // Search users by name/email (for picking a user when creating a player on
+  // their behalf). Returns up to 20 lightweight rows.
+  app.get("/api/bsl/admin/users/search", requireAdmin, async (req, res) => {
+    try {
+      const q = String(req.query.q || "").trim().toLowerCase();
+      if (q.length < 2) return res.json([]);
+      const rows = await db.select({
+        id: users.id, fullName: users.fullName, email: users.email, username: users.username,
+      }).from(users).limit(200);
+      const filtered = rows.filter(r =>
+        (r.fullName || "").toLowerCase().includes(q) ||
+        (r.email || "").toLowerCase().includes(q) ||
+        (r.username || "").toLowerCase().includes(q)
+      ).slice(0, 20);
+      res.json(filtered);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin creates a new club from scratch — bypasses the public registration
+  // wizard. Optionally set the managerUserId (otherwise the admin themselves
+  // becomes manager). Auto-marked ACTIVE with a fresh invite code.
+  app.post("/api/bsl/admin/clubs", requireAdmin, async (req, res) => {
+    try {
+      const u = (req as any).user;
+      const { name, division, categoryPairs, logoUrl, managerUserId, status } = req.body;
+      if (!name || !division) return res.status(400).json({ message: "Name and division required" });
+      const ALLOWED = ["MD", "WD", "XD"];
+      const SHORT: Record<string, string> = { MD: "MD", WD: "WD", XD: "XD" };
+      const pairs: Record<string, number> = {};
+      if (categoryPairs && typeof categoryPairs === "object") {
+        for (const cat of ALLOWED) {
+          const n = Number((categoryPairs as any)[cat]);
+          if (Number.isFinite(n) && n > 0) pairs[cat] = Math.min(8, Math.floor(n));
+        }
+      }
+      const totalPairs = Object.values(pairs).reduce((s, n) => s + n, 0);
+      if (totalPairs === 0) return res.status(400).json({ message: "Add at least one pair" });
+      let manager = managerUserId ? Number(managerUserId) : u.id;
+      if (managerUserId) {
+        const [mgr] = await db.select().from(users).where(eq(users.id, manager)).limit(1);
+        if (!mgr) return res.status(400).json({ message: "Manager user not found" });
+      }
+      const targetStatus = status === "PENDING_PAYMENT" ? "PENDING_PAYMENT" : "ACTIVE";
+      const inviteCode = targetStatus === "ACTIVE" ? genInvite() : null;
+      const paymentReference = genRef("BSL-CLUB");
+      const [created] = await db.insert(bslClubs).values({
+        name, division,
+        teamCount: totalPairs,
+        categories: Object.keys(pairs),
+        categoryPairs: pairs,
+        logoUrl: logoUrl || null,
+        managerUserId: manager,
+        paymentReference,
+        status: targetStatus as any,
+        inviteCode,
+        approvedAt: targetStatus === "ACTIVE" ? new Date() : null,
+        approvedById: targetStatus === "ACTIVE" ? u.id : null,
+      } as any).returning();
+      const teamRows: any[] = [];
+      for (const cat of ALLOWED) {
+        const count = pairs[cat] || 0;
+        for (let i = 0; i < count; i++) {
+          const letter = String.fromCharCode(65 + i);
+          const suffix = count > 1 ? ` Pair ${letter}` : "";
+          teamRows.push({
+            bslClubId: created.id,
+            name: `${created.name} ${SHORT[cat]}${suffix}`,
+            division: created.division, category: cat, pairNumber: i + 1,
+          });
+        }
+      }
+      if (teamRows.length) await db.insert(bslTeams).values(teamRows as any);
+      await audit(req, "ADMIN_CREATE_CLUB", "bsl_club", created.id, { name, division, totalPairs, status: targetStatus, manager });
+      res.json(created);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin creates a BSL player record on behalf of an existing user.
+  // Auto-confirms by manager + skips approval flow when activate=true.
+  app.post("/api/bsl/admin/players", requireAdmin, async (req, res) => {
+    try {
+      const adminUser = (req as any).user;
+      const { userId, bslClubId, displayName, activate } = req.body;
+      const uid = Number(userId);
+      const cid = Number(bslClubId);
+      if (!Number.isFinite(uid)) return res.status(400).json({ message: "userId required" });
+      if (!Number.isFinite(cid)) return res.status(400).json({ message: "bslClubId required" });
+      const [user] = await db.select().from(users).where(eq(users.id, uid)).limit(1);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, cid)).limit(1);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const existing = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, uid)).limit(1);
+      if (existing.length) return res.status(400).json({ message: "User already has a BSL player profile", player: existing[0] });
+      const paymentReference = genRef("BSL-PLR");
+      const [created] = await db.insert(bslPlayers).values({
+        userId: uid,
+        bslClubId: cid,
+        displayName: displayName || null,
+        paymentReference,
+        status: activate ? "ACTIVE" : "PENDING_PAYMENT",
+        approvedAt: activate ? new Date() : null,
+        approvedById: activate ? adminUser.id : null,
+        confirmedByOwnerAt: new Date(),
+      } as any).returning();
+      await audit(req, "ADMIN_CREATE_PLAYER", "bsl_player", created.id, { userId: uid, bslClubId: cid, activate: !!activate });
+      res.json(created);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Force-activate a player without requiring payment proof or wallet balance.
+  app.post("/api/bsl/admin/players/:id/activate", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const adminUser = (req as any).user;
+      const [p] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!p) return res.status(404).json({ message: "Player not found" });
+      if (p.status === "ACTIVE") return res.json(p);
+      const [updated] = await db.update(bslPlayers).set({
+        status: "ACTIVE", approvedAt: new Date(), approvedById: adminUser.id,
+        confirmedByOwnerAt: p.confirmedByOwnerAt || new Date(),
+      }).where(eq(bslPlayers.id, id)).returning();
+      await audit(req, "ADMIN_FORCE_ACTIVATE_PLAYER", "bsl_player", id, { previousStatus: p.status });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Adjust wallet balance with a proper ledger entry. Positive amount = credit
+  // (TOPUP), negative = deduction. Atomic via transaction.
+  app.post("/api/bsl/admin/players/:id/wallet/adjust", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const adminUser = (req as any).user;
+      const amount = Math.trunc(Number(req.body.amount));
+      const note = String(req.body.note || "").slice(0, 200);
+      if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount === 0) {
+        return res.status(400).json({ message: "amount must be a non-zero integer (pence)" });
+      }
+      if (Math.abs(amount) > 1_000_000) return res.status(400).json({ message: "amount too large (max £10,000)" });
+      const [p] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!p) return res.status(404).json({ message: "Player not found" });
+      const newBalance = (p.walletBalance ?? 0) + amount;
+      if (newBalance < 0) return res.status(400).json({ message: `Cannot deduct — would leave balance negative (current £${(p.walletBalance/100).toFixed(2)})` });
+      const txType = amount > 0 ? "TOPUP" : "DEDUCTION";
+      const reference = genRef(amount > 0 ? "ADM-CREDIT" : "ADM-DEBIT");
+      const result = await db.transaction(async (tx) => {
+        const [row] = await tx.update(bslPlayers).set({
+          walletBalance: dsql`${bslPlayers.walletBalance} + ${amount}`,
+        }).where(and(eq(bslPlayers.id, id), eq(bslPlayers.walletBalance, p.walletBalance ?? 0))).returning();
+        if (!row) return null;
+        await tx.insert(bslWalletTransactions).values({
+          bslPlayerId: id, type: txType as any, amount: Math.abs(amount), status: "APPROVED",
+          reference, description: note || (amount > 0 ? "Admin credit" : "Admin deduction"),
+          reviewedById: adminUser.id, reviewedAt: new Date(),
+        } as any);
+        return row;
+      });
+      if (!result) return res.status(409).json({ message: "Balance changed during update — refresh and retry" });
+      await audit(req, "ADMIN_WALLET_ADJUST", "bsl_player", id, { amount, note, reference });
+      res.json(result);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin assigns a category to a player (no fee, no balance check). Used to
+  // override the self-service registration when needed.
+  app.post("/api/bsl/admin/players/:id/categories", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const category = String(req.body.category || "").toUpperCase();
+      if (!ALLOWED_CATS.includes(category as Cat)) return res.status(400).json({ message: "Invalid category" });
+      const [p] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!p) return res.status(404).json({ message: "Player not found" });
+      if ((p.categories || []).includes(category)) return res.status(400).json({ message: "Already registered" });
+      const [updated] = await db.update(bslPlayers).set({
+        categories: dsql`array_append(${bslPlayers.categories}, ${category})`,
+      }).where(eq(bslPlayers.id, id)).returning();
+      await audit(req, "ADMIN_ASSIGN_CATEGORY", "bsl_player", id, { category });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+  app.delete("/api/bsl/admin/players/:id/categories/:cat", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const category = String(req.params.cat || "").toUpperCase();
+      const [p] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!p) return res.status(404).json({ message: "Player not found" });
+      if (!(p.categories || []).includes(category)) return res.status(400).json({ message: "Not registered for that category" });
+      // Strip from any pair in this category
+      const teamsInCat = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, p.bslClubId || 0), eq(bslTeams.category, category)));
+      if (teamsInCat.length) {
+        await db.delete(bslTeamMembers).where(and(
+          inArray(bslTeamMembers.bslTeamId, teamsInCat.map(t => t.id)),
+          eq(bslTeamMembers.bslPlayerId, id),
+        ));
+      }
+      const [updated] = await db.update(bslPlayers).set({
+        categories: (p.categories || []).filter(c => c !== category),
+      }).where(eq(bslPlayers.id, id)).returning();
+      await audit(req, "ADMIN_REMOVE_CATEGORY", "bsl_player", id, { category });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Admin pair-manager view: returns the same shape as /api/bsl/my-club but
+  // for any clubId. Used to manage roster + pairs of any club from /bsl/admin.
+  app.get("/api/bsl/admin/clubs/:id/manager-view", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, club.id));
+      const teamIds = teams.map(t => t.id);
+      const members = teamIds.length
+        ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
+        : [];
+      const roster = await db.select().from(bslPlayers).where(eq(bslPlayers.bslClubId, club.id));
+      const pending = roster.filter(p => p.confirmedByOwnerAt == null);
+      const confirmed = roster.filter(p => p.confirmedByOwnerAt != null);
+      const userIds = Array.from(new Set(roster.map(p => p.userId)));
+      const userRows = userIds.length
+        ? await db.select({ id: users.id, name: users.fullName, email: users.email, phone: users.phone }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map(r => [r.id, r]));
+      const playerIds = roster.map(p => p.id);
+      const txRows = playerIds.length
+        ? await db.select().from(bslWalletTransactions).where(inArray(bslWalletTransactions.bslPlayerId, playerIds))
+        : [];
+      const [league] = await db.select().from(bslLeagues).limit(1);
+      const leagueFee = league?.playerFee || 0;
+      const topupByPlayer = new Map<number, number>();
+      const debitByPlayer = new Map<number, number>();
+      for (const tx of txRows) {
+        if (tx.type === "TOPUP" && tx.status === "APPROVED") topupByPlayer.set(tx.bslPlayerId, (topupByPlayer.get(tx.bslPlayerId) || 0) + tx.amount);
+        else if (tx.type === "DEDUCTION") debitByPlayer.set(tx.bslPlayerId, (debitByPlayer.get(tx.bslPlayerId) || 0) + tx.amount);
+      }
+      const hydrate = (p: any) => ({
+        ...p,
+        user: userMap.get(p.userId) || null,
+        paidTotal: (topupByPlayer.get(p.id) || 0) + (p.status === "ACTIVE" ? leagueFee : 0),
+        spentTotal: debitByPlayer.get(p.id) || 0,
+      });
+      res.json({
+        club,
+        teams: teams.map(t => ({ ...t, members: members.filter(m => m.bslTeamId === t.id).map(m => m.bslPlayerId) })),
+        pending: pending.map(hydrate),
+        confirmed: confirmed.map(hydrate),
+        summary: {
+          roster: confirmed.length,
+          pending: pending.length,
+          matchesPlayed: confirmed.reduce((s, p) => s + (p.matchesPlayed || 0), 0),
+          matchesWon: confirmed.reduce((s, p) => s + (p.matchesWon || 0), 0),
+          moneyIn: confirmed.reduce((s, p) => s + (topupByPlayer.get(p.id) || 0) + (p.status === "ACTIVE" ? leagueFee : 0), 0),
+          pairs: teams.length,
+        },
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // === ADMIN PENDING QUEUE ===
   app.get("/api/bsl/admin/pending", requireAdmin, async (_req, res) => {
     try {
@@ -1700,7 +1962,7 @@ export function registerBslRoutes(app: Express) {
       const charged = (me.walletBalance ?? 0) - (updated.walletBalance ?? 0);
       const tierLabel = cur.length === 0 ? "" : cur.length === 1 ? " (50% multi-cat discount)" : " (70% multi-cat discount)";
       await db.insert(bslWalletTransactions).values({
-        bslPlayerId: me.id, type: "DEBIT", amount: charged, status: "APPROVED",
+        bslPlayerId: me.id, type: "DEDUCTION", amount: charged, status: "APPROVED",
         reference: `CAT-${category}-${Date.now().toString(36).toUpperCase()}`,
         description: `Registered for ${category}${tierLabel}`,
         reviewedById: u.id, reviewedAt: new Date(),

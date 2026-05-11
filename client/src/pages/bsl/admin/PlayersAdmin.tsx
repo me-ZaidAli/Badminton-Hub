@@ -1,7 +1,11 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Users, Search, ShieldOff, AlertTriangle, X, Save, Wallet as WalletIcon } from "lucide-react";
+import { Link } from "wouter";
+import {
+  Users, Search, ShieldOff, AlertTriangle, X, Save, Wallet as WalletIcon,
+  UserPlus, Zap, Plus, Minus, Tag, Layers,
+} from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -12,6 +16,7 @@ import { apiRequest } from "@/lib/queryClient";
 const STATUS_COLOR: any = {
   PENDING_PAYMENT: BSL.muted, PENDING_VERIFICATION: BSL.gold, ACTIVE: BSL.success, REJECTED: BSL.danger,
 };
+const CATS = ["MD", "WD", "XD"] as const;
 
 export default function PlayersAdmin() {
   const qc = useQueryClient();
@@ -20,6 +25,7 @@ export default function PlayersAdmin() {
   const [statusFilter, setStatusFilter] = useState("");
   const [clubFilter, setClubFilter] = useState("");
   const [editId, setEditId] = useState<number | null>(null);
+  const [creating, setCreating] = useState(false);
 
   const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/bsl/admin/clubs"] });
   const { data: players } = useQuery<any[]>({
@@ -35,20 +41,29 @@ export default function PlayersAdmin() {
   });
   const editing = useMemo(() => (players || []).find((p: any) => p.id === editId), [players, editId]);
 
+  const invAll = () => {
+    qc.invalidateQueries({ queryKey: ["/api/bsl/admin/players"] });
+    qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] });
+    qc.invalidateQueries({ queryKey: ["/api/bsl/admin/pending"] });
+  };
+
   const update = useMutation({
     mutationFn: async (v: { id: number; data: any }) => (await apiRequest("PATCH", `/api/bsl/admin/players/${v.id}`, v.data)).json(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/players"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/pending"] }); toast({ title: "Saved" }); },
+    onSuccess: () => { invAll(); toast({ title: "Saved" }); },
   });
   const approve = useMutation({
     mutationFn: async (id: number) => (await apiRequest("PATCH", `/api/bsl/players/${id}/approve`, {})).json(),
-    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/players"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/pending"] }); qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] }); toast({ title: "Player approved" }); },
+    onSuccess: () => { invAll(); toast({ title: "Player approved" }); },
   });
 
   return (
     <AdminLayout active="players">
-      <div className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Players <span style={{ color: BSL.cyan }}>Database</span></h1>
-        <p className="text-sm mt-1" style={{ color: BSL.muted }}>Approve · assign teams · stats correction · disciplinary actions</p>
+      <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Players <span style={{ color: BSL.cyan }}>Database</span></h1>
+          <p className="text-sm mt-1" style={{ color: BSL.muted }}>Create on behalf · approve · activate · adjust wallets · assign categories · stats correction</p>
+        </div>
+        <ActionButton variant="cyan" icon={<UserPlus className="h-3 w-3" />} onClick={() => setCreating(true)} testid="button-create-player">Create player</ActionButton>
       </div>
 
       <GlowPanel title={`${players?.length ?? 0} players`} tone="cyan" icon={<Users className="h-4 w-4" />}>
@@ -80,9 +95,9 @@ export default function PlayersAdmin() {
                   <th className="text-left px-2 py-2">Player</th>
                   <th className="text-left px-2 py-2">Club</th>
                   <th className="text-left px-2 py-2">Status</th>
+                  <th className="text-left px-2 py-2">Categories</th>
                   <th className="text-left px-2 py-2">Wallet</th>
                   <th className="text-left px-2 py-2">P / W</th>
-                  <th className="text-left px-2 py-2">Discipline</th>
                   <th className="text-right px-2 py-2">Actions</th>
                 </tr>
               </thead>
@@ -95,17 +110,16 @@ export default function PlayersAdmin() {
                     </td>
                     <td className="px-2 py-3 text-xs">{(clubs || []).find((c: any) => c.id === p.bslClubId)?.name || <span style={{ color: BSL.faint }}>—</span>}</td>
                     <td className="px-2 py-3"><span className="text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded" style={{ background: `${STATUS_COLOR[p.status]}22`, color: STATUS_COLOR[p.status] }}>{p.status.replace("_"," ")}</span></td>
-                    <td className="px-2 py-3 tabular-nums" style={{ color: BSL.gold }}>£{(p.walletBalance/100).toFixed(2)}</td>
-                    <td className="px-2 py-3 tabular-nums">{p.matchesPlayed} / {p.matchesWon}</td>
                     <td className="px-2 py-3">
-                      <div className="flex gap-1.5 items-center">
-                        {p.warnings > 0 && <span className="inline-flex items-center gap-0.5 text-[10px]" style={{ color: BSL.gold }}><AlertTriangle className="h-3 w-3" />{p.warnings}</span>}
-                        {p.matchBanCount > 0 && <span className="text-[10px] px-1.5 py-0.5 rounded font-black" style={{ background: `${BSL.danger}22`, color: BSL.danger }}>BAN ×{p.matchBanCount}</span>}
-                        {p.isSuspended && <ShieldOff className="h-3 w-3" style={{ color: BSL.danger }} />}
+                      <div className="flex gap-1 flex-wrap">
+                        {(p.categories || []).length === 0 ? <span className="text-[10px]" style={{ color: BSL.faint }}>—</span> :
+                          (p.categories || []).map((c: string) => <span key={c} className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>{c}</span>)}
                       </div>
                     </td>
+                    <td className="px-2 py-3 tabular-nums" style={{ color: BSL.gold }}>£{(p.walletBalance/100).toFixed(2)}</td>
+                    <td className="px-2 py-3 tabular-nums">{p.matchesPlayed} / {p.matchesWon}</td>
                     <td className="px-2 py-3 text-right">
-                      <div className="flex justify-end gap-1">
+                      <div className="flex justify-end gap-1 flex-wrap">
                         {p.status === "PENDING_VERIFICATION" && <ActionButton variant="cyan" onClick={() => approve.mutate(p.id)}>Approve</ActionButton>}
                         <ActionButton variant="gold" onClick={() => setEditId(p.id)}>Edit</ActionButton>
                       </div>
@@ -118,16 +132,108 @@ export default function PlayersAdmin() {
         )}
       </GlowPanel>
 
-      {editing && <PlayerEditor player={editing} clubs={clubs || []} onClose={() => setEditId(null)} onSave={(data) => update.mutateAsync({ id: editing.id, data }).then(() => setEditId(null))} />}
+      {creating && <CreatePlayerDialog clubs={clubs || []} onClose={() => setCreating(false)} onCreated={() => { setCreating(false); invAll(); }} />}
+      {editing && <PlayerEditor player={editing} clubs={clubs || []} onClose={() => setEditId(null)} onSave={(data: any) => update.mutateAsync({ id: editing.id, data }).then(() => setEditId(null))} onChanged={invAll} />}
     </AdminLayout>
   );
 }
 
-function PlayerEditor({ player, clubs, onClose, onSave }: any) {
+// ---------------------------------------------------------------------------
+// CREATE PLAYER DIALOG — search a user, pick a club, optional auto-activate
+// ---------------------------------------------------------------------------
+function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
+  const { toast } = useToast();
+  const [search, setSearch] = useState("");
+  const [picked, setPicked] = useState<any | null>(null);
+  const [clubId, setClubId] = useState<number | "">("");
+  const [displayName, setDisplayName] = useState("");
+  const [activate, setActivate] = useState(true);
+
+  const { data: results } = useQuery<any[]>({
+    queryKey: ["/api/bsl/admin/users/search", search],
+    queryFn: async () => search.length < 2 ? [] : (await fetch(`/api/bsl/admin/users/search?q=${encodeURIComponent(search)}`, { credentials: "include" })).json(),
+    enabled: search.length >= 2 && !picked,
+  });
+
+  const create = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/players", {
+      userId: picked.id, bslClubId: Number(clubId),
+      displayName: displayName || picked.fullName, activate,
+    })).json(),
+    onSuccess: () => { toast({ title: "Player created" }); onCreated(); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  return (
+    <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={onClose}>
+      <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-xl rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.cyan}55`, boxShadow: `0 24px 64px hsla(222,80%,2%,0.6), 0 0 0 1px ${BSL.cyan}22` }} onClick={e => e.stopPropagation()} data-testid="dialog-create-player">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-xl font-black uppercase tracking-tight">Create player <span style={{ color: BSL.cyan }}>on behalf</span></h3>
+          <button onClick={onClose} className="p-1.5 rounded" style={{ background: BSL.cardSoft }} data-testid="button-close-create-player"><X className="h-4 w-4" /></button>
+        </div>
+
+        <Section title="1. Pick the user account">
+          {!picked ? (
+            <>
+              <input autoFocus value={search} onChange={e => setSearch(e.target.value)} placeholder="Search by name or email (min 2 chars)…" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-user-search" />
+              {(results || []).length > 0 && (
+                <div className="mt-2 max-h-60 overflow-y-auto rounded-lg" style={{ border: `1px solid ${BSL.border}` }}>
+                  {(results || []).map((u: any) => (
+                    <button key={u.id} onClick={() => { setPicked(u); setDisplayName(u.fullName || ""); }} className="w-full text-left px-3 py-2 text-sm flex justify-between hover:opacity-80" style={{ background: BSL.cardSoft, borderTop: `1px solid ${BSL.border}` }} data-testid={`button-pick-user-${u.id}`}>
+                      <span className="font-bold">{u.fullName || u.username}</span>
+                      <span className="text-xs" style={{ color: BSL.muted }}>{u.email}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+              {search.length >= 2 && (results || []).length === 0 && <div className="text-xs mt-2" style={{ color: BSL.faint }}>No users match.</div>}
+            </>
+          ) : (
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.cyan}55` }}>
+              <div>
+                <div className="font-bold text-sm">{picked.fullName || picked.username}</div>
+                <div className="text-xs" style={{ color: BSL.muted }}>{picked.email}</div>
+              </div>
+              <button onClick={() => setPicked(null)} className="text-xs underline" style={{ color: BSL.muted }} data-testid="button-change-user">Change</button>
+            </div>
+          )}
+        </Section>
+
+        <Section title="2. Assign to a club">
+          <select value={clubId} onChange={e => setClubId(e.target.value ? Number(e.target.value) : "")} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-create-player-club">
+            <option value="">— Pick a club —</option>
+            {clubs.map((c: any) => <option key={c.id} value={c.id}>{c.name} · {c.division}</option>)}
+          </select>
+        </Section>
+
+        <Section title="3. Display name (optional)">
+          <input value={displayName} onChange={e => setDisplayName(e.target.value)} placeholder="Leave blank to use account name" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-create-player-name" />
+        </Section>
+
+        <button onClick={() => setActivate(!activate)} className="flex items-center justify-between p-3 rounded-lg text-sm font-bold w-full mb-4" style={{ background: activate ? `${BSL.success}22` : BSL.cardSoft, border: `1px solid ${activate ? BSL.success : BSL.border}`, color: activate ? BSL.success : BSL.muted }} data-testid="toggle-activate">
+          <span className="inline-flex items-center gap-2"><Zap className="h-3.5 w-3.5" /> Auto-activate (skip payment)</span>
+          {activate ? "ON" : "OFF"}
+        </button>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel-create-player">Cancel</button>
+          <ActionButton variant="cyan" onClick={() => create.mutate()} disabled={!picked || !clubId || create.isPending} icon={<UserPlus className="h-3 w-3" />} testid="button-confirm-create-player">
+            {create.isPending ? "Creating…" : "Create player"}
+          </ActionButton>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// PLAYER EDITOR — extended with force-activate, wallet adjust, categories
+// ---------------------------------------------------------------------------
+function PlayerEditor({ player, clubs, onClose, onSave, onChanged }: any) {
+  const { toast } = useToast();
   const [form, setForm] = useState({
     bslClubId: player.bslClubId || "",
     bslTeamId: player.bslTeamId || "",
-    walletBalance: player.walletBalance,
     matchesPlayed: player.matchesPlayed,
     matchesWon: player.matchesWon,
     pointsScored: player.pointsScored,
@@ -136,19 +242,97 @@ function PlayerEditor({ player, clubs, onClose, onSave }: any) {
     isSuspended: player.isSuspended,
     disciplineNotes: player.disciplineNotes || "",
   });
+  // Local mirror so we can reflect server-side changes (activate / wallet / cats)
+  // without forcing a full refetch round-trip before showing the new state.
+  const [live, setLive] = useState(player);
+  useEffect(() => { setLive(player); }, [player.id, player.status, player.walletBalance, player.categories?.join(",")]);
+
   const { data: teams } = useQuery<any[]>({
     queryKey: ["/api/bsl/clubs", form.bslClubId, "teams"],
     queryFn: async () => form.bslClubId ? (await fetch(`/api/bsl/clubs/${form.bslClubId}/teams`, { credentials: "include" })).json() : [],
     enabled: !!form.bslClubId,
   });
 
+  const activate = useMutation({
+    mutationFn: async () => (await apiRequest("POST", `/api/bsl/admin/players/${player.id}/activate`, {})).json(),
+    onSuccess: (d: any) => { setLive(d); onChanged?.(); toast({ title: "Player activated" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  const [adjAmt, setAdjAmt] = useState("");
+  const [adjNote, setAdjNote] = useState("");
+  const adjustWallet = useMutation({
+    mutationFn: async (sign: 1 | -1) => {
+      const pence = Math.trunc(Number(adjAmt) * 100) * sign;
+      return (await apiRequest("POST", `/api/bsl/admin/players/${player.id}/wallet/adjust`, { amount: pence, note: adjNote })).json();
+    },
+    onSuccess: (d: any) => { setLive(d); setAdjAmt(""); setAdjNote(""); onChanged?.(); toast({ title: "Wallet updated", description: `New balance £${(d.walletBalance/100).toFixed(2)}` }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  const addCat = useMutation({
+    mutationFn: async (cat: string) => (await apiRequest("POST", `/api/bsl/admin/players/${player.id}/categories`, { category: cat })).json(),
+    onSuccess: (d: any) => { setLive(d); onChanged?.(); toast({ title: "Category added" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+  const removeCat = useMutation({
+    mutationFn: async (cat: string) => (await apiRequest("DELETE", `/api/bsl/admin/players/${player.id}/categories/${cat}`)).json(),
+    onSuccess: (d: any) => { setLive(d); onChanged?.(); toast({ title: "Category removed" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  const liveCats: string[] = live.categories || [];
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={onClose}>
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.cyan}55`, boxShadow: `0 24px 64px hsla(222,80%,2%,0.6), 0 0 0 1px ${BSL.cyan}22` }} onClick={e => e.stopPropagation()} data-testid="dialog-edit-player">
         <div className="flex items-center justify-between mb-4">
           <h3 className="text-xl font-black uppercase tracking-tight">Edit · <span style={{ color: BSL.cyan }}>{player.displayName}</span></h3>
-          <button onClick={onClose} className="p-1.5 rounded" style={{ background: BSL.cardSoft }} data-testid="button-close-player"><X className="h-4 w-4" /></button>
+          <div className="flex items-center gap-2">
+            <span className="text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded" style={{ background: `${STATUS_COLOR[live.status]}22`, color: STATUS_COLOR[live.status] }}>{live.status.replace("_"," ")}</span>
+            <button onClick={onClose} className="p-1.5 rounded" style={{ background: BSL.cardSoft }} data-testid="button-close-player"><X className="h-4 w-4" /></button>
+          </div>
         </div>
+
+        {live.status !== "ACTIVE" && (
+          <Section title="Force-activate (skip payment)">
+            <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: `${BSL.success}11`, border: `1px solid ${BSL.success}55` }}>
+              <div className="text-xs" style={{ color: BSL.muted }}>Skips wallet check + verification queue. Player goes straight to ACTIVE.</div>
+              <ActionButton variant="cyan" icon={<Zap className="h-3 w-3" />} onClick={() => activate.mutate()} disabled={activate.isPending} testid="button-force-activate">
+                {activate.isPending ? "Activating…" : "Activate"}
+              </ActionButton>
+            </div>
+          </Section>
+        )}
+
+        <Section title={<>Wallet · <span style={{ color: BSL.gold }}>£{(live.walletBalance/100).toFixed(2)}</span></>}>
+          <div className="grid grid-cols-1 sm:grid-cols-[1fr_2fr_auto_auto] gap-2 items-stretch">
+            <input type="number" step="0.01" min="0" value={adjAmt} onChange={e => setAdjAmt(e.target.value)} placeholder="Amount £" className="px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-wallet-amount" />
+            <input value={adjNote} onChange={e => setAdjNote(e.target.value)} placeholder="Reason (optional)" className="px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-wallet-note" />
+            <button onClick={() => adjustWallet.mutate(1)} disabled={!adjAmt || Number(adjAmt) <= 0 || adjustWallet.isPending} className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest inline-flex items-center gap-1 disabled:opacity-40" style={{ background: `${BSL.success}22`, color: BSL.success, border: `1px solid ${BSL.success}55` }} data-testid="button-wallet-add">
+              <Plus className="h-3 w-3" /> Credit
+            </button>
+            <button onClick={() => adjustWallet.mutate(-1)} disabled={!adjAmt || Number(adjAmt) <= 0 || adjustWallet.isPending} className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest inline-flex items-center gap-1 disabled:opacity-40" style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }} data-testid="button-wallet-deduct">
+              <Minus className="h-3 w-3" /> Deduct
+            </button>
+          </div>
+          <div className="text-[10px] mt-2" style={{ color: BSL.faint }}>Writes a properly-typed ledger row + audit log. Atomic.</div>
+        </Section>
+
+        <Section title="Categories">
+          <div className="flex flex-wrap gap-2">
+            {CATS.map(cat => {
+              const on = liveCats.includes(cat);
+              const busy = addCat.isPending || removeCat.isPending;
+              return (
+                <button key={cat} disabled={busy} onClick={() => on ? removeCat.mutate(cat) : addCat.mutate(cat)} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-50" style={{ background: on ? `${BSL.cyan}22` : BSL.cardSoft, color: on ? BSL.cyan : BSL.muted, border: `1px solid ${on ? BSL.cyan : BSL.border}` }} data-testid={`toggle-cat-${cat}`}>
+                  <Tag className="h-3 w-3" /> {cat} {on ? "✓" : ""}
+                </button>
+              );
+            })}
+          </div>
+          <div className="text-[10px] mt-2" style={{ color: BSL.faint }}>Admin override: no fee charged, no balance check.</div>
+        </Section>
 
         <Section title="Assignment">
           <div className="grid grid-cols-2 gap-3">
@@ -158,37 +342,32 @@ function PlayerEditor({ player, clubs, onClose, onSave }: any) {
                 {clubs.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
               </select>
             </Field>
-            <Field label="Team">
+            <Field label="Pair">
               <select value={form.bslTeamId} onChange={e => setForm({ ...form, bslTeamId: e.target.value ? Number(e.target.value) : "" })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-edit-team">
                 <option value="">— None —</option>
                 {(teams || []).map((t: any) => <option key={t.id} value={t.id}>{t.name}</option>)}
               </select>
             </Field>
           </div>
+          {form.bslClubId && (
+            <Link href={`/bsl/admin/clubs/${form.bslClubId}/manage`}>
+              <a className="inline-flex items-center gap-1.5 mt-2 text-xs font-bold underline" style={{ color: BSL.cyan }} data-testid="link-manage-club"><Layers className="h-3 w-3" /> Manage roster + pairs for this club</a>
+            </Link>
+          )}
         </Section>
 
         <Section title="Stats correction">
           <div className="grid grid-cols-3 gap-3">
-            <NumField label="Played" value={form.matchesPlayed} onChange={v => setForm({ ...form, matchesPlayed: v })} testid="input-played" />
-            <NumField label="Won" value={form.matchesWon} onChange={v => setForm({ ...form, matchesWon: v })} testid="input-won" />
-            <NumField label="Points" value={form.pointsScored} onChange={v => setForm({ ...form, pointsScored: v })} testid="input-points" />
+            <NumField label="Played" value={form.matchesPlayed} onChange={(v: number) => setForm({ ...form, matchesPlayed: v })} testid="input-played" />
+            <NumField label="Won" value={form.matchesWon} onChange={(v: number) => setForm({ ...form, matchesWon: v })} testid="input-won" />
+            <NumField label="Points" value={form.pointsScored} onChange={(v: number) => setForm({ ...form, pointsScored: v })} testid="input-points" />
           </div>
-        </Section>
-
-        <Section title="Wallet">
-          <Field label="Balance (pence)">
-            <div className="flex items-center gap-2">
-              <WalletIcon className="h-4 w-4" style={{ color: BSL.gold }} />
-              <input type="number" value={form.walletBalance} onChange={e => setForm({ ...form, walletBalance: Number(e.target.value) })} className="flex-1 px-3 py-2 rounded-lg text-sm tabular-nums" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-wallet" />
-              <span className="text-xs" style={{ color: BSL.gold }}>= £{(form.walletBalance/100).toFixed(2)}</span>
-            </div>
-          </Field>
         </Section>
 
         <Section title="Discipline">
           <div className="grid grid-cols-2 gap-3">
-            <NumField label="Warnings" value={form.warnings} onChange={v => setForm({ ...form, warnings: v })} testid="input-warnings" />
-            <NumField label="Match bans" value={form.matchBanCount} onChange={v => setForm({ ...form, matchBanCount: v })} testid="input-bans" />
+            <NumField label="Warnings" value={form.warnings} onChange={(v: number) => setForm({ ...form, warnings: v })} testid="input-warnings" />
+            <NumField label="Match bans" value={form.matchBanCount} onChange={(v: number) => setForm({ ...form, matchBanCount: v })} testid="input-bans" />
           </div>
           <button onClick={() => setForm({ ...form, isSuspended: !form.isSuspended })} className="flex items-center justify-between p-3 rounded-lg text-sm font-bold w-full mt-3" style={{ background: form.isSuspended ? `${BSL.danger}22` : BSL.cardSoft, border: `1px solid ${form.isSuspended ? BSL.danger : BSL.border}`, color: form.isSuspended ? BSL.danger : BSL.muted }} data-testid="toggle-suspend-player">
             <span className="inline-flex items-center gap-2"><ShieldOff className="h-3.5 w-3.5" /> Suspended from league</span>
@@ -198,13 +377,14 @@ function PlayerEditor({ player, clubs, onClose, onSave }: any) {
         </Section>
 
         <div className="flex justify-end gap-2 pt-4">
-          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel-player">Cancel</button>
-          <ActionButton variant="cyan" onClick={() => onSave(form)} icon={<Save className="h-3 w-3" />}>Save changes</ActionButton>
+          <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel-player">Close</button>
+          <ActionButton variant="cyan" onClick={() => onSave(form)} icon={<Save className="h-3 w-3" />}>Save other changes</ActionButton>
         </div>
       </motion.div>
     </motion.div>
   );
 }
+
 function Section({ title, children }: any) {
   return <div className="mb-4"><div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: BSL.cyan }}>{title}</div>{children}</div>;
 }
