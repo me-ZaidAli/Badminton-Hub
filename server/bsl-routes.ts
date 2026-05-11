@@ -727,6 +727,186 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // === ADMIN: extend a club fixture with extra rubbers / auto-generate vs all ===
+  // Append a single empty rubber slot of the requested doubles category to an
+  // existing club-vs-club fixture. Useful when you need a 7th/8th/etc. match
+  // beyond the snapshot lineup. Lifecycle-guarded so you can't add slots once
+  // the day is LIVE/CLOSED.
+  // Helper: structural changes (add/delete/auto-generate rubbers) are forbidden
+  // once the fixture has progressed past SCHEDULED/WARMUP. Only DRAFT fixtures
+  // can have their slate restructured — we never silently rewrite a LIVE or
+  // FINISHED fixture's rubber list.
+  const STRUCTURAL_OK_STATUSES = new Set(["SCHEDULED", "WARMUP"]);
+  function assertFixtureStructural(fixture: any) {
+    if (!STRUCTURAL_OK_STATUSES.has(fixture.status)) {
+      return `Fixture is ${fixture.status} — structural changes are only allowed on SCHEDULED/WARMUP fixtures. Reset the fixture first.`;
+    }
+    return null;
+  }
+
+  app.post("/api/bsl/admin/fixtures/:id/add-rubber", requireAdmin, async (req, res) => {
+    try {
+      const fixtureId = Number(req.params.id);
+      const rubberType = String(req.body?.rubberType || "").toUpperCase();
+      const allowed = new Set(["MS1", "MS2", "WS", "MD", "WD", "XD"]);
+      if (!allowed.has(rubberType)) return res.status(400).json({ message: "rubberType must be MS1|MS2|WS|MD|WD|XD" });
+      const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, fixtureId)).limit(1);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      // This endpoint targets club-vs-club fixtures only.
+      if (!fixture.homeClubId || !fixture.awayClubId) {
+        return res.status(400).json({ message: "add-rubber only supports club-vs-club fixtures" });
+      }
+      const structBlock = assertFixtureStructural(fixture);
+      if (structBlock) return res.status(409).json({ message: structBlock });
+      const block = await assertFixtureMutable(fixtureId, new Set(), "add-rubber");
+      if (block) return res.status(409).json({ message: block });
+      // Atomic: lock the fixture row + compute nextNum + insert in one tx so
+      // concurrent add/auto-generate calls can't collide on rubberNumber.
+      const created = await db.transaction(async (tx) => {
+        await tx.execute(dsql`SELECT id FROM bsl_fixtures WHERE id = ${fixtureId} FOR UPDATE`);
+        const existing = await tx.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, fixtureId));
+        const nextNum = existing.reduce((m, r) => Math.max(m, r.rubberNumber), 0) + 1;
+        const [row] = await tx.insert(bslRubbers).values({
+          bslFixtureId: fixtureId, rubberNumber: nextNum, rubberType: rubberType as any,
+        }).returning();
+        return row;
+      });
+      await audit(req, "ADD_RUBBER", "bsl_fixture", fixtureId, { rubberType, rubberNumber: created.rubberNumber });
+      res.json(created);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Delete a single rubber slot. Refuses if the rubber has scores or assignments
+  // (force=true bypasses for cleanup). Renumbers remaining rubbers to stay 1..N.
+  app.delete("/api/bsl/admin/rubbers/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const force = String(req.query.force || "") === "true";
+      const [r] = await db.select().from(bslRubbers).where(eq(bslRubbers.id, id)).limit(1);
+      if (!r) return res.status(404).json({ message: "Rubber not found" });
+      const [parent] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, r.bslFixtureId)).limit(1);
+      if (!parent) return res.status(404).json({ message: "Fixture not found" });
+      const structBlock = assertFixtureStructural(parent);
+      if (structBlock) return res.status(409).json({ message: structBlock });
+      const block = await assertFixtureMutable(r.bslFixtureId, new Set(), "delete-rubber");
+      if (block) return res.status(409).json({ message: block });
+      const hasContent = r.homeTeamId || r.awayTeamId || (r.homeScore || 0) > 0 || (r.awayScore || 0) > 0;
+      if (hasContent && !force) return res.status(400).json({ message: "Rubber has assignments or scores — pass ?force=true to remove anyway" });
+      await db.transaction(async (tx) => {
+        await tx.execute(dsql`SELECT id FROM bsl_fixtures WHERE id = ${r.bslFixtureId} FOR UPDATE`);
+        await tx.delete(bslRubbers).where(eq(bslRubbers.id, id));
+        // Renumber the remaining rubbers in order to keep them 1..N for display.
+        const remaining = await tx.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, r.bslFixtureId)).orderBy(bslRubbers.rubberNumber);
+        for (let i = 0; i < remaining.length; i++) {
+          if (remaining[i].rubberNumber !== i + 1) {
+            await tx.update(bslRubbers).set({ rubberNumber: i + 1 }).where(eq(bslRubbers.id, remaining[i].id));
+          }
+        }
+        // Recompute fixture rubber tally inside the same tx so totals reflect
+        // the current rubber set (matters when force-deleting a scored rubber).
+        const homeR = remaining.filter(x => (x.homeScore || 0) > (x.awayScore || 0)).length;
+        const awayR = remaining.filter(x => (x.awayScore || 0) > (x.homeScore || 0)).length;
+        await tx.update(bslFixtures).set({ homeRubbers: homeR, awayRubbers: awayR })
+          .where(eq(bslFixtures.id, r.bslFixtureId));
+      });
+      await audit(req, "DELETE_RUBBER", "bsl_rubber", id, { force, fixtureId: r.bslFixtureId });
+      res.json({ deleted: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Auto-generate the rubber slate for a club-vs-club fixture from the pairs
+  // each side has registered. Two modes:
+  //   - vs_all:   Cartesian product (every home pair vs every away pair) per category.
+  //               Useful for "round-robin within the fixture" style ties.
+  //   - parallel: Pair index-by-index (Pair A vs Pair A, Pair B vs Pair B, ...).
+  // Optional `categories` filter restricts which pair categories are expanded
+  // (defaults to MD + WD + XD). Existing rubbers can be wiped via `replace:true`.
+  app.post("/api/bsl/admin/fixtures/:id/auto-generate-rubbers", requireAdmin, async (req, res) => {
+    try {
+      const fixtureId = Number(req.params.id);
+      const mode = String(req.body?.mode || "vs_all").toLowerCase();
+      const replace = !!req.body?.replace;
+      const wantedCats = Array.isArray(req.body?.categories) && req.body.categories.length
+        ? (req.body.categories as string[]).map(c => c.toUpperCase())
+        : ["MD", "WD", "XD"];
+      if (!["vs_all", "parallel"].includes(mode)) return res.status(400).json({ message: "mode must be vs_all|parallel" });
+      const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, fixtureId)).limit(1);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      if (!fixture.homeClubId || !fixture.awayClubId) return res.status(400).json({ message: "Auto-generate only supports club-vs-club fixtures" });
+      const structBlock = assertFixtureStructural(fixture);
+      if (structBlock) return res.status(409).json({ message: structBlock });
+      const block = await assertFixtureMutable(fixtureId, new Set(), "auto-generate");
+      if (block) return res.status(409).json({ message: block });
+
+      // Pull both sides' pairs grouped by category.
+      const teams = await db.select().from(bslTeams).where(inArray(bslTeams.bslClubId, [fixture.homeClubId, fixture.awayClubId]));
+      const homeByCat: Record<string, any[]> = {};
+      const awayByCat: Record<string, any[]> = {};
+      for (const t of teams) {
+        if (!wantedCats.includes(t.category)) continue;
+        const bucket = t.bslClubId === fixture.homeClubId ? homeByCat : awayByCat;
+        (bucket[t.category] ||= []).push(t);
+      }
+      // Sort by pairNumber so "Pair A vs Pair A" is deterministic in parallel mode.
+      for (const m of [homeByCat, awayByCat]) for (const k of Object.keys(m)) m[k].sort((a, b) => (a.pairNumber || 0) - (b.pairNumber || 0));
+
+      // Precompute member lookup so each generated rubber can mirror player ids
+      // into homePlayer1/2 + awayPlayer1/2 (existing scoring needs this).
+      const teamIds = teams.map(t => t.id);
+      const memberRows = teamIds.length ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds)) : [];
+      const membersByTeam = new Map<number, number[]>();
+      for (const m of memberRows) {
+        const arr = membersByTeam.get(m.bslTeamId) || [];
+        arr.push(m.bslPlayerId);
+        membersByTeam.set(m.bslTeamId, arr);
+      }
+      function makeRubberValues(cat: string, num: number, home: any, away: any) {
+        const [hp1, hp2] = membersByTeam.get(home.id) || [];
+        const [ap1, ap2] = membersByTeam.get(away.id) || [];
+        return {
+          bslFixtureId: fixtureId, rubberNumber: num, rubberType: cat as any,
+          homeTeamId: home.id, awayTeamId: away.id,
+          homePlayer1Id: hp1 ?? null, homePlayer2Id: hp2 ?? null,
+          awayPlayer1Id: ap1 ?? null, awayPlayer2Id: ap2 ?? null,
+        };
+      }
+
+      let createdCount = 0;
+      let skipped = 0;
+      await db.transaction(async (tx) => {
+        // Lock the fixture row so concurrent add/auto-generate can't race on rubberNumber.
+        await tx.execute(dsql`SELECT id FROM bsl_fixtures WHERE id = ${fixtureId} FOR UPDATE`);
+        if (replace) {
+          await tx.delete(bslRubbers).where(eq(bslRubbers.bslFixtureId, fixtureId));
+          // Reset the fixture rubber tally; standings will reconcile if/when the day closes.
+          await tx.update(bslFixtures).set({ homeRubbers: 0, awayRubbers: 0 })
+            .where(eq(bslFixtures.id, fixtureId));
+        }
+        const existing = await tx.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, fixtureId));
+        let nextNum = existing.reduce((m, r) => Math.max(m, r.rubberNumber), 0) + 1;
+        for (const cat of wantedCats) {
+          const homes = homeByCat[cat] || [];
+          const aways = awayByCat[cat] || [];
+          if (!homes.length || !aways.length) { skipped++; continue; }
+          if (mode === "vs_all") {
+            for (const h of homes) for (const a of aways) {
+              await tx.insert(bslRubbers).values(makeRubberValues(cat, nextNum++, h, a));
+              createdCount++;
+            }
+          } else {
+            const n = Math.min(homes.length, aways.length);
+            for (let i = 0; i < n; i++) {
+              await tx.insert(bslRubbers).values(makeRubberValues(cat, nextNum++, homes[i], aways[i]));
+              createdCount++;
+            }
+          }
+        }
+      });
+      await audit(req, "AUTO_GENERATE_RUBBERS", "bsl_fixture", fixtureId, { mode, replace, categories: wantedCats, created: createdCount });
+      res.json({ created: createdCount, skipped, mode, replace });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.patch("/api/bsl/rubbers/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);

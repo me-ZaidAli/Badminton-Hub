@@ -3,7 +3,7 @@ import { Link, useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Users, Trophy, X, GripVertical, AlertTriangle, Check,
+  ArrowLeft, Users, Trophy, X, GripVertical, AlertTriangle, Check, Plus, Wand2, Trash2,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
@@ -44,15 +44,40 @@ export default function FixtureSetup() {
 
   const [drag, setDrag] = useState<{ side: "home" | "away"; pair: Pair } | null>(null);
 
+  const invalidate = () => qc.invalidateQueries({ queryKey: ["/api/bsl/admin/fixtures", fixtureId, "setup"] });
+  const errToast = (title: string) => (e: any) => toast({
+    title, description: (e?.message || "Error").replace(/^\d{3}:\s*/, ""), variant: "destructive",
+  });
+
   const assign = useMutation({
     mutationFn: async (vars: { rubberId: number; side: "home" | "away"; bslTeamId: number | null }) =>
       (await apiRequest("PATCH", `/api/bsl/admin/rubbers/${vars.rubberId}/assign`, { side: vars.side, bslTeamId: vars.bslTeamId })).json(),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["/api/bsl/admin/fixtures", fixtureId, "setup"] }),
-    onError: (e: any) => toast({
-      title: "Couldn't assign",
-      description: (e?.message || "Error").replace(/^\d{3}:\s*/, ""),
-      variant: "destructive",
-    }),
+    onSuccess: invalidate,
+    onError: errToast("Couldn't assign"),
+  });
+
+  const addRubber = useMutation({
+    mutationFn: async (rubberType: string) =>
+      (await apiRequest("POST", `/api/bsl/admin/fixtures/${fixtureId}/add-rubber`, { rubberType })).json(),
+    onSuccess: invalidate,
+    onError: errToast("Couldn't add rubber"),
+  });
+
+  const removeRubber = useMutation({
+    mutationFn: async (vars: { rubberId: number; force?: boolean }) =>
+      (await apiRequest("DELETE", `/api/bsl/admin/rubbers/${vars.rubberId}${vars.force ? "?force=true" : ""}`)).json(),
+    onSuccess: invalidate,
+    onError: errToast("Couldn't remove rubber"),
+  });
+
+  const autoGenerate = useMutation({
+    mutationFn: async (vars: { mode: "vs_all" | "parallel"; replace: boolean; categories?: string[] }) =>
+      (await apiRequest("POST", `/api/bsl/admin/fixtures/${fixtureId}/auto-generate-rubbers`, vars)).json(),
+    onSuccess: (r: any) => {
+      toast({ title: `Generated ${r.created} rubbers`, description: r.skipped ? `${r.skipped} categories skipped (no pairs on one side)` : undefined });
+      invalidate();
+    },
+    onError: errToast("Couldn't auto-generate"),
   });
 
   // Build a quick lookup so each pair card can show whether it's already
@@ -116,8 +141,49 @@ export default function FixtureSetup() {
               {slotsAssigned} of {rubbers.length} rubbers fully assigned · drag a pair onto any rubber slot
             </p>
           </div>
-          <Link href={`/bsl/match/${fixture.id}`}><ActionButton variant="cyan" data-testid="link-open-match">Open match view</ActionButton></Link>
+          <div className="flex flex-wrap items-center gap-2">
+            <ActionButton
+              variant="gold"
+              onClick={() => {
+                if (rubbers.length > 0 && !confirm(`Replace all ${rubbers.length} existing rubbers with auto-generated vs-all matchups?`)) return;
+                autoGenerate.mutate({ mode: "vs_all", replace: rubbers.length > 0 });
+              }}
+              disabled={autoGenerate.isPending}
+              data-testid="button-auto-vs-all"
+            >
+              <Wand2 className="h-3.5 w-3.5 mr-1" /> Auto-generate (vs all)
+            </ActionButton>
+            <ActionButton
+              variant="cyan"
+              onClick={() => {
+                if (rubbers.length > 0 && !confirm(`Replace all ${rubbers.length} existing rubbers with pair-by-pair matchups?`)) return;
+                autoGenerate.mutate({ mode: "parallel", replace: rubbers.length > 0 });
+              }}
+              disabled={autoGenerate.isPending}
+              data-testid="button-auto-parallel"
+            >
+              <Wand2 className="h-3.5 w-3.5 mr-1" /> Pair-by-pair
+            </ActionButton>
+            <Link href={`/bsl/match/${fixture.id}`}><ActionButton variant="cyan" data-testid="link-open-match">Open match view</ActionButton></Link>
+          </div>
         </div>
+      </div>
+
+      {/* Add-rubber chips: append a single empty slot of the chosen category. */}
+      <div className="mb-4 flex flex-wrap items-center gap-2">
+        <span className="text-[11px] uppercase tracking-widest" style={{ color: BSL.muted }}>Add rubber:</span>
+        {(["MD", "WD", "XD", "MS1", "MS2", "WS"] as const).map(cat => (
+          <button
+            key={cat}
+            onClick={() => addRubber.mutate(cat)}
+            disabled={addRubber.isPending}
+            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold hover:opacity-80 disabled:opacity-50 transition"
+            style={{ background: `${BSL.cyan}15`, color: BSL.cyan, border: `1px solid ${BSL.cyan}33` }}
+            data-testid={`button-add-rubber-${cat}`}
+          >
+            <Plus className="h-3 w-3" /> {cat}
+          </button>
+        ))}
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-5">
@@ -138,6 +204,11 @@ export default function FixtureSetup() {
                   onDrop={(side) => onDropOnRubber(r.id, side)}
                   onClear={(side) => assign.mutate({ rubberId: r.id, side, bslTeamId: null })}
                   onPick={(side, bslTeamId) => assign.mutate({ rubberId: r.id, side, bslTeamId })}
+                  onDelete={() => {
+                    const force = !!(r.homeTeamId || r.awayTeamId);
+                    if (force && !confirm(`Rubber ${r.rubberNumber} has assignments — delete anyway?`)) return;
+                    removeRubber.mutate({ rubberId: r.id, force });
+                  }}
                 />
               ))}
             </div>
@@ -206,12 +277,13 @@ function PairColumn({ side, club, pairs, placement, drag, setDrag }: {
   );
 }
 
-function RubberRow({ rubber, homePairs, awayPairs, drag, onDrop, onClear, onPick }: {
+function RubberRow({ rubber, homePairs, awayPairs, drag, onDrop, onClear, onPick, onDelete }: {
   rubber: Rubber; homePairs: Pair[]; awayPairs: Pair[];
   drag: { side: "home" | "away"; pair: Pair } | null;
   onDrop: (side: "home" | "away") => void;
   onClear: (side: "home" | "away") => void;
   onPick: (side: "home" | "away", bslTeamId: number) => void;
+  onDelete: () => void;
 }) {
   const isDoubles = ["MD", "WD", "XD"].includes(rubber.rubberType);
   const eligibleHome = homePairs.filter(p => !isDoubles || p.category === rubber.rubberType);
@@ -229,11 +301,22 @@ function RubberRow({ rubber, homePairs, awayPairs, drag, onDrop, onClear, onPick
             <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{rubber.status}</div>
           </div>
         </div>
-        {rubber.homeTeamId && rubber.awayTeamId && (
-          <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: `${BSL.success}22`, color: BSL.success }}>
-            <Check className="h-3 w-3 inline" /> Ready
-          </span>
-        )}
+        <div className="flex items-center gap-2">
+          {rubber.homeTeamId && rubber.awayTeamId && (
+            <span className="text-[10px] font-bold px-2 py-0.5 rounded" style={{ background: `${BSL.success}22`, color: BSL.success }}>
+              <Check className="h-3 w-3 inline" /> Ready
+            </span>
+          )}
+          <button
+            onClick={onDelete}
+            className="p-1 rounded hover:opacity-80 transition"
+            style={{ color: BSL.muted }}
+            title="Delete rubber"
+            data-testid={`button-delete-rubber-${rubber.id}`}
+          >
+            <Trash2 className="h-3.5 w-3.5" />
+          </button>
+        </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
         <RubberSlot side="home" pair={homePair} eligible={eligibleHome} canDrop={drag?.side === "home"}
