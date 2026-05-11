@@ -179,10 +179,35 @@ function DashboardContent({
     if (!upcomingLeagueMatches || upcomingLeagueMatches.length === 0) return null;
     const now = new Date();
     const upcoming = upcomingLeagueMatches
-      .filter((m: any) => new Date(m.matchDatetime) >= now)
+      .filter((m: any) => m?.matchDatetime && new Date(m.matchDatetime) >= now)
       .sort((a: any, b: any) => new Date(a.matchDatetime).getTime() - new Date(b.matchDatetime).getTime());
-    return upcoming[0] || upcomingLeagueMatches[0];
+    return upcoming[0] || null;
   }, [upcomingLeagueMatches]);
+
+  const { data: bslFixtures } = useQuery<any[]>({
+    queryKey: ["/api/bsl/fixtures"],
+    queryFn: async () => {
+      const res = await fetch("/api/bsl/fixtures", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!user,
+  });
+
+  const nextBslFixture = useMemo(() => {
+    if (!bslFixtures || bslFixtures.length === 0) return null;
+    const now = Date.now();
+    const upcoming = bslFixtures
+      .filter((f: any) => {
+        if (!f?.startTime) return false;
+        const t = new Date(f.startTime).getTime();
+        if (Number.isNaN(t) || t < now) return false;
+        const s = String(f.status || "").toUpperCase();
+        return s === "" || s === "SCHEDULED" || s === "WARMUP" || s === "PUBLISHED" || s === "DRAFT";
+      })
+      .sort((a: any, b: any) => new Date(a.startTime).getTime() - new Date(b.startTime).getTime());
+    return upcoming[0] || null;
+  }, [bslFixtures]);
 
   const [leagueCountdown, setLeagueCountdown] = useState({ days: 0, hours: 0, minutes: 0 });
   useEffect(() => {
@@ -949,6 +974,84 @@ function DashboardContent({
                   <span className="truncate max-w-[250px]">{nextLeagueMatch.venue}</span>
                 </div>
               )}
+            </div>
+          </div>
+        </Link>
+      )}
+
+      {nextBslFixture && (
+        <Link href={`/bsl/match/${nextBslFixture.id}`} className="mt-4 block">
+          <div
+            className="relative overflow-hidden rounded-xl cursor-pointer hover-elevate"
+            data-testid="card-upcoming-bsl-fixture"
+          >
+            <div className="absolute inset-0 bg-gradient-to-r from-[#031a2b] via-[#0a2540] to-[#001724]" />
+            <div className="absolute inset-0 animate-[sweep_4s_linear_infinite] bg-[linear-gradient(90deg,transparent_0%,rgba(34,211,238,0.04)_45%,rgba(250,204,21,0.08)_50%,rgba(34,211,238,0.04)_55%,transparent_100%)]" />
+            <div className="absolute -top-16 -right-10 w-56 h-56 rounded-full bg-cyan-500/15 blur-3xl" />
+            <div className="absolute -bottom-16 -left-10 w-56 h-56 rounded-full bg-amber-400/15 blur-3xl" />
+            <div className="relative z-10">
+              <div className="flex items-center justify-between gap-2 px-4 pt-3 pb-1 sm:px-5">
+                <div className="flex items-center gap-2">
+                  <Trophy className="h-4 w-4 text-amber-400 animate-[pulse_2s_ease-in-out_infinite]" />
+                  <span className="text-[10px] sm:text-xs font-bold uppercase tracking-wider text-amber-400">
+                    Next BSL Fixture
+                  </span>
+                </div>
+                <Badge className="bg-cyan-400/20 text-cyan-200 border border-cyan-400/40 text-[9px] sm:text-[10px] shrink-0">
+                  Birmingham Super League
+                </Badge>
+              </div>
+
+              <div className="flex items-stretch px-3 sm:px-4 py-2">
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-cyan-400/30 bg-black/40 px-3 py-3">
+                  <div className="text-center overflow-hidden flex flex-col items-center gap-1">
+                    {nextBslFixture.homeClubLogo && (
+                      <img src={nextBslFixture.homeClubLogo} alt="" className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                    )}
+                    <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+                      {nextBslFixture.homeClubName || nextBslFixture.homeTeamName || "TBD"}
+                    </p>
+                  </div>
+                </div>
+
+                <div className="shrink-0 w-14 sm:w-16 flex items-center justify-center">
+                  <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-gradient-to-br from-amber-400 to-amber-600 flex items-center justify-center shadow-lg shadow-amber-500/30">
+                    <span className="text-white font-black text-sm sm:text-base">VS</span>
+                  </div>
+                </div>
+
+                <div className="flex-1 flex items-center justify-center rounded-lg border border-amber-400/30 bg-black/40 px-3 py-3">
+                  <div className="text-center overflow-hidden flex flex-col items-center gap-1">
+                    {nextBslFixture.awayClubLogo && (
+                      <img src={nextBslFixture.awayClubLogo} alt="" className="w-7 h-7 rounded-full object-cover border border-white/10" />
+                    )}
+                    <p className="text-white font-bold text-xs sm:text-sm leading-tight line-clamp-2">
+                      {nextBslFixture.awayClubName || nextBslFixture.awayTeamName || "TBD"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex items-center justify-center gap-3 sm:gap-4 px-4 pb-3 flex-wrap">
+                <div className="flex items-center gap-1.5 text-white/85 text-[10px] sm:text-xs">
+                  <Calendar className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-cyan-300" />
+                  <span>{format(new Date(nextBslFixture.startTime), "EEE, MMM d, yyyy")}</span>
+                </div>
+                <div className="flex items-center gap-1.5 text-white/85 text-[10px] sm:text-xs">
+                  <Clock className="h-3 w-3 sm:h-3.5 sm:w-3.5 text-cyan-300" />
+                  <span>{format(new Date(nextBslFixture.startTime), "h:mm a")}</span>
+                </div>
+                {nextBslFixture.court && (
+                  <Badge className="bg-white/10 text-white/85 border border-white/15 text-[9px] sm:text-[10px]">
+                    Court {nextBslFixture.court}
+                  </Badge>
+                )}
+                {nextBslFixture.category && (
+                  <Badge className="bg-amber-400/20 text-amber-200 border border-amber-400/30 text-[9px] sm:text-[10px]">
+                    {nextBslFixture.category}
+                  </Badge>
+                )}
+              </div>
             </div>
           </div>
         </Link>
