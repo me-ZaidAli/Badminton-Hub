@@ -325,10 +325,11 @@ function DashboardContent({
 
       <>
 
-      <DashboardBanner heightVh={32} />
-
-      <div className="relative z-10">
-        <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} profilePictureUrl={(user as any)?.profilePictureUrl || null} />
+      <div>
+        <DashboardBanner heightVh={32} />
+        <div className="relative z-10 -mt-12 sm:-mt-16 lg:-mt-20">
+          <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} profilePictureUrl={(user as any)?.profilePictureUrl || null} />
+        </div>
       </div>
 
       {myTournaments && myTournaments.length > 0 && myTournaments.map((tournament: any) => (

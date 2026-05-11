@@ -36,7 +36,7 @@ export default function DashboardBanner({ heightVh = 28 }: DashboardBannerProps)
 
   return (
     <div
-      className="relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl mb-[-2.5rem] sm:mb-[-3rem] lg:mb-[-3.5rem]"
+      className="relative overflow-hidden rounded-2xl border border-white/10 shadow-2xl"
       style={{ height: `${heightVh}vh`, minHeight: 200 }}
       data-testid="dashboard-banner"
     >
