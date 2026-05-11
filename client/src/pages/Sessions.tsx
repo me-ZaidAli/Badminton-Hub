@@ -2356,7 +2356,7 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose, prefillData 
               <FormField control={form.control} name="durationMinutes" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Duration (mins)</FormLabel>
-                  <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} data-testid="input-recurring-duration" /></FormControl>
+                  <FormControl><Input type="number" {...field} value={field.value ?? ""} onChange={(e) => { const v = e.target.value; field.onChange(v === "" ? undefined : Number(v)); }} data-testid="input-recurring-duration" /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -2365,14 +2365,14 @@ function RecurringEventDialog({ sessionClubs, initialOpen, onClose, prefillData 
               <FormField control={form.control} name="maxPlayers" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Max Players</FormLabel>
-                  <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} data-testid="input-recurring-max-players" /></FormControl>
+                  <FormControl><Input type="number" {...field} value={field.value ?? ""} onChange={(e) => { const v = e.target.value; field.onChange(v === "" ? undefined : Number(v)); }} data-testid="input-recurring-max-players" /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
               <FormField control={form.control} name="courtsAvailable" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Courts</FormLabel>
-                  <FormControl><Input type="number" {...field} onChange={(e) => field.onChange(Number(e.target.value))} data-testid="input-recurring-courts" /></FormControl>
+                  <FormControl><Input type="number" {...field} value={field.value ?? ""} onChange={(e) => { const v = e.target.value; field.onChange(v === "" ? undefined : Number(v)); }} data-testid="input-recurring-courts" /></FormControl>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -2832,7 +2832,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                   <FormItem>
                     <FormLabel>Duration (min)</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      <Input type="number" {...field} value={field.value ?? ""} onChange={e => { const v = e.target.value; field.onChange(v === "" ? undefined : parseInt(v)); }} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -2847,7 +2847,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                   <FormItem>
                     <FormLabel>Max Players</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      <Input type="number" {...field} value={field.value ?? ""} onChange={e => { const v = e.target.value; field.onChange(v === "" ? undefined : parseInt(v)); }} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -2860,7 +2860,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                   <FormItem>
                     <FormLabel>Courts</FormLabel>
                     <FormControl>
-                      <Input type="number" {...field} onChange={e => field.onChange(parseInt(e.target.value))} />
+                      <Input type="number" {...field} value={field.value ?? ""} onChange={e => { const v = e.target.value; field.onChange(v === "" ? undefined : parseInt(v)); }} />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -3351,8 +3351,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editTitle, setEditTitle] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
-  const [editDuration, setEditDuration] = useState(120);
-  const [editCourts, setEditCourts] = useState(0);
+  const [editDuration, setEditDuration] = useState<number | "">(120);
+  const [editCourts, setEditCourts] = useState<number | "">(0);
   const [editMaxPlayers, setEditMaxPlayers] = useState(0);
   const [editMatchMode, setEditMatchMode] = useState("SOCIAL");
   const [editPlayersPerSide, setEditPlayersPerSide] = useState(2);
@@ -3504,8 +3504,8 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       title: editTitle,
       date: editDate,
       startTime: editStartTime,
-      durationMinutes: editDuration,
-      courtsAvailable: editCourts,
+      durationMinutes: typeof editDuration === "number" && editDuration >= 15 ? editDuration : 120,
+      courtsAvailable: typeof editCourts === "number" && editCourts >= 1 ? Math.min(10, editCourts) : 4,
       maxPlayers: editMaxPlayers,
       matchMode: editMatchMode,
       playersPerSide: editPlayersPerSide,
@@ -3823,7 +3823,13 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                 type="number"
                 min={15}
                 value={editDuration}
-                onChange={(e) => setEditDuration(Math.max(15, Number(e.target.value)))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEditDuration(v === "" ? "" : Number(v));
+                }}
+                onBlur={() => {
+                  if (editDuration === "" || (typeof editDuration === "number" && editDuration < 15)) setEditDuration(120);
+                }}
                 className="mt-2"
                 data-testid="input-edit-duration"
               />
@@ -3835,7 +3841,14 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                 min={1}
                 max={10}
                 value={editCourts}
-                onChange={(e) => setEditCourts(Math.min(10, Math.max(1, Number(e.target.value))))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEditCourts(v === "" ? "" : Number(v));
+                }}
+                onBlur={() => {
+                  if (editCourts === "" || (typeof editCourts === "number" && editCourts < 1)) setEditCourts(4);
+                  else if (typeof editCourts === "number" && editCourts > 10) setEditCourts(10);
+                }}
                 className="mt-2"
                 data-testid="input-edit-courts"
               />
