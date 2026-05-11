@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
+import { useUser } from "@/hooks/use-auth";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
 import { PageHeader } from "@/components/ui/page-header";
@@ -63,7 +63,7 @@ function GlassCard({ children, className = "" }: { children: any; className?: st
 }
 
 export default function CoachDashboard() {
-  const { user } = useAuth();
+  const { data: user } = useUser();
   const { toast } = useToast();
   const qc = useQueryClient();
 

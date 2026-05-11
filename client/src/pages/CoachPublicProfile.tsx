@@ -4,7 +4,7 @@ import { useParams, Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-import { useAuth } from "@/hooks/use-auth";
+import { useUser } from "@/hooks/use-auth";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -52,7 +52,7 @@ function fmtDate(d: Date) { return d.toISOString().slice(0, 10); }
 export default function CoachPublicProfile() {
   const { id } = useParams<{ id: string }>();
   const coachId = Number(id);
-  const { user } = useAuth();
+  const { data: user } = useUser();
   const { toast } = useToast();
 
   const { data: coaches, isLoading: cLoading } = useQuery<Coach[]>({ queryKey: ["/api/coaches"] });

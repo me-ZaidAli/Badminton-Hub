@@ -1,4 +1,6 @@
 import { useState, useMemo, useEffect, useRef } from "react";
+import { motion, useMotionValue, useTransform, useSpring, AnimatePresence } from "framer-motion";
+import { Sparkles as SparklesIcon, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -456,6 +458,247 @@ function CoachDetailDialog({ coach, open, onOpenChange, onRequestLesson }: { coa
   );
 }
 
+// ─── Fortnite-style hero + mac-dock showcase ────────────────────────────────
+function DockTile({ coach, mouseX, isSelected, onSelect }: {
+  coach: Coach;
+  mouseX: any;
+  isSelected: boolean;
+  onSelect: (c: Coach) => void;
+}) {
+  const ref = useRef<HTMLButtonElement>(null);
+  const distance = useTransform(mouseX, (val: number | null) => {
+    if (val === null || !ref.current) return 9999;
+    const rect = ref.current.getBoundingClientRect();
+    return val - (rect.left + rect.width / 2);
+  });
+  const sizeMv = useTransform(distance, [-180, 0, 180], [70, 120, 70]);
+  const size = useSpring(sizeMv, { mass: 0.1, stiffness: 200, damping: 18 });
+  const yMv = useTransform(distance, [-180, 0, 180], [0, -16, 0]);
+  const y = useSpring(yMv, { mass: 0.1, stiffness: 200, damping: 18 });
+  return (
+    <motion.button
+      ref={ref}
+      style={{ width: size, height: size, y }}
+      onClick={() => onSelect(coach)}
+      className={`relative flex-shrink-0 rounded-2xl overflow-hidden border-2 transition-colors ${
+        isSelected
+          ? "border-violet-400 shadow-[0_0_28px_rgba(168,85,247,0.55)]"
+          : "border-white/10 hover:border-violet-300/60"
+      } bg-gradient-to-br from-slate-800 to-slate-900`}
+      data-testid={`dock-coach-${coach.id}`}
+    >
+      {coach.profilePhoto ? (
+        <img src={coach.profilePhoto} alt={coach.fullName} className="w-full h-full object-cover" />
+      ) : (
+        <div className="w-full h-full flex items-center justify-center text-white/70 text-2xl font-bold">
+          {coach.fullName.charAt(0)}
+        </div>
+      )}
+      <div className="absolute inset-x-0 bottom-0 h-1/3 bg-gradient-to-t from-black/80 to-transparent" />
+      <div className="absolute bottom-1 inset-x-1 text-[10px] text-white truncate text-center font-medium">
+        {coach.fullName.split(" ")[0]}
+      </div>
+      {coach.badmintonEnglandCert && (
+        <div className="absolute top-1 right-1 w-4 h-4 rounded-full bg-amber-400 flex items-center justify-center shadow-md">
+          <Award className="w-2.5 h-2.5 text-black" />
+        </div>
+      )}
+    </motion.button>
+  );
+}
+
+function FortniteCoachShowcase({ coaches, isActive, onLocked, onOpenDialog }: {
+  coaches: Coach[];
+  isActive: boolean;
+  onLocked: () => void;
+  onOpenDialog: (c: Coach) => void;
+}) {
+  const [selectedId, setSelectedId] = useState<number>(coaches[0]?.id);
+  useEffect(() => {
+    if (!coaches.find((c) => c.id === selectedId) && coaches[0]) setSelectedId(coaches[0].id);
+  }, [coaches, selectedId]);
+  const selected = coaches.find((c) => c.id === selectedId) || coaches[0];
+
+  const mouseX = useMotionValue<number | null>(null);
+  const dockRef = useRef<HTMLDivElement>(null);
+  const scroll = (dir: -1 | 1) => {
+    if (!dockRef.current) return;
+    dockRef.current.scrollBy({ left: dir * 320, behavior: "smooth" });
+  };
+
+  const handleHero = () => {
+    if (!isActive) { onLocked(); return; }
+    onOpenDialog(selected);
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* HERO */}
+      <div className="relative rounded-3xl overflow-hidden border border-white/10 bg-gradient-to-br from-[#0b1a3f] via-[#13235e] to-[#1a2c75] shadow-[0_30px_80px_-20px_rgba(99,102,241,0.45)]">
+        {/* glow orbs */}
+        <div className="pointer-events-none absolute -top-20 -left-20 w-80 h-80 rounded-full bg-violet-500/30 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-32 -right-20 w-96 h-96 rounded-full bg-cyan-400/20 blur-3xl" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.07]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, white 1px, transparent 0)", backgroundSize: "22px 22px" }} />
+
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={selected?.id}
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -20 }}
+            transition={{ duration: 0.35 }}
+            className="relative grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 p-6 lg:p-10"
+          >
+            {/* LEFT: text */}
+            <div className="flex flex-col justify-center text-white">
+              {selected?.specialism?.[0] && (
+                <div className="inline-flex w-fit items-center gap-1 rounded-md bg-amber-400 px-2 py-1 text-xs font-bold tracking-wider text-black uppercase mb-3" data-testid="hero-coach-tag">
+                  <SparklesIcon className="w-3 h-3" />
+                  {selected.specialism[0]}
+                </div>
+              )}
+              <div className="text-xs font-semibold tracking-[0.3em] text-white/70 uppercase mb-1">Featured Coach</div>
+              <h2 className="text-4xl lg:text-6xl font-black uppercase leading-none tracking-tight" data-testid="hero-coach-name">
+                {selected?.fullName.split(" ").slice(0, -1).join(" ") || selected?.fullName}
+              </h2>
+              <h3 className="text-3xl lg:text-5xl font-black uppercase leading-none tracking-tight text-cyan-300 mb-3" data-testid="hero-coach-surname">
+                {selected?.fullName.split(" ").slice(-1)[0]}
+              </h3>
+              {selected?.roleTitle && (
+                <p className="text-white/80 text-sm lg:text-base mb-4">{selected.roleTitle}</p>
+              )}
+
+              <div className="flex flex-wrap gap-2 mb-4">
+                {selected?.badmintonEnglandCert && (
+                  <Badge className="bg-amber-400 text-black hover:bg-amber-400 border-0"><Award className="w-3 h-3 mr-1" />BE Certified</Badge>
+                )}
+                {selected?.firstAidCert && (
+                  <Badge variant="outline" className="border-white/40 text-white"><Shield className="w-3 h-3 mr-1" />First Aid</Badge>
+                )}
+                {selected?.yearsTraining != null && (
+                  <Badge variant="outline" className="border-white/40 text-white"><Clock className="w-3 h-3 mr-1" />{selected.yearsTraining} years</Badge>
+                )}
+                {selected?.averageRating != null && selected.averageRating > 0 && (
+                  <Badge className="bg-white/15 text-white border-0"><Star className="w-3 h-3 mr-1 fill-amber-300 text-amber-300" />{selected.averageRating.toFixed(1)} ({selected.reviewCount || 0})</Badge>
+                )}
+              </div>
+
+              {selected?.bio && (
+                <p className="text-white/85 text-sm lg:text-base leading-relaxed line-clamp-3 max-w-xl mb-5" data-testid="hero-coach-bio">
+                  {selected.bio}
+                </p>
+              )}
+
+              <div className="flex flex-col sm:flex-row gap-2 mt-2">
+                <Button
+                  onClick={handleHero}
+                  className="bg-white text-slate-900 hover:bg-white/90 font-bold uppercase tracking-wider rounded-full px-6 h-11 shadow-lg"
+                  data-testid="button-hero-details"
+                >
+                  View Details
+                </Button>
+                {isActive ? (
+                  <Link href={`/coach/${selected?.id}`}>
+                    <Button className="w-full sm:w-auto bg-gradient-to-r from-cyan-400 to-violet-500 text-white hover:opacity-90 font-bold uppercase tracking-wider rounded-full px-6 h-11 border-0 shadow-lg" data-testid="button-hero-book">
+                      <Calendar className="w-4 h-4 mr-2" />Book Now
+                    </Button>
+                  </Link>
+                ) : (
+                  <Button onClick={onLocked} className="bg-gradient-to-r from-cyan-400 to-violet-500 text-white hover:opacity-90 font-bold uppercase tracking-wider rounded-full px-6 h-11 border-0" data-testid="button-hero-unlock">
+                    Unlock to Book
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            {/* RIGHT: avatar showcase */}
+            <div className="relative flex items-center justify-center min-h-[280px] lg:min-h-[420px]">
+              <div className="absolute inset-0 flex items-center justify-center">
+                <div className="w-72 h-72 lg:w-96 lg:h-96 rounded-full bg-gradient-to-br from-violet-500/40 via-fuchsia-500/30 to-cyan-400/40 blur-2xl" />
+              </div>
+              <motion.div
+                key={`av-${selected?.id}`}
+                initial={{ scale: 0.85, opacity: 0 }}
+                animate={{ scale: 1, opacity: 1 }}
+                transition={{ type: "spring", stiffness: 140, damping: 14 }}
+                className="relative w-56 h-56 lg:w-80 lg:h-80 rounded-full overflow-hidden border-4 border-white/30 shadow-[0_0_60px_rgba(168,85,247,0.6)]"
+              >
+                {selected?.profilePhoto ? (
+                  <img src={selected.profilePhoto} alt={selected.fullName} className="w-full h-full object-cover" />
+                ) : (
+                  <div className="w-full h-full flex items-center justify-center bg-gradient-to-br from-slate-700 to-slate-900 text-white text-7xl font-black">
+                    {selected?.fullName.charAt(0)}
+                  </div>
+                )}
+              </motion.div>
+              {/* corner stat chips */}
+              {selected?.city && (
+                <div className="absolute bottom-4 left-4 lg:bottom-6 lg:left-6 bg-black/50 backdrop-blur-md border border-white/15 text-white text-xs px-3 py-1.5 rounded-full flex items-center gap-1.5">
+                  <MapPin className="w-3 h-3" />{selected.city}
+                </div>
+              )}
+            </div>
+          </motion.div>
+        </AnimatePresence>
+      </div>
+
+      {/* DOCK */}
+      <div className="relative">
+        <div className="flex items-center justify-between mb-2 px-1">
+          <p className="text-xs font-semibold tracking-[0.3em] text-muted-foreground uppercase">Roster · {coaches.length}</p>
+          <div className="flex gap-1">
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => scroll(-1)} data-testid="button-dock-prev">
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => scroll(1)} data-testid="button-dock-next">
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+        </div>
+        <div
+          ref={dockRef}
+          onMouseMove={(e) => mouseX.set(e.clientX)}
+          onMouseLeave={() => mouseX.set(null)}
+          className="dock-strip flex items-end gap-3 overflow-x-auto pt-6 pb-4 px-2 cursor-grab active:cursor-grabbing select-none scroll-smooth"
+          style={{ WebkitOverflowScrolling: "touch", scrollbarWidth: "thin" }}
+          onPointerDown={(e) => {
+            const el = dockRef.current; if (!el) return;
+            const startX = e.clientX; const startScroll = el.scrollLeft;
+            let dragged = false;
+            const move = (ev: PointerEvent) => {
+              const dx = ev.clientX - startX;
+              if (Math.abs(dx) > 4) dragged = true;
+              el.scrollLeft = startScroll - dx;
+            };
+            const up = () => {
+              window.removeEventListener("pointermove", move);
+              window.removeEventListener("pointerup", up);
+              if (dragged) el.dataset.dragged = "1";
+              setTimeout(() => { delete el.dataset.dragged; }, 50);
+            };
+            window.addEventListener("pointermove", move);
+            window.addEventListener("pointerup", up);
+          }}
+          data-testid="dock-strip"
+        >
+          {coaches.map((c) => (
+            <DockTile
+              key={c.id}
+              coach={c}
+              mouseX={mouseX}
+              isSelected={c.id === selected?.id}
+              onSelect={(coach) => {
+                if (dockRef.current?.dataset.dragged) return;
+                setSelectedId(coach.id);
+              }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function FindCoach() {
   const [locationSearch, setLocationSearch] = useState("");
   const [qualificationSearch, setQualificationSearch] = useState("");
@@ -588,6 +831,15 @@ export default function FindCoach() {
           </CardContent>
         </Card>
       ) : (
+        <FortniteCoachShowcase
+          coaches={filteredCoaches}
+          isActive={isActive}
+          onLocked={() => setShowPaywall(true)}
+          onOpenDialog={(c) => setSelectedCoach(c)}
+        />
+      )}
+
+      {false && (
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4" data-testid="grid-coaches">
           {filteredCoaches.map((coach) => (
             <Card key={coach.id} className="hover-elevate cursor-pointer relative overflow-hidden border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.25)] hover:shadow-[0_0_30px_rgba(168,85,247,0.25)] hover:border-violet-400/40 transition-all" onClick={() => { if (isActive) { setSelectedCoach(coach); } else { setShowPaywall(true); } }} data-testid={`card-coach-${coach.id}`}>
