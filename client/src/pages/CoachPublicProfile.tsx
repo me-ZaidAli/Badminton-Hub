@@ -31,10 +31,11 @@ interface Coach {
   sessionPrices?: string; coachingPhilosophy?: string; achievements?: string;
   averageRating?: number | null; reviewCount?: number;
 }
+interface PriceTier { id: string; label: string; pricePence: number; durationMinutes: number; maxParticipants: number; sortOrder: number }
 interface AvailabilitySummary {
   rules: { id: number; dayOfWeek: number; startTime: string; endTime: string }[];
   gallery: { id: number; imageUrl: string; caption?: string }[];
-  settings: { slotDurationMinutes: number; advanceNoticeHours: number; maxAdvanceDays: number; holidayMode: boolean; holidayMessage?: string; defaultPricePence: number } | null;
+  settings: { slotDurationMinutes: number; advanceNoticeHours: number; maxAdvanceDays: number; holidayMode: boolean; holidayMessage?: string; defaultPricePence: number; priceTiers?: PriceTier[] } | null;
 }
 interface Slot { time: string; available: boolean; reason?: string }
 
@@ -61,8 +62,7 @@ export default function CoachPublicProfile() {
 
   const [selectedDate, setSelectedDate] = useState<string>(fmtDate(new Date()));
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
-  const [duration, setDuration] = useState("60");
-  const [lessonType, setLessonType] = useState("ONE_TO_ONE");
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [message, setMessage] = useState("");
   const [galleryIdx, setGalleryIdx] = useState(0);
@@ -79,11 +79,18 @@ export default function CoachPublicProfile() {
     enabled: !!coachId,
   });
 
+  const tiers = summary?.settings?.priceTiers ?? [];
+  const selectedTier = tiers.find((t) => t.id === selectedTierId) || null;
+  const dur = selectedTier?.durationMinutes ?? summary?.settings?.slotDurationMinutes ?? 60;
+  const pricePence = selectedTier?.pricePence ?? summary?.settings?.defaultPricePence ?? 0;
+  const lessonType = (selectedTier && selectedTier.maxParticipants > 1) ? "GROUP" : "ONE_TO_ONE";
+
   const book = useMutation({
     mutationFn: async () => {
       const res = await apiRequest("POST", "/api/coach-bookings", {
-        coachId, date: selectedDate, time: selectedSlot, durationMinutes: Number(duration),
-        lessonType, location: location || undefined, playerMessage: message || undefined,
+        coachId, date: selectedDate, time: selectedSlot, durationMinutes: dur,
+        lessonType, priceTierId: selectedTier?.id ?? undefined,
+        location: location || undefined, playerMessage: message || undefined,
       });
       return res.json();
     },
@@ -312,26 +319,38 @@ export default function CoachPublicProfile() {
                         <Calendar className="w-4 h-4 text-violet-300" />
                         {selectedDate} at {selectedSlot}
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div>
-                          <Label>Duration</Label>
-                          <Select value={duration} onValueChange={setDuration}>
-                            <SelectTrigger data-testid="select-duration"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              {[30, 45, 60, 90, 120].map((m) => <SelectItem key={m} value={String(m)}>{m} min</SelectItem>)}
-                            </SelectContent>
-                          </Select>
-                        </div>
-                        <div>
-                          <Label>Type</Label>
-                          <Select value={lessonType} onValueChange={setLessonType}>
-                            <SelectTrigger data-testid="select-type"><SelectValue /></SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="ONE_TO_ONE">Private (1-to-1)</SelectItem>
-                              <SelectItem value="GROUP">Group</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
+                      <div>
+                        <Label className="text-xs uppercase tracking-wider text-violet-200">Lesson package</Label>
+                        {tiers.length === 0 ? (
+                          <p className="text-xs text-zinc-400 mt-2" data-testid="text-no-packages">This coach hasn't published packages yet — booking will use their default rate ({dur} min{pricePence > 0 ? ` · £${(pricePence/100).toFixed(2)}` : ""}).</p>
+                        ) : (
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2" data-testid="grid-tiers">
+                            {tiers.map((t) => {
+                              const active = selectedTierId === t.id;
+                              return (
+                                <button
+                                  key={t.id}
+                                  type="button"
+                                  onClick={() => setSelectedTierId(active ? null : t.id)}
+                                  className={`flex flex-col items-start text-left px-3 py-2 rounded-lg border transition ${
+                                    active
+                                      ? "border-violet-400 bg-gradient-to-br from-violet-500/40 to-fuchsia-500/30 text-white shadow-[0_0_14px_rgba(168,85,247,0.4)]"
+                                      : "border-white/10 hover:border-violet-400/40 text-zinc-200"
+                                  }`}
+                                  data-testid={`button-tier-${t.id}`}
+                                >
+                                  <span className="font-semibold text-sm truncate w-full">{t.label}</span>
+                                  <span className="text-[11px] opacity-80 mt-0.5">£{(t.pricePence/100).toFixed(2)} · {t.durationMinutes} min{t.maxParticipants > 1 ? ` · up to ${t.maxParticipants}` : ""}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        {pricePence > 0 && (
+                          <div className="mt-2 text-xs text-violet-200" data-testid="text-price-summary">
+                            Total <strong className="text-white">£{(pricePence/100).toFixed(2)}</strong> · {dur} min{selectedTier ? ` · ${selectedTier.label}` : ""}
+                          </div>
+                        )}
                       </div>
                       <div>
                         <Label>Preferred location (optional)</Label>

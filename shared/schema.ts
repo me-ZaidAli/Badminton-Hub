@@ -3528,6 +3528,7 @@ export const coachBookingSettings = pgTable("coach_booking_settings", {
   holidayMessage: text("holiday_message"),
   defaultPricePence: integer("default_price_pence").notNull().default(2500),
   autoApprove: boolean("auto_approve").notNull().default(false),
+  priceTiers: jsonb("price_tiers").$type<Array<{ id: string; label: string; pricePence: number; durationMinutes: number; maxParticipants: number; sortOrder: number }>>().notNull().default(sql`'[]'::jsonb`),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 export const insertCoachBookingSettingsSchema = createInsertSchema(coachBookingSettings).omit({ id: true, updatedAt: true });

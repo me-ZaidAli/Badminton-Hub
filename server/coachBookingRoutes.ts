@@ -13,7 +13,9 @@ import {
   lessonRequests,
   users,
   notifications,
+  clubs,
 } from "@shared/schema";
+import { inArray } from "drizzle-orm";
 import { sendRulePush } from "./notificationRules";
 import { storage } from "./storage";
 
@@ -230,6 +232,32 @@ export function registerCoachBookingRoutes(app: Express) {
     res.json({ ok: true });
   });
 
+  // ── COACH SELF: Payout info (platform fee + payout SLA + linked club bank) ─
+  app.get("/api/coach-bookings/payout-info", requireAuth, async (req, res) => {
+    const coach = await getMyCoach((req as any).user.id);
+    if (!coach) return res.status(404).json({ message: "Not a coach" });
+    const ids = ((coach as any).linkedClubIds as number[] | null) || [];
+    let clubBanks: Array<{ clubId: number; clubName: string; bankAccountName: string | null; bankSortCode: string | null; bankAccountNumber: string | null }> = [];
+    if (ids.length) {
+      const rows = await db.select({ id: clubs.id, name: clubs.name, bankAccountName: clubs.bankAccountName, bankSortCode: clubs.bankSortCode, bankAccountNumber: clubs.bankAccountNumber })
+        .from(clubs).where(inArray(clubs.id, ids));
+      clubBanks = rows.map((r) => ({
+        clubId: r.id,
+        clubName: r.name,
+        bankAccountName: r.bankAccountName,
+        bankSortCode: r.bankSortCode,
+        bankAccountNumber: r.bankAccountNumber ? `••••${r.bankAccountNumber.slice(-4)}` : null,
+      }));
+    }
+    res.json({
+      platformFeePct: 3,
+      payoutSlaHours: 48,
+      payoutMessage: "Platform fee: 3% per lesson. Payouts are made within 48 hours after each lesson is completed, into your club's bank account.",
+      bankNote: "Bank details are managed by your club admin (Super Admin). All player payments go through the club, then payouts are issued to coaches.",
+      clubBanks,
+    });
+  });
+
   // ── COACH SELF: Settings GET/PUT ─────────────────────────────────────────
   app.get("/api/coach-bookings/settings", requireAuth, async (req, res) => {
     const coach = await getMyCoach((req as any).user.id);
@@ -247,6 +275,18 @@ export function registerCoachBookingRoutes(app: Express) {
     const allowed = ["slotDurationMinutes", "bufferBeforeMinutes", "bufferAfterMinutes", "advanceNoticeHours", "maxAdvanceDays", "holidayMode", "holidayMessage", "defaultPricePence", "autoApprove"] as const;
     const updates: any = {};
     for (const k of allowed) if (req.body[k] !== undefined) updates[k] = req.body[k];
+    if (Array.isArray(req.body.priceTiers)) {
+      updates.priceTiers = req.body.priceTiers
+        .map((t: any, i: number) => ({
+          id: String(t.id || `tier-${Date.now()}-${i}`).slice(0, 64),
+          label: String(t.label || "Untitled").slice(0, 64),
+          pricePence: Math.max(0, Math.min(1_000_000, Math.round(Number(t.pricePence) || 0))),
+          durationMinutes: Math.max(15, Math.min(480, Math.round(Number(t.durationMinutes) || 60))),
+          maxParticipants: Math.max(1, Math.min(64, Math.round(Number(t.maxParticipants) || 1))),
+          sortOrder: Number.isFinite(Number(t.sortOrder)) ? Number(t.sortOrder) : i,
+        }))
+        .slice(0, 24);
+    }
     updates.updatedAt = new Date();
     let [row] = await db.select().from(coachBookingSettings).where(eq(coachBookingSettings.coachId, coach.id));
     if (!row) {
@@ -308,6 +348,7 @@ export function registerCoachBookingRoutes(app: Express) {
         holidayMode: settings.holidayMode,
         holidayMessage: settings.holidayMessage,
         defaultPricePence: settings.defaultPricePence,
+        priceTiers: (settings.priceTiers as any[]) || [],
       } : null,
     });
   });
@@ -316,7 +357,7 @@ export function registerCoachBookingRoutes(app: Express) {
   app.post("/api/coach-bookings", requireAuth, async (req, res) => {
     try {
       const playerId = (req as any).user.id;
-      const { coachId, date, time, durationMinutes, lessonType, location, playerMessage } = req.body;
+      const { coachId, date, time, durationMinutes, lessonType, location, playerMessage, priceTierId } = req.body;
       if (!coachId || !date || !time) return res.status(400).json({ message: "coachId, date, time required" });
       if (!/^\d{4}-\d{2}-\d{2}$/.test(date) || !/^\d{2}:\d{2}$/.test(time))
         return res.status(400).json({ message: "Invalid date/time format" });
@@ -325,7 +366,10 @@ export function registerCoachBookingRoutes(app: Express) {
       if (!coach) return res.status(404).json({ message: "Coach not available" });
 
       const [settings] = await db.select().from(coachBookingSettings).where(eq(coachBookingSettings.coachId, coach.id));
-      const dur = Number(durationMinutes) || settings?.slotDurationMinutes || 60;
+      const tiers = ((settings?.priceTiers as any[]) || []) as Array<{ id: string; label: string; pricePence: number; durationMinutes: number; maxParticipants: number }>;
+      const tier = priceTierId ? tiers.find((t) => t.id === priceTierId) : null;
+      const dur = tier?.durationMinutes || Number(durationMinutes) || settings?.slotDurationMinutes || 60;
+      const agreedPrice = tier?.pricePence ?? settings?.defaultPricePence ?? null;
 
       // Verify slot still free
       const slots = await generateSlotsForDate(coach.id, date);
@@ -359,7 +403,7 @@ export function registerCoachBookingRoutes(app: Express) {
           lessonType: lessonType === "GROUP" ? "GROUP" : "ONE_TO_ONE",
           location: location || null,
           playerMessage: playerMessage || null,
-          agreedPrice: settings?.defaultPricePence || null,
+          agreedPrice: agreedPrice,
           status: initialStatus as any,
         }).returning();
       } catch (e: any) {

@@ -183,7 +183,8 @@ function CoachMap({ coaches, className = "" }: { coaches: Coach[]; className?: s
 
 type Slot = { time: string; available: boolean; reason?: string };
 type AvailRule = { dayOfWeek: number; startTime: string; endTime: string; isActive: boolean };
-type AvailSummary = { rules: AvailRule[]; settings: { slotDurationMinutes: number; advanceNoticeHours: number; maxAdvanceDays: number; holidayMode: boolean; holidayMessage?: string; defaultPricePence?: number } | null };
+type PriceTier = { id: string; label: string; pricePence: number; durationMinutes: number; maxParticipants: number; sortOrder: number };
+type AvailSummary = { rules: AvailRule[]; settings: { slotDurationMinutes: number; advanceNoticeHours: number; maxAdvanceDays: number; holidayMode: boolean; holidayMessage?: string; defaultPricePence?: number; priceTiers?: PriceTier[] } | null };
 
 function ymd(d: Date) {
   const y = d.getFullYear();
@@ -198,7 +199,7 @@ function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | nul
   const [monthCursor, setMonthCursor] = useState(() => { const d = new Date(); d.setDate(1); return d; });
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [selectedTime, setSelectedTime] = useState<string | null>(null);
-  const [lessonType, setLessonType] = useState("ONE_TO_ONE");
+  const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
   const [location, setLocation] = useState("");
   const [playerMessage, setPlayerMessage] = useState("");
 
@@ -220,10 +221,10 @@ function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | nul
   const createMutation = useMutation({
     mutationFn: async (data: any) => (await apiRequest("POST", "/api/coach-bookings", data)).json(),
     onSuccess: () => {
-      toast({ title: "Booking sent!", description: summary?.settings && (coach as any)?.autoApprove ? "Auto-approved." : "The coach will confirm shortly." });
+      toast({ title: "Booking sent!", description: "The coach will confirm shortly." });
       queryClient.invalidateQueries({ queryKey: ["/api/lesson-requests/my"] });
       onOpenChange(false);
-      setSelectedDate(null); setSelectedTime(null); setLocation(""); setPlayerMessage("");
+      setSelectedDate(null); setSelectedTime(null); setSelectedTierId(null); setLocation(""); setPlayerMessage("");
     },
     onError: (err: any) => {
       toast({ title: "Failed to book", description: err.message, variant: "destructive" });
@@ -257,7 +258,11 @@ function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | nul
   }, [today, summary]);
 
   if (!coach) return null;
-  const dur = summary?.settings?.slotDurationMinutes ?? 60;
+  const tiers = summary?.settings?.priceTiers ?? [];
+  const selectedTier = tiers.find((t) => t.id === selectedTierId) || null;
+  const dur = selectedTier?.durationMinutes ?? summary?.settings?.slotDurationMinutes ?? 60;
+  const pricePence = selectedTier?.pricePence ?? summary?.settings?.defaultPricePence ?? 0;
+  const lessonType = (selectedTier && selectedTier.maxParticipants > 1) ? "GROUP" : "ONE_TO_ONE";
   const holidayMode = summary?.settings?.holidayMode;
 
   return (
@@ -361,14 +366,30 @@ function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | nul
             </div>
 
             <div>
-              <Label>Lesson type</Label>
-              <Select value={lessonType} onValueChange={setLessonType}>
-                <SelectTrigger data-testid="select-lesson-type"><SelectValue /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ONE_TO_ONE">Private (1-to-1)</SelectItem>
-                  <SelectItem value="GROUP">Group</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label className="text-xs uppercase tracking-wider">Lesson package</Label>
+              {tiers.length === 0 ? (
+                <p className="text-xs text-muted-foreground mt-2" data-testid="text-no-packages">This coach hasn't published any packages yet — booking will use their default rate.</p>
+              ) : (
+                <div className="grid grid-cols-1 gap-1.5 mt-2" data-testid="grid-tiers">
+                  {tiers.map((t) => {
+                    const active = selectedTierId === t.id;
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        onClick={() => setSelectedTierId(active ? null : t.id)}
+                        className={`flex items-center justify-between px-3 py-2 rounded-md border text-sm transition-colors text-left ${
+                          active ? "bg-primary text-primary-foreground border-primary" : "border-border hover:bg-muted"
+                        }`}
+                        data-testid={`button-tier-${t.id}`}
+                      >
+                        <span className="font-semibold truncate mr-2">{t.label}</span>
+                        <span className="shrink-0 text-xs opacity-90">£{(t.pricePence / 100).toFixed(2)} · {t.durationMinutes}m{t.maxParticipants > 1 ? ` · up to ${t.maxParticipants}` : ""}</span>
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
             </div>
             <div>
               <Label>Preferred location <span className="text-muted-foreground text-xs">(optional)</span></Label>
@@ -381,9 +402,9 @@ function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | nul
 
             {selectedDate && selectedTime && (
               <div className="rounded-md bg-muted/50 border border-border p-2.5 text-xs" data-testid="text-summary">
-                <p><strong>{new Date(selectedDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</strong> · {selectedTime} · {dur} min</p>
-                {summary?.settings?.defaultPricePence != null && summary.settings.defaultPricePence > 0 && (
-                  <p className="text-muted-foreground mt-0.5">Approx. £{(summary.settings.defaultPricePence / 100).toFixed(2)}</p>
+                <p><strong>{new Date(selectedDate).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "long" })}</strong> · {selectedTime} · {dur} min{selectedTier ? ` · ${selectedTier.label}` : ""}</p>
+                {pricePence > 0 && (
+                  <p className="text-muted-foreground mt-0.5" data-testid="text-price-summary">Total £{(pricePence / 100).toFixed(2)}</p>
                 )}
               </div>
             )}
@@ -397,6 +418,7 @@ function RequestLessonDialog({ coach, open, onOpenChange }: { coach: Coach | nul
                 time: selectedTime,
                 durationMinutes: dur,
                 lessonType,
+                priceTierId: selectedTier?.id ?? undefined,
                 location: location || null,
                 playerMessage: playerMessage || null,
               })}

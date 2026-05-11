@@ -19,6 +19,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/u
 import {
   GraduationCap, Calendar, Clock, Image as ImageIcon, Settings, Plus, Trash2, Check, X,
   Loader2, Sparkles, Sun, AlertCircle, Camera, ExternalLink, User, MapPin, BellRing,
+  Banknote, Info, PoundSterling, Users as UsersIcon, Wallet,
 } from "lucide-react";
 
 const DOW = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
@@ -40,10 +41,16 @@ interface Coach {
 }
 interface Rule { id: number; dayOfWeek: number; startTime: string; endTime: string; isActive: boolean; }
 interface Override { id: number; date: string; isClosed: boolean; startTime?: string; endTime?: string; note?: string; }
+interface PriceTier { id: string; label: string; pricePence: number; durationMinutes: number; maxParticipants: number; sortOrder: number; }
 interface Settings {
   slotDurationMinutes: number; bufferBeforeMinutes: number; bufferAfterMinutes: number;
   advanceNoticeHours: number; maxAdvanceDays: number; holidayMode: boolean; holidayMessage?: string;
   defaultPricePence: number; autoApprove: boolean;
+  priceTiers: PriceTier[];
+}
+interface PayoutInfo {
+  platformFeePct: number; payoutSlaHours: number; payoutMessage: string; bankNote: string;
+  clubBanks: Array<{ clubId: number; clubName: string; bankAccountName: string | null; bankSortCode: string | null; bankAccountNumber: string | null }>;
 }
 interface GalleryItem { id: number; imageUrl: string; caption?: string; sortOrder: number; }
 interface Booking {
@@ -380,8 +387,7 @@ function OverridesList({ overrides }: { overrides: Override[] }) {
 function SettingsForm({ settings }: { settings?: Settings }) {
   const [s, setS] = useState<Settings | undefined>(settings);
   const { toast } = useToast();
-  // Sync local form state when the query first loads (avoid render-side setState).
-  useEffect(() => { if (settings && !s) setS(settings); }, [settings]);
+  useEffect(() => { if (settings && !s) setS({ ...settings, priceTiers: settings.priceTiers || [] }); }, [settings]);
   const save = useMutation({
     mutationFn: async () => (await apiRequest("PUT", "/api/coach-bookings/settings", s)).json(),
     onSuccess: () => { toast({ title: "Saved" }); queryClient.invalidateQueries({ queryKey: ["/api/coach-bookings/settings"] }); },
@@ -389,36 +395,162 @@ function SettingsForm({ settings }: { settings?: Settings }) {
   });
   if (!s) return <Loader2 className="w-6 h-6 animate-spin mx-auto" />;
   const set = (k: keyof Settings, v: any) => setS({ ...s, [k]: v });
+  const tiers = s.priceTiers || [];
 
+  const addTier = (preset?: Partial<PriceTier>) => {
+    const next: PriceTier = {
+      id: `tier-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+      label: preset?.label || "New package",
+      pricePence: preset?.pricePence ?? s.defaultPricePence ?? 2500,
+      durationMinutes: preset?.durationMinutes ?? s.slotDurationMinutes ?? 60,
+      maxParticipants: preset?.maxParticipants ?? 1,
+      sortOrder: tiers.length,
+    };
+    set("priceTiers", [...tiers, next]);
+  };
+  const updateTier = (id: string, patch: Partial<PriceTier>) => {
+    set("priceTiers", tiers.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  };
+  const removeTier = (id: string) => set("priceTiers", tiers.filter((t) => t.id !== id));
+
+  return (
+    <div className="space-y-4">
+      {/* Lesson packages */}
+      <GlassCard>
+        <CardContent className="p-4 space-y-3">
+          <div className="flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-bold flex items-center gap-2"><PoundSterling className="w-4 h-4 text-violet-300" /> Lesson packages</h3>
+              <p className="text-xs text-muted-foreground mt-0.5">Add as many lesson types as you like. Players pick one when booking; the price updates automatically.</p>
+            </div>
+            <div className="flex gap-2 flex-wrap">
+              <Button size="sm" variant="outline" onClick={() => addTier({ label: "Private (1-to-1)", maxParticipants: 1 })} data-testid="button-add-tier-1to1">+ 1-to-1</Button>
+              <Button size="sm" variant="outline" onClick={() => addTier({ label: "1-to-2", maxParticipants: 2 })} data-testid="button-add-tier-1to2">+ 1-to-2</Button>
+              <Button size="sm" variant="outline" onClick={() => addTier({ label: "Group (up to 4)", maxParticipants: 4 })} data-testid="button-add-tier-group">+ Group</Button>
+              <Button size="sm" onClick={() => addTier()} data-testid="button-add-tier-custom"><Plus className="w-3.5 h-3.5 mr-1" />Custom</Button>
+            </div>
+          </div>
+
+          {tiers.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-6 border border-dashed border-white/10 rounded-lg" data-testid="text-no-tiers">
+              No packages yet. Add at least one so players can book lessons with you.
+            </p>
+          )}
+
+          <div className="space-y-2">
+            {tiers.map((t, i) => (
+              <div key={t.id} className="grid grid-cols-12 gap-2 items-end p-2 rounded-lg border border-white/10 bg-white/[0.02]" data-testid={`row-tier-${i}`}>
+                <div className="col-span-12 sm:col-span-4">
+                  <Label className="text-xs">Label</Label>
+                  <Input value={t.label} onChange={(e) => updateTier(t.id, { label: e.target.value })} placeholder="e.g. Private 1-to-1" data-testid={`input-tier-label-${i}`} />
+                </div>
+                <div className="col-span-4 sm:col-span-2">
+                  <Label className="text-xs">Price (£)</Label>
+                  <Input type="number" step="0.01" min={0} value={(t.pricePence / 100).toFixed(2)} onChange={(e) => updateTier(t.id, { pricePence: Math.round(parseFloat(e.target.value || "0") * 100) })} data-testid={`input-tier-price-${i}`} />
+                </div>
+                <div className="col-span-4 sm:col-span-2">
+                  <Label className="text-xs">Duration (min)</Label>
+                  <Input type="number" min={15} step={15} value={t.durationMinutes} onChange={(e) => updateTier(t.id, { durationMinutes: Number(e.target.value) })} data-testid={`input-tier-duration-${i}`} />
+                </div>
+                <div className="col-span-4 sm:col-span-2">
+                  <Label className="text-xs flex items-center gap-1"><UsersIcon className="w-3 h-3" />Max players</Label>
+                  <Input type="number" min={1} max={64} value={t.maxParticipants} onChange={(e) => updateTier(t.id, { maxParticipants: Number(e.target.value) })} data-testid={`input-tier-max-${i}`} />
+                </div>
+                <div className="col-span-12 sm:col-span-2 flex justify-end">
+                  <Button size="sm" variant="ghost" onClick={() => removeTier(t.id)} data-testid={`button-remove-tier-${i}`}>
+                    <Trash2 className="w-4 h-4 text-rose-300" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </CardContent>
+      </GlassCard>
+
+      {/* Slot + booking rules */}
+      <GlassCard>
+        <CardContent className="p-4 space-y-4">
+          <h3 className="font-bold">Booking rules</h3>
+          <div className="grid grid-cols-2 gap-3">
+            <div><Label>Default slot duration (min)</Label><Input type="number" value={s.slotDurationMinutes} onChange={(e) => set("slotDurationMinutes", Number(e.target.value))} data-testid="input-slot-duration" /></div>
+            <div><Label>Default price (£) <span className="text-muted-foreground text-[10px]">— used if no package selected</span></Label><Input type="number" step="0.01" value={(s.defaultPricePence / 100).toFixed(2)} onChange={(e) => set("defaultPricePence", Math.round(parseFloat(e.target.value || "0") * 100))} data-testid="input-default-price" /></div>
+            <div><Label>Buffer before (min)</Label><Input type="number" value={s.bufferBeforeMinutes} onChange={(e) => set("bufferBeforeMinutes", Number(e.target.value))} data-testid="input-buffer-before" /></div>
+            <div><Label>Buffer after (min)</Label><Input type="number" value={s.bufferAfterMinutes} onChange={(e) => set("bufferAfterMinutes", Number(e.target.value))} data-testid="input-buffer-after" /></div>
+            <div><Label>Min advance notice (hours)</Label><Input type="number" value={s.advanceNoticeHours} onChange={(e) => set("advanceNoticeHours", Number(e.target.value))} data-testid="input-advance-notice" /></div>
+            <div><Label>Max advance booking (days)</Label><Input type="number" value={s.maxAdvanceDays} onChange={(e) => set("maxAdvanceDays", Number(e.target.value))} data-testid="input-max-advance" /></div>
+          </div>
+          <div className="flex items-center gap-3">
+            <Switch checked={s.autoApprove} onCheckedChange={(v) => set("autoApprove", v)} data-testid="switch-auto-approve" />
+            <Label>Auto-approve bookings (no manual confirm)</Label>
+          </div>
+          <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
+            <div className="flex items-center gap-3">
+              <Sun className="w-5 h-5 text-amber-300" />
+              <Switch checked={s.holidayMode} onCheckedChange={(v) => set("holidayMode", v)} data-testid="switch-holiday-mode" />
+              <Label className="font-semibold text-amber-200">Holiday mode (hides all slots)</Label>
+            </div>
+            {s.holidayMode && (
+              <Textarea placeholder="Optional message shown to bookers (e.g. 'Back on 1st June')" value={s.holidayMessage || ""} onChange={(e) => set("holidayMessage", e.target.value)} rows={2} data-testid="input-holiday-message" />
+            )}
+          </div>
+          <Button onClick={() => save.mutate()} disabled={save.isPending} data-testid="button-save-settings">
+            {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Settings className="w-4 h-4 mr-1" />}
+            Save settings
+          </Button>
+        </CardContent>
+      </GlassCard>
+
+      <PayoutPanel />
+    </div>
+  );
+}
+
+// ─── Payout / fees / club bank (coach view, read-only on bank) ───────────────
+function PayoutPanel() {
+  const { data: info } = useQuery<PayoutInfo>({ queryKey: ["/api/coach-bookings/payout-info"] });
   return (
     <GlassCard>
       <CardContent className="p-4 space-y-4">
-        <div className="grid grid-cols-2 gap-3">
-          <div><Label>Slot duration (min)</Label><Input type="number" value={s.slotDurationMinutes} onChange={(e) => set("slotDurationMinutes", Number(e.target.value))} data-testid="input-slot-duration" /></div>
-          <div><Label>Default price (£)</Label><Input type="number" step="0.01" value={(s.defaultPricePence / 100).toFixed(2)} onChange={(e) => set("defaultPricePence", Math.round(parseFloat(e.target.value || "0") * 100))} data-testid="input-default-price" /></div>
-          <div><Label>Buffer before (min)</Label><Input type="number" value={s.bufferBeforeMinutes} onChange={(e) => set("bufferBeforeMinutes", Number(e.target.value))} data-testid="input-buffer-before" /></div>
-          <div><Label>Buffer after (min)</Label><Input type="number" value={s.bufferAfterMinutes} onChange={(e) => set("bufferAfterMinutes", Number(e.target.value))} data-testid="input-buffer-after" /></div>
-          <div><Label>Min advance notice (hours)</Label><Input type="number" value={s.advanceNoticeHours} onChange={(e) => set("advanceNoticeHours", Number(e.target.value))} data-testid="input-advance-notice" /></div>
-          <div><Label>Max advance booking (days)</Label><Input type="number" value={s.maxAdvanceDays} onChange={(e) => set("maxAdvanceDays", Number(e.target.value))} data-testid="input-max-advance" /></div>
-        </div>
-        <div className="flex items-center gap-3">
-          <Switch checked={s.autoApprove} onCheckedChange={(v) => set("autoApprove", v)} data-testid="switch-auto-approve" />
-          <Label>Auto-approve bookings (no manual confirm)</Label>
-        </div>
-        <div className="space-y-2 rounded-lg border border-amber-500/30 bg-amber-500/5 p-3">
-          <div className="flex items-center gap-3">
-            <Sun className="w-5 h-5 text-amber-300" />
-            <Switch checked={s.holidayMode} onCheckedChange={(v) => set("holidayMode", v)} data-testid="switch-holiday-mode" />
-            <Label className="font-semibold text-amber-200">Holiday mode (hides all slots)</Label>
+        <h3 className="font-bold flex items-center gap-2"><Wallet className="w-4 h-4 text-emerald-300" /> Payouts &amp; fees</h3>
+        <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-3 text-sm space-y-1.5" data-testid="panel-platform-fee">
+          <div className="flex items-center gap-2 font-semibold text-emerald-200">
+            <Info className="w-4 h-4" />
+            Platform fee: {info?.platformFeePct ?? 3}% per lesson
           </div>
-          {s.holidayMode && (
-            <Textarea placeholder="Optional message shown to bookers (e.g. 'Back on 1st June')" value={s.holidayMessage || ""} onChange={(e) => set("holidayMessage", e.target.value)} rows={2} data-testid="input-holiday-message" />
+          <p className="text-emerald-100/80 text-xs">
+            {info?.payoutMessage || "Platform fee: 3% per lesson. Payouts are made within 48 hours after each lesson is completed, into your club's bank account."}
+          </p>
+        </div>
+
+        <div className="rounded-lg border border-white/10 bg-white/[0.02] p-3 space-y-2">
+          <div className="flex items-center gap-2 font-semibold">
+            <Banknote className="w-4 h-4 text-violet-300" />
+            Club bank account <span className="text-xs font-normal text-muted-foreground">(read-only)</span>
+          </div>
+          <p className="text-xs text-muted-foreground" data-testid="text-bank-note">
+            {info?.bankNote || "Bank details are managed by your club admin (Super Admin). All player payments go through the club, then payouts are issued to coaches."}
+          </p>
+          {(info?.clubBanks?.length ?? 0) === 0 ? (
+            <p className="text-sm text-amber-300 mt-2" data-testid="text-no-club-link">You're not linked to a club yet — ask your club admin to add bank details.</p>
+          ) : (
+            <div className="space-y-2 mt-2">
+              {info!.clubBanks.map((b) => (
+                <div key={b.clubId} className="rounded-md border border-white/10 p-2.5 text-sm grid grid-cols-2 gap-2" data-testid={`bank-club-${b.clubId}`}>
+                  <div className="col-span-2 font-semibold">{b.clubName}</div>
+                  {b.bankAccountName ? (
+                    <>
+                      <div><span className="text-muted-foreground text-xs">Account name</span><div className="font-mono text-xs">{b.bankAccountName}</div></div>
+                      <div><span className="text-muted-foreground text-xs">Sort code</span><div className="font-mono text-xs">{b.bankSortCode || "—"}</div></div>
+                      <div className="col-span-2"><span className="text-muted-foreground text-xs">Account number</span><div className="font-mono text-xs">{b.bankAccountNumber || "—"}</div></div>
+                    </>
+                  ) : (
+                    <p className="col-span-2 text-xs text-amber-300">No bank details set yet — ask your club admin to add them in Super Admin → Clubs.</p>
+                  )}
+                </div>
+              ))}
+            </div>
           )}
         </div>
-        <Button onClick={() => save.mutate()} disabled={save.isPending} data-testid="button-save-settings">
-          {save.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <Settings className="w-4 h-4 mr-1" />}
-          Save settings
-        </Button>
       </CardContent>
     </GlassCard>
   );
