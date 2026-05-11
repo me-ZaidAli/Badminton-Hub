@@ -60,6 +60,7 @@ export default function CoachesAvailabilityCalendar() {
   const [selectedCoachId, setSelectedCoachId] = useState<number | null>(null);
   const [bookCoachId, setBookCoachId] = useState<number | null>(null);
   const [bookDate, setBookDate] = useState<string | null>(null);
+  const [bookSlot, setBookSlot] = useState<string | null>(null);
 
   const monthStr = fmtMonth(cursor);
   const { data, isLoading } = useQuery<MonthResp>({
@@ -117,9 +118,10 @@ export default function CoachesAvailabilityCalendar() {
     setSelectedDate(fmtDay(t.getFullYear(), t.getMonth(), t.getDate()));
   };
 
-  const openBooking = (coachId: number, date: string) => {
+  const openBooking = (coachId: number, date: string, time?: string) => {
     setBookCoachId(coachId);
     setBookDate(date);
+    setBookSlot(time ?? null);
   };
   const handleDayClick = (date: string, dow: number) => {
     setSelectedDate(date);
@@ -181,18 +183,18 @@ export default function CoachesAvailabilityCalendar() {
                     data-testid={`button-filter-coach-${c.id}`}
                     title={c.fullName}
                   >
-                    <div className={`relative rounded-full ${active ? "ring-4 ring-violet-400 shadow-[0_0_16px_rgba(168,85,247,0.6)]" : "ring-2 ring-white/10 hover:ring-violet-400/60"} transition`}>
-                      <Avatar className="h-12 w-12">
+                    <div className={`relative rounded-full ${active ? "ring-2 sm:ring-4 ring-violet-400 shadow-[0_0_16px_rgba(168,85,247,0.6)]" : "ring-2 ring-white/10 hover:ring-violet-400/60"} transition`}>
+                      <Avatar className="h-10 w-10 sm:h-12 sm:w-12">
                         {c.profilePhoto ? <AvatarImage src={c.profilePhoto} alt={c.fullName} className="object-cover" /> : null}
                         <AvatarFallback className="bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-xs font-bold">{initials(c.fullName)}</AvatarFallback>
                       </Avatar>
                       {active && (
                         <span className="absolute -bottom-0.5 -right-0.5 bg-violet-500 rounded-full p-0.5 border-2 border-zinc-950">
-                          <Check className="w-2.5 h-2.5 text-white" />
+                          <Check className="w-2 h-2 sm:w-2.5 sm:h-2.5 text-white" />
                         </span>
                       )}
                     </div>
-                    <span className={`text-[10px] font-medium max-w-[64px] truncate ${active ? "text-violet-200" : "text-zinc-400"}`}>
+                    <span className={`text-[9px] sm:text-[10px] font-medium max-w-[56px] sm:max-w-[64px] truncate ${active ? "text-violet-200" : "text-zinc-400"}`}>
                       {c.fullName.split(" ")[0]}
                     </span>
                   </button>
@@ -215,7 +217,7 @@ export default function CoachesAvailabilityCalendar() {
                   <div key={d} className="text-[10px] uppercase tracking-wider text-center text-zinc-500 font-semibold">{d}</div>
                 ))}
               </div>
-              <div className="grid grid-cols-7 gap-1">
+              <div className="grid grid-cols-7 gap-0.5 sm:gap-1">
                 {cells.map((cell, idx) => {
                   if (!cell) return <div key={`b-${idx}`} className="aspect-square" />;
                   const list = availPerDay.get(cell.date) ?? [];
@@ -229,7 +231,7 @@ export default function CoachesAvailabilityCalendar() {
                       key={cell.date}
                       onClick={() => handleDayClick(cell.date, cell.dow)}
                       disabled={isPast}
-                      className={`relative aspect-square rounded-lg border text-left p-1.5 transition flex flex-col ${
+                      className={`relative aspect-square rounded-md sm:rounded-lg border text-center transition flex flex-col items-center justify-center ${
                         isSel
                           ? "border-violet-400 bg-gradient-to-br from-violet-500/40 to-fuchsia-500/30 text-white shadow-[0_0_18px_rgba(168,85,247,0.4)]"
                           : isPast
@@ -244,21 +246,16 @@ export default function CoachesAvailabilityCalendar() {
                       }`}
                       data-testid={`button-day-${cell.date}`}
                     >
-                      <div className="flex items-start justify-between gap-1">
-                        <span className={`text-sm font-bold ${isToday && !isSel ? "text-violet-300" : ""}`}>{cell.day}</span>
-                        {isToday && <span className="text-[8px] px-1 rounded-full bg-violet-500/30 text-violet-100 uppercase tracking-wider">Today</span>}
-                      </div>
+                      {isToday && !isSel && (
+                        <span className="absolute top-0.5 right-0.5 w-1 h-1 rounded-full bg-violet-300" />
+                      )}
+                      <span className={`text-xs sm:text-sm font-bold leading-none ${isToday && !isSel ? "text-violet-200" : ""}`}>{cell.day}</span>
                       {!isPast && count > 0 && (
-                        <div className="mt-auto flex items-center gap-1 text-[10px] font-semibold">
+                        <div className="mt-0.5 sm:mt-1 flex items-center justify-center gap-0.5">
                           {selectedCoachId ? (
-                            <span className="inline-flex items-center gap-1 text-violet-200">
-                              <span className="w-1.5 h-1.5 rounded-full bg-violet-400" /> Open
-                            </span>
+                            <span className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-violet-400" />
                           ) : (
-                            <>
-                              <span className={`inline-block w-1.5 h-1.5 rounded-full ${hot ? "bg-emerald-400" : "bg-violet-400"}`} />
-                              {count} {count === 1 ? "coach" : "coaches"}
-                            </>
+                            <span className={`text-[9px] sm:text-[10px] font-semibold leading-none px-1 rounded-full ${hot ? "bg-emerald-500/30 text-emerald-100" : "bg-violet-500/30 text-violet-100"}`}>{count}</span>
                           )}
                         </div>
                       )}
@@ -298,47 +295,16 @@ export default function CoachesAvailabilityCalendar() {
                 No coaches have published availability for this date yet.
               </div>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3" data-testid="list-day-coaches">
-                {selectedCoaches.map((c) => {
-                  const wins = windowsForDate(c, selectedDate, selectedDow);
-                  return (
-                    <div key={c.id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3 flex gap-3">
-                      <Avatar className="h-12 w-12 border border-violet-400/30">
-                        {c.profilePhoto ? <AvatarImage src={c.profilePhoto} alt={c.fullName} className="object-cover" /> : null}
-                        <AvatarFallback className="bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white font-bold">{initials(c.fullName)}</AvatarFallback>
-                      </Avatar>
-                      <div className="flex-1 min-w-0">
-                        <div className="font-semibold text-zinc-100 truncate" data-testid={`text-coach-${c.id}`}>{c.fullName}</div>
-                        <div className="text-[11px] text-zinc-400 truncate">
-                          {c.roleTitle || "Coach"}
-                          {c.city ? <> · <MapPin className="inline w-3 h-3 -mt-0.5" /> {c.city}</> : null}
-                        </div>
-                        <div className="mt-1 flex flex-wrap gap-1">
-                          {wins.map((w, i) => (
-                            <Badge key={i} variant="outline" className="text-[10px] border-violet-400/40 text-violet-200 bg-violet-500/10">
-                              {w.start}–{w.end}
-                            </Badge>
-                          ))}
-                          {c.defaultPricePence > 0 && (
-                            <Badge variant="outline" className="text-[10px] border-emerald-400/30 text-emerald-200 bg-emerald-500/10">
-                              from £{(c.defaultPricePence / 100).toFixed(0)}
-                            </Badge>
-                          )}
-                        </div>
-                        <div className="mt-2 flex gap-1">
-                          <Button size="sm" className="h-7 text-xs bg-gradient-to-r from-violet-500 to-fuchsia-500 hover:opacity-90" onClick={() => openBooking(c.id, selectedDate)} data-testid={`button-quick-book-${c.id}`}>
-                            <Calendar className="w-3 h-3 mr-1" />Book
-                          </Button>
-                          <Link href={`/coach/${c.id}`}>
-                            <Button size="sm" variant="outline" className="h-7 text-xs" data-testid={`link-profile-${c.id}`}>
-                              <ExternalLink className="w-3 h-3 mr-1" />Profile
-                            </Button>
-                          </Link>
-                        </div>
-                      </div>
-                    </div>
-                  );
-                })}
+              <div className="space-y-3" data-testid="list-day-coaches">
+                {selectedCoaches.map((c) => (
+                  <CoachDaySlots
+                    key={c.id}
+                    coach={c}
+                    date={selectedDate}
+                    onPickSlot={(time) => openBooking(c.id, selectedDate, time)}
+                    onBook={() => openBooking(c.id, selectedDate)}
+                  />
+                ))}
               </div>
             )}
           </CardContent>
@@ -354,7 +320,8 @@ export default function CoachesAvailabilityCalendar() {
           <BookSessionDialog
             coach={coach}
             date={bookDate}
-            onClose={() => { setBookCoachId(null); setBookDate(null); }}
+            initialSlot={bookSlot}
+            onClose={() => { setBookCoachId(null); setBookDate(null); setBookSlot(null); }}
           />
         );
       })()}
@@ -362,12 +329,77 @@ export default function CoachesAvailabilityCalendar() {
   );
 }
 
+// ─── Per-coach inline slot row on the selected-day card ────────────────────
+function CoachDaySlots({ coach, date, onPickSlot, onBook }: { coach: CoachAvail; date: string; onPickSlot: (time: string) => void; onBook: () => void }) {
+  const { data, isLoading } = useQuery<{ slots: Slot[] }>({
+    queryKey: [`/api/coaches/${coach.id}/availability-slots`, date],
+    queryFn: async () => {
+      const r = await fetch(`/api/coaches/${coach.id}/availability-slots?date=${date}`, { credentials: "include" });
+      if (!r.ok) throw new Error("Failed to load slots");
+      return r.json();
+    },
+  });
+  const slots = data?.slots ?? [];
+  const open = slots.filter((s) => s.available);
+
+  return (
+    <div className="rounded-xl border border-white/10 bg-white/[0.03] p-3" data-testid={`card-coach-${coach.id}`}>
+      <div className="flex items-center gap-3 mb-2">
+        <Avatar className="h-10 w-10 border border-violet-400/30 flex-shrink-0">
+          {coach.profilePhoto ? <AvatarImage src={coach.profilePhoto} alt={coach.fullName} className="object-cover" /> : null}
+          <AvatarFallback className="bg-gradient-to-br from-violet-600 to-fuchsia-600 text-white text-xs font-bold">{initials(coach.fullName)}</AvatarFallback>
+        </Avatar>
+        <div className="flex-1 min-w-0">
+          <div className="font-semibold text-zinc-100 text-sm truncate" data-testid={`text-coach-${coach.id}`}>{coach.fullName}</div>
+          <div className="text-[10px] text-zinc-400 truncate">
+            {coach.roleTitle || "Coach"}
+            {coach.city ? <> · <MapPin className="inline w-3 h-3 -mt-0.5" /> {coach.city}</> : null}
+          </div>
+        </div>
+        <Link href={`/coach/${coach.id}`}>
+          <Button size="sm" variant="outline" className="h-7 px-2 text-[11px]" data-testid={`link-profile-${coach.id}`}>
+            <ExternalLink className="w-3 h-3" />
+          </Button>
+        </Link>
+      </div>
+      {isLoading ? (
+        <div className="flex justify-center py-3"><Loader2 className="w-4 h-4 animate-spin text-violet-400" /></div>
+      ) : open.length === 0 ? (
+        <p className="text-[11px] text-zinc-500 italic">No bookable times remaining on this date.</p>
+      ) : (
+        <>
+          <div className="text-[10px] uppercase tracking-wider text-violet-200 mb-1.5 inline-flex items-center gap-1">
+            <Clock className="w-3 h-3" /> Tap a time to book
+          </div>
+          <div className="grid grid-cols-4 sm:grid-cols-5 md:grid-cols-6 gap-1.5">
+            {open.slice(0, 18).map((s) => (
+              <button
+                key={s.time}
+                onClick={() => onPickSlot(s.time)}
+                className="px-1.5 py-1.5 rounded-md border border-violet-400/40 bg-violet-500/10 text-violet-100 text-xs font-semibold hover:border-violet-400 hover:bg-violet-500/25 transition"
+                data-testid={`button-pick-slot-${coach.id}-${s.time}`}
+              >
+                {s.time}
+              </button>
+            ))}
+          </div>
+          {open.length > 18 && (
+            <button onClick={onBook} className="mt-2 text-[11px] text-violet-300 hover:text-violet-200 underline" data-testid={`button-more-times-${coach.id}`}>
+              + {open.length - 18} more times
+            </button>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 // ─── Booking dialog ──────────────────────────────────────────────────────────
-function BookSessionDialog({ coach, date, onClose }: { coach: CoachAvail; date: string; onClose: () => void }) {
+function BookSessionDialog({ coach, date, initialSlot, onClose }: { coach: CoachAvail; date: string; initialSlot?: string | null; onClose: () => void }) {
   const { toast } = useToast();
   const { data: user } = useUser();
   const [tierId, setTierId] = useState<string | null>(null);
-  const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
+  const [selectedSlot, setSelectedSlot] = useState<string | null>(initialSlot ?? null);
   const [message, setMessage] = useState("");
 
   // Pull full coach summary (price tiers live here, not on /availability-month).
