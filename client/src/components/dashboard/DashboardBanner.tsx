@@ -56,9 +56,6 @@ export default function DashboardBanner({ heightVh = 28 }: DashboardBannerProps)
         />
       ))}
 
-      {/* Cinematic overlays */}
-      <div className="absolute inset-0 bg-gradient-to-b from-black/15 via-transparent to-black/40 pointer-events-none" />
-      <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-900/15 via-transparent to-cyan-500/10 pointer-events-none mix-blend-overlay" />
     </div>
   );
 }
