@@ -72,6 +72,7 @@ const SuperAdminUsersManagement = lazy(() => import("@/pages/super-admin/SuperAd
 const GodMode = lazy(() => import("@/pages/super-admin/GodMode"));
 const WalletManagement = lazy(() => import("@/pages/super-admin/WalletManagement"));
 const SuperAdminReferrals = lazy(() => import("@/pages/super-admin/SuperAdminReferrals"));
+const SuperAdminCoaches = lazy(() => import("@/pages/super-admin/SuperAdminCoaches"));
 const SuperAdminBilling = lazy(() => import("@/pages/SuperAdminBilling"));
 const ClubBilling = lazy(() => import("@/pages/ClubBilling"));
 const ClubControlCenter = lazy(() => import("@/pages/admin/ClubControlCenter"));
@@ -928,6 +929,9 @@ function Router() {
       </Route>
       <Route path="/super-admin/referrals">
         <OwnerRoute component={SuperAdminReferrals} />
+      </Route>
+      <Route path="/super-admin/coaches">
+        <OwnerRoute component={SuperAdminCoaches} />
       </Route>
       
       {/* Fallback */}
