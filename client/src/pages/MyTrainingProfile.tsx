@@ -1,11 +1,16 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useUser } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Sparkles, Star, Zap, MessageSquare, Target, TrendingUp, Trophy, Award, Filter } from "lucide-react";
-import { motion, AnimatePresence } from "framer-motion";
+import { Button } from "@/components/ui/button";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { Loader2, Sparkles, Star, Zap, MessageSquare, Trophy, MessageCircle, ChevronRight, Check } from "lucide-react";
+import { motion } from "framer-motion";
+import {
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, ResponsiveContainer, Tooltip,
+} from "recharts";
 import imgServing from "@/assets/skills/serving.png";
 import imgForecourt from "@/assets/skills/forecourt.png";
 import imgMidcourt from "@/assets/skills/midcourt.png";
@@ -45,19 +50,6 @@ interface Progress {
   skillName: string; categoryId: number; categoryName: string;
 }
 
-const TILE_GRADIENTS = [
-  { ring: "from-violet-400/70 via-fuchsia-400/50 to-cyan-400/40", glow: "rgba(168,85,247,0.45)", chip: "bg-violet-500/15 text-violet-200 border-violet-400/30" },
-  { ring: "from-cyan-400/70 via-sky-400/50 to-violet-400/40", glow: "rgba(56,189,248,0.45)", chip: "bg-cyan-500/15 text-cyan-200 border-cyan-400/30" },
-  { ring: "from-amber-400/70 via-orange-400/50 to-rose-400/40", glow: "rgba(251,191,36,0.45)", chip: "bg-amber-500/15 text-amber-200 border-amber-400/30" },
-  { ring: "from-emerald-400/70 via-teal-400/50 to-cyan-400/40", glow: "rgba(16,185,129,0.45)", chip: "bg-emerald-500/15 text-emerald-200 border-emerald-400/30" },
-  { ring: "from-rose-400/70 via-pink-400/50 to-fuchsia-400/40", glow: "rgba(244,63,94,0.45)", chip: "bg-rose-500/15 text-rose-200 border-rose-400/30" },
-  { ring: "from-indigo-400/70 via-purple-400/50 to-blue-400/40", glow: "rgba(99,102,241,0.45)", chip: "bg-indigo-500/15 text-indigo-200 border-indigo-400/30" },
-];
-
-function gradientFor(catId: number) {
-  return TILE_GRADIENTS[Math.abs(catId) % TILE_GRADIENTS.length];
-}
-
 function StarRow({ value, size = 14 }: { value: number; size?: number }) {
   return (
     <div className="flex gap-0.5" data-testid={`stars-${value}`}>
@@ -70,10 +62,11 @@ function StarRow({ value, size = 14 }: { value: number; size?: number }) {
 
 export default function MyTrainingProfile() {
   const { data: user } = useUser();
+  const u: any = user;
   const [selectedSkill, setSelectedSkill] = useState<{ skill: Skill; progress: Progress | null; category: Category | null } | null>(null);
-  const [activeCatId, setActiveCatId] = useState<number | "all">("all");
+  const [activeCatId, setActiveCatId] = useState<number | null>(null);
 
-  const profiles: PlayerProfile[] = (user as any)?.playerProfiles || [];
+  const profiles: PlayerProfile[] = u?.playerProfiles || [];
   const approved = profiles.filter((p) => p.membershipStatus === "APPROVED");
   const [selectedProfileId, setSelectedProfileId] = useState<string>("");
   const activeProfile = useMemo(() => {
@@ -120,6 +113,24 @@ export default function MyTrainingProfile() {
     return m;
   }, [progress]);
 
+  const sortedCategories = useMemo(
+    () => [...categories].sort((a, b) => a.displayOrder - b.displayOrder),
+    [categories],
+  );
+
+  // default to first category once loaded
+  useEffect(() => {
+    if (activeCatId === null && sortedCategories.length > 0) {
+      setActiveCatId(sortedCategories[0].id);
+    }
+  }, [activeCatId, sortedCategories]);
+
+  const activeCat = sortedCategories.find((c) => c.id === activeCatId) || null;
+  const activeCatSkills = useMemo(
+    () => skills.filter((s) => s.categoryId === activeCatId).sort((a, b) => a.displayOrder - b.displayOrder),
+    [skills, activeCatId],
+  );
+
   const overall = useMemo(() => {
     if (skills.length === 0) return 0;
     const sum = skills.reduce((acc, s) => acc + (progressMap.get(s.id)?.percentage || 0), 0);
@@ -127,15 +138,48 @@ export default function MyTrainingProfile() {
   }, [skills, progressMap]);
 
   const assessedCount = skills.filter((s) => (progressMap.get(s.id)?.percentage || 0) > 0).length;
-  const priorityCount = progress.filter((p) => p.priority).length;
   const fiveStarCount = progress.filter((p) => p.level >= 5).length;
+  const priorityCount = progress.filter((p) => p.priority).length;
 
-  const visibleCategories = activeCatId === "all" ? categories : categories.filter((c) => c.id === activeCatId);
+  const catScore = useMemo(() => {
+    if (activeCatSkills.length === 0) return 0;
+    const sum = activeCatSkills.reduce((acc, s) => acc + (progressMap.get(s.id)?.percentage || 0), 0);
+    return Math.round(sum / activeCatSkills.length);
+  }, [activeCatSkills, progressMap]);
+
+  // Potential score = current + uplift toward 100 in untapped skills
+  const catPotential = useMemo(() => {
+    if (activeCatSkills.length === 0) return 0;
+    const max = 100;
+    const uplift = activeCatSkills.reduce((acc, s) => {
+      const cur = progressMap.get(s.id)?.percentage || 0;
+      return acc + (max - cur) * 0.45; // 45% closure
+    }, 0);
+    const sum = activeCatSkills.reduce((acc, s) => acc + (progressMap.get(s.id)?.percentage || 0), 0);
+    return Math.min(100, Math.round((sum + uplift) / activeCatSkills.length));
+  }, [activeCatSkills, progressMap]);
+
+  const radarData = useMemo(
+    () => activeCatSkills.map((s) => {
+      const p = progressMap.get(s.id);
+      const short = s.name.length > 16 ? s.name.slice(0, 14) + "…" : s.name;
+      return {
+        skill: short,
+        fullName: s.name,
+        current: p?.percentage || 0,
+        target: 100,
+        skillObj: s,
+        progress: p || null,
+      };
+    }),
+    [activeCatSkills, progressMap],
+  );
+
   const clubName = clubs.find((c) => c.id === clubId)?.name || "Your Club";
 
   if (!user) {
     return (
-      <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-violet-400" /></div>
+      <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-fuchsia-400" /></div>
     );
   }
 
@@ -149,172 +193,296 @@ export default function MyTrainingProfile() {
     );
   }
 
-  return (
-    <div className="min-h-screen bg-gradient-to-b from-zinc-950 via-zinc-900 to-zinc-950 text-zinc-100">
-      <div className="container max-w-6xl mx-auto py-6 px-4 space-y-6">
-        {/* HERO */}
-        <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
-          <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-white/[0.04] to-white/[0.01] backdrop-blur-xl shadow-[0_8px_30px_rgba(0,0,0,0.35)] p-6 md:p-8">
-            <div className="pointer-events-none absolute -top-32 -right-24 w-96 h-96 rounded-full bg-gradient-to-br from-violet-500/30 via-fuchsia-500/15 to-transparent blur-3xl" />
-            <div className="pointer-events-none absolute -bottom-32 -left-24 w-96 h-96 rounded-full bg-gradient-to-br from-cyan-500/20 via-blue-500/10 to-transparent blur-3xl" />
-            <div className="relative">
-              <div className="flex flex-wrap items-start justify-between gap-4">
-                <div>
-                  <div className="flex items-center gap-2 mb-1">
-                    <Award className="w-5 h-5 text-violet-300" />
-                    <span className="text-xs uppercase tracking-[0.18em] text-violet-300/80">Training Profile</span>
-                  </div>
-                  <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight" data-testid="text-page-title">{user.fullName}</h1>
-                  <p className="text-sm text-zinc-400 mt-1" data-testid="text-club-name">{clubName} · {assessedCount} of {skills.length} skills assessed</p>
-                </div>
-                {approved.length > 1 && (
-                  <Select value={String(activeProfile?.id || "")} onValueChange={setSelectedProfileId}>
-                    <SelectTrigger className="w-[200px] bg-white/5 border-white/10" data-testid="select-club-profile">
-                      <SelectValue placeholder="Choose club" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {approved.map((p) => {
-                        const c = clubs.find((cl) => cl.id === p.clubId);
-                        return <SelectItem key={p.id} value={String(p.id)}>{c?.name || `Club ${p.clubId}`}</SelectItem>;
-                      })}
-                    </SelectContent>
-                  </Select>
-                )}
-              </div>
+  const initials = (u?.fullName || "Y P").split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
+  const avatarSrc = u?.profilePictureUrl || u?.avatarUrl;
+  const moodImage = imageForCategory(activeCat?.name || "");
+  const isFullyEmpty = !pLoading && !cLoading && (skills.length === 0 || assessedCount === 0);
 
-              {/* Overall meter */}
-              <div className="mt-6 flex flex-wrap items-center gap-6">
-                <div className="relative" data-testid="meter-overall">
-                  <svg width="120" height="120" viewBox="0 0 120 120" className="-rotate-90">
-                    <circle cx="60" cy="60" r="52" stroke="rgba(255,255,255,0.08)" strokeWidth="10" fill="none" />
-                    <circle
-                      cx="60" cy="60" r="52" fill="none"
-                      stroke="url(#grad-overall)" strokeWidth="10" strokeLinecap="round"
-                      strokeDasharray={`${(overall / 100) * 326.7} 326.7`}
-                      style={{ transition: "stroke-dasharray 1s ease-out" }}
-                    />
-                    <defs>
-                      <linearGradient id="grad-overall" x1="0" y1="0" x2="1" y2="1">
-                        <stop offset="0%" stopColor="#a78bfa" />
-                        <stop offset="50%" stopColor="#f0abfc" />
-                        <stop offset="100%" stopColor="#22d3ee" />
-                      </linearGradient>
-                    </defs>
-                  </svg>
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-3xl font-extrabold bg-gradient-to-br from-violet-200 to-cyan-200 bg-clip-text text-transparent">{overall}%</span>
-                    <span className="text-[10px] uppercase tracking-wider text-zinc-400">Overall</span>
-                  </div>
-                </div>
-                <div className="grid grid-cols-3 gap-3 flex-1 min-w-[260px]">
-                  <StatTile label="Assessed" value={`${assessedCount}/${skills.length}`} icon={Target} accent="violet" testId="stat-assessed" />
-                  <StatTile label="5-Star" value={String(fiveStarCount)} icon={Star} accent="amber" testId="stat-five-star" />
-                  <StatTile label="Priority" value={String(priorityCount)} icon={Zap} accent="cyan" testId="stat-priority" />
-                </div>
+  return (
+    <div className="min-h-screen bg-[#1a0626] bg-gradient-to-br from-[#240a3b] via-[#3a0e4a] to-[#0a0218] text-zinc-100 relative overflow-hidden">
+      {/* ambient halos */}
+      <div className="pointer-events-none absolute -top-32 -right-32 w-[480px] h-[480px] rounded-full bg-fuchsia-500/25 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-40 -left-32 w-[520px] h-[520px] rounded-full bg-violet-600/20 blur-3xl" />
+      <div className="pointer-events-none absolute top-1/2 left-1/2 w-[300px] h-[300px] -translate-x-1/2 -translate-y-1/2 rounded-full bg-pink-500/10 blur-3xl" />
+
+      <div className="container max-w-7xl mx-auto px-3 sm:px-6 py-4 sm:py-6 relative">
+        {/* Outer card */}
+        <motion.div
+          initial={{ opacity: 0, y: 12 }}
+          animate={{ opacity: 1, y: 0 }}
+          className="rounded-3xl border border-white/10 bg-zinc-950/60 backdrop-blur-xl shadow-[0_30px_80px_rgba(0,0,0,0.55)] overflow-hidden"
+        >
+          {/* Top header */}
+          <div className="flex items-center justify-between px-5 sm:px-7 py-4 border-b border-white/5">
+            <div className="flex items-center gap-2">
+              <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-fuchsia-500 to-rose-500 flex items-center justify-center shadow-[0_0_14px_rgba(236,72,153,0.6)]">
+                <Sparkles className="w-4 h-4 text-white" />
               </div>
+              <span className="text-sm font-extrabold tracking-tight bg-gradient-to-r from-fuchsia-300 to-rose-300 bg-clip-text text-transparent">
+                Training Profile
+              </span>
+            </div>
+            <div className="flex items-center gap-3 flex-1 justify-center">
+              <h1 className="text-base sm:text-2xl font-extrabold tracking-tight uppercase text-center" data-testid="text-page-title">
+                YOUR <span className="bg-gradient-to-r from-rose-400 to-fuchsia-400 bg-clip-text text-transparent">SKILL SCORE</span>
+              </h1>
+            </div>
+            <div className="hidden sm:flex items-center gap-2">
+              {approved.length > 1 && (
+                <Select value={String(activeProfile?.id || "")} onValueChange={setSelectedProfileId}>
+                  <SelectTrigger className="w-[170px] bg-white/5 border-white/10 h-8 text-xs" data-testid="select-club-profile">
+                    <SelectValue placeholder="Choose club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {approved.map((p) => {
+                      const c = clubs.find((cl) => cl.id === p.clubId);
+                      return <SelectItem key={p.id} value={String(p.id)}>{c?.name || `Club ${p.clubId}`}</SelectItem>;
+                    })}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
-        </motion.div>
 
-        {/* CATEGORY FILTER */}
-        {categories.length > 0 && (
-          <div className="flex items-center gap-2 overflow-x-auto pb-1" data-testid="filter-categories">
-            <Filter className="w-4 h-4 text-zinc-500 shrink-0" />
-            <button
-              onClick={() => setActiveCatId("all")}
-              className={`shrink-0 text-xs px-3 py-1.5 rounded-full border transition ${activeCatId === "all" ? "bg-violet-500/20 border-violet-400/50 text-white" : "border-white/10 text-zinc-400 hover:border-white/30"}`}
-              data-testid="filter-all"
-            >All</button>
-            {categories.map((c) => {
-              const g = gradientFor(c.id);
-              const active = activeCatId === c.id;
-              return (
-                <button
-                  key={c.id}
-                  onClick={() => setActiveCatId(c.id)}
-                  className={`shrink-0 text-xs px-3 py-1.5 rounded-full border transition ${active ? `${g.chip} shadow-[0_0_14px_rgba(168,85,247,0.25)]` : "border-white/10 text-zinc-400 hover:border-white/30"}`}
-                  data-testid={`filter-cat-${c.id}`}
-                >{c.name}</button>
-              );
-            })}
-          </div>
-        )}
+          <p className="text-center text-xs sm:text-sm text-zinc-400 px-5 pt-3 pb-1" data-testid="text-club-name">
+            Your skill score is calculated from {clubName} coach assessments · {assessedCount} of {skills.length} skills assessed
+          </p>
 
-        {/* COLLAGE */}
-        {(cLoading || pLoading) ? (
-          <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-violet-400" /></div>
-        ) : skills.length === 0 ? (
-          <div className="rounded-2xl p-10 text-center border border-white/10 bg-white/[0.02]" data-testid="state-empty">
-            <Trophy className="w-10 h-10 mx-auto text-zinc-600 mb-3" />
-            <p className="text-sm text-zinc-400">Your club hasn't set up skill categories yet. Once they do, your assessments will appear here as a colourful collage.</p>
-          </div>
-        ) : (
-          <div className="space-y-8" data-testid="collage-root">
-            {visibleCategories.map((cat) => {
-              const catSkills = skills.filter((s) => s.categoryId === cat.id);
-              if (catSkills.length === 0) return null;
-              const g = gradientFor(cat.id);
-              const catTotal = catSkills.reduce((acc, s) => acc + (progressMap.get(s.id)?.percentage || 0), 0);
-              const catAvg = Math.round(catTotal / catSkills.length);
-              return (
-                <section key={cat.id} data-testid={`section-cat-${cat.id}`}>
-                  <div className="flex items-center justify-between mb-3">
-                    <div className="flex items-center gap-2">
-                      <span className={`inline-flex items-center justify-center w-7 h-7 rounded-lg bg-gradient-to-br ${g.ring}`}>
-                        <Sparkles className="w-4 h-4 text-white/90" />
+          {/* Body grid */}
+          <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-0">
+            {/* LEFT RAIL */}
+            <aside
+              className="relative overflow-hidden border-r border-white/5 px-5 py-6 sm:py-8"
+              style={{
+                backgroundImage: `linear-gradient(180deg, rgba(40,8,60,0.85) 0%, rgba(20,4,30,0.95) 100%), url(${moodImage})`,
+                backgroundSize: "cover",
+                backgroundPosition: "center",
+                backgroundBlendMode: "multiply",
+              }}
+              data-testid="rail-categories"
+            >
+              <div className="flex items-center gap-3 mb-7">
+                <Avatar className="w-12 h-12 border-2 border-fuchsia-400/60 shadow-[0_0_16px_rgba(236,72,153,0.4)]">
+                  {avatarSrc ? <AvatarImage src={avatarSrc} alt={u?.fullName} /> : null}
+                  <AvatarFallback className="bg-fuchsia-500/30 text-white font-bold text-sm">{initials}</AvatarFallback>
+                </Avatar>
+                <div>
+                  <div className="text-xs uppercase tracking-wider text-fuchsia-300/80">Hey</div>
+                  <div className="text-base font-bold leading-tight" data-testid="text-user-name">{u?.fullName}</div>
+                </div>
+              </div>
+
+              <div className="text-[10px] uppercase tracking-[0.18em] text-fuchsia-300/70 font-bold mb-3">
+                Your Skill Categories
+              </div>
+
+              {cLoading ? (
+                <div className="space-y-2">
+                  {[1,2,3,4,5].map(i => <div key={i} className="h-9 bg-white/5 animate-pulse rounded-lg" />)}
+                </div>
+              ) : (
+                <ol className="space-y-1.5" data-testid="list-categories">
+                  {sortedCategories.map((cat, idx) => {
+                    const catSkills = skills.filter((s) => s.categoryId === cat.id);
+                    const sum = catSkills.reduce((acc, s) => acc + (progressMap.get(s.id)?.percentage || 0), 0);
+                    const avg = catSkills.length > 0 ? Math.round(sum / catSkills.length) : 0;
+                    const isActive = cat.id === activeCatId;
+                    const fullyDone = avg >= 90;
+                    return (
+                      <li key={cat.id}>
+                        <button
+                          onClick={() => setActiveCatId(cat.id)}
+                          className={`w-full text-left flex items-center gap-3 px-2 py-2 rounded-lg transition group ${isActive ? "bg-white/5" : "hover:bg-white/[0.03]"}`}
+                          data-testid={`btn-cat-${cat.id}`}
+                        >
+                          <span className={`shrink-0 w-7 h-7 rounded-full border flex items-center justify-center text-xs font-bold transition ${
+                            isActive
+                              ? "border-fuchsia-400 text-fuchsia-300 shadow-[0_0_10px_rgba(236,72,153,0.6)]"
+                              : fullyDone
+                                ? "border-emerald-400/60 text-emerald-300"
+                                : "border-white/15 text-white/50"
+                          }`}>
+                            {fullyDone ? <Check className="w-3.5 h-3.5" /> : idx + 1}
+                          </span>
+                          <span className={`text-sm truncate ${isActive ? "text-white font-semibold" : "text-white/70 group-hover:text-white"}`}>
+                            {cat.name}
+                          </span>
+                          {isActive && <ChevronRight className="w-3.5 h-3.5 text-fuchsia-300 ml-auto shrink-0" />}
+                        </button>
+                      </li>
+                    );
+                  })}
+                </ol>
+              )}
+
+              <div className="mt-7 pt-5 border-t border-white/5 grid grid-cols-3 gap-2">
+                <div className="text-center">
+                  <div className="text-base font-extrabold text-white">{assessedCount}</div>
+                  <div className="text-[9px] uppercase tracking-wider text-white/50">Assessed</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-base font-extrabold text-amber-300">{fiveStarCount}</div>
+                  <div className="text-[9px] uppercase tracking-wider text-white/50">5-Star</div>
+                </div>
+                <div className="text-center">
+                  <div className="text-base font-extrabold text-cyan-300">{priorityCount}</div>
+                  <div className="text-[9px] uppercase tracking-wider text-white/50">Priority</div>
+                </div>
+              </div>
+            </aside>
+
+            {/* MAIN CONTENT */}
+            <main className="px-4 sm:px-7 py-6 sm:py-8">
+              {(cLoading || pLoading) ? (
+                <div className="flex justify-center py-20"><Loader2 className="w-8 h-8 animate-spin text-fuchsia-400" /></div>
+              ) : isFullyEmpty ? (
+                <EmptyAskCoach categoryName={activeCat?.name} />
+              ) : !activeCat ? (
+                <div className="text-center py-20 text-white/60">No categories configured by your club yet.</div>
+              ) : (
+                <>
+                  {/* Toggles row */}
+                  <div className="flex items-center justify-between flex-wrap gap-3 mb-5">
+                    <div className="flex items-center gap-2 text-xs">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-400/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400" />
+                        Your Score
                       </span>
-                      <h2 className="text-lg font-bold tracking-tight">{cat.name}</h2>
-                      <Badge variant="outline" className="border-white/10 text-zinc-400 text-[10px]">{catSkills.length} skills</Badge>
+                      <span className="text-white/30 text-[10px] font-bold">VS</span>
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-300 border border-rose-400/30">
+                        <span className="w-1.5 h-1.5 rounded-full bg-rose-400" />
+                        Potential
+                      </span>
                     </div>
-                    <div className="flex items-center gap-2 text-xs text-zinc-400">
-                      <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
-                      <span className="font-semibold text-white">{catAvg}%</span> avg
+                    <Badge className="bg-fuchsia-500/15 text-fuchsia-200 border-fuchsia-400/30 text-[10px] uppercase tracking-wider">
+                      {activeCat.name}
+                    </Badge>
+                  </div>
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
+                    {/* CURRENT vs IMPROVED */}
+                    <div className="rounded-2xl bg-zinc-950/70 border border-white/5 p-5 sm:p-6 relative overflow-hidden" data-testid="card-score">
+                      <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-emerald-500/10 blur-3xl" />
+                      <div>
+                        <h3 className="text-base font-bold text-white">{activeCat.name} Score</h3>
+                        <p className="text-xs text-zinc-400 mt-0.5">Score calculated from your latest coach assessments</p>
+                      </div>
+                      <div className="mt-5 flex items-center justify-center">
+                        <ScoreMeter current={catScore} potential={catPotential} />
+                      </div>
+                      <div className="mt-4 grid grid-cols-2 gap-3 text-center">
+                        <div className="rounded-xl bg-white/5 border border-white/5 p-2.5">
+                          <div className="text-[10px] uppercase tracking-wider text-emerald-300 font-bold">Now</div>
+                          <div className="text-2xl font-extrabold text-white tabular-nums" data-testid="text-cat-now">{catScore}%</div>
+                        </div>
+                        <div className="rounded-xl bg-white/5 border border-white/5 p-2.5">
+                          <div className="text-[10px] uppercase tracking-wider text-rose-300 font-bold">After Coaching</div>
+                          <div className="text-2xl font-extrabold text-white tabular-nums" data-testid="text-cat-potential">{catPotential}%</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* RADAR — skill comparison */}
+                    <div className="rounded-2xl bg-zinc-950/70 border border-white/5 p-5 sm:p-6 relative overflow-hidden" data-testid="card-radar">
+                      <div className="absolute -top-10 -right-10 w-40 h-40 rounded-full bg-rose-500/10 blur-3xl" />
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h3 className="text-base font-bold text-white">Skill comparison</h3>
+                          <p className="text-xs text-zinc-400 mt-0.5">Your coach-rated score per skill</p>
+                        </div>
+                      </div>
+                      <div className="mt-2 h-[280px] sm:h-[300px]">
+                        <ResponsiveContainer width="100%" height="100%">
+                          <RadarChart data={radarData} outerRadius="78%">
+                            <PolarGrid stroke="rgba(255,255,255,0.08)" />
+                            <PolarAngleAxis
+                              dataKey="skill"
+                              tick={{ fill: "#e9d5ff", fontSize: 10, fontWeight: 600 }}
+                            />
+                            <Tooltip
+                              contentStyle={{ background: "#1a0626", border: "1px solid rgba(236,72,153,0.4)", borderRadius: 8, color: "#fff", fontSize: 12 }}
+                              labelFormatter={(_, payload: any[]) => payload?.[0]?.payload?.fullName || ""}
+                              formatter={(v: any, name: string) => [`${v}%`, name === "current" ? "Your Score" : "Potential"]}
+                            />
+                            <Radar name="potential" dataKey="target" stroke="#fb7185" strokeWidth={1.5} fill="#fb7185" fillOpacity={0.10} strokeDasharray="4 4" />
+                            <Radar name="current" dataKey="current" stroke="#34d399" strokeWidth={2} fill="#34d399" fillOpacity={0.30} />
+                          </RadarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
                   </div>
-                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 md:gap-4">
-                    {catSkills.map((skill, i) => {
-                      const prog = progressMap.get(skill.id) || null;
-                      const pct = prog?.percentage || 0;
-                      const lvl = prog?.level || 0;
-                      // Make some tiles wider for collage feel
-                      const wide = i % 7 === 3 ? "sm:col-span-2" : "";
-                      return (
-                        <SkillTile
-                          key={skill.id}
-                          skill={skill}
-                          progress={prog}
-                          gradient={g}
-                          extraClass={wide}
-                          onClick={() => setSelectedSkill({ skill, progress: prog, category: cat })}
-                          pct={pct}
-                          level={lvl}
-                          imageUrl={imageForCategory(cat.name)}
-                        />
-                      );
-                    })}
+
+                  {/* Per-skill mini list */}
+                  <div className="mt-6 rounded-2xl bg-zinc-950/70 border border-white/5 p-5">
+                    <div className="flex items-center justify-between mb-3">
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">Skills in {activeCat.name}</h3>
+                      <span className="text-[10px] text-white/50">Tap any skill for coach feedback</span>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2" data-testid="list-skills">
+                      {activeCatSkills.map((s) => {
+                        const p = progressMap.get(s.id) || null;
+                        const pct = p?.percentage || 0;
+                        const lvl = p?.level || 0;
+                        return (
+                          <button
+                            key={s.id}
+                            onClick={() => setSelectedSkill({ skill: s, progress: p, category: activeCat })}
+                            className="text-left rounded-xl bg-white/[0.03] hover:bg-white/[0.07] border border-white/5 hover:border-fuchsia-400/40 transition px-3 py-2.5 group"
+                            data-testid={`row-skill-${s.id}`}
+                          >
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
+                                {p?.priority && (
+                                  <span className="inline-flex items-center justify-center w-5 h-5 rounded-full bg-amber-400/90 text-amber-950 shrink-0">
+                                    <Zap className="w-3 h-3" />
+                                  </span>
+                                )}
+                                {p?.comment && (
+                                  <MessageSquare className="w-3 h-3 text-fuchsia-300 shrink-0" />
+                                )}
+                                <span className="text-sm text-white truncate font-medium">{s.name}</span>
+                              </div>
+                              <div className="flex items-center gap-2 shrink-0">
+                                <StarRow value={lvl} size={11} />
+                                <span className="text-xs font-bold text-white/80 tabular-nums w-9 text-right">
+                                  {pct > 0 ? `${pct}%` : "—"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="mt-1.5 h-1 bg-white/5 rounded-full overflow-hidden">
+                              <div
+                                className="h-full rounded-full bg-gradient-to-r from-emerald-400 to-fuchsia-400"
+                                style={{ width: `${pct}%`, boxShadow: pct > 0 ? "0 0 8px rgba(236,72,153,0.4)" : undefined }}
+                              />
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </section>
-              );
-            })}
+                </>
+              )}
+            </main>
           </div>
-        )}
+        </motion.div>
       </div>
 
       {/* DETAIL DIALOG */}
       <Dialog open={!!selectedSkill} onOpenChange={(open) => { if (!open) setSelectedSkill(null); }}>
         <DialogContent className="sm:max-w-md border-white/10 bg-zinc-950 text-zinc-100" data-testid="dialog-skill-detail">
           {selectedSkill && (() => {
-            const g = gradientFor(selectedSkill.category?.id || 0);
             const prog = selectedSkill.progress;
             const pct = prog?.percentage || 0;
             const lvl = prog?.level || 0;
             return (
               <>
-                <div className={`relative overflow-hidden -mx-6 -mt-6 px-6 pt-6 pb-8 mb-2 bg-gradient-to-br ${g.ring}`}>
-                  <img src={imageForCategory(selectedSkill.category?.name || "")} alt="" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                <div className="relative overflow-hidden -mx-6 -mt-6 px-6 pt-6 pb-8 mb-2 bg-gradient-to-br from-fuchsia-600/40 via-rose-500/30 to-violet-700/40">
+                  <img src={imageForCategory(selectedSkill.category?.name || "")} alt="" className="absolute inset-0 w-full h-full object-cover opacity-50" />
                   <div className="pointer-events-none absolute inset-0 bg-gradient-to-b from-transparent to-zinc-950/85" />
                   <div className="relative">
-                    <Badge className={`${g.chip} mb-2 text-[10px] uppercase tracking-wider`}>{selectedSkill.category?.name}</Badge>
+                    <Badge className="bg-fuchsia-500/20 text-fuchsia-100 border-fuchsia-400/40 mb-2 text-[10px] uppercase tracking-wider">
+                      {selectedSkill.category?.name}
+                    </Badge>
                     <DialogHeader className="space-y-1">
                       <DialogTitle className="text-2xl font-extrabold tracking-tight" data-testid="text-skill-name">{selectedSkill.skill.name}</DialogTitle>
                       <DialogDescription className="text-zinc-200/80">
@@ -335,8 +503,8 @@ export default function MyTrainingProfile() {
                         initial={{ width: 0 }}
                         animate={{ width: `${pct}%` }}
                         transition={{ duration: 0.8, ease: "easeOut" }}
-                        className={`h-full rounded-full bg-gradient-to-r ${g.ring}`}
-                        style={{ boxShadow: `0 0 12px ${g.glow}` }}
+                        className="h-full rounded-full bg-gradient-to-r from-emerald-400 via-fuchsia-400 to-rose-400"
+                        style={{ boxShadow: "0 0 12px rgba(236,72,153,0.45)" }}
                       />
                     </div>
                   </div>
@@ -356,8 +524,8 @@ export default function MyTrainingProfile() {
                   {prog?.comment ? (
                     <div className="p-3 rounded-xl bg-white/[0.03] border border-white/5" data-testid="text-coach-comment">
                       <div className="flex items-center gap-2 mb-1.5">
-                        <MessageSquare className="w-3.5 h-3.5 text-violet-300" />
-                        <span className="text-xs uppercase tracking-wider text-violet-300/80">Coach comment</span>
+                        <MessageSquare className="w-3.5 h-3.5 text-fuchsia-300" />
+                        <span className="text-xs uppercase tracking-wider text-fuchsia-300/80">Coach comment</span>
                       </div>
                       <p className="text-sm text-zinc-200 whitespace-pre-wrap">{prog.comment}</p>
                     </div>
@@ -380,68 +548,83 @@ export default function MyTrainingProfile() {
   );
 }
 
-function StatTile({ label, value, icon: Icon, accent, testId }: { label: string; value: string; icon: any; accent: "violet" | "amber" | "cyan"; testId: string }) {
-  const tone = accent === "violet" ? "from-violet-500/20 text-violet-200 border-violet-400/30"
-    : accent === "amber" ? "from-amber-500/20 text-amber-200 border-amber-400/30"
-    : "from-cyan-500/20 text-cyan-200 border-cyan-400/30";
+function ScoreMeter({ current, potential }: { current: number; potential: number }) {
+  const size = 200;
+  const stroke = 14;
+  const r = (size - stroke) / 2;
+  const c = 2 * Math.PI * r;
   return (
-    <div className={`rounded-xl border bg-gradient-to-br ${tone} to-transparent p-3`} data-testid={testId}>
-      <Icon className="w-4 h-4 opacity-80" />
-      <div className="mt-1 text-xl font-extrabold text-white leading-none">{value}</div>
-      <div className="text-[10px] uppercase tracking-wider opacity-70 mt-1">{label}</div>
+    <div className="relative" style={{ width: size, height: size }} data-testid="meter-score">
+      <svg width={size} height={size} className="-rotate-90">
+        <defs>
+          <linearGradient id="grad-current" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#34d399" />
+            <stop offset="100%" stopColor="#22d3ee" />
+          </linearGradient>
+          <linearGradient id="grad-potential" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0%" stopColor="#fb7185" />
+            <stop offset="100%" stopColor="#e879f9" />
+          </linearGradient>
+        </defs>
+        <circle cx={size/2} cy={size/2} r={r} stroke="rgba(255,255,255,0.06)" strokeWidth={stroke} fill="none" />
+        <circle
+          cx={size/2} cy={size/2} r={r}
+          stroke="url(#grad-potential)"
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${(potential / 100) * c} ${c}`}
+          opacity={0.55}
+          strokeDashoffset={0}
+        />
+        <circle
+          cx={size/2} cy={size/2} r={r}
+          stroke="url(#grad-current)"
+          strokeWidth={stroke}
+          fill="none"
+          strokeLinecap="round"
+          strokeDasharray={`${(current / 100) * c} ${c}`}
+          style={{ transition: "stroke-dasharray 0.8s ease" }}
+        />
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
+        <span className="text-4xl font-extrabold bg-gradient-to-br from-emerald-300 to-cyan-300 bg-clip-text text-transparent tabular-nums">
+          {current}
+        </span>
+        <span className="text-[10px] uppercase tracking-[0.2em] text-zinc-400 mt-0.5">Your Score</span>
+        <span className="text-base font-bold text-rose-300/90 tabular-nums mt-1">{potential}</span>
+        <span className="text-[9px] uppercase tracking-wider text-rose-300/60">After coaching</span>
+      </div>
     </div>
   );
 }
 
-function SkillTile({ skill, progress, gradient, extraClass, onClick, pct, level, imageUrl }: {
-  skill: Skill; progress: Progress | null; gradient: typeof TILE_GRADIENTS[number]; extraClass: string;
-  onClick: () => void; pct: number; level: number; imageUrl: string;
-}) {
-  const filled = pct > 0;
-  const isPriority = !!progress?.priority;
+function EmptyAskCoach({ categoryName }: { categoryName?: string }) {
   return (
-    <motion.button
-      whileHover={{ y: -3, scale: 1.02 }}
-      whileTap={{ scale: 0.98 }}
-      onClick={onClick}
-      className={`group relative aspect-square rounded-2xl overflow-hidden border border-white/10 bg-zinc-900/80 text-left p-3 flex flex-col justify-between focus:outline-none focus:ring-2 focus:ring-violet-400/60 ${extraClass}`}
-      data-testid={`tile-skill-${skill.id}`}
-    >
-      <img
-        src={imageUrl}
-        alt=""
-        loading="lazy"
-        className="absolute inset-0 w-full h-full object-cover transition-all duration-500 group-hover:scale-105"
-        style={{ filter: filled ? "saturate(1.05) contrast(1.05)" : "grayscale(0.6) brightness(0.7)" }}
-      />
-      <div
-        className={`absolute inset-0 bg-gradient-to-br ${gradient.ring} mix-blend-overlay transition-opacity`}
-        style={{ opacity: filled ? Math.min(0.85, 0.35 + pct / 200) : 0.5 }}
-      />
-      <div className="absolute inset-0 bg-gradient-to-t from-zinc-950/90 via-zinc-950/40 to-zinc-950/10" />
-      {isPriority && (
-        <span className="absolute top-2 right-2 z-10 inline-flex items-center justify-center w-6 h-6 rounded-full bg-amber-400/90 text-amber-950 shadow-[0_0_10px_rgba(251,191,36,0.7)]" data-testid={`badge-priority-${skill.id}`}>
-          <Zap className="w-3 h-3" />
-        </span>
-      )}
-      {progress?.comment && (
-        <span className="absolute top-2 left-2 z-10 inline-flex items-center justify-center w-6 h-6 rounded-full bg-violet-500/80 text-white" title="Coach left a note">
-          <MessageSquare className="w-3 h-3" />
-        </span>
-      )}
-      <div className="relative z-10 ml-auto">
-        <span className="text-[10px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-black/40 text-white font-bold">{filled ? `${pct}%` : "—"}</span>
+    <div className="py-10 sm:py-16 px-4 text-center max-w-md mx-auto" data-testid="state-empty-ask-coach">
+      <div className="relative inline-flex items-center justify-center mb-5">
+        <div className="absolute inset-0 rounded-full bg-fuchsia-500/30 blur-2xl" />
+        <div className="relative w-20 h-20 rounded-full bg-gradient-to-br from-fuchsia-500 to-rose-500 flex items-center justify-center shadow-[0_0_30px_rgba(236,72,153,0.5)]">
+          <Trophy className="w-9 h-9 text-white" />
+        </div>
       </div>
-      <div className="relative z-10 space-y-1">
-        <h4 className="text-sm font-bold leading-tight text-white drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)] line-clamp-2" data-testid={`text-skill-${skill.id}`}>{skill.name}</h4>
-        <StarRow value={level} size={12} />
-      </div>
-      <div className="absolute inset-x-0 bottom-0 h-1 bg-white/10">
-        <div
-          className={`h-full bg-gradient-to-r ${gradient.ring}`}
-          style={{ width: `${pct}%`, boxShadow: `0 0 8px ${gradient.glow}` }}
-        />
-      </div>
-    </motion.button>
+      <h3 className="text-xl sm:text-2xl font-extrabold text-white mb-2">No skills assessed yet</h3>
+      <p className="text-sm text-zinc-300 mb-1">
+        Your coach hasn't rated {categoryName ? `your ${categoryName.toLowerCase()} skills` : "any of your skills"} yet.
+      </p>
+      <p className="text-sm text-zinc-400 mb-6">
+        Ask your coach for feedback and a skills update — once they assess you, your scores, comparison radar, and priority focus areas will appear here.
+      </p>
+      <Button
+        size="lg"
+        className="bg-gradient-to-r from-fuchsia-500 to-rose-500 text-white hover:opacity-95 shadow-[0_0_20px_rgba(236,72,153,0.45)]"
+        onClick={() => { window.location.href = "/coaching?tab=find"; }}
+        data-testid="button-ask-coach"
+      >
+        <MessageCircle className="w-4 h-4 mr-2" />
+        Ask a coach for feedback
+      </Button>
+      <p className="text-[10px] text-zinc-500 mt-4">Or contact your club admin to be enrolled in coaching</p>
+    </div>
   );
 }
