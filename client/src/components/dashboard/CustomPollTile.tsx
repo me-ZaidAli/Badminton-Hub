@@ -17,7 +17,7 @@ type ActivePoll = {
 };
 
 export function CustomPollTile() {
-  const { data: polls = [], isLoading } = useQuery<ActivePoll[]>({
+  const { data: allPolls = [], isLoading } = useQuery<ActivePoll[]>({
     queryKey: ["/api/custom-polls/active"],
     refetchInterval: 60_000,
   });
@@ -25,6 +25,17 @@ export function CustomPollTile() {
   const [idx, setIdx] = useState(0);
   const [draft, setDraft] = useState<number[]>([]);
   const [justVoted, setJustVoted] = useState<number | null>(null);
+
+  // Hide polls the user has already answered — they're done with them.
+  // Keep the most-recently-voted poll briefly so the celebration overlay can show.
+  const polls = useMemo(
+    () => allPolls.filter(p => !(p.myVote && p.myVote.length > 0) || p.id === justVoted),
+    [allPolls, justVoted],
+  );
+
+  useEffect(() => {
+    if (idx >= polls.length && polls.length > 0) setIdx(0);
+  }, [polls.length, idx]);
 
   const poll = polls[idx % Math.max(1, polls.length)] || null;
 
