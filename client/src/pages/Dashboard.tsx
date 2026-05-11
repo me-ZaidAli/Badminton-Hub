@@ -661,48 +661,48 @@ function DashboardContent({
       )}
 
       {activeAnnouncements.length > 0 && (
-        <Card data-testid="card-announcements-preview">
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between flex-wrap gap-2">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Megaphone className="h-5 w-5 text-amber-500" />
-                Announcements
-                <Badge variant="secondary" className="text-xs">{activeAnnouncements.length}</Badge>
-              </CardTitle>
+        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-rose-500/15 p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.25)] text-white" data-testid="card-announcements-preview">
+          <div className="pointer-events-none absolute -top-16 -right-10 w-64 h-64 rounded-full bg-amber-400/25 blur-3xl" />
+          <div className="pointer-events-none absolute -bottom-20 -left-10 w-64 h-64 rounded-full bg-rose-500/15 blur-3xl" />
+          <div className="relative">
+            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-amber-200/80">
+                <Megaphone className="w-3.5 h-3.5" />
+                <span>Announcements</span>
+                <Badge className="bg-amber-400/20 text-amber-100 border border-amber-300/40 text-[10px]">{activeAnnouncements.length}</Badge>
+              </div>
               <Link href="/announcements">
-                <Button variant="ghost" size="sm" data-testid="button-view-all-announcements">
+                <Button variant="ghost" size="sm" className="text-amber-200 hover:text-white hover:bg-white/10" data-testid="button-view-all-announcements">
                   View All <ChevronRight className="w-4 h-4 ml-1" />
                 </Button>
               </Link>
             </div>
-          </CardHeader>
-          <CardContent>
             <div className="space-y-2">
               {activeAnnouncements.slice(0, 2).map(announcement => (
                 <Link key={announcement.id} href="/announcements">
-                  <div className="flex items-start gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer" data-testid={`announcement-preview-${announcement.id}`}>
-                    <div className="p-1.5 rounded-md bg-amber-500/10 shrink-0 mt-0.5">
-                      <Megaphone className="h-3.5 w-3.5 text-amber-500" />
+                  <div className="flex items-start gap-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 cursor-pointer transition" data-testid={`announcement-preview-${announcement.id}`}>
+                    <div className="p-1.5 rounded-md bg-amber-400/20 border border-amber-300/30 shrink-0 mt-0.5">
+                      <Megaphone className="h-3.5 w-3.5 text-amber-200" />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="font-medium text-sm truncate">{announcement.title}</div>
-                      <div className="text-xs text-muted-foreground mt-0.5 line-clamp-2">{announcement.content}</div>
-                      <div className="text-[10px] text-muted-foreground mt-1 flex items-center gap-1">
+                      <div className="font-semibold text-sm truncate text-white">{announcement.title}</div>
+                      <div className="text-xs text-white/70 mt-0.5 line-clamp-2">{announcement.content}</div>
+                      <div className="text-[10px] text-white/50 mt-1 flex items-center gap-1">
                         <User className="h-2.5 w-2.5" />
                         {announcement.author.fullName}
-                        <span className="mx-1">-</span>
+                        <span className="mx-1">·</span>
                         {format(new Date(announcement.createdAt), "MMM d")}
                       </div>
                     </div>
                     {announcement.imageUrl && (
-                      <img src={announcement.imageUrl} alt="" className="h-12 w-12 rounded object-cover shrink-0" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                      <img src={announcement.imageUrl} alt="" className="h-12 w-12 rounded object-cover shrink-0 border border-white/15" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
                     )}
                   </div>
                 </Link>
               ))}
             </div>
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       )}
 
       <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20" data-testid="card-refer-earn">
@@ -1057,146 +1057,113 @@ function DashboardContent({
         </Link>
       )}
 
-      <Card data-testid="card-my-upcoming-sessions">
-        <CardHeader className="pb-3">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5 text-blue-500" />
-              My Upcoming Sessions
-            </CardTitle>
+      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-violet-500/15 p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.25)] text-white" data-testid="card-my-upcoming-sessions">
+        <div className="pointer-events-none absolute -top-20 -right-12 w-72 h-72 rounded-full bg-blue-500/25 blur-3xl" />
+        <div className="pointer-events-none absolute -bottom-24 -left-12 w-72 h-72 rounded-full bg-violet-500/15 blur-3xl" />
+        <div className="relative">
+          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+            <div>
+              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-blue-200/80">
+                <Calendar className="w-3.5 h-3.5" />
+                <span>My Upcoming Sessions</span>
+              </div>
+              <p className="text-xs text-white/60 mt-1">Sessions you have signed up for</p>
+            </div>
             <Link href="/my-sessions">
-              <Button variant="ghost" size="sm" data-testid="button-view-all-my-sessions">
+              <Button variant="ghost" size="sm" className="text-blue-200 hover:text-white hover:bg-white/10" data-testid="button-view-all-my-sessions">
                 View All <ChevronRight className="w-4 h-4 ml-1" />
               </Button>
             </Link>
           </div>
-          <CardDescription>Sessions you have signed up for</CardDescription>
-        </CardHeader>
-        <CardContent>
           {mySessionsLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => <div key={i} className="h-16 bg-muted/30 animate-pulse rounded-lg" />)}
+            <div className="space-y-2">
+              {[1, 2, 3].map(i => <div key={i} className="h-16 bg-white/5 animate-pulse rounded-xl" />)}
             </div>
           ) : myUpcomingSessions.length > 0 ? (
-            <div className="space-y-3">
+            <div className="space-y-2">
               {myUpcomingSessions.map(session => (
                 <div
                   key={session.sessionId}
-                  className="flex items-center gap-3 p-3 rounded-lg bg-muted/30 hover-elevate cursor-pointer"
+                  className="flex items-center gap-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 cursor-pointer transition"
                   onClick={() => setSelectedSession(session)}
                   data-testid={`my-upcoming-session-${session.sessionId}`}
                 >
-                  <div className="flex flex-col items-center justify-center w-10 h-10 sm:w-11 sm:h-11 bg-primary/10 rounded-lg text-primary font-bold shrink-0">
-                    <span className="text-[9px] sm:text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
-                    <span className="text-base sm:text-lg leading-none">{format(new Date(session.sessionDate), "d")}</span>
+                  <div className="flex flex-col items-center justify-center w-11 h-11 rounded-lg bg-gradient-to-br from-blue-400/30 to-violet-400/20 border border-blue-300/30 text-white font-bold shrink-0">
+                    <span className="text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
+                    <span className="text-base leading-none mt-0.5">{format(new Date(session.sessionDate), "d")}</span>
                   </div>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium text-sm truncate">{session.sessionTitle}</div>
-                    <div className="text-xs text-muted-foreground flex items-center gap-1 flex-wrap">
+                    <div className="font-semibold text-sm truncate text-white">{session.sessionTitle}</div>
+                    <div className="text-[11px] text-white/70 flex items-center gap-1 flex-wrap mt-0.5">
                       <Clock className="w-3 h-3" /> {session.sessionStartTime}
-                      <span className="mx-1">-</span>
+                      <span className="mx-1">·</span>
                       {session.courtsAvailable} courts
                       {session.clubName && (
                         <>
-                          <span className="mx-1">-</span>
-                          <Badge variant="outline" className="text-[10px] px-1.5 py-0">{session.clubName}</Badge>
+                          <span className="mx-1">·</span>
+                          <span className="text-blue-200">{session.clubName}</span>
                         </>
                       )}
                     </div>
                   </div>
-                  <Badge variant={session.sessionStatus === "ACTIVE" ? "default" : "secondary"} className="shrink-0 text-[10px]">
+                  <Badge className={`shrink-0 text-[10px] border ${session.sessionStatus === "ACTIVE" ? "bg-emerald-400/20 text-emerald-200 border-emerald-300/40" : "bg-white/10 text-white border-white/20"}`}>
                     {session.sessionStatus === "ACTIVE" ? "Live" : "Upcoming"}
                   </Badge>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="text-center py-8 text-sm text-muted-foreground">
-              <Calendar className="h-8 w-8 mx-auto mb-2 opacity-40" />
+            <div className="text-center py-6 text-sm text-white/70">
+              <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
               <p className="font-medium">No upcoming sessions</p>
-              <p className="text-xs mt-1">Browse sessions to sign up</p>
+              <p className="text-xs text-white/50 mt-1">Browse sessions to sign up</p>
               <Link href="/sessions">
-                <Button variant="outline" size="sm" className="mt-3" data-testid="button-browse-sessions">
+                <Button variant="outline" size="sm" className="mt-3 bg-white/10 border-white/20 text-white hover:bg-white/20" data-testid="button-browse-sessions">
                   Browse Sessions
                 </Button>
               </Link>
             </div>
           )}
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="stats-grid">
-        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => setKpiDetail("club-sessions")}>
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Club Sessions</p>
-              <div className="p-1.5 rounded-lg bg-blue-500/10">
-                <Calendar className="h-3.5 w-3.5 text-blue-500" />
+        {[
+          { id: "club-sessions", label: "Club Sessions", icon: Calendar, value: totalSessionsCount, change: kpiChanges.sessions, hint: "in this club", testId: "text-total-sessions", grad: "from-blue-500/25 via-indigo-500/10 to-blue-500/5", halo: "bg-blue-400/25", text: "text-blue-200", click: () => setKpiDetail("club-sessions") },
+          { id: "my-sessions", label: "My Sessions", icon: Users, value: mySessionsList.length, change: kpiChanges.signups, hint: "signed up", testId: "text-my-sessions-count", grad: "from-emerald-500/25 via-teal-500/10 to-emerald-500/5", halo: "bg-emerald-400/25", text: "text-emerald-200", click: () => setKpiDetail("my-sessions") },
+          { id: "upcoming", label: "Upcoming", icon: Zap, value: myUpcomingCount, change: 0, hint: "sessions ahead", testId: "text-upcoming-count", grad: "from-amber-500/25 via-orange-500/10 to-amber-500/5", halo: "bg-amber-400/25", text: "text-amber-200", click: () => navigate("/my-sessions") },
+          { id: "played", label: "Played", icon: Activity, value: myPlayedCount, change: 0, hint: "completed", testId: "text-sessions-played", grad: "from-violet-500/25 via-fuchsia-500/10 to-violet-500/5", halo: "bg-violet-400/25", text: "text-violet-200", click: () => setKpiDetail("played") },
+        ].map((kpi) => {
+          const Icon = kpi.icon;
+          return (
+            <button
+              key={kpi.id}
+              onClick={kpi.click}
+              className={`relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br ${kpi.grad} p-4 sm:p-5 text-left text-white shadow-[0_6px_22px_rgba(0,0,0,0.22)] transition hover:-translate-y-0.5 hover:border-white/20 focus:outline-none focus:ring-2 focus:ring-white/30`}
+              data-testid={`kpi-${kpi.id}`}
+            >
+              <div className={`pointer-events-none absolute -top-10 -right-8 w-40 h-40 rounded-full ${kpi.halo} blur-3xl`} />
+              <div className="relative">
+                <div className="flex items-center justify-between mb-3">
+                  <p className={`text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.18em] ${kpi.text}`}>{kpi.label}</p>
+                  <div className="p-1.5 rounded-lg bg-white/10 border border-white/10">
+                    <Icon className="h-3.5 w-3.5 text-white" />
+                  </div>
+                </div>
+                <div className="flex items-baseline gap-2">
+                  <span className="text-2xl sm:text-3xl font-extrabold tracking-tight tabular-nums" data-testid={kpi.testId}>{kpi.value}</span>
+                  {kpi.change !== 0 && (
+                    <Badge className={`text-[10px] px-1.5 py-0 gap-0.5 font-semibold border ${kpi.change > 0 ? "text-emerald-200 bg-emerald-500/20 border-emerald-300/40" : "text-rose-200 bg-rose-500/20 border-rose-300/40"}`}>
+                      {kpi.change > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
+                      {Math.abs(kpi.change)}%
+                    </Badge>
+                  )}
+                </div>
+                <p className="text-[10px] sm:text-xs text-white/60 mt-1">{kpi.hint}</p>
               </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-total-sessions">{totalSessionsCount}</span>
-              {kpiChanges.sessions !== 0 && (
-                <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 gap-0.5 font-semibold ${kpiChanges.sessions > 0 ? "text-emerald-600 bg-emerald-500/10" : "text-red-500 bg-red-500/10"}`}>
-                  {kpiChanges.sessions > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                  {Math.abs(kpiChanges.sessions)}%
-                </Badge>
-              )}
-            </div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">in this club</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => setKpiDetail("my-sessions")}>
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">My Sessions</p>
-              <div className="p-1.5 rounded-lg bg-emerald-500/10">
-                <Users className="h-3.5 w-3.5 text-emerald-500" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-my-sessions-count">{mySessionsList.length}</span>
-              {kpiChanges.signups !== 0 && (
-                <Badge variant="secondary" className={`text-[10px] px-1.5 py-0 gap-0.5 font-semibold ${kpiChanges.signups > 0 ? "text-emerald-600 bg-emerald-500/10" : "text-red-500 bg-red-500/10"}`}>
-                  {kpiChanges.signups > 0 ? <ArrowUpRight className="h-3 w-3" /> : <ArrowDownRight className="h-3 w-3" />}
-                  {Math.abs(kpiChanges.signups)}%
-                </Badge>
-              )}
-            </div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">signed up</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => navigate("/my-sessions")}>
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Upcoming</p>
-              <div className="p-1.5 rounded-lg bg-amber-500/10">
-                <Zap className="h-3.5 w-3.5 text-amber-500" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-upcoming-count">{myUpcomingCount}</span>
-            </div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">sessions ahead</p>
-          </CardContent>
-        </Card>
-
-        <Card className="cursor-pointer hover-elevate border-border/40" onClick={() => setKpiDetail("played")}>
-          <CardContent className="p-4 sm:p-5">
-            <div className="flex items-center justify-between mb-3">
-              <p className="text-xs sm:text-sm font-medium text-muted-foreground">Played</p>
-              <div className="p-1.5 rounded-lg bg-purple-500/10">
-                <Activity className="h-3.5 w-3.5 text-purple-500" />
-              </div>
-            </div>
-            <div className="flex items-baseline gap-2">
-              <span className="text-2xl sm:text-3xl font-bold tracking-tight" data-testid="text-sessions-played">{myPlayedCount}</span>
-            </div>
-            <p className="text-[10px] sm:text-xs text-muted-foreground mt-1">completed</p>
-          </CardContent>
-        </Card>
+            </button>
+          );
+        })}
       </div>
 
 
