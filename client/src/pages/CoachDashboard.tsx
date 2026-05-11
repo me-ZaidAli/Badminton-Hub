@@ -36,6 +36,37 @@ const STATUS_TONE: Record<string, string> = {
 };
 const PRETTY_STATUS: Record<string, string> = { ACCEPTED: "APPROVED", DECLINED: "REJECTED" };
 
+function MoneyInput({
+  pence, onChange, min = 0, testId,
+}: { pence: number; onChange: (p: number) => void; min?: number; testId?: string }) {
+  const [focused, setFocused] = useState(false);
+  const [draft, setDraft] = useState<string>(((pence || 0) / 100).toFixed(2));
+  useEffect(() => {
+    if (!focused) setDraft(((pence || 0) / 100).toFixed(2));
+  }, [pence, focused]);
+  return (
+    <Input
+      type="text"
+      inputMode="decimal"
+      value={draft}
+      onFocus={() => setFocused(true)}
+      onChange={(e) => {
+        const v = e.target.value;
+        if (v === "" || /^[0-9]*\.?[0-9]{0,2}$/.test(v)) setDraft(v);
+      }}
+      onBlur={() => {
+        setFocused(false);
+        const num = parseFloat(draft);
+        const safe = Number.isFinite(num) ? Math.max(min, num) : 0;
+        const p = Math.round(safe * 100);
+        setDraft((p / 100).toFixed(2));
+        onChange(p);
+      }}
+      data-testid={testId}
+    />
+  );
+}
+
 interface Coach {
   id: number; fullName: string; email: string; phone?: string; profilePhoto?: string;
   bio?: string; city?: string; postcode?: string; status: string;
@@ -450,7 +481,7 @@ function SettingsForm({ settings }: { settings?: Settings }) {
                 </div>
                 <div className="col-span-4 sm:col-span-2">
                   <Label className="text-xs">Price (£)</Label>
-                  <Input type="number" step="0.01" min={0} value={(t.pricePence / 100).toFixed(2)} onChange={(e) => updateTier(t.id, { pricePence: Math.round(parseFloat(e.target.value || "0") * 100) })} data-testid={`input-tier-price-${i}`} />
+                  <MoneyInput pence={t.pricePence} onChange={(p) => updateTier(t.id, { pricePence: p })} testId={`input-tier-price-${i}`} />
                 </div>
                 <div className="col-span-4 sm:col-span-2">
                   <Label className="text-xs">Duration (min)</Label>
@@ -477,7 +508,7 @@ function SettingsForm({ settings }: { settings?: Settings }) {
           <h3 className="font-bold">Booking rules</h3>
           <div className="grid grid-cols-2 gap-3">
             <div><Label>Default slot duration (min)</Label><Input type="number" value={s.slotDurationMinutes} onChange={(e) => set("slotDurationMinutes", Number(e.target.value))} data-testid="input-slot-duration" /></div>
-            <div><Label>Default price (£) <span className="text-muted-foreground text-[10px]">— used if no package selected</span></Label><Input type="number" step="0.01" value={(s.defaultPricePence / 100).toFixed(2)} onChange={(e) => set("defaultPricePence", Math.round(parseFloat(e.target.value || "0") * 100))} data-testid="input-default-price" /></div>
+            <div><Label>Default price (£) <span className="text-muted-foreground text-[10px]">— used if no package selected</span></Label><MoneyInput pence={s.defaultPricePence} onChange={(p) => set("defaultPricePence", p)} testId="input-default-price" /></div>
             <div><Label>Buffer before (min)</Label><Input type="number" value={s.bufferBeforeMinutes} onChange={(e) => set("bufferBeforeMinutes", Number(e.target.value))} data-testid="input-buffer-before" /></div>
             <div><Label>Buffer after (min)</Label><Input type="number" value={s.bufferAfterMinutes} onChange={(e) => set("bufferAfterMinutes", Number(e.target.value))} data-testid="input-buffer-after" /></div>
             <div><Label>Min advance notice (hours)</Label><Input type="number" value={s.advanceNoticeHours} onChange={(e) => set("advanceNoticeHours", Number(e.target.value))} data-testid="input-advance-notice" /></div>
