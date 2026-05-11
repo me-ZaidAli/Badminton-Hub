@@ -325,9 +325,11 @@ function DashboardContent({
 
       <>
 
-      <DashboardBanner heightVh={62}>
+      <DashboardBanner heightVh={32} />
+
+      <div className="relative z-10">
         <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} profilePictureUrl={(user as any)?.profilePictureUrl || null} />
-      </DashboardBanner>
+      </div>
 
       {myTournaments && myTournaments.length > 0 && myTournaments.map((tournament: any) => (
         <Link key={tournament.tournamentId} href={`/tournaments/${tournament.tournamentId}`}>

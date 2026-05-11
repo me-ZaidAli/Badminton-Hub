@@ -11,19 +11,18 @@ const NATURE_IMAGES = [
   "/backgrounds/bg-cosmic-nebula.png",
 ];
 
-const ROTATION_MS = 7000;
-const FADE_MS = 1800;
+const ROTATION_MS = 20000;
+const FADE_MS = 2200;
 
 interface DashboardBannerProps {
-  children: React.ReactNode;
-  /** Height of the hero region in vh. Tiles begin near the bottom of this band. */
+  /** Height of the banner band in vh. */
   heightVh?: number;
 }
 
-export default function DashboardBanner({ children, heightVh = 60 }: DashboardBannerProps) {
+export default function DashboardBanner({ heightVh = 32 }: DashboardBannerProps) {
   const [idx, setIdx] = useState(0);
 
-  // Preload all images
+  // Preload all images once
   useEffect(() => {
     NATURE_IMAGES.forEach(src => {
       const img = new Image();
@@ -31,7 +30,7 @@ export default function DashboardBanner({ children, heightVh = 60 }: DashboardBa
     });
   }, []);
 
-  // Cycle index
+  // Cycle index every ROTATION_MS
   useEffect(() => {
     const id = setInterval(() => {
       setIdx(i => (i + 1) % NATURE_IMAGES.length);
@@ -40,45 +39,33 @@ export default function DashboardBanner({ children, heightVh = 60 }: DashboardBa
   }, []);
 
   return (
-    <div className="relative -mx-3 sm:-mx-4 lg:-mx-6 -mt-2" data-testid="dashboard-banner">
-      {/* Image stack — cross-fades between layers */}
-      <div
-        className="relative w-full overflow-hidden"
-        style={{ minHeight: `${heightVh}vh` }}
-      >
-        {NATURE_IMAGES.map((src, i) => (
-          <div
-            key={src}
-            className="absolute inset-0 bg-center bg-cover transition-opacity ease-in-out"
-            style={{
-              backgroundImage: `url(${src})`,
-              opacity: i === idx ? 1 : 0,
-              transitionDuration: `${FADE_MS}ms`,
-              willChange: "opacity",
-            }}
-            aria-hidden={i !== idx}
-            data-testid={`banner-image-${i}`}
-          />
-        ))}
-
-        {/* Cinematic gradient overlays for legibility */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/30 via-black/10 to-slate-950/95 pointer-events-none" />
-        <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-900/15 via-transparent to-cyan-500/10 pointer-events-none mix-blend-overlay" />
-
-        {/* Subtle film grain */}
+    <div
+      className="relative -mx-3 sm:-mx-4 lg:-mx-6 -mt-2 mb-[-3rem] sm:mb-[-3.5rem] lg:mb-[-4rem] overflow-hidden"
+      style={{ height: `${heightVh}vh`, minHeight: 220 }}
+      data-testid="dashboard-banner"
+    >
+      {/* Image stack — cross-fade */}
+      {NATURE_IMAGES.map((src, i) => (
         <div
-          className="absolute inset-0 opacity-[0.06] pointer-events-none mix-blend-overlay"
+          key={i}
+          className="absolute inset-0 bg-center bg-cover ease-in-out"
           style={{
-            backgroundImage:
-              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.6'/%3E%3C/svg%3E\")",
+            backgroundImage: `url(${src})`,
+            opacity: i === idx ? 1 : 0,
+            transition: `opacity ${FADE_MS}ms ease-in-out`,
+            willChange: "opacity",
           }}
+          aria-hidden={i !== idx}
+          data-testid={`banner-image-${i}`}
         />
+      ))}
 
-        {/* Tiles overlay sitting near the bottom — like a hero banner */}
-        <div className="relative z-10 flex flex-col justify-end min-h-[inherit] px-3 sm:px-4 lg:px-6 pt-32 sm:pt-40 lg:pt-48 pb-4 sm:pb-6">
-          {children}
-        </div>
-      </div>
+      {/* Cinematic overlays for legibility + brand tint */}
+      <div className="absolute inset-0 bg-gradient-to-b from-black/25 via-transparent to-background pointer-events-none" />
+      <div className="absolute inset-0 bg-gradient-to-tr from-fuchsia-900/15 via-transparent to-cyan-500/10 pointer-events-none mix-blend-overlay" />
+
+      {/* Soft bottom mask so the next-row tiles "rise" out of the banner */}
+      <div className="absolute inset-x-0 bottom-0 h-24 bg-gradient-to-b from-transparent to-background pointer-events-none" />
     </div>
   );
 }

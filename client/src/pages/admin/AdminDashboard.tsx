@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle, ShoppingBag, Inbox, ScrollText, ScanText } from "lucide-react";
+import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle, ShoppingBag, Inbox, ScrollText, ScanText, Vote } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -453,6 +453,7 @@ export default function AdminDashboard() {
     ...(!isOrganiserOnly ? [{ href: "/admin/inbox", label: "Admin Inbox", description: "Pending requests, payments, orders, and tickets in one place", icon: Inbox, color: "text-emerald-500", bg: "bg-emerald-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/push-broadcast", label: "Push Broadcast", description: "Send a one-off push notification to a segment of users", icon: Megaphone, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/notification-rules", label: "Auto Reminders", description: "Edit templates and toggle automated event-driven notifications", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/polls", label: "Club Polls", description: "Create polls for your members and view live results", icon: Vote, color: "text-fuchsia-500", bg: "bg-fuchsia-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/audit-log", label: "Audit Log", description: "Searchable history of admin actions across your clubs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" }] : []),
     { href: "/admin/grading", label: "Grading Progress", description: "Review automatic skill promotions and demotions", icon: Activity, color: "text-amber-500", bg: "bg-amber-500/10" },
     { href: "/admin/ai-match-input", label: "AI Match Input", description: "Upload score sheets and extract matches with AI vision", icon: ScanText, color: "text-indigo-500", bg: "bg-indigo-500/10" },

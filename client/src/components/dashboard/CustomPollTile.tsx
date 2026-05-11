@@ -54,6 +54,9 @@ export function CustomPollTile() {
 
   const maxVotes = useMemo(() => poll ? Math.max(1, ...poll.counts) : 1, [poll]);
 
+  // Hide entirely when there's nothing to show — keep all hooks above this line
+  if (polls.length === 0) return null;
+
   return (
     <div
       className="relative col-span-1 md:col-span-2 lg:col-span-3 overflow-hidden rounded-2xl border border-fuchsia-300/20 bg-gradient-to-br from-fuchsia-600/25 via-violet-700/30 to-indigo-900/40 p-5 shadow-2xl"
