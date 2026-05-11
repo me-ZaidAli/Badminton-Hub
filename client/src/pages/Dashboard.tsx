@@ -7,6 +7,7 @@ import { useClubs } from "@/hooks/use-clubs";
 import { useToast } from "@/hooks/use-toast";
 import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { PageHeader } from "@/components/ui/page-header";
+import DashboardHero from "@/components/dashboard/DashboardHero";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -297,6 +298,8 @@ function DashboardContent({
       </div>
 
       <>
+
+      <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} />
 
       {myTournaments && myTournaments.length > 0 && myTournaments.map((tournament: any) => (
         <Link key={tournament.tournamentId} href={`/tournaments/${tournament.tournamentId}`}>

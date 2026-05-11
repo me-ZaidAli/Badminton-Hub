@@ -154,45 +154,89 @@ export default function CoachPublicProfile() {
           <Button variant="ghost" size="sm" className="text-violet-300" data-testid="button-back"><ArrowLeft className="w-4 h-4 mr-1" />Back</Button>
         </Link>
 
-        {/* HERO */}
+        {/* HERO — big centered portrait, descriptions flow below */}
         <motion.div initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}>
           <GlassCard>
-            <CardContent className="p-6 md:p-8">
-              <div className="flex flex-col md:flex-row gap-6">
-                <div className="relative shrink-0">
-                  <div className="absolute -inset-1 rounded-full bg-gradient-to-tr from-violet-500/60 via-fuchsia-500/40 to-cyan-500/40 blur-md opacity-70" />
-                  <Avatar className="relative h-28 w-28 border-2 border-white/20">
-                    {coach.profilePhoto ? <AvatarImage src={coach.profilePhoto} alt={coach.fullName} /> : null}
-                    <AvatarFallback className="text-3xl bg-violet-900/40">{coach.fullName.charAt(0)}</AvatarFallback>
-                  </Avatar>
-                </div>
-                <div className="flex-1 min-w-0 space-y-2">
-                  <div className="flex flex-wrap gap-2 items-center">
-                    <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight" data-testid="text-coach-name">{coach.fullName}</h1>
+            <CardContent className="p-0 overflow-hidden">
+              <div className="relative">
+                {/* Backdrop wash */}
+                <div className="pointer-events-none absolute inset-0 bg-gradient-to-br from-violet-600/25 via-fuchsia-500/10 to-cyan-500/20" />
+                <div className="pointer-events-none absolute -top-32 -left-24 w-[28rem] h-[28rem] rounded-full bg-violet-500/30 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-32 -right-24 w-[28rem] h-[28rem] rounded-full bg-cyan-500/20 blur-3xl" />
+
+                <div className="relative px-5 md:px-10 pt-10 pb-8 flex flex-col items-center text-center">
+                  {/* BIG centered photo */}
+                  <div className="relative mb-5" data-testid="hero-photo">
+                    <div className="absolute -inset-3 rounded-full bg-gradient-to-tr from-violet-500/70 via-fuchsia-500/50 to-cyan-400/60 blur-xl opacity-90" />
+                    <div className="absolute -inset-1 rounded-full bg-gradient-to-tr from-violet-400 via-fuchsia-400 to-cyan-300 opacity-80" />
+                    {coach.profilePhoto ? (
+                      <img
+                        src={coach.profilePhoto}
+                        alt={coach.fullName}
+                        className="relative w-44 h-44 md:w-56 md:h-56 rounded-full object-cover border-4 border-zinc-950 shadow-[0_20px_60px_rgba(0,0,0,0.5)]"
+                        data-testid="img-coach-photo"
+                      />
+                    ) : (
+                      <div
+                        className="relative w-44 h-44 md:w-56 md:h-56 rounded-full bg-gradient-to-br from-violet-900/80 to-fuchsia-900/60 border-4 border-zinc-950 shadow-[0_20px_60px_rgba(0,0,0,0.5)] flex items-center justify-center text-6xl md:text-7xl font-extrabold text-violet-100"
+                        data-testid="img-coach-photo-fallback"
+                      >
+                        {coach.fullName.charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Name + cert badges */}
+                  <h1 className="text-3xl md:text-4xl font-extrabold tracking-tight bg-gradient-to-br from-white via-violet-100 to-cyan-100 bg-clip-text text-transparent" data-testid="text-coach-name">
+                    {coach.fullName}
+                  </h1>
+                  {coach.roleTitle && (
+                    <p className="text-sm md:text-base text-violet-300 mt-1" data-testid="text-coach-role">{coach.roleTitle}</p>
+                  )}
+
+                  <div className="flex flex-wrap justify-center gap-2 mt-3">
                     {coach.badmintonEnglandCert && (
                       <Badge className="bg-gradient-to-br from-amber-400/30 to-amber-700/20 border border-amber-400/40 text-amber-200">
                         <BadgeCheck className="w-3 h-3 mr-1" />BE Certified
                       </Badge>
                     )}
                     {coach.firstAidCert && <Badge variant="outline" className="border-emerald-400/40 text-emerald-300">First Aid</Badge>}
-                  </div>
-                  {coach.roleTitle && <p className="text-sm text-violet-300" data-testid="text-coach-role">{coach.roleTitle}</p>}
-                  <div className="flex flex-wrap gap-3 text-xs text-zinc-400">
-                    {coach.city && <span><MapPin className="inline w-3.5 h-3.5 mr-1" />{[coach.city, coach.postcode].filter(Boolean).join(", ")}</span>}
-                    {coach.yearsTraining != null && <span><Clock className="inline w-3.5 h-3.5 mr-1" />{coach.yearsTraining} yrs</span>}
-                    {coach.languagesSpoken && <span><Languages className="inline w-3.5 h-3.5 mr-1" />{coach.languagesSpoken}</span>}
                     {coach.averageRating != null && (
-                      <span className="text-amber-300"><Star className="inline w-3.5 h-3.5 mr-1 fill-amber-300" />{coach.averageRating.toFixed(1)} ({coach.reviewCount})</span>
+                      <Badge variant="outline" className="border-amber-400/40 text-amber-200">
+                        <Star className="w-3 h-3 mr-1 fill-amber-300 text-amber-300" />{coach.averageRating.toFixed(1)} · {coach.reviewCount}
+                      </Badge>
                     )}
                   </div>
-                  {coach.bio && <p className="text-sm text-zinc-300 leading-relaxed mt-2">{coach.bio}</p>}
-                  {(coach.specialism?.length || coach.coachingFocus?.length) ? (
-                    <div className="flex flex-wrap gap-1 mt-2">
-                      {coach.specialism?.map((s) => <Badge key={s} variant="outline" className="border-violet-400/30 text-violet-200">{s}</Badge>)}
-                      {coach.coachingFocus?.map((f) => <Badge key={f} variant="secondary">{f}</Badge>)}
-                    </div>
-                  ) : null}
+
+                  {/* Quick facts row */}
+                  <div className="flex flex-wrap justify-center gap-x-5 gap-y-1.5 text-xs text-zinc-400 mt-4" data-testid="hero-facts">
+                    {coach.city && <span className="inline-flex items-center gap-1"><MapPin className="w-3.5 h-3.5" />{[coach.city, coach.postcode].filter(Boolean).join(", ")}</span>}
+                    {coach.yearsTraining != null && <span className="inline-flex items-center gap-1"><Clock className="w-3.5 h-3.5" />{coach.yearsTraining} yrs experience</span>}
+                    {coach.languagesSpoken && <span className="inline-flex items-center gap-1"><Languages className="w-3.5 h-3.5" />{coach.languagesSpoken}</span>}
+                  </div>
                 </div>
+
+                {/* Descriptions BELOW the photo */}
+                {(coach.bio || coach.specialism?.length || coach.coachingFocus?.length) && (
+                  <div className="relative border-t border-white/10 px-5 md:px-10 py-6 md:py-8 space-y-5">
+                    {coach.bio && (
+                      <div data-testid="hero-bio">
+                        <h3 className="text-xs uppercase tracking-[0.18em] text-violet-300/80 mb-2">About</h3>
+                        <p className="text-sm md:text-[15px] leading-relaxed text-zinc-200 whitespace-pre-wrap max-w-3xl mx-auto text-center md:text-left">{coach.bio}</p>
+                      </div>
+                    )}
+                    {(coach.specialism?.length || coach.coachingFocus?.length) ? (
+                      <div className="flex flex-wrap justify-center md:justify-start gap-1.5" data-testid="hero-tags">
+                        {coach.specialism?.map((s) => (
+                          <Badge key={`sp-${s}`} variant="outline" className="border-violet-400/40 text-violet-200 bg-violet-500/10">{s}</Badge>
+                        ))}
+                        {coach.coachingFocus?.map((f) => (
+                          <Badge key={`fc-${f}`} className="bg-cyan-500/15 border border-cyan-400/30 text-cyan-200">{f}</Badge>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                )}
               </div>
             </CardContent>
           </GlassCard>
