@@ -290,7 +290,7 @@ export function registerCustomPollRoutes(app: Express): void {
         optionIndices: customPollResponses.optionIndices,
         createdAt: customPollResponses.createdAt,
         updatedAt: customPollResponses.updatedAt,
-        userName: users.name,
+        userName: users.fullName,
         userEmail: users.email,
         userPhotoUrl: users.profilePictureUrl,
       })
