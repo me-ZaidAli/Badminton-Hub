@@ -263,7 +263,7 @@ export function UnifiedMemberEditDialog({
       setNewChildEmergencyContact("");
       setNewChildMedicalNotes("");
     }
-  }, [data, open]);
+  }, [data?.userId, open]);
 
   const handleSave = async () => {
     try {
