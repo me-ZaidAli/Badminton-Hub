@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, pgEnum } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -3199,13 +3199,81 @@ export const bslLeagueDays = pgTable("bsl_league_days", {
   id: serial("id").primaryKey(),
   bslLeagueId: integer("bsl_league_id").notNull().references(() => bslLeagues.id, { onDelete: "cascade" }),
   date: timestamp("date").notNull(),
-  status: text("status").notNull().default("UPCOMING"), // UPCOMING, LIVE, COMPLETED
+  status: text("status").notNull().default("UPCOMING"), // UPCOMING, LIVE, COMPLETED (legacy)
+  // Lifecycle state machine: DRAFT → PUBLISHED → LIVE → CLOSED.
+  // DRAFT = settings + fixtures fully editable. PUBLISHED = visible to clubs but
+  // still editable by admin. LIVE = fixtures locked, only score input + walkover
+  // allowed. CLOSED = standings finalised, no further edits.
+  state: text("state").notNull().default("DRAFT"),
+  division: text("division"),
+  category: text("category"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Per-category competition rules. Snapshot onto each fixture at generation
+// time so mid-season rule changes don't retroactively rewrite finished games.
+export const bslCategorySettings = pgTable("bsl_category_settings", {
+  id: serial("id").primaryKey(),
+  bslLeagueId: integer("bsl_league_id").notNull().default(1).references(() => bslLeagues.id, { onDelete: "cascade" }),
+  category: text("category").notNull(), // MD / WD / XD / custom
+  rubbersPerFixture: integer("rubbers_per_fixture").notNull().default(6),
+  rubberLineup: text("rubber_lineup").array().notNull().default(sql`ARRAY['MD','MD','WD','WD','XD','XD']::text[]`),
+  setsPerMatch: integer("sets_per_match").notNull().default(3),
+  pointsPerSet: integer("points_per_set").notNull().default(21),
+  scoringRule: text("scoring_rule").notNull().default("DEUCE"), // DEUCE | GOLDEN_POINT | RALLY
+  deuceCap: integer("deuce_cap").notNull().default(30),
+  format: text("format").notNull().default("ROUND_ROBIN"), // ROUND_ROBIN | KNOCKOUT | GROUPS
+  courtPool: integer("court_pool").array().notNull().default(sql`ARRAY[]::integer[]`),
+  walkoverPolicy: text("walkover_policy").notNull().default("STANDARD"),
+  walkoverScore: integer("walkover_score").notNull().default(21),
+  // Order is significant — first non-tying value wins. Each token is one of:
+  // POINTS, RUBBER_DIFF, RUBBERS_FOR, HEAD_TO_HEAD, MATCHES_WON.
+  tiebreakOrder: text("tiebreak_order").array().notNull().default(sql`ARRAY['POINTS','RUBBER_DIFF','RUBBERS_FOR','HEAD_TO_HEAD']::text[]`),
+  pointsWin: integer("points_win").notNull().default(3),
+  pointsDraw: integer("points_draw").notNull().default(1),
+  pointsLoss: integer("points_loss").notNull().default(0),
+  notes: text("notes"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+}, (t) => ({
+  // Enforce one settings row per (league, category). Backed by
+  // bsl_category_settings_league_cat_uq in the live DB.
+  leagueCategoryUq: uniqueIndex("bsl_category_settings_league_cat_uq").on(t.bslLeagueId, t.category),
+}));
+
+// Each Regenerate action archives the previous batch of fixtures (per
+// league-day + division + category) into a versioned payload row so admins
+// can audit / restore previous configurations without losing match history.
+export const bslFixtureVersions = pgTable("bsl_fixture_versions", {
+  id: serial("id").primaryKey(),
+  bslLeagueId: integer("bsl_league_id").notNull().default(1),
+  bslLeagueDayId: integer("bsl_league_day_id"),
+  division: text("division"),
+  category: text("category"),
+  version: integer("version").notNull().default(1),
+  reason: text("reason"),
+  payload: jsonb("payload").notNull(),
+  archivedById: integer("archived_by_id").references(() => users.id),
+  archivedAt: timestamp("archived_at").defaultNow().notNull(),
+});
+
+export type BslCategorySettings = typeof bslCategorySettings.$inferSelect;
+export type InsertBslCategorySettings = typeof bslCategorySettings.$inferInsert;
+export type BslFixtureVersion = typeof bslFixtureVersions.$inferSelect;
 
 export const bslFixtures = pgTable("bsl_fixtures", {
   id: serial("id").primaryKey(),
   bslLeagueDayId: integer("bsl_league_day_id").references(() => bslLeagueDays.id, { onDelete: "cascade" }),
+  // Category this fixture belongs to (MD/WD/XD or custom). Lets admins run
+  // separate competitions per category with their own settings.
+  category: text("category"),
+  version: integer("version").notNull().default(1),
+  // Snapshot of bslCategorySettings at generation time so subsequent edits
+  // to the live settings don't retroactively change in-progress matches.
+  rulesSnapshot: jsonb("rules_snapshot"),
+  walkoverWinner: text("walkover_winner"), // NONE | HOME | AWAY
+  liveStartedAt: timestamp("live_started_at"),
+  livePausedAt: timestamp("live_paused_at"),
   // Club-vs-club fixture (preferred): admin allocates 2 clubs, then assigns
   // pairs into the 6 rubber slots inside the fixture. Legacy team-vs-team
   // fixtures (one pair vs one pair) remain supported via homeTeamId/awayTeamId
@@ -3238,6 +3306,9 @@ export const bslRubbers = pgTable("bsl_rubbers", {
   awayPlayer2Id: integer("away_player2_id").references(() => bslPlayers.id),
   homeScore: integer("home_score").notNull().default(0),
   awayScore: integer("away_score").notNull().default(0),
+  // Per-set scores: array of { h: number, a: number } captured live.
+  setScores: jsonb("set_scores"),
+  walkoverWinner: text("walkover_winner"), // NONE | HOME | AWAY
   status: bslFixtureStatusEnum("status").notNull().default("SCHEDULED"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

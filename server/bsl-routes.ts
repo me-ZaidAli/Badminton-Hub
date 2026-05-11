@@ -7,7 +7,7 @@ import fs from "fs";
 import {
   bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays,
   bslFixtures, bslRubbers, bslWalletTransactions, bslAuditLog, bslMedia, users,
-  bslTeamMembers,
+  bslTeamMembers, bslCategorySettings, bslFixtureVersions,
 } from "@shared/schema";
 import { sendRulePush } from "./notificationRules";
 import { hashPassword } from "./auth";
@@ -85,38 +85,60 @@ async function recomputeStandings(_leagueId = 1) {
   const teams = await db.select().from(bslTeams);
   const fixtures = await db.select().from(bslFixtures);
   const finished = fixtures.filter(f => f.status === "FINISHED");
+  // Per-category settings drive points-per-result. We honour per-category
+  // pointsWin/Draw/Loss when the fixture has a snapshot; otherwise fall back
+  // to the league-wide defaults from bslLeagues for legacy fixtures.
+  let categorySettings: Record<string, any> = {};
+  try {
+    const rows = await db.select().from(bslCategorySettings);
+    categorySettings = Object.fromEntries(rows.map(r => [r.category, r]));
+  } catch { /* table absent → defaults */ }
+  const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+  const defaultPts = { win: league?.pointsWin ?? 3, draw: league?.pointsDraw ?? 1, loss: league?.pointsLoss ?? 0 };
+
   const stats: Record<number, { p: number; w: number; d: number; l: number; rf: number; ra: number; pts: number }> = {};
   teams.forEach(t => { stats[t.id] = { p: 0, w: 0, d: 0, l: 0, rf: 0, ra: 0, pts: 0 }; });
+
+  function pointsFor(f: any) {
+    const snap = (f?.rulesSnapshot as any) || (f?.category ? categorySettings[f.category] : null);
+    return {
+      win: Number(snap?.pointsWin ?? defaultPts.win),
+      draw: Number(snap?.pointsDraw ?? defaultPts.draw),
+      loss: Number(snap?.pointsLoss ?? defaultPts.loss),
+    };
+  }
 
   for (const f of finished) {
     if (f.homeTeamId != null && f.awayTeamId != null) {
       const h = stats[f.homeTeamId]; const a = stats[f.awayTeamId];
       if (!h || !a) continue;
+      const P = pointsFor(f);
       h.p++; a.p++;
       h.rf += f.homeRubbers; h.ra += f.awayRubbers;
       a.rf += f.awayRubbers; a.ra += f.homeRubbers;
-      if (f.homeRubbers > f.awayRubbers) { h.w++; a.l++; h.pts += 3; }
-      else if (f.homeRubbers < f.awayRubbers) { a.w++; h.l++; a.pts += 3; }
-      else { h.d++; a.d++; h.pts++; a.pts++; }
+      if (f.homeRubbers > f.awayRubbers) { h.w++; a.l++; h.pts += P.win; a.pts += P.loss; }
+      else if (f.homeRubbers < f.awayRubbers) { a.w++; h.l++; a.pts += P.win; h.pts += P.loss; }
+      else { h.d++; a.d++; h.pts += P.draw; a.pts += P.draw; }
     }
   }
 
   // Club-vs-club: credit per-rubber for any finished club fixture.
-  const finishedClubFixtureIds = finished
-    .filter(f => f.homeClubId != null && f.awayClubId != null)
-    .map(f => f.id);
+  const finishedClubFixtures = finished.filter(f => f.homeClubId != null && f.awayClubId != null);
+  const finishedClubFixtureIds = finishedClubFixtures.map(f => f.id);
+  const fixtureById = new Map(finishedClubFixtures.map(f => [f.id, f]));
   if (finishedClubFixtureIds.length) {
     const rubbers = await db.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, finishedClubFixtureIds));
     for (const r of rubbers) {
       if (r.homeTeamId == null || r.awayTeamId == null) continue;
       const h = stats[r.homeTeamId]; const a = stats[r.awayTeamId];
       if (!h || !a) continue;
+      const P = pointsFor(fixtureById.get(r.bslFixtureId));
       h.p++; a.p++;
       h.rf += r.homeScore; h.ra += r.awayScore;
       a.rf += r.awayScore; a.ra += r.homeScore;
-      if (r.homeScore > r.awayScore) { h.w++; a.l++; h.pts += 3; }
-      else if (r.homeScore < r.awayScore) { a.w++; h.l++; a.pts += 3; }
-      else { h.d++; a.d++; h.pts++; a.pts++; }
+      if (r.homeScore > r.awayScore) { h.w++; a.l++; h.pts += P.win; a.pts += P.loss; }
+      else if (r.homeScore < r.awayScore) { a.w++; h.l++; a.pts += P.win; h.pts += P.loss; }
+      else { h.d++; a.d++; h.pts += P.draw; a.pts += P.draw; }
     }
   }
 
@@ -541,6 +563,13 @@ export function registerBslRoutes(app: Express) {
     try {
       const id = Number(req.params.id);
       const { court, status, startTime } = req.body;
+      // Lifecycle guard — block edits on CLOSED days; allow ONLY pure status
+      // changes when LIVE. A mixed payload (status + court/startTime) during
+      // LIVE is rejected so we don't silently sneak forbidden edits in.
+      const hasNonStatus = court !== undefined || startTime !== undefined;
+      const action = hasNonStatus ? "edit" : (status ? "status" : "edit");
+      const block = await assertFixtureMutable(id, new Set(["status"]), action);
+      if (block) return res.status(409).json({ message: block });
       const patch: any = {};
       if (court !== undefined) patch.court = court;
       if (status) patch.status = status;
@@ -557,30 +586,45 @@ export function registerBslRoutes(app: Express) {
   const DEFAULT_CVC_TYPES: any[] = ["MD", "MD", "WD", "WD", "XD", "XD"];
   app.post("/api/bsl/admin/club-fixtures", requireAdmin, async (req, res) => {
     try {
-      const { homeClubId, awayClubId, leagueDayId, court, startTime, types } = req.body as {
+      const { homeClubId, awayClubId, leagueDayId, court, startTime, types, category } = req.body as {
         homeClubId: number; awayClubId: number; leagueDayId?: number;
-        court?: number | null; startTime?: string; types?: string[];
+        court?: number | null; startTime?: string; types?: string[]; category?: string;
       };
       if (!homeClubId || !awayClubId) return res.status(400).json({ message: "homeClubId + awayClubId required" });
       if (homeClubId === awayClubId) return res.status(400).json({ message: "Home and away must differ" });
-      const lineup = Array.isArray(types) && types.length === 6 ? types : DEFAULT_CVC_TYPES;
+      const cat = category ? String(category).toUpperCase() : null;
+      // Resolve lineup: explicit body.types > category settings > legacy default.
+      let settings: any = null;
+      if (cat) {
+        const [row] = await db.select().from(bslCategorySettings)
+          .where(and(eq(bslCategorySettings.bslLeagueId, 1), eq(bslCategorySettings.category, cat))).limit(1);
+        settings = row || null;
+      }
       const allowed = new Set(["MS1", "MS2", "WS", "MD", "WD", "XD"]);
+      const lineup: string[] = Array.isArray(types) && types.length > 0
+        ? types
+        : (settings?.rubberLineup && settings.rubberLineup.length)
+          ? settings.rubberLineup
+          : DEFAULT_CVC_TYPES;
+      const rubbersPerFixture = settings?.rubbersPerFixture || lineup.length;
       for (const t of lineup) if (!allowed.has(t)) return res.status(400).json({ message: `Invalid rubber type: ${t}` });
       const clubs = await db.select().from(bslClubs).where(inArray(bslClubs.id, [homeClubId, awayClubId]));
       if (clubs.length !== 2) return res.status(404).json({ message: "Club(s) not found" });
       const [f] = await db.insert(bslFixtures).values({
         bslLeagueDayId: leagueDayId ?? null,
+        category: cat,
+        rulesSnapshot: settings as any,
         homeClubId, awayClubId,
         homeTeamId: null, awayTeamId: null,
         court: court ?? null,
         startTime: startTime ? new Date(startTime) : null,
       }).returning();
-      for (let k = 0; k < 6; k++) {
+      for (let k = 0; k < rubbersPerFixture; k++) {
         await db.insert(bslRubbers).values({
-          bslFixtureId: f.id, rubberNumber: k + 1, rubberType: lineup[k] as any,
+          bslFixtureId: f.id, rubberNumber: k + 1, rubberType: (lineup[k % lineup.length] || "MD") as any,
         });
       }
-      await audit(req, "CREATE_CLUB_FIXTURE", "bsl_fixture", f.id, { homeClubId, awayClubId, types: lineup });
+      await audit(req, "CREATE_CLUB_FIXTURE", "bsl_fixture", f.id, { homeClubId, awayClubId, category: cat, types: lineup });
       res.json(f);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -646,6 +690,9 @@ export function registerBslRoutes(app: Express) {
       if (!rubber) return res.status(404).json({ message: "Rubber not found" });
       const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, rubber.bslFixtureId)).limit(1);
       if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      // Lifecycle guard — pair assignment forbidden once the day is LIVE/CLOSED.
+      const block = await assertFixtureMutable(fixture.id, new Set(), "assign");
+      if (block) return res.status(409).json({ message: block });
       const targetClubId = side === "home" ? fixture.homeClubId : fixture.awayClubId;
       const patch: any = {};
       if (bslTeamId == null) {
@@ -684,6 +731,15 @@ export function registerBslRoutes(app: Express) {
     try {
       const id = Number(req.params.id);
       const { homeScore, awayScore, status } = req.body;
+      // Lifecycle guard — score entry is allowed when LIVE; pure status
+      // mutation or mixed (status+score) payloads must wait for DRAFT/PUBLISHED.
+      const isPureScore = (homeScore !== undefined || awayScore !== undefined) && status === undefined;
+      const action = isPureScore ? "score" : "edit";
+      const [rubberRow] = await db.select().from(bslRubbers).where(eq(bslRubbers.id, id)).limit(1);
+      if (rubberRow) {
+        const block = await assertFixtureMutable(rubberRow.bslFixtureId, new Set(["score"]), action);
+        if (block) return res.status(409).json({ message: block });
+      }
       const patch: any = {};
       if (homeScore !== undefined) patch.homeScore = homeScore;
       if (awayScore !== undefined) patch.awayScore = awayScore;
@@ -1273,12 +1329,28 @@ export function registerBslRoutes(app: Express) {
   });
 
   // --- ADMIN: round-robin fixture generation per division ---
+  // Pulls per-category settings (rubbersPerFixture + lineup + full snapshot)
+  // so generated fixtures aren't tied to the old hardcoded MS1/MS2/WS/MD/WD/XD.
   app.post("/api/bsl/admin/fixtures/generate", requireAdmin, async (req, res) => {
     try {
-      const { division, leagueDayId } = req.body as { division: string; leagueDayId?: number };
+      const { division, leagueDayId, category } = req.body as { division: string; leagueDayId?: number; category?: string };
       if (!division) return res.status(400).json({ message: "division required" });
-      const teams = await db.select().from(bslTeams).where(eq(bslTeams.division, division));
+      const cat = category ? String(category).toUpperCase() : null;
+      const teams = cat
+        ? await db.select().from(bslTeams).where(and(eq(bslTeams.division, division), eq(bslTeams.category, cat)))
+        : await db.select().from(bslTeams).where(eq(bslTeams.division, division));
       if (teams.length < 2) return res.status(400).json({ message: "Need ≥2 teams in division" });
+      // Resolve settings: per-category override → fallback to legacy 6-rubber lineup.
+      let settings: any = null;
+      if (cat) {
+        const [row] = await db.select().from(bslCategorySettings)
+          .where(and(eq(bslCategorySettings.bslLeagueId, 1), eq(bslCategorySettings.category, cat))).limit(1);
+        settings = row || null;
+      }
+      const lineup: string[] = (settings?.rubberLineup && settings.rubberLineup.length)
+        ? settings.rubberLineup
+        : ["MS1","MS2","WS","MD","WD","XD"];
+      const rubbersPerFixture = settings?.rubbersPerFixture || lineup.length;
       // Round-robin (circle method)
       const list = teams.slice();
       if (list.length % 2 === 1) list.push({ id: -1 } as any); // bye marker
@@ -1293,16 +1365,17 @@ export function registerBslRoutes(app: Express) {
           if (home.id === -1 || away.id === -1) continue;
           const [f] = await db.insert(bslFixtures).values({
             bslLeagueDayId: leagueDayId ?? null,
+            category: cat,
+            rulesSnapshot: settings as any,
             homeTeamId: r % 2 === 0 ? home.id : away.id,
             awayTeamId: r % 2 === 0 ? away.id : home.id,
             court: null,
             startTime: null,
           }).returning();
-          // seed 6 rubbers
-          const types: any[] = ["MS1","MS2","WS","MD","WD","XD"];
-          for (let k = 0; k < types.length; k++) {
+          for (let k = 0; k < rubbersPerFixture; k++) {
+            const t = (lineup[k % lineup.length] || "MD") as any;
             await db.insert(bslRubbers).values({
-              bslFixtureId: f.id, rubberNumber: k+1, rubberType: types[k],
+              bslFixtureId: f.id, rubberNumber: k+1, rubberType: t,
             });
           }
           created.push(f);
@@ -1310,7 +1383,7 @@ export function registerBslRoutes(app: Express) {
         // rotate (keep first fixed)
         arr.splice(1, 0, arr.pop()!);
       }
-      await audit(req, "GENERATE_FIXTURES", "bsl_division", null, { division, leagueDayId, count: created.length });
+      await audit(req, "GENERATE_FIXTURES", "bsl_division", null, { division, leagueDayId, category: cat, count: created.length });
       res.json({ created: created.length, fixtures: created });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -1322,6 +1395,9 @@ export function registerBslRoutes(app: Express) {
       const status = req.body.status as string;
       const allowed = ["SCHEDULED", "WARMUP", "LIVE", "FINISHED"];
       if (!allowed.includes(status)) return res.status(400).json({ message: "Invalid status" });
+      // Lifecycle guard — status changes always allowed when LIVE; CLOSED locks all.
+      const block = await assertFixtureMutable(id, new Set(["status"]), "status");
+      if (block) return res.status(409).json({ message: block });
       const [updated] = await db.update(bslFixtures).set({ status: status as any }).where(eq(bslFixtures.id, id)).returning();
       if (!updated) return res.status(404).json({ message: "Fixture not found" });
       if (status === "FINISHED") await recomputeStandings();
@@ -2015,6 +2091,358 @@ export function registerBslRoutes(app: Express) {
         description: `Registered for ${category}${tierLabel}`,
         reviewedById: u.id, reviewedAt: new Date(),
       } as any);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ==========================================================================
+  // === CATEGORY COMPETITION SETTINGS (per-category rules, snapshot-aware) ===
+  // ==========================================================================
+
+  const ALLOWED_RUBBER_TYPES = new Set(["MS1","MS2","WS","MD","WD","XD"]);
+  const ALLOWED_SCORING = new Set(["DEUCE","GOLDEN_POINT","RALLY"]);
+  const ALLOWED_FORMAT = new Set(["ROUND_ROBIN","KNOCKOUT","GROUPS"]);
+  const ALLOWED_TIEBREAKS = new Set(["POINTS","RUBBER_DIFF","RUBBERS_FOR","HEAD_TO_HEAD","MATCHES_WON"]);
+  const ALLOWED_LIFECYCLE_STATES = new Set(["DRAFT","PUBLISHED","LIVE","CLOSED"]);
+
+  function clampInt(v: any, min: number, max: number, fallback: number) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return fallback;
+    return Math.max(min, Math.min(max, Math.round(n)));
+  }
+
+  function sanitiseSettings(body: any, base?: any) {
+    const merged: any = { ...(base || {}) };
+    if ("rubbersPerFixture" in body) merged.rubbersPerFixture = clampInt(body.rubbersPerFixture, 1, 20, base?.rubbersPerFixture ?? 6);
+    if ("setsPerMatch" in body) merged.setsPerMatch = clampInt(body.setsPerMatch, 1, 7, base?.setsPerMatch ?? 3);
+    if ("pointsPerSet" in body) merged.pointsPerSet = clampInt(body.pointsPerSet, 1, 99, base?.pointsPerSet ?? 21);
+    if ("deuceCap" in body) merged.deuceCap = clampInt(body.deuceCap, 1, 99, base?.deuceCap ?? 30);
+    if ("walkoverScore" in body) merged.walkoverScore = clampInt(body.walkoverScore, 0, 99, base?.walkoverScore ?? 21);
+    if ("pointsWin" in body) merged.pointsWin = clampInt(body.pointsWin, 0, 99, base?.pointsWin ?? 3);
+    if ("pointsDraw" in body) merged.pointsDraw = clampInt(body.pointsDraw, 0, 99, base?.pointsDraw ?? 1);
+    if ("pointsLoss" in body) merged.pointsLoss = clampInt(body.pointsLoss, 0, 99, base?.pointsLoss ?? 0);
+    if ("scoringRule" in body && ALLOWED_SCORING.has(body.scoringRule)) merged.scoringRule = body.scoringRule;
+    if ("format" in body && ALLOWED_FORMAT.has(body.format)) merged.format = body.format;
+    if ("walkoverPolicy" in body && typeof body.walkoverPolicy === "string") merged.walkoverPolicy = body.walkoverPolicy.slice(0, 32);
+    if ("notes" in body) merged.notes = body.notes ? String(body.notes).slice(0, 1000) : null;
+    if ("rubberLineup" in body && Array.isArray(body.rubberLineup)) {
+      const cleaned = body.rubberLineup
+        .map((t: any) => String(t || "").toUpperCase())
+        .filter((t: string) => ALLOWED_RUBBER_TYPES.has(t));
+      if (cleaned.length > 0) merged.rubberLineup = cleaned;
+    }
+    if ("tiebreakOrder" in body && Array.isArray(body.tiebreakOrder)) {
+      const cleaned = body.tiebreakOrder
+        .map((t: any) => String(t || "").toUpperCase())
+        .filter((t: string) => ALLOWED_TIEBREAKS.has(t));
+      if (cleaned.length > 0) merged.tiebreakOrder = cleaned;
+    }
+    if ("courtPool" in body && Array.isArray(body.courtPool)) {
+      const cleaned = body.courtPool
+        .map((c: any) => Number(c))
+        .filter((c: number) => Number.isFinite(c) && c >= 1 && c <= 99)
+        .map((c: number) => Math.round(c));
+      merged.courtPool = Array.from(new Set(cleaned));
+    }
+    return merged;
+  }
+
+  app.get("/api/bsl/admin/category-settings", requireAdmin, async (_req, res) => {
+    try {
+      const rows = await db.select().from(bslCategorySettings).orderBy(bslCategorySettings.category);
+      res.json(rows);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Upsert (create-or-replace) per category. Body = settings; param = category.
+  app.put("/api/bsl/admin/category-settings/:category", requireAdmin, async (req, res) => {
+    try {
+      const category = String(req.params.category || "").toUpperCase();
+      if (!category) return res.status(400).json({ message: "category required" });
+      const [existing] = await db.select().from(bslCategorySettings)
+        .where(and(eq(bslCategorySettings.bslLeagueId, 1), eq(bslCategorySettings.category, category))).limit(1);
+      const merged = sanitiseSettings(req.body || {}, existing || {});
+      merged.updatedAt = new Date();
+      let row;
+      if (existing) {
+        [row] = await db.update(bslCategorySettings).set(merged)
+          .where(eq(bslCategorySettings.id, existing.id)).returning();
+      } else {
+        [row] = await db.insert(bslCategorySettings).values({
+          bslLeagueId: 1, category, ...merged,
+        } as any).returning();
+      }
+      await audit(req, existing ? "UPDATE_CATEGORY_SETTINGS" : "CREATE_CATEGORY_SETTINGS", "bsl_category_settings", row.id, { category });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.delete("/api/bsl/admin/category-settings/:category", requireAdmin, async (req, res) => {
+    try {
+      const category = String(req.params.category || "").toUpperCase();
+      const result = await db.delete(bslCategorySettings)
+        .where(and(eq(bslCategorySettings.bslLeagueId, 1), eq(bslCategorySettings.category, category)));
+      await audit(req, "DELETE_CATEGORY_SETTINGS", "bsl_category_settings", null, { category });
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Helper used by every fixture-creation path so generated fixtures always
+  // carry a fresh rules snapshot + the right number of rubbers from settings.
+  async function loadCategorySettings(category: string | null | undefined) {
+    if (!category) return null;
+    const [row] = await db.select().from(bslCategorySettings)
+      .where(and(eq(bslCategorySettings.bslLeagueId, 1), eq(bslCategorySettings.category, category))).limit(1);
+    return row || null;
+  }
+
+  // ==========================================================================
+  // === REGENERATE FIXTURES (archives previous batch + uses snapshot rules) ==
+  // ==========================================================================
+  app.post("/api/bsl/admin/fixtures/regenerate", requireAdmin, async (req, res) => {
+    try {
+      const { division, leagueDayId, category, reason } = req.body as {
+        division: string; leagueDayId?: number; category?: string; reason?: string;
+      };
+      if (!division) return res.status(400).json({ message: "division required" });
+      const cat = category ? String(category).toUpperCase() : null;
+
+      // Resolve which team + club ids belong to this division so regenerate
+      // can NEVER touch fixtures outside the requested slice.
+      const divisionTeams = await db.select().from(bslTeams).where(eq(bslTeams.division, division));
+      const divisionTeamIds = new Set(divisionTeams.map(t => t.id));
+      const divisionClubIds = new Set(divisionTeams.map(t => t.bslClubId));
+
+      // Block regenerate when the league-day is locked (LIVE/CLOSED).
+      if (leagueDayId != null) {
+        const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, leagueDayId)).limit(1);
+        if (day && (day.state === "LIVE" || day.state === "CLOSED")) {
+          return res.status(400).json({ message: `League day is ${day.state} — cannot regenerate. Move it back to DRAFT first.` });
+        }
+      }
+
+      // Pull fixtures matching this slice that haven't been finished yet
+      // (FINISHED ones are preserved as historical records — only SCHEDULED
+      //  / WARMUP fixtures are eligible for regeneration).
+      const allCandidates = await db.select().from(bslFixtures);
+      const matching = allCandidates.filter(f => {
+        if (leagueDayId != null && f.bslLeagueDayId !== leagueDayId) return false;
+        if (cat && f.category !== cat) return false;
+        // STRICT division match: BOTH sides of the fixture must belong to the
+        // requested division (cross-division fixtures are never archived).
+        // Resolve via teams when present, else via clubs (club-vs-club fixtures).
+        if (f.homeTeamId != null && f.awayTeamId != null) {
+          return divisionTeamIds.has(f.homeTeamId) && divisionTeamIds.has(f.awayTeamId);
+        }
+        if (f.homeClubId != null && f.awayClubId != null) {
+          return divisionClubIds.has(f.homeClubId) && divisionClubIds.has(f.awayClubId);
+        }
+        return false;
+      });
+      const editable = matching.filter(f => f.status === "SCHEDULED" || f.status === "WARMUP");
+      const editableIds = editable.map(f => f.id);
+      const lastVersion = editable.reduce((m, f) => Math.max(m, f.version || 1), 0) || 1;
+      const nextVersion = lastVersion + 1;
+
+      // Compute generation inputs OUTSIDE the transaction (read-only).
+      const settings = cat ? await loadCategorySettings(cat) : null;
+      const lineup = (settings?.rubberLineup || ["MD","MD","WD","WD","XD","XD"]) as string[];
+      const rubbersPerFixture = settings?.rubbersPerFixture || lineup.length;
+      const teamRows = await db.select().from(bslTeams)
+        .where(cat ? and(eq(bslTeams.division, division), eq(bslTeams.category, cat)) : eq(bslTeams.division, division));
+      if (teamRows.length < 2) return res.status(400).json({ message: "Need ≥2 teams in division" });
+
+      let createdCount = 0;
+      // ATOMIC: archive + delete + recreate happen in one transaction so a
+      // mid-flight failure or a concurrent regenerate can't leave the DB in
+      // a half-rebuilt state.
+      await db.transaction(async (tx) => {
+        if (editableIds.length > 0) {
+          const rubbers = await tx.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, editableIds));
+          await tx.insert(bslFixtureVersions).values({
+            bslLeagueId: 1, bslLeagueDayId: leagueDayId ?? null,
+            division, category: cat, version: lastVersion,
+            reason: reason || null,
+            payload: { fixtures: editable, rubbers } as any,
+            archivedById: (req as any).user?.id ?? null,
+          });
+          await tx.delete(bslFixtures).where(inArray(bslFixtures.id, editableIds));
+        }
+        const list: any[] = teamRows.slice();
+        if (list.length % 2 === 1) list.push({ id: -1 });
+        const n = list.length;
+        const rounds = n - 1;
+        const half = n / 2;
+        const arr = list.slice();
+        for (let r = 0; r < rounds; r++) {
+          for (let i = 0; i < half; i++) {
+            const home = arr[i]; const away = arr[n - 1 - i];
+            if (home.id === -1 || away.id === -1) continue;
+            const [f] = await tx.insert(bslFixtures).values({
+              bslLeagueDayId: leagueDayId ?? null,
+              category: cat, version: nextVersion,
+              rulesSnapshot: settings as any,
+              homeTeamId: r % 2 === 0 ? home.id : away.id,
+              awayTeamId: r % 2 === 0 ? away.id : home.id,
+              court: null, startTime: null,
+            }).returning();
+            for (let k = 0; k < rubbersPerFixture; k++) {
+              const t = (lineup[k % lineup.length] || "MD") as any;
+              await tx.insert(bslRubbers).values({
+                bslFixtureId: f.id, rubberNumber: k + 1, rubberType: t,
+              });
+            }
+            createdCount++;
+          }
+          arr.splice(1, 0, arr.pop()!);
+        }
+      });
+      await audit(req, "REGENERATE_FIXTURES", "bsl_division", null, { division, category: cat, leagueDayId, archived: editable.length, created: createdCount, version: nextVersion, reason });
+      res.json({ archived: editable.length, created: createdCount, version: nextVersion });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/bsl/admin/fixture-versions", requireAdmin, async (req, res) => {
+    try {
+      const leagueDayId = req.query.leagueDayId ? Number(req.query.leagueDayId) : null;
+      const division = req.query.division ? String(req.query.division) : null;
+      const category = req.query.category ? String(req.query.category).toUpperCase() : null;
+      let rows = await db.select().from(bslFixtureVersions).orderBy(desc(bslFixtureVersions.archivedAt));
+      if (leagueDayId != null) rows = rows.filter(r => r.bslLeagueDayId === leagueDayId);
+      if (division) rows = rows.filter(r => r.division === division);
+      if (category) rows = rows.filter(r => r.category === category);
+      // Strip heavy payload from list view
+      res.json(rows.map(r => ({ ...r, payload: undefined, fixtureCount: (r.payload as any)?.fixtures?.length || 0 })));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.get("/api/bsl/admin/fixture-versions/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [row] = await db.select().from(bslFixtureVersions).where(eq(bslFixtureVersions.id, id)).limit(1);
+      if (!row) return res.status(404).json({ message: "Not found" });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ==========================================================================
+  // === LEAGUE DAY LIFECYCLE STATE ===========================================
+  // ==========================================================================
+  // Allowed transitions in the lifecycle state machine. Skipping forward is
+  // OK (e.g. DRAFT → LIVE), but going backwards from CLOSED is blocked unless
+  // explicitly reopening (CLOSED → PUBLISHED) — never silently.
+  const STATE_TRANSITIONS: Record<string, Set<string>> = {
+    DRAFT:     new Set(["DRAFT","PUBLISHED","LIVE","CLOSED"]),
+    PUBLISHED: new Set(["DRAFT","PUBLISHED","LIVE","CLOSED"]),
+    LIVE:      new Set(["LIVE","PUBLISHED","CLOSED"]),
+    CLOSED:    new Set(["CLOSED","PUBLISHED"]),
+  };
+
+  app.patch("/api/bsl/admin/league-days/:id/state", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const next = String(req.body?.state || "").toUpperCase();
+      if (!ALLOWED_LIFECYCLE_STATES.has(next)) {
+        return res.status(400).json({ message: `state must be one of ${[...ALLOWED_LIFECYCLE_STATES].join(", ")}` });
+      }
+      const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, id)).limit(1);
+      if (!day) return res.status(404).json({ message: "League day not found" });
+      const cur = (day.state || "DRAFT").toUpperCase();
+      const allowedNext = STATE_TRANSITIONS[cur] || new Set([cur]);
+      if (!allowedNext.has(next)) {
+        return res.status(400).json({ message: `Illegal transition ${cur} → ${next}` });
+      }
+      if (next === "LIVE") {
+        const fx = await db.select().from(bslFixtures).where(eq(bslFixtures.bslLeagueDayId, id));
+        if (fx.length === 0) return res.status(400).json({ message: "Cannot go LIVE: no fixtures scheduled for this day" });
+      }
+      const [updated] = await db.update(bslLeagueDays).set({ state: next })
+        .where(eq(bslLeagueDays.id, id)).returning();
+      if (next === "CLOSED") await recomputeStandings();
+      await audit(req, "UPDATE_LEAGUE_DAY_STATE", "bsl_league_day", id, { from: cur, to: next });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Helper: legacy mutation routes call this to ensure they don't bypass the
+  // state machine when a fixture's parent league-day is LIVE / CLOSED.
+  async function assertFixtureMutable(fixtureId: number, allowedActions: Set<string>, action: string) {
+    const [f] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, fixtureId)).limit(1);
+    if (!f || f.bslLeagueDayId == null) return null;
+    const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, f.bslLeagueDayId)).limit(1);
+    if (!day) return null;
+    const state = (day.state || "DRAFT").toUpperCase();
+    if (state === "CLOSED") return `League day is CLOSED — no edits allowed`;
+    if (state === "LIVE" && !allowedActions.has(action)) return `League day is LIVE — only ${[...allowedActions].join("/")} allowed`;
+    return null;
+  }
+  // Expose to the rest of the file for legacy guards.
+  (app as any)._bslAssertFixtureMutable = assertFixtureMutable;
+
+  // ==========================================================================
+  // === LIVE MATCH CONTROLS (start/pause/resume/finish + walkover) ==========
+  // ==========================================================================
+  app.post("/api/bsl/admin/fixtures/:id/live", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const action = String(req.body?.action || "").toLowerCase();
+      const [fx] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, id)).limit(1);
+      if (!fx) return res.status(404).json({ message: "Fixture not found" });
+      // Lifecycle guard — live controls always allowed when LIVE; CLOSED locks them.
+      const block = await assertFixtureMutable(id, new Set(["status","start","pause","resume","finish","warmup","reset"]), action);
+      if (block) return res.status(409).json({ message: block });
+      const patch: any = {};
+      const now = new Date();
+      switch (action) {
+        case "start":
+          patch.status = "LIVE"; patch.liveStartedAt = now; patch.livePausedAt = null; break;
+        case "pause":
+          if (fx.status !== "LIVE") return res.status(400).json({ message: "Can only pause a LIVE fixture" });
+          patch.livePausedAt = now; break;
+        case "resume":
+          patch.status = "LIVE"; patch.livePausedAt = null;
+          if (!fx.liveStartedAt) patch.liveStartedAt = now;
+          break;
+        case "finish":
+          patch.status = "FINISHED"; patch.livePausedAt = null; break;
+        case "warmup":
+          patch.status = "WARMUP"; break;
+        case "reset":
+          patch.status = "SCHEDULED"; patch.liveStartedAt = null; patch.livePausedAt = null; break;
+        default:
+          return res.status(400).json({ message: "action must be start|pause|resume|finish|warmup|reset" });
+      }
+      const [updated] = await db.update(bslFixtures).set(patch).where(eq(bslFixtures.id, id)).returning();
+      if (patch.status === "FINISHED") await recomputeStandings();
+      await audit(req, `LIVE_${action.toUpperCase()}`, "bsl_fixture", id, patch);
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  app.post("/api/bsl/admin/rubbers/:id/walkover", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const winner = String(req.body?.winner || "").toUpperCase();
+      if (!["HOME","AWAY","NONE"].includes(winner)) return res.status(400).json({ message: "winner must be HOME|AWAY|NONE" });
+      const [r] = await db.select().from(bslRubbers).where(eq(bslRubbers.id, id)).limit(1);
+      if (!r) return res.status(404).json({ message: "Rubber not found" });
+      // Lifecycle guard — walkover is a score event, allowed when LIVE.
+      const block = await assertFixtureMutable(r.bslFixtureId, new Set(["score","walkover"]), "walkover");
+      if (block) return res.status(409).json({ message: block });
+      const [fx] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, r.bslFixtureId)).limit(1);
+      const snap: any = fx?.rulesSnapshot || {};
+      const wScore = clampInt(snap.walkoverScore, 0, 99, 21);
+      const patch: any = { walkoverWinner: winner === "NONE" ? null : winner, status: "FINISHED" };
+      if (winner === "HOME") { patch.homeScore = wScore; patch.awayScore = 0; }
+      else if (winner === "AWAY") { patch.homeScore = 0; patch.awayScore = wScore; }
+      else { patch.homeScore = 0; patch.awayScore = 0; patch.status = "SCHEDULED"; }
+      const [updated] = await db.update(bslRubbers).set(patch).where(eq(bslRubbers.id, id)).returning();
+      // Recompute fixture rubber tally
+      const all = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, r.bslFixtureId));
+      const homeR = all.filter(rr => rr.homeScore > rr.awayScore).length;
+      const awayR = all.filter(rr => rr.awayScore > rr.homeScore).length;
+      await db.update(bslFixtures).set({ homeRubbers: homeR, awayRubbers: awayR }).where(eq(bslFixtures.id, r.bslFixtureId));
+      await audit(req, "RUBBER_WALKOVER", "bsl_rubber", id, { winner });
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
