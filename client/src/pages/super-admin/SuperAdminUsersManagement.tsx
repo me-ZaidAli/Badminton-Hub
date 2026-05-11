@@ -1196,6 +1196,7 @@ function SuperAdminEditWrapper({
     playerStatus: activeProfile?.playerStatus || "ACTIVE",
     membershipStatus: activeProfile?.membershipStatus || "APPROVED",
     role: player.role,
+    secondaryRoles: (player as any).secondaryRoles || [],
     accountStatus: player.accountStatus,
     rankingPoints: String(activeProfile?.rankingPoints || 0),
     matchesPlayed: String(activeProfile?.matchesPlayed || 0),

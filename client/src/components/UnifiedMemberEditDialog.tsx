@@ -61,6 +61,7 @@ export interface MemberEditData {
   profileId?: number;
   clubId?: number;
   clubName?: string;
+  secondaryRoles?: string[];
 }
 
 interface UnifiedMemberEditDialogProps {
@@ -127,7 +128,7 @@ export function UnifiedMemberEditDialog({
 }: UnifiedMemberEditDialogProps) {
   const { toast } = useToast();
 
-  const [form, setForm] = useState<MemberEditData & { password: string }>({
+  const [form, setForm] = useState<MemberEditData & { password: string; isCoach: boolean }>({
     userId: 0, fullName: "", email: "", phone: "", nickname: "",
     dateOfBirth: "", gender: "", category: "C3",
     isJunior: false, parentGuardianName: "", parentGuardianEmail: "",
@@ -136,8 +137,9 @@ export function UnifiedMemberEditDialog({
     clubRole: "PLAYER", playerStatus: "ACTIVE", membershipStatus: "APPROVED",
     role: "PLAYER", accountStatus: "APPROVED",
     rankingPoints: "0", matchesPlayed: "0", matchesWon: "0",
-    joinedAt: "", password: "",
+    joinedAt: "", password: "", isCoach: false,
   });
+  const [initialIsCoach, setInitialIsCoach] = useState(false);
 
   const [passwordMode, setPasswordMode] = useState<"none" | "set" | "link">("none");
   const [newPassword, setNewPassword] = useState("");
@@ -238,10 +240,13 @@ export function UnifiedMemberEditDialog({
 
   useEffect(() => {
     if (data && open) {
+      const coachNow = data.role === "COACH" || (data.secondaryRoles ?? []).includes("COACH");
       setForm({
         ...data,
         password: "",
+        isCoach: coachNow,
       });
+      setInitialIsCoach(coachNow);
       setPasswordMode("none");
       setNewPassword("");
       setGeneratedLink("");
@@ -263,6 +268,25 @@ export function UnifiedMemberEditDialog({
   const handleSave = async () => {
     try {
       await onSave({ ...form, password: form.password || undefined });
+      if (form.isCoach !== initialIsCoach && form.userId > 0) {
+        try {
+          await apiRequest("POST", `/api/admin/users/${form.userId}/${form.isCoach ? "grant-coach" : "revoke-coach"}`);
+          setInitialIsCoach(form.isCoach);
+          toast({
+            title: form.isCoach ? "Coach access granted" : "Coach access revoked",
+            description: form.isCoach
+              ? "User can now access all coach features."
+              : "User no longer has coach access.",
+          });
+          queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+        } catch (coachErr: any) {
+          toast({
+            title: "Coach role update failed",
+            description: coachErr.message || "Could not update coach role.",
+            variant: "destructive",
+          });
+        }
+      }
     } catch (err: any) {
       toast({ title: "Error", description: err.message || "Failed to save", variant: "destructive" });
     }
@@ -495,6 +519,30 @@ export function UnifiedMemberEditDialog({
                     </Select>
                   </div>
                 )}
+                <div className="col-span-2">
+                  <label
+                    className="flex items-start gap-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 hover:bg-emerald-500/10 transition cursor-pointer p-3"
+                    data-testid="toggle-edit-is-coach"
+                  >
+                    <Checkbox
+                      checked={form.isCoach}
+                      onCheckedChange={(v) => setForm(f => ({ ...f, isCoach: v === true }))}
+                      className="mt-0.5 data-[state=checked]:bg-emerald-500 data-[state=checked]:border-emerald-500"
+                      data-testid="checkbox-edit-is-coach"
+                    />
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-semibold">Coach access</span>
+                        {form.isCoach && (
+                          <Badge className="bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/40 text-[10px] px-1.5 py-0">Active</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        Tick to mark this user as a coach so they can access all coach features (lessons, dashboard, payouts, gallery).
+                      </p>
+                    </div>
+                  </label>
+                </div>
                 {clubs.length > 0 && context === "admin" && (
                   <div className="col-span-2">
                     <Label>Club</Label>

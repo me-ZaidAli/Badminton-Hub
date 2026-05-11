@@ -868,6 +868,7 @@ function AdminEditMemberWrapper({
     playerStatus: activeProfile?.playerStatus || "ACTIVE",
     membershipStatus: (activeProfile as any)?.membershipStatus || "APPROVED",
     role: player.role,
+    secondaryRoles: (player as any).secondaryRoles || [],
     accountStatus: "APPROVED",
     rankingPoints: String(activeProfile?.rankingPoints || 0),
     matchesPlayed: String(activeProfile?.matchesPlayed || 0),

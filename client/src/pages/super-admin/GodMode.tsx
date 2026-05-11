@@ -1652,6 +1652,7 @@ function GodModeEditWrapper({
     playerStatus: member.playerStatus || "ACTIVE",
     membershipStatus: member.membershipStatus || "APPROVED",
     role: member.user?.role || "PLAYER",
+    secondaryRoles: member.user?.secondaryRoles || [],
     accountStatus: member.user?.accountStatus || "ACTIVE",
     rankingPoints: String(member.rankingPoints || 0),
     matchesPlayed: String(member.matchesPlayed || 0),
