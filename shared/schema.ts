@@ -749,6 +749,11 @@ export const coaches = pgTable("coaches", {
   testimonials: text("testimonials"),
   insuranceExpiry: timestamp("insurance_expiry"),
   linkedClubIds: integer("linked_club_ids").array(),
+  servicesDescription: text("services_description"),
+  videoLinks: text("video_links").array().default(sql`'{}'`),
+  websiteLinks: text("website_links").array().default(sql`'{}'`),
+  preferredVenueIds: integer("preferred_venue_ids").array().default(sql`'{}'`),
+  preferredAreas: text("preferred_areas").array().default(sql`'{}'`),
   status: coachStatusEnum("status").default("PENDING").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });

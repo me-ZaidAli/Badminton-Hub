@@ -31,7 +31,10 @@ interface Coach {
   specialism?: string[]; coachingFocus?: string[]; ageGroupsCoached?: string[];
   sessionPrices?: string; coachingPhilosophy?: string; achievements?: string;
   averageRating?: number | null; reviewCount?: number;
+  servicesDescription?: string; videoLinks?: string[]; websiteLinks?: string[];
+  preferredVenueIds?: number[]; preferredAreas?: string[];
 }
+interface VenueOption { id: number; name: string; city: string | null; address: string; clubName: string | null }
 interface PriceTier { id: string; label: string; pricePence: number; durationMinutes: number; maxParticipants: number; sortOrder: number }
 interface AvailabilitySummary {
   rules: { id: number; dayOfWeek: number; startTime: string; endTime: string }[];
@@ -64,8 +67,22 @@ export default function CoachPublicProfile() {
   const [selectedDate, setSelectedDate] = useState<string>(fmtDate(new Date()));
   const [selectedSlot, setSelectedSlot] = useState<string | null>(null);
   const [selectedTierId, setSelectedTierId] = useState<string | null>(null);
-  const [location, setLocation] = useState("");
+  const [selectedVenueId, setSelectedVenueId] = useState<string>("");
+  const [venueSuggestion, setVenueSuggestion] = useState("");
   const [message, setMessage] = useState("");
+
+  const { data: allVenues = [] } = useQuery<VenueOption[]>({ queryKey: ["/api/venues/all"], enabled: !!user });
+  const allowedVenues = useMemo(() => {
+    const ids = new Set(coach?.preferredVenueIds ?? []);
+    return allVenues.filter((v) => ids.has(v.id));
+  }, [allVenues, coach?.preferredVenueIds]);
+  const selectedVenue = allowedVenues.find((v) => String(v.id) === selectedVenueId) || null;
+  const composedLocation = (() => {
+    const parts: string[] = [];
+    if (selectedVenue) parts.push([selectedVenue.name, selectedVenue.city].filter(Boolean).join(", "));
+    if (venueSuggestion.trim()) parts.push(`(Suggestion: ${venueSuggestion.trim()})`);
+    return parts.join(" ").trim();
+  })();
   const [galleryIdx, setGalleryIdx] = useState(0);
 
   useEffect(() => { setSelectedSlot(null); }, [selectedDate]);
@@ -91,14 +108,14 @@ export default function CoachPublicProfile() {
       const res = await apiRequest("POST", "/api/coach-bookings", {
         coachId, date: selectedDate, time: selectedSlot, durationMinutes: dur,
         lessonType, priceTierId: selectedTier?.id ?? undefined,
-        location: location || undefined, playerMessage: message || undefined,
+        location: composedLocation || undefined, playerMessage: message || undefined,
       });
       return res.json();
     },
     onSuccess: () => {
       toast({ title: "Booking sent!", description: "The coach will confirm shortly." });
       queryClient.invalidateQueries({ queryKey: [`/api/coaches/${coachId}/availability-slots`, selectedDate] });
-      setSelectedSlot(null); setMessage(""); setLocation("");
+      setSelectedSlot(null); setMessage(""); setSelectedVenueId(""); setVenueSuggestion("");
     },
     onError: (e: any) => toast({ title: "Booking failed", description: e.message, variant: "destructive" }),
   });
@@ -243,6 +260,43 @@ export default function CoachPublicProfile() {
           )}
         </div>
 
+        {(coach.servicesDescription || coach.preferredAreas?.length || coach.websiteLinks?.length || coach.videoLinks?.length) ? (
+          <GlassCard>
+            <CardContent className="p-4 md:p-6 space-y-4">
+              {coach.servicesDescription && (
+                <div>
+                  <h3 className="font-semibold flex items-center gap-1 mb-1"><Sparkles className="w-4 h-4 text-violet-300" /> Services</h3>
+                  <p className="text-sm text-zinc-300 whitespace-pre-wrap" data-testid="text-services-description">{coach.servicesDescription}</p>
+                </div>
+              )}
+              {coach.preferredAreas?.length ? (
+                <div>
+                  <h3 className="font-semibold flex items-center gap-1 mb-1"><MapPin className="w-4 h-4 text-cyan-300" /> Preferred Areas</h3>
+                  <div className="flex flex-wrap gap-1" data-testid="badges-preferred-areas">
+                    {coach.preferredAreas.map((a) => <Badge key={a} variant="outline" className="border-cyan-400/30 text-cyan-200">{a}</Badge>)}
+                  </div>
+                </div>
+              ) : null}
+              {coach.websiteLinks?.length ? (
+                <div>
+                  <h3 className="font-semibold mb-1">Website / Social</h3>
+                  <ul className="space-y-1" data-testid="list-website-links">
+                    {coach.websiteLinks.map((u) => (<li key={u}><a href={u} target="_blank" rel="noreferrer" className="text-sm text-violet-300 underline break-all">{u}</a></li>))}
+                  </ul>
+                </div>
+              ) : null}
+              {coach.videoLinks?.length ? (
+                <div>
+                  <h3 className="font-semibold mb-1">Videos</h3>
+                  <ul className="space-y-1" data-testid="list-video-links">
+                    {coach.videoLinks.map((u) => (<li key={u}><a href={u} target="_blank" rel="noreferrer" className="text-sm text-violet-300 underline break-all">{u}</a></li>))}
+                  </ul>
+                </div>
+              ) : null}
+            </CardContent>
+          </GlassCard>
+        ) : null}
+
         {/* BOOKING */}
         <GlassCard>
           <CardContent className="p-4 md:p-6">
@@ -354,9 +408,25 @@ export default function CoachPublicProfile() {
                           </div>
                         )}
                       </div>
-                      <div>
-                        <Label>Preferred location (optional)</Label>
-                        <Input value={location} onChange={(e) => setLocation(e.target.value)} placeholder="e.g. Local leisure centre" data-testid="input-location" />
+                      <div className="space-y-2">
+                        <Label>Venue</Label>
+                        {allowedVenues.length === 0 ? (
+                          <p className="text-xs text-amber-300/80" data-testid="text-no-venues">This coach hasn't selected any preferred venues yet — use the suggestion box below and they'll confirm.</p>
+                        ) : (
+                          <Select value={selectedVenueId} onValueChange={setSelectedVenueId}>
+                            <SelectTrigger data-testid="select-venue"><SelectValue placeholder="Choose one of the coach's venues" /></SelectTrigger>
+                            <SelectContent>
+                              {allowedVenues.map((v) => (
+                                <SelectItem key={v.id} value={String(v.id)} data-testid={`select-venue-option-${v.id}`}>
+                                  {v.name}{v.city ? ` — ${v.city}` : ""}
+                                </SelectItem>
+                              ))}
+                            </SelectContent>
+                          </Select>
+                        )}
+                        <Label className="text-xs text-zinc-400 mt-1 block">Suggest a different venue (optional)</Label>
+                        <Input value={venueSuggestion} onChange={(e) => setVenueSuggestion(e.target.value)} placeholder="e.g. Local leisure centre near me" data-testid="input-venue-suggestion" />
+                        <p className="text-[11px] text-zinc-500">The coach decides the final venue — your suggestion will reach them with the booking.</p>
                       </div>
                       <div>
                         <Label>Message to coach</Label>

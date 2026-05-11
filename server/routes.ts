@@ -13631,6 +13631,31 @@ export async function registerRoutes(
     }
   });
 
+  // Authenticated: list all venues across clubs (lightweight) — for coach venue picker + booking dropdown
+  app.get("/api/venues/all", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const rows = await db
+        .select({
+          id: venues.id,
+          name: venues.name,
+          address: venues.address,
+          city: venues.city,
+          postcode: venues.postcode,
+          googleMapsUrl: venues.googleMapsUrl,
+          clubId: venues.clubId,
+          clubName: clubs.name,
+        })
+        .from(venues)
+        .leftJoin(clubs, eq(venues.clubId, clubs.id))
+        .orderBy(asc(venues.name));
+      res.json(rows);
+    } catch (err) {
+      console.error("Error fetching all venues:", err);
+      res.status(500).json({ message: "Failed to fetch venues" });
+    }
+  });
+
   // Authenticated: recent player-skill feedback authored by a coach (fully anonymised)
   app.get("/api/coaches/:id/feedback", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
@@ -13774,7 +13799,24 @@ export async function registerRoutes(
       const coach = await storage.getCoachByUserId(req.user!.id);
       if (!coach) return res.status(404).json({ message: "Not registered as a coach" });
 
-      const allowedFields = ["fullName", "email", "phone", "bio", "location", "city", "postcode", "latitude", "longitude", "areaCoverage", "qualifications", "badmintonEnglandCert", "yearsTraining", "professionalCareer", "experience"];
+      const allowedFields = ["fullName", "email", "phone", "profilePhoto", "roleTitle", "bio", "location", "city", "postcode", "latitude", "longitude", "googleMapsUrl", "areaCoverage", "availability", "coachingCertifications", "safeguardingDbs", "firstAidCert", "cpdTraining", "languagesSpoken", "qualifications", "badmintonEnglandCert", "yearsTraining", "playingExperience", "specialism", "coachingPhilosophy", "preferredGroupSize", "coachingFocus", "sessionTypesOffered", "sessionPrices", "ageGroupsCoached", "equipmentProvided", "cancellationPolicy", "professionalCareer", "experience", "achievements", "playersDeveloped", "tournamentsWon", "teamsCoached", "testimonials", "servicesDescription", "videoLinks", "websiteLinks", "preferredVenueIds", "preferredAreas"];
+      const sanitiseUrlList = (v: any) => Array.isArray(v) ? v.map((s) => String(s).trim()).filter((s) => /^https?:\/\//i.test(s)).slice(0, 12) : [];
+      if (req.body.videoLinks !== undefined) req.body.videoLinks = sanitiseUrlList(req.body.videoLinks);
+      if (req.body.websiteLinks !== undefined) req.body.websiteLinks = sanitiseUrlList(req.body.websiteLinks);
+      if (req.body.preferredAreas !== undefined) {
+        req.body.preferredAreas = Array.isArray(req.body.preferredAreas)
+          ? req.body.preferredAreas.map((s: any) => String(s).trim()).filter((s: string) => s.length > 0 && s.length <= 80).slice(0, 20)
+          : [];
+      }
+      if (req.body.preferredVenueIds !== undefined) {
+        req.body.preferredVenueIds = Array.isArray(req.body.preferredVenueIds)
+          ? Array.from(new Set(req.body.preferredVenueIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0))).slice(0, 50)
+          : [];
+      }
+      if (req.body.profilePhoto !== undefined && typeof req.body.profilePhoto === "string") {
+        const p = req.body.profilePhoto.trim();
+        req.body.profilePhoto = p === "" || p.startsWith("/uploads/") || /^https?:\/\//i.test(p) ? p : coach.profilePhoto;
+      }
       const updates: any = {};
       for (const key of allowedFields) {
         if (req.body[key] !== undefined) updates[key] = req.body[key];

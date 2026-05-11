@@ -78,7 +78,16 @@ const coachProfileSchema = z.object({
   tournamentsWon: z.string().optional(),
   teamsCoached: z.string().optional(),
   testimonials: z.string().optional(),
+  servicesDescription: z.string().optional(),
+  videoLinks: z.array(z.string()).default([]),
+  websiteLinks: z.array(z.string()).default([]),
+  preferredVenueIds: z.array(z.number()).default([]),
+  preferredAreas: z.array(z.string()).default([]),
 });
+
+type VenueOption = { id: number; name: string; city: string | null; address: string; clubName: string | null };
+const linesToList = (s: string) => s.split(/\n+/).map((l) => l.trim()).filter(Boolean);
+const listToLines = (a?: string[] | null) => (a ?? []).join("\n");
 
 type CoachProfileFormData = z.infer<typeof coachProfileSchema>;
 
@@ -171,7 +180,14 @@ export default function CoachProfile() {
       ageGroupsCoached: [], equipmentProvided: "", cancellationPolicy: "",
       professionalCareer: "", experience: "", achievements: "", playersDeveloped: "",
       tournamentsWon: "", teamsCoached: "", testimonials: "",
+      servicesDescription: "", videoLinks: [], websiteLinks: [],
+      preferredVenueIds: [], preferredAreas: [],
     },
+  });
+
+  const { data: allVenues = [] } = useQuery<VenueOption[]>({
+    queryKey: ["/api/venues/all"],
+    enabled: !!user,
   });
 
   const updateMutation = useMutation({
@@ -258,6 +274,11 @@ export default function CoachProfile() {
         tournamentsWon: coach.tournamentsWon || "",
         teamsCoached: coach.teamsCoached || "",
         testimonials: coach.testimonials || "",
+        servicesDescription: coach.servicesDescription || "",
+        videoLinks: coach.videoLinks || [],
+        websiteLinks: coach.websiteLinks || [],
+        preferredVenueIds: coach.preferredVenueIds || [],
+        preferredAreas: coach.preferredAreas || [],
       });
       setPhotoPreview(coach.profilePhoto || null);
     }
@@ -370,6 +391,20 @@ export default function CoachProfile() {
                         {uploading ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <Camera className="h-4 w-4 mr-1" />}
                         {uploading ? "Uploading..." : "Upload Photo"}
                       </Button>
+                      <FormField control={form.control} name="profilePhoto" render={({ field }) => (
+                        <FormItem className="w-full max-w-[220px]">
+                          <FormLabel className="text-xs">…or paste a photo URL</FormLabel>
+                          <FormControl>
+                            <Input
+                              placeholder="https://…/me.jpg"
+                              value={field.value || ""}
+                              onChange={(e) => { field.onChange(e.target.value); setPhotoPreview(e.target.value || null); }}
+                              data-testid="input-photo-url"
+                            />
+                          </FormControl>
+                          <FormMessage />
+                        </FormItem>
+                      )} />
                     </div>
                     <div className="flex-1 space-y-4">
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -465,8 +500,66 @@ export default function CoachProfile() {
 
                   <FormField control={form.control} name="areaCoverage" render={({ field }) => (
                     <FormItem>
-                      <FormLabel>Area of Coverage</FormLabel>
+                      <FormLabel>Area of Coverage (summary)</FormLabel>
                       <FormControl><Input placeholder="e.g., South London, Surrey" data-testid="input-area-coverage" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="preferredAreas" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preferred Areas / Cities</FormLabel>
+                      <FormDescription>One area or city per line — e.g. "Birmingham", "Solihull B91"</FormDescription>
+                      <FormControl>
+                        <Textarea
+                          rows={3}
+                          placeholder={"Birmingham\nSolihull\nWest Bromwich"}
+                          value={listToLines(field.value)}
+                          onChange={(e) => field.onChange(linesToList(e.target.value))}
+                          data-testid="input-preferred-areas"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="preferredVenueIds" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Preferred Venues</FormLabel>
+                      <FormDescription>Pick the venues you can teach at. Players can only book lessons at one of these venues (they may suggest an alternative, but you choose).</FormDescription>
+                      <FormControl>
+                        <div className="rounded-md border p-3 max-h-64 overflow-y-auto space-y-1" data-testid="venue-picker">
+                          {allVenues.length === 0 ? (
+                            <p className="text-xs text-muted-foreground">No venues available yet — ask a club admin to add venues to the system.</p>
+                          ) : (
+                            allVenues.map((v) => {
+                              const checked = (field.value || []).includes(v.id);
+                              return (
+                                <label
+                                  key={v.id}
+                                  className="flex items-start gap-2 px-2 py-1.5 rounded hover:bg-accent cursor-pointer"
+                                  data-testid={`venue-option-${v.id}`}
+                                >
+                                  <Checkbox
+                                    checked={checked}
+                                    onCheckedChange={(c) => {
+                                      const cur = field.value || [];
+                                      field.onChange(c ? [...cur, v.id] : cur.filter((id: number) => id !== v.id));
+                                    }}
+                                  />
+                                  <div className="flex-1 min-w-0">
+                                    <p className="text-sm font-medium truncate">{v.name}</p>
+                                    <p className="text-xs text-muted-foreground truncate">
+                                      {[v.address, v.city].filter(Boolean).join(", ")}
+                                      {v.clubName ? ` · ${v.clubName}` : ""}
+                                    </p>
+                                  </div>
+                                </label>
+                              );
+                            })
+                          )}
+                        </div>
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -672,6 +765,55 @@ export default function CoachProfile() {
                     <FormItem>
                       <FormLabel>Cancellation Policy</FormLabel>
                       <FormControl><Input placeholder="e.g. 24 hours notice required" data-testid="input-cancellation-policy" {...field} /></FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+                </div>
+
+                <div className="space-y-6">
+                  <h3 className="font-semibold text-lg border-b pb-2">Services, Links & Videos</h3>
+
+                  <FormField control={form.control} name="servicesDescription" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description of Services</FormLabel>
+                      <FormDescription>Tell players what you offer — formats, packages, what's included, what to expect.</FormDescription>
+                      <FormControl>
+                        <Textarea rows={5} placeholder="1-to-1 technical lessons, junior squad coaching, video review packages…" data-testid="input-services-description" {...field} />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="websiteLinks" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Website / Social Links</FormLabel>
+                      <FormDescription>One URL per line — your site, Instagram, Facebook, LinkedIn, etc.</FormDescription>
+                      <FormControl>
+                        <Textarea
+                          rows={3}
+                          placeholder={"https://mywebsite.com\nhttps://instagram.com/yourhandle"}
+                          value={listToLines(field.value)}
+                          onChange={(e) => field.onChange(linesToList(e.target.value))}
+                          data-testid="input-website-links"
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )} />
+
+                  <FormField control={form.control} name="videoLinks" render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Video Links</FormLabel>
+                      <FormDescription>One video URL per line — YouTube, Vimeo, Instagram Reel, etc.</FormDescription>
+                      <FormControl>
+                        <Textarea
+                          rows={3}
+                          placeholder={"https://youtu.be/abcd1234\nhttps://vimeo.com/12345"}
+                          value={listToLines(field.value)}
+                          onChange={(e) => field.onChange(linesToList(e.target.value))}
+                          data-testid="input-video-links"
+                        />
+                      </FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
@@ -954,6 +1096,49 @@ export default function CoachProfile() {
             <ArrayBadges label="Coaching Focus Areas" items={coach.coachingFocus} testId="badges-coaching-focus" />
             <ArrayBadges label="Session Types Offered" items={coach.sessionTypesOffered} testId="badges-session-types" />
           </div>
+
+          {(coach.servicesDescription || (coach.websiteLinks?.length) || (coach.videoLinks?.length) || (coach.preferredAreas?.length) || (coach.preferredVenueIds?.length)) ? (
+            <div className="border-t pt-4 space-y-4">
+              <h3 className="font-semibold text-lg">Services, Links & Venues</h3>
+              <InfoField label="Description of Services" value={coach.servicesDescription} testId="text-services-description" />
+              <ArrayBadges label="Preferred Areas" items={coach.preferredAreas} testId="badges-preferred-areas" />
+              {coach.preferredVenueIds?.length ? (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Preferred Venues</p>
+                  <ul className="space-y-1" data-testid="list-preferred-venues">
+                    {(coach.preferredVenueIds as number[])
+                      .map((id) => allVenues.find((v) => v.id === id))
+                      .filter(Boolean)
+                      .map((v) => (
+                        <li key={v!.id} className="text-sm font-medium">
+                          • {v!.name} <span className="text-muted-foreground font-normal">— {[v!.address, v!.city].filter(Boolean).join(", ")}{v!.clubName ? ` · ${v!.clubName}` : ""}</span>
+                        </li>
+                      ))}
+                  </ul>
+                </div>
+              ) : null}
+              {coach.websiteLinks?.length ? (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Website / Social</p>
+                  <ul className="space-y-1" data-testid="list-website-links">
+                    {(coach.websiteLinks as string[]).map((u) => (
+                      <li key={u}><a className="text-sm text-primary underline break-all" href={u} target="_blank" rel="noreferrer">{u}</a></li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+              {coach.videoLinks?.length ? (
+                <div>
+                  <p className="text-sm text-muted-foreground mb-1">Videos</p>
+                  <ul className="space-y-1" data-testid="list-video-links">
+                    {(coach.videoLinks as string[]).map((u) => (
+                      <li key={u}><a className="text-sm text-primary underline break-all" href={u} target="_blank" rel="noreferrer">{u}</a></li>
+                    ))}
+                  </ul>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
 
           <div className="border-t pt-4 space-y-4">
             <h3 className="font-semibold text-lg">Practical / Booking Info</h3>
