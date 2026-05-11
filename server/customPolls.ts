@@ -17,7 +17,7 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
 async function getUserClubIds(userId: number): Promise<number[]> {
   const ms = await db.select({ clubId: clubMemberships.clubId })
     .from(clubMemberships)
-    .where(and(eq(clubMemberships.userId, userId), inArray(clubMemberships.status, ["ACTIVE", "APPROVED"])));
+    .where(and(eq(clubMemberships.userId, userId), eq(clubMemberships.status, "ACTIVE")));
   const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, userId));
   const set = new Set<number>();
   ms.forEach(m => set.add(m.clubId));
