@@ -59,7 +59,7 @@ export function CustomPollTile() {
 
   return (
     <div
-      className="relative col-span-1 md:col-span-2 lg:col-span-3 overflow-hidden rounded-2xl border border-fuchsia-300/20 bg-gradient-to-br from-fuchsia-600/25 via-violet-700/30 to-indigo-900/40 p-5 shadow-2xl"
+      className="relative col-span-1 md:col-span-2 lg:col-span-3 overflow-hidden rounded-2xl border border-fuchsia-300/35 bg-gradient-to-br from-fuchsia-600/55 via-violet-700/60 to-indigo-900/75 p-5 shadow-2xl backdrop-blur-sm"
       data-testid="hero-custom-poll"
     >
       {/* Glow halos */}
