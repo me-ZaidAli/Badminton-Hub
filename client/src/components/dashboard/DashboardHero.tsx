@@ -10,6 +10,7 @@ import {
 import { format, addDays, isSameDay, parseISO, startOfWeek, getISOWeek, getDayOfYear, differenceInMinutes } from "date-fns";
 import { CustomPollTile } from "./CustomPollTile";
 import { NewsTile } from "./NewsTile";
+import { HydrationTile } from "./HydrationTile";
 
 interface DashboardHeroProps {
   userName: string;
@@ -556,53 +557,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
       </Tile>
 
       {/* 10. HYDRATION TRACKER */}
-      <Tile accent="from-sky-500/20 via-cyan-500/15 to-blue-500/15" glowA="bg-cyan-400/25" glowB="bg-blue-500/20" testId="hero-hydration">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-cyan-200/80">
-            <GlassWater className="w-3 h-3" /><span>Hydration</span>
-          </div>
-          <span className="text-[9px] text-white/40 uppercase tracking-wider">Goal {HYDRATION_GOAL}</span>
-        </div>
-        <div className="mt-3 flex items-center gap-3">
-          {/* Bottle SVG */}
-          <div className="relative w-10 h-20 shrink-0">
-            <svg viewBox="0 0 32 64" className="w-full h-full">
-              <defs>
-                <clipPath id="bottle-clip">
-                  <path d="M11 4 h10 v6 q0 2 2 4 q4 4 4 10 v32 q0 4 -4 4 h-12 q-4 0 -4 -4 v-32 q0 -6 4 -10 q2 -2 2 -4 z" />
-                </clipPath>
-                <linearGradient id="water-grad" x1="0" x2="0" y1="0" y2="1">
-                  <stop offset="0%" stopColor="#67e8f9" />
-                  <stop offset="100%" stopColor="#3b82f6" />
-                </linearGradient>
-              </defs>
-              <path d="M11 4 h10 v6 q0 2 2 4 q4 4 4 10 v32 q0 4 -4 4 h-12 q-4 0 -4 -4 v-32 q0 -6 4 -10 q2 -2 2 -4 z" fill="rgba(255,255,255,0.08)" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" />
-              <rect x="0" y={64 - (60 * hydroPct) / 100} width="32" height={(60 * hydroPct) / 100} fill="url(#water-grad)" clipPath="url(#bottle-clip)" />
-            </svg>
-          </div>
-          <div className="flex-1 min-w-0">
-            <div className="text-2xl font-extrabold text-white tabular-nums" data-testid="text-hydration-cups">{cups}<span className="text-sm text-white/55">/{HYDRATION_GOAL}</span></div>
-            <div className="text-[10px] text-cyan-100/80">cups today ({hydroPct}%)</div>
-            <div className="mt-2 flex items-center gap-1.5">
-              <button
-                onClick={() => setCups((c) => Math.max(0, c - 1))}
-                disabled={cups === 0}
-                className="w-7 h-7 rounded-full bg-white/10 hover:bg-white/20 border border-white/15 disabled:opacity-30 disabled:cursor-not-allowed flex items-center justify-center text-white"
-                data-testid="button-hydration-minus"
-              >
-                <Minus className="w-3.5 h-3.5" />
-              </button>
-              <button
-                onClick={() => setCups((c) => Math.min(20, c + 1))}
-                className="flex-1 h-7 rounded-full bg-cyan-400/30 hover:bg-cyan-400/45 border border-cyan-300/30 text-[11px] font-bold text-white inline-flex items-center justify-center gap-1"
-                data-testid="button-hydration-plus"
-              >
-                <Plus className="w-3.5 h-3.5" /> Cup
-              </button>
-            </div>
-          </div>
-        </div>
-      </Tile>
+      <HydrationTile cups={cups} setCups={setCups} goal={HYDRATION_GOAL} />
 
       {/* 11. DAILY QUOTE / MINDSET */}
       <Tile accent="from-fuchsia-500/20 via-purple-500/15 to-violet-500/15" glowA="bg-fuchsia-400/25" glowB="bg-violet-500/20" testId="hero-quote">
