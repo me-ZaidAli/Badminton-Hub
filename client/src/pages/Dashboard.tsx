@@ -324,7 +324,7 @@ function DashboardContent({
 
       <>
 
-      <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} />
+      <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} profilePictureUrl={(user as any)?.profilePictureUrl || null} />
 
       {myTournaments && myTournaments.length > 0 && myTournaments.map((tournament: any) => (
         <Link key={tournament.tournamentId} href={`/tournaments/${tournament.tournamentId}`}>
