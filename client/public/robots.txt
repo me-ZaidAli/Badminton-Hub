@@ -1,0 +1,13 @@
+User-agent: *
+Allow: /
+Disallow: /admin/
+Disallow: /super-admin/
+Disallow: /api/
+Disallow: /bsl/admin/
+Disallow: /coach-dashboard
+Disallow: /profile
+Disallow: /settings/
+Disallow: /login
+Disallow: /register
+
+Sitemap: /sitemap.xml
