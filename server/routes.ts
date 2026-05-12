@@ -28,6 +28,7 @@ import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
 import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
 import { registerBslRoutes } from "./bsl-routes";
+import { saveBufferToBucket, registerFileServeRoute } from "./uploadStorage";
 import { registerCoachBookingRoutes } from "./coachBookingRoutes";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { sendRulePush } from "./notificationRules";
@@ -89,15 +90,8 @@ const profileUploadsDir = path.join(process.cwd(), "public", "uploads", "profile
 if (!fs.existsSync(profileUploadsDir)) {
   fs.mkdirSync(profileUploadsDir, { recursive: true });
 }
-const coachPhotoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `coach-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const uploadCoachPhoto = multer({
-  storage: coachPhotoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -109,15 +103,8 @@ const announcementUploadsDir = path.join(process.cwd(), "public", "uploads", "an
 if (!fs.existsSync(announcementUploadsDir)) {
   fs.mkdirSync(announcementUploadsDir, { recursive: true });
 }
-const announcementPhotoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, announcementUploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `announcement-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const uploadAnnouncementPhoto = multer({
-  storage: announcementPhotoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -129,15 +116,8 @@ const clubLogoUploadsDir = path.join(process.cwd(), "public", "uploads", "clubs"
 if (!fs.existsSync(clubLogoUploadsDir)) {
   fs.mkdirSync(clubLogoUploadsDir, { recursive: true });
 }
-const clubLogoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, clubLogoUploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `club-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const uploadClubLogo = multer({
-  storage: clubLogoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -145,15 +125,8 @@ const uploadClubLogo = multer({
   },
 });
 
-const profilePhotoStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, profileUploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `profile-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const uploadProfilePhoto = multer({
-  storage: profilePhotoStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -465,6 +438,7 @@ export async function registerRoutes(
   // Serve uploaded files
   const express = await import("express");
   app.use("/uploads", express.default.static(path.join(process.cwd(), "public", "uploads")));
+  registerFileServeRoute(app);
   app.use("/backgrounds", express.default.static(path.join(process.cwd(), "client", "public", "backgrounds")));
 
   // === SEED DATA ===
@@ -857,9 +831,9 @@ export async function registerRoutes(
         const trimmedLogo = logoUrl.trim();
         if (trimmedLogo) {
           const isHttp = /^https?:\/\//i.test(trimmedLogo);
-          const isLocalUpload = trimmedLogo.startsWith("/uploads/clubs/");
+          const isLocalUpload = trimmedLogo.startsWith("/uploads/clubs/") || trimmedLogo.startsWith("/files/clubs/");
           if (!isHttp && !isLocalUpload) {
-            return res.status(400).json({ message: "Logo URL must start with http://, https://, or be a /uploads/clubs/ path" });
+            return res.status(400).json({ message: "Logo URL must start with http://, https://, /uploads/clubs/, or /files/clubs/" });
           }
           if (isLocalUpload && (trimmedLogo.includes("..") || trimmedLogo.includes("\\"))) {
             return res.status(400).json({ message: "Invalid logo path" });
@@ -1415,7 +1389,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       if (!req.file) return res.status(400).json({ message: "No image file provided" });
-      const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+      const profilePictureUrl = await saveBufferToBucket(req.file.buffer, "profiles", req.file.originalname);
       await storage.updateUser(req.user!.id, { profilePictureUrl });
       res.json({ profilePictureUrl });
     } catch (err: any) {
@@ -1430,7 +1404,7 @@ export async function registerRoutes(
     try {
       if (!req.file) return res.status(400).json({ message: "No image file provided" });
       const userId = Number(req.params.userId);
-      const profilePictureUrl = `/uploads/profiles/${req.file.filename}`;
+      const profilePictureUrl = await saveBufferToBucket(req.file.buffer, "profiles", req.file.originalname);
       await storage.updateUser(userId, { profilePictureUrl });
       res.json({ profilePictureUrl });
     } catch (err: any) {
@@ -8233,7 +8207,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     if (!(await isAnyClubAdmin(req.user!.id, req.user!.role))) return res.sendStatus(403);
     if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-    const imageUrl = `/uploads/announcements/${req.file.filename}`;
+    const imageUrl = await saveBufferToBucket(req.file.buffer, "announcements", req.file.originalname);
     res.json({ imageUrl });
   });
 
@@ -9526,7 +9500,7 @@ export async function registerRoutes(
       const [adminProfile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, clubId), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
       if (!isSuperAdmin && !isClubOwner && !adminProfile) return res.sendStatus(403);
       if (!req.file) return res.status(400).json({ message: "No image file provided" });
-      const logoUrl = `/uploads/clubs/${req.file.filename}`;
+      const logoUrl = await saveBufferToBucket(req.file.buffer, "clubs", req.file.originalname);
       await db.update(clubs).set({ logoUrl }).where(eq(clubs.id, clubId));
       res.json({ logoUrl });
     } catch (err: any) {
@@ -9583,9 +9557,9 @@ export async function registerRoutes(
                   return res.status(400).json({ message: "Logo URL must be under 500 characters" });
                 }
                 const isHttp = /^https?:\/\//i.test(trimmed);
-                const isLocalUpload = trimmed.startsWith("/uploads/clubs/");
+                const isLocalUpload = trimmed.startsWith("/uploads/clubs/") || trimmed.startsWith("/files/clubs/");
                 if (!isHttp && !isLocalUpload) {
-                  return res.status(400).json({ message: "Logo URL must start with http://, https://, or be a /uploads/clubs/ path" });
+                  return res.status(400).json({ message: "Logo URL must start with http://, https://, /uploads/clubs/, or /files/clubs/" });
                 }
                 if (isLocalUpload && (trimmed.includes("..") || trimmed.includes("\\"))) {
                   return res.status(400).json({ message: "Invalid logo path" });
@@ -13773,7 +13747,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       if (!req.file) return res.status(400).json({ message: "No file uploaded" });
-      const photoUrl = `/uploads/coaches/${req.file.filename}`;
+      const photoUrl = await saveBufferToBucket(req.file.buffer, "coaches", req.file.originalname);
       res.json({ url: photoUrl });
     } catch (err) {
       console.error("Error uploading photo:", err);
@@ -13817,7 +13791,7 @@ export async function registerRoutes(
       }
       if (req.body.profilePhoto !== undefined && typeof req.body.profilePhoto === "string") {
         const p = req.body.profilePhoto.trim();
-        req.body.profilePhoto = p === "" || p.startsWith("/uploads/") || /^https?:\/\//i.test(p) ? p : coach.profilePhoto;
+        req.body.profilePhoto = p === "" || p.startsWith("/uploads/") || p.startsWith("/files/") || /^https?:\/\//i.test(p) ? p : coach.profilePhoto;
       }
       const updates: any = {};
       for (const key of allowedFields) {
@@ -31483,15 +31457,8 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   if (!fs.existsSync(incidentUploadsDir)) {
     fs.mkdirSync(incidentUploadsDir, { recursive: true });
   }
-  const incidentAttachmentStorage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, incidentUploadsDir),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname) || ".jpg";
-      cb(null, `incident-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-    },
-  });
   const uploadIncidentAttachment = multer({
-    storage: incidentAttachmentStorage,
+    storage: multer.memoryStorage(),
     limits: { fileSize: 10 * 1024 * 1024 },
     fileFilter: (_req, file, cb) => {
       if (file.mimetype.startsWith("image/") || file.mimetype === "application/pdf" || file.mimetype.startsWith("application/msword") || file.mimetype.startsWith("application/vnd.openxmlformats")) {
@@ -31522,7 +31489,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     try {
       const files = req.files as Express.Multer.File[];
       if (!files || files.length === 0) return res.status(400).json({ message: "No files uploaded" });
-      const urls = files.map(f => `/uploads/incidents/${f.filename}`);
+      const urls = await Promise.all(files.map(f => saveBufferToBucket(f.buffer, "incidents", f.originalname)));
       res.json({ urls });
     } catch (err: any) {
       console.error("Error uploading incident attachments:", err);

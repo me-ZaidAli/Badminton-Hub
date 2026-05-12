@@ -56,15 +56,8 @@ function genInvite() {
 // ========== UPLOADS ==========
 const bslUploadDir = path.join(process.cwd(), "public", "uploads", "bsl");
 if (!fs.existsSync(bslUploadDir)) fs.mkdirSync(bslUploadDir, { recursive: true });
-const bslStorage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, bslUploadDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname) || ".jpg";
-    cb(null, `bsl-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-  },
-});
 const bslUpload = multer({
-  storage: bslStorage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 5 * 1024 * 1024 },
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
@@ -291,7 +284,7 @@ export function registerBslRoutes(app: Express) {
       const id = Number(req.params.id);
       const file = (req as any).file;
       if (!file) return res.status(400).json({ message: "No file uploaded" });
-      const proofUrl = `/uploads/bsl/${file.filename}`;
+      const proofUrl = await saveBufferToBucket(file.buffer, "bsl", file.originalname);
       const [updated] = await db.update(bslClubs)
         .set({ paymentProofUrl: proofUrl, status: "PENDING_VERIFICATION" })
         .where(eq(bslClubs.id, id)).returning();
@@ -427,7 +420,7 @@ export function registerBslRoutes(app: Express) {
       const id = Number(req.params.id);
       const file = (req as any).file;
       if (!file) return res.status(400).json({ message: "No file uploaded" });
-      const proofUrl = `/uploads/bsl/${file.filename}`;
+      const proofUrl = await saveBufferToBucket(file.buffer, "bsl", file.originalname);
       const [updated] = await db.update(bslPlayers).set({
         paymentProofUrl: proofUrl, status: "PENDING_VERIFICATION",
       }).where(eq(bslPlayers.id, id)).returning();
@@ -1042,9 +1035,10 @@ export function registerBslRoutes(app: Express) {
       if (!p) return res.status(404).json({ message: "BSL player not found" });
       const file = (req as any).file;
       const reference = genRef("BSL-TOPUP");
+      const proofUrl = file ? await saveBufferToBucket(file.buffer, "bsl", file.originalname) : null;
       const [tx] = await db.insert(bslWalletTransactions).values({
         bslPlayerId: p.id, type: "TOPUP", amount, reference,
-        proofUrl: file ? `/uploads/bsl/${file.filename}` : null,
+        proofUrl,
         description: req.body.description || "Wallet top-up",
       } as any).returning();
       res.json(tx);
@@ -1825,7 +1819,7 @@ export function registerBslRoutes(app: Express) {
   app.post("/api/bsl/admin/media", requireAdmin, bslUpload.single("file"), async (req, res) => {
     try {
       if (!req.file) return res.status(400).json({ message: "file required" });
-      const url = `/uploads/bsl/${req.file.filename}`;
+      const url = await saveBufferToBucket(req.file.buffer, "bsl", req.file.originalname);
       const taggedClubId = req.body.taggedClubId ? Number(req.body.taggedClubId) : null;
       const taggedPlayerId = req.body.taggedPlayerId ? Number(req.body.taggedPlayerId) : null;
       const [row] = await db.insert(bslMedia).values({

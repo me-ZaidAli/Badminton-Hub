@@ -18,18 +18,13 @@ import {
 import { inArray } from "drizzle-orm";
 import { sendRulePush } from "./notificationRules";
 import { storage } from "./storage";
+import { saveBufferToBucket } from "./uploadStorage";
 
 // ── Local upload (gallery images reuse /public/uploads/coaches/) ─────────────
 const galleryDir = path.join(process.cwd(), "public", "uploads", "coaches", "gallery");
 if (!fs.existsSync(galleryDir)) fs.mkdirSync(galleryDir, { recursive: true });
 const galleryUpload = multer({
-  storage: multer.diskStorage({
-    destination: (_r, _f, cb) => cb(null, galleryDir),
-    filename: (_r, file, cb) => {
-      const ext = path.extname(file.originalname) || ".jpg";
-      cb(null, `gallery-${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`);
-    },
-  }),
+  storage: multer.memoryStorage(),
   limits: { fileSize: 6 * 1024 * 1024 },
   fileFilter: (_r, f, cb) => {
     if (f.mimetype.startsWith("image/")) cb(null, true);
@@ -309,7 +304,7 @@ export function registerCoachBookingRoutes(app: Express) {
     const coach = await getMyCoach((req as any).user.id);
     if (!coach) return res.status(404).json({ message: "Not a coach" });
     if (!req.file) return res.status(400).json({ message: "No file" });
-    const url = `/uploads/coaches/gallery/${req.file.filename}`;
+    const url = await saveBufferToBucket(req.file.buffer, "coaches/gallery", req.file.originalname);
     const [row] = await db.insert(coachGalleryImages).values({ coachId: coach.id, imageUrl: url, caption: req.body.caption || null, sortOrder: 0 }).returning();
     res.status(201).json(row);
   });
