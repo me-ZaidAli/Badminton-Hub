@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Vote, Plus, Trash2, Eye, BarChart3, Users, Check, X, Loader2, Search, Power, ChevronLeft, Calendar, Pencil, RefreshCw, MessageSquare, UserPlus } from "lucide-react";
+import { Vote, Plus, Trash2, Eye, BarChart3, Users, Check, X, Loader2, Search, Power, ChevronLeft, Calendar, Pencil, RefreshCw, MessageSquare, UserPlus, CheckCircle2 } from "lucide-react";
 import { format } from "date-fns";
 
 type Poll = {
@@ -241,10 +241,17 @@ function BroadcastDialog({ poll, clubs, onClose }: { poll: Poll; clubs: Array<{ 
   }, [members, search]);
 
   const toggleUser = (id: number) => setSelectedUserIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const wholeClubActive = activeClubId != null && selectedClubIds.has(activeClubId);
   const selectAllInClub = () => {
     if (activeClubId == null) return;
     setSelectedClubIds(s => { const n = new Set(s); n.add(activeClubId); return n; });
-    toast({ title: `Whole club queued`, description: "Every member of this club will receive the poll." });
+    // Tick every visible member too so the count is honest.
+    setSelectedUserIds(s => { const n = new Set(s); members.forEach(m => n.add(m.id)); return n; });
+  };
+  const unselectAllInClub = () => {
+    if (activeClubId == null) return;
+    setSelectedClubIds(s => { const n = new Set(s); n.delete(activeClubId); return n; });
+    setSelectedUserIds(s => { const n = new Set(s); members.forEach(m => n.delete(m.id)); return n; });
   };
   const removeWholeClub = (cid: number) => setSelectedClubIds(s => { const n = new Set(s); n.delete(cid); return n; });
 
@@ -290,10 +297,12 @@ function BroadcastDialog({ poll, clubs, onClose }: { poll: Poll; clubs: Array<{ 
                     <button
                       key={c.id}
                       onClick={() => setActiveClubId(c.id)}
-                      className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition ${isActive ? "bg-fuchsia-500 text-white border-fuchsia-400" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+                      className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition flex items-center gap-1.5 ${isActive ? "bg-fuchsia-500 text-white border-fuchsia-400" : wholeClubChosen ? "bg-emerald-500/20 text-emerald-300 border-emerald-400/40" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
                       data-testid={`tab-club-${c.id}`}
                     >
-                      {c.name}{wholeClubChosen && <span className="ml-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-300/30">All</span>}
+                      {wholeClubChosen && <CheckCircle2 className="w-3.5 h-3.5" />}
+                      {c.name}
+                      {wholeClubChosen && <span className="text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500 text-white">ALL</span>}
                     </button>
                   );
                 })}
@@ -303,17 +312,36 @@ function BroadcastDialog({ poll, clubs, onClose }: { poll: Poll; clubs: Array<{ 
               <div className="flex items-center gap-2">
                 <div className="relative flex-1">
                   <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search members in this club…" className="pl-9 h-9" data-testid="input-broadcast-search" />
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder={wholeClubActive ? "Whole club selected — search disabled" : "Search members in this club…"} className="pl-9 h-9" disabled={wholeClubActive} data-testid="input-broadcast-search" />
                 </div>
-                <Button size="sm" variant="outline" onClick={selectAllInClub} disabled={activeClubId == null} data-testid="button-select-all-club">
-                  <Users className="w-3.5 h-3.5 mr-1" /> Select all in club
-                </Button>
+                {wholeClubActive ? (
+                  <Button size="sm" variant="outline" onClick={unselectAllInClub} className="border-emerald-400 text-emerald-300 hover:bg-emerald-500/10" data-testid="button-unselect-all-club">
+                    <X className="w-3.5 h-3.5 mr-1" /> Deselect all
+                  </Button>
+                ) : (
+                  <Button size="sm" variant="outline" onClick={selectAllInClub} disabled={activeClubId == null || isLoading || members.length === 0} data-testid="button-select-all-club">
+                    <Users className="w-3.5 h-3.5 mr-1" /> Select all{members.length ? ` (${members.length})` : ""}
+                  </Button>
+                )}
               </div>
 
               {/* Member list */}
               <div className="flex-1 overflow-y-auto rounded-lg border min-h-[200px]">
                 {isLoading ? (
                   <div className="p-6 text-sm text-muted-foreground flex items-center gap-2 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> Loading members…</div>
+                ) : wholeClubActive ? (
+                  <div className="p-8 flex flex-col items-center justify-center text-center gap-3 bg-emerald-500/5 h-full">
+                    <div className="w-14 h-14 rounded-full bg-emerald-500/20 border-2 border-emerald-400 flex items-center justify-center">
+                      <CheckCircle2 className="w-8 h-8 text-emerald-400" />
+                    </div>
+                    <div>
+                      <div className="text-base font-bold text-emerald-300">All {members.length} {members.length === 1 ? "member" : "members"} selected</div>
+                      <div className="text-xs text-muted-foreground mt-1">Every person in <b>{clubs.find(c => c.id === activeClubId)?.name}</b> will receive this poll in their inbox.</div>
+                    </div>
+                    <Button size="sm" variant="outline" onClick={unselectAllInClub} data-testid="button-clear-all-club">
+                      <X className="w-3.5 h-3.5 mr-1" /> Clear selection
+                    </Button>
+                  </div>
                 ) : filtered.length === 0 ? (
                   <div className="p-6 text-sm text-muted-foreground text-center">No members match.</div>
                 ) : (

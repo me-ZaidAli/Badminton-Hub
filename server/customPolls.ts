@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
-import { customPolls, customPollResponses, users, clubs, clubMemberships, notifications } from "@shared/schema";
+import { customPolls, customPollResponses, users, clubs, clubMemberships, notifications, playerProfiles } from "@shared/schema";
 import { and, desc, eq, gt, inArray, or, sql, isNull, ilike } from "drizzle-orm";
 
 function isAdminish(u: any) { return u?.role === "OWNER" || u?.role === "ADMIN"; }
@@ -463,7 +463,20 @@ export function registerCustomPollRoutes(app: Express): void {
     }
   });
 
-  // List members of a single club (admin or club owner only) for the broadcast picker
+  // Resolve every distinct user-id linked to a club via either clubMemberships (any status)
+  // OR playerProfiles. BSL-only / trial / pending users often only live in playerProfiles, so
+  // unioning both is the difference between "16 people" and "everyone".
+  async function resolveAllUsersForClubIds(clubIds: number[]): Promise<number[]> {
+    if (clubIds.length === 0) return [];
+    const a = await db.select({ userId: clubMemberships.userId }).from(clubMemberships).where(inArray(clubMemberships.clubId, clubIds));
+    const b = await db.select({ userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.clubId, clubIds));
+    const set = new Set<number>();
+    a.forEach(r => set.add(r.userId));
+    b.forEach(r => set.add(r.userId));
+    return Array.from(set);
+  }
+
+  // List EVERY user linked to a club (clubMemberships ∪ playerProfiles) — admin or club owner only.
   app.get("/api/custom-polls/clubs/:clubId/members", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
@@ -473,19 +486,23 @@ export function registerCustomPollRoutes(app: Express): void {
         const owns = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id))).limit(1);
         if (owns.length === 0) return res.status(403).json({ message: "Not your club" });
       }
-      const rows = await db.select({
-          userId: clubMemberships.userId,
-          status: clubMemberships.status,
-          fullName: users.fullName,
-          email: users.email,
-        })
-        .from(clubMemberships)
-        .innerJoin(users, eq(users.id, clubMemberships.userId))
-        .where(eq(clubMemberships.clubId, clubId))
-        .orderBy(users.fullName);
-      const seen = new Set<number>();
-      const out = rows.filter(r => { if (seen.has(r.userId)) return false; seen.add(r.userId); return true; })
-        .map(r => ({ id: r.userId, fullName: r.fullName, email: r.email, status: r.status }));
+      const userIds = await resolveAllUsersForClubIds([clubId]);
+      if (userIds.length === 0) return res.json([]);
+
+      // Hydrate names + best-effort membership status (latest row per user if any)
+      const userRows = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
+        .from(users).where(inArray(users.id, userIds)).orderBy(users.fullName);
+      const memRows = await db.select({ userId: clubMemberships.userId, status: clubMemberships.status })
+        .from(clubMemberships).where(and(eq(clubMemberships.clubId, clubId), inArray(clubMemberships.userId, userIds)));
+      const statusByUser = new Map<number, string>();
+      memRows.forEach(m => { if (!statusByUser.has(m.userId)) statusByUser.set(m.userId, m.status); });
+
+      const out = userRows.map(u => ({
+        id: u.id,
+        fullName: u.fullName,
+        email: u.email,
+        status: statusByUser.get(u.id) || "PLAYER",
+      }));
       res.json(out);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -539,9 +556,8 @@ export function registerCustomPollRoutes(app: Express): void {
       const recipients = new Set<number>();
       safeUserIds.forEach(id => recipients.add(id));
       if (safeClubIds.length > 0) {
-        const rows = await db.select({ userId: clubMemberships.userId })
-          .from(clubMemberships).where(inArray(clubMemberships.clubId, safeClubIds));
-        rows.forEach(r => recipients.add(r.userId));
+        const ids = await resolveAllUsersForClubIds(safeClubIds);
+        ids.forEach(id => recipients.add(id));
       }
       if (includePollAudience) {
         const fromPoll = await resolveRecipientIds(poll);
