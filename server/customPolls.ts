@@ -25,10 +25,15 @@ async function resolveRecipientIds(poll: any): Promise<number[]> {
   tgtUsers.forEach(id => ids.add(id));
   const tgtClubs = (poll.targetClubIds as number[] | null) || [];
   if (tgtClubs.length > 0) {
-    const rows = await db.select({ userId: clubMemberships.userId })
+    // Anyone with a membership row (any status) OR a player profile in the club, plus the owner.
+    const memRows = await db.select({ userId: clubMemberships.userId })
       .from(clubMemberships)
-      .where(and(inArray(clubMemberships.clubId, tgtClubs), eq(clubMemberships.status, "ACTIVE")));
-    rows.forEach(r => ids.add(r.userId));
+      .where(inArray(clubMemberships.clubId, tgtClubs));
+    memRows.forEach(r => ids.add(r.userId));
+    const profRows = await db.select({ userId: playerProfiles.userId })
+      .from(playerProfiles)
+      .where(inArray(playerProfiles.clubId, tgtClubs));
+    profRows.forEach(r => ids.add(r.userId));
     const ownerRows = await db.select({ ownerId: clubs.ownerId }).from(clubs).where(inArray(clubs.id, tgtClubs));
     ownerRows.forEach(r => { if (r.ownerId) ids.add(r.ownerId); });
   }
@@ -36,12 +41,17 @@ async function resolveRecipientIds(poll: any): Promise<number[]> {
 }
 
 async function getUserClubIds(userId: number): Promise<number[]> {
+  // Mirror resolveRecipientIds: a user "belongs" to a club if they have ANY
+  // membership row, a player profile, or own the club. This makes poll
+  // visibility match the broadcast recipient set exactly.
   const ms = await db.select({ clubId: clubMemberships.clubId })
-    .from(clubMemberships)
-    .where(and(eq(clubMemberships.userId, userId), eq(clubMemberships.status, "ACTIVE")));
+    .from(clubMemberships).where(eq(clubMemberships.userId, userId));
+  const profs = await db.select({ clubId: playerProfiles.clubId })
+    .from(playerProfiles).where(eq(playerProfiles.userId, userId));
   const ownedClubs = await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, userId));
   const set = new Set<number>();
   ms.forEach(m => set.add(m.clubId));
+  profs.forEach(p => set.add(p.clubId));
   ownedClubs.forEach(c => set.add(c.id));
   return Array.from(set);
 }
