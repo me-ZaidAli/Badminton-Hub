@@ -2,7 +2,8 @@ import { Client } from "@replit/object-storage";
 import path from "path";
 import type { Express, Request, Response } from "express";
 
-export const objClient = new Client();
+const bucketId = process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID;
+export const objClient = new Client(bucketId ? { bucketId } : undefined);
 
 const MIME_BY_EXT: Record<string, string> = {
   ".jpg": "image/jpeg",
