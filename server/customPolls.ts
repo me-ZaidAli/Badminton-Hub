@@ -1,6 +1,6 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
-import { customPolls, customPollResponses, users, clubs, clubMemberships, notifications, playerProfiles } from "@shared/schema";
+import { customPolls, customPollResponses, users, clubs, clubMemberships, notifications, playerProfiles, internalMessages } from "@shared/schema";
 import { and, desc, eq, gt, inArray, or, sql, isNull, ilike } from "drizzle-orm";
 
 function isAdminish(u: any) { return u?.role === "OWNER" || u?.role === "ADMIN"; }
@@ -574,8 +574,16 @@ export function registerCustomPollRoutes(app: Express): void {
         fromPoll.forEach(id => recipients.add(id));
       }
 
-      const ids = Array.from(recipients);
+      const ids = Array.from(recipients).filter(id => id !== user.id); // don't send to yourself
       if (ids.length === 0) return res.status(400).json({ message: "No recipients selected" });
+
+      // Add recipients to the poll's targetUserIds so the audience-check on /respond accepts
+      // their votes — even if they were never in the original audience.
+      const existingTargets: number[] = (poll.targetUserIds as number[] | null) || [];
+      const merged = Array.from(new Set([...existingTargets, ...ids]));
+      if (merged.length !== existingTargets.length) {
+        await db.update(customPolls).set({ targetUserIds: merged }).where(eq(customPolls.id, pollId));
+      }
 
       // Cache-buster query param so each send produces a fresh notification row
       const sentAt = Date.now();
@@ -585,6 +593,21 @@ export function registerCustomPollRoutes(app: Express): void {
         title: `Poll: ${poll.title}`,
         message: `${poll.question} — tap to vote`,
         linkUrl: `/?poll=${poll.id}&t=${sentAt}`,
+      })));
+
+      // Drop the poll into each recipient's Inbox conversation with the broadcaster as a
+      // first-class internalMessage. The marker `[[POLL:<id>]]` is detected client-side and
+      // rendered as an inline vote widget so users vote without leaving Messages.
+      const opts = (poll.options as string[]) || [];
+      const optionLines = opts.map((o, i) => `  ${i + 1}. ${o}`).join("\n");
+      const body = `📊 ${poll.title}\n\n${poll.question}\n\n${optionLines}\n\n[[POLL:${poll.id}]]`;
+      await db.insert(internalMessages).values(ids.map(uid => ({
+        senderId: user.id,
+        recipientId: uid,
+        subject: `Poll: ${poll.title}`,
+        body,
+        clubId: null,
+        messageCategory: "POLL",
       })));
 
       res.json({ sent: ids.length });

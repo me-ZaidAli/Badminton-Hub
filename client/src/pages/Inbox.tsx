@@ -32,6 +32,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import {
   MessageCircle,
   Send,
@@ -54,6 +55,7 @@ import {
   CheckSquare,
   Square,
   MailCheck,
+  Vote,
 } from "lucide-react";
 import { format, isToday, isYesterday } from "date-fns";
 import { cn } from "@/lib/utils";
@@ -916,7 +918,16 @@ export default function InboxPage() {
                                   {systemLabel}
                                 </div>
                               )}
-                              <p className="whitespace-pre-wrap break-words leading-relaxed" data-testid={`text-message-body-${msg.id}`}>{msg.body}</p>
+                              {(() => {
+                                const pollMatch = /\[\[POLL:(\d+)\]\]/.exec(msg.body || "");
+                                const cleanBody = pollMatch ? (msg.body || "").replace(/\n*\[\[POLL:\d+\]\]\n*/, "").trim() : msg.body;
+                                return (
+                                  <>
+                                    <p className="whitespace-pre-wrap break-words leading-relaxed" data-testid={`text-message-body-${msg.id}`}>{cleanBody}</p>
+                                    {pollMatch && <InlinePollVote pollId={Number(pollMatch[1])} isMine={isMine} />}
+                                  </>
+                                );
+                              })()}
                               <div className={cn("flex items-center gap-1.5 mt-1", isMine ? "justify-end" : "justify-start")}>
                                 <span className={cn("text-[10px]", isMine ? "text-primary-foreground/50" : "text-muted-foreground")}>{formatChatTime(msg.createdAt)}</span>
                                 {isMine && (
@@ -1101,5 +1112,94 @@ export default function InboxPage() {
       </AlertDialog>
     </div>
     </PremiumFeatureGate>
+  );
+}
+
+function InlinePollVote({ pollId, isMine }: { pollId: number; isMine: boolean }) {
+  const { toast } = useToast();
+  const [draft, setDraft] = useState<number[]>([]);
+
+  const { data: polls = [], isLoading } = useQuery<Array<{ id: number; title: string; question: string; options: string[]; allowMultiple: boolean; myVote: number[] | null; counts: number[]; total: number }>>({
+    queryKey: ["/api/custom-polls/active"],
+    refetchInterval: 30_000,
+  });
+  const poll = polls.find(p => p.id === pollId);
+
+  const respond = useMutation({
+    mutationFn: async (optionIndices: number[]) => apiRequest("POST", `/api/custom-polls/${pollId}/respond`, { optionIndices }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/custom-polls/active"] });
+      toast({ title: "Vote recorded", description: "Thanks for voting!" });
+      setDraft([]);
+    },
+    onError: (e: any) => toast({ title: "Vote failed", description: String(e?.message || "").replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  if (isLoading) {
+    return <div className={cn("mt-2 rounded-xl border p-3 text-xs", isMine ? "border-white/20 bg-white/10" : "border-border bg-background/50")}>Loading poll…</div>;
+  }
+  if (!poll) {
+    return <div className={cn("mt-2 rounded-xl border p-3 text-xs", isMine ? "border-white/20 bg-white/10 text-white/80" : "border-border bg-muted/40 text-muted-foreground")}>This poll has closed or is no longer available.</div>;
+  }
+
+  const hasVoted = !!(poll.myVote && poll.myVote.length > 0);
+  const maxCount = Math.max(1, ...(poll.counts || []));
+
+  const toggle = (i: number) => {
+    if (poll.allowMultiple) {
+      setDraft(d => d.includes(i) ? d.filter(x => x !== i) : [...d, i]);
+    } else {
+      respond.mutate([i]);
+    }
+  };
+
+  return (
+    <div className={cn("mt-2 rounded-xl border p-3 space-y-2 max-w-full", isMine ? "border-white/20 bg-white/10" : "border-fuchsia-300/30 bg-gradient-to-br from-fuchsia-500/5 to-violet-500/5")} data-testid={`inline-poll-${pollId}`}>
+      <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider font-bold text-fuchsia-400">
+        <Vote className="w-3 h-3" /> Vote in chat
+      </div>
+      <div className="space-y-1.5">
+        {poll.options.map((opt, i) => {
+          const count = poll.counts?.[i] || 0;
+          const pct = poll.total > 0 ? Math.round((count / poll.total) * 100) : 0;
+          const widthPct = hasVoted ? Math.round((count / maxCount) * 100) : 0;
+          const isMyChoice = hasVoted && (poll.myVote || []).includes(i);
+          const isDraft = draft.includes(i);
+          return (
+            <button
+              key={i}
+              type="button"
+              disabled={hasVoted || respond.isPending}
+              onClick={() => toggle(i)}
+              className={cn(
+                "relative w-full text-left rounded-lg border px-3 py-2 text-xs font-medium transition overflow-hidden",
+                hasVoted ? "cursor-default" : "hover:border-fuchsia-400 hover:bg-fuchsia-500/10",
+                isMyChoice ? "border-fuchsia-400 bg-fuchsia-500/15" : isDraft ? "border-fuchsia-400 bg-fuchsia-500/10" : "border-border bg-background/40",
+              )}
+              data-testid={`inline-poll-option-${pollId}-${i}`}
+            >
+              {hasVoted && (
+                <div className="absolute inset-y-0 left-0 bg-fuchsia-500/15 transition-all" style={{ width: `${widthPct}%` }} />
+              )}
+              <div className="relative flex items-center justify-between gap-2">
+                <span className="flex items-center gap-2">
+                  {hasVoted ? (isMyChoice ? <Check className="w-3.5 h-3.5 text-fuchsia-400" /> : <span className="w-3.5 h-3.5" />) : (isDraft ? <Check className="w-3.5 h-3.5 text-fuchsia-400" /> : <span className="w-3.5 h-3.5 rounded-full border" />)}
+                  {opt}
+                </span>
+                {hasVoted && <span className="text-[10px] text-muted-foreground tabular-nums">{count} · {pct}%</span>}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+      {!hasVoted && poll.allowMultiple && (
+        <Button size="sm" className="w-full bg-fuchsia-500 hover:bg-fuchsia-400 text-white" disabled={draft.length === 0 || respond.isPending} onClick={() => respond.mutate(draft)} data-testid={`button-submit-inline-poll-${pollId}`}>
+          {respond.isPending ? "Submitting…" : `Submit ${draft.length || ""} answer${draft.length === 1 ? "" : "s"}`}
+        </Button>
+      )}
+      {hasVoted && (
+        <div className="text-[10px] text-muted-foreground text-center">{poll.total} total {poll.total === 1 ? "vote" : "votes"}</div>
+      )}
+    </div>
   );
 }
