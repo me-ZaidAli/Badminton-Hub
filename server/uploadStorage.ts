@@ -2,11 +2,7 @@ import { Client } from "@replit/object-storage";
 import path from "path";
 import type { Express, Request, Response } from "express";
 
-export const objClient = new Client(
-  process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID
-    ? { bucketId: process.env.DEFAULT_OBJECT_STORAGE_BUCKET_ID }
-    : undefined,
-);
+export const objClient = new Client();
 
 const MIME_BY_EXT: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -26,9 +22,8 @@ export async function saveBufferToBucket(
   originalname: string,
 ): Promise<string> {
   const safePrefix = prefix.replace(/[^a-z0-9/_-]/gi, "").replace(/^\/+|\/+$/g, "") || "misc";
-  const rawExt = (path.extname(originalname || "").toLowerCase() || ".jpg").slice(0, 8);
-  const ext = /^\.[a-z0-9]+$/i.test(rawExt) ? rawExt : ".jpg";
-  const key = `${safePrefix}/${Date.now()}-${Math.random().toString(36).slice(2)}${ext}`;
+  const ext = (path.extname(originalname || "").toLowerCase() || ".jpg").slice(0, 8);
+  const key = `${safePrefix}/${Date.now()}-${Math.random().toString(36).slice(2)}${/^[.][a-z0-9]+$/i.test(ext) ? ext : ".jpg"}`;
   const r = await objClient.uploadFromBytes(key, buf, { compress: false });
   if (!r.ok) throw new Error(`Object storage upload failed: ${(r.error as any)?.message ?? r.error}`);
   return `/files/${key}`;
