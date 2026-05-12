@@ -3564,6 +3564,8 @@ export const customPolls = pgTable("custom_polls", {
   allowMultiple: boolean("allow_multiple").notNull().default(false),
   audience: text("audience").notNull().default("SELECTED"), // ALL | SELECTED
   targetClubIds: integer("target_club_ids").array().notNull().default(sql`'{}'::integer[]`),
+  targetUserIds: integer("target_user_ids").array().notNull().default(sql`'{}'::integer[]`),
+  sendAsMessage: boolean("send_as_message").notNull().default(false),
   isActive: boolean("is_active").notNull().default(true),
   expiresAt: timestamp("expires_at"),
   createdById: integer("created_by_id").references(() => users.id).notNull(),

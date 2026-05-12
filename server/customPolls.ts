@@ -1,7 +1,7 @@
 import type { Express, Request, Response, NextFunction } from "express";
 import { db } from "./db";
-import { customPolls, customPollResponses, users, clubs, clubMemberships } from "@shared/schema";
-import { and, desc, eq, gt, inArray, or, sql, isNull } from "drizzle-orm";
+import { customPolls, customPollResponses, users, clubs, clubMemberships, notifications } from "@shared/schema";
+import { and, desc, eq, gt, inArray, or, sql, isNull, ilike } from "drizzle-orm";
 
 function isAdminish(u: any) { return u?.role === "OWNER" || u?.role === "ADMIN"; }
 function requireAuth(req: Request, res: Response, next: NextFunction) {
@@ -12,6 +12,27 @@ function requireAdmin(req: Request, res: Response, next: NextFunction) {
   if (!req.isAuthenticated?.()) return res.status(401).json({ message: "Not authenticated" });
   if (!isAdminish((req as any).user)) return res.status(403).json({ message: "Admin only" });
   next();
+}
+
+async function resolveRecipientIds(poll: any): Promise<number[]> {
+  const ids = new Set<number>();
+  if (poll.audience === "ALL") {
+    const rows = await db.select({ id: users.id }).from(users);
+    rows.forEach(r => ids.add(r.id));
+    return Array.from(ids);
+  }
+  const tgtUsers = (poll.targetUserIds as number[] | null) || [];
+  tgtUsers.forEach(id => ids.add(id));
+  const tgtClubs = (poll.targetClubIds as number[] | null) || [];
+  if (tgtClubs.length > 0) {
+    const rows = await db.select({ userId: clubMemberships.userId })
+      .from(clubMemberships)
+      .where(and(inArray(clubMemberships.clubId, tgtClubs), eq(clubMemberships.status, "ACTIVE")));
+    rows.forEach(r => ids.add(r.userId));
+    const ownerRows = await db.select({ ownerId: clubs.ownerId }).from(clubs).where(inArray(clubs.id, tgtClubs));
+    ownerRows.forEach(r => { if (r.ownerId) ids.add(r.ownerId); });
+  }
+  return Array.from(ids);
 }
 
 async function getUserClubIds(userId: number): Promise<number[]> {
@@ -55,8 +76,10 @@ export function registerCustomPollRoutes(app: Express): void {
 
       const visible = all.filter(p => {
         if (p.audience === "ALL") return true;
-        const tgt = (p.targetClubIds as number[] | null) || [];
-        return tgt.some(id => myClubIds.includes(id));
+        const tgtClubs = (p.targetClubIds as number[] | null) || [];
+        const tgtUsers = (p.targetUserIds as number[] | null) || [];
+        if (tgtUsers.includes(user.id)) return true;
+        return tgtClubs.some(id => myClubIds.includes(id));
       });
 
       const ids = visible.map(p => p.id);
@@ -120,8 +143,10 @@ export function registerCustomPollRoutes(app: Express): void {
       // Visibility check
       if (poll.audience === "SELECTED") {
         const myClubIds = await getUserClubIds(user.id);
-        const tgt = (poll.targetClubIds as number[] | null) || [];
-        if (!tgt.some(id => myClubIds.includes(id))) return res.status(403).json({ message: "Not in audience" });
+        const tgtClubs = (poll.targetClubIds as number[] | null) || [];
+        const tgtUsers = (poll.targetUserIds as number[] | null) || [];
+        const inAudience = tgtUsers.includes(user.id) || tgtClubs.some(id => myClubIds.includes(id));
+        if (!inAudience) return res.status(403).json({ message: "Not in audience" });
       }
 
       // Upsert (one row per user per poll)
@@ -184,21 +209,58 @@ export function registerCustomPollRoutes(app: Express): void {
       const allowMultiple = !!req.body?.allowMultiple;
       const audience: "ALL" | "SELECTED" = req.body?.audience === "ALL" ? "ALL" : "SELECTED";
       let targetClubIds: number[] = Array.isArray(req.body?.targetClubIds) ? req.body.targetClubIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0) : [];
+      let targetUserIds: number[] = Array.isArray(req.body?.targetUserIds) ? req.body.targetUserIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0) : [];
+      const sendAsMessage = !!req.body?.sendAsMessage;
       const expiresAt = req.body?.expiresAt ? new Date(req.body.expiresAt) : null;
 
       if (!title || !question || options.length < 2) return res.status(400).json({ message: "Title, question, and at least 2 options required" });
 
       // ALL audience is OWNER/ADMIN only
       if (audience === "ALL" && !isAdmin) return res.status(403).json({ message: "Only platform admins can target all clubs" });
-      // Club managers can only target their own clubs
-      if (!isAdmin) targetClubIds = targetClubIds.filter(id => owned.includes(id));
-      if (audience === "SELECTED" && targetClubIds.length === 0) return res.status(400).json({ message: "Pick at least one club" });
+      // Club managers can only target their own clubs + members of those clubs
+      if (!isAdmin) {
+        targetClubIds = targetClubIds.filter(id => owned.includes(id));
+        if (targetUserIds.length > 0 && owned.length > 0) {
+          const memberRows = await db.select({ userId: clubMemberships.userId })
+            .from(clubMemberships)
+            .where(and(inArray(clubMemberships.clubId, owned), inArray(clubMemberships.userId, targetUserIds)));
+          const allowed = new Set(memberRows.map(m => m.userId));
+          targetUserIds = targetUserIds.filter(id => allowed.has(id));
+        } else {
+          targetUserIds = [];
+        }
+      }
+      if (audience === "SELECTED" && targetClubIds.length === 0 && targetUserIds.length === 0) {
+        return res.status(400).json({ message: "Pick at least one club or user" });
+      }
 
       const [created] = await db.insert(customPolls).values({
         title, question, options, allowMultiple,
-        audience, targetClubIds: audience === "ALL" ? [] : targetClubIds,
+        audience,
+        targetClubIds: audience === "ALL" ? [] : targetClubIds,
+        targetUserIds: audience === "ALL" ? [] : targetUserIds,
+        sendAsMessage,
         isActive: true, expiresAt, createdById: user.id,
       }).returning();
+
+      // Optional: drop an in-app message into every recipient's inbox right now
+      if (sendAsMessage) {
+        try {
+          const recipientIds = await resolveRecipientIds(created);
+          if (recipientIds.length > 0) {
+            await db.insert(notifications).values(recipientIds.map(uid => ({
+              userId: uid,
+              type: "customPoll",
+              title: `New poll: ${created.title}`,
+              message: created.question,
+              linkUrl: "/",
+            })));
+          }
+        } catch (e) {
+          console.error("[CUSTOM POLLS] inbox fanout failed:", e);
+        }
+      }
+
       res.json(created);
     } catch (e: any) {
       console.error("[CUSTOM POLLS] create failed:", e);
@@ -243,10 +305,28 @@ export function registerCustomPollRoutes(app: Express): void {
       } else if (newAudience === "ALL") {
         patch.targetClubIds = [];
       }
+      if (Array.isArray(req.body?.targetUserIds)) {
+        let uids = req.body.targetUserIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0);
+        if (!isAdminish(user)) {
+          const owned = (await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id))).map(c => c.id);
+          if (uids.length > 0 && owned.length > 0) {
+            const memberRows = await db.select({ userId: clubMemberships.userId })
+              .from(clubMemberships)
+              .where(and(inArray(clubMemberships.clubId, owned), inArray(clubMemberships.userId, uids)));
+            const allowed = new Set(memberRows.map(m => m.userId));
+            uids = uids.filter((id: number) => allowed.has(id));
+          } else { uids = []; }
+        }
+        patch.targetUserIds = effectiveAudience === "ALL" ? [] : uids;
+      } else if (newAudience === "ALL") {
+        patch.targetUserIds = [];
+      }
+      if (typeof req.body?.sendAsMessage === "boolean") patch.sendAsMessage = req.body.sendAsMessage;
       if (effectiveAudience === "SELECTED") {
-        const finalIds = patch.targetClubIds ?? (existing.targetClubIds as number[] | null) ?? [];
-        if (!Array.isArray(finalIds) || finalIds.length === 0) {
-          return res.status(400).json({ message: "Pick at least one club" });
+        const finalClubs = patch.targetClubIds ?? (existing.targetClubIds as number[] | null) ?? [];
+        const finalUsers = patch.targetUserIds ?? (existing.targetUserIds as number[] | null) ?? [];
+        if ((!Array.isArray(finalClubs) || finalClubs.length === 0) && (!Array.isArray(finalUsers) || finalUsers.length === 0)) {
+          return res.status(400).json({ message: "Pick at least one club or user" });
         }
       }
 
@@ -317,6 +397,68 @@ export function registerCustomPollRoutes(app: Express): void {
       });
     } catch (e: any) {
       console.error("[CUSTOM POLLS] results failed:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Helper: search users the current admin/club-owner can target
+  app.get("/api/custom-polls/targetable-users", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const q = String(req.query.q || "").trim().slice(0, 60);
+      const isAdmin = isAdminish(user);
+      let allowedIds: number[] | null = null;
+      if (!isAdmin) {
+        const owned = (await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id))).map(c => c.id);
+        if (owned.length === 0) return res.json([]);
+        const members = await db.select({ userId: clubMemberships.userId })
+          .from(clubMemberships).where(inArray(clubMemberships.clubId, owned));
+        allowedIds = Array.from(new Set(members.map(m => m.userId)));
+        if (allowedIds.length === 0) return res.json([]);
+      }
+      const where: any[] = [];
+      if (q) where.push(or(ilike(users.fullName, `%${q}%`), ilike(users.email, `%${q}%`)));
+      if (allowedIds) where.push(inArray(users.id, allowedIds));
+      const rows = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
+        .from(users)
+        .where(where.length > 0 ? and(...where) : undefined as any)
+        .orderBy(users.fullName)
+        .limit(30);
+      res.json(rows);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Helper: hydrate a list of selected user ids back to {id, fullName, email}
+  // Authorisation matches /targetable-users: OWNER/ADMIN see anyone; club owners
+  // only see members of clubs they own; everyone else is denied. Ids capped at 200.
+  app.post("/api/custom-polls/hydrate-users", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const isAdmin = isAdminish(user);
+      const rawIds: number[] = Array.isArray(req.body?.ids)
+        ? req.body.ids.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0)
+        : [];
+      const ids = Array.from(new Set(rawIds)).slice(0, 200);
+      if (ids.length === 0) return res.json([]);
+
+      let allowed = ids;
+      if (!isAdmin) {
+        const owned = (await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id))).map(c => c.id);
+        if (owned.length === 0) return res.json([]);
+        const memberRows = await db.select({ userId: clubMemberships.userId })
+          .from(clubMemberships)
+          .where(and(inArray(clubMemberships.clubId, owned), inArray(clubMemberships.userId, ids)));
+        const ok = new Set(memberRows.map(m => m.userId));
+        allowed = ids.filter(id => ok.has(id));
+        if (allowed.length === 0) return res.json([]);
+      }
+
+      const rows = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
+        .from(users).where(inArray(users.id, allowed));
+      res.json(rows);
+    } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
   });

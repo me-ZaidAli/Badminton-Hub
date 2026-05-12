@@ -10,7 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Badge } from "@/components/ui/badge";
-import { Vote, Plus, Trash2, Eye, BarChart3, Users, Check, X, Loader2, Search, Power, ChevronLeft, Calendar, Pencil, RefreshCw } from "lucide-react";
+import { Vote, Plus, Trash2, Eye, BarChart3, Users, Check, X, Loader2, Search, Power, ChevronLeft, Calendar, Pencil, RefreshCw, MessageSquare, UserPlus } from "lucide-react";
 import { format } from "date-fns";
 
 type Poll = {
@@ -21,6 +21,8 @@ type Poll = {
   allowMultiple: boolean;
   audience: "ALL" | "SELECTED";
   targetClubIds: number[];
+  targetUserIds: number[];
+  sendAsMessage: boolean;
   isActive: boolean;
   expiresAt: string | null;
   createdAt: string;
@@ -150,6 +152,10 @@ export default function AdminPolls() {
                           <Badge variant="secondary">{p.targetClubIds?.length || 0} {(p.targetClubIds?.length || 0) === 1 ? "club" : "clubs"}</Badge>
                         )}
                         {p.allowMultiple && <Badge variant="outline" className="text-[10px]">multi-select</Badge>}
+                        {p.targetUserIds && p.targetUserIds.length > 0 && (
+                          <Badge variant="secondary" className="text-[10px]"><UserPlus className="w-3 h-3 mr-0.5" />{p.targetUserIds.length} user{p.targetUserIds.length === 1 ? "" : "s"}</Badge>
+                        )}
+                        {p.sendAsMessage && <Badge className="bg-cyan-500/20 text-cyan-200 border-cyan-300/40 text-[10px]"><MessageSquare className="w-3 h-3 mr-0.5" />Inbox</Badge>}
                         {!p.isActive && <Badge variant="destructive">Closed</Badge>}
                         {isExpired && <Badge variant="destructive">Expired</Badge>}
                       </div>
@@ -284,6 +290,8 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
   const [allowMultiple, setAllowMultiple] = useState(!!existing?.allowMultiple);
   const [audience, setAudience] = useState<"ALL" | "SELECTED">(existing?.audience || (targetable.canTargetAll ? "ALL" : "SELECTED"));
   const [targetClubIds, setTargetClubIds] = useState<number[]>(existing?.targetClubIds || []);
+  const [targetUserIds, setTargetUserIds] = useState<number[]>(existing?.targetUserIds || []);
+  const [sendAsMessage, setSendAsMessage] = useState(!!existing?.sendAsMessage);
   const [expiresAt, setExpiresAt] = useState(toLocalDatetimeInput(existing?.expiresAt || null));
   const [isActive, setIsActive] = useState(existing ? existing.isActive : true);
 
@@ -295,6 +303,8 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
     setAllowMultiple(!!existing?.allowMultiple);
     setAudience(existing?.audience || (targetable.canTargetAll ? "ALL" : "SELECTED"));
     setTargetClubIds(existing?.targetClubIds || []);
+    setTargetUserIds(existing?.targetUserIds || []);
+    setSendAsMessage(!!existing?.sendAsMessage);
     setExpiresAt(toLocalDatetimeInput(existing?.expiresAt || null));
     setIsActive(existing ? existing.isActive : true);
   }, [existing?.id]);
@@ -310,6 +320,8 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
       };
       payload.audience = audience;
       payload.targetClubIds = audience === "ALL" ? [] : targetClubIds;
+      payload.targetUserIds = audience === "ALL" ? [] : targetUserIds;
+      payload.sendAsMessage = sendAsMessage;
       if (isEdit) payload.isActive = isActive;
       if (isEdit) {
         return apiRequest("PATCH", `/api/admin/custom-polls/${existing!.id}`, payload);
@@ -325,7 +337,7 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
   });
 
   const validOptions = options.filter(o => o.trim()).length;
-  const canSubmit = title.trim() && question.trim() && validOptions >= 2 && (audience === "ALL" || targetClubIds.length > 0 || isEdit);
+  const canSubmit = title.trim() && question.trim() && validOptions >= 2 && (audience === "ALL" || targetClubIds.length > 0 || targetUserIds.length > 0 || isEdit);
 
   return (
     <Dialog open={open} onOpenChange={onClose}>
@@ -383,24 +395,46 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
           </div>
 
           {/* Audience picker — available on both create and edit */}
-          <div className="rounded-lg border p-3">
-            <Label className="mb-2 block">Clubs that can see this poll</Label>
-            <div className="flex gap-2 mb-3">
+          <div className="rounded-lg border p-3 space-y-3">
+            <Label className="block">Who can see this poll</Label>
+            <div className="flex gap-2 flex-wrap">
               {targetable.canTargetAll && (
                 <Button type="button" size="sm" variant={audience === "ALL" ? "default" : "outline"} onClick={() => setAudience("ALL")} data-testid="button-audience-all">
-                  All clubs
+                  Everyone
                 </Button>
               )}
               <Button type="button" size="sm" variant={audience === "SELECTED" ? "default" : "outline"} onClick={() => setAudience("SELECTED")} data-testid="button-audience-selected">
-                Pick specific clubs
+                Pick clubs / users
               </Button>
             </div>
             {audience === "SELECTED" && (
-              <ClubChips clubs={targetable.clubs} selected={targetClubIds} onChange={setTargetClubIds} />
+              <>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">Clubs</p>
+                  <ClubChips clubs={targetable.clubs} selected={targetClubIds} onChange={setTargetClubIds} />
+                </div>
+                <div>
+                  <p className="text-[11px] uppercase tracking-wider text-muted-foreground mb-1.5">Specific users</p>
+                  <UserPicker selected={targetUserIds} onChange={setTargetUserIds} />
+                </div>
+              </>
             )}
             {audience === "ALL" && (
               <p className="text-xs text-muted-foreground">Every member of every club will see this poll on their dashboard.</p>
             )}
+          </div>
+
+          {/* Send as in-app message */}
+          <div className="rounded-lg border p-3 flex items-start gap-3">
+            <Switch checked={sendAsMessage} onCheckedChange={setSendAsMessage} data-testid="switch-send-message" />
+            <div className="flex-1">
+              <Label className="cursor-pointer flex items-center gap-1.5" onClick={() => setSendAsMessage(!sendAsMessage)}>
+                <MessageSquare className="w-4 h-4" /> Also send as in-app message
+              </Label>
+              <p className="text-xs text-muted-foreground mt-0.5">
+                Drops a notification into every recipient's inbox immediately so they don't miss it. Useful when members can't see the dashboard tile (e.g. trial players or pending memberships).
+              </p>
+            </div>
           </div>
 
           {isEdit && (
@@ -427,6 +461,95 @@ function PollFormDialog({ open, onClose, targetable, existing }: {
         </DialogFooter>
       </DialogContent>
     </Dialog>
+  );
+}
+
+function UserPicker({ selected, onChange }: { selected: number[]; onChange: (ids: number[]) => void }) {
+  const [q, setQ] = useState("");
+  const [debounced, setDebounced] = useState("");
+  useEffect(() => { const t = setTimeout(() => setDebounced(q), 250); return () => clearTimeout(t); }, [q]);
+
+  const { data: results = [], isFetching } = useQuery<Array<{ id: number; fullName: string; email: string }>>({
+    queryKey: ["/api/custom-polls/targetable-users", debounced],
+    queryFn: async () => {
+      const res = await fetch(`/api/custom-polls/targetable-users?q=${encodeURIComponent(debounced)}`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const { data: chosen = [] } = useQuery<Array<{ id: number; fullName: string; email: string }>>({
+    queryKey: ["/api/custom-polls/hydrate-users", selected.slice().sort().join(",")],
+    enabled: selected.length > 0,
+    queryFn: async () => {
+      const res = await apiRequest("POST", "/api/custom-polls/hydrate-users", { ids: selected });
+      return res.json();
+    },
+  });
+
+  const toggle = (id: number) => onChange(selected.includes(id) ? selected.filter(x => x !== id) : [...selected, id]);
+
+  return (
+    <div className="space-y-2">
+      <div className="relative">
+        <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+        <Input
+          value={q}
+          onChange={(e) => setQ(e.target.value)}
+          placeholder="Search by name or email…"
+          className="pl-9 h-9"
+          data-testid="input-user-search"
+        />
+      </div>
+      {chosen.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {chosen.map(u => (
+            <button
+              key={u.id}
+              type="button"
+              onClick={() => toggle(u.id)}
+              className="text-xs px-2.5 py-1 rounded-full border bg-fuchsia-500/20 border-fuchsia-300 text-foreground inline-flex items-center gap-1"
+              data-testid={`chip-user-${u.id}`}
+              title={u.email}
+            >
+              <Check className="w-3 h-3" />{u.fullName}
+              <X className="w-3 h-3 opacity-60" />
+            </button>
+          ))}
+        </div>
+      )}
+      {debounced && (
+        <div className="rounded-md border bg-popover max-h-48 overflow-y-auto">
+          {isFetching ? (
+            <div className="p-3 text-xs text-muted-foreground flex items-center gap-2"><Loader2 className="w-3 h-3 animate-spin" /> Searching…</div>
+          ) : results.length === 0 ? (
+            <div className="p-3 text-xs text-muted-foreground">No users match.</div>
+          ) : (
+            results.map(u => {
+              const on = selected.includes(u.id);
+              return (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => toggle(u.id)}
+                  className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between hover:bg-accent ${on ? "bg-fuchsia-500/10" : ""}`}
+                  data-testid={`row-user-${u.id}`}
+                >
+                  <div className="min-w-0">
+                    <div className="truncate">{u.fullName}</div>
+                    <div className="text-[10px] text-muted-foreground truncate">{u.email}</div>
+                  </div>
+                  {on ? <Check className="w-4 h-4 text-fuchsia-400" /> : <Plus className="w-4 h-4 text-muted-foreground" />}
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+      {!debounced && chosen.length === 0 && (
+        <p className="text-[11px] text-muted-foreground">Start typing a name or email to add specific people.</p>
+      )}
+    </div>
   );
 }
 
