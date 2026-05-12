@@ -2665,6 +2665,8 @@ export const lessonRequests = pgTable("lesson_requests", {
   playerMessage: text("player_message"),
   coachResponse: text("coach_response"),
   agreedPrice: integer("agreed_price"),
+  startTime: timestamp("start_time", { withTimezone: true }),
+  endTime: timestamp("end_time", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
