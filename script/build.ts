@@ -25,6 +25,8 @@ async function buildAll() {
       "@replit/vite-plugin-cartographer",
       "@replit/vite-plugin-dev-banner",
       "@replit/vite-plugin-runtime-error-modal",
+      "@replit/object-storage",
+      "@google-cloud/storage",
     ],
     logLevel: "info",
   });
