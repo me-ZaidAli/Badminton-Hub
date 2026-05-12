@@ -538,6 +538,30 @@ function ProfileEditor({ coach }: { coach: Coach }) {
                   </Button>
                 )}
               </div>
+              <div className="mt-3">
+                <Label className="text-[11px] uppercase tracking-wider text-muted-foreground">Or paste an image URL (Google Drive direct link, Imgur, etc.)</Label>
+                <div className="flex gap-2 mt-1">
+                  <Input
+                    placeholder="https://example.com/photo.jpg"
+                    defaultValue={form.profilePhoto || ""}
+                    onBlur={async (e) => {
+                      const url = e.target.value.trim();
+                      if (url === (form.profilePhoto || "")) return;
+                      set("profilePhoto", url);
+                      try {
+                        await apiRequest("PATCH", "/api/coaches/me", { profilePhoto: url });
+                        qc.invalidateQueries({ queryKey: ["/api/coaches/me"] });
+                        qc.invalidateQueries({ queryKey: ["/api/coaches"] });
+                        toast({ title: url ? "Photo URL saved" : "Photo cleared" });
+                      } catch (err: any) {
+                        toast({ title: "Failed to save URL", description: err.message, variant: "destructive" });
+                      }
+                    }}
+                    data-testid="input-coach-photo-url"
+                  />
+                </div>
+                <p className="text-[10px] text-muted-foreground mt-1">For Google Drive: share the file as "Anyone with the link", then use the format <code>https://drive.google.com/uc?id=FILE_ID</code></p>
+              </div>
             </div>
           </div>
         </CardContent>
