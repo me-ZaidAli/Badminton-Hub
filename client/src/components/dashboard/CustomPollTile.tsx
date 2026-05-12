@@ -1,5 +1,6 @@
 import { useState, useMemo, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
+import { useSearch, useLocation } from "wouter";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Vote, Loader2, Check, ChevronLeft, ChevronRight, Sparkles, Users, PartyPopper } from "lucide-react";
 
@@ -26,12 +27,34 @@ export function CustomPollTile() {
   const [draft, setDraft] = useState<number[]>([]);
   const [justVoted, setJustVoted] = useState<number | null>(null);
 
+  // Deep-link: ?poll=<id> from a notification — keep that poll visible even if
+  // they've voted already so they can see results, and auto-focus it.
+  const search = useSearch();
+  const [, setLocation] = useLocation();
+  const focusedPollId = useMemo(() => {
+    const m = /(?:^|[?&])poll=(\d+)/.exec(search || "");
+    return m ? Number(m[1]) : null;
+  }, [search]);
+
   // Hide polls the user has already answered — they're done with them.
   // Keep the most-recently-voted poll briefly so the celebration overlay can show.
+  // Also keep the deep-linked poll visible regardless of vote state.
   const polls = useMemo(
-    () => allPolls.filter(p => !(p.myVote && p.myVote.length > 0) || p.id === justVoted),
-    [allPolls, justVoted],
+    () => allPolls.filter(p => !(p.myVote && p.myVote.length > 0) || p.id === justVoted || p.id === focusedPollId),
+    [allPolls, justVoted, focusedPollId],
   );
+
+  useEffect(() => {
+    if (focusedPollId == null) return;
+    const i = polls.findIndex(p => p.id === focusedPollId);
+    if (i >= 0) {
+      setIdx(i);
+      // Smoothly scroll the tile into view once
+      requestAnimationFrame(() => {
+        document.querySelector('[data-testid="hero-custom-poll"]')?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    }
+  }, [focusedPollId, polls]);
 
   useEffect(() => {
     if (idx >= polls.length && polls.length > 0) setIdx(0);

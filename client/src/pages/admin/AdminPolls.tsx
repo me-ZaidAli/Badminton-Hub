@@ -90,6 +90,8 @@ export default function AdminPolls() {
     },
   });
 
+  const [broadcastPoll, setBroadcastPoll] = useState<Poll | null>(null);
+
   const openCreate = () => { setEditingPoll(null); setFormOpen(true); };
   const openEdit = (p: Poll) => { setEditingPoll(p); setFormOpen(true); };
 
@@ -181,6 +183,9 @@ export default function AdminPolls() {
                           <span className="text-[10px] uppercase text-muted-foreground tracking-wider">Active</span>
                         </div>
                       )}
+                      <Button size="sm" className="bg-cyan-500 hover:bg-cyan-400 text-white" onClick={() => setBroadcastPoll(p)} data-testid={`button-broadcast-${p.id}`}>
+                        <MessageSquare className="w-3.5 h-3.5 mr-1" /> Send to inbox
+                      </Button>
                       <Button size="sm" variant="outline" onClick={() => openEdit(p)} data-testid={`button-edit-${p.id}`}>
                         <Pencil className="w-3.5 h-3.5 mr-1" /> Edit
                       </Button>
@@ -210,7 +215,164 @@ export default function AdminPolls() {
       {resultsId !== null && (
         <ResultsDialog pollId={resultsId} onClose={() => setResultsId(null)} />
       )}
+      {broadcastPoll && (
+        <BroadcastDialog poll={broadcastPoll} clubs={targetableData?.clubs || []} onClose={() => setBroadcastPoll(null)} />
+      )}
     </div>
+  );
+}
+
+function BroadcastDialog({ poll, clubs, onClose }: { poll: Poll; clubs: Array<{ id: number; name: string }>; onClose: () => void }) {
+  const { toast } = useToast();
+  const [activeClubId, setActiveClubId] = useState<number | null>(clubs[0]?.id ?? null);
+  const [search, setSearch] = useState("");
+  const [selectedUserIds, setSelectedUserIds] = useState<Set<number>>(new Set());
+  const [selectedClubIds, setSelectedClubIds] = useState<Set<number>>(new Set());
+
+  const { data: members = [], isLoading } = useQuery<Array<{ id: number; fullName: string; email: string; status: string }>>({
+    queryKey: ["/api/custom-polls/clubs", activeClubId, "members"],
+    enabled: activeClubId != null,
+  });
+
+  const filtered = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return members;
+    return members.filter(m => m.fullName.toLowerCase().includes(q) || (m.email || "").toLowerCase().includes(q));
+  }, [members, search]);
+
+  const toggleUser = (id: number) => setSelectedUserIds(s => { const n = new Set(s); n.has(id) ? n.delete(id) : n.add(id); return n; });
+  const selectAllInClub = () => {
+    if (activeClubId == null) return;
+    setSelectedClubIds(s => { const n = new Set(s); n.add(activeClubId); return n; });
+    toast({ title: `Whole club queued`, description: "Every member of this club will receive the poll." });
+  };
+  const removeWholeClub = (cid: number) => setSelectedClubIds(s => { const n = new Set(s); n.delete(cid); return n; });
+
+  const send = useMutation({
+    mutationFn: async () =>
+      apiRequest("POST", `/api/admin/custom-polls/${poll.id}/send-message`, {
+        userIds: Array.from(selectedUserIds),
+        clubIds: Array.from(selectedClubIds),
+      }),
+    onSuccess: async (res) => {
+      const json = await res.json().catch(() => ({} as any));
+      toast({ title: `Sent to ${json?.sent ?? "?"} ${json?.sent === 1 ? "person" : "people"}`, description: "They'll see it in their inbox now." });
+      // Reset selection so they can fire another batch.
+      setSelectedUserIds(new Set());
+      setSelectedClubIds(new Set());
+    },
+    onError: (e: any) => toast({ title: "Send failed", description: String(e?.message || "").replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  const totalSelected = selectedUserIds.size + (selectedClubIds.size > 0 ? selectedClubIds.size * 9999 : 0); // we don't know exact club totals client-side; show as "+ whole club"
+
+  return (
+    <Dialog open onOpenChange={onClose}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-hidden flex flex-col p-0">
+        <DialogHeader className="px-6 pt-6 pb-3 border-b">
+          <DialogTitle className="flex items-center gap-2">
+            <MessageSquare className="w-5 h-5 text-cyan-500" /> Send poll to inbox
+          </DialogTitle>
+          <p className="text-xs text-muted-foreground mt-1 truncate">"{poll.title}" — pick recipients then hit Send. You can send this poll as many times as you like.</p>
+        </DialogHeader>
+
+        <div className="flex-1 overflow-hidden flex flex-col px-6 py-3 gap-3">
+          {/* Club tabs */}
+          {clubs.length === 0 ? (
+            <div className="text-sm text-muted-foreground p-4 text-center">No clubs available to broadcast from.</div>
+          ) : (
+            <>
+              <div className="flex gap-1.5 overflow-x-auto pb-1 -mx-1 px-1">
+                {clubs.map(c => {
+                  const wholeClubChosen = selectedClubIds.has(c.id);
+                  const isActive = activeClubId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      onClick={() => setActiveClubId(c.id)}
+                      className={`shrink-0 text-xs font-bold px-3 py-1.5 rounded-full border transition ${isActive ? "bg-fuchsia-500 text-white border-fuchsia-400" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}
+                      data-testid={`tab-club-${c.id}`}
+                    >
+                      {c.name}{wholeClubChosen && <span className="ml-1.5 text-[9px] uppercase tracking-wider px-1.5 py-0.5 rounded bg-emerald-500/20 text-emerald-200 border border-emerald-300/30">All</span>}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Search + select all */}
+              <div className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+                  <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search members in this club…" className="pl-9 h-9" data-testid="input-broadcast-search" />
+                </div>
+                <Button size="sm" variant="outline" onClick={selectAllInClub} disabled={activeClubId == null} data-testid="button-select-all-club">
+                  <Users className="w-3.5 h-3.5 mr-1" /> Select all in club
+                </Button>
+              </div>
+
+              {/* Member list */}
+              <div className="flex-1 overflow-y-auto rounded-lg border min-h-[200px]">
+                {isLoading ? (
+                  <div className="p-6 text-sm text-muted-foreground flex items-center gap-2 justify-center"><Loader2 className="w-4 h-4 animate-spin" /> Loading members…</div>
+                ) : filtered.length === 0 ? (
+                  <div className="p-6 text-sm text-muted-foreground text-center">No members match.</div>
+                ) : (
+                  filtered.map(m => {
+                    const on = selectedUserIds.has(m.id);
+                    return (
+                      <button
+                        key={m.id}
+                        type="button"
+                        onClick={() => toggleUser(m.id)}
+                        className={`w-full text-left px-3 py-2 text-sm flex items-center justify-between border-b last:border-0 hover:bg-accent ${on ? "bg-fuchsia-500/10" : ""}`}
+                        data-testid={`row-member-${m.id}`}
+                      >
+                        <div className="min-w-0">
+                          <div className="truncate font-medium">{m.fullName}</div>
+                          <div className="text-[10px] text-muted-foreground truncate">{m.email} {m.status && <span className="ml-1 uppercase tracking-wider opacity-70">· {m.status}</span>}</div>
+                        </div>
+                        {on ? <Check className="w-4 h-4 text-fuchsia-400 shrink-0" /> : <Plus className="w-4 h-4 text-muted-foreground shrink-0" />}
+                      </button>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Selection summary */}
+              {(selectedUserIds.size > 0 || selectedClubIds.size > 0) && (
+                <div className="rounded-lg border bg-muted/40 p-2.5 space-y-1.5">
+                  {selectedUserIds.size > 0 && (
+                    <div className="text-xs flex items-center gap-1.5"><UserPlus className="w-3.5 h-3.5 text-fuchsia-400" /> <b>{selectedUserIds.size}</b> individual {selectedUserIds.size === 1 ? "user" : "users"} selected</div>
+                  )}
+                  {Array.from(selectedClubIds).map(cid => {
+                    const c = clubs.find(x => x.id === cid);
+                    return (
+                      <div key={cid} className="text-xs flex items-center justify-between gap-2">
+                        <span className="inline-flex items-center gap-1.5"><Users className="w-3.5 h-3.5 text-emerald-400" /> Whole club: <b>{c?.name || `#${cid}`}</b></span>
+                        <button onClick={() => removeWholeClub(cid)} className="text-muted-foreground hover:text-foreground"><X className="w-3 h-3" /></button>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+
+        <DialogFooter className="px-6 pb-6 pt-3 border-t flex items-center justify-between gap-2">
+          <Button variant="ghost" onClick={onClose}>Close</Button>
+          <Button
+            onClick={() => send.mutate()}
+            disabled={send.isPending || (selectedUserIds.size === 0 && selectedClubIds.size === 0)}
+            className="bg-gradient-to-r from-cyan-500 to-fuchsia-500 hover:from-cyan-400 hover:to-fuchsia-400 text-white"
+            data-testid="button-send-broadcast"
+          >
+            {send.isPending ? <Loader2 className="w-4 h-4 animate-spin mr-1" /> : <MessageSquare className="w-4 h-4 mr-1" />}
+            Send now
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 

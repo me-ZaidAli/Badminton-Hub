@@ -463,6 +463,111 @@ export function registerCustomPollRoutes(app: Express): void {
     }
   });
 
+  // List members of a single club (admin or club owner only) for the broadcast picker
+  app.get("/api/custom-polls/clubs/:clubId/members", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const clubId = Number(req.params.clubId);
+      if (!Number.isInteger(clubId)) return res.status(400).json({ message: "Bad club id" });
+      if (!isAdminish(user)) {
+        const owns = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id))).limit(1);
+        if (owns.length === 0) return res.status(403).json({ message: "Not your club" });
+      }
+      const rows = await db.select({
+          userId: clubMemberships.userId,
+          status: clubMemberships.status,
+          fullName: users.fullName,
+          email: users.email,
+        })
+        .from(clubMemberships)
+        .innerJoin(users, eq(users.id, clubMemberships.userId))
+        .where(eq(clubMemberships.clubId, clubId))
+        .orderBy(users.fullName);
+      const seen = new Set<number>();
+      const out = rows.filter(r => { if (seen.has(r.userId)) return false; seen.add(r.userId); return true; })
+        .map(r => ({ id: r.userId, fullName: r.fullName, email: r.email, status: r.status }));
+      res.json(out);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Manual broadcast — re-send the poll to a fresh recipient set as in-app messages.
+  // Body: { userIds?: number[], clubIds?: number[], includePollAudience?: boolean }
+  // Admin/owner authorisation matches the rest of the module.
+  app.post("/api/admin/custom-polls/:id/send-message", requireAuth, requireAdmin, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const isAdmin = isAdminish(user);
+      const pollId = Number(req.params.id);
+      if (!Number.isInteger(pollId)) return res.status(400).json({ message: "Bad poll id" });
+      const [poll] = await db.select().from(customPolls).where(eq(customPolls.id, pollId)).limit(1);
+      if (!poll) return res.status(404).json({ message: "Poll not found" });
+
+      // Owner-of-club may only broadcast polls they created OR polls scoped to their clubs.
+      if (!isAdmin) {
+        const owned = (await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id))).map(c => c.id);
+        const targetClubs = (poll.targetClubIds as number[] | null) || [];
+        const ok = poll.createdById === user.id || targetClubs.some(id => owned.includes(id));
+        if (!ok) return res.status(403).json({ message: "Not allowed to broadcast this poll" });
+      }
+
+      const overrideUserIds: number[] = Array.isArray(req.body?.userIds)
+        ? req.body.userIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0)
+        : [];
+      const overrideClubIds: number[] = Array.isArray(req.body?.clubIds)
+        ? req.body.clubIds.map((n: any) => Number(n)).filter((n: number) => Number.isInteger(n) && n > 0)
+        : [];
+      const includePollAudience = !!req.body?.includePollAudience;
+
+      // Authorisation: club owners can only target their own clubs + members of those clubs.
+      let safeUserIds = overrideUserIds;
+      let safeClubIds = overrideClubIds;
+      if (!isAdmin) {
+        const owned = (await db.select({ id: clubs.id }).from(clubs).where(eq(clubs.ownerId, user.id))).map(c => c.id);
+        safeClubIds = safeClubIds.filter(id => owned.includes(id));
+        if (safeUserIds.length > 0 && owned.length > 0) {
+          const memberRows = await db.select({ userId: clubMemberships.userId })
+            .from(clubMemberships)
+            .where(and(inArray(clubMemberships.clubId, owned), inArray(clubMemberships.userId, safeUserIds)));
+          const allowed = new Set(memberRows.map(m => m.userId));
+          safeUserIds = safeUserIds.filter(id => allowed.has(id));
+        } else { safeUserIds = []; }
+      }
+
+      // Build recipient set
+      const recipients = new Set<number>();
+      safeUserIds.forEach(id => recipients.add(id));
+      if (safeClubIds.length > 0) {
+        const rows = await db.select({ userId: clubMemberships.userId })
+          .from(clubMemberships).where(inArray(clubMemberships.clubId, safeClubIds));
+        rows.forEach(r => recipients.add(r.userId));
+      }
+      if (includePollAudience) {
+        const fromPoll = await resolveRecipientIds(poll);
+        fromPoll.forEach(id => recipients.add(id));
+      }
+
+      const ids = Array.from(recipients);
+      if (ids.length === 0) return res.status(400).json({ message: "No recipients selected" });
+
+      // Cache-buster query param so each send produces a fresh notification row
+      const sentAt = Date.now();
+      await db.insert(notifications).values(ids.map(uid => ({
+        userId: uid,
+        type: "customPoll",
+        title: `Poll: ${poll.title}`,
+        message: `${poll.question} — tap to vote`,
+        linkUrl: `/?poll=${poll.id}&t=${sentAt}`,
+      })));
+
+      res.json({ sent: ids.length });
+    } catch (e: any) {
+      console.error("[CUSTOM POLLS] broadcast failed:", e);
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   // Helper: list clubs the current user can target
   app.get("/api/custom-polls/targetable-clubs", requireAuth, async (req, res) => {
     try {
