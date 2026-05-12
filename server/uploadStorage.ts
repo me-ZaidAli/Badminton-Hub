@@ -25,7 +25,7 @@ export async function saveBufferToBucket(
   const safePrefix = prefix.replace(/[^a-z0-9/_-]/gi, "").replace(/^\/+|\/+$/g, "") || "misc";
   const ext = (path.extname(originalname || "").toLowerCase() || ".jpg").slice(0, 8);
   const key = `${safePrefix}/${Date.now()}-${Math.random().toString(36).slice(2)}${/^[.][a-z0-9]+$/i.test(ext) ? ext : ".jpg"}`;
-  const r = await objClient.uploadFromBytes(key, buf, { compress: false });
+  const r = await objClient.uploadFromBytes(key, buf);
   if (!r.ok) throw new Error(`Object storage upload failed: ${(r.error as any)?.message ?? r.error}`);
   return `/files/${key}`;
 }
