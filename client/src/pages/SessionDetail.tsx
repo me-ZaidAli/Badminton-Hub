@@ -1874,19 +1874,18 @@ export default function SessionDetail() {
           )}
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
-          {confirmedSignups.slice().sort((a, b) => {
+        {(() => {
+          const sortedByName = confirmedSignups.slice().sort((a, b) => {
             const aPaused = !!(a as any).isPaused;
             const bPaused = !!(b as any).isPaused;
             if (aPaused !== bPaused) return aPaused ? 1 : -1;
-            // Unpaid players first, paid players last (pending counts as unpaid here)
-            const aPaid = (a as any).paymentStatus === "PAID";
-            const bPaid = (b as any).paymentStatus === "PAID";
-            if (aPaid !== bPaid) return aPaid ? 1 : -1;
             const aName = a.player?.user?.fullName || "";
             const bName = b.player?.user?.fullName || "";
-            return aName.localeCompare(bName);
-          }).map((signup) => {
+            return aName.localeCompare(bName, undefined, { sensitivity: "base" });
+          });
+          const securedSignups = sortedByName.filter((s: any) => s.paymentStatus === "PAID");
+          const provisionalSignups = sortedByName.filter((s: any) => s.paymentStatus !== "PAID");
+          const renderSignupCard = (signup: any) => {
             const s = signup as any;
             const effectiveGender = s.genderOverride || signup.player?.gender || "?";
             const isPaused = !!s.isPaused;
@@ -2121,8 +2120,50 @@ export default function SessionDetail() {
                 )}
               </div>
             );
-          })}
-        </div>
+          };
+
+          const Section = ({ title, sub, items, tone, dotClass, testId }: { title: string; sub: string; items: any[]; tone: string; dotClass: string; testId: string }) => {
+            if (items.length === 0) return null;
+            return (
+              <div className="space-y-2" data-testid={`section-${testId}`}>
+                <div className="flex items-center justify-between gap-3 px-1">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`inline-flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-[0.18em] px-2.5 py-1 rounded-full ${tone}`}>
+                      <span className={`w-1.5 h-1.5 rounded-full ${dotClass}`} />
+                      {title}
+                      <span className="opacity-70 normal-case tracking-normal">· {items.length}</span>
+                    </span>
+                  </div>
+                  <span className="text-[11px] text-muted-foreground truncate">{sub}</span>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4">
+                  {items.map(renderSignupCard)}
+                </div>
+              </div>
+            );
+          };
+
+          return (
+            <div className="space-y-5">
+              <Section
+                title="Secured"
+                sub="Payment confirmed — spot locked in"
+                items={securedSignups}
+                tone="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
+                dotClass="bg-emerald-500"
+                testId="secured"
+              />
+              <Section
+                title="Provisional"
+                sub="Awaiting payment — spot not yet secured"
+                items={provisionalSignups}
+                tone="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
+                dotClass="bg-amber-500"
+                testId="provisional"
+              />
+            </div>
+          );
+        })()}
 
         {(() => {
           const waitingSignups = (signups || []).filter((s: any) => s.signupStatus === "WAITING").sort((a: any, b: any) => {
