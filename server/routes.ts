@@ -1319,6 +1319,24 @@ export async function registerRoutes(
         "misty-bamboo", "tropical-lagoon", "sunset-savannah",
       ];
       const blackCardThemes = ["midnight-neon", "cosmic-elite", "phantom-luxe"];
+      const metallicCometThemesAll = ["obsidian-gold-ultra", "mint-prestige", "crystal-court", "phosphor-elite", "adaptive-pro", "royal-indigo"];
+      const royalDutyThemesAll = ["champagne-pearl", "coral-luxe", "arctic-frost", "retro-cream-tech", "lavender-opulence", "champagne-mint"];
+
+      // Super-user override: OWNER (and ADMIN) get every theme regardless of rank/cards.
+      const isSuperUser = req.user!.role === "OWNER" || req.user!.role === "ADMIN";
+      if (isSuperUser) {
+        const all = Array.from(new Set([
+          ...standardThemes, ...premiumThemes, ...eliteThemes, ...signatureThemes,
+          ...blackCardThemes, ...metallicCometThemesAll, ...royalDutyThemesAll,
+        ]));
+        return res.json({
+          unlockedThemes: all,
+          userRank: "champion",
+          hasBlackCard: true,
+          hasMetallicComet: true,
+          hasRoyalDuty: true,
+        });
+      }
 
       const unlockedThemes = [...standardThemes, ...premiumThemes];
 
