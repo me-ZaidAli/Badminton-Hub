@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Minus, Plus, Trophy, Sparkles, type LucideIcon } from "lucide-react";
 
 interface CounterTileProps {
@@ -17,6 +17,8 @@ interface CounterTileProps {
   iconBgEmptyClass: string;
   iconBgFillClass: string;
   testId: string;
+  trophyIcon?: ReactNode;
+  trophyLabel?: string;
 }
 
 export function CounterTile({
@@ -35,11 +37,16 @@ export function CounterTile({
   iconBgEmptyClass,
   iconBgFillClass,
   testId,
+  trophyIcon,
+  trophyLabel,
 }: CounterTileProps) {
   const completed = Math.floor(count / goal);
   const inCurrent = count - completed * goal;
-  const goalReached = count >= goal;
+  const goalReached = inCurrent === 0 && completed > 0;
   const slots = Math.min(goal, 8);
+  const trophyCap = 8;
+  const trophiesShown = Math.min(completed, trophyCap);
+  const trophiesOverflow = Math.max(0, completed - trophyCap);
 
   const [celebrate, setCelebrate] = useState(false);
   const lastRef = useRef(completed);
@@ -98,7 +105,7 @@ export function CounterTile({
 
         <div className="mt-3 flex flex-wrap gap-1.5">
           {Array.from({ length: slots }).map((_, i) => {
-            const isFilled = i < inCurrent || goalReached;
+            const isFilled = i < inCurrent;
             return (
               <div
                 key={i}
@@ -113,6 +120,27 @@ export function CounterTile({
             );
           })}
         </div>
+
+        {trophyIcon && completed > 0 && (
+          <div className="mt-3 flex items-center gap-1.5 flex-wrap" data-testid={`${testId}-trophies`}>
+            <span className="text-[9px] uppercase tracking-wider text-white/50 font-bold mr-0.5">
+              {trophyLabel ? `${trophyLabel}` : "Earned"}
+            </span>
+            {Array.from({ length: trophiesShown }).map((_, i) => (
+              <div
+                key={i}
+                className={`w-8 h-8 rounded-lg border border-amber-300/40 ${iconBgFillClass} shadow-md shadow-amber-500/20 flex items-center justify-center text-white animate-[pop_0.3s_ease-out]`}
+              >
+                {trophyIcon}
+              </div>
+            ))}
+            {trophiesOverflow > 0 && (
+              <span className="text-[11px] font-extrabold text-amber-200 bg-amber-500/15 border border-amber-400/30 rounded-md px-1.5 py-0.5">
+                +{trophiesOverflow}
+              </span>
+            )}
+          </div>
+        )}
 
         <div className="mt-3 flex items-center justify-between gap-2">
           <button

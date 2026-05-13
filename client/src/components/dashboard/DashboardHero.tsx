@@ -269,37 +269,59 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
   }, [cups, hydrationKey]);
   const hydroPct = Math.min(100, Math.round((cups / HYDRATION_GOAL) * 100));
 
-  // SHUTTLES (localStorage, daily reset)
+  // SHUTTLES (localStorage, daily reset) — every 12 fills a tube
   const shuttlesKey = `cm-shuttles-${todayKey}`;
-  const SHUTTLES_GOAL = 50;
+  const SHUTTLES_GOAL = 12;
+  const SHUTTLES_MAX = 5000;
   const [shuttles, setShuttles] = useState<number>(() => {
     if (typeof window === "undefined") return 0;
     const v = localStorage.getItem(shuttlesKey);
-    return v ? Math.max(0, Math.min(2000, parseInt(v, 10) || 0)) : 0;
+    return v ? Math.max(0, Math.min(SHUTTLES_MAX, parseInt(v, 10) || 0)) : 0;
   });
   useEffect(() => {
     const v = localStorage.getItem(shuttlesKey);
-    setShuttles(v ? Math.max(0, Math.min(2000, parseInt(v, 10) || 0)) : 0);
+    setShuttles(v ? Math.max(0, Math.min(SHUTTLES_MAX, parseInt(v, 10) || 0)) : 0);
   }, [shuttlesKey]);
   useEffect(() => {
     localStorage.setItem(shuttlesKey, String(shuttles));
   }, [shuttles, shuttlesKey]);
 
-  // BANANAS (localStorage, daily reset)
+  // BANANAS (localStorage, daily reset) — every 6 fills a basket
   const bananasKey = `cm-bananas-${todayKey}`;
-  const BANANAS_GOAL = 3;
+  const BANANAS_GOAL = 6;
+  const BANANAS_MAX = 200;
   const [bananas, setBananas] = useState<number>(() => {
     if (typeof window === "undefined") return 0;
     const v = localStorage.getItem(bananasKey);
-    return v ? Math.max(0, Math.min(20, parseInt(v, 10) || 0)) : 0;
+    return v ? Math.max(0, Math.min(BANANAS_MAX, parseInt(v, 10) || 0)) : 0;
   });
   useEffect(() => {
     const v = localStorage.getItem(bananasKey);
-    setBananas(v ? Math.max(0, Math.min(20, parseInt(v, 10) || 0)) : 0);
+    setBananas(v ? Math.max(0, Math.min(BANANAS_MAX, parseInt(v, 10) || 0)) : 0);
   }, [bananasKey]);
   useEffect(() => {
     localStorage.setItem(bananasKey, String(bananas));
   }, [bananas, bananasKey]);
+
+  // Trophy graphics for the per-cycle "earned" row on the counter tiles.
+  const ShuttleTubeIcon = (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" aria-hidden="true">
+      <rect x="8.5" y="3.5" width="7" height="2.6" rx="0.8" fill="currentColor" />
+      <rect x="8" y="6" width="8" height="14.5" rx="1.6" fill="currentColor" opacity="0.85" />
+      <line x1="9.5" y1="9" x2="14.5" y2="9" stroke="rgba(255,255,255,0.55)" strokeWidth="0.7" />
+      <line x1="9.5" y1="12" x2="14.5" y2="12" stroke="rgba(255,255,255,0.55)" strokeWidth="0.7" />
+      <line x1="9.5" y1="15" x2="14.5" y2="15" stroke="rgba(255,255,255,0.55)" strokeWidth="0.7" />
+      <line x1="9.5" y1="18" x2="14.5" y2="18" stroke="rgba(255,255,255,0.55)" strokeWidth="0.7" />
+    </svg>
+  );
+  const BananaBasketIcon = (
+    <svg viewBox="0 0 24 24" className="w-4 h-4" fill="none" aria-hidden="true">
+      <path d="M5 13 Q12 4 19 13" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" />
+      <path d="M7.5 13 Q12 7 16.5 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.7" />
+      <path d="M3.5 13 H20.5 L18.5 20.5 H5.5 Z" fill="currentColor" opacity="0.85" />
+      <path d="M6 15 H18 M6.5 17.5 H17.5" stroke="rgba(255,255,255,0.45)" strokeWidth="0.7" />
+    </svg>
+  );
 
   // DAILY QUOTE
   const { data: quoteData } = useQuery<{ text: string; author: string }>({
@@ -641,7 +663,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         count={shuttles}
         setCount={setShuttles}
         goal={SHUTTLES_GOAL}
-        max={2000}
+        max={SHUTTLES_MAX}
         label="Shuttles hit"
         unitLabel="today"
         icon={Crosshair}
@@ -653,6 +675,8 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         iconBgEmptyClass="bg-amber-950/40"
         iconBgFillClass="bg-amber-500/70"
         testId="hero-shuttles"
+        trophyIcon={ShuttleTubeIcon}
+        trophyLabel="Tubes filled"
       />
 
       {/* 10c. BANANAS EATEN TRACKER */}
@@ -660,7 +684,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         count={bananas}
         setCount={setBananas}
         goal={BANANAS_GOAL}
-        max={20}
+        max={BANANAS_MAX}
         label="Bananas eaten"
         unitLabel="today"
         icon={Banana}
@@ -672,6 +696,8 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         iconBgEmptyClass="bg-yellow-950/40"
         iconBgFillClass="bg-yellow-500/70"
         testId="hero-bananas"
+        trophyIcon={BananaBasketIcon}
+        trophyLabel="Baskets filled"
       />
 
       {/* 11. DAILY QUOTE / MINDSET */}
