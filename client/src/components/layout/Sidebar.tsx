@@ -148,6 +148,8 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
   // though they also appear inside their hub page as tiles.
   const pinnedActivityHrefs = new Set(["/sessions"]);
   const pinnedActivity = activityItems.filter(i => pinnedActivityHrefs.has(i.href));
+  const pinnedClubHrefs = new Set(["/merchandise", "/rewards", "/deals", "/community"]);
+  const pinnedClub = clubItems.filter(i => pinnedClubHrefs.has(i.href));
 
   const aggregateBadgeKeys = (items: NavItem[]): { primary?: keyof BadgeCounts; secondary?: keyof BadgeCounts } => {
     // Sum badge counts via a synthetic key list; we use the *first* primary
@@ -194,6 +196,9 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
     activityHub.items = [...pinnedActivity, ...activityHub.items];
   }
   const clubHub = makeHub("club", "/hub/club", "My Club", Building2, clubItems);
+  if (clubHub && pinnedClub.length > 0) {
+    clubHub.items = [...clubHub.items, ...pinnedClub];
+  }
   const commsHub = makeHub("comms", "/hub/comms", "Communication", MessageSquare, commsItems);
   if (activityHub) hubGroups.push(activityHub);
   if (clubHub) hubGroups.push(clubHub);
