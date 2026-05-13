@@ -36,7 +36,7 @@ function getInitials(name: string): string {
 export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: SessionDetailsModalProps) {
   const { toast } = useToast();
   const { data: user } = useUser();
-  const [expandedSection, setExpandedSection] = useState<string | null>("confirmed");
+  const [expandedSection, setExpandedSection] = useState<string | null>("confirmed-secured");
   const [messageTarget, setMessageTarget] = useState<{ userId: number; name: string } | null>(null);
   const [messageText, setMessageText] = useState("");
   const [showAddPlayer, setShowAddPlayer] = useState(false);
@@ -198,7 +198,16 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     ...(manageData?.cancelled || []),
   ] : (signups || []);
 
-  const confirmed = isAdmin ? (manageData?.confirmed || []) : (signups?.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED") || []);
+  const confirmedRaw = isAdmin ? (manageData?.confirmed || []) : (signups?.filter((s: any) => !s.signupStatus || s.signupStatus === "CONFIRMED") || []);
+  const confirmed = [...confirmedRaw].sort((a: any, b: any) => {
+    const aPaused = !!a.isPaused; const bPaused = !!b.isPaused;
+    if (aPaused !== bPaused) return aPaused ? 1 : -1;
+    const aName = a.player?.user?.fullName || a.user?.fullName || "";
+    const bName = b.player?.user?.fullName || b.user?.fullName || "";
+    return aName.localeCompare(bName, undefined, { sensitivity: "base" });
+  });
+  const confirmedSecured = confirmed.filter((s: any) => s.paymentStatus === "PAID");
+  const confirmedProvisional = confirmed.filter((s: any) => s.paymentStatus !== "PAID");
   const waitingUnsorted = isAdmin ? (manageData?.waiting || []) : (signups?.filter((s: any) => s.signupStatus === "WAITING") || []);
   const waiting = [...waitingUnsorted].sort((a: any, b: any) => {
     const posA = a.waitingListPosition || 999;
@@ -266,7 +275,7 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
 
   const renderResponseSummary = () => (
     <div className="flex items-center justify-center gap-3 sm:gap-6 py-2 sm:py-3">
-      <button onClick={() => toggleSection("confirmed")} className="flex flex-col items-center gap-0.5 sm:gap-1" data-testid="summary-confirmed">
+      <button onClick={() => toggleSection("confirmed-secured")} className="flex flex-col items-center gap-0.5 sm:gap-1" data-testid="summary-confirmed">
         <div className="flex items-center justify-center w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-green-100 dark:bg-green-900/40 text-green-700 dark:text-green-400 font-bold text-sm sm:text-lg">
           {confirmed.length}
         </div>
@@ -912,7 +921,8 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           {renderResponseSummary()}
           {renderPlayerActionBar()}
           <div className="mt-2">
-            {renderSection("Going", "confirmed", confirmed, "bg-green-500")}
+            {renderSection("Secured · payment confirmed", "confirmed-secured", confirmedSecured, "bg-emerald-500")}
+            {renderSection("Provisional · awaiting payment", "confirmed-provisional", confirmedProvisional, "bg-amber-500")}
             {renderSection("Waiting", "waiting", waiting, "bg-yellow-500")}
             {renderSection("Invited", "invited", invited, "bg-blue-500")}
             {renderSection("Not attending", "notAttending", notAttending, "bg-muted-foreground")}
