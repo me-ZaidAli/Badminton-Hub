@@ -2146,16 +2146,16 @@ export default function SessionDetail() {
           return (
             <div className="space-y-5">
               <Section
-                title="Secured"
-                sub="Payment confirmed — spot locked in"
+                title="Secured position"
+                sub="Spot locked in"
                 items={securedSignups}
                 tone="bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30"
                 dotClass="bg-emerald-500"
                 testId="secured"
               />
               <Section
-                title="Provisional"
-                sub="Awaiting payment — spot not yet secured"
+                title="Unsecured position"
+                sub="Spot not yet secured"
                 items={provisionalSignups}
                 tone="bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30"
                 dotClass="bg-amber-500"

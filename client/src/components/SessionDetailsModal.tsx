@@ -921,8 +921,8 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
           {renderResponseSummary()}
           {renderPlayerActionBar()}
           <div className="mt-2">
-            {renderSection("Secured · payment confirmed", "confirmed-secured", confirmedSecured, "bg-emerald-500")}
-            {renderSection("Provisional · awaiting payment", "confirmed-provisional", confirmedProvisional, "bg-amber-500")}
+            {renderSection("Secured position", "confirmed-secured", confirmedSecured, "bg-emerald-500")}
+            {renderSection("Unsecured position", "confirmed-provisional", confirmedProvisional, "bg-amber-500")}
             {renderSection("Waiting", "waiting", waiting, "bg-yellow-500")}
             {renderSection("Invited", "invited", invited, "bg-blue-500")}
             {renderSection("Not attending", "notAttending", notAttending, "bg-muted-foreground")}
