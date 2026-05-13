@@ -13,6 +13,7 @@ import { sendRulePush } from "./notificationRules";
 import { hashPassword } from "./auth";
 import { storage } from "./storage";
 import { randomBytes } from "crypto";
+import { saveBufferToBucket } from "./uploadStorage";
 
 async function audit(req: Request, action: string, entity: string, entityId: number | null, detail?: any) {
   try {
