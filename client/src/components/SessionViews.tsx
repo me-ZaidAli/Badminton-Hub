@@ -1315,17 +1315,17 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
 
   return (
     <div className="pt-3 border-t border-border/30">
-      <div className="flex items-center gap-1 flex-wrap">
+      <div className="flex items-center gap-2 flex-wrap">
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
               size="sm"
               variant="ghost"
-              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+              className="rounded-xl h-11 min-w-[44px] px-3 text-sm font-semibold text-foreground bg-muted/40 hover:bg-muted gap-1.5"
               onClick={(e) => { e.stopPropagation(); adminActions.onDetails(session); }}
               data-testid={`button-rsvp-view-${session.id}`}
             >
-              <Users className="h-3.5 w-3.5" />
+              <Users className="h-5 w-5" />
               <span className="hidden sm:inline">RSVP</span>
             </Button>
           </TooltipTrigger>
@@ -1336,11 +1336,11 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
             <Button
               size="sm"
               variant="ghost"
-              className="rounded-lg h-8 px-2 text-xs gap-1 text-muted-foreground"
+              className="rounded-xl h-11 min-w-[44px] px-3 text-sm font-semibold text-foreground bg-muted/40 hover:bg-muted gap-1.5"
               onClick={(e) => { e.stopPropagation(); adminActions.onCrowdControl(session.id); }}
               data-testid={`button-crowd-view-${session.id}`}
             >
-              <BarChart3 className="h-3.5 w-3.5" />
+              <BarChart3 className="h-5 w-5" />
               <span className="hidden sm:inline">Crowd</span>
             </Button>
           </TooltipTrigger>
@@ -1352,11 +1352,11 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-lg h-8 px-2 text-xs gap-1 text-muted-foreground"
+                className="rounded-xl h-11 min-w-[44px] px-3 text-sm font-semibold text-foreground bg-muted/40 hover:bg-muted gap-1.5"
                 onClick={(e) => { e.stopPropagation(); adminActions.onFinances(session); }}
                 data-testid={`button-finance-view-${session.id}`}
               >
-                <Wallet className="h-3.5 w-3.5" />
+                <Wallet className="h-5 w-5" />
                 <span className="hidden sm:inline">Finances</span>
               </Button>
             </TooltipTrigger>
@@ -1369,11 +1369,11 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+                className="rounded-xl h-11 min-w-[44px] px-3 text-sm font-semibold text-foreground bg-muted/40 hover:bg-muted gap-1.5"
                 onClick={(e) => { e.stopPropagation(); adminActions.onRemindMembers!(session.id); }}
                 data-testid={`button-remind-view-${session.id}`}
               >
-                <Bell className="h-3.5 w-3.5" />
+                <Bell className="h-5 w-5" />
                 <span className="hidden sm:inline">Remind</span>
               </Button>
             </TooltipTrigger>
@@ -1385,11 +1385,11 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
             <Button
               size="sm"
               variant="ghost"
-              className="rounded-lg h-8 px-2 text-xs text-muted-foreground gap-1"
+              className="rounded-xl h-11 min-w-[44px] px-3 text-sm font-semibold text-foreground bg-muted/40 hover:bg-muted gap-1.5"
               onClick={(e) => { e.stopPropagation(); adminActions.onEdit(session); }}
               data-testid={`button-edit-view-${session.id}`}
             >
-              <Pencil className="h-3.5 w-3.5" />
+              <Pencil className="h-5 w-5" />
               <span className="hidden sm:inline">Edit</span>
             </Button>
           </TooltipTrigger>
@@ -1401,7 +1401,7 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
               <Button
                 size="sm"
                 variant="ghost"
-                className="rounded-lg h-8 px-2 text-xs gap-1 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/20"
+                className="rounded-xl h-11 min-w-[44px] px-3 text-sm font-semibold gap-1.5 text-emerald-700 dark:text-emerald-300 bg-emerald-500/15 hover:bg-emerald-500/25 border border-emerald-500/30"
                 onClick={(e) => {
                   e.stopPropagation();
                   if (window.confirm(`End "${session.title || "this session"}" now? This will mark it as completed, stop auto-generating matches, and lock results.`)) {
@@ -1410,7 +1410,7 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
                 }}
                 data-testid={`button-end-view-${session.id}`}
               >
-                <CheckCircle2 className="h-3.5 w-3.5" />
+                <CheckCircle2 className="h-5 w-5" />
                 <span className="hidden sm:inline">End</span>
               </Button>
             </TooltipTrigger>
@@ -1422,7 +1422,7 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
             <Button
               size="sm"
               variant="ghost"
-              className="rounded-lg h-8 px-2 text-xs gap-1 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-950/20"
+              className="rounded-xl h-11 min-w-[44px] px-3 text-sm font-semibold gap-1.5 text-red-700 dark:text-red-300 bg-red-500/15 hover:bg-red-500/25 border border-red-500/30"
               onClick={(e) => {
                 e.stopPropagation();
                 if (window.confirm(`Delete "${session.title || "this session"}"? This will permanently remove the session, its signups, matches, and finances. This cannot be undone.`)) {
@@ -1431,7 +1431,7 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
               }}
               data-testid={`button-delete-view-bar-${session.id}`}
             >
-              <Trash2 className="h-3.5 w-3.5" />
+              <Trash2 className="h-5 w-5" />
               <span className="hidden sm:inline">Delete</span>
             </Button>
           </TooltipTrigger>
@@ -1443,10 +1443,10 @@ function AdminControlsBar({ session, adminActions }: { session: SessionItem; adm
             <Button
               size="sm"
               variant="ghost"
-              className="rounded-lg h-8 w-8 p-0 text-muted-foreground"
+              className="rounded-xl h-11 w-11 p-0 text-foreground bg-muted/40 hover:bg-muted"
               data-testid={`button-more-view-${session.id}`}
             >
-              <MoreVertical className="h-3.5 w-3.5" />
+              <MoreVertical className="h-5 w-5" />
             </Button>
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-48">
