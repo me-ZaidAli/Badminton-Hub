@@ -146,7 +146,7 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
 
   // Pinned passthrough items that should remain visible in the sidebar even
   // though they also appear inside their hub page as tiles.
-  const pinnedActivityHrefs = new Set(["/sessions"]);
+  const pinnedActivityHrefs = new Set(["/sessions", "/coaching", "/rankings", "/tournaments"]);
   const pinnedActivity = activityItems.filter(i => pinnedActivityHrefs.has(i.href));
   const pinnedClubHrefs = new Set(["/merchandise", "/rewards", "/deals", "/community"]);
   const pinnedClub = clubItems.filter(i => pinnedClubHrefs.has(i.href));
