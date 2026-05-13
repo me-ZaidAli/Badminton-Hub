@@ -113,6 +113,49 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
   const { coords, weather, isLoading: wxLoading } = useWeather();
   const tod = timeOfDay(now);
 
+  // Sessions the current user is personally signed up for (any club).
+  // Merged with the club-wide `sessions` prop so booked sessions in clubs the
+  // user doesn't admin still appear in the Today/Week/Up Next tiles.
+  const { data: mySessionsRaw } = useQuery<any[]>({
+    queryKey: ["/api/my-sessions"],
+    staleTime: 60_000,
+  });
+
+  const allSessions = useMemo(() => {
+    const byId = new Map<number, any>();
+    (sessions || []).forEach((s: any) => {
+      if (s && s.id != null) byId.set(s.id, s);
+    });
+    (mySessionsRaw || []).forEach((m: any) => {
+      const id = m.sessionId ?? m.id;
+      if (id == null) return;
+      if (byId.has(id)) return;
+      // Normalise /api/my-sessions shape into the field names DashboardHero expects.
+      const startBase = m.sessionDate || m.date;
+      let combined: string | null = null;
+      if (startBase && m.sessionStartTime && /^\d{1,2}:\d{2}/.test(String(m.sessionStartTime))) {
+        const datePart = String(startBase).slice(0, 10);
+        combined = `${datePart}T${m.sessionStartTime.length === 4 ? "0" + m.sessionStartTime : m.sessionStartTime}`;
+      }
+      byId.set(id, {
+        id,
+        title: m.sessionTitle,
+        date: startBase,
+        startTime: combined || startBase,
+        durationMinutes: m.sessionDuration,
+        status: m.sessionStatus,
+        clubId: m.clubId,
+        clubName: m.clubName,
+        venueName: m.venueName,
+        maxPlayers: m.maxPlayers,
+        courtsAvailable: m.courtsAvailable,
+        signupCount: 0,
+        _booked: true,
+      });
+    });
+    return Array.from(byId.values());
+  }, [sessions, mySessionsRaw]);
+
   const weekDays = useMemo(() => {
     const start = startOfWeek(now, { weekStartsOn: 1 });
     return Array.from({ length: 7 }, (_, i) => addDays(start, i));
@@ -120,7 +163,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
 
   const sessionsByDay = useMemo(() => {
     const map = new Map<string, any[]>();
-    (sessions || []).forEach((s) => {
+    allSessions.forEach((s) => {
       const raw = s.startTime || s.scheduledAt || s.date || s.dateTime;
       if (!raw) return;
       const d = typeof raw === "string" ? parseISO(raw) : new Date(raw);
@@ -132,14 +175,14 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
     });
     map.forEach((arr) => arr.sort((a, b) => a._when - b._when));
     return map;
-  }, [sessions]);
+  }, [allSessions]);
 
   const todayKey = format(now, "yyyy-MM-dd");
   const todaySessions = sessionsByDay.get(todayKey) || [];
   const weekTotal = weekDays.reduce((acc, d) => acc + (sessionsByDay.get(format(d, "yyyy-MM-dd"))?.length ?? 0), 0);
 
   const upcoming = useMemo(() => {
-    return (sessions || [])
+    return allSessions
       .map((s: any) => {
         const raw = s.startTime || s.scheduledAt || s.date || s.dateTime;
         if (!raw) return null;
@@ -149,7 +192,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
       .filter((x): x is { s: any; d: Date } => !!x && !Number.isNaN(x.d.getTime()) && x.d > now)
       .sort((a, b) => a.d.getTime() - b.d.getTime())
       .slice(0, 1);
-  }, [sessions, now]);
+  }, [allSessions, now]);
 
   const wx = weather ? describe(weather.weather_code) : null;
 
@@ -172,7 +215,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
 
   // LIVE COURTS — sessions that are currently active (started but not ended)
   const liveSessions = useMemo(() => {
-    return (sessions || []).filter((s: any) => {
+    return allSessions.filter((s: any) => {
       const startRaw = s.startTime || s.scheduledAt || s.date || s.dateTime;
       const endRaw = s.endTime || s.endsAt;
       if (!startRaw) return false;
