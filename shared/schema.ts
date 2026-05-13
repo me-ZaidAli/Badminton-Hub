@@ -3588,3 +3588,18 @@ export const customPollResponses = pgTable("custom_poll_responses", {
 export const insertCustomPollResponseSchema = createInsertSchema(customPollResponses).omit({ id: true, createdAt: true, updatedAt: true });
 export type CustomPollResponse = typeof customPollResponses.$inferSelect;
 export type InsertCustomPollResponse = z.infer<typeof insertCustomPollResponseSchema>;
+
+export const stepEntries = pgTable("step_entries", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  date: text("date").notNull(),
+  steps: integer("steps").notNull().default(0),
+  source: text("source").notNull().default("manual"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+}, (t) => ({
+  uniqUserDate: uniqueIndex("step_entries_user_date_uq").on(t.userId, t.date),
+}));
+export const insertStepEntrySchema = createInsertSchema(stepEntries).omit({ id: true, createdAt: true, updatedAt: true });
+export type StepEntry = typeof stepEntries.$inferSelect;
+export type InsertStepEntry = z.infer<typeof insertStepEntrySchema>;

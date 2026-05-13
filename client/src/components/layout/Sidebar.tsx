@@ -60,6 +60,7 @@ import {
   HelpCircle,
   PoundSterling,
   Dumbbell,
+  Footprints,
   Inbox,
   Vote,
 } from "lucide-react";
@@ -146,7 +147,7 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
 
   // Pinned passthrough items that should remain visible in the sidebar even
   // though they also appear inside their hub page as tiles.
-  const pinnedActivityHrefs = new Set(["/sessions", "/coaching", "/rankings", "/tournaments"]);
+  const pinnedActivityHrefs = new Set(["/sessions", "/coaching", "/rankings", "/tournaments", "/steps"]);
   const pinnedActivity = activityItems.filter(i => pinnedActivityHrefs.has(i.href));
   const pinnedClubHrefs = new Set(["/merchandise", "/rewards", "/deals", "/community"]);
   const pinnedClub = clubItems.filter(i => pinnedClubHrefs.has(i.href));
@@ -262,6 +263,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/my-sessions", label: "My Sessions", icon: CalendarCheck, group: "activity", badgeKey: "myOutstandingPayments" },
     { href: "/juniors", label: "Juniors", icon: Baby, group: "activity", hidden: !isAdminOrOwner && !(user as any)?.hasChildren },
     { href: "/training-challenges", label: "Training Challenges", icon: Dumbbell, group: "activity" },
+    { href: "/steps", label: "Steps Tracker", icon: Footprints, group: "activity" },
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/tournaments", label: "Tournaments", icon: Award, group: "activity" },
     { href: "/bsl", label: "Birmingham Super League", icon: Trophy, group: "activity" },

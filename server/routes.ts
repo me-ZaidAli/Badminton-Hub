@@ -30,6 +30,7 @@ import { registerInboxAndAuditRoutes } from "./inboxAndAuditRoutes";
 import { registerBslRoutes } from "./bsl-routes";
 import { saveBufferToBucket, registerFileServeRoute } from "./uploadStorage";
 import { registerCoachBookingRoutes } from "./coachBookingRoutes";
+import { registerStepsRoutes } from "./stepsRoutes";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { sendRulePush } from "./notificationRules";
 import { generateSupplierOrderSheet } from "./supplierOrderSheetPdf";
@@ -35914,6 +35915,7 @@ Return ONLY valid JSON in this exact format:
 
   registerBslRoutes(app);
   registerCoachBookingRoutes(app);
+  registerStepsRoutes(app);
   registerCustomPollRoutes(app);
 
   return httpServer;
