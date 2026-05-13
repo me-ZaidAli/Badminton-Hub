@@ -735,6 +735,7 @@ function DockTile({ coach, mouseX, isSelected, onSelect }: {
           : "border-white/10 hover:border-violet-300/60"
       } bg-gradient-to-br from-slate-800 to-slate-900`}
       data-testid={`dock-coach-${coach.id}`}
+      data-dock-id={coach.id}
     >
       {coach.profilePhoto ? (
         <img src={coach.profilePhoto} alt={coach.fullName} className="w-full h-full object-cover" />
@@ -770,10 +771,21 @@ function FortniteCoachShowcase({ coaches, isActive, onLocked, onOpenDialog }: {
 
   const mouseX = useMotionValue<number | null>(null);
   const dockRef = useRef<HTMLDivElement>(null);
-  const scroll = (dir: -1 | 1) => {
-    if (!dockRef.current) return;
-    dockRef.current.scrollBy({ left: dir * 320, behavior: "smooth" });
+  const selectedIdx = Math.max(0, coaches.findIndex((c) => c.id === selectedId));
+
+  const goTo = (idx: number) => {
+    if (!coaches.length) return;
+    const next = ((idx % coaches.length) + coaches.length) % coaches.length;
+    const nextCoach = coaches[next];
+    if (!nextCoach) return;
+    setSelectedId(nextCoach.id);
+    // keep the chosen tile visible in the dock
+    requestAnimationFrame(() => {
+      const el = dockRef.current?.querySelector<HTMLElement>(`[data-dock-id="${nextCoach.id}"]`);
+      el?.scrollIntoView({ behavior: "smooth", inline: "center", block: "nearest" });
+    });
   };
+  const step = (dir: -1 | 1) => goTo(selectedIdx + dir);
 
   const handleHero = () => {
     if (!isActive) { onLocked(); return; }
@@ -792,11 +804,19 @@ function FortniteCoachShowcase({ coaches, isActive, onLocked, onOpenDialog }: {
         <AnimatePresence mode="wait">
           <motion.div
             key={selected?.id}
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
-            transition={{ duration: 0.35 }}
-            className="relative grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 p-6 lg:p-10"
+            initial={{ opacity: 0, x: 60 }}
+            animate={{ opacity: 1, x: 0 }}
+            exit={{ opacity: 0, x: -60 }}
+            transition={{ type: "spring", stiffness: 220, damping: 26 }}
+            drag="x"
+            dragElastic={0.18}
+            dragConstraints={{ left: 0, right: 0 }}
+            onDragEnd={(_e, info) => {
+              const threshold = 60;
+              if (info.offset.x < -threshold || info.velocity.x < -400) step(1);
+              else if (info.offset.x > threshold || info.velocity.x > 400) step(-1);
+            }}
+            className="relative grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] gap-8 p-6 lg:p-10 touch-pan-y cursor-grab active:cursor-grabbing"
           >
             {/* LEFT: text */}
             <div className="flex flex-col justify-center text-white">
@@ -895,12 +915,31 @@ function FortniteCoachShowcase({ coaches, isActive, onLocked, onOpenDialog }: {
       <div className="relative">
         <div className="flex items-center justify-between mb-2 px-1">
           <p className="text-xs font-semibold tracking-[0.3em] text-muted-foreground uppercase">Roster · {coaches.length}</p>
-          <div className="flex gap-1">
-            <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => scroll(-1)} data-testid="button-dock-prev">
-              <ChevronLeft className="w-4 h-4" />
+          <div className="flex items-center gap-2">
+            <span className="text-xs font-bold text-muted-foreground tabular-nums" data-testid="text-dock-position">
+              {coaches.length ? selectedIdx + 1 : 0}/{coaches.length}
+            </span>
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-12 w-12 rounded-full border-2 border-cyan-400/40 bg-cyan-500/10 hover:bg-cyan-500/25 hover:border-cyan-300 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+              onClick={() => step(-1)}
+              disabled={coaches.length < 2}
+              data-testid="button-dock-prev"
+              aria-label="Previous coach"
+            >
+              <ChevronLeft className="w-6 h-6" />
             </Button>
-            <Button size="icon" variant="outline" className="h-8 w-8 rounded-full" onClick={() => scroll(1)} data-testid="button-dock-next">
-              <ChevronRight className="w-4 h-4" />
+            <Button
+              size="icon"
+              variant="outline"
+              className="h-12 w-12 rounded-full border-2 border-cyan-400/40 bg-cyan-500/10 hover:bg-cyan-500/25 hover:border-cyan-300 shadow-lg shadow-cyan-500/20 active:scale-95 transition-all"
+              onClick={() => step(1)}
+              disabled={coaches.length < 2}
+              data-testid="button-dock-next"
+              aria-label="Next coach"
+            >
+              <ChevronRight className="w-6 h-6" />
             </Button>
           </div>
         </div>
