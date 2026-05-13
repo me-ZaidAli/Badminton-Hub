@@ -11,6 +11,8 @@ import { format, addDays, isSameDay, parseISO, startOfWeek, getISOWeek, getDayOf
 import { CustomPollTile } from "./CustomPollTile";
 import { NewsTile } from "./NewsTile";
 import { HydrationTile } from "./HydrationTile";
+import { CounterTile } from "./CounterTile";
+import { Crosshair, Banana } from "lucide-react";
 
 interface DashboardHeroProps {
   userName: string;
@@ -223,6 +225,38 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
     localStorage.setItem(hydrationKey, String(cups));
   }, [cups, hydrationKey]);
   const hydroPct = Math.min(100, Math.round((cups / HYDRATION_GOAL) * 100));
+
+  // SHUTTLES (localStorage, daily reset)
+  const shuttlesKey = `cm-shuttles-${todayKey}`;
+  const SHUTTLES_GOAL = 50;
+  const [shuttles, setShuttles] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const v = localStorage.getItem(shuttlesKey);
+    return v ? Math.max(0, Math.min(2000, parseInt(v, 10) || 0)) : 0;
+  });
+  useEffect(() => {
+    const v = localStorage.getItem(shuttlesKey);
+    setShuttles(v ? Math.max(0, Math.min(2000, parseInt(v, 10) || 0)) : 0);
+  }, [shuttlesKey]);
+  useEffect(() => {
+    localStorage.setItem(shuttlesKey, String(shuttles));
+  }, [shuttles, shuttlesKey]);
+
+  // BANANAS (localStorage, daily reset)
+  const bananasKey = `cm-bananas-${todayKey}`;
+  const BANANAS_GOAL = 3;
+  const [bananas, setBananas] = useState<number>(() => {
+    if (typeof window === "undefined") return 0;
+    const v = localStorage.getItem(bananasKey);
+    return v ? Math.max(0, Math.min(20, parseInt(v, 10) || 0)) : 0;
+  });
+  useEffect(() => {
+    const v = localStorage.getItem(bananasKey);
+    setBananas(v ? Math.max(0, Math.min(20, parseInt(v, 10) || 0)) : 0);
+  }, [bananasKey]);
+  useEffect(() => {
+    localStorage.setItem(bananasKey, String(bananas));
+  }, [bananas, bananasKey]);
 
   // DAILY QUOTE
   const { data: quoteData } = useQuery<{ text: string; author: string }>({
@@ -558,6 +592,44 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
 
       {/* 10. HYDRATION TRACKER */}
       <HydrationTile cups={cups} setCups={setCups} goal={HYDRATION_GOAL} />
+
+      {/* 10b. SHUTTLES HIT TRACKER */}
+      <CounterTile
+        count={shuttles}
+        setCount={setShuttles}
+        goal={SHUTTLES_GOAL}
+        max={2000}
+        label="Shuttles hit"
+        unitLabel="today"
+        icon={Crosshair}
+        accentClass="border-orange-300/20"
+        gradientClass="from-orange-900/40 via-amber-900/25 to-rose-950/60"
+        glowAClass="bg-amber-400/15"
+        glowBClass="bg-orange-500/15"
+        iconColorClass="text-amber-200/85"
+        iconBgEmptyClass="bg-amber-950/40"
+        iconBgFillClass="bg-amber-500/70"
+        testId="hero-shuttles"
+      />
+
+      {/* 10c. BANANAS EATEN TRACKER */}
+      <CounterTile
+        count={bananas}
+        setCount={setBananas}
+        goal={BANANAS_GOAL}
+        max={20}
+        label="Bananas eaten"
+        unitLabel="today"
+        icon={Banana}
+        accentClass="border-yellow-300/20"
+        gradientClass="from-yellow-900/40 via-lime-900/25 to-emerald-950/60"
+        glowAClass="bg-yellow-400/15"
+        glowBClass="bg-lime-500/15"
+        iconColorClass="text-yellow-200/85"
+        iconBgEmptyClass="bg-yellow-950/40"
+        iconBgFillClass="bg-yellow-500/70"
+        testId="hero-bananas"
+      />
 
       {/* 11. DAILY QUOTE / MINDSET */}
       <Tile accent="from-fuchsia-500/20 via-purple-500/15 to-violet-500/15" glowA="bg-fuchsia-400/25" glowB="bg-violet-500/20" testId="hero-quote">
