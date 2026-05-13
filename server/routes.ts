@@ -1107,6 +1107,9 @@ export async function registerRoutes(
         "retro-cream-tech", "lavender-opulence", "champagne-mint",
         "tropical-dawn", "savanna-breeze", "rainforest-canopy",
         "misty-bamboo", "tropical-lagoon", "sunset-savannah",
+        "obsidian-frost", "neon-apex", "sage-horizon", "prism-forge", "vector-legacy",
+        "frosted-titanium", "midnight-voltage", "solstice-calm", "aurora-pulse", "atlas-grid",
+        "liquid-glass",
       ];
       const lockedThemes: Record<string, string> = {
         "sapphire-velocity": "top10", "crimson-prestige": "top10", "arctic-blue": "top10",

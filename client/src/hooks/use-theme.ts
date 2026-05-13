@@ -268,7 +268,10 @@ export function useThemeProvider() {
   const syncFromUser = useCallback((mode: DisplayMode, motion: boolean, _userId?: number) => {
     const effectiveMode = (mode && mode in THEME_CLASSES) ? mode : "light";
     const effectiveMotion = effectiveMode === "migraine" ? true : motion;
-
+    const localMode = (typeof window !== "undefined" ? localStorage.getItem("displayMode") : null) as DisplayMode | null;
+    if (localMode && localMode in THEME_CLASSES && localMode !== effectiveMode) {
+      return;
+    }
     setDisplayModeState(effectiveMode);
     setReducedMotionState(effectiveMotion);
     localStorage.setItem("displayMode", effectiveMode);
