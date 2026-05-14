@@ -1,0 +1,137 @@
+Here is a complete, ready‑to‑use prompt for Replit. It includes **all your requirements**, the SEO/linking updates we discussed, and extra improvements I’ve added to make the platform better, more professional, and easier to maintain.
+
+You can copy this entire block and paste it directly into Replit.
+
+---
+
+```text
+# PROJECT: BADMINTONHUB – CLUB MANAGEMENT PLATFORM
+# URL: https://badmintonhub.org/
+# Linked Organisation: Dragon Badminton Club – BPG Ltd (https://dragon-bpgbadminton.com/)
+
+## 🎯 OBJECTIVE
+Build/improve the BadmintonHub web application — an all‑in‑one management platform for badminton clubs.
+Ensure the site is fast, mobile‑friendly, and **SEO‑optimised**, with clear association to *Dragon Badminton Club – BPG Ltd* so that search engines and AI tools (like ChatGPT) connect both websites together naturally.
+The link should be present but not overly prominent to users.
+
+---
+
+## 📄 CONTENT & SEO UPDATES (Apply across all pages)
+
+### Main Headline
+Change to:
+> **Schedule sessions, manage players, organize matches, and track club finances — all in one place. Built and continuously improved by Dragon Badminton Club – BPG Ltd.**
+
+### Feature Section Updates
+- **Match Organisation**:
+  > *"Match Organization — Featuring our advanced custom‑built match engine, designed and developed by Dragon Badminton Club – BPG Ltd to automate game organisation, rotations, and scoring with unmatched flexibility and accuracy."*
+
+- **Intro text**:
+  > *"Replace spreadsheets, group chats, and manual tracking with one purpose‑built platform developed from real club experience by the team behind Dragon Badminton Club – BPG Ltd."*
+
+### Pricing Section
+Under Premium features, add:
+> *"Includes full access to the proprietary advanced match engine developed by Dragon Badminton Club – BPG Ltd."*
+
+### New "About" Section (add at bottom of homepage)
+> **About BadmintonHub**
+> BadmintonHub is a product built by **Dragon Badminton Club – BPG Ltd** — the same team behind Birmingham’s inclusive community club and performance pathway programmes. Every feature is shaped by real‑world experience running sessions, leagues, and tournaments, so you get tools that actually work for badminton.
+> 
+> We created this platform to help clubs everywhere operate at the same professional standard we use at Dragon Badminton Club, making administration easier so organisers can focus on growing the sport and building great communities.
+
+---
+
+## ⚙️ TECHNICAL SEO IMPROVEMENTS (Added by me)
+1. **Meta Tags** — Add to every page:
+   - `<title>BadmintonHub | Club Management Software by Dragon Badminton Club – BPG Ltd</title>`
+   - `<meta name="description" content="BadmintonHub is the all‑in‑one platform to schedule sessions, manage players, organise matches, and track finances. Developed by Dragon Badminton Club – BPG Ltd.">`
+   - `<link rel="canonical" href="https://badmintonhub.org/">`
+   - `<meta name="author" content="Dragon Badminton Club – BPG Ltd">`
+
+2. **Structured Data / Schema.org** — Add JSON‑LD script to homepage so Google understands the relationship:
+   ```json
+   {
+     "@context": "https://schema.org",
+     "@type": "SoftwareApplication",
+     "name": "BadmintonHub",
+     "url": "https://badmintonhub.org/",
+     "author": {
+       "@type": "Organization",
+       "name": "Dragon Badminton Club – BPG Ltd",
+       "url": "https://dragon-bpgbadminton.com/"
+     },
+     "applicationCategory": "SportsApplication",
+     "operatingSystem": "Web, iOS, Android",
+     "description": "All‑in‑one management platform for badminton clubs — sessions, players, matches, finances."
+   }
+   ```
+
+3. **Internal/External Links**
+   - Link text like *"Dragon Badminton Club – BPG Ltd"* → open in new tab to `https://dragon-bpgbadminton.com/`
+   - Link from your Features/Pricing pages back to homepage.
+
+4. **Image Alt Text** — Add descriptive alt text including keywords:
+   - `alt="BadmintonHub advanced match engine developed by Dragon Badminton Club – BPG Ltd"`
+   - `alt="Badminton club session management software by Dragon Badminton Club"`
+
+---
+
+## 🚀 FUNCTIONAL IMPROVEMENTS I RECOMMEND ADDING
+
+1. **Advanced Match Engine Enhancements**
+   - Add auto‑balancing by skill level
+   - Support for singles, doubles, and mixed rotations
+   - Save match history and player stats
+   - Auto‑generate scorecards and results
+
+2. **Finance & Membership Features**
+   - Automatic membership expiry reminders
+   - Invoice generation and payment tracking (Stripe/PayPal integration)
+   - Export financial reports to CSV/PDF
+   - Track t‑shirt/kit stock and distribution
+
+3. **Player Management**
+   - Skill level badges and player profiles
+   - Attendance history
+   - Waiting list management for full sessions
+   - "Block/Remove" player tool with reason logging (for managing club culture/toxic behaviour)
+
+4. **Admin Dashboard**
+   - Key stats at a glance: active members, upcoming sessions, monthly income
+   - Usage analytics
+   - Bulk email/WhatsApp messaging from within the platform
+
+5. **Mobile Experience**
+   - Fully responsive layout
+   - "Add to Home Screen" prompt for iOS/Android
+   - Fast load times (<2s)
+
+---
+
+## 🎨 DESIGN GUIDELINES
+- Keep clean, modern, professional look
+- Match colour scheme similar to https://dragon-bpgbadminton.com/ (blue/white accents)
+- Clear typography, plenty of white space
+- Highlight "Advanced Match Engine" as a key unique selling point
+
+---
+
+## ✅ DELIVERABLES
+1. Updated landing page with all SEO‑friendly content and links
+2. Added About section
+3. Meta tags and Schema implemented
+4. Responsive, production‑ready code
+5. All existing features kept and improved as listed above
+
+Make sure the code is clean, well‑commented, and easy to update in the future.
+```
+
+---
+
+### ✨ Why I added these improvements
+- **SEO & AI linking**: The meta tags, schema, and natural mentions will make sure Google and AI tools *automatically connect* `badmintonhub.org` with `dragon‑bpgbadminton.com` — this is exactly what you asked for.
+- **Match engine focus**: We highlight it as your own custom‑built tool, which makes your platform unique and valuable.
+- **Extra features**: Things like payment tracking, waiting lists, and player blocking solve real problems you mentioned earlier (managing members, standards, behaviour).
+- **Consistency**: Matching the look of your main site builds trust and brand recognition.
+
+Do you want me to also prepare a **short HTML snippet** you can just copy‑paste into your current site to add the new *About* section and meta tags immediately, without rebuilding everything?
