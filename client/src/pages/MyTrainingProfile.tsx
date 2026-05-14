@@ -49,6 +49,11 @@ interface Progress {
   comment: string | null; priority: boolean; updatedAt: string;
   skillName: string; categoryId: number; categoryName: string;
 }
+interface AnalyticsEnrollment {
+  id: number; playerId: number; clubId: number; type: "LEAGUE" | "PREMIUM";
+  fullName: string | null; gender?: string | null; category?: string | null; grade?: string | null;
+}
+interface AdminClub { id: number; name: string }
 
 function StarRow({ value, size = 14 }: { value: number; size?: number }) {
   return (
@@ -74,8 +79,22 @@ export default function MyTrainingProfile() {
     return approved[0] || null;
   }, [approved, selectedProfileId]);
 
+  // Match server's isAnyClubAdmin (primary OWNER/ADMIN or playerProfile clubRole OWNER/ADMIN).
+  // COACH is intentionally excluded here because the server endpoints used by the picker
+  // (/api/admin/player-analytics/enrollments + /api/player-skills/progress/:playerId for non-self)
+  // gate on isAnyClubAdmin, which doesn't currently recognise coaches.
+  const isAdminish = u?.role === "OWNER" || u?.role === "ADMIN"
+    || (Array.isArray(u?.secondaryRoles) && (u.secondaryRoles as string[]).some((r) => ["OWNER","ADMIN"].includes(r)));
+
   const { data: clubs = [] } = useQuery<Club[]>({ queryKey: ["/api/clubs"], enabled: !!user });
-  const clubId = activeProfile?.clubId;
+  const { data: myAdminClubs = [] } = useQuery<AdminClub[]>({
+    queryKey: ["/api/my-admin-clubs"],
+    enabled: !!user && isAdminish,
+  });
+
+  // Admin-only club override (used when admin has no own approved profile, or wants to browse another club's roster)
+  const [adminClubIdOverride, setAdminClubIdOverride] = useState<number | null>(null);
+  const clubId = adminClubIdOverride ?? activeProfile?.clubId ?? (isAdminish ? myAdminClubs[0]?.id ?? null : null);
 
   const { data: categories = [], isLoading: cLoading } = useQuery<Category[]>({
     queryKey: ["/api/players/skill-categories", clubId],
@@ -97,14 +116,52 @@ export default function MyTrainingProfile() {
     enabled: !!clubId,
   });
 
-  const { data: progress = [], isLoading: pLoading } = useQuery<Progress[]>({
-    queryKey: ["/api/player-skills/progress", activeProfile?.id],
+  // Admin-only: load enrolled players for the active club so admins/coaches can browse any player
+  const { data: leagueEnrollments = [] } = useQuery<AnalyticsEnrollment[]>({
+    queryKey: ["/api/admin/player-analytics/enrollments", clubId, "LEAGUE"],
     queryFn: async () => {
-      const r = await fetch(`/api/player-skills/progress/${activeProfile!.id}`, { credentials: "include" });
+      const r = await fetch(`/api/admin/player-analytics/enrollments?clubId=${clubId}&type=LEAGUE`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!clubId && isAdminish,
+  });
+  const { data: premiumEnrollments = [] } = useQuery<AnalyticsEnrollment[]>({
+    queryKey: ["/api/admin/player-analytics/enrollments", clubId, "PREMIUM"],
+    queryFn: async () => {
+      const r = await fetch(`/api/admin/player-analytics/enrollments?clubId=${clubId}&type=PREMIUM`, { credentials: "include" });
+      if (!r.ok) return [];
+      return r.json();
+    },
+    enabled: !!clubId && isAdminish,
+  });
+  const enrolledPlayers = useMemo(() => {
+    const map = new Map<number, AnalyticsEnrollment & { types: string[] }>();
+    [...leagueEnrollments, ...premiumEnrollments].forEach((e) => {
+      const cur = map.get(e.playerId);
+      if (cur) cur.types.push(e.type);
+      else map.set(e.playerId, { ...e, types: [e.type] });
+    });
+    return Array.from(map.values()).sort((a, b) => (a.fullName || "").localeCompare(b.fullName || ""));
+  }, [leagueEnrollments, premiumEnrollments]);
+
+  // viewedPlayerId: defaults to user's own approved profile id; admins can override via picker.
+  const [viewedPlayerId, setViewedPlayerId] = useState<number | null>(null);
+  // Only fall back to activeProfile when its club matches the currently viewed clubId,
+  // otherwise we'd render skills for one club but progress rows from another.
+  const ownProfileMatchesClub = !!activeProfile && activeProfile.clubId === clubId;
+  const effectivePlayerId = viewedPlayerId ?? (ownProfileMatchesClub ? activeProfile!.id : null);
+  const viewedEnrollment = enrolledPlayers.find((p) => p.playerId === viewedPlayerId) || null;
+  const isViewingOther = !!viewedPlayerId && viewedPlayerId !== activeProfile?.id;
+
+  const { data: progress = [], isLoading: pLoading } = useQuery<Progress[]>({
+    queryKey: ["/api/player-skills/progress", effectivePlayerId],
+    queryFn: async () => {
+      const r = await fetch(`/api/player-skills/progress/${effectivePlayerId}`, { credentials: "include" });
       if (!r.ok) throw new Error("Failed to load progress");
       return r.json();
     },
-    enabled: !!activeProfile?.id,
+    enabled: !!effectivePlayerId,
   });
 
   const progressMap = useMemo(() => {
@@ -124,6 +181,15 @@ export default function MyTrainingProfile() {
       setActiveCatId(sortedCategories[0].id);
     }
   }, [activeCatId, sortedCategories]);
+
+  // Reset all per-club state whenever the active club changes (admin override or own-profile club switch).
+  // Prevents the previous club's selected category, viewed player, or open skill dialog from bleeding
+  // into a different club's data.
+  useEffect(() => {
+    setViewedPlayerId(null);
+    setActiveCatId(null);
+    setSelectedSkill(null);
+  }, [clubId]);
 
   const activeCat = sortedCategories.find((c) => c.id === activeCatId) || null;
   const activeCatSkills = useMemo(
@@ -183,7 +249,7 @@ export default function MyTrainingProfile() {
     );
   }
 
-  if (approved.length === 0) {
+  if (approved.length === 0 && !isAdminish) {
     return (
       <div className="container max-w-2xl mx-auto py-16 px-4 text-center space-y-3" data-testid="state-no-membership">
         <Sparkles className="w-10 h-10 mx-auto text-muted-foreground" />
@@ -193,8 +259,11 @@ export default function MyTrainingProfile() {
     );
   }
 
-  const initials = (u?.fullName || "Y P").split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
-  const avatarSrc = u?.profilePictureUrl || u?.avatarUrl;
+  const displayName = isViewingOther
+    ? (viewedEnrollment?.fullName || `Player #${viewedPlayerId}`)
+    : (u?.fullName || "You");
+  const initials = displayName.split(" ").map((s: string) => s[0]).slice(0, 2).join("").toUpperCase();
+  const avatarSrc = isViewingOther ? undefined : (u?.profilePictureUrl || u?.avatarUrl);
   const moodImage = imageForCategory(activeCat?.name || "");
   const isFullyEmpty = !pLoading && !cLoading && (skills.length === 0 || assessedCount === 0);
 
@@ -241,12 +310,79 @@ export default function MyTrainingProfile() {
                   </SelectContent>
                 </Select>
               )}
+              {isAdminish && myAdminClubs.length > 0 && (
+                <Select
+                  value={String(clubId ?? "")}
+                  onValueChange={(v) => {
+                    const id = Number(v);
+                    setAdminClubIdOverride(id);
+                    setViewedPlayerId(null);
+                    setActiveCatId(null);
+                  }}
+                >
+                  <SelectTrigger className="w-[170px] bg-white/5 border-white/10 h-8 text-xs" data-testid="select-admin-club">
+                    <SelectValue placeholder="Pick club" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {myAdminClubs.map((c) => (
+                      <SelectItem key={c.id} value={String(c.id)}>{c.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              {isAdminish && enrolledPlayers.length > 0 && (
+                <Select
+                  value={viewedPlayerId ? String(viewedPlayerId) : (ownProfileMatchesClub ? String(activeProfile!.id) : "_none")}
+                  onValueChange={(v) => setViewedPlayerId(v === "_none" ? null : Number(v))}
+                >
+                  <SelectTrigger className="w-[200px] bg-fuchsia-500/10 border-fuchsia-400/30 h-8 text-xs" data-testid="select-view-player">
+                    <SelectValue placeholder="View as player" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {ownProfileMatchesClub ? (
+                      <SelectItem value={String(activeProfile!.id)}>You ({u?.fullName || "self"})</SelectItem>
+                    ) : (
+                      <SelectItem value="_none">— pick a player —</SelectItem>
+                    )}
+                    {enrolledPlayers.map((p) => (
+                      <SelectItem key={p.playerId} value={String(p.playerId)} data-testid={`option-player-${p.playerId}`}>
+                        {p.fullName || `Player #${p.playerId}`} · {p.types.join("/")}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
           </div>
 
           <p className="text-center text-xs sm:text-sm text-zinc-400 px-5 pt-3 pb-1" data-testid="text-club-name">
-            Your skill score is calculated from {clubName} coach assessments · {assessedCount} of {skills.length} skills assessed
+            {isViewingOther ? <>Viewing <span className="text-fuchsia-300 font-semibold">{displayName}</span> · </> : null}
+            Skill score from {clubName} coach assessments · {assessedCount} of {skills.length} skills assessed
           </p>
+          {isAdminish && enrolledPlayers.length > 0 && (
+            <div className="sm:hidden flex items-center gap-2 px-5 pb-3" data-testid="picker-mobile">
+              <Select
+                value={viewedPlayerId ? String(viewedPlayerId) : (ownProfileMatchesClub ? String(activeProfile!.id) : "_none")}
+                onValueChange={(v) => setViewedPlayerId(v === "_none" ? null : Number(v))}
+              >
+                <SelectTrigger className="flex-1 bg-fuchsia-500/10 border-fuchsia-400/30 h-9 text-xs">
+                  <SelectValue placeholder="View as player" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ownProfileMatchesClub ? (
+                    <SelectItem value={String(activeProfile!.id)}>You ({u?.fullName || "self"})</SelectItem>
+                  ) : (
+                    <SelectItem value="_none">— pick a player —</SelectItem>
+                  )}
+                  {enrolledPlayers.map((p) => (
+                    <SelectItem key={p.playerId} value={String(p.playerId)}>
+                      {p.fullName || `Player #${p.playerId}`} · {p.types.join("/")}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {/* Body grid */}
           <div className="grid grid-cols-1 lg:grid-cols-[260px_minmax(0,1fr)] gap-0">
@@ -263,12 +399,12 @@ export default function MyTrainingProfile() {
             >
               <div className="flex items-center gap-3 mb-7">
                 <Avatar className="w-12 h-12 border-2 border-fuchsia-400/60 shadow-[0_0_16px_rgba(236,72,153,0.4)]">
-                  {avatarSrc ? <AvatarImage src={avatarSrc} alt={u?.fullName} /> : null}
+                  {avatarSrc ? <AvatarImage src={avatarSrc} alt={displayName} /> : null}
                   <AvatarFallback className="bg-fuchsia-500/30 text-white font-bold text-sm">{initials}</AvatarFallback>
                 </Avatar>
                 <div>
-                  <div className="text-xs uppercase tracking-wider text-fuchsia-300/80">Hey</div>
-                  <div className="text-base font-bold leading-tight" data-testid="text-user-name">{u?.fullName}</div>
+                  <div className="text-xs uppercase tracking-wider text-fuchsia-300/80">{isViewingOther ? "Viewing" : "Hey"}</div>
+                  <div className="text-base font-bold leading-tight" data-testid="text-user-name">{displayName}</div>
                 </div>
               </div>
 
