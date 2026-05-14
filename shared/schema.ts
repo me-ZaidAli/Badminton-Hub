@@ -3625,6 +3625,8 @@ export const clubFinanceCalculatorSettings = pgTable("club_finance_calculator_se
   weeksPerYear: integer("weeks_per_year").notNull().default(52),
   hallCostPerSessionPence: integer("hall_cost_per_session_pence").notNull().default(8600),
   shuttlecocksCostPerSessionPence: integer("shuttlecocks_cost_per_session_pence").notNull().default(8800),
+  shuttlecockTubePricePence: integer("shuttlecock_tube_price_pence").notNull().default(1100),
+  shuttlecockTubesPerSession: integer("shuttlecock_tubes_per_session").notNull().default(8),
   tshirtCostPence: integer("tshirt_cost_pence").notNull().default(1500),
   // Old prices for the comparison tab (nullable until first set)
   oldMembershipFeePence: integer("old_membership_fee_pence"),

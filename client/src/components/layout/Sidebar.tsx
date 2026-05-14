@@ -303,18 +303,13 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     items.push({ href: "/admin", label: "Admin Panel", icon: ShieldCheck, group: "admin" });
     items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
     items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" });
-    items.push({ href: "/admin/polls", label: "Club Polls", icon: Vote, group: "admin" });
     items.push({ href: "/super-admin/god-mode", label: "God Mode", icon: Zap, group: "godmode", isGodMode: true });
-    items.push({ href: "/super-admin/coaches", label: "Coach Control", icon: GraduationCap, group: "godmode", isGodMode: true });
-    items.push({ href: "/super-admin/club-finance-calculator", label: "Finance Calculator", icon: PoundSterling, group: "godmode", isGodMode: true });
-    items.push({ href: "/bsl/admin", label: "BSL · Control Panel", icon: Trophy, group: "godmode", isGodMode: true });
   } else if (user?.role === "ADMIN") {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Admin Panel";
     items.push({ href: "/admin", label: panelLabel, icon: ShieldCheck, group: "admin" });
     if (!isOrganiserOnly) {
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
       items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" as keyof BadgeCounts });
-      items.push({ href: "/admin/polls", label: "Club Polls", icon: Vote, group: "admin" });
     }
   } else if (hasClubAdminAccess) {
     const panelLabel = isOrganiserOnly ? "Organiser Dashboard" : "Club Admin";
@@ -322,7 +317,6 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     if (!isOrganiserOnly) {
       items.push({ href: "/admin/financials", label: "Financials", icon: PoundSterling, group: "admin" });
       items.push({ href: "/admin/inbox", label: "Admin Inbox", icon: Inbox, group: "admin", badgeKey: "adminInbox" as keyof BadgeCounts });
-      items.push({ href: "/admin/polls", label: "Club Polls", icon: Vote, group: "admin" });
     }
   }
 

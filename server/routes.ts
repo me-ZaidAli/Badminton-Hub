@@ -757,6 +757,8 @@ export async function registerRoutes(
         weeksPerYear: intField("weeksPerYear", 0, 53),
         hallCostPerSessionPence: intField("hallCostPerSessionPence"),
         shuttlecocksCostPerSessionPence: intField("shuttlecocksCostPerSessionPence"),
+        shuttlecockTubePricePence: intField("shuttlecockTubePricePence"),
+        shuttlecockTubesPerSession: intField("shuttlecockTubesPerSession", 0, 200),
         tshirtCostPence: intField("tshirtCostPence"),
         oldMembershipFeePence: optInt("oldMembershipFeePence"),
         oldMemberSessionPricePence: optInt("oldMemberSessionPricePence"),

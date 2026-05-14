@@ -23,6 +23,8 @@ interface Settings {
   weeksPerYear: number;
   hallCostPerSessionPence: number;
   shuttlecocksCostPerSessionPence: number;
+  shuttlecockTubePricePence: number;
+  shuttlecockTubesPerSession: number;
   tshirtCostPence: number;
   oldMembershipFeePence: number | null;
   oldMemberSessionPricePence: number | null;
@@ -46,6 +48,8 @@ interface CalcInputs {
   weeksPerYear: number;
   hallCostPerSessionPence: number;
   shuttlecocksCostPerSessionPence: number;
+  shuttlecockTubePricePence: number;
+  shuttlecockTubesPerSession: number;
   tshirtCostPence: number;
 }
 
@@ -64,8 +68,9 @@ function runCalcs(i: CalcInputs) {
   const annualSessionIncome = sessionIncomePerSession * totalSessions;
   const totalGrossIncome = membershipIncome + annualSessionIncome;
 
-  // Costs
-  const variableCostPerSession = i.hallCostPerSessionPence + i.shuttlecocksCostPerSessionPence;
+  // Costs — shuttlecock cost = tube price × tubes per session
+  const shuttlecocksCostPerSession = i.shuttlecockTubePricePence * i.shuttlecockTubesPerSession;
+  const variableCostPerSession = i.hallCostPerSessionPence + shuttlecocksCostPerSession;
   const totalAnnualVariableCost = variableCostPerSession * totalSessions;
   const totalAnnualCosts = totalAnnualVariableCost + tshirtsCost;
 
@@ -92,6 +97,7 @@ function runCalcs(i: CalcInputs) {
     sessionIncomePerSession,
     annualSessionIncome,
     totalGrossIncome,
+    shuttlecocksCostPerSession,
     variableCostPerSession,
     totalAnnualVariableCost,
     totalAnnualCosts,
@@ -290,10 +296,12 @@ export default function ClubFinanceCalculator() {
                 <NumberPlain label="Sessions / week" value={draft.sessionsPerWeek} onChange={(v) => update({ sessionsPerWeek: v })} min={0} max={14} data-testid="input-sessions-per-week" />
                 <NumberPlain label="Weeks / year" value={draft.weeksPerYear} onChange={(v) => update({ weeksPerYear: v })} min={0} max={53} data-testid="input-weeks-per-year" />
                 <NumberPound label="Hall cost / session" valuePence={draft.hallCostPerSessionPence} onChange={(v) => update({ hallCostPerSessionPence: v })} data-testid="input-hall-cost" />
-                <NumberPound label="Shuttlecocks / session" valuePence={draft.shuttlecocksCostPerSessionPence} onChange={(v) => update({ shuttlecocksCostPerSessionPence: v })} data-testid="input-shuttle-cost" />
+                <NumberPound label="Shuttlecock tube price (per tube)" valuePence={draft.shuttlecockTubePricePence} onChange={(v) => update({ shuttlecockTubePricePence: v })} data-testid="input-shuttle-tube-price" />
+                <NumberPlain label="Shuttlecock tubes / session" value={draft.shuttlecockTubesPerSession} onChange={(v) => update({ shuttlecockTubesPerSession: v })} min={0} max={200} data-testid="input-shuttle-tubes-per-session" />
                 <NumberPound label="T-shirt cost (each)" valuePence={draft.tshirtCostPence} onChange={(v) => update({ tshirtCostPence: v })} data-testid="input-tshirt-cost" />
-                <div className="text-xs text-muted-foreground self-end">
-                  Total sessions/year = <span className="font-bold text-foreground" data-testid="text-total-sessions">{current.totalSessions}</span>
+                <div className="text-xs text-muted-foreground self-end col-span-2">
+                  <div>Shuttlecocks / session = <span className="font-bold text-foreground" data-testid="text-shuttle-cost-per-session">{fmtGBP(current.shuttlecocksCostPerSession)}</span> ({draft.shuttlecockTubesPerSession} × {fmtGBP(draft.shuttlecockTubePricePence)})</div>
+                  <div>Total sessions/year = <span className="font-bold text-foreground" data-testid="text-total-sessions">{current.totalSessions}</span></div>
                 </div>
               </CardContent>
             </Card>

@@ -85,6 +85,14 @@ const controlSections = [
       { href: "/coach/juniors/skills", label: "Coach Skills", desc: "Skill insights, trends, and AI reports", icon: Target, color: "text-amber-500", bg: "bg-amber-500/10" },
     ],
   },
+  {
+    label: "Super Admin Tools",
+    items: [
+      { href: "/super-admin/coaches", label: "Coach Control", desc: "Approve coaches, manage profiles, and grant/revoke roles", icon: GraduationCap, color: "text-violet-500", bg: "bg-violet-500/10" },
+      { href: "/super-admin/club-finance-calculator", label: "Finance Calculator", desc: "Model club pricing, costs, and member savings", icon: PoundSterling, color: "text-emerald-500", bg: "bg-emerald-500/10" },
+      { href: "/bsl/admin", label: "BSL · Control Panel", desc: "Birmingham Super League admin: clubs, fixtures, prizes", icon: Trophy, color: "text-amber-500", bg: "bg-amber-500/10" },
+    ],
+  },
 ];
 
 interface ClubRecord {
