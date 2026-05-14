@@ -1049,6 +1049,27 @@ export async function registerRoutes(
       }
       if (req.body.displayMode !== undefined) updates.displayMode = req.body.displayMode;
       if (req.body.reducedMotion !== undefined) updates.reducedMotion = !!req.body.reducedMotion;
+      if (req.body.profilePictureUrl !== undefined) {
+        const raw = req.body.profilePictureUrl;
+        if (raw === null || raw === "") {
+          updates.profilePictureUrl = null;
+        } else if (typeof raw === "string") {
+          const trimmed = raw.trim();
+          const isInternalPath = trimmed.startsWith("/files/") || trimmed.startsWith("/uploads/") || trimmed.startsWith("/assets/");
+          let isHttpUrl = false;
+          try {
+            const u = new URL(trimmed);
+            isHttpUrl = u.protocol === "http:" || u.protocol === "https:";
+          } catch {}
+          if (!isInternalPath && !isHttpUrl) {
+            return res.status(400).json({ message: "Profile picture must be a valid http(s) URL or uploaded file path" });
+          }
+          if (trimmed.length > 1024) {
+            return res.status(400).json({ message: "Profile picture URL is too long" });
+          }
+          updates.profilePictureUrl = trimmed;
+        }
+      }
 
       if (Object.keys(updates).length === 0) {
         return res.status(400).json({ message: "No valid fields to update" });

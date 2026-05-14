@@ -2069,7 +2069,7 @@ export default function Profile() {
   const { toast } = useToast();
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ fullName: "", phone: "", dateOfBirth: "", city: "", country: "" });
+  const [editForm, setEditForm] = useState({ fullName: "", nickname: "", phone: "", dateOfBirth: "", city: "", country: "", profilePictureUrl: "" });
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showCurrentPw, setShowCurrentPw] = useState(false);
@@ -2214,10 +2214,30 @@ export default function Profile() {
 
   const handleLogout = () => { logout.mutate(); navigate("/"); };
   const startEditing = () => {
-    setEditForm({ fullName: user?.fullName || "", phone: (user as any)?.phone || "", dateOfBirth: (user as any)?.dateOfBirth ? new Date((user as any).dateOfBirth).toISOString().split("T")[0] : "", city: (user as any)?.city || "", country: (user as any)?.country || "" });
+    setEditForm({
+      fullName: user?.fullName || "",
+      nickname: (user as any)?.nickname || "",
+      phone: (user as any)?.phone || "",
+      dateOfBirth: (user as any)?.dateOfBirth ? new Date((user as any).dateOfBirth).toISOString().split("T")[0] : "",
+      city: (user as any)?.city || "",
+      country: (user as any)?.country || "",
+      profilePictureUrl: (user as any)?.profilePictureUrl || "",
+    });
     setIsEditing(true);
   };
-  const handleSave = () => { updateUserProfileMutation.mutate({ fullName: editForm.fullName, phone: editForm.phone, dateOfBirth: editForm.dateOfBirth || undefined, city: editForm.city, country: editForm.country }); };
+  const handleSave = () => {
+    updateUserProfileMutation.mutate({
+      fullName: editForm.fullName,
+      nickname: editForm.nickname,
+      phone: editForm.phone,
+      dateOfBirth: editForm.dateOfBirth || undefined,
+      city: editForm.city,
+      country: editForm.country,
+      profilePictureUrl: editForm.profilePictureUrl ?? "",
+    }, {
+      onSuccess: () => setIsEditing(false),
+    });
+  };
 
   const isProfileComplete = !!(user?.fullName && user.fullName.trim().length >= 2);
 
@@ -3219,69 +3239,125 @@ export default function Profile() {
 
       {/* Account Settings */}
       <CollapsibleSection title="Account Settings" icon={Settings} testId="card-account-settings">
-        <div>
-          {isEditing ? (
-            <div className="space-y-4">
-              <div>
-                <Label htmlFor="fullName">Full Name *</Label>
-                <Input id="fullName" value={editForm.fullName} onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })} placeholder="Your full name" data-testid="input-fullname" />
-              </div>
-              <div>
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Your phone number" data-testid="input-phone" />
-              </div>
-              <div>
-                <Label htmlFor="dateOfBirth">Date of Birth {(user as any)?.dateOfBirth && (user as any)?.role === 'PLAYER' ? "(Locked)" : ""}</Label>
-                {(user as any)?.dateOfBirth && (user as any)?.role === 'PLAYER' ? (
-                  <div className="flex items-center gap-2">
-                    <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} disabled className="opacity-60 cursor-not-allowed" data-testid="input-dob" />
-                    <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
-                  </div>
-                ) : (
-                  <>
-                    <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })} data-testid="input-dob" />
-                    {!(user as any)?.dateOfBirth && <p className="text-xs text-muted-foreground mt-1">Once set, only an admin can change your date of birth.</p>}
-                  </>
-                )}
-              </div>
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="city">City</Label>
-                  <Input id="city" value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} placeholder="Your city" data-testid="input-city" />
-                </div>
-                <div>
-                  <Label htmlFor="country">Country</Label>
-                  <Input id="country" value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} placeholder="Your country" data-testid="input-country" />
-                </div>
-              </div>
-              <div className="flex gap-2 flex-wrap">
-                <Button onClick={handleSave} disabled={updateUserProfileMutation.isPending || !editForm.fullName.trim()} data-testid="button-save-profile">
-                  {updateUserProfileMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-                  Save Changes
-                </Button>
-                <Button variant="outline" onClick={() => setIsEditing(false)} data-testid="button-cancel-edit">Cancel</Button>
-              </div>
+        <div className="space-y-3">
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <Label className="text-muted-foreground flex items-center gap-1"><User className="h-3 w-3" /> Full Name</Label>
+              <p className="font-medium text-sm" data-testid="text-fullname">{user?.fullName || "Not set"}</p>
             </div>
-          ) : (
-            <div className="space-y-3">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</Label>
-                  <p className="font-medium text-sm" data-testid="text-phone">{(user as any)?.phone || "Not set"}</p>
-                </div>
-                <div>
-                  <Label className="text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Date of Birth</Label>
-                  <p className="font-medium text-sm" data-testid="text-dob">{(user as any)?.dateOfBirth ? new Date((user as any).dateOfBirth).toLocaleDateString() : "Not set"}</p>
-                </div>
-              </div>
-              <Button variant="outline" size="sm" onClick={startEditing} data-testid="button-edit-profile-settings">
-                <Pencil className="h-4 w-4 mr-1" />
-                Edit Profile
-              </Button>
+            <div>
+              <Label className="text-muted-foreground flex items-center gap-1"><Phone className="h-3 w-3" /> Phone</Label>
+              <p className="font-medium text-sm" data-testid="text-phone">{(user as any)?.phone || "Not set"}</p>
             </div>
-          )}
+            <div>
+              <Label className="text-muted-foreground flex items-center gap-1"><Calendar className="h-3 w-3" /> Date of Birth</Label>
+              <p className="font-medium text-sm" data-testid="text-dob">{(user as any)?.dateOfBirth ? new Date((user as any).dateOfBirth).toLocaleDateString() : "Not set"}</p>
+            </div>
+            <div>
+              <Label className="text-muted-foreground">Location</Label>
+              <p className="font-medium text-sm" data-testid="text-location">
+                {[((user as any)?.city), ((user as any)?.country)].filter(Boolean).join(", ") || "Not set"}
+              </p>
+            </div>
+          </div>
+          <Button variant="outline" size="sm" onClick={startEditing} data-testid="button-edit-profile-settings">
+            <Pencil className="h-4 w-4 mr-1" />
+            Edit Profile
+          </Button>
         </div>
       </CollapsibleSection>
+
+      {/* Edit Profile Dialog */}
+      <Dialog open={isEditing} onOpenChange={(open) => { if (!open) setIsEditing(false); }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto" data-testid="dialog-edit-profile">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2"><Pencil className="h-4 w-4" /> Edit profile</DialogTitle>
+            <DialogDescription>Update the details you entered when you registered. Changes save instantly.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            {/* Profile picture preview + URL field */}
+            <div className="flex items-center gap-4">
+              <div className="h-20 w-20 rounded-xl overflow-hidden ring-2 ring-border bg-muted flex items-center justify-center shrink-0">
+                {editForm.profilePictureUrl ? (
+                  <img
+                    src={editForm.profilePictureUrl}
+                    alt="Preview"
+                    className="w-full h-full object-cover"
+                    onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                    data-testid="img-edit-profile-preview"
+                  />
+                ) : (
+                  <User className="h-8 w-8 text-muted-foreground" />
+                )}
+              </div>
+              <div className="flex-1 space-y-2">
+                <Label htmlFor="profilePictureUrl" className="text-xs">Profile picture URL</Label>
+                <Input
+                  id="profilePictureUrl"
+                  value={editForm.profilePictureUrl}
+                  onChange={(e) => setEditForm({ ...editForm, profilePictureUrl: e.target.value })}
+                  placeholder="https://example.com/photo.jpg"
+                  data-testid="input-profile-picture-url"
+                />
+                <p className="text-[11px] text-muted-foreground">Paste any image URL, or use the camera button on your profile to upload one.</p>
+                {editForm.profilePictureUrl && (
+                  <Button type="button" variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={() => setEditForm({ ...editForm, profilePictureUrl: "" })} data-testid="button-clear-profile-pic">
+                    <Trash2 className="h-3 w-3 mr-1" /> Remove picture
+                  </Button>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="fullName">Full name *</Label>
+              <Input id="fullName" value={editForm.fullName} onChange={(e) => setEditForm({ ...editForm, fullName: e.target.value })} placeholder="Your full name" data-testid="input-fullname" />
+            </div>
+
+            <div>
+              <Label htmlFor="nickname">Nickname / display name</Label>
+              <Input id="nickname" value={editForm.nickname} onChange={(e) => setEditForm({ ...editForm, nickname: e.target.value })} placeholder="Optional" data-testid="input-nickname-edit" />
+            </div>
+
+            <div>
+              <Label htmlFor="phone">Phone number</Label>
+              <Input id="phone" value={editForm.phone} onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })} placeholder="Your phone number" data-testid="input-phone" />
+            </div>
+
+            <div>
+              <Label htmlFor="dateOfBirth">Date of birth {(user as any)?.dateOfBirth && (user as any)?.role === 'PLAYER' ? "(locked)" : ""}</Label>
+              {(user as any)?.dateOfBirth && (user as any)?.role === 'PLAYER' ? (
+                <div className="flex items-center gap-2">
+                  <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} disabled className="opacity-60 cursor-not-allowed" data-testid="input-dob" />
+                  <Lock className="h-4 w-4 text-muted-foreground shrink-0" />
+                </div>
+              ) : (
+                <>
+                  <Input id="dateOfBirth" type="date" value={editForm.dateOfBirth} onChange={(e) => setEditForm({ ...editForm, dateOfBirth: e.target.value })} data-testid="input-dob" />
+                  {!(user as any)?.dateOfBirth && <p className="text-xs text-muted-foreground mt-1">Once set, only an admin can change your date of birth.</p>}
+                </>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div>
+                <Label htmlFor="city">City</Label>
+                <Input id="city" value={editForm.city} onChange={(e) => setEditForm({ ...editForm, city: e.target.value })} placeholder="Your city" data-testid="input-city" />
+              </div>
+              <div>
+                <Label htmlFor="country">Country</Label>
+                <Input id="country" value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} placeholder="Your country" data-testid="input-country" />
+              </div>
+            </div>
+          </div>
+          <DialogFooter className="gap-2 sm:gap-2">
+            <Button variant="outline" onClick={() => setIsEditing(false)} data-testid="button-cancel-edit">Cancel</Button>
+            <Button onClick={handleSave} disabled={updateUserProfileMutation.isPending || !editForm.fullName.trim()} data-testid="button-save-profile">
+              {updateUserProfileMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Change Password */}
       <CollapsibleSection title="Change Password" icon={Lock} testId="card-change-password">
