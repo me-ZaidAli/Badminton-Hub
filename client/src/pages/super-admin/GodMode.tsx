@@ -18,7 +18,7 @@ import {
   Shield, Zap, Users, MapPin, Calendar, Search, Plus, Loader2,
   Save, Trash2, Pencil, Building2, Clock, User, Mail, PoundSterling,
   Package, CreditCard, Upload, ChevronRight, Merge, BarChart3, Bell, Gift, Activity, UserX, Trophy, Award, Share2,
-  UserCheck, UserPlus, Baby, Target, FlaskConical, Megaphone, Swords, ExternalLink, Wallet
+  UserCheck, UserPlus, Baby, Target, FlaskConical, Megaphone, Swords, ExternalLink, Wallet, GraduationCap
 } from "lucide-react";
 import { MergeProfilesModal, MergeLogsPanel } from "@/components/MergeProfilesModal";
 import { GlobalMergeModal } from "@/components/GlobalMergeModal";
