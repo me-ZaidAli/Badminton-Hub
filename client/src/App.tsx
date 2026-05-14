@@ -74,6 +74,7 @@ const GodMode = lazy(() => import("@/pages/super-admin/GodMode"));
 const WalletManagement = lazy(() => import("@/pages/super-admin/WalletManagement"));
 const SuperAdminReferrals = lazy(() => import("@/pages/super-admin/SuperAdminReferrals"));
 const SuperAdminCoaches = lazy(() => import("@/pages/super-admin/SuperAdminCoaches"));
+const ClubFinanceCalculator = lazy(() => import("@/pages/super-admin/ClubFinanceCalculator"));
 const SuperAdminBilling = lazy(() => import("@/pages/SuperAdminBilling"));
 const ClubBilling = lazy(() => import("@/pages/ClubBilling"));
 const ClubControlCenter = lazy(() => import("@/pages/admin/ClubControlCenter"));
@@ -927,6 +928,9 @@ function Router() {
       </Route>
       <Route path="/super-admin/wallets">
         <OwnerRoute component={WalletManagement} />
+      </Route>
+      <Route path="/super-admin/club-finance-calculator">
+        <OwnerRoute component={ClubFinanceCalculator} />
       </Route>
       <Route path="/super-admin/billing">
         <OwnerRoute component={SuperAdminBilling} />

@@ -3608,3 +3608,31 @@ export const stepEntries = pgTable("step_entries", {
 export const insertStepEntrySchema = createInsertSchema(stepEntries).omit({ id: true, createdAt: true, updatedAt: true });
 export type StepEntry = typeof stepEntries.$inferSelect;
 export type InsertStepEntry = z.infer<typeof insertStepEntrySchema>;
+
+// Singleton settings row (id=1) for the Super Admin Club Finance Calculator.
+// All money values are stored in pence to avoid float drift.
+export const clubFinanceCalculatorSettings = pgTable("club_finance_calculator_settings", {
+  id: serial("id").primaryKey(),
+  // Editable inputs (current pricing scenario)
+  membershipFeePence: integer("membership_fee_pence").notNull().default(4500),
+  memberSessionPricePence: integer("member_session_price_pence").notNull().default(700),
+  nonMemberSessionPricePence: integer("non_member_session_price_pence").notNull().default(900),
+  memberPercentage: integer("member_percentage").notNull().default(70),
+  numberOfMembers: integer("number_of_members").notNull().default(30),
+  expectedPlayersPerSession: integer("expected_players_per_session").notNull().default(27),
+  // Editable defaults
+  sessionsPerWeek: integer("sessions_per_week").notNull().default(2),
+  weeksPerYear: integer("weeks_per_year").notNull().default(52),
+  hallCostPerSessionPence: integer("hall_cost_per_session_pence").notNull().default(8600),
+  shuttlecocksCostPerSessionPence: integer("shuttlecocks_cost_per_session_pence").notNull().default(8800),
+  tshirtCostPence: integer("tshirt_cost_pence").notNull().default(1500),
+  // Old prices for the comparison tab (nullable until first set)
+  oldMembershipFeePence: integer("old_membership_fee_pence"),
+  oldMemberSessionPricePence: integer("old_member_session_price_pence"),
+  oldNonMemberSessionPricePence: integer("old_non_member_session_price_pence"),
+  updatedAt: timestamp("updated_at").defaultNow().notNull(),
+  updatedByUserId: integer("updated_by_user_id").references(() => users.id),
+});
+export const insertClubFinanceCalculatorSettingsSchema = createInsertSchema(clubFinanceCalculatorSettings).omit({ id: true, updatedAt: true });
+export type ClubFinanceCalculatorSettings = typeof clubFinanceCalculatorSettings.$inferSelect;
+export type InsertClubFinanceCalculatorSettings = z.infer<typeof insertClubFinanceCalculatorSettingsSchema>;

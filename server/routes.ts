@@ -713,6 +713,73 @@ export async function registerRoutes(
     }
   });
 
+  // === Super Admin Club Finance Calculator (singleton settings, OWNER only) ===
+  app.get("/api/super-admin/club-finance-calculator", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const { clubFinanceCalculatorSettings } = await import("@shared/schema");
+      let [row] = await db.select().from(clubFinanceCalculatorSettings).where(eq(clubFinanceCalculatorSettings.id, 1));
+      if (!row) {
+        [row] = await db.insert(clubFinanceCalculatorSettings).values({ id: 1 } as any).returning();
+      }
+      res.json(row);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  app.put("/api/super-admin/club-finance-calculator", async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    try {
+      const { clubFinanceCalculatorSettings } = await import("@shared/schema");
+      const body = req.body || {};
+      const errors: string[] = [];
+      const intField = (key: string, min = 0, max = 1_000_000_000) => {
+        const v = body[key];
+        if (v === undefined || v === null || v === "") return undefined;
+        const n = Math.round(Number(v));
+        if (!Number.isFinite(n)) { errors.push(`${key} must be a number`); return undefined; }
+        return Math.max(min, Math.min(max, n));
+      };
+      const optInt = (key: string) => {
+        if (!(key in body)) return undefined;
+        if (body[key] === null) return null;
+        return intField(key);
+      };
+      const update: Record<string, any> = {
+        membershipFeePence: intField("membershipFeePence"),
+        memberSessionPricePence: intField("memberSessionPricePence"),
+        nonMemberSessionPricePence: intField("nonMemberSessionPricePence"),
+        memberPercentage: intField("memberPercentage", 0, 100),
+        numberOfMembers: intField("numberOfMembers", 0, 100000),
+        expectedPlayersPerSession: intField("expectedPlayersPerSession", 0, 10000),
+        sessionsPerWeek: intField("sessionsPerWeek", 0, 14),
+        weeksPerYear: intField("weeksPerYear", 0, 53),
+        hallCostPerSessionPence: intField("hallCostPerSessionPence"),
+        shuttlecocksCostPerSessionPence: intField("shuttlecocksCostPerSessionPence"),
+        tshirtCostPence: intField("tshirtCostPence"),
+        oldMembershipFeePence: optInt("oldMembershipFeePence"),
+        oldMemberSessionPricePence: optInt("oldMemberSessionPricePence"),
+        oldNonMemberSessionPricePence: optInt("oldNonMemberSessionPricePence"),
+      };
+      if (errors.length > 0) return res.status(400).json({ message: errors.join("; ") });
+      Object.keys(update).forEach((k) => update[k] === undefined && delete update[k]);
+      update.updatedAt = new Date();
+      update.updatedByUserId = req.user!.id;
+      const existing = await db.select().from(clubFinanceCalculatorSettings).where(eq(clubFinanceCalculatorSettings.id, 1));
+      let row;
+      if (existing.length === 0) {
+        [row] = await db.insert(clubFinanceCalculatorSettings).values({ id: 1, ...update } as any).returning();
+      } else {
+        [row] = await db.update(clubFinanceCalculatorSettings).set(update).where(eq(clubFinanceCalculatorSettings.id, 1)).returning();
+      }
+      console.log(`[AUDIT] Club Finance Calculator updated by user=${req.user!.id}`);
+      res.json(row);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // === Super Admin Billing Management ===
   app.get("/api/super-admin/clubs/billing", async (req, res) => {
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);

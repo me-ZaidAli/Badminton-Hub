@@ -1,0 +1,92 @@
+Build a new section called **"Club Finance Calculator"** inside the **Super Admin Panel** of my existing badminton club management app.
+
+This section must work with my current app design and style — do not change anything else. It should be accessible only to Super Admins.
+
+---
+
+### 📋 WHAT THIS SECTION MUST DO
+It is an automated financial calculator and summary tool based on the data we discussed. It will allow me to input/change values, and it will instantly calculate and display everything we worked out earlier.
+
+---
+
+### ⚙️ FIXED DATA (PRE-SET, CAN BE EDITED IF NEEDED)
+Store these values as default, but let me edit them:
+- Sessions per week: 2
+- Weeks per year: 52 → Total sessions/year = 104
+- Hall cost: £43 per hour × 2 hours = £86 per session
+- Shuttlecocks: 4 tubes per session × £22 = £88 per session
+- T-shirt cost to club: £15 each
+- Current number of members: 30
+- Expected players per session: range 26–28 (allow input of exact number)
+
+---
+
+### ✍️ INPUT FIELDS (Editable by Admin)
+1. Membership fee per year (£) — e.g. £45 / £65
+2. Member session price (£) — e.g. £7
+3. Non-member session price (£) — e.g. £9 / £10
+4. % of players per session who are members (default: 70%)
+5. % of players per session who are non-members (default: 30%)
+
+---
+
+### 📊 CALCULATIONS TO RUN AUTOMATICALLY
+Every time I change a number, recalculate instantly:
+
+#### 1. INCOME BREAKDOWN
+- **Membership Income** = Number of members × Membership fee
+- **Net Membership Income** = Membership Income − (Number of members × £15 t-shirt cost)
+- **Session Income per session** = 
+  (Total players × % members × Member price) + (Total players × % non-members × Non-member price)
+- **Annual Session Income** = Session Income per session × 104 sessions
+- **Total Gross Income** = Membership Income + Annual Session Income
+
+#### 2. COSTS BREAKDOWN
+- **Fixed Cost**: T-shirts cost = Number of members × £15
+- **Variable Cost per session**: Hall (£86) + Shuttles (£88) = £174
+- **Total Annual Variable Cost** = £174 × 104 = £18,096
+- **Total Annual Costs** = £18,096 + T-shirts cost
+
+#### 3. PROFIT / LOSS
+- **Net Annual Profit** = Total Gross Income − Total Annual Costs
+- **Net Monthly Profit** = Net Annual Profit ÷ 12
+- **Net Profit per Session** = Net Annual Profit ÷ 104
+
+#### 4. PLAYER BENEFITS CALCULATION
+- **Saving per session for member** = Non-member price − Member price
+- **Effective membership cost** = Membership fee − £15 (value of free t-shirt)
+- **Time to recover cost (months)** — calculate for 3 scenarios:
+  - 1 session/week (~4/month)
+  - 2 sessions/week (~8/month)
+  - 3 sessions/week (~12/month)
+  → Formula: (Effective membership cost ÷ Monthly saving) = Months to break even
+- **Annual saving for member** = (Saving per session × sessions per year) − Membership fee
+- Display clearly: *"After X months, member starts making pure savings"*
+
+#### 5. OLD vs NEW COMPARISON
+Add a tab/section where I can enter **OLD PRICES** and **NEW PRICES**, then show:
+- Difference in Membership Income (£ and %)
+- Difference in Total Income (£ and %)
+- Difference in Profit (£ and %)
+- Summary text: *"By changing prices, club profit increases by £X (+Y%) per year"*
+
+---
+
+### 📱 DISPLAY & DESIGN RULES
+- Keep it clean, simple, and match my existing app’s design (colors, fonts, layout)
+- Use cards/tables for numbers
+- Highlight profits in green, losses in red
+- Include a **"Summary Explanation"** box that writes plain English text automatically (like we did in our chat), e.g.:
+  > "With new pricing: Membership £65, Member £7, Non-member £10. Your profit rises by £1,328/year. Members save £3 per session and recover their cost in ~2 months if playing twice a week."
+- Make all numbers update live without page reload
+
+---
+
+### 🔐 PERMISSIONS
+- Only visible and editable by **Super Admin** role
+- Save all calculations/changes to database so they stay there next time I log in
+
+---
+
+### ✅ FINAL OUTPUT
+Build this as a complete working module inside the Super Admin panel, fully functional, connected to the database, and ready to use.
