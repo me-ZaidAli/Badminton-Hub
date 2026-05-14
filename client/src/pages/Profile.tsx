@@ -2069,7 +2069,12 @@ export default function Profile() {
   const { toast } = useToast();
 
   const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({ fullName: "", nickname: "", phone: "", dateOfBirth: "", city: "", country: "", profilePictureUrl: "" });
+  const [editForm, setEditForm] = useState({
+    fullName: "", nickname: "", phone: "", dateOfBirth: "", city: "", country: "",
+    profilePictureUrl: "", gender: "", emergencyContact: "", medicalNotes: "",
+    parentGuardianName: "", parentGuardianEmail: "",
+    acquisitionSource: "", acquisitionSourceOther: "",
+  });
   const [changePwOpen, setChangePwOpen] = useState(false);
   const [pwForm, setPwForm] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [showCurrentPw, setShowCurrentPw] = useState(false);
@@ -2214,14 +2219,22 @@ export default function Profile() {
 
   const handleLogout = () => { logout.mutate(); navigate("/"); };
   const startEditing = () => {
+    const u: any = user || {};
     setEditForm({
-      fullName: user?.fullName || "",
-      nickname: (user as any)?.nickname || "",
-      phone: (user as any)?.phone || "",
-      dateOfBirth: (user as any)?.dateOfBirth ? new Date((user as any).dateOfBirth).toISOString().split("T")[0] : "",
-      city: (user as any)?.city || "",
-      country: (user as any)?.country || "",
-      profilePictureUrl: (user as any)?.profilePictureUrl || "",
+      fullName: u.fullName || "",
+      nickname: u.nickname || "",
+      phone: u.phone || "",
+      dateOfBirth: u.dateOfBirth ? new Date(u.dateOfBirth).toISOString().split("T")[0] : "",
+      city: u.city || "",
+      country: u.country || "",
+      profilePictureUrl: u.profilePictureUrl || "",
+      gender: u.gender || "",
+      emergencyContact: u.emergencyContact || "",
+      medicalNotes: u.medicalNotes || "",
+      parentGuardianName: u.parentGuardianName || "",
+      parentGuardianEmail: u.parentGuardianEmail || "",
+      acquisitionSource: u.acquisitionSource || "",
+      acquisitionSourceOther: u.acquisitionSourceOther || "",
     });
     setIsEditing(true);
   };
@@ -2234,6 +2247,13 @@ export default function Profile() {
       city: editForm.city,
       country: editForm.country,
       profilePictureUrl: editForm.profilePictureUrl ?? "",
+      gender: editForm.gender || "",
+      emergencyContact: editForm.emergencyContact ?? "",
+      medicalNotes: editForm.medicalNotes ?? "",
+      parentGuardianName: editForm.parentGuardianName ?? "",
+      parentGuardianEmail: editForm.parentGuardianEmail ?? "",
+      acquisitionSource: editForm.acquisitionSource || "",
+      acquisitionSourceOther: editForm.acquisitionSource === "OTHER" ? (editForm.acquisitionSourceOther ?? "") : "",
     }, {
       onSuccess: () => setIsEditing(false),
     });
@@ -3338,6 +3358,20 @@ export default function Profile() {
               )}
             </div>
 
+            <div>
+              <Label htmlFor="gender">Gender</Label>
+              <Select value={editForm.gender || "UNSET"} onValueChange={(v) => setEditForm({ ...editForm, gender: v === "UNSET" ? "" : v })}>
+                <SelectTrigger id="gender" data-testid="select-gender"><SelectValue placeholder="Prefer not to say" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UNSET">Not set</SelectItem>
+                  <SelectItem value="MALE">Male</SelectItem>
+                  <SelectItem value="FEMALE">Female</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                  <SelectItem value="PREFER_NOT_TO_SAY">Prefer not to say</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="city">City</Label>
@@ -3347,6 +3381,60 @@ export default function Profile() {
                 <Label htmlFor="country">Country</Label>
                 <Input id="country" value={editForm.country} onChange={(e) => setEditForm({ ...editForm, country: e.target.value })} placeholder="Your country" data-testid="input-country" />
               </div>
+            </div>
+
+            <div>
+              <Label htmlFor="emergencyContact">Emergency contact</Label>
+              <Input id="emergencyContact" value={editForm.emergencyContact} onChange={(e) => setEditForm({ ...editForm, emergencyContact: e.target.value })} placeholder="Name + phone of someone we can call" data-testid="input-emergency-contact" />
+            </div>
+
+            <div>
+              <Label htmlFor="medicalNotes">Medical notes</Label>
+              <Textarea id="medicalNotes" value={editForm.medicalNotes} onChange={(e) => setEditForm({ ...editForm, medicalNotes: e.target.value })} placeholder="Allergies, conditions, anything we should know" rows={2} data-testid="input-medical-notes" />
+            </div>
+
+            <div className="rounded-md border border-border bg-muted/30 p-3 space-y-3">
+              <div className="text-xs font-medium text-muted-foreground">Parent / Guardian (juniors only)</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <Label htmlFor="parentGuardianName" className="text-xs">Name</Label>
+                  <Input id="parentGuardianName" value={editForm.parentGuardianName} onChange={(e) => setEditForm({ ...editForm, parentGuardianName: e.target.value })} placeholder="Guardian name" data-testid="input-parent-name" />
+                </div>
+                <div>
+                  <Label htmlFor="parentGuardianEmail" className="text-xs">Email</Label>
+                  <Input id="parentGuardianEmail" type="email" value={editForm.parentGuardianEmail} onChange={(e) => setEditForm({ ...editForm, parentGuardianEmail: e.target.value })} placeholder="guardian@email.com" data-testid="input-parent-email" />
+                </div>
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="acquisitionSource">How did you hear about us?</Label>
+              <Select value={editForm.acquisitionSource || "UNSET"} onValueChange={(v) => setEditForm({ ...editForm, acquisitionSource: v === "UNSET" ? "" : v })}>
+                <SelectTrigger id="acquisitionSource" data-testid="select-acquisition-source-edit"><SelectValue placeholder="Please select" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="UNSET">Not set</SelectItem>
+                  <SelectItem value="FACEBOOK">Facebook</SelectItem>
+                  <SelectItem value="INSTAGRAM">Instagram</SelectItem>
+                  <SelectItem value="TIKTOK">TikTok</SelectItem>
+                  <SelectItem value="WEBSITE">Website</SelectItem>
+                  <SelectItem value="WORD_OF_MOUTH">Word of mouth</SelectItem>
+                  <SelectItem value="LEISURE_CENTRE">Leisure centre</SelectItem>
+                  <SelectItem value="SAW_SESSION">Saw a session running</SelectItem>
+                  <SelectItem value="THROUGH_COACH">Through a coach</SelectItem>
+                  <SelectItem value="REFERRAL">Referral link / code</SelectItem>
+                  <SelectItem value="OTHER">Other</SelectItem>
+                </SelectContent>
+              </Select>
+              {editForm.acquisitionSource === "OTHER" && (
+                <Textarea
+                  className="mt-2"
+                  value={editForm.acquisitionSourceOther}
+                  onChange={(e) => setEditForm({ ...editForm, acquisitionSourceOther: e.target.value })}
+                  placeholder="Tell us more..."
+                  rows={2}
+                  data-testid="input-acquisition-other-edit"
+                />
+              )}
             </div>
           </div>
           <DialogFooter className="gap-2 sm:gap-2">

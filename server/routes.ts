@@ -1020,12 +1020,30 @@ export async function registerRoutes(
   app.patch("/api/user/profile", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const { fullName, phone, dateOfBirth, city, country, region, continent, nickname, showPublicName } = req.body;
+      const { fullName, phone, dateOfBirth, city, country, region, continent, nickname, showPublicName, gender, emergencyContact, medicalNotes, parentGuardianName, parentGuardianEmail, acquisitionSource, acquisitionSourceOther } = req.body;
       const updates: any = {};
       if (fullName && typeof fullName === 'string' && fullName.trim().length >= 2) {
         updates.fullName = fullName.trim();
       }
       if (phone !== undefined) updates.phone = phone || null;
+      if (gender !== undefined) {
+        const g = (gender || "").toString().trim().toUpperCase();
+        if (g === "" ) updates.gender = null;
+        else if (["MALE", "FEMALE", "OTHER", "PREFER_NOT_TO_SAY"].includes(g)) updates.gender = g;
+        else return res.status(400).json({ message: "Invalid gender" });
+      }
+      if (emergencyContact !== undefined) updates.emergencyContact = emergencyContact ? String(emergencyContact).trim().slice(0, 240) : null;
+      if (medicalNotes !== undefined) updates.medicalNotes = medicalNotes ? String(medicalNotes).trim().slice(0, 2000) : null;
+      if (parentGuardianName !== undefined) updates.parentGuardianName = parentGuardianName ? String(parentGuardianName).trim().slice(0, 120) : null;
+      if (parentGuardianEmail !== undefined) updates.parentGuardianEmail = parentGuardianEmail ? String(parentGuardianEmail).trim().slice(0, 240) : null;
+      if (acquisitionSource !== undefined) {
+        const validSources = ["FACEBOOK","INSTAGRAM","TIKTOK","WEBSITE","WORD_OF_MOUTH","LEISURE_CENTRE","SAW_SESSION","THROUGH_COACH","REFERRAL","OTHER"];
+        const s = (acquisitionSource || "").toString().trim().toUpperCase();
+        if (s === "") updates.acquisitionSource = null;
+        else if (validSources.includes(s)) updates.acquisitionSource = s;
+        else return res.status(400).json({ message: "Invalid acquisition source" });
+      }
+      if (acquisitionSourceOther !== undefined) updates.acquisitionSourceOther = acquisitionSourceOther ? String(acquisitionSourceOther).trim().slice(0, 500) : null;
       if (dateOfBirth !== undefined) {
         const currentUser = await db.select({ dateOfBirth: users.dateOfBirth }).from(users).where(eq(users.id, req.user!.id)).then(r => r[0]);
         const userRole = (req.user as any).role;

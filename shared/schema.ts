@@ -60,6 +60,7 @@ export const users = pgTable("users", {
   isJunior: boolean("is_junior").default(false).notNull(),
   parentUserId: integer("parent_user_id"),
   phone: text("phone"),
+  gender: text("gender"),
   parentGuardianName: text("parent_guardian_name"),
   parentGuardianEmail: text("parent_guardian_email"),
   emergencyContact: text("emergency_contact"),
