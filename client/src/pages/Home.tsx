@@ -84,7 +84,7 @@ export default function Home() {
   const displaySessions = upcomingSessions.length > 0 ? upcomingSessions : recentSessions;
 
   useEffect(() => {
-    document.title = "BadmintonHub - Run Your Badminton Club Without the Spreadsheets";
+    document.title = "BadmintonHub | Club Management Software by Dragon Badminton Club – BPG Ltd";
     const setMeta = (name: string, content: string, property?: boolean) => {
       const attr = property ? "property" : "name";
       let el = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement | null;
@@ -95,9 +95,10 @@ export default function Home() {
       }
       el.content = content;
     };
-    setMeta("description", "Schedule sessions, manage players, organize matches, and track club finances in one place. Free to start — no credit card required.");
-    setMeta("og:title", "BadmintonHub - Club Management Made Simple", true);
-    setMeta("og:description", "The all-in-one platform for badminton clubs. Session scheduling, match tracking, player management, and finances.", true);
+    setMeta("description", "BadmintonHub is the all-in-one platform to schedule sessions, manage players, organise matches, and track finances. Developed by Dragon Badminton Club – BPG Ltd.");
+    setMeta("author", "Dragon Badminton Club – BPG Ltd");
+    setMeta("og:title", "BadmintonHub | Club Management Software by Dragon Badminton Club – BPG Ltd", true);
+    setMeta("og:description", "Schedule sessions, manage players, organise matches, and track club finances — all in one place. Built by Dragon Badminton Club – BPG Ltd.", true);
     setMeta("og:type", "website", true);
   }, []);
 
@@ -119,14 +120,24 @@ export default function Home() {
               className="text-4xl sm:text-5xl md:text-6xl font-display font-bold tracking-tight text-white mb-6 leading-[1.1]"
               data-testid="text-hero-headline"
             >
-              Run Your Badminton Club{" "}
-              <span className="text-primary">Without the Spreadsheets</span>
+              Schedule sessions, manage players,{" "}
+              <span className="text-primary">organise matches, and track club finances</span>
+              {" "}— all in one place.
             </h1>
             <p
               className="text-lg md:text-xl text-white/80 mb-10 leading-relaxed max-w-xl"
               data-testid="text-hero-subheading"
             >
-              Schedule sessions, manage players, organize matches, and track club finances — all in one place.
+              Built and continuously improved by{" "}
+              <a
+                href="https://dragon-bpgbadminton.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary underline decoration-primary/40 underline-offset-4 hover:decoration-primary"
+                data-testid="link-dragon-hero"
+              >
+                Dragon Badminton Club – BPG Ltd
+              </a>.
             </p>
             <div className="flex flex-col sm:flex-row flex-wrap items-start gap-3">
               <Link href="/register">
@@ -286,7 +297,16 @@ export default function Home() {
               Everything You Need to Run a Club
             </h2>
             <p className="text-muted-foreground text-lg" data-testid="text-features-subtitle">
-              Replace spreadsheets, group chats, and manual tracking with one purpose-built platform.
+              Replace spreadsheets, group chats, and manual tracking with one purpose-built platform developed from real club experience by the team behind{" "}
+              <a
+                href="https://dragon-bpgbadminton.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-medium"
+                data-testid="link-dragon-intro"
+              >
+                Dragon Badminton Club – BPG Ltd
+              </a>.
             </p>
           </div>
 
@@ -294,7 +314,7 @@ export default function Home() {
             <FeatureCard
               testId="feature-scheduling"
               image={sessionsPath}
-              imageAlt="Session scheduling interface"
+              imageAlt="Badminton club session management software by Dragon Badminton Club"
               title="Session Scheduling"
               description="Create sessions and manage attendance easily."
               icon={Calendar}
@@ -302,9 +322,9 @@ export default function Home() {
             <FeatureCard
               testId="feature-matches"
               image={organisersPath}
-              imageAlt="Match organization dashboard"
-              title="Match Organization"
-              description="Track matches and organize players for games."
+              imageAlt="BadmintonHub advanced match engine developed by Dragon Badminton Club – BPG Ltd"
+              title="Match Organisation"
+              description="Featuring our advanced custom-built match engine, designed and developed by Dragon Badminton Club – BPG Ltd to automate game organisation, rotations, and scoring with unmatched flexibility and accuracy."
               icon={Gamepad2}
             />
             <FeatureCard
@@ -514,6 +534,7 @@ export default function Home() {
                   "Advanced finances",
                   "Reports & analytics",
                   "Data export",
+                  "Full access to the proprietary advanced match engine developed by Dragon Badminton Club – BPG Ltd",
                 ].map((item, i) => (
                   <li key={i} className="flex items-start gap-2.5 text-sm">
                     <Check className="w-4 h-4 text-primary mt-0.5 shrink-0" />
@@ -636,6 +657,42 @@ export default function Home() {
             </Button>
           </Link>
           <p className="text-sm text-muted-foreground mt-4">No credit card required.</p>
+        </div>
+      </section>
+
+      {/* ===== ABOUT BADMINTONHUB ===== */}
+      <section className="py-16 lg:py-20 border-t border-border/40 bg-muted/20" id="about" data-testid="section-about">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
+          <h2 className="text-3xl md:text-4xl font-display font-bold mb-6 text-center" data-testid="text-about-title">
+            About BadmintonHub
+          </h2>
+          <div className="space-y-5 text-muted-foreground text-base md:text-lg leading-relaxed">
+            <p data-testid="text-about-paragraph-1">
+              BadmintonHub is a product built by{" "}
+              <a
+                href="https://dragon-bpgbadminton.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-medium"
+                data-testid="link-dragon-about-1"
+              >
+                Dragon Badminton Club – BPG Ltd
+              </a>
+              {" "}— the same team behind Birmingham&apos;s inclusive community club and performance pathway programmes. Every feature is shaped by real-world experience running sessions, leagues, and tournaments, so you get tools that actually work for badminton.
+            </p>
+            <p data-testid="text-about-paragraph-2">
+              We created this platform to help clubs everywhere operate at the same professional standard we use at{" "}
+              <a
+                href="https://dragon-bpgbadminton.com/"
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-primary hover:underline font-medium"
+                data-testid="link-dragon-about-2"
+              >
+                Dragon Badminton Club
+              </a>, making administration easier so organisers can focus on growing the sport and building great communities.
+            </p>
+          </div>
         </div>
       </section>
     </PublicLayout>
