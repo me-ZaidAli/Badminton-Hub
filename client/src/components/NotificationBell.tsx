@@ -3,7 +3,8 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Bell } from "lucide-react";
+import { Bell, BellOff } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useUser } from "@/hooks/use-auth";
@@ -14,9 +15,16 @@ interface NotificationsResponse {
   unreadCount: number;
 }
 
+// Rule keys (notifications.type values) that we treat as "info request" nags
+// the user can permanently silence with a one-tap "Don't ask again" button.
+const SILENCEABLE_RULE_KEYS = new Set<string>([
+  "profileIncomplete",
+]);
+
 export function NotificationBell() {
   const { data: user } = useUser();
   const [, setLocation] = useLocation();
+  const { toast } = useToast();
 
   const { data, isLoading } = useQuery<NotificationsResponse>({
     queryKey: ["/api/notifications"],
@@ -31,6 +39,21 @@ export function NotificationBell() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
       queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+    },
+  });
+
+  const muteRuleMutation = useMutation({
+    mutationFn: async (ruleKey: string) => {
+      await apiRequest("POST", "/api/notifications/mute-rule", { ruleKey, muted: true });
+    },
+    onSuccess: (_d, ruleKey) => {
+      toast({ title: "Silenced", description: `You won't get more "${ruleKey}" reminders. Manage in Settings → Notifications.` });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/notifications/preferences"] });
+    },
+    onError: (err: Error) => {
+      toast({ title: "Couldn't silence", description: err.message, variant: "destructive" });
     },
   });
 
@@ -120,39 +143,59 @@ export function NotificationBell() {
               No notifications
             </div>
           ) : (
-            notifications.map((notification) => (
-              <button
-                key={notification.id}
-                className={`w-full text-left p-3 border-b last:border-b-0 hover-elevate cursor-pointer transition-colors ${
-                  !notification.readAt
-                    ? "bg-muted/50"
-                    : ""
-                }`}
-                onClick={() => handleNotificationClick(notification)}
-                data-testid={`notification-item-${notification.id}`}
-              >
-                <div className="flex flex-col gap-1">
-                  <span
-                    className={`text-sm ${!notification.readAt ? "font-bold" : "font-medium"}`}
-                    data-testid={`text-notification-title-${notification.id}`}
-                  >
-                    {notification.title}
-                  </span>
-                  <span
-                    className="text-xs text-muted-foreground line-clamp-2"
-                    data-testid={`text-notification-message-${notification.id}`}
-                  >
-                    {notification.message}
-                  </span>
-                  <span
-                    className="text-xs text-muted-foreground/70"
-                    data-testid={`text-notification-time-${notification.id}`}
-                  >
-                    {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
-                  </span>
+            notifications.map((notification) => {
+              const canSilence = SILENCEABLE_RULE_KEYS.has(notification.type);
+              return (
+                <div
+                  key={notification.id}
+                  role="button"
+                  tabIndex={0}
+                  className={`w-full text-left p-3 border-b last:border-b-0 hover-elevate cursor-pointer transition-colors flex items-start gap-2 ${
+                    !notification.readAt ? "bg-muted/50" : ""
+                  }`}
+                  onClick={() => handleNotificationClick(notification)}
+                  onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") handleNotificationClick(notification); }}
+                  data-testid={`notification-item-${notification.id}`}
+                >
+                  <div className="flex flex-col gap-1 flex-1 min-w-0">
+                    <span
+                      className={`text-sm ${!notification.readAt ? "font-bold" : "font-medium"}`}
+                      data-testid={`text-notification-title-${notification.id}`}
+                    >
+                      {notification.title}
+                    </span>
+                    <span
+                      className="text-xs text-muted-foreground line-clamp-2"
+                      data-testid={`text-notification-message-${notification.id}`}
+                    >
+                      {notification.message}
+                    </span>
+                    <span
+                      className="text-xs text-muted-foreground/70"
+                      data-testid={`text-notification-time-${notification.id}`}
+                    >
+                      {formatDistanceToNow(new Date(notification.createdAt), { addSuffix: true })}
+                    </span>
+                    {canSilence && (
+                      <button
+                        type="button"
+                        className="mt-1 self-start inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground underline decoration-dotted underline-offset-2"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (muteRuleMutation.isPending) return;
+                          muteRuleMutation.mutate(notification.type);
+                        }}
+                        disabled={muteRuleMutation.isPending}
+                        data-testid={`button-mute-rule-${notification.id}`}
+                      >
+                        <BellOff className="h-3 w-3" />
+                        Don't ask again
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </button>
-            ))
+              );
+            })
           )}
         </div>
         <div className="border-t p-2">

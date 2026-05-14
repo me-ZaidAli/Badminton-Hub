@@ -3435,6 +3435,10 @@ export const userNotificationPrefs = pgTable("user_notification_prefs", {
   // Category × channel matrix. Shape: { "<Category>": { push?: bool, inapp?: bool, email?: bool } }
   // Missing entries default to true (opted-in). Categories match RULE_REGISTRY categories.
   categoryPrefs: jsonb("category_prefs").notNull().default({}),
+  // Per-rule mute list. Any rule key present here is suppressed for this user
+  // across both push + in-app channels (driven by the in-app "Don't ask again"
+  // dismiss button on rule-keyed notifications).
+  mutedRuleKeys: text("muted_rule_keys").array().notNull().default(sql`'{}'::text[]`),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
 export type UserNotificationPrefs = typeof userNotificationPrefs.$inferSelect;

@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { notificationRules, notifications, notificationSendMetrics } from "@shared/schema";
-import { eq, sql } from "drizzle-orm";
+import { notificationRules, notifications, notificationSendMetrics, userNotificationPrefs } from "@shared/schema";
+import { eq, sql, inArray } from "drizzle-orm";
 import { sendPushToUsers, getOptedInUserIdsByCategory, type PushPayload } from "./oneSignal";
 import { sendEmailToUsers, wrapEmailHtml } from "./emailSender";
 
@@ -254,6 +254,23 @@ export async function sendRulePush(
   if (!userIds || userIds.length === 0) return;
   const rule = await getRule(ruleKey);
   if (!rule || rule.enabled === false) return;
+
+  // Per-user mute filter — anyone who tapped "Don't ask again" on this rule's
+  // in-app card is dropped before any channel dispatch.
+  try {
+    const muted = await db
+      .select({ userId: userNotificationPrefs.userId })
+      .from(userNotificationPrefs)
+      .where(sql`${userNotificationPrefs.userId} = ANY(${userIds}) AND ${ruleKey} = ANY(${userNotificationPrefs.mutedRuleKeys})`);
+    if (muted.length > 0) {
+      const mutedSet = new Set(muted.map(m => m.userId));
+      userIds = userIds.filter(uid => !mutedSet.has(uid));
+      if (userIds.length === 0) return;
+    }
+  } catch (e) {
+    console.error("[sendRulePush mute filter]", e);
+  }
+
   const renderedTitle = render(rule.title, vars);
   const renderedMessage = render(rule.message, vars);
   const payload: PushPayload = {

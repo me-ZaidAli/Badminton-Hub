@@ -11,6 +11,7 @@ import {
   notificationRules,
   notificationSchedules,
   notificationSendMetrics,
+  notifications,
 } from "@shared/schema";
 import { eq, and, inArray, sql, gte, desc } from "drizzle-orm";
 import { sendPushBySegment } from "./oneSignal";
@@ -142,6 +143,62 @@ export function registerNotificationRoutes(app: Express) {
       .from(userNotificationPrefs)
       .where(eq(userNotificationPrefs.userId, userId));
     res.json(updated);
+  });
+
+  // Mute (or unmute) a single rule key for the current user. Powers the
+  // "Don't ask again" / Stop these reminders button on in-app notifications.
+  // Once muted, sendRulePush filters this user out across both push + in-app
+  // channels for that specific rule (e.g. "profileIncomplete"). Other rules
+  // are unaffected.
+  app.post("/api/notifications/mute-rule", async (req: Request, res: Response) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const userId = req.user!.id;
+    const ruleKey: unknown = req.body?.ruleKey;
+    const muted: boolean = req.body?.muted !== false; // default = mute
+    if (typeof ruleKey !== "string" || !ruleKey || ruleKey.length > 80) {
+      return res.status(400).json({ message: "ruleKey required" });
+    }
+    if (!(RULE_KEYS as readonly string[]).includes(ruleKey)) {
+      return res.status(400).json({ message: "Unknown ruleKey" });
+    }
+    try {
+      // Ensure prefs row exists
+      await db.insert(userNotificationPrefs)
+        .values({ userId, mutedRuleKeys: muted ? [ruleKey] : [] })
+        .onConflictDoNothing();
+      // Atomic array add/remove via SQL — avoids read-modify-write races.
+      if (muted) {
+        await db.update(userNotificationPrefs)
+          .set({
+            mutedRuleKeys: sql`(SELECT ARRAY(SELECT DISTINCT unnest(${userNotificationPrefs.mutedRuleKeys} || ARRAY[${ruleKey}]::text[])))`,
+            updatedAt: new Date(),
+          })
+          .where(eq(userNotificationPrefs.userId, userId));
+      } else {
+        await db.update(userNotificationPrefs)
+          .set({
+            mutedRuleKeys: sql`array_remove(${userNotificationPrefs.mutedRuleKeys}, ${ruleKey})`,
+            updatedAt: new Date(),
+          })
+          .where(eq(userNotificationPrefs.userId, userId));
+      }
+      // When muting, also clear any existing in-app rows of this type so the
+      // bell clears immediately instead of forcing the user to dismiss each one.
+      let cleared = 0;
+      if (muted) {
+        const del = await db
+          .delete(notifications)
+          .where(and(eq(notifications.userId, userId), eq(notifications.type, ruleKey)))
+          .returning({ id: notifications.id });
+        cleared = del.length;
+      }
+      const [row] = await db.select({ mutedRuleKeys: userNotificationPrefs.mutedRuleKeys })
+        .from(userNotificationPrefs).where(eq(userNotificationPrefs.userId, userId));
+      res.json({ ok: true, ruleKey, muted, cleared, mutedRuleKeys: row?.mutedRuleKeys || [] });
+    } catch (err: any) {
+      console.error("[notif/mute-rule]", err);
+      res.status(500).json({ message: err.message });
+    }
   });
 
   // Public list of categories — drives the prefs UI grid
