@@ -163,11 +163,11 @@ export function useSmartGenerateMatches() {
   const queryClient = useQueryClient();
   const { toast } = useToast();
   return useMutation({
-    mutationFn: async ({ sessionId, mode, queueTargetSize, genderType, isAutoGenerate, matchmakingMode }: { sessionId: number; mode: "SOCIAL" | "COMPETITIVE"; queueTargetSize: number; genderType?: string; isAutoGenerate?: boolean; matchmakingMode?: string }) => {
+    mutationFn: async ({ sessionId, mode, queueTargetSize, genderType, isAutoGenerate }: { sessionId: number; mode: "SOCIAL" | "COMPETITIVE"; queueTargetSize: number; genderType?: string; isAutoGenerate?: boolean }) => {
       const res = await fetch(`/api/sessions/${sessionId}/matches/smart-generate`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ mode, queueTargetSize, genderType, isAutoGenerate, matchmakingMode }),
+        body: JSON.stringify({ mode, queueTargetSize, genderType, isAutoGenerate }),
         credentials: "include",
       });
       if (!res.ok) {

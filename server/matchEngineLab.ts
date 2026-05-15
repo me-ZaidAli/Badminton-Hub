@@ -1,5 +1,6 @@
 import { generateSmartMatches, buildPairingHistory, getGradeRank } from "./matchEngine";
-import { applyAIBrainLayer, computeSessionMetrics } from "./adaptiveFairnessAI";
+// Legacy AI-brain helpers were removed alongside the simple-engine rewrite.
+// The lab now generates matches purely via `generateSmartMatches`.
 import { GRADE_ORDER } from "@shared/schema";
 
 type Player = {
@@ -212,44 +213,28 @@ export function runSimulation(config: SimulationConfig): SimulationReport {
       continue;
     }
 
-    let generatedMatches;
+    const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
+      matchHistory.map(m => ({
+        teamAPlayer1Id: m.teamAPlayer1Id,
+        teamAPlayer2Id: m.teamAPlayer2Id,
+        teamBPlayer1Id: m.teamBPlayer1Id,
+        teamBPlayer2Id: m.teamBPlayer2Id,
+        status: m.status,
+      }))
+    );
 
-    if (config.useAIBrain) {
-      const result = applyAIBrainLayer({
-        mode: config.mode,
-        players: availablePlayers,
-        playersPerSide: config.playersPerSide,
-        genderType: config.genderType,
-        queueTarget: matchesPerRound,
-        matchHistory,
-        sessionDurationMinutes: 120,
-        elapsedMinutes: Math.round((round / totalRounds) * 120),
-      });
-      generatedMatches = result.matches;
-    } else {
-      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
-        matchHistory.map(m => ({
-          teamAPlayer1Id: m.teamAPlayer1Id,
-          teamAPlayer2Id: m.teamAPlayer2Id,
-          teamBPlayer1Id: m.teamBPlayer1Id,
-          teamBPlayer2Id: m.teamBPlayer2Id,
-          status: m.status,
-        }))
-      );
-
-      const result = generateSmartMatches({
-        mode: config.mode,
-        players: availablePlayers,
-        playersPerSide: config.playersPerSide,
-        genderType: config.genderType,
-        queueTarget: matchesPerRound,
-        recentPairings,
-        recentGroups,
-        recentOpponents,
-        playerMatchCounts,
-      });
-      generatedMatches = result.matches;
-    }
+    const result = generateSmartMatches({
+      mode: config.mode,
+      players: availablePlayers,
+      playersPerSide: config.playersPerSide,
+      genderType: config.genderType,
+      queueTarget: matchesPerRound,
+      recentPairings,
+      recentGroups,
+      recentOpponents,
+      playerMatchCounts,
+    });
+    const generatedMatches = result.matches;
 
     for (const m of matchHistory) {
       if (m.status === "LIVE") {
@@ -487,18 +472,9 @@ export function runSimulation(config: SimulationConfig): SimulationReport {
     (Math.min(100, challengeDistribution.balanced / Math.max(1, allMatchDetails.length) * 100) * 0.1)
   );
 
-  let aiMetrics;
-  if (config.useAIBrain) {
-    const metrics = computeSessionMetrics(matchHistory, players);
-    aiMetrics = {
-      fairnessScore: metrics.fairnessScore,
-      genderBalanceScore: metrics.genderBalanceScore,
-      matchQualityAverage: metrics.matchQualityAverage,
-      partnerDiversity: metrics.partnerDiversity,
-      opponentDiversity: metrics.opponentDiversity,
-      warnings: metrics.warnings.map(w => ({ type: w.type, message: w.message, severity: w.severity })),
-    };
-  }
+  // The legacy AI-brain metrics overlay was removed alongside the simple-engine
+  // rewrite. The lab now leaves the optional aiMetrics field unset.
+  const aiMetrics = undefined;
 
   return {
     id: `sim-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,

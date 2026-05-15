@@ -15,7 +15,7 @@ import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
 import { generateSmartMatches, buildPairingHistory, countExistingMatchTypes, buildPlayerLastMatchTypes, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
 import { computeSessionMetrics } from "./adaptiveFairnessAI";
 import { runSimulation } from "./matchEngineLab";
-import { DEFAULT_SETTINGS, MatchEngineSettings, MatchmakingMode } from "@shared/matchEngineSettings";
+import { DEFAULT_SETTINGS, MatchEngineSettings } from "@shared/matchEngineSettings";
 import { sendTicketReplyNotification, sendNewMessageNotification, sendWithdrawSpaceNotification, sendAdminSessionReminder } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
 import { ensureOwnerProfilesInAllClubs, ensureAllOwnersInClub } from "./ownerSync";
@@ -53,14 +53,18 @@ function getAppBaseUrl(): string {
   return "";
 }
 
-async function loadClubEngineSettings(clubId: number, modeOverride?: string): Promise<MatchEngineSettings> {
+async function loadClubEngineSettings(clubId: number, _modeOverride?: string): Promise<MatchEngineSettings> {
   const club = await storage.getClub(clubId);
   const saved = (club as any)?.matchEngineSettings;
-  const cfg = saved ? { ...DEFAULT_SETTINGS, ...saved } : { ...DEFAULT_SETTINGS };
-  if (modeOverride && (modeOverride === "ADVANCED" || modeOverride === "HYBRID" || modeOverride === "ROTATION")) {
-    cfg.matchmakingMode = modeOverride as MatchmakingMode;
+  // Filter saved to only known keys so legacy fields don't leak in.
+  const allowed = new Set(Object.keys(DEFAULT_SETTINGS));
+  const filtered: Record<string, any> = {};
+  if (saved && typeof saved === "object") {
+    for (const [k, v] of Object.entries(saved)) {
+      if (allowed.has(k) && typeof v === "number") filtered[k] = v;
+    }
   }
-  return cfg;
+  return { ...DEFAULT_SETTINGS, ...filtered };
 }
 
 function extractFixedPairs(signups: any[]): [number, number][] {
@@ -6956,13 +6960,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Cannot generate matches for a completed session" });
       }
 
-      const { mode, queueTargetSize, genderType, isAutoGenerate, matchmakingMode: modeOverride } = req.body;
-
-      if (modeOverride && ["ADVANCED", "HYBRID", "ROTATION"].includes(modeOverride)) {
-        if ((session as any).matchmakingMode !== modeOverride) {
-          await storage.updateSession(sessionId, { matchmakingMode: modeOverride } as any);
-        }
-      }
+      const { mode, queueTargetSize, genderType, isAutoGenerate } = req.body;
 
       if (isAutoGenerate && !session.autoGenerateActive) {
         return res.json({ status: "stopped", message: "Auto-generation is stopped for this session", matches: [] });
@@ -7114,8 +7112,7 @@ export async function registerRoutes(
       }
 
       const fixedPairs = extractFixedPairs(eligibleSignups);
-      const effectiveModeOverride = modeOverride || (session as any).matchmakingMode || undefined;
-      const smartEngineConfig = await loadClubEngineSettings(session.clubId, effectiveModeOverride);
+      const smartEngineConfig = await loadClubEngineSettings(session.clubId);
       const smartGenderMap = new Map<number, string>();
       for (const s of eligibleSignups) { if (s.player) smartGenderMap.set(s.player.id, s.player.gender || "MALE"); }
       const smartTypeCounts = countExistingMatchTypes(
@@ -7813,16 +7810,8 @@ export async function registerRoutes(
       const validKeys = new Set(Object.keys(DEFAULT_SETTINGS));
       const sanitized: Record<string, any> = {};
       for (const [key, val] of Object.entries(settings)) {
-        if (validKeys.has(key)) {
-          if (key === "matchmakingMode" && typeof val === "string" && ["ADVANCED", "HYBRID", "ROTATION"].includes(val)) {
-            sanitized[key] = val;
-          } else if (key === "enablePhaseAdjustments" && typeof val === "boolean") {
-            sanitized[key] = val;
-          } else if (key === "rotationWinnerStays" && typeof val === "boolean") {
-            sanitized[key] = val;
-          } else if (typeof val === "number" && !isNaN(val)) {
-            sanitized[key] = val;
-          }
+        if (validKeys.has(key) && typeof val === "number" && !isNaN(val)) {
+          sanitized[key] = val;
         }
       }
       await storage.updateClub(clubId, { matchEngineSettings: sanitized } as any);
@@ -7872,7 +7861,7 @@ export async function registerRoutes(
           teamA,
           teamB,
           qualityScore: m.qualityScore || 0,
-          breakdown: m.breakdown || { fairness: 0, variety: 0, quality: 0, priority: 0, gender: 0, total: m.qualityScore || 0 },
+          breakdown: m.breakdown || { groupRepeat: 0, partnerRepeat: 0, opponentRepeat: 0, gradeSpread: 0, total: 0 },
           factors: log?.topFactors || [],
           courtNumber: idx + 1,
         };
@@ -8150,7 +8139,7 @@ export async function registerRoutes(
           femaleOnly: `${Math.round(matchTypeCounts.femaleOnly / totalMatches * 100)}%`,
           mixed: `${Math.round(matchTypeCounts.mixed / totalMatches * 100)}%`,
         } : null,
-        targetRatios: { maleOnly: `${DEFAULT_SETTINGS.maleOnlyTargetRatio * 100}%`, femaleOnly: `${DEFAULT_SETTINGS.femaleOnlyTargetRatio * 100}%`, mixed: `${DEFAULT_SETTINGS.mixedTargetRatio * 100}%` },
+        targetRatios: { note: "Engine no longer steers match-type ratios — category is set per session." },
         avgFemaleGames: Math.round(avgFemaleGames * 100) / 100,
         avgMaleGames: Math.round(avgMaleGames * 100) / 100,
         femaleOverloadRatio: avgMaleGames > 0 ? `${Math.round(avgFemaleGames / avgMaleGames * 100)}%` : "N/A",

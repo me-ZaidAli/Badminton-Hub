@@ -5,14 +5,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Switch } from "@/components/ui/switch";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
 import {
-  FlaskConical, Play, BarChart3, Users, Zap, Brain, AlertTriangle,
+  FlaskConical, Play, BarChart3, Users, Zap, AlertTriangle,
   TrendingUp, Target, Shield, Loader2, Trash2, ArrowLeftRight,
   ChevronDown, ChevronUp, Trophy, Activity, Shuffle, Eye, Power
 } from "lucide-react";
@@ -176,7 +175,7 @@ function ComparePanel({ reports, onClear }: { reports: SimReport[]; onClear: () 
                   <th key={r.id} className="p-2 text-center font-medium">
                     Run {i + 1}
                     <div className="text-[10px] text-muted-foreground font-normal">
-                      {r.config.useAIBrain ? "AI Brain" : "Standard"} • {r.config.totalMatches}m
+                      Simple Engine • {r.config.totalMatches}m
                     </div>
                   </th>
                 ))}
@@ -241,7 +240,7 @@ function ComparePanel({ reports, onClear }: { reports: SimReport[]; onClear: () 
         <div className="mt-4">
           <h4 className="text-sm font-medium mb-2">Health Score Comparison</h4>
           <ResponsiveContainer width="100%" height={200}>
-            <BarChart data={reports.map((r, i) => ({ name: `Run ${i + 1}`, score: r.sessionHealthScore, engine: r.config.useAIBrain ? "AI Brain" : "Standard" }))}>
+            <BarChart data={reports.map((r, i) => ({ name: `Run ${i + 1}`, score: r.sessionHealthScore }))}>
               <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
               <XAxis dataKey="name" />
               <YAxis domain={[0, 100]} />
@@ -264,7 +263,6 @@ export default function MatchEngineLab() {
   const [genderType, setGenderType] = useState<"MIXED" | "FEMALE" | "MALE">("MIXED");
   const [playersPerSide, setPlayersPerSide] = useState<1 | 2>(2);
   const [courtsAvailable, setCourtsAvailable] = useState(3);
-  const [useAIBrain, setUseAIBrain] = useState(false);
   const [gradeDistribution, setGradeDistribution] = useState<"uniform" | "weighted">("weighted");
 
   const [currentReport, setCurrentReport] = useState<SimReport | null>(null);
@@ -286,7 +284,7 @@ export default function MatchEngineLab() {
           genderType,
           playersPerSide,
           courtsAvailable,
-          useAIBrain,
+          useAIBrain: false,
           gradeDistribution,
         }),
       });
@@ -511,19 +509,6 @@ export default function MatchEngineLab() {
               </Select>
             </div>
 
-            <div className="flex items-end pb-1">
-              <div className="flex items-center gap-2">
-                <Switch
-                  checked={useAIBrain}
-                  onCheckedChange={setUseAIBrain}
-                  data-testid="switch-ai-brain"
-                />
-                <Label className="text-xs flex items-center gap-1">
-                  <Brain className={`h-3.5 w-3.5 ${useAIBrain ? "text-purple-500" : "text-muted-foreground"}`} />
-                  AI Brain Layer
-                </Label>
-              </div>
-            </div>
           </div>
 
           <Separator className="my-4" />
@@ -929,49 +914,6 @@ export default function MatchEngineLab() {
             onToggle={() => setExpandedMatches(!expandedMatches)}
           />
 
-          {currentReport.aiMetrics && (
-            <Card className="border-purple-500/30">
-              <CardHeader className="pb-2">
-                <CardTitle className="text-sm flex items-center gap-2">
-                  <Brain className="h-4 w-4 text-purple-500" /> AI Brain Metrics
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
-                  <div className="text-center p-3 rounded-lg bg-purple-500/10">
-                    <div className="text-xl font-bold">{currentReport.aiMetrics.fairnessScore}</div>
-                    <div className="text-xs text-muted-foreground">Fairness</div>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-purple-500/10">
-                    <div className="text-xl font-bold">{currentReport.aiMetrics.genderBalanceScore}</div>
-                    <div className="text-xs text-muted-foreground">Gender Balance</div>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-purple-500/10">
-                    <div className="text-xl font-bold">{currentReport.aiMetrics.matchQualityAverage}</div>
-                    <div className="text-xs text-muted-foreground">Match Quality</div>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-purple-500/10">
-                    <div className="text-xl font-bold">{currentReport.aiMetrics.partnerDiversity}</div>
-                    <div className="text-xs text-muted-foreground">Partner Diversity</div>
-                  </div>
-                  <div className="text-center p-3 rounded-lg bg-purple-500/10">
-                    <div className="text-xl font-bold">{currentReport.aiMetrics.opponentDiversity}</div>
-                    <div className="text-xs text-muted-foreground">Opponent Diversity</div>
-                  </div>
-                </div>
-                {currentReport.aiMetrics.warnings?.length > 0 && (
-                  <div className="mt-3 space-y-1">
-                    {currentReport.aiMetrics.warnings.map((w: any, i: number) => (
-                      <div key={i} className="flex items-center gap-2 text-xs">
-                        <Badge variant={w.severity === "HIGH" ? "destructive" : "secondary"} className="text-[10px]">{w.severity}</Badge>
-                        <span>{w.message}</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          )}
         </>
       )}
 

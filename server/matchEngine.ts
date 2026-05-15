@@ -1,5 +1,18 @@
+// Simple Match Engine
+//
+// One algorithm, five settings. See `shared/matchEngineSettings.ts` for the
+// full description. This file replaces the previous v6.x scoring engine.
+//
+// Public API (kept stable for routes.ts / matchEngineLab.ts / adaptiveFairnessAI.ts):
+//   - generateSmartMatches(opts) → { matches, scoringLogs?, validationErrors? }
+//   - replacePlayerInQueuedMatches(...)
+//   - buildPairingHistory(matches)
+//   - countExistingMatchTypes(...)        // no-op stub, returns zeros
+//   - buildPlayerLastMatchTypes(...)      // no-op stub, returns empty map
+//   - getGradeRank, isHighGrade, isLowGrade
+
 import { GRADE_ORDER } from "@shared/schema";
-import { MatchEngineSettings, MatchmakingMode, DEFAULT_SETTINGS, ScoringBreakdown } from "@shared/matchEngineSettings";
+import { MatchEngineSettings, DEFAULT_SETTINGS, ScoringBreakdown } from "@shared/matchEngineSettings";
 
 type Player = {
   id: number;
@@ -19,13 +32,14 @@ type MatchResult = {
 };
 
 type FixedPair = [number, number];
-
 type MatchType = "MALE_ONLY" | "FEMALE_ONLY" | "MIXED";
 
 type EngineSettings = {
   matchScoreHistory?: Map<string, number[]>;
   totalSessionMatches?: number;
   engineConfig?: MatchEngineSettings;
+  // Kept for source compatibility with old call sites — the simple engine
+  // ignores these but they're allowed to be passed in without errors.
   existingMatchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number };
   playerLastMatchTypes?: Map<number, MatchType>;
 };
@@ -39,12 +53,6 @@ type GenerateOptions = {
   recentPairings: Map<string, number>;
   recentOpponents: Map<string, number>;
   playerMatchCounts: Map<number, number>;
-  // Persistent group memory: how many times each exact 4-player group has
-  // already been put on a court this session. Without this, the engine has
-  // no way to penalise repeating the same foursome across separate calls
-  // (which is how it's invoked — once per "next match" — so every call
-  // would otherwise start from a clean group history). Built by
-  // `buildPairingHistory`; safe to omit (defaults to empty).
   recentGroups?: Map<string, number>;
   priorityPlayerIds?: number[];
   fixedPairs?: FixedPair[];
@@ -67,27 +75,26 @@ type GenerateResult = {
   validationErrors?: string[];
 };
 
-type QualityTag = "HIGH" | "MEDIUM" | "LOW";
-
-type SelectionUnit = {
-  type: "PAIR" | "SINGLE";
-  players: Player[];
-  effectiveGames: number;
-  pairId?: string;
-  pairWait?: number;
-};
-
-type GenderMode = "FEMALE_ONLY" | "MIXED_ROTATION" | "OPEN";
+// ───────────────────────── helpers ─────────────────────────
 
 function pairKey(a: number, b: number): string {
   return a < b ? `${a}-${b}` : `${b}-${a}`;
+}
+
+function groupKey(players: Player[]): string {
+  return [...players].map(p => p.id).sort((x, y) => x - y).join("-");
+}
+
+function incPair(map: Map<string, number>, a: number, b: number): void {
+  const k = pairKey(a, b);
+  map.set(k, (map.get(k) ?? 0) + 1);
 }
 
 function getEffectiveGender(p: Player): string {
   return p.genderOverride || p.gender || "MALE";
 }
 
-function getGradeRank(grade: string | null): number {
+export function getGradeRank(grade: string | null): number {
   if (!grade) return 1;
   const idx = GRADE_ORDER.indexOf(grade as any);
   if (idx >= 0) return idx + 1;
@@ -100,11 +107,11 @@ function getGradeRank(grade: string | null): number {
   }
 }
 
-function isHighGrade(grade: string | null): boolean {
+export function isHighGrade(grade: string | null): boolean {
   return getGradeRank(grade) >= 5;
 }
 
-function isLowGrade(grade: string | null): boolean {
+export function isLowGrade(grade: string | null): boolean {
   return getGradeRank(grade) <= 4;
 }
 
@@ -112,12 +119,6 @@ function filterByGender(players: Player[], genderType: string): Player[] {
   if (genderType === "FEMALE") return players.filter(p => getEffectiveGender(p) === "FEMALE");
   if (genderType === "MALE") return players.filter(p => getEffectiveGender(p) !== "FEMALE");
   return players;
-}
-
-function getQualityTag(teamDiff: number, isFallback: boolean): QualityTag {
-  if (isFallback) return "LOW";
-  if (teamDiff <= 0.5) return "HIGH";
-  return "MEDIUM";
 }
 
 function getFixedPartner(playerId: number, fixedPairs: FixedPair[]): number | null {
@@ -128,918 +129,275 @@ function getFixedPartner(playerId: number, fixedPairs: FixedPair[]): number | nu
   return null;
 }
 
-function teamAvgRank(team: Player[]): number {
-  return team.reduce((sum, p) => sum + getGradeRank(p.grade), 0) / team.length;
+function combinations(n: number, k: number): number {
+  if (k < 0 || k > n) return 0;
+  let r = 1;
+  for (let i = 1; i <= k; i++) r = (r * (n - i + 1)) / i;
+  return Math.round(r);
 }
 
-function buildUnits(
-  eligible: Player[],
-  fixedPairs: FixedPair[],
-  playerMatchCounts: Map<number, number>,
-  matchIndex: number,
-  playerLastPlayedRound: Map<number, number>,
-  pairWaitTracker: Map<string, number>
-): SelectionUnit[] {
-  const units: SelectionUnit[] = [];
-  const assignedIds = new Set<number>();
+// ───────────────────────── core scoring ─────────────────────────
 
-  for (const [p1Id, p2Id] of fixedPairs) {
-    const p1 = eligible.find(p => p.id === p1Id);
-    const p2 = eligible.find(p => p.id === p2Id);
-    if (!p1 || !p2) continue;
-    if (assignedIds.has(p1Id) || assignedIds.has(p2Id)) continue;
-
-    assignedIds.add(p1Id);
-    assignedIds.add(p2Id);
-
-    const pid = pairKey(p1Id, p2Id);
-    const gamesPlayed = Math.max(
-      playerMatchCounts.get(p1Id) || 0,
-      playerMatchCounts.get(p2Id) || 0
-    );
-
-    const lastP1 = playerLastPlayedRound.get(p1Id) ?? -1;
-    const lastP2 = playerLastPlayedRound.get(p2Id) ?? -1;
-    const pairWait = matchIndex - Math.max(lastP1, lastP2);
-
-    pairWaitTracker.set(pid, pairWait);
-
-    const effectiveGames = gamesPlayed - (pairWait * 0.5);
-
-    units.push({
-      type: "PAIR",
-      players: [p1, p2],
-      effectiveGames,
-      pairId: pid,
-      pairWait,
-    });
-  }
-
-  const pairedPlayerIds = new Set<number>();
-  for (const [p1Id, p2Id] of fixedPairs) {
-    pairedPlayerIds.add(p1Id);
-    pairedPlayerIds.add(p2Id);
-  }
-
-  for (const p of eligible) {
-    if (assignedIds.has(p.id)) continue;
-    if (pairedPlayerIds.has(p.id)) continue;
-    const gamesPlayed = playerMatchCounts.get(p.id) || 0;
-    units.push({
-      type: "SINGLE",
-      players: [p],
-      effectiveGames: gamesPlayed,
-    });
-  }
-
-  return units;
-}
-
-// `selectUnits` previously materialised every C(N,4) combination of singles
-// before the caller sliced them down. With ~16 windowed singles that's 1820
-// arrays allocated on every call to `generateNextMatch` — and the engine is
-// invoked once per queued match. Capping inside the loop with an early exit
-// keeps the hot path bounded regardless of pool size. The cap is high enough
-// to give the scorer plenty of variety; the actual scoring then picks the
-// best one. `units` are already sorted by deficit/wait so the first N groups
-// produced are the most relevant ones anyway.
-function selectUnits(sortedUnits: SelectionUnit[], maxGroups = 1500): Player[][] {
-  const groups: Player[][] = [];
-  const pairs = sortedUnits.filter(u => u.type === "PAIR");
-  const singles = sortedUnits.filter(u => u.type === "SINGLE");
-
-  for (let i = 0; i < pairs.length; i++) {
-    for (let j = i + 1; j < pairs.length; j++) {
-      groups.push([...pairs[i].players, ...pairs[j].players]);
-      if (groups.length >= maxGroups) return groups;
-    }
-  }
-
-  for (const pair of pairs) {
-    for (let i = 0; i < singles.length; i++) {
-      for (let j = i + 1; j < singles.length; j++) {
-        groups.push([...pair.players, ...singles[i].players, ...singles[j].players]);
-        if (groups.length >= maxGroups) return groups;
-      }
-    }
-  }
-
-  for (let i = 0; i < singles.length; i++) {
-    for (let j = i + 1; j < singles.length; j++) {
-      for (let k = j + 1; k < singles.length; k++) {
-        for (let l = k + 1; l < singles.length; l++) {
-          groups.push([
-            ...singles[i].players,
-            ...singles[j].players,
-            ...singles[k].players,
-            ...singles[l].players,
-          ]);
-          if (groups.length >= maxGroups) return groups;
-        }
-      }
-    }
-  }
-
-  return groups;
-}
-
-function determineGenderMode(eligible: Player[], matchIndex: number, genderType?: string): GenderMode {
-  if (genderType === "FEMALE") return "FEMALE_ONLY";
-  if (genderType === "MALE") return "OPEN";
-  return "OPEN";
-}
-
-function groupHasFixedMixedPair(group: Player[], fixedPairs: FixedPair[]): boolean {
-  for (const [p1Id, p2Id] of fixedPairs) {
-    const p1 = group.find(p => p.id === p1Id);
-    const p2 = group.find(p => p.id === p2Id);
-    if (p1 && p2) {
-      const g1 = getEffectiveGender(p1);
-      const g2 = getEffectiveGender(p2);
-      if (g1 !== g2) return true;
-    }
-  }
-  return false;
-}
-
-function applyGenderRules(group: Player[], mode: GenderMode, fixedPairs?: FixedPair[]): boolean {
-  const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
-  const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
-  const hasFixedMixed = fixedPairs ? groupHasFixedMixedPair(group, fixedPairs) : false;
-
-  if (mode === "FEMALE_ONLY") {
-    if (hasFixedMixed) return true;
-    return females.length === 4;
-  }
-
-  if (mode === "MIXED_ROTATION") {
-    if (hasFixedMixed) return true;
-    return males.length === 2 && females.length === 2;
-  }
-
-  if (males.length === 4 || females.length === 4) return true;
-  if (males.length === 2 && females.length === 2) return true;
-
-  if (hasFixedMixed) {
-    if (males.length === 3 && females.length === 1) return true;
-    if (males.length === 1 && females.length === 3) return true;
-  }
-
-  return false;
-}
-
-function generateTeams(
+function scoreGroup(
   group: Player[],
-  fixedPairs: FixedPair[]
-): [Player[], Player[]][] {
-  const pairSets: Set<string> = new Set();
-  for (const [a, b] of fixedPairs) {
-    pairSets.add(pairKey(a, b));
-  }
-
-  const hasPair = (p1: Player, p2: Player): boolean => {
-    return pairSets.has(pairKey(p1.id, p2.id));
-  };
-
-  const pairsInGroup: Player[][] = [];
-  for (const [p1Id, p2Id] of fixedPairs) {
-    const p1 = group.find(p => p.id === p1Id);
-    const p2 = group.find(p => p.id === p2Id);
-    if (p1 && p2) {
-      pairsInGroup.push([p1, p2]);
-    }
-  }
-
-  if (pairsInGroup.length === 2) {
-    return [[pairsInGroup[0], pairsInGroup[1]]];
-  }
-
-  if (pairsInGroup.length === 1) {
-    const fixedTeam = pairsInGroup[0];
-    const others = group.filter(p => !fixedTeam.some(fp => fp.id === p.id));
-    if (others.length === 2) {
-      return [[fixedTeam, others]];
-    }
-    return buildAllSplits(group).filter(([teamA, teamB]) => {
-      for (const pair of pairsInGroup) {
-        const p1InA = teamA.some(p => p.id === pair[0].id);
-        const p2InA = teamA.some(p => p.id === pair[1].id);
-        if (p1InA !== p2InA) return false;
-      }
-      return true;
-    });
-  }
-
-  return buildAllSplits(group);
-}
-
-function buildAllSplits(group: Player[]): [Player[], Player[]][] {
-  const [a, b, c, d] = group;
-  return [
-    [[a, b], [c, d]],
-    [[a, c], [b, d]],
-    [[a, d], [b, c]],
-  ];
-}
-
-type ScoreMatchContext = {
-  pairUnits?: SelectionUnit[];
-  cfg?: MatchEngineSettings;
-  playerMatchCounts?: Map<number, number>;
-  sessionAvgGames?: number;
-  groupHistory?: Map<string, number>;
-  matchIndex?: number;
-  playerLastPlayedRound?: Map<number, number>;
-};
-
-function groupKey(players: Player[]): string {
-  return [...players].map(p => p.id).sort((a, b) => a - b).join("-");
-}
-
-function scoreMatch(
-  teamA: Player[],
-  teamB: Player[],
-  pairHistory: Map<string, number>,
-  oppHistory: Map<string, number>,
-  ctx: ScoreMatchContext = {}
-): { score: number; teamDiff: number; factors: string[] } {
-  const { pairUnits, cfg, playerMatchCounts, sessionAvgGames, groupHistory, matchIndex, playerLastPlayedRound } = ctx;
-  const ec = cfg || DEFAULT_SETTINGS;
-  const teamDiff = Math.abs(teamAvgRank(teamA) - teamAvgRank(teamB));
-
-  let partnerRepeat = 0;
-  if (teamA.length === 2) {
-    const k = pairKey(teamA[0].id, teamA[1].id);
-    partnerRepeat += pairHistory.get(k) || 0;
-  }
-  if (teamB.length === 2) {
-    const k = pairKey(teamB[0].id, teamB[1].id);
-    partnerRepeat += pairHistory.get(k) || 0;
-  }
-
-  let opponentRepeat = 0;
-  for (const a of teamA) {
-    for (const b of teamB) {
-      opponentRepeat += oppHistory.get(pairKey(a.id, b.id)) || 0;
-    }
-  }
-
-  const qualityPenalty = teamDiff * Math.abs(ec.spreadWeight);
-  const partnerPenalty = partnerRepeat * Math.abs(ec.partnerRepeatWeight);
-  const opponentPenalty = opponentRepeat * Math.abs(ec.opponentRepeatWeight);
-  const penalty = qualityPenalty + partnerPenalty + opponentPenalty;
-  let score = -penalty;
-
+  ec: MatchEngineSettings,
+  pairings: Map<string, number>,
+  opponents: Map<string, number>,
+  groups: Map<string, number>,
+): { score: number; breakdown: ScoringBreakdown; factors: string[] } {
   const factors: string[] = [];
-  if (teamDiff > 0) factors.push(`teamDiff(${teamDiff.toFixed(1)}): -${qualityPenalty.toFixed(0)}`);
-  if (partnerRepeat > 0) factors.push(`partnerRepeat(${partnerRepeat}): -${partnerPenalty}`);
-  if (opponentRepeat > 0) factors.push(`opponentRepeat(${opponentRepeat}): -${opponentPenalty}`);
 
-  const allPlayers = [...teamA, ...teamB];
+  // Group repeat
+  const gPrior = groups.get(groupKey(group)) ?? 0;
+  const groupRepeat = gPrior * ec.groupRepeatPenalty;
+  if (gPrior > 0) factors.push(`group played ×${gPrior}: +${groupRepeat}`);
 
-  if (playerMatchCounts && sessionAvgGames !== undefined) {
-    let fairnessPenalty = 0;
-    for (const p of allPlayers) {
-      const games = playerMatchCounts.get(p.id) || 0;
-      const deficit = games - sessionAvgGames;
-      if (deficit > 0) {
-        const defPen = Math.min(deficit * Math.abs(ec.deficitWeight), Math.abs(ec.deficitCap));
-        fairnessPenalty += defPen;
-      }
-      fairnessPenalty += games * Math.abs(ec.gamesPlayedWeight);
-    }
-    if (fairnessPenalty > 0) {
-      score -= fairnessPenalty;
-      factors.push(`fairness(avgDelta): -${fairnessPenalty.toFixed(0)}`);
+  // Partner & opponent reps across all 6 pairs in the group
+  let partnerHits = 0;
+  let oppHits = 0;
+  for (let i = 0; i < group.length; i++) {
+    for (let j = i + 1; j < group.length; j++) {
+      const k = pairKey(group[i].id, group[j].id);
+      partnerHits += pairings.get(k) ?? 0;
+      oppHits += opponents.get(k) ?? 0;
     }
   }
+  const partnerRepeat = partnerHits * ec.partnerRepeatPenalty;
+  const opponentRepeat = oppHits * ec.opponentRepeatPenalty;
+  if (partnerHits > 0) factors.push(`partner reps ${partnerHits}: +${partnerRepeat}`);
+  if (oppHits > 0) factors.push(`opponent reps ${oppHits}: +${opponentRepeat}`);
 
-  const allRanks = allPlayers.map(p => getGradeRank(p.grade));
-  const rankSpread = Math.max(...allRanks) - Math.min(...allRanks);
-  if (rankSpread <= 2) {
-    const likeBonus = Math.abs(ec.spreadWeight) * 1.5;
-    score += likeBonus;
-    factors.push(`likePlayLike(spread:${rankSpread}): +${likeBonus.toFixed(0)}`);
-  } else if (rankSpread <= 3) {
-    const likeBonus = Math.abs(ec.spreadWeight) * 0.5;
-    score += likeBonus;
-    factors.push(`likePlayLike(spread:${rankSpread}): +${likeBonus.toFixed(0)}`);
-  }
+  // Grade spread
+  const ranks = group.map(p => getGradeRank(p.grade));
+  const spread = Math.max(...ranks) - Math.min(...ranks);
+  const gradeSpread = spread * ec.gradeSpreadWeight;
+  if (spread > 0) factors.push(`grade spread ${spread}: +${gradeSpread.toFixed(1)}`);
 
-  if (groupHistory) {
-    const gk = groupKey(allPlayers);
-    const groupRepeats = groupHistory.get(gk) || 0;
-    if (groupRepeats > 0) {
-      const grpPenalty = groupRepeats * Math.abs(ec.groupRepeatPenalty);
-      score -= grpPenalty;
-      factors.push(`groupRepeat(${groupRepeats}): -${grpPenalty}`);
-    }
-  }
-
-  if (ec.opponentCooldownWindow > 0) {
-    for (const a of teamA) {
-      for (const b of teamB) {
-        const oppCount = oppHistory.get(pairKey(a.id, b.id)) || 0;
-        if (oppCount >= ec.opponentCooldownThreshold) {
-          const softPen = Math.abs(ec.softOpponentPenalty) * (oppCount - ec.opponentCooldownThreshold + 1);
-          score -= softPen;
-          factors.push(`oppCooldown(${a.id}v${b.id},${oppCount}): -${softPen}`);
-        }
-      }
-    }
-  }
-
-  if (playerMatchCounts && playerLastPlayedRound && matchIndex !== undefined) {
-    const males = allPlayers.filter(p => getEffectiveGender(p) !== "FEMALE");
-    for (const m of males) {
-      const lastRound = playerLastPlayedRound.get(m.id) ?? -1;
-      const consecutiveGap = matchIndex - lastRound;
-      if (consecutiveGap <= 1 && (playerMatchCounts.get(m.id) || 0) > (sessionAvgGames || 0)) {
-        const rotPen = Math.abs(ec.maleRotationScaling);
-        score -= rotPen;
-        factors.push(`maleRotation(${m.id}): -${rotPen}`);
-      }
-    }
-  }
-
-  if (pairUnits && pairUnits.length > 0) {
-    const allIds = allPlayers.map(p => p.id);
-    for (const unit of pairUnits) {
-      if (unit.type === "PAIR" && unit.pairWait && unit.pairWait > 0) {
-        const pairInMatch = unit.players.every(p => allIds.includes(p.id));
-        if (pairInMatch) {
-          const boost = unit.pairWait * 5;
-          score += boost;
-          factors.push(`pairBoost(wait:${unit.pairWait}): +${boost}`);
-        }
-      }
-    }
-  }
-
-  const strongPlayers = allPlayers.filter(p => getGradeRank(p.grade) >= 6);
-  const weakPlayers = allPlayers.filter(p => getGradeRank(p.grade) <= 3);
-  if (strongPlayers.length > 0 && weakPlayers.length > 0) {
-    for (const team of [teamA, teamB]) {
-      if (team.length === 2) {
-        const hasStrong = team.some(p => getGradeRank(p.grade) >= 6);
-        const hasWeak = team.some(p => getGradeRank(p.grade) <= 3);
-        if (hasStrong && hasWeak) {
-          const bonus = ec.strongMaleFemaleBonus ?? 15;
-          score += bonus;
-          factors.push(`strongWeakPair: +${bonus}`);
-        }
-      }
-    }
-  }
-
-  if (teamA.length === 2 && teamB.length === 2) {
-    const rankA1 = getGradeRank(teamA[0].grade);
-    const rankA2 = getGradeRank(teamA[1].grade);
-    const rankB1 = getGradeRank(teamB[0].grade);
-    const rankB2 = getGradeRank(teamB[1].grade);
-    const internalDiffA = Math.abs(rankA1 - rankA2);
-    const internalDiffB = Math.abs(rankB1 - rankB2);
-    if (internalDiffA >= 2 && internalDiffB >= 2) {
-      const balanceBonus = Math.abs(ec.spreadWeight) * 0.3;
-      score += balanceBonus;
-      factors.push(`balancedSplit: +${balanceBonus.toFixed(0)}`);
-    }
-  }
-
-  const females = allPlayers.filter(p => getEffectiveGender(p) === "FEMALE");
-  if (females.length > 0 && playerMatchCounts && sessionAvgGames !== undefined) {
-    for (const f of females) {
-      const fGames = playerMatchCounts.get(f.id) || 0;
-      if (fGames > sessionAvgGames + 1) {
-        const genderPen = Math.abs(ec.noStrongMaleFemalePenalty) * (fGames - sessionAvgGames);
-        score -= genderPen;
-        factors.push(`genderLoad(${f.id},${fGames}): -${genderPen.toFixed(0)}`);
-      }
-    }
-  }
-
-  return { score, teamDiff, factors };
-}
-
-function applyMixedTeamFilter(teamA: Player[], teamB: Player[], fixedPairs?: FixedPair[]): boolean {
-  const males = [...teamA, ...teamB].filter(p => getEffectiveGender(p) !== "FEMALE");
-  const females = [...teamA, ...teamB].filter(p => getEffectiveGender(p) === "FEMALE");
-
-  if (males.length === 2 && females.length === 2) {
-    const teamAMales = teamA.filter(p => getEffectiveGender(p) !== "FEMALE").length;
-    const teamBMales = teamB.filter(p => getEffectiveGender(p) !== "FEMALE").length;
-    if (teamAMales === 1 && teamBMales === 1) return true;
-
-    if (fixedPairs && fixedPairs.length > 0) {
-      const hasFixedMixed = groupHasFixedMixedPair([...teamA, ...teamB], fixedPairs);
-      if (hasFixedMixed) return true;
-    }
-    return false;
-  }
-
-  if ((males.length === 3 && females.length === 1) || (males.length === 1 && females.length === 3)) {
-    if (fixedPairs && fixedPairs.length > 0) {
-      for (const [p1Id, p2Id] of fixedPairs) {
-        const teamAHas1 = teamA.some(p => p.id === p1Id);
-        const teamAHas2 = teamA.some(p => p.id === p2Id);
-        const teamBHas1 = teamB.some(p => p.id === p1Id);
-        const teamBHas2 = teamB.some(p => p.id === p2Id);
-        if ((teamAHas1 && teamAHas2) || (teamBHas1 && teamBHas2)) return true;
-      }
-    }
-    return false;
-  }
-
-  return true;
-}
-
-function classifyMatchGender(players: Player[]): "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" {
-  const hasMale = players.some(p => getEffectiveGender(p) !== "FEMALE");
-  const hasFemale = players.some(p => getEffectiveGender(p) === "FEMALE");
-  if (hasMale && hasFemale) return "MIXED";
-  if (hasFemale) return "FEMALE_ONLY";
-  return "MALE_ONLY";
-}
-
-function computeMatchTypeSteeringBonus(
-  matchType: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED",
-  typeCounts: { maleOnly: number; femaleOnly: number; mixed: number },
-  cfg: MatchEngineSettings
-): { bonus: number; factor: string | null } {
-  const total = typeCounts.maleOnly + typeCounts.femaleOnly + typeCounts.mixed + 1;
-  const targets = {
-    MALE_ONLY: cfg.maleOnlyTargetRatio,
-    FEMALE_ONLY: cfg.femaleOnlyTargetRatio,
-    MIXED: cfg.mixedTargetRatio,
-  };
-  const currentCounts = {
-    MALE_ONLY: typeCounts.maleOnly,
-    FEMALE_ONLY: typeCounts.femaleOnly,
-    MIXED: typeCounts.mixed,
-  };
-
-  const currentRatio = currentCounts[matchType] / Math.max(total - 1, 1);
-  const targetRatio = targets[matchType];
-
-  if (targetRatio <= 0 && currentRatio <= 0) return { bonus: 0, factor: null };
-
-  const diff = targetRatio - currentRatio;
-  const steerWeight = Math.abs(cfg.spreadWeight) * 0.4;
-  const bonus = Math.round(diff * steerWeight * 100) / 100;
-
-  if (Math.abs(bonus) < 1) return { bonus: 0, factor: null };
+  const total = groupRepeat + partnerRepeat + opponentRepeat + gradeSpread;
   return {
-    bonus,
-    factor: `typeSteer(${matchType} ${Math.round(currentRatio * 100)}%→${Math.round(targetRatio * 100)}%): ${bonus >= 0 ? "+" : ""}${bonus.toFixed(0)}`,
+    score: total,
+    breakdown: { groupRepeat, partnerRepeat, opponentRepeat, gradeSpread, total },
+    factors,
   };
 }
 
-function generateNextMatch(
-  eligible: Player[],
-  matchIndex: number,
-  fixedPairs: FixedPair[],
-  playerMatchCounts: Map<number, number>,
-  pairHistory: Map<string, number>,
-  oppHistory: Map<string, number>,
-  usedPlayerIds: Set<number>,
-  priorityPlayerIds?: number[],
-  playerLastPlayedRound?: Map<number, number>,
-  pairWaitTracker?: Map<string, number>,
-  genderType?: string,
-  engineConfig?: MatchEngineSettings,
-  matchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number },
-  groupHistory?: Map<string, number>
-): { match: MatchResult; score: number; teamDiff: number; factors: string[]; matchType?: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED"; isFallback: boolean } | null {
-  const pool = eligible.filter(p => !usedPlayerIds.has(p.id));
-  if (pool.length < 4) return null;
-
-  const lastPlayed = playerLastPlayedRound || new Map<number, number>();
-  const waitTracker = pairWaitTracker || new Map<string, number>();
-
-  const ec = engineConfig || DEFAULT_SETTINGS;
-
-  const allCounts = Array.from(playerMatchCounts.values());
-  const sessionAvgGames = allCounts.length > 0 ? allCounts.reduce((a, b) => a + b, 0) / allCounts.length : 0;
-  const matchCountCap = sessionAvgGames + 2;
-
-  const units = buildUnits(pool, fixedPairs, playerMatchCounts, matchIndex, lastPlayed, waitTracker);
-
-  const sorted = [...units].sort((a, b) => {
-    const aGames = a.players.reduce((sum, p) => sum + (playerMatchCounts.get(p.id) || 0), 0) / a.players.length;
-    const bGames = b.players.reduce((sum, p) => sum + (playerMatchCounts.get(p.id) || 0), 0) / b.players.length;
-    const aDeficit = aGames - sessionAvgGames;
-    const bDeficit = bGames - sessionAvgGames;
-    const aWait = matchIndex - (a.players.reduce((max, p) => Math.max(max, lastPlayed.get(p.id) ?? -1), -1));
-    const bWait = matchIndex - (b.players.reduce((max, p) => Math.max(max, lastPlayed.get(p.id) ?? -1), -1));
-    const aComposite = aDeficit - (aWait * 0.5);
-    const bComposite = bDeficit - (bWait * 0.5);
-    return aComposite - bComposite;
-  });
-
-  const maxUnitsForWindow = Math.min(sorted.length, Math.max(10, Math.floor(Math.sqrt(ec.candidateLimitBase * 2))));
-  const windowUnits = sorted.slice(0, maxUnitsForWindow);
-
-  let candidateGroups = selectUnits(windowUnits);
-  if (candidateGroups.length === 0) {
-    return null;
-  }
-
-  const maxCandidateGroups = ec.candidateLimitBase * 10;
-  if (candidateGroups.length > maxCandidateGroups) {
-    candidateGroups = candidateGroups.slice(0, maxCandidateGroups);
-  }
-
-  const genderMode = determineGenderMode(pool, matchIndex, genderType);
-
-  const pairUnits = windowUnits.filter(u => u.type === "PAIR");
-
-  const localGroupHistory = groupHistory || new Map<string, number>();
-
-  function tryGenerate(rankSpreadLimit: number, teamDiffLimit: number): { match: MatchResult; score: number; teamDiff: number; factors: string[]; matchType?: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" } | null {
-    let bestMatch: MatchResult | null = null;
-    let bestScore = -Infinity;
-    let bestTeamDiff = Infinity;
-    let bestFactors: string[] = [];
-    let bestMatchType: "MALE_ONLY" | "FEMALE_ONLY" | "MIXED" | undefined;
-
-    for (const group of candidateGroups) {
-      const overCap = group.some(p => (playerMatchCounts.get(p.id) || 0) >= matchCountCap && matchCountCap > 2);
-      if (overCap) continue;
-
-      const ranks = group.map(p => getGradeRank(p.grade));
-      const spread = Math.max(...ranks) - Math.min(...ranks);
-
-      const groupHasFixed = fixedPairs.length > 0 && fixedPairs.some(([a, b]) =>
-        group.some(p => p.id === a) && group.some(p => p.id === b)
-      );
-      const effectiveSpreadLimit = groupHasFixed ? Math.max(rankSpreadLimit, 8) : rankSpreadLimit;
-      if (spread > effectiveSpreadLimit) continue;
-
-      if (!applyGenderRules(group, genderMode, fixedPairs)) continue;
-
-      const teamCombos = generateTeams(group, fixedPairs);
-
-      for (const [teamA, teamB] of teamCombos) {
-        const diff = Math.abs(teamAvgRank(teamA) - teamAvgRank(teamB));
-        const effectiveDiffLimit = groupHasFixed ? Math.max(teamDiffLimit, 3.5) : teamDiffLimit;
-        if (diff > effectiveDiffLimit) continue;
-
-        if (!applyMixedTeamFilter(teamA, teamB, fixedPairs)) continue;
-
-        const candidate: MatchResult = {
-          teamAPlayer1Id: teamA[0].id,
-          teamAPlayer2Id: teamA.length > 1 ? teamA[1].id : null,
-          teamBPlayer1Id: teamB[0].id,
-          teamBPlayer2Id: teamB.length > 1 ? teamB[1].id : null,
-        };
-
-        const scoreCtx: ScoreMatchContext = {
-          pairUnits,
-          cfg: ec,
-          playerMatchCounts,
-          sessionAvgGames,
-          groupHistory: localGroupHistory,
-          matchIndex,
-          playerLastPlayedRound: lastPlayed,
-        };
-
-        const { score: baseScore, teamDiff, factors } = scoreMatch(teamA, teamB, pairHistory, oppHistory, scoreCtx);
-
-        let score = baseScore;
-        if (priorityPlayerIds && priorityPlayerIds.length > 0) {
-          const ids = group.map(p => p.id);
-          const priorityCount = ids.filter(id => priorityPlayerIds.includes(id)).length;
-          if (priorityCount > 0) {
-            const bonus = priorityCount * ((ec.priorityHigh ?? 100) / 5);
-            score += bonus;
-            factors.push(`priority(${priorityCount}): +${bonus}`);
-          }
-        }
-
-        if (matchTypeCounts) {
-          const mType = classifyMatchGender(group);
-          const { bonus: typeBonus, factor: typeFactor } = computeMatchTypeSteeringBonus(mType, matchTypeCounts, ec);
-          if (typeBonus !== 0) {
-            score += typeBonus;
-            if (typeFactor) factors.push(typeFactor);
-          }
-        }
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestMatch = candidate;
-          bestTeamDiff = teamDiff;
-          bestFactors = [...factors];
-          bestMatchType = matchTypeCounts ? classifyMatchGender(group) : undefined;
-        }
-      }
+function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]; teamB: Player[] } {
+  // Honour fixed pair if both members are in the chosen group.
+  for (const [a, b] of fixedPairs) {
+    const pa = group.find(p => p.id === a);
+    const pb = group.find(p => p.id === b);
+    if (pa && pb) {
+      const others = group.filter(p => p.id !== a && p.id !== b);
+      return { teamA: [pa, pb], teamB: others };
     }
-
-    if (bestMatch) {
-      return { match: bestMatch, score: bestScore, teamDiff: bestTeamDiff, factors: bestFactors, matchType: bestMatchType };
-    }
-    return null;
   }
-
-  const primarySpread = ec.gradeSpreadLimit ?? 3;
-  const primaryDiff = ec.teamAvgDiffLimit ?? 1.5;
-  const primary = tryGenerate(primarySpread, primaryDiff);
-  if (primary) return { ...primary, isFallback: false };
-
-  // The fallback is supposed to RELAX the constraints, not tighten them.
-  // Previously `hardGradeSpreadLimit` was used as-is which (with the old
-  // defaults) was actually smaller than `gradeSpreadLimit` — so the fallback
-  // pass would reject anything the primary already rejected. Force fallback
-  // ≥ primary+1 so it always opens up the allowed grade gap.
-  const fallbackSpread = Math.max(ec.hardGradeSpreadLimit ?? 0, primarySpread + 1);
-  const fallbackDiff = Math.max(ec.teamAvgDiffLimit ?? 0, primaryDiff) + 0.5;
-  const fallback = tryGenerate(fallbackSpread, fallbackDiff);
-  if (fallback) return { ...fallback, isFallback: true };
-
-  return null;
+  // 1+4 vs 2+3 split by grade — most balanced average.
+  const sorted = [...group].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
+  return { teamA: [sorted[0], sorted[3]], teamB: [sorted[1], sorted[2]] };
 }
 
-function parseFactorValue(factor: string): number {
-  const match = factor.match(/([+-]?\d+(?:\.\d+)?)\s*$/);
-  if (match) return parseFloat(match[1]);
-  const signedMatch = factor.match(/:\s*([+-]?\d+(?:\.\d+)?)/);
-  if (signedMatch) return parseFloat(signedMatch[1]);
-  return 0;
-}
+// ───────────────────────── doubles ─────────────────────────
 
-function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
-  const { players, queueTarget, recentPairings, recentOpponents, playerMatchCounts, genderType, fixedPairs, priorityPlayerIds } = opts;
-  const ec = opts.settings?.engineConfig;
-  const eligible = filterByGender(players.filter(p => !p.isPaused), genderType);
-  const hasFixedPairs = fixedPairs && fixedPairs.length > 0;
+function generateDoubles(opts: GenerateOptions): GenerateResult {
+  const ec = opts.settings?.engineConfig ?? DEFAULT_SETTINGS;
+  const eligible = filterByGender(opts.players.filter(p => !p.isPaused), opts.genderType);
 
   if (eligible.length < 4) {
     return { matches: [], validationErrors: ["Not enough eligible players for doubles"] };
   }
 
-  const results: MatchResult[] = [];
-  const scoringLogs: ScoringLog[] = [];
-  const localPairings = new Map(recentPairings);
-  const localOpponents = new Map(recentOpponents);
-  const localCounts = new Map(playerMatchCounts);
-  const usedPlayerIds = new Set<number>();
-  const playerLastPlayedRound = new Map<number, number>();
-  const pairWaitTracker = new Map<string, number>();
-  // Seed group memory from prior matches so we don't repeat the exact same
-  // foursome that already played earlier in the session.
-  const localGroupHistory = new Map(opts.recentGroups ?? new Map<string, number>());
+  const localPairings = new Map(opts.recentPairings);
+  const localOpponents = new Map(opts.recentOpponents);
+  const localCounts = new Map(opts.playerMatchCounts);
+  const localGroups = new Map(opts.recentGroups ?? new Map<string, number>());
+  const used = new Set<number>();
+  const fixedPairs = opts.fixedPairs ?? [];
+  const priorityIds = new Set(opts.priorityPlayerIds ?? []);
 
-  const runningTypeCounts = opts.settings?.existingMatchTypeCounts
-    ? { ...opts.settings.existingMatchTypeCounts }
-    : { maleOnly: 0, femaleOnly: 0, mixed: 0 };
-
-  for (const [pid, count] of localCounts) {
-    playerLastPlayedRound.set(pid, count > 0 ? 0 : -1);
-  }
-
-  let q = 0;
-  let attempts = 0;
-  const maxAttempts = queueTarget * 3;
-  while (q < queueTarget && attempts < maxAttempts) {
-    attempts++;
-    const result = generateNextMatch(
-      eligible, q, fixedPairs || [], localCounts,
-      localPairings, localOpponents, usedPlayerIds,
-      priorityPlayerIds, playerLastPlayedRound, pairWaitTracker,
-      genderType, ec, runningTypeCounts, localGroupHistory
-    );
-
-    if (!result) break;
-
-    const { match, score, teamDiff, factors, isFallback, matchType } = result;
-    const ids = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
-
-    let conflict = false;
-    for (const id of ids) {
-      if (usedPlayerIds.has(id)) { conflict = true; break; }
-    }
-    if (conflict) continue;
-
-    for (const id of ids) usedPlayerIds.add(id);
-    q++;
-
-    if (matchType) {
-      if (matchType === "MALE_ONLY") runningTypeCounts.maleOnly++;
-      else if (matchType === "FEMALE_ONLY") runningTypeCounts.femaleOnly++;
-      else if (matchType === "MIXED") runningTypeCounts.mixed++;
-    }
-
-    const tag = getQualityTag(teamDiff, isFallback);
-    const tagFactors = [...factors, `quality:${tag}`];
-    if (isFallback) tagFactors.push("fallback");
-
-    match.qualityScore = score;
-
-    let fairnessScore = 0;
-    let varietyScore = 0;
-    let qualityScore = Math.round(-teamDiff * 50);
-    let priorityScore = 0;
-    let genderScore = 0;
-    for (const f of tagFactors) {
-      if (f.startsWith("fairness") || f.startsWith("genderLoad") || f.startsWith("maleRotation")) {
-        const val = parseFactorValue(f);
-        fairnessScore += val;
-      } else if (f.startsWith("partnerRepeat") || f.startsWith("opponentRepeat") || f.startsWith("oppCooldown") || f.startsWith("groupRepeat")) {
-        const val = parseFactorValue(f);
-        varietyScore += val;
-      } else if (f.startsWith("likePlayLike") || f.startsWith("balancedSplit") || f.startsWith("strongWeakPair")) {
-        const val = parseFactorValue(f);
-        qualityScore += val;
-      } else if (f.startsWith("priority")) {
-        const val = parseFactorValue(f);
-        priorityScore += val;
-      } else if (f.startsWith("typeSteer")) {
-        const val = parseFactorValue(f);
-        genderScore += val;
-      }
-    }
-
-    match.breakdown = {
-      fairness: Math.round(fairnessScore),
-      variety: Math.round(varietyScore),
-      quality: Math.round(qualityScore),
-      priority: Math.round(priorityScore),
-      gender: Math.round(genderScore),
-      total: Math.round(score),
-    };
-
-    results.push(match);
-    scoringLogs.push({
-      matchIndex: q,
-      candidatesEvaluated: 1,
-      winner: match,
-      winnerScore: score,
-      topFactors: tagFactors.slice(0, 5),
-    });
-
-    if (match.teamAPlayer2Id) {
-      const pk = pairKey(match.teamAPlayer1Id, match.teamAPlayer2Id);
-      localPairings.set(pk, (localPairings.get(pk) || 0) + 1);
-    }
-    if (match.teamBPlayer2Id) {
-      const pk = pairKey(match.teamBPlayer1Id, match.teamBPlayer2Id);
-      localPairings.set(pk, (localPairings.get(pk) || 0) + 1);
-    }
-    const teamA = [match.teamAPlayer1Id, match.teamAPlayer2Id].filter(Boolean) as number[];
-    const teamB = [match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
-    for (const a of teamA) {
-      for (const b of teamB) {
-        const ok = pairKey(a, b);
-        localOpponents.set(ok, (localOpponents.get(ok) || 0) + 1);
-      }
-    }
-    for (const id of ids) {
-      localCounts.set(id, (localCounts.get(id) || 0) + 1);
-      playerLastPlayedRound.set(id, q);
-    }
-
-    const gk = [...ids].sort((a, b) => a - b).join("-");
-    localGroupHistory.set(gk, (localGroupHistory.get(gk) || 0) + 1);
-  }
-
-  return { matches: results, scoringLogs };
-}
-
-function generateSinglesMatches(opts: GenerateOptions): GenerateResult {
-  const { players, queueTarget, recentOpponents, playerMatchCounts, genderType } = opts;
-  const ec = opts.settings?.engineConfig || DEFAULT_SETTINGS;
-  const eligible = filterByGender(players.filter(p => !p.isPaused), genderType);
-
-  if (eligible.length < 2) {
-    return { matches: [], validationErrors: ["Not enough eligible players for singles"] };
+  // Pre-compute fixed-partner lookup for the whole call.
+  const partnerMap = new Map<number, number>();
+  for (const [a, b] of fixedPairs) {
+    partnerMap.set(a, b);
+    partnerMap.set(b, a);
   }
 
   const results: MatchResult[] = [];
   const scoringLogs: ScoringLog[] = [];
-  const localOpponents = new Map(recentOpponents);
-  const localCounts = new Map(playerMatchCounts);
-  const usedPlayerIds = new Set<number>();
 
-  for (let q = 0; q < queueTarget; q++) {
-    const pool = eligible.filter(p => !usedPlayerIds.has(p.id));
-    if (pool.length < 2) break;
+  for (let q = 0; q < opts.queueTarget; q++) {
+    const pool = eligible.filter(p => !used.has(p.id));
+    if (pool.length < 4) break;
 
+    // Sort by games played asc, with priority players nudged forward.
+    // Tiebreak by grade rank desc so similar-skill players cluster.
     const sorted = [...pool].sort((a, b) => {
-      const ca = localCounts.get(a.id) || 0;
-      const cb = localCounts.get(b.id) || 0;
+      const ca = (localCounts.get(a.id) ?? 0) - (priorityIds.has(a.id) ? 0.5 : 0);
+      const cb = (localCounts.get(b.id) ?? 0) - (priorityIds.has(b.id) ? 0.5 : 0);
       if (ca !== cb) return ca - cb;
       return getGradeRank(b.grade) - getGradeRank(a.grade);
     });
 
-    let bestMatch: MatchResult | null = null;
-    let bestScore = -Infinity;
+    const poolN = Math.max(4, Math.min(ec.candidatePoolSize, sorted.length));
+    const candidates = sorted.slice(0, poolN);
+
+    let bestGroup: Player[] | null = null;
+    let bestScore = Infinity;
+    let bestBreakdown: ScoringBreakdown | null = null;
     let bestFactors: string[] = [];
-    let bestTeamDiff = Infinity;
-    let isFallback = false;
+    let evaluated = 0;
 
-    const singlesSpread = ec.gradeSpreadLimit ?? 3;
-    const singlesOppWeight = Math.abs(ec.opponentRepeatWeight);
-    const singlesQualityWeight = Math.abs(ec.spreadWeight);
+    for (let i = 0; i < candidates.length - 3; i++) {
+      for (let j = i + 1; j < candidates.length - 2; j++) {
+        for (let k = j + 1; k < candidates.length - 1; k++) {
+          for (let l = k + 1; l < candidates.length; l++) {
+            const grp = [candidates[i], candidates[j], candidates[k], candidates[l]];
 
-    for (let i = 0; i < sorted.length; i++) {
-      for (let j = i + 1; j < sorted.length; j++) {
-        const pA = sorted[i];
-        const pB = sorted[j];
-        const gradeDiff = Math.abs(getGradeRank(pA.grade) - getGradeRank(pB.grade));
-        if (gradeDiff > singlesSpread) continue;
+            // Fixed-pair safety: every player with a fixed partner must have
+            // that partner in the same group.
+            let ok = true;
+            for (const p of grp) {
+              const partner = partnerMap.get(p.id);
+              if (partner != null && !grp.find(g => g.id === partner)) { ok = false; break; }
+            }
+            if (!ok) continue;
 
-        const oppKey = pairKey(pA.id, pB.id);
-        const oppCount = localOpponents.get(oppKey) || 0;
-        const penalty = (gradeDiff * singlesQualityWeight) + (oppCount * singlesOppWeight);
-        const score = -penalty;
-
-        const factors: string[] = [];
-        if (gradeDiff > 0) factors.push(`gradeDiff(${gradeDiff}): -${gradeDiff * singlesQualityWeight}`);
-        if (oppCount > 0) factors.push(`opponentRepeat(${oppCount}): -${oppCount * singlesOppWeight}`);
-
-        if (score > bestScore) {
-          bestScore = score;
-          bestTeamDiff = gradeDiff;
-          bestFactors = factors;
-          bestMatch = {
-            teamAPlayer1Id: pA.id,
-            teamAPlayer2Id: null,
-            teamBPlayer1Id: pB.id,
-            teamBPlayer2Id: null,
-          };
-        }
-      }
-    }
-
-    if (!bestMatch) {
-      const fallbackSpread = ec.hardGradeSpreadLimit ?? (singlesSpread + 1);
-      for (let i = 0; i < sorted.length; i++) {
-        for (let j = i + 1; j < sorted.length; j++) {
-          const pA = sorted[i];
-          const pB = sorted[j];
-          const gradeDiff = Math.abs(getGradeRank(pA.grade) - getGradeRank(pB.grade));
-          if (gradeDiff > fallbackSpread) continue;
-
-          isFallback = true;
-          const oppKey = pairKey(pA.id, pB.id);
-          const oppCount = localOpponents.get(oppKey) || 0;
-          const penalty = (gradeDiff * singlesQualityWeight) + (oppCount * singlesOppWeight);
-          const score = -penalty;
-
-          if (score > bestScore) {
-            bestScore = score;
-            bestTeamDiff = gradeDiff;
-            bestFactors = [`gradeDiff(${gradeDiff}): -${gradeDiff * singlesQualityWeight}`, "fallback"];
-            bestMatch = {
-              teamAPlayer1Id: pA.id,
-              teamAPlayer2Id: null,
-              teamBPlayer1Id: pB.id,
-              teamBPlayer2Id: null,
-            };
+            evaluated++;
+            const { score, breakdown, factors } = scoreGroup(grp, ec, localPairings, localOpponents, localGroups);
+            if (score < bestScore) {
+              bestScore = score;
+              bestGroup = grp;
+              bestBreakdown = breakdown;
+              bestFactors = factors;
+            }
           }
         }
       }
     }
 
-    if (!bestMatch) break;
+    if (!bestGroup) break;
 
-    const tag = getQualityTag(bestTeamDiff, isFallback);
-    bestFactors.push(`quality:${tag}`);
-
-    bestMatch.qualityScore = bestScore;
-    bestMatch.breakdown = {
-      fairness: 0,
-      variety: 0,
-      quality: Math.round(-bestTeamDiff * 50),
-      priority: 0,
-      gender: 0,
-      total: bestScore,
+    const { teamA, teamB } = splitTeams(bestGroup, fixedPairs);
+    const match: MatchResult = {
+      teamAPlayer1Id: teamA[0].id,
+      teamAPlayer2Id: teamA[1].id,
+      teamBPlayer1Id: teamB[0].id,
+      teamBPlayer2Id: teamB[1].id,
+      qualityScore: Math.max(0, Math.round(100 - bestScore)),
+      breakdown: bestBreakdown ?? undefined,
     };
-
-    results.push(bestMatch);
-    usedPlayerIds.add(bestMatch.teamAPlayer1Id);
-    usedPlayerIds.add(bestMatch.teamBPlayer1Id);
-
+    results.push(match);
     scoringLogs.push({
       matchIndex: q,
-      candidatesEvaluated: 1,
-      winner: bestMatch,
-      winnerScore: bestScore,
-      topFactors: bestFactors.slice(0, 5),
+      candidatesEvaluated: evaluated,
+      winner: match,
+      winnerScore: -bestScore,
+      topFactors: bestFactors,
     });
 
-    const oppKey = pairKey(bestMatch.teamAPlayer1Id, bestMatch.teamBPlayer1Id);
-    localOpponents.set(oppKey, (localOpponents.get(oppKey) || 0) + 1);
-    localCounts.set(bestMatch.teamAPlayer1Id, (localCounts.get(bestMatch.teamAPlayer1Id) || 0) + 1);
-    localCounts.set(bestMatch.teamBPlayer1Id, (localCounts.get(bestMatch.teamBPlayer1Id) || 0) + 1);
+    // Update local state so the next iteration sees the new pairings.
+    for (const p of bestGroup) {
+      used.add(p.id);
+      localCounts.set(p.id, (localCounts.get(p.id) ?? 0) + 1);
+    }
+    incPair(localPairings, teamA[0].id, teamA[1].id);
+    incPair(localPairings, teamB[0].id, teamB[1].id);
+    for (const a of teamA) for (const b of teamB) incPair(localOpponents, a.id, b.id);
+    const gKey = groupKey(bestGroup);
+    localGroups.set(gKey, (localGroups.get(gKey) ?? 0) + 1);
   }
 
   return { matches: results, scoringLogs };
 }
 
+// ───────────────────────── singles ─────────────────────────
+
+function generateSingles(opts: GenerateOptions): GenerateResult {
+  const ec = opts.settings?.engineConfig ?? DEFAULT_SETTINGS;
+  const eligible = filterByGender(opts.players.filter(p => !p.isPaused), opts.genderType);
+
+  if (eligible.length < 2) {
+    return { matches: [], validationErrors: ["Not enough eligible players for singles"] };
+  }
+
+  const localOpponents = new Map(opts.recentOpponents);
+  const localCounts = new Map(opts.playerMatchCounts);
+  const used = new Set<number>();
+  const priorityIds = new Set(opts.priorityPlayerIds ?? []);
+
+  const results: MatchResult[] = [];
+  const scoringLogs: ScoringLog[] = [];
+
+  for (let q = 0; q < opts.queueTarget; q++) {
+    const pool = eligible.filter(p => !used.has(p.id));
+    if (pool.length < 2) break;
+
+    const sorted = [...pool].sort((a, b) => {
+      const ca = (localCounts.get(a.id) ?? 0) - (priorityIds.has(a.id) ? 0.5 : 0);
+      const cb = (localCounts.get(b.id) ?? 0) - (priorityIds.has(b.id) ? 0.5 : 0);
+      if (ca !== cb) return ca - cb;
+      return getGradeRank(b.grade) - getGradeRank(a.grade);
+    });
+
+    const poolN = Math.max(2, Math.min(ec.candidatePoolSize, sorted.length));
+    const candidates = sorted.slice(0, poolN);
+
+    let bestPair: [Player, Player] | null = null;
+    let bestScore = Infinity;
+    let bestFactors: string[] = [];
+    let evaluated = 0;
+
+    for (let i = 0; i < candidates.length; i++) {
+      for (let j = i + 1; j < candidates.length; j++) {
+        evaluated++;
+        const a = candidates[i];
+        const b = candidates[j];
+        const oppCount = localOpponents.get(pairKey(a.id, b.id)) ?? 0;
+        const spread = Math.abs(getGradeRank(a.grade) - getGradeRank(b.grade));
+        const score = oppCount * ec.opponentRepeatPenalty + spread * ec.gradeSpreadWeight;
+        if (score < bestScore) {
+          bestScore = score;
+          bestPair = [a, b];
+          const f: string[] = [];
+          if (oppCount > 0) f.push(`opponent reps ${oppCount}: +${oppCount * ec.opponentRepeatPenalty}`);
+          if (spread > 0) f.push(`grade spread ${spread}: +${(spread * ec.gradeSpreadWeight).toFixed(1)}`);
+          bestFactors = f;
+        }
+      }
+    }
+
+    if (!bestPair) break;
+
+    const match: MatchResult = {
+      teamAPlayer1Id: bestPair[0].id,
+      teamAPlayer2Id: null,
+      teamBPlayer1Id: bestPair[1].id,
+      teamBPlayer2Id: null,
+      qualityScore: Math.max(0, Math.round(100 - bestScore)),
+    };
+    results.push(match);
+    scoringLogs.push({
+      matchIndex: q,
+      candidatesEvaluated: evaluated,
+      winner: match,
+      winnerScore: -bestScore,
+      topFactors: bestFactors,
+    });
+
+    used.add(bestPair[0].id);
+    used.add(bestPair[1].id);
+    localCounts.set(bestPair[0].id, (localCounts.get(bestPair[0].id) ?? 0) + 1);
+    localCounts.set(bestPair[1].id, (localCounts.get(bestPair[1].id) ?? 0) + 1);
+    incPair(localOpponents, bestPair[0].id, bestPair[1].id);
+  }
+
+  return { matches: results, scoringLogs };
+}
+
+// ───────────────────────── public API ─────────────────────────
+
 export function generateSmartMatches(opts: GenerateOptions): GenerateResult {
-  if (opts.playersPerSide === 1) return generateSinglesMatches(opts);
-  return generateDoublesMatches(opts);
+  if (opts.playersPerSide === 1) return generateSingles(opts);
+  return generateDoubles(opts);
 }
 
 export function replacePlayerInQueuedMatches(
@@ -1050,8 +408,8 @@ export function replacePlayerInQueuedMatches(
 ): { matchId: number; position: string; newPlayerId: number }[] {
   const replacements: { matchId: number; position: string; newPlayerId: number }[] = [];
   const usedReplacements = new Set<number>();
-
-  const partnerId = fixedPairs ? getFixedPartner(pausedPlayerId, fixedPairs) : null;
+  const fp = fixedPairs ?? [];
+  const partnerId = getFixedPartner(pausedPlayerId, fp);
 
   for (const match of queuedMatches) {
     const positions = [
@@ -1080,7 +438,6 @@ export function replacePlayerInQueuedMatches(
           !matchPlayerIds.has(p.id) &&
           !usedReplacements.has(p.id)
         );
-
         if (replacement) {
           replacements.push({ matchId: match.id, position: pos.field, newPlayerId: replacement.id });
           usedReplacements.add(replacement.id);
@@ -1101,80 +458,37 @@ export function buildPairingHistory(
   const recentGroups = new Map<string, number>();
 
   for (const match of matches) {
+    if (match.status !== "COMPLETED" && match.status !== "LIVE") continue;
     const teamA = [match.teamAPlayer1Id, match.teamAPlayer2Id].filter(Boolean) as number[];
     const teamB = [match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
 
-    if (teamA.length === 2) {
-      const key = pairKey(teamA[0], teamA[1]);
-      recentPairings.set(key, (recentPairings.get(key) || 0) + 1);
+    for (const id of [...teamA, ...teamB]) {
+      playerMatchCounts.set(id, (playerMatchCounts.get(id) ?? 0) + 1);
     }
-    if (teamB.length === 2) {
-      const key = pairKey(teamB[0], teamB[1]);
-      recentPairings.set(key, (recentPairings.get(key) || 0) + 1);
-    }
-
-    for (const a of teamA) {
-      for (const b of teamB) {
-        const key = pairKey(a, b);
-        recentOpponents.set(key, (recentOpponents.get(key) || 0) + 1);
-      }
-    }
-
-    const allIds = [...teamA, ...teamB];
-    for (const pid of allIds) {
-      playerMatchCounts.set(pid, (playerMatchCounts.get(pid) || 0) + 1);
-    }
-
-    if (allIds.length === 4) {
-      const gk = [...allIds].sort((a, b) => a - b).join("-");
-      recentGroups.set(gk, (recentGroups.get(gk) || 0) + 1);
+    if (teamA.length === 2) incPair(recentPairings, teamA[0], teamA[1]);
+    if (teamB.length === 2) incPair(recentPairings, teamB[0], teamB[1]);
+    for (const a of teamA) for (const b of teamB) incPair(recentOpponents, a, b);
+    if (teamA.length === 2 && teamB.length === 2) {
+      const key = [...teamA, ...teamB].sort((x, y) => x - y).join("-");
+      recentGroups.set(key, (recentGroups.get(key) ?? 0) + 1);
     }
   }
 
   return { recentPairings, recentOpponents, playerMatchCounts, recentGroups };
 }
 
+// Kept as no-op stubs so existing call sites in routes.ts continue to compile
+// without changes. The simple engine no longer uses match-type counters.
 export function countExistingMatchTypes(
-  matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; status: string }[],
-  playerGenders: Map<number, string>
+  _matches: any[],
+  _playerGenderMap?: Map<number, string>
 ): { maleOnly: number; femaleOnly: number; mixed: number } {
-  let maleOnly = 0, femaleOnly = 0, mixed = 0;
-  for (const m of matches) {
-    const ids = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
-    const genders = ids.map(id => playerGenders.get(id) || "MALE");
-    const hasMale = genders.some(g => g !== "FEMALE");
-    const hasFemale = genders.some(g => g === "FEMALE");
-    if (hasMale && hasFemale) mixed++;
-    else if (hasFemale) femaleOnly++;
-    else maleOnly++;
-  }
-  return { maleOnly, femaleOnly, mixed };
+  return { maleOnly: 0, femaleOnly: 0, mixed: 0 };
 }
-
-type MatchTypeLabel = "MALE_ONLY" | "FEMALE_ONLY" | "MIXED";
 
 export function buildPlayerLastMatchTypes(
-  matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; status: string; id?: number; createdAt?: string | Date | null }[],
-  playerGenders: Map<number, string>
-): Map<number, MatchTypeLabel> {
-  const result = new Map<number, MatchTypeLabel>();
-  const sorted = [...matches].sort((a, b) => {
-    if (a.id && b.id) return a.id - b.id;
-    return 0;
-  });
-  for (const m of sorted) {
-    const ids = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
-    const genders = ids.map(id => playerGenders.get(id) || "MALE");
-    const hasMale = genders.some(g => g !== "FEMALE");
-    const hasFemale = genders.some(g => g === "FEMALE");
-    let mt: MatchTypeLabel = "MALE_ONLY";
-    if (hasMale && hasFemale) mt = "MIXED";
-    else if (hasFemale) mt = "FEMALE_ONLY";
-    for (const id of ids) {
-      result.set(id, mt);
-    }
-  }
-  return result;
+  _matches: any[],
+  _playerGenderMap?: Map<number, string>
+): Map<number, MatchType> {
+  return new Map();
 }
-
-export { getGradeRank, isHighGrade, isLowGrade };

@@ -326,16 +326,6 @@ export default function SessionDetail() {
     enabled: !!user,
   });
 
-  const { data: clubEngineSettings } = useQuery<{ matchmakingMode?: string }>({
-    queryKey: ["/api/clubs", session?.clubId, "match-engine-settings"],
-    queryFn: async () => {
-      const res = await fetch(`/api/clubs/${session!.clubId}/match-engine-settings`, { credentials: "include" });
-      if (!res.ok) return {};
-      return res.json();
-    },
-    enabled: !!session?.clubId && !!user,
-  });
-
   const userProfileForClub = user?.playerProfiles?.find((p: any) => session && p.clubId === session.clubId) || user?.playerProfiles?.[0];
   const userSignup = signups?.find(s => s.playerId === userProfileForClub?.id);
   const isSignedUp = userSignup && ((userSignup as any).signupStatus === "CONFIRMED" || !(userSignup as any).signupStatus);
@@ -4048,15 +4038,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const { mutate: editMatchScore } = useEditMatchScore();
   const queryClient = useQueryClient();
   const { data: sessionLeaderboard } = useSessionLeaderboard(sessionId);
-  const { data: clubEngineSettings } = useQuery<{ matchmakingMode?: string }>({
-    queryKey: ["/api/clubs", clubId, "match-engine-settings"],
-    queryFn: async () => {
-      const res = await fetch(`/api/clubs/${clubId}/match-engine-settings`, { credentials: "include" });
-      if (!res.ok) return {};
-      return res.json();
-    },
-    enabled: !!clubId,
-  });
   const { data: sessionRecord } = useQuery<any>({
     queryKey: ["/api/sessions", sessionId],
     enabled: !!sessionId,
@@ -4073,7 +4054,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [crowdControlOpen, setCrowdControlOpen] = useState(false);
   const [queueTargetSize, setQueueTargetSize] = useState(savedQueueTargetSize);
   const [generateGenderType, setGenerateGenderType] = useState(matchGenderType || "MIXED");
-  const [sessionMatchmakingMode, setSessionMatchmakingMode] = useState<"ADVANCED" | "HYBRID" | "ROTATION">("ADVANCED");
   const [forcedCompletionActive, setForcedCompletionActive] = useState(false);
   const [forcedCompletionIndex, setForcedCompletionIndex] = useState(0);
   const [forcedMatches, setForcedMatches] = useState<CourtMatch[]>([]);
@@ -4084,18 +4064,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   const [fcShowSuccess, setFcShowSuccess] = useState(false);
   const [fcDialogTarget, setFcDialogTarget] = useState(defaultPointsToPlayTo);
   const [notEnoughPlayersMessage, setNotEnoughPlayersMessage] = useState<string | null>(null);
-
-  useEffect(() => {
-    const sessionSavedMode = sessionRecord?.matchmakingMode;
-    if (sessionSavedMode && ["ADVANCED", "HYBRID", "ROTATION"].includes(sessionSavedMode)) {
-      setSessionMatchmakingMode(sessionSavedMode);
-    } else if (clubEngineSettings?.matchmakingMode) {
-      const m = clubEngineSettings.matchmakingMode;
-      if (m === "ADVANCED" || m === "HYBRID" || m === "ROTATION") {
-        setSessionMatchmakingMode(m);
-      }
-    }
-  }, [clubEngineSettings, sessionRecord]);
 
   const [enginePanelOpen, setEnginePanelOpen] = useState(false);
   const enginePanelRef = useRef<HTMLDivElement>(null);
@@ -4225,7 +4193,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
     const interval = setInterval(() => {
       if (manualGenInFlight.current) return;
-      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
         onSuccess: (data: any) => {
           if (data?.status === "waiting") {
             setAutoGenWaiting(true);
@@ -4245,7 +4213,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       });
     }, 5000);
     return () => clearInterval(interval);
-  }, [autoGenerateActive, isOrganiser, autoGenLocallyStopped, sessionId, activeMode, queueTargetSize, generateGenderType, sessionMatchmakingMode, smartGenerate]);
+  }, [autoGenerateActive, isOrganiser, autoGenLocallyStopped, sessionId, activeMode, queueTargetSize, generateGenderType, smartGenerate]);
 
   const handleCourtNameChange = (courtNumber: number, name: string) => {
     const newNames = [...courtNamesState];
@@ -4436,7 +4404,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       setAutoGenLocallyStopped(false);
       updateSession({ sessionId, updates: { autoGenerateActive: true } });
     }
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: !wasInactive, matchmakingMode: sessionMatchmakingMode }, {
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: !wasInactive }, {
       onSuccess: (data: any) => {
         manualGenInFlight.current = false;
         if (data?.status === "waiting") {
@@ -4466,7 +4434,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     setAutoGenLocallyStopped(false);
     setNotEnoughPlayersMessage(null);
     updateSession({ sessionId, updates: { autoGenerateActive: true } });
-    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
+    smartGenerate({ sessionId, mode: activeMode, queueTargetSize, genderType: generateGenderType, isAutoGenerate: true }, {
       onSuccess: (data: any) => {
         manualGenInFlight.current = false;
         if (data?.status === "waiting") {
@@ -4506,7 +4474,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       }
       if (autoGenerateActive && !autoGenLocallyStopped) {
         manualGenInFlight.current = true;
-        smartGenerate({ sessionId, mode: activeMode, queueTargetSize: 0, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
+        smartGenerate({ sessionId, mode: activeMode, queueTargetSize: 0, genderType: generateGenderType, isAutoGenerate: true }, {
           onSettled: () => { manualGenInFlight.current = false; },
         });
       }
@@ -4517,7 +4485,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
       trimQueue({ sessionId, targetSize: newSize });
     } else if (currentQueuedCount < newSize && autoGenerateActive && !autoGenLocallyStopped) {
       manualGenInFlight.current = true;
-      smartGenerate({ sessionId, mode: activeMode, queueTargetSize: newSize, genderType: generateGenderType, isAutoGenerate: true, matchmakingMode: sessionMatchmakingMode }, {
+      smartGenerate({ sessionId, mode: activeMode, queueTargetSize: newSize, genderType: generateGenderType, isAutoGenerate: true }, {
         onSettled: () => { manualGenInFlight.current = false; },
       });
     }
@@ -4906,43 +4874,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
                             />
                           </div>
                           <MatchAlgorithmInfoButton />
-                        </div>
-
-                        <div className="flex items-center gap-3" data-testid="engine-toggle-container">
-                          <span className="text-xs font-semibold uppercase tracking-widest text-gray-400 dark:text-white/40">Engine</span>
-                          <div className="flex items-center rounded-full border border-slate-200 dark:border-white/10 bg-slate-100 dark:bg-slate-800/80 p-0.5 relative shadow-[0_0_12px_rgba(168,85,247,0.15)]">
-                            {(["ADVANCED", "HYBRID", "ROTATION"] as const).map((m, i) => (
-                              <button
-                                key={m}
-                                className={cn(
-                                  "relative z-10 px-3 py-1.5 text-xs font-medium rounded-full transition-all duration-500 flex items-center justify-center gap-1 active:scale-95 whitespace-nowrap",
-                                  sessionMatchmakingMode === m
-                                    ? "text-white"
-                                    : "text-gray-400 dark:text-white/40 hover:text-gray-600 dark:hover:text-white/70"
-                                )}
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setSessionMatchmakingMode(m);
-                                }}
-                                data-testid={`button-engine-${m.toLowerCase()}`}
-                              >
-                                <span className={cn(
-                                  "w-1.5 h-1.5 rounded-full shrink-0 transition-all duration-500",
-                                  sessionMatchmakingMode === m ? "bg-white shadow-[0_0_6px_rgba(255,255,255,0.6)]" : "bg-gray-300 dark:bg-white/20"
-                                )} />
-                                {m === "ADVANCED" ? "Advanced" : m === "HYBRID" ? "Hybrid" : "Rotation"}
-                              </button>
-                            ))}
-                            <div
-                              className={cn(
-                                "absolute top-0.5 bottom-0.5 rounded-full shadow-[0_0_16px_rgba(168,85,247,0.3)]",
-                                sessionMatchmakingMode === "ADVANCED" ? "bg-gradient-to-b from-purple-500 to-purple-700 left-0.5 w-[calc(33.33%-2px)]" :
-                                sessionMatchmakingMode === "HYBRID" ? "bg-gradient-to-b from-blue-500 to-blue-700 left-[33.33%] w-[calc(33.33%-2px)]" :
-                                "bg-gradient-to-b from-green-500 to-green-700 left-[66.66%] w-[calc(33.33%-4px)]"
-                              )}
-                              style={{ transition: 'all 500ms cubic-bezier(0.34, 1.56, 0.64, 1)' }}
-                            />
-                          </div>
                         </div>
 
                         <div className="flex items-center gap-3">

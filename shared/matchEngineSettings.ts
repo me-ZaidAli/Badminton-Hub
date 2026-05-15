@@ -1,200 +1,88 @@
-export type MatchmakingMode = "ADVANCED" | "HYBRID" | "ROTATION";
+// Simple Match Engine — single algorithm, five knobs.
+//
+// Algorithm (per match generated):
+//   1. Filter eligible players by gender category (MD/WD/Mixed).
+//   2. Sort by gamesPlayed asc → pick the top `candidatePoolSize` hungriest.
+//   3. Enumerate every possible group of 4 from that pool (max ~495 combos).
+//   4. Score each group: penalties for repeat foursomes, repeat partners,
+//      repeat opponents, and grade spread. Lowest score wins.
+//   5. Split the chosen 4 into balanced teams: top+bottom vs middle two.
+//
+// All five knobs are surfaced in the engine control panel and PRESETS below.
 
 export type MatchEngineSettings = {
-  matchmakingMode: MatchmakingMode;
-
-  deficitWeight: number;
-  deficitCap: number;
-  gamesPlayedWeight: number;
-  spreadWeight: number;
-
-  partnerRepeatWeight: number;
-  opponentRepeatWeight: number;
-
-  gradeSpreadLimit: number;
-  qualityWeight: number;
-
-  priorityHigh: number;
-  priorityLow: number;
-
-  candidateLimitBase: number;
-  candidateLimitScaling: number;
-
-  enablePhaseAdjustments: boolean;
-
-  maleOnlyTargetRatio: number;
-  femaleOnlyTargetRatio: number;
-  mixedTargetRatio: number;
-
-  strongMaleFemaleBonus: number;
-  noStrongMaleFemalePenalty: number;
-  maleRotationScaling: number;
-
-  mixedMatchPlayerLimit: number;
-  mixedMatchPlayerWindow: number;
-
-  opponentCooldownWindow: number;
-  opponentCooldownThreshold: number;
-  softOpponentPenalty: number;
-
+  // Penalty added when this exact 4-player group has already played together
+  // earlier in the session. Multiplied by how many times it's already happened.
   groupRepeatPenalty: number;
 
-  hardGradeSpreadLimit: number;
-  teamAvgDiffLimit: number;
+  // Penalty per prior partner pairing inside the candidate group of 4.
+  // (Up to 6 player-pairs are considered; only the chosen team-split actually
+  // becomes partners but we score upfront to prefer groups with low repeat risk.)
+  partnerRepeatPenalty: number;
 
-  hybridGroupSize: number;
-  hybridGroupCooldown: number;
-  hybridGradeSpreadLimit: number;
+  // Penalty per prior opponent pairing inside the candidate group of 4.
+  opponentRepeatPenalty: number;
 
-  rotationWinnerStays: boolean;
+  // Penalty per grade-rank difference between the highest- and lowest-graded
+  // player in the group. Keeps games competitive without hard-blocking.
+  gradeSpreadWeight: number;
+
+  // How many of the least-played players to consider for each match.
+  // 8 is a good default (yields C(8,4)=70 candidate groups). Higher = more
+  // variety but slower; lower = stricter rotation.
+  candidatePoolSize: number;
 };
 
 export const DEFAULT_SETTINGS: MatchEngineSettings = {
-  matchmakingMode: "ADVANCED",
-
-  deficitWeight: -200,
-  deficitCap: -500,
-  gamesPlayedWeight: -40,
-  spreadWeight: -80,
-
-  partnerRepeatWeight: -25,
-  opponentRepeatWeight: -15,
-
-  gradeSpreadLimit: 3,
-  qualityWeight: 1,
-
-  priorityHigh: 150,
-  priorityLow: 80,
-
-  candidateLimitBase: 120,
-  candidateLimitScaling: 20,
-
-  enablePhaseAdjustments: true,
-
-  maleOnlyTargetRatio: 0.65,
-  femaleOnlyTargetRatio: 0.25,
-  mixedTargetRatio: 0.10,
-
-  strongMaleFemaleBonus: 25,
-  noStrongMaleFemalePenalty: -40,
-  maleRotationScaling: -20,
-
-  mixedMatchPlayerLimit: 2,
-  mixedMatchPlayerWindow: 5,
-
-  opponentCooldownWindow: 3,
-  opponentCooldownThreshold: 2,
-  softOpponentPenalty: -25,
-
-  groupRepeatPenalty: -50,
-
-  hardGradeSpreadLimit: 5,
-  teamAvgDiffLimit: 1.5,
-
-  hybridGroupSize: 6,
-  hybridGroupCooldown: 2,
-  hybridGradeSpreadLimit: 5,
-
-  rotationWinnerStays: false,
+  groupRepeatPenalty: 10,
+  partnerRepeatPenalty: 3,
+  opponentRepeatPenalty: 1,
+  gradeSpreadWeight: 0.5,
+  candidatePoolSize: 8,
 };
 
-export const PRESETS: Record<string, { label: string; description: string; settings: Partial<MatchEngineSettings> }> = {
+export const PRESETS: Record<string, { label: string; description: string; settings: MatchEngineSettings }> = {
   casual: {
-    label: "Casual Play",
-    description: "Relaxed settings for social nights — focuses on variety and equal playing time over competitive balance",
+    label: "Casual",
+    description: "Relaxed — prioritises variety and equal playing time. Lighter penalties so the engine has more freedom.",
     settings: {
-      matchmakingMode: "HYBRID",
-      deficitWeight: -120,
-      deficitCap: -250,
-      gamesPlayedWeight: -25,
-      spreadWeight: -100,
-      partnerRepeatWeight: -30,
-      opponentRepeatWeight: -18,
-      gradeSpreadLimit: 7,
-      qualityWeight: 0.5,
-      priorityHigh: 180,
-      priorityLow: 100,
-      enablePhaseAdjustments: false,
-      maleOnlyTargetRatio: 0.4,
-      femaleOnlyTargetRatio: 0.3,
-      mixedTargetRatio: 0.3,
-      strongMaleFemaleBonus: 15,
-      noStrongMaleFemalePenalty: -20,
-      maleRotationScaling: -10,
-      mixedMatchPlayerLimit: 3,
-      mixedMatchPlayerWindow: 5,
-      opponentCooldownWindow: 3,
-      opponentCooldownThreshold: 3,
-      softOpponentPenalty: -15,
-      groupRepeatPenalty: -30,
-      hardGradeSpreadLimit: 6,
-      teamAvgDiffLimit: 4,
-      hybridGroupSize: 6,
-      hybridGroupCooldown: 2,
-      hybridGradeSpreadLimit: 6,
-      rotationWinnerStays: false,
+      groupRepeatPenalty: 6,
+      partnerRepeatPenalty: 2,
+      opponentRepeatPenalty: 0.5,
+      gradeSpreadWeight: 0.2,
+      candidatePoolSize: 10,
     },
   },
   balanced: {
-    label: "Balanced Club",
-    description: "Default balanced settings — good mix of fairness, quality, and variety for regular club sessions",
+    label: "Balanced",
+    description: "Default — good mix of fairness, variety, and skill matching for regular club nights.",
     settings: { ...DEFAULT_SETTINGS },
   },
   competitive: {
-    label: "Competitive Night",
-    description: "Tight skill matching and quality-focused — best for competitive sessions and graded play",
+    label: "Competitive",
+    description: "Tighter skill matching and stronger anti-repeat. Best for graded sessions or league nights.",
     settings: {
-      matchmakingMode: "ADVANCED",
-      deficitWeight: -80,
-      deficitCap: -170,
-      gamesPlayedWeight: -15,
-      spreadWeight: -60,
-      partnerRepeatWeight: -20,
-      opponentRepeatWeight: -12,
-      gradeSpreadLimit: 3,
-      qualityWeight: 1.5,
-      priorityHigh: 120,
-      priorityLow: 60,
-      enablePhaseAdjustments: true,
-      maleOnlyTargetRatio: 0.5,
-      femaleOnlyTargetRatio: 0.2,
-      mixedTargetRatio: 0.3,
-      strongMaleFemaleBonus: 30,
-      noStrongMaleFemalePenalty: -50,
-      maleRotationScaling: -25,
-      mixedMatchPlayerLimit: 2,
-      mixedMatchPlayerWindow: 4,
-      opponentCooldownWindow: 3,
-      opponentCooldownThreshold: 2,
-      softOpponentPenalty: -35,
-      groupRepeatPenalty: -60,
-      hardGradeSpreadLimit: 3,
-      teamAvgDiffLimit: 2,
-      hybridGroupSize: 4,
-      hybridGroupCooldown: 2,
-      hybridGradeSpreadLimit: 4,
-      rotationWinnerStays: false,
-    },
-  },
-  rotation: {
-    label: "Quick Rotation",
-    description: "Fast queue-based rotation — minimal optimisation, maximum speed and equal playing time",
-    settings: {
-      matchmakingMode: "ROTATION",
-      rotationWinnerStays: false,
-      hybridGroupSize: 4,
-      hybridGroupCooldown: 2,
-      hybridGradeSpreadLimit: 7,
+      groupRepeatPenalty: 15,
+      partnerRepeatPenalty: 5,
+      opponentRepeatPenalty: 2,
+      gradeSpreadWeight: 1.5,
+      candidatePoolSize: 6,
     },
   },
 };
 
+// Kept exported for backwards compatibility with existing call sites that
+// reference the type. The engine no longer branches on mode — there is only
+// one algorithm now. Callers can ignore this; persisted DB values are tolerated.
+export type MatchmakingMode = "ADVANCED";
+
+// Compatibility shapes used by older lab/preview code paths. Engine still
+// returns these so the UI doesn't break.
 export type ScoringBreakdown = {
-  fairness: number;
-  variety: number;
-  quality: number;
-  priority: number;
-  gender: number;
+  groupRepeat: number;
+  partnerRepeat: number;
+  opponentRepeat: number;
+  gradeSpread: number;
   total: number;
 };
 
