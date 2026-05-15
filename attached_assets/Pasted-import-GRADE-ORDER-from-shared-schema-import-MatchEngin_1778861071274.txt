@@ -1,0 +1,254 @@
+import { GRADE_ORDER } from "@shared/schema";
+import { MatchEngineSettings, MatchmakingMode, DEFAULT_SETTINGS, ScoringBreakdown } from "@shared/matchEngineSettings";
+
+type Player = {
+  id: number;
+  gender: string | null;
+  grade: string | null;
+  isPaused: boolean;
+  genderOverride?: string | null;
+};
+
+type MatchResult = {
+  teamAPlayer1Id: number;
+  teamAPlayer2Id: number | null;
+  teamBPlayer1Id: number;
+  teamBPlayer2Id: number | null;
+  qualityScore?: number;
+  breakdown?: ScoringBreakdown;
+};
+
+type FixedPair = [number, number];
+
+type MatchType = "MALE_ONLY" | "FEMALE_ONLY" | "MIXED";
+
+type EngineSettings = {
+  matchScoreHistory?: Map<string, number[]>;
+  totalSessionMatches?: number;
+  engineConfig?: MatchEngineSettings;
+  existingMatchTypeCounts?: { maleOnly: number; femaleOnly: number; mixed: number };
+  playerLastMatchTypes?: Map<number, MatchType>;
+};
+
+type GenerateOptions = {
+  mode: "SOCIAL" | "COMPETITIVE";
+  players: Player[];
+  playersPerSide: 1 | 2;
+  genderType: "MIXED" | "FEMALE" | "MALE";
+  queueTarget: number;
+  recentPairings: Map<string, number>;
+  recentOpponents: Map<string, number>;
+  playerMatchCounts: Map<number, number>;
+  recentGroups?: Map<string, number>;
+  priorityPlayerIds?: number[];
+  fixedPairs?: FixedPair[];
+  settings?: EngineSettings;
+};
+
+type ScoringLog = {
+  matchIndex: number;
+  candidatesEvaluated: number;
+  winner: MatchResult;
+  winnerScore: number;
+  topFactors: string[];
+};
+
+type GenerateResult = {
+  matches: MatchResult[];
+  pairConstraintBlocked?: boolean;
+  pairConstraintMessage?: string;
+  scoringLogs?: ScoringLog[];
+  validationErrors?: string[];
+};
+
+type QualityTag = "HIGH" | "MEDIUM" | "LOW";
+
+type SelectionUnit = {
+  type: "PAIR" | "SINGLE";
+  players: Player[];
+  effectiveGames: number;
+  pairId?: string;
+  pairWait?: number;
+};
+
+type GenderMode = "FEMALE_ONLY" | "MIXED_ROTATION" | "OPEN";
+
+function pairKey(a: number, b: number): string {
+  return a < b ? `${a}-${b}` : `${b}-${a}`;
+}
+
+function getEffectiveGender(p: Player): string {
+  return p.genderOverride || p.gender || "MALE";
+}
+
+function getGradeRank(grade: string | null): number {
+  if (!grade) return 1;
+  const idx = GRADE_ORDER.indexOf(grade as any);
+  if (idx >= 0) return idx + 1;
+  switch (grade) {
+    case "A": return 8;
+    case "B": return 5;
+    case "C": return 2;
+    case "D": return 1;
+    default: return 1;
+  }
+}
+
+function isHighGrade(grade: string | null): boolean {
+  return getGradeRank(grade) >= 6;
+}
+
+function isLowGrade(grade: string | null): boolean {
+  return getGradeRank(grade) <= 3;
+}
+
+function filterByGender(players: Player[], genderType: string): Player[] {
+  if (genderType === "FEMALE") return players.filter(p => getEffectiveGender(p) === "FEMALE");
+  if (genderType === "MALE") return players.filter(p => getEffectiveGender(p) !== "FEMALE");
+  return players;
+}
+
+function getQualityTag(teamDiff: number, isFallback: boolean): QualityTag {
+  if (isFallback) return "LOW";
+  if (teamDiff <= 0.5) return "HIGH";
+  return "MEDIUM";
+}
+
+function getFixedPartner(playerId: number, fixedPairs: FixedPair[]): number | null {
+  for (const [a, b] of fixedPairs) {
+    if (a === playerId) return b;
+    if (b === playerId) return a;
+  }
+  return null;
+}
+
+function teamAvgRank(team: Player[]): number {
+  return team.reduce((sum, p) => sum + getGradeRank(p.grade), 0) / team.length;
+}
+
+function buildUnits(
+  eligible: Player[],
+  fixedPairs: FixedPair[],
+  playerMatchCounts: Map<number, number>,
+  matchIndex: number,
+  playerLastPlayedRound: Map<number, number>,
+  pairWaitTracker: Map<string, number>
+): SelectionUnit[] {
+  const units: SelectionUnit[] = [];
+  const assignedIds = new Set<number>();
+
+  for (const [p1Id, p2Id] of fixedPairs) {
+    const p1 = eligible.find(p => p.id === p1Id);
+    const p2 = eligible.find(p => p.id === p2Id);
+    if (!p1 || !p2) continue;
+    if (assignedIds.has(p1Id) || assignedIds.has(p2Id)) continue;
+
+    assignedIds.add(p1Id);
+    assignedIds.add(p2Id);
+
+    const pid = pairKey(p1Id, p2Id);
+    const gamesPlayed = Math.max(
+      playerMatchCounts.get(p1Id) || 0,
+      playerMatchCounts.get(p2Id) || 0
+    );
+
+    const lastP1 = playerLastPlayedRound.get(p1Id) ?? -1;
+    const lastP2 = playerLastPlayedRound.get(p2Id) ?? -1;
+    const pairWait = matchIndex - Math.max(lastP1, lastP2);
+
+    pairWaitTracker.set(pid, pairWait);
+
+    const effectiveGames = gamesPlayed - (pairWait * 0.5);
+
+    units.push({
+      type: "PAIR",
+      players: [p1, p2],
+      effectiveGames,
+      pairId: pid,
+      pairWait,
+    });
+  }
+
+  const pairedPlayerIds = new Set<number>();
+  for (const [p1Id, p2Id] of fixedPairs) {
+    pairedPlayerIds.add(p1Id);
+    pairedPlayerIds.add(p2Id);
+  }
+
+  for (const p of eligible) {
+    if (assignedIds.has(p.id)) continue;
+    if (pairedPlayerIds.has(p.id)) continue;
+    const gamesPlayed = playerMatchCounts.get(p.id) || 0;
+    units.push({
+      type: "SINGLE",
+      players: [p],
+      effectiveGames,
+    });
+  }
+
+  return units;
+}
+
+function selectUnits(sortedUnits: SelectionUnit[], maxGroups = 1500): Player[][] {
+  const groups: Player[][] = [];
+  const pairs = sortedUnits.filter(u => u.type === "PAIR");
+  const singles = sortedUnits.filter(u => u.type === "SINGLE");
+
+  for (let i = 0; i < pairs.length; i++) {
+    for (let j = i + 1; j < pairs.length; j++) {
+      groups.push([...pairs[i].players, ...pairs[j].players]);
+      if (groups.length >= maxGroups) return groups;
+    }
+  }
+
+  for (const pair of pairs) {
+    for (let i = 0; i < singles.length; i++) {
+      for (let j = i + 1; j < singles.length; j++) {
+        groups.push([...pair.players, ...singles[i].players, ...singles[j].players]);
+        if (groups.length >= maxGroups) return groups;
+      }
+    }
+  }
+
+  for (let i = 0; i < singles.length; i++) {
+    for (let j = i + 1; j < singles.length; j++) {
+      for (let k = j + 1; k < singles.length; k++) {
+        for (let l = k + 1; l < singles.length; l++) {
+          groups.push([
+            ...singles[i].players,
+            ...singles[j].players,
+            ...singles[k].players,
+            ...singles[l].players,
+          ]);
+          if (groups.length >= maxGroups) return groups;
+        }
+      }
+    }
+  }
+
+  return groups;
+}
+
+function determineGenderMode(eligible: Player[], matchIndex: number, genderType?: string): GenderMode {
+  if (genderType === "FEMALE") return "FEMALE_ONLY";
+  if (genderType === "MALE") return "OPEN";
+  return "OPEN";
+}
+
+function groupHasFixedMixedPair(group: Player[], fixedPairs: FixedPair[]): boolean {
+  for (const [p1Id, p2Id] of fixedPairs) {
+    const p1 = group.find(p => p.id === p1Id);
+    const p2 = group.find(p => p.id === p2Id);
+    if (p1 && p2) {
+      const g1 = getEffectiveGender(p1);
+      const g2 = getEffectiveGender(p2);
+      if (g1 !== g2) return true;
+    }
+  }
+  return false;
+}
+
+function applyGenderRules(group: Player[], mode: GenderMode, fixedPairs?: FixedPair[]): boolean {
+  const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
+  const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
+  const hasFixedMixed = fixedPairs ? groupHasFixedMixedPair(group, fixedPairs
