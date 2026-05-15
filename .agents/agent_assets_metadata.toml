@@ -155,3 +155,9 @@ id = "r6-3_WzYpQcA_-oyUCET9"
 uri = "file://SmartMatchEngine_v6.docx"
 type = "word_document"
 title = "Smart Match Engine v6 — Full Algorithm (.docx)"
+
+[[outputs]]
+id = "BmMsqhbDsyJXTmxECg2mp"
+uri = "file://exports/smart-match-engine-v6.1.docx"
+type = "word_document"
+title = "Smart Match Engine v6.1 — Full Algorithm"
