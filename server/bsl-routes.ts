@@ -180,6 +180,37 @@ export function registerBslRoutes(app: Express) {
         }
       }
       if ("notificationsEnabled" in body) update.notificationsEnabled = !!body.notificationsEnabled;
+      // Top-up packages — array of { id, label, amountPence, sortOrder }.
+      // Sanitise to prevent admin from injecting weird shapes that break the
+      // wallet pricing engine. Max 24 packages, label ≤56 chars, amount ≤£10k.
+      if ("topupPackages" in body) {
+        const raw = Array.isArray(body.topupPackages) ? body.topupPackages : [];
+        const seen = new Set<string>();
+        const cleaned: any[] = [];
+        for (const r of raw) {
+          if (!r || typeof r !== "object") continue;
+          const id = String(r.id ?? "").trim().slice(0, 40) || `pkg_${cleaned.length + 1}`;
+          if (seen.has(id)) continue;
+          seen.add(id);
+          const label = String(r.label ?? "").trim().slice(0, 56);
+          const amt = Math.max(0, Math.min(1_000_000, Math.round(Number(r.amountPence))));
+          if (!label || !Number.isFinite(amt)) continue;
+          const sortOrder = Number.isFinite(Number(r.sortOrder)) ? Number(r.sortOrder) : cleaned.length;
+          cleaned.push({ id, label, amountPence: amt, sortOrder });
+          if (cleaned.length >= 24) break;
+        }
+        cleaned.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        update.topupPackages = cleaned;
+      }
+      // Discount tiers — array of percent-off values for the Nth selection.
+      // Clamp each to 0..100. Empty array = no discounts ever.
+      if ("topupDiscountPcts" in body) {
+        const raw = Array.isArray(body.topupDiscountPcts) ? body.topupDiscountPcts : [];
+        update.topupDiscountPcts = raw.slice(0, 12).map((v: any) => {
+          const n = Number(v);
+          return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : 0;
+        });
+      }
       // Per-category player fees (pence). Only accept known cats, coerce to non-negative ints.
       if ("categoryFees" in body && body.categoryFees && typeof body.categoryFees === "object") {
         const cleaned: Record<string, number> = {};
@@ -1093,21 +1124,63 @@ export function registerBslRoutes(app: Express) {
   app.post("/api/bsl/wallet/topup", requireAuth, bslUpload.single("proof"), async (req, res) => {
     try {
       const user = (req as any).user;
-      const amount = Math.trunc(Number(req.body.amount));
-      if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0 || amount > 1_000_000)
-        return res.status(400).json({ message: "Amount must be a positive integer in pence (max £10,000)" });
       const [p] = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, user.id)).limit(1);
       if (!p) return res.status(404).json({ message: "BSL player not found" });
+
+      // Authoritative recompute. Client may submit either:
+      //   - clickHistory (JSON array of package ids, in click order) + customAmountPence
+      //   - amount (legacy fallback — single integer pence)
+      // We always recompute via the shared pricing engine so the charged
+      // amount cannot be tampered with from the client.
+      const { computeTopup } = await import("@shared/topupPricing");
+      const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+      const packages = (league?.topupPackages || []) as Array<{ id: string; label: string; amountPence: number }>;
+      const discountPcts = (league?.topupDiscountPcts || [0, 50, 70]) as number[];
+
+      let clickHistory: string[] = [];
+      const rawHistory = req.body.clickHistory;
+      if (typeof rawHistory === "string" && rawHistory.length) {
+        try { const parsed = JSON.parse(rawHistory); if (Array.isArray(parsed)) clickHistory = parsed.map((s: any) => String(s)).slice(0, 200); } catch { /* ignore */ }
+      } else if (Array.isArray(rawHistory)) {
+        clickHistory = rawHistory.map((s: any) => String(s)).slice(0, 200);
+      }
+      const customRaw = Number(req.body.customAmountPence);
+      const customPence = Number.isFinite(customRaw) ? Math.max(0, Math.min(1_000_000, Math.round(customRaw))) : 0;
+
+      let amount: number;
+      let description: string;
+      if (clickHistory.length || customPence > 0) {
+        const summary = computeTopup(clickHistory, packages, discountPcts, customPence);
+        amount = summary.totalPence;
+        const partsByPkg = new Map<string, number>();
+        for (const l of summary.lines) partsByPkg.set(l.packageId, (partsByPkg.get(l.packageId) || 0) + 1);
+        const labelById = new Map(packages.map((p) => [p.id, p.label]));
+        const parts = Array.from(partsByPkg.entries()).map(([id, qty]) => `${qty}× ${labelById.get(id) ?? id}`);
+        if (customPence > 0) parts.push(`Custom £${(customPence / 100).toFixed(2)}`);
+        if (summary.discountPence > 0) parts.push(`(−£${(summary.discountPence / 100).toFixed(2)} discount)`);
+        description = parts.join(" · ") || "Wallet top-up";
+      } else {
+        // Legacy single-amount path
+        amount = Math.trunc(Number(req.body.amount));
+        description = req.body.description || "Wallet top-up";
+      }
+      if (!Number.isFinite(amount) || !Number.isInteger(amount) || amount <= 0 || amount > 1_000_000) {
+        return res.status(400).json({ message: "Total must be a positive integer in pence (max £10,000)" });
+      }
+
       const file = (req as any).file;
       const reference = genRef("BSL-TOPUP");
       const proofUrl = file ? await saveBufferToBucket(file.buffer, "bsl", file.originalname) : null;
       const [tx] = await db.insert(bslWalletTransactions).values({
         bslPlayerId: p.id, type: "TOPUP", amount, reference,
         proofUrl,
-        description: req.body.description || "Wallet top-up",
+        description,
       } as any).returning();
       res.json(tx);
-    } catch (err: any) { res.status(500).json({ message: err.message }); }
+    } catch (err: any) {
+      console.error("[bsl topup]", err);
+      res.status(500).json({ message: err.message });
+    }
   });
   app.patch("/api/bsl/wallet/transactions/:id/approve", requireAdmin, async (req, res) => {
     try {

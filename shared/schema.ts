@@ -3117,6 +3117,14 @@ export const bslLeagues = pgTable("bsl_leagues", {
   // Per-category player registration fees in pence (admin-editable in Settings).
   // Falls back to playerFee when a category is missing.
   categoryFees: jsonb("category_fees").$type<Record<string, number>>().notNull().default({ MD: 2500, WD: 2500, XD: 3000 }),
+  // Top-up package buttons shown in the player Wallet modal. Each entry:
+  // { id, label, amountPence, sortOrder? }. Admin-editable. Empty list disables
+  // package buttons (custom-amount-only fallback).
+  topupPackages: jsonb("topup_packages").$type<Array<{ id: string; label: string; amountPence: number; sortOrder?: number }>>().notNull().default([]),
+  // Discount percentages applied to the Nth package selected (by click order).
+  // Default [0, 50, 70] = 1st full, 2nd 50% off, 3rd 70% off, 4th+ full again.
+  // Length defines the discount tier ladder; values clamped 0-100.
+  topupDiscountPcts: jsonb("topup_discount_pcts").$type<number[]>().notNull().default([0, 50, 70]),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });

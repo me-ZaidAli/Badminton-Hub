@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Save, Banknote, Trophy, Bell, Palette } from "lucide-react";
+import { Settings as SettingsIcon, Save, Banknote, Trophy, Bell, Palette, Wallet as WalletIcon, Plus, Trash2 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -28,6 +28,17 @@ export default function SettingsAdmin() {
     notificationsEnabled: !!league.notificationsEnabled,
     brandingPrimary: league.brandingPrimary ?? "", brandingAccent: league.brandingAccent ?? "",
     nextLeagueDay: league.nextLeagueDay ? toLocalInput(league.nextLeagueDay) : "",
+    // Top-up config — packages stored in pence on the server, edited as £ here.
+    topupPackages: Array.isArray(league.topupPackages)
+      ? league.topupPackages.map((p: any, i: number) => ({
+          id: String(p.id || `pkg_${i + 1}`),
+          label: String(p.label || ""),
+          amountPounds: p.amountPence != null ? String((p.amountPence / 100).toFixed(2)).replace(/\.00$/, "") : "",
+        }))
+      : [],
+    topupDiscountPcts: Array.isArray(league.topupDiscountPcts) && league.topupDiscountPcts.length
+      ? league.topupDiscountPcts.map((n: any) => String(n))
+      : ["0", "50", "70"],
   }); }, [league]);
 
   const save = useMutation({
@@ -53,6 +64,31 @@ export default function SettingsAdmin() {
           WD: Number.isFinite(wd) ? Math.round(wd * 100) : (league?.categoryFees?.WD ?? 2500),
           XD: Number.isFinite(xd) ? Math.round(xd * 100) : (league?.categoryFees?.XD ?? 3000),
         };
+      }
+      // Top-up packages — convert pounds → pence, drop blanks/zero rows.
+      if (Array.isArray(form.topupPackages)) {
+        payload.topupPackages = form.topupPackages
+          .map((p: any, i: number) => {
+            const pounds = parseFloat(p.amountPounds);
+            const label = String(p.label || "").trim();
+            if (!label || !Number.isFinite(pounds) || pounds < 0) return null;
+            return {
+              id: p.id || `pkg_${i + 1}`,
+              label,
+              amountPence: Math.round(pounds * 100),
+              sortOrder: i,
+            };
+          })
+          .filter(Boolean);
+      }
+      // Discount tiers — strings to numbers, clamp 0..100, drop NaNs.
+      if (Array.isArray(form.topupDiscountPcts)) {
+        payload.topupDiscountPcts = form.topupDiscountPcts
+          .map((s: any) => {
+            const n = Number(s);
+            return Number.isFinite(n) ? Math.min(100, Math.max(0, Math.round(n))) : null;
+          })
+          .filter((n: any) => n !== null);
       }
       // Convert datetime-local string → ISO; only send when non-empty
       if (form.nextLeagueDay) payload.nextLeagueDay = new Date(form.nextLeagueDay).toISOString();
@@ -121,6 +157,95 @@ export default function SettingsAdmin() {
               <Field label="Mixed Doubles"><MoneyInput value={form.feeXD} onChange={(v: any) => F("feeXD", v)} placeholder="30" testid="input-fee-xd" /></Field>
             </div>
             <div className="text-xs mt-1" style={{ color: BSL.muted }}>Players pay this from their BSL wallet on category registration. Falls back to player fee if blank.</div>
+          </div>
+        </GlowPanel>
+
+        <GlowPanel title="Wallet Top-Up Packages" tone="gold" icon={<WalletIcon className="h-4 w-4" />}>
+          <div className="text-xs mb-3" style={{ color: BSL.muted }}>
+            Buttons shown to players in the wallet top-up modal. Each click adds the amount to the running total. Players can press the same package multiple times — discounts apply by click order.
+          </div>
+          <div className="space-y-2 mb-3">
+            {(form.topupPackages || []).map((p: any, i: number) => (
+              <div key={i} className="flex items-center gap-2" data-testid={`row-topup-pkg-${i}`}>
+                <input
+                  type="text"
+                  value={p.label}
+                  placeholder="e.g. Adult"
+                  onChange={(e) => {
+                    const next = [...form.topupPackages];
+                    next[i] = { ...next[i], label: e.target.value };
+                    F("topupPackages", next);
+                  }}
+                  className="flex-1 px-3 py-2 rounded-lg text-sm"
+                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                  data-testid={`input-topup-label-${i}`}
+                />
+                <div className="relative w-32">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: BSL.muted }}>£</span>
+                  <input
+                    type="number"
+                    inputMode="decimal"
+                    step="0.01"
+                    min="0"
+                    value={p.amountPounds}
+                    placeholder="20"
+                    onChange={(e) => {
+                      const next = [...form.topupPackages];
+                      next[i] = { ...next[i], amountPounds: e.target.value.replace(/^0+(?=\d)/, "") };
+                      F("topupPackages", next);
+                    }}
+                    className="w-full pl-7 pr-2 py-2 rounded-lg text-sm"
+                    style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                    data-testid={`input-topup-amount-${i}`}
+                  />
+                </div>
+                <button
+                  onClick={() => F("topupPackages", form.topupPackages.filter((_: any, j: number) => j !== i))}
+                  className="p-2 rounded-lg hover:bg-white/10"
+                  style={{ color: BSL.danger }}
+                  data-testid={`button-topup-remove-${i}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => F("topupPackages", [...(form.topupPackages || []), { id: `pkg_${Date.now()}`, label: "", amountPounds: "" }])}
+            className="w-full px-3 py-2 rounded-lg text-xs uppercase tracking-widest font-bold flex items-center justify-center gap-1.5"
+            style={{ background: `${BSL.gold}11`, border: `1px dashed ${BSL.gold}66`, color: BSL.gold }}
+            data-testid="button-topup-add-package"
+          >
+            <Plus className="h-3 w-3" /> Add package
+          </button>
+          <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BSL.border}` }}>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: BSL.gold }}>Discount ladder (% off Nth selection)</div>
+            <div className="grid grid-cols-3 gap-2">
+              {(form.topupDiscountPcts || []).map((v: string, i: number) => (
+                <div key={i}>
+                  <div className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: BSL.muted }}>{ordinal(i + 1)} pick</div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      min="0" max="100"
+                      value={v}
+                      onChange={(e) => {
+                        const next = [...form.topupDiscountPcts];
+                        next[i] = e.target.value.replace(/^0+(?=\d)/, "");
+                        F("topupDiscountPcts", next);
+                      }}
+                      className="w-full pr-6 pl-2 py-2 rounded-lg text-sm"
+                      style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                      data-testid={`input-discount-${i}`}
+                    />
+                    <span className="absolute right-2 top-1/2 -translate-y-1/2 text-sm" style={{ color: BSL.muted }}>%</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <div className="text-xs mt-2" style={{ color: BSL.muted }}>
+              Default: 1st full · 2nd 50% off · 3rd 70% off · 4th+ full again. Empty list = no discounts.
+            </div>
           </div>
         </GlowPanel>
 
@@ -202,6 +327,11 @@ function numOrUndef(v: any): number | undefined {
 function fmtPounds(v: any): string {
   const n = parseFloat(v);
   return Number.isFinite(n) ? n.toFixed(2) : "0.00";
+}
+function ordinal(n: number): string {
+  const s = ["th", "st", "nd", "rd"];
+  const v = n % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
 }
 function toLocalInput(iso: string | Date): string {
   const d = iso instanceof Date ? iso : new Date(iso);

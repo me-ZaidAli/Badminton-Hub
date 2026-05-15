@@ -1,29 +1,67 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Wallet as WalletIcon, Upload, Check, X, Hourglass, Copy, Banknote } from "lucide-react";
+import { ArrowLeft, Plus, Wallet as WalletIcon, Upload, Check, X, Hourglass, Copy, Banknote, RotateCcw } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { BslSubNav } from "@/components/SubNav";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
 import { BSL } from "./components/BSLPalette";
 import { useToast } from "@/hooks/use-toast";
+import { computeTopup, summariseByPackage, type TopupPackage } from "@shared/topupPricing";
 
 export default function Wallet() {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [showTopup, setShowTopup] = useState(false);
-  const [amount, setAmount] = useState(2000); // £20 default
+  // Ordered click history — each entry is a packageId. Pressing the same
+  // package N times produces N entries, which the pricing engine then ranks
+  // 1st/2nd/3rd/… for discount purposes. Capped at MAX_CLICKS to match the
+  // server's truncation (server: `slice(0, 200)`) so the displayed total
+  // always equals the charged total.
+  const MAX_CLICKS = 200;
+  const [clicks, setClicks] = useState<string[]>([]);
+  const [customPounds, setCustomPounds] = useState<string>("");
   const [proofFile, setProofFile] = useState<File | null>(null);
 
   const { data: wallet } = useQuery<any>({ queryKey: ["/api/bsl/wallet/me"] });
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
 
+  const packages: TopupPackage[] = useMemo(() => {
+    const raw = (league?.topupPackages || []) as any[];
+    return raw
+      .map((p, i) => ({ id: String(p.id || `pkg_${i + 1}`), label: String(p.label || ""), amountPence: Number(p.amountPence) || 0, sortOrder: Number(p.sortOrder ?? i) }))
+      .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+  }, [league?.topupPackages]);
+  const discountPcts: number[] = useMemo(() => {
+    // MUST mirror server fallback exactly (server: `league?.topupDiscountPcts || [0,50,70]`).
+    // An empty array on the league means "no discounts" — keep it empty here too,
+    // otherwise the displayed total would diverge from what the server charges.
+    const raw = league?.topupDiscountPcts;
+    if (Array.isArray(raw)) return raw.map((n: any) => Number(n) || 0);
+    return [0, 50, 70];
+  }, [league?.topupDiscountPcts]);
+
+  const customPence = useMemo(() => {
+    const n = parseFloat(customPounds);
+    return Number.isFinite(n) && n > 0 ? Math.round(n * 100) : 0;
+  }, [customPounds]);
+
+  // Live recompute on every click — same engine the server uses, so the total
+  // shown here is the exact total that will be charged.
+  const summary = useMemo(
+    () => computeTopup(clicks, packages, discountPcts, customPence),
+    [clicks, packages, discountPcts, customPence],
+  );
+  const grouped = useMemo(() => summariseByPackage(summary.lines), [summary.lines]);
+
   const topupMutation = useMutation({
     mutationFn: async () => {
+      if (summary.totalPence <= 0) throw new Error("Add at least one package or a custom amount.");
       const fd = new FormData();
-      fd.append("amount", String(amount));
+      fd.append("clickHistory", JSON.stringify(clicks));
+      if (customPence > 0) fd.append("customAmountPence", String(customPence));
       if (proofFile) fd.append("proof", proofFile);
       const r = await fetch("/api/bsl/wallet/topup", { method: "POST", body: fd, credentials: "include" });
       if (!r.ok) throw new Error(await r.text());
@@ -31,7 +69,7 @@ export default function Wallet() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/bsl/wallet/me"] });
-      setShowTopup(false); setProofFile(null);
+      setShowTopup(false); setProofFile(null); setClicks([]); setCustomPounds("");
       toast({ title: "Top-up submitted", description: "Awaiting admin approval." });
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -39,6 +77,7 @@ export default function Wallet() {
 
   const balance = wallet?.balance || 0;
   const txs = wallet?.transactions || [];
+  const reset = () => { setClicks([]); setCustomPounds(""); };
 
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
@@ -132,11 +171,11 @@ export default function Wallet() {
             <motion.div
               initial={{ scale: 0.9, opacity: 0, y: 20 }} animate={{ scale: 1, opacity: 1, y: 0 }} exit={{ scale: 0.9, opacity: 0 }}
               transition={{ type: "spring", stiffness: 300, damping: 28 }}
-              className="w-full max-w-lg rounded-2xl overflow-hidden"
+              className="w-full max-w-lg rounded-2xl overflow-hidden max-h-[90vh] flex flex-col"
               style={{ background: BSL.card, border: `1px solid ${BSL.gold}55`, boxShadow: `0 32px 80px -20px ${BSL.gold}44` }}
               onClick={e => e.stopPropagation()}
             >
-              <div className="px-5 py-4 flex items-center justify-between" style={{ borderBottom: `1px solid hsla(0,0%,100%,0.08)` }}>
+              <div className="px-5 py-4 flex items-center justify-between shrink-0" style={{ borderBottom: `1px solid hsla(0,0%,100%,0.08)` }}>
                 <div className="flex items-center gap-2">
                   <Banknote className="h-5 w-5" style={{ color: BSL.gold }} />
                   <span className="font-bold uppercase tracking-widest text-sm">Top Up Wallet</span>
@@ -145,33 +184,144 @@ export default function Wallet() {
                   <X className="h-4 w-4" style={{ color: BSL.muted }} />
                 </button>
               </div>
-              <div className="p-5 space-y-4">
+
+              <div className="p-5 space-y-4 overflow-y-auto">
+                {/* Package buttons */}
                 <div>
-                  <label className="text-xs uppercase tracking-widest font-bold mb-2 block" style={{ color: BSL.muted }}>Amount (£)</label>
-                  <div className="grid grid-cols-4 gap-2 mb-3">
-                    {[1000, 2000, 5000, 10000].map(v => (
-                      <button key={v} onClick={() => setAmount(v)}
-                        className="px-3 py-2 rounded-lg text-sm font-bold transition-all"
-                        style={{
-                          background: amount === v ? `${BSL.gold}22` : "hsla(0,0%,100%,0.04)",
-                          border: `1px solid ${amount === v ? BSL.gold : "hsla(0,0%,100%,0.1)"}`,
-                          color: amount === v ? BSL.gold : BSL.text,
-                        }}
-                        data-testid={`amount-${v}`}>
-                        £{v / 100}
+                  <div className="flex items-center justify-between mb-2">
+                    <label className="text-xs uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Pick categories</label>
+                    {(clicks.length > 0 || customPence > 0) && (
+                      <button
+                        onClick={reset}
+                        className="text-[10px] uppercase tracking-widest font-bold inline-flex items-center gap-1 px-2 py-1 rounded"
+                        style={{ background: `${BSL.danger}22`, color: BSL.danger }}
+                        data-testid="button-reset-topup"
+                      >
+                        <RotateCcw className="h-3 w-3" /> Restart
                       </button>
-                    ))}
+                    )}
                   </div>
-                  <input
-                    type="number"
-                    min={100}
-                    value={amount / 100}
-                    onChange={e => setAmount(Math.max(100, Math.round(Number(e.target.value) * 100)))}
-                    className="w-full px-4 py-3 rounded-lg text-white outline-none"
-                    style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid hsla(0,0%,100%,0.15)` }}
-                    data-testid="input-topup-amount"
-                  />
+                  {packages.length === 0 ? (
+                    <div className="text-xs italic px-3 py-3 rounded-lg" style={{ background: "hsla(0,0%,100%,0.04)", color: BSL.muted }}>
+                      No packages configured yet. Use the custom amount field below, or ask an admin to add packages in Settings.
+                    </div>
+                  ) : (
+                    <div className="grid grid-cols-2 gap-2">
+                      {packages.map((p) => {
+                        const qty = grouped.find((g) => g.id === p.id)?.qty ?? 0;
+                        return (
+                          <button
+                            key={p.id}
+                            onClick={() => setClicks((prev) => {
+                              if (prev.length >= MAX_CLICKS) {
+                                toast({ title: "Maximum reached", description: `Top-up capped at ${MAX_CLICKS} items per submission.`, variant: "destructive" });
+                                return prev;
+                              }
+                              return [...prev, p.id];
+                            })}
+                            className="relative px-3 py-3 rounded-lg text-left transition-all active:scale-[0.98]"
+                            style={{
+                              background: qty > 0 ? `${BSL.gold}1a` : "hsla(0,0%,100%,0.04)",
+                              border: `1px solid ${qty > 0 ? BSL.gold : "hsla(0,0%,100%,0.1)"}`,
+                            }}
+                            data-testid={`button-package-${p.id}`}
+                          >
+                            <div className="text-sm font-bold truncate" style={{ color: qty > 0 ? BSL.gold : BSL.text }}>{p.label}</div>
+                            <div className="text-xs mt-0.5 tabular-nums" style={{ color: BSL.muted }}>£{(p.amountPence / 100).toFixed(2)}</div>
+                            {qty > 0 && (
+                              <div
+                                className="absolute -top-2 -right-2 h-6 min-w-6 px-1.5 rounded-full text-[11px] font-black flex items-center justify-center"
+                                style={{ background: BSL.gold, color: BSL.bg }}
+                                data-testid={`badge-qty-${p.id}`}
+                              >
+                                ×{qty}
+                              </div>
+                            )}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
+
+                {/* Custom amount */}
+                <div>
+                  <label className="text-xs uppercase tracking-widest font-bold mb-2 block" style={{ color: BSL.muted }}>Custom amount (£)</label>
+                  <div className="relative">
+                    <span className="absolute left-3 top-1/2 -translate-y-1/2 text-sm" style={{ color: BSL.muted }}>£</span>
+                    <input
+                      type="number"
+                      inputMode="decimal"
+                      step="0.01"
+                      min="0"
+                      placeholder="0.00"
+                      value={customPounds}
+                      onChange={(e) => setCustomPounds(e.target.value.replace(/^0+(?=\d)/, ""))}
+                      className="w-full pl-7 pr-3 py-2 rounded-lg text-white outline-none"
+                      style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid hsla(0,0%,100%,0.15)` }}
+                      data-testid="input-custom-amount"
+                    />
+                  </div>
+                  <div className="text-[10px] mt-1" style={{ color: BSL.faint }}>Custom amounts never get a discount.</div>
+                </div>
+
+                {/* Live breakdown */}
+                {(summary.lines.length > 0 || customPence > 0) && (
+                  <div className="rounded-xl p-3 space-y-1.5" style={{ background: "hsla(0,0%,100%,0.04)", border: `1px solid hsla(0,0%,100%,0.1)` }} data-testid="topup-breakdown">
+                    <div className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: BSL.gold }}>Breakdown</div>
+                    {summary.lines.map((line, i) => (
+                      <div key={i} className="flex items-center justify-between text-xs">
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="font-mono opacity-60 w-6">#{line.rank}</span>
+                          <span className="truncate">{line.label}</span>
+                          {line.discountPct > 0 && (
+                            <span className="text-[9px] uppercase tracking-widest font-black px-1.5 py-0.5 rounded" style={{ background: `${BSL.success}22`, color: BSL.success }}>
+                              −{line.discountPct}%
+                            </span>
+                          )}
+                        </div>
+                        <div className="tabular-nums shrink-0 ml-2">
+                          {line.discountPct > 0 ? (
+                            <>
+                              <span className="line-through opacity-50 mr-1.5">£{(line.basePence / 100).toFixed(2)}</span>
+                              <span className="font-bold" style={{ color: BSL.success }}>£{(line.finalPence / 100).toFixed(2)}</span>
+                            </>
+                          ) : (
+                            <span className="font-bold">£{(line.finalPence / 100).toFixed(2)}</span>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                    {customPence > 0 && (
+                      <div className="flex items-center justify-between text-xs">
+                        <span>Custom amount</span>
+                        <span className="font-bold tabular-nums">£{(customPence / 100).toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="pt-2 mt-2 space-y-1" style={{ borderTop: `1px solid hsla(0,0%,100%,0.1)` }}>
+                      {summary.discountPence > 0 && (
+                        <div className="flex justify-between text-xs" style={{ color: BSL.success }}>
+                          <span>Discount applied</span>
+                          <span className="tabular-nums font-bold">−£{(summary.discountPence / 100).toFixed(2)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between items-baseline">
+                        <span className="text-xs uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Total</span>
+                        <motion.span
+                          key={summary.totalPence}
+                          initial={{ scale: 1.1 }} animate={{ scale: 1 }}
+                          className="text-2xl font-black tabular-nums"
+                          style={{ color: BSL.gold }}
+                          data-testid="text-topup-total"
+                        >
+                          £{(summary.totalPence / 100).toFixed(2)}
+                        </motion.span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+
+                {/* Bank details */}
                 <div className="rounded-xl p-3" style={{ background: `${BSL.cyan}10`, border: `1px solid ${BSL.cyan}33` }}>
                   <div className="text-[10px] uppercase tracking-widest font-bold mb-2" style={{ color: BSL.cyan }}>Bank Details</div>
                   {[
@@ -188,6 +338,8 @@ export default function Wallet() {
                     </div>
                   ))}
                 </div>
+
+                {/* Proof upload */}
                 <label className="block">
                   <input type="file" accept="image/*" hidden onChange={e => setProofFile(e.target.files?.[0] || null)} data-testid="input-topup-proof" />
                   <div className="h-28 rounded-xl flex flex-col items-center justify-center cursor-pointer"
@@ -205,8 +357,16 @@ export default function Wallet() {
                     )}
                   </div>
                 </label>
-                <ActionButton variant="gold" fullWidth onClick={() => topupMutation.mutate()} loading={topupMutation.isPending} disabled={!amount}>
-                  Submit Top-Up
+
+                <ActionButton
+                  variant="gold"
+                  fullWidth
+                  onClick={() => topupMutation.mutate()}
+                  loading={topupMutation.isPending}
+                  disabled={summary.totalPence <= 0}
+                  testid="button-submit-topup"
+                >
+                  Submit £{(summary.totalPence / 100).toFixed(2)} Top-Up
                 </ActionButton>
               </div>
             </motion.div>
