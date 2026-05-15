@@ -202,6 +202,47 @@ function scoreColorClass(value: number, target: number): string {
   return "text-gray-900 dark:text-white";
 }
 
+function ManagerPlayerSlot({
+  player, position, matchId, availablePlayers, isOrganiser, onSwapPlayer,
+  sessionMatchCounts, busyPlayerIds, achievements,
+}: {
+  player: any;
+  position: string;
+  matchId: number;
+  availablePlayers: Player[];
+  isOrganiser: boolean;
+  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  sessionMatchCounts?: Record<number, number>;
+  busyPlayerIds?: Set<number>;
+  achievements?: PlayerAchievements;
+}) {
+  const isFemale = player?.gender === "FEMALE";
+  return (
+    <div
+      className="flex items-center px-2.5 py-1.5 rounded-md border transition-all border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03]"
+      style={isFemale ? { borderColor: 'rgba(236,72,153,0.3)', backgroundColor: 'rgba(236,72,153,0.06)' } : undefined}
+      data-testid={`manager-slot-${position}-${matchId}`}
+    >
+      <ClickablePlayerName
+        player={player || null}
+        matchId={matchId}
+        position={position}
+        availablePlayers={availablePlayers}
+        canSwap={isOrganiser && !!onSwapPlayer}
+        onSwapPlayer={onSwapPlayer}
+        showMatchCount
+        sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
+        className="text-sm font-bold truncate flex-1"
+        style={{ color: isFemale ? '#ec4899' : undefined }}
+        isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
+        achievements={achievements}
+        busyPlayerIds={busyPlayerIds}
+        sessionMatchCounts={sessionMatchCounts}
+      />
+    </div>
+  );
+}
+
 function ManagerCourtCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers, onSwapPlayer, busyPlayerIds,
   sessionMatchCounts, courtNames, onCancelMatch, achievements,
