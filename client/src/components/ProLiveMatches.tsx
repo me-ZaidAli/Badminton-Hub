@@ -202,288 +202,6 @@ function scoreColorClass(value: number, target: number): string {
   return "text-gray-900 dark:text-white";
 }
 
-function InlineScorePanel({
-  match, isOrganiser, isSignedUp, currentPlayerProfileId, defaultPointsToPlayTo = 21,
-  onCompleteMatch, onEndSet, onCancelMatch,
-}: {
-  match: CourtMatch;
-  isOrganiser: boolean;
-  isSignedUp: boolean;
-  currentPlayerProfileId?: number | null;
-  defaultPointsToPlayTo?: number;
-  onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
-  onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
-  onCancelMatch?: (matchId: number) => void;
-}) {
-  const [scoreA, setScoreA] = useState("");
-  const [scoreB, setScoreB] = useState("");
-  const [step, setStep] = useState<"input" | "confirm" | "success">("input");
-  const [submitting, setSubmitting] = useState(false);
-  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const matchSets = match.numberOfSets || 1;
-  const isMultiSet = matchSets > 1;
-  const currentSet = match.currentSet || 1;
-  const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
-  const softCap = Math.ceil(pointsTarget * 1.5);
-
-  const isPlayerInMatch = currentPlayerProfileId && (
-    match.teamAPlayer1?.id === currentPlayerProfileId ||
-    match.teamAPlayer2?.id === currentPlayerProfileId ||
-    match.teamBPlayer1?.id === currentPlayerProfileId ||
-    match.teamBPlayer2?.id === currentPlayerProfileId
-  );
-  const canInteract = isOrganiser || (isSignedUp && isPlayerInMatch);
-
-  const teamANames = [match.teamAPlayer1?.user?.fullName, match.teamAPlayer2?.user?.fullName].filter(Boolean);
-  const teamBNames = [match.teamBPlayer1?.user?.fullName, match.teamBPlayer2?.user?.fullName].filter(Boolean);
-
-  useEffect(() => {
-    return () => { if (successTimerRef.current) clearTimeout(successTimerRef.current); };
-  }, []);
-
-  useEffect(() => {
-    setScoreA(""); setScoreB(""); setStep("input"); setSubmitting(false);
-  }, [match.id]);
-
-  const resetForm = () => { setStep("input"); setScoreA(""); setScoreB(""); };
-
-  const numA = parseInt(scoreA);
-  const numB = parseInt(scoreB);
-  const savedA = match.scoreA || 0;
-  const savedB = match.scoreB || 0;
-  const isModified = (scoreA !== "" && !isNaN(numA) && numA !== savedA) ||
-                     (scoreB !== "" && !isNaN(numB) && numB !== savedB);
-  const isTied = scoreA && scoreB && numA === numB;
-  const overSoftCap = (!isNaN(numA) && numA > softCap) || (!isNaN(numB) && numB > softCap);
-
-  const handleSubmitScore = useCallback(async () => {
-    const a = parseInt(scoreA);
-    const b = parseInt(scoreB);
-    if (isNaN(a) || isNaN(b) || a < 0 || b < 0 || a === b) return;
-    if (step === "input") { setStep("confirm"); return; }
-    setSubmitting(true);
-    try {
-      if (isMultiSet) await onEndSet(match.id, currentSet, a, b);
-      else await onCompleteMatch(match.id, a, b);
-      setStep("success");
-      if (successTimerRef.current) clearTimeout(successTimerRef.current);
-      successTimerRef.current = setTimeout(() => resetForm(), 1500);
-    } catch { setStep("input"); } finally { setSubmitting(false); }
-  }, [scoreA, scoreB, step, isMultiSet, currentSet, match.id, onCompleteMatch, onEndSet]);
-
-  if (!canInteract) return null;
-
-  if (step === "success") {
-    return (
-      <div className="flex items-center justify-center gap-2 py-4 border-t border-gray-100 dark:border-white/[0.05] bg-emerald-50 dark:bg-emerald-500/5">
-        <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-        <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Score Saved</span>
-      </div>
-    );
-  }
-
-  if (step === "confirm") {
-    const winnerA = numA > numB;
-    return (
-      <div className="border-t border-gray-100 dark:border-white/[0.05] px-4 py-4 space-y-3 bg-amber-50/40 dark:bg-amber-500/[0.03]" onClick={(e) => e.stopPropagation()}>
-        <p className="text-[11px] text-gray-600 dark:text-white/60 text-center font-semibold uppercase tracking-wider">
-          Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result
-        </p>
-        <div className="grid grid-cols-2 gap-3">
-          <div className={cn("rounded-lg border-2 p-3 text-center transition-all",
-            winnerA
-              ? "border-emerald-400/60 bg-emerald-500/10"
-              : "border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.02] opacity-60"
-          )}>
-            <p className="text-[9px] text-gray-500 dark:text-white/50 mb-1 truncate uppercase tracking-wider font-bold">Team A</p>
-            <p className="text-[10px] text-gray-600 dark:text-white/60 truncate mb-2">{teamANames.join(" & ") || "—"}</p>
-            <div className={cn("text-4xl font-black tabular-nums", winnerA ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-white/40")}>{scoreA}</div>
-            {winnerA && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">Winner</p>}
-          </div>
-          <div className={cn("rounded-lg border-2 p-3 text-center transition-all",
-            !winnerA
-              ? "border-emerald-400/60 bg-emerald-500/10"
-              : "border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.02] opacity-60"
-          )}>
-            <p className="text-[9px] text-gray-500 dark:text-white/50 mb-1 truncate uppercase tracking-wider font-bold">Team B</p>
-            <p className="text-[10px] text-gray-600 dark:text-white/60 truncate mb-2">{teamBNames.join(" & ") || "—"}</p>
-            <div className={cn("text-4xl font-black tabular-nums", !winnerA ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-white/40")}>{scoreB}</div>
-            {!winnerA && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">Winner</p>}
-          </div>
-        </div>
-        <div className="flex gap-2">
-          <button className="flex-1 px-3 py-2.5 text-sm font-semibold rounded-lg border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/70 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 active:scale-95 transition-all"
-            onClick={() => setStep("input")} data-testid={`pro-inline-back-${match.id}`}>Back</button>
-          <button className="flex-1 px-3 py-2.5 text-sm font-bold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 active:scale-95 transition-all shadow-sm"
-            onClick={handleSubmitScore} disabled={submitting} data-testid={`pro-inline-confirm-${match.id}`}>
-            {submitting ? "Saving..." : "Confirm"}
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div
-      className={cn(
-        "border-t px-3 py-3 space-y-2.5 transition-colors",
-        isModified
-          ? "border-amber-400/40 dark:border-amber-400/30 bg-amber-50/40 dark:bg-amber-500/[0.04]"
-          : "border-gray-100 dark:border-white/[0.05]"
-      )}
-      onClick={(e) => e.stopPropagation()}
-    >
-      <div className="flex items-center justify-between">
-        <p className="text-[10px] font-bold text-gray-500 dark:text-white/50 uppercase tracking-wider">
-          {isMultiSet ? `Set ${currentSet} Score` : "Score"}
-        </p>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-mono text-gray-400 dark:text-white/40">to {pointsTarget}</span>
-          {isModified && (
-            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-600 dark:text-amber-300 text-[9px] font-bold uppercase tracking-wider" data-testid={`pro-inline-modified-${match.id}`}>
-              <AlertCircle className="w-2.5 h-2.5" /> Unsaved
-            </span>
-          )}
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 gap-3">
-        {/* Team A */}
-        <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.02] p-2 space-y-1.5">
-          <label className="text-[9px] uppercase tracking-widest font-bold text-gray-500 dark:text-white/50 block text-center">Team A</label>
-          <div className="flex items-center gap-1">
-            <button className="w-9 h-11 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all"
-              onClick={() => setScoreA(String(Math.max(0, (parseInt(scoreA) || 0) - 1)))} data-testid={`pro-inline-a-minus-${match.id}`}>
-              <Minus className="w-4 h-4" />
-            </button>
-            <Input
-              type="number"
-              min="0"
-              max={softCap}
-              value={scoreA}
-              onChange={(e) => setScoreA(e.target.value)}
-              className={cn(
-                "bg-white dark:bg-slate-800/80 text-center text-2xl font-black h-11 tabular-nums border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-emerald-400/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                scoreColorClass(numA || 0, pointsTarget)
-              )}
-              placeholder="0"
-              data-testid={`pro-inline-a-score-${match.id}`}
-            />
-            <button className="w-9 h-11 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all"
-              onClick={() => setScoreA(String((parseInt(scoreA) || 0) + 1))} data-testid={`pro-inline-a-plus-${match.id}`}>
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-
-        {/* Team B */}
-        <div className="rounded-lg border border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.02] p-2 space-y-1.5">
-          <label className="text-[9px] uppercase tracking-widest font-bold text-gray-500 dark:text-white/50 block text-center">Team B</label>
-          <div className="flex items-center gap-1">
-            <button className="w-9 h-11 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all"
-              onClick={() => setScoreB(String(Math.max(0, (parseInt(scoreB) || 0) - 1)))} data-testid={`pro-inline-b-minus-${match.id}`}>
-              <Minus className="w-4 h-4" />
-            </button>
-            <Input
-              type="number"
-              min="0"
-              max={softCap}
-              value={scoreB}
-              onChange={(e) => setScoreB(e.target.value)}
-              className={cn(
-                "bg-white dark:bg-slate-800/80 text-center text-2xl font-black h-11 tabular-nums border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-emerald-400/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-                scoreColorClass(numB || 0, pointsTarget)
-              )}
-              placeholder="0"
-              data-testid={`pro-inline-b-score-${match.id}`}
-            />
-            <button className="w-9 h-11 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all"
-              onClick={() => setScoreB(String((parseInt(scoreB) || 0) + 1))} data-testid={`pro-inline-b-plus-${match.id}`}>
-              <Plus className="w-4 h-4" />
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {isTied && (
-        <p className="text-[11px] text-red-500 dark:text-red-400 text-center flex items-center justify-center gap-1" data-testid={`pro-inline-tie-${match.id}`}>
-          <AlertCircle className="w-3 h-3" /> Scores cannot be tied
-        </p>
-      )}
-      {overSoftCap && !isTied && (
-        <p className="text-[11px] text-amber-600 dark:text-amber-400 text-center flex items-center justify-center gap-1">
-          <AlertCircle className="w-3 h-3" /> Score above {softCap} — double-check
-        </p>
-      )}
-
-      <div className="flex gap-2 pt-1">
-        {isOrganiser && onCancelMatch && (
-          <button className="px-3 py-3 text-xs font-semibold rounded-lg border border-red-500/25 text-red-500 dark:text-red-400 bg-red-500/5 hover:bg-red-500/10 active:scale-95 transition-all"
-            onClick={() => onCancelMatch(match.id)} data-testid={`pro-inline-cancel-${match.id}`}>
-            <XCircle className="w-3.5 h-3.5 mr-1 inline" />Cancel
-          </button>
-        )}
-        <button
-          className={cn(
-            "flex-1 px-4 py-3.5 text-sm font-bold rounded-lg border-2 transition-all active:scale-95 inline-flex items-center justify-center gap-2 shadow-sm",
-            scoreA && scoreB && !isTied
-              ? "bg-gradient-to-b from-rose-500 to-red-600 border-red-700/40 text-white hover:from-rose-400 hover:to-red-500 shadow-red-500/20 shadow-md"
-              : "bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400 dark:text-white/30"
-          )}
-          onClick={handleSubmitScore}
-          disabled={!scoreA || !scoreB || !!isTied || submitting}
-          data-testid={`pro-inline-end-${match.id}`}
-        >
-          <Trophy className="w-4 h-4" />
-          {isMultiSet ? `End Set ${currentSet}` : "End Match"}
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function ManagerPlayerSlot({
-  player, position, matchId, availablePlayers, isOrganiser, onSwapPlayer,
-  sessionMatchCounts, busyPlayerIds, achievements,
-}: {
-  player: any;
-  position: string;
-  matchId: number;
-  availablePlayers: Player[];
-  isOrganiser: boolean;
-  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
-  sessionMatchCounts?: Record<number, number>;
-  busyPlayerIds?: Set<number>;
-  achievements?: PlayerAchievements;
-}) {
-  const isFemale = player?.gender === "FEMALE";
-  return (
-    <div
-      className="flex items-center px-2.5 py-1.5 rounded-md border transition-all border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03]"
-      style={isFemale ? { borderColor: 'rgba(236,72,153,0.3)', backgroundColor: 'rgba(236,72,153,0.06)' } : undefined}
-      data-testid={`manager-slot-${position}-${matchId}`}
-    >
-      <ClickablePlayerName
-        player={player || null}
-        matchId={matchId}
-        position={position}
-        availablePlayers={availablePlayers}
-        canSwap={isOrganiser && !!onSwapPlayer}
-        onSwapPlayer={onSwapPlayer}
-        showMatchCount
-        sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
-        className="text-sm font-bold truncate flex-1"
-        style={{ color: isFemale ? '#ec4899' : undefined }}
-        isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
-        achievements={achievements}
-        busyPlayerIds={busyPlayerIds}
-        sessionMatchCounts={sessionMatchCounts}
-      />
-    </div>
-  );
-}
-
 function ManagerCourtCard({
   match, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers, onSwapPlayer, busyPlayerIds,
   sessionMatchCounts, courtNames, onCancelMatch, achievements,
@@ -507,8 +225,51 @@ function ManagerCourtCard({
   const courtLabel = match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court";
   const isLive = !!match.startedAt;
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
-  const sA = match.scoreA || 0;
-  const sB = match.scoreB || 0;
+  const softCap = Math.ceil(pointsTarget * 1.5);
+  const matchSets = match.numberOfSets || 1;
+  const isMultiSet = matchSets > 1;
+  const currentSet = match.currentSet || 1;
+  const savedA = match.scoreA || 0;
+  const savedB = match.scoreB || 0;
+
+  const [scoreA, setScoreA] = useState("");
+  const [scoreB, setScoreB] = useState("");
+  const [step, setStep] = useState<"input" | "confirm" | "success">("input");
+  const [submitting, setSubmitting] = useState(false);
+  const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => { if (successTimerRef.current) clearTimeout(successTimerRef.current); }, []);
+  useEffect(() => { setScoreA(""); setScoreB(""); setStep("input"); setSubmitting(false); }, [match.id]);
+
+  const numA = parseInt(scoreA);
+  const numB = parseInt(scoreB);
+  const hasA = scoreA !== "" && !isNaN(numA);
+  const hasB = scoreB !== "" && !isNaN(numB);
+  const isModified = (hasA && numA !== savedA) || (hasB && numB !== savedB);
+  const isTied = hasA && hasB && numA === numB;
+  const overSoftCap = (hasA && numA > softCap) || (hasB && numB > softCap);
+  const canSubmit = hasA && hasB && !isTied && !submitting;
+
+  const isPlayerInMatch = currentPlayerProfileId && (
+    match.teamAPlayer1?.id === currentPlayerProfileId ||
+    match.teamAPlayer2?.id === currentPlayerProfileId ||
+    match.teamBPlayer1?.id === currentPlayerProfileId ||
+    match.teamBPlayer2?.id === currentPlayerProfileId
+  );
+  const canScore = !!onCompleteMatch && !!onEndSet && (isOrganiser || (!!isSignedUp && !!isPlayerInMatch));
+
+  const handleSubmit = useCallback(async () => {
+    if (!canScore || !hasA || !hasB || isTied) return;
+    if (step === "input") { setStep("confirm"); return; }
+    setSubmitting(true);
+    try {
+      if (isMultiSet) await onEndSet!(match.id, currentSet, numA, numB);
+      else await onCompleteMatch!(match.id, numA, numB);
+      setStep("success");
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+      successTimerRef.current = setTimeout(() => { setStep("input"); setScoreA(""); setScoreB(""); }, 1500);
+    } catch { setStep("input"); } finally { setSubmitting(false); }
+  }, [canScore, hasA, hasB, isTied, step, isMultiSet, currentSet, numA, numB, match.id, onCompleteMatch, onEndSet]);
 
   const renderPlayerSlot = (player: any, position: string) => (
     <ManagerPlayerSlot
@@ -525,6 +286,48 @@ function ManagerCourtCard({
     />
   );
 
+  const renderScoreInput = (
+    side: "A" | "B",
+    value: string,
+    setValue: (v: string) => void,
+    nVal: number
+  ) => {
+    if (!canScore) return null;
+    return (
+      <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+        <button
+          type="button"
+          className="w-9 h-12 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all"
+          onClick={() => setValue(String(Math.max(0, (parseInt(value) || 0) - 1)))}
+          data-testid={`pro-inline-${side.toLowerCase()}-minus-${match.id}`}
+        >
+          <Minus className="w-4 h-4" />
+        </button>
+        <Input
+          type="number"
+          min="0"
+          max={softCap}
+          value={value}
+          onChange={(e) => setValue(e.target.value)}
+          className={cn(
+            "bg-white dark:bg-slate-800/80 text-center text-3xl font-black h-12 tabular-nums border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-emerald-400/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
+            scoreColorClass(nVal || 0, pointsTarget)
+          )}
+          placeholder="0"
+          data-testid={`pro-inline-${side.toLowerCase()}-score-${match.id}`}
+        />
+        <button
+          type="button"
+          className="w-9 h-12 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all"
+          onClick={() => setValue(String((parseInt(value) || 0) + 1))}
+          data-testid={`pro-inline-${side.toLowerCase()}-plus-${match.id}`}
+        >
+          <Plus className="w-4 h-4" />
+        </button>
+      </div>
+    );
+  };
+
   return (
     <div
       className={cn(
@@ -535,6 +338,7 @@ function ManagerCourtCard({
       )}
       data-testid={`manager-court-${match.id}`}
     >
+      {/* Header */}
       <div className={cn(
         "flex items-center justify-between px-3 py-2 border-b",
         isLive
@@ -559,9 +363,9 @@ function ManagerCourtCard({
         <div className="flex items-center gap-2">
           {isLive && <LiveTimer startedAt={match.startedAt!} />}
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-black/30">
-            <span className={cn("text-base font-black tabular-nums", scoreColorClass(sA, pointsTarget))}>{sA}</span>
+            <span className={cn("text-base font-black tabular-nums", scoreColorClass(savedA, pointsTarget))}>{savedA}</span>
             <span className="text-xs text-gray-400 dark:text-white/30 font-bold">-</span>
-            <span className={cn("text-base font-black tabular-nums", scoreColorClass(sB, pointsTarget))}>{sB}</span>
+            <span className={cn("text-base font-black tabular-nums", scoreColorClass(savedB, pointsTarget))}>{savedB}</span>
           </div>
           {isOrganiser && onCancelMatch && (
             <button
@@ -576,42 +380,142 @@ function ManagerCourtCard({
         </div>
       </div>
 
-      <div className="px-3 py-2 space-y-1.5">
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5 text-gray-500 dark:text-white/40">
-            Team A
+      {step === "success" ? (
+        <div className="flex items-center justify-center gap-2 py-6 bg-emerald-50 dark:bg-emerald-500/5">
+          <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
+          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Score Saved</span>
+        </div>
+      ) : step === "confirm" ? (
+        <div className="px-4 py-4 space-y-3 bg-amber-50/40 dark:bg-amber-500/[0.03]" onClick={(e) => e.stopPropagation()}>
+          <p className="text-[11px] text-gray-600 dark:text-white/60 text-center font-semibold uppercase tracking-wider">
+            Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result
           </p>
-          <div className="space-y-1">
-            {renderPlayerSlot(match.teamAPlayer1, "teamAPlayer1Id")}
-            {renderPlayerSlot(match.teamAPlayer2, "teamAPlayer2Id")}
+          <div className="grid grid-cols-2 gap-3">
+            {([
+              { side: "A", isWinner: numA > numB, score: scoreA },
+              { side: "B", isWinner: numB > numA, score: scoreB },
+            ] as const).map(({ side, isWinner, score }) => (
+              <div key={side} className={cn(
+                "rounded-lg border-2 p-3 text-center transition-all",
+                isWinner
+                  ? "border-emerald-400/60 bg-emerald-500/10"
+                  : "border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.02] opacity-60"
+              )}>
+                <p className="text-[9px] text-gray-500 dark:text-white/50 mb-1 truncate uppercase tracking-wider font-bold">Team {side}</p>
+                <div className={cn("text-4xl font-black tabular-nums", isWinner ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-white/40")}>{score}</div>
+                {isWinner && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">Winner</p>}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              className="flex-1 px-3 py-2.5 text-sm font-semibold rounded-lg border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/70 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 active:scale-95 transition-all"
+              onClick={() => setStep("input")}
+              data-testid={`pro-inline-back-${match.id}`}
+            >Back</button>
+            <button
+              type="button"
+              className="flex-1 px-3 py-2.5 text-sm font-bold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 active:scale-95 transition-all shadow-sm"
+              onClick={handleSubmit}
+              disabled={submitting}
+              data-testid={`pro-inline-confirm-${match.id}`}
+            >
+              {submitting ? "Saving..." : "Confirm"}
+            </button>
           </div>
         </div>
+      ) : (
+        <>
+          {/* Two-column body: each team gets its own column with players + score input */}
+          <div className={cn(
+            "grid grid-cols-2 gap-3 px-3 py-3 transition-colors",
+            isModified && "bg-amber-50/40 dark:bg-amber-500/[0.04]"
+          )}>
+            {/* Team A column */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between px-0.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">Team A</p>
+              </div>
+              <div className="space-y-1">
+                {renderPlayerSlot(match.teamAPlayer1, "teamAPlayer1Id")}
+                {renderPlayerSlot(match.teamAPlayer2, "teamAPlayer2Id")}
+              </div>
+              {renderScoreInput("A", scoreA, setScoreA, numA)}
+            </div>
 
-        <div className="flex items-center gap-2 px-1">
-          <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-          <span className="text-[10px] font-bold text-gray-400 dark:text-white/25 uppercase tracking-widest">vs</span>
-          <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-        </div>
-
-        <div>
-          <p className="text-[10px] font-bold uppercase tracking-wider mb-1 px-0.5 text-gray-500 dark:text-white/40">
-            Team B
-          </p>
-          <div className="space-y-1">
-            {renderPlayerSlot(match.teamBPlayer1, "teamBPlayer1Id")}
-            {renderPlayerSlot(match.teamBPlayer2, "teamBPlayer2Id")}
+            {/* Team B column */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between px-0.5">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">Team B</p>
+              </div>
+              <div className="space-y-1">
+                {renderPlayerSlot(match.teamBPlayer1, "teamBPlayer1Id")}
+                {renderPlayerSlot(match.teamBPlayer2, "teamBPlayer2Id")}
+              </div>
+              {renderScoreInput("B", scoreB, setScoreB, numB)}
+            </div>
           </div>
-        </div>
-      </div>
 
-      {onCompleteMatch && onEndSet && (
-        <InlineScorePanel match={match} isOrganiser={isOrganiser} isSignedUp={!!isSignedUp}
-          currentPlayerProfileId={currentPlayerProfileId} defaultPointsToPlayTo={defaultPointsToPlayTo}
-          onCompleteMatch={onCompleteMatch} onEndSet={onEndSet} onCancelMatch={onCancelMatch} />
+          {/* Footer: status row + action buttons (only when scoring is available) */}
+          {canScore && (
+            <div className="px-3 pb-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center justify-between text-[10px]">
+                <span className="font-mono text-gray-400 dark:text-white/40">Play to {pointsTarget}</span>
+                <div className="flex items-center gap-1.5">
+                  {isTied && (
+                    <span className="inline-flex items-center gap-1 text-red-500 dark:text-red-400 font-semibold" data-testid={`pro-inline-tie-${match.id}`}>
+                      <AlertCircle className="w-3 h-3" /> Tied scores
+                    </span>
+                  )}
+                  {!isTied && overSoftCap && (
+                    <span className="inline-flex items-center gap-1 text-amber-600 dark:text-amber-400 font-semibold">
+                      <AlertCircle className="w-3 h-3" /> Over {softCap}
+                    </span>
+                  )}
+                  {isModified && !isTied && (
+                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-600 dark:text-amber-300 text-[9px] font-bold uppercase tracking-wider" data-testid={`pro-inline-modified-${match.id}`}>
+                      <AlertCircle className="w-2.5 h-2.5" /> Unsaved
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                {isOrganiser && onCancelMatch && (
+                  <button
+                    type="button"
+                    className="px-3 py-3 text-xs font-semibold rounded-lg border border-red-500/25 text-red-500 dark:text-red-400 bg-red-500/5 hover:bg-red-500/10 active:scale-95 transition-all inline-flex items-center gap-1.5"
+                    onClick={() => onCancelMatch(match.id)}
+                    data-testid={`pro-inline-cancel-${match.id}`}
+                  >
+                    <XCircle className="w-3.5 h-3.5" />Cancel
+                  </button>
+                )}
+                <button
+                  type="button"
+                  className={cn(
+                    "flex-1 px-4 py-3.5 text-sm font-bold rounded-lg border-2 transition-all active:scale-95 inline-flex items-center justify-center gap-2",
+                    canSubmit
+                      ? "bg-gradient-to-b from-rose-500 to-red-600 border-red-700/40 text-white hover:from-rose-400 hover:to-red-500 shadow-md shadow-red-500/20"
+                      : "bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400 dark:text-white/30 cursor-not-allowed"
+                  )}
+                  onClick={handleSubmit}
+                  disabled={!canSubmit}
+                  data-testid={`pro-inline-end-${match.id}`}
+                >
+                  <Trophy className="w-4 h-4" />
+                  {isMultiSet ? `End Set ${currentSet}` : "End Match"}
+                </button>
+              </div>
+            </div>
+          )}
+        </>
       )}
     </div>
   );
 }
+
 
 function EmptyCourtSlot({ courtNumber, courtName }: { courtNumber: number; courtName: string }) {
   const courtColor = getCourtColor(courtNumber);
