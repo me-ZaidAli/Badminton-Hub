@@ -24,6 +24,7 @@ export default function SettingsAdmin() {
     feeMD: league.categoryFees?.MD != null ? String(league.categoryFees.MD / 100) : "",
     feeWD: league.categoryFees?.WD != null ? String(league.categoryFees.WD / 100) : "",
     feeXD: league.categoryFees?.XD != null ? String(league.categoryFees.XD / 100) : "",
+    divisionJoinFeePounds: league.divisionJoinFeePence != null ? String(league.divisionJoinFeePence / 100) : "25",
     matchFormat: league.matchFormat ?? "6-RUBBER", courtCount: league.courtCount ?? 6,
     notificationsEnabled: !!league.notificationsEnabled,
     brandingPrimary: league.brandingPrimary ?? "", brandingAccent: league.brandingAccent ?? "",
@@ -66,6 +67,10 @@ export default function SettingsAdmin() {
       const pf = parseFloat(form.playerFeePounds);
       if (Number.isFinite(cf)) payload.clubFee = Math.round(cf * 100);
       if (Number.isFinite(pf)) payload.playerFee = Math.round(pf * 100);
+      // Division-join fee (deducted from the manager's wallet when their club
+      // joins another division). Empty string = leave unchanged.
+      const dj = parseFloat(form.divisionJoinFeePounds);
+      if (Number.isFinite(dj)) payload.divisionJoinFeePence = Math.max(0, Math.round(dj * 100));
       // Per-category fees (only send when at least one is set)
       const md = parseFloat(form.feeMD), wd = parseFloat(form.feeWD), xd = parseFloat(form.feeXD);
       if ([md, wd, xd].some(Number.isFinite)) {
@@ -204,6 +209,11 @@ export default function SettingsAdmin() {
               <Field label="Mixed Doubles"><MoneyInput value={form.feeXD} onChange={(v: any) => F("feeXD", v)} placeholder="30" testid="input-fee-xd" /></Field>
             </div>
             <div className="text-xs mt-1" style={{ color: BSL.muted }}>Players pay this from their BSL wallet on category registration. Falls back to player fee if blank.</div>
+          </div>
+          <div className="mt-4 pt-4" style={{ borderTop: `1px solid ${BSL.border}` }}>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: BSL.gold }}>Division join fee (£)</div>
+            <Field label="Per additional division"><MoneyInput value={form.divisionJoinFeePounds} onChange={(v: any) => F("divisionJoinFeePounds", v)} placeholder="25" testid="input-division-join-fee" /></Field>
+            <div className="text-xs mt-1" style={{ color: BSL.muted }}>Charged to the club admin's BSL wallet each time their club joins another division. Set to 0 to make additional divisions free.</div>
           </div>
         </GlowPanel>
 

@@ -158,7 +158,7 @@ export function registerBslRoutes(app: Express) {
     try {
       const body = req.body || {};
       const allowedStr = ["name", "tagline", "venueName", "bankAccountName", "bankSortCode", "bankAccountNumber", "matchFormat", "brandingPrimary", "brandingAccent"];
-      const allowedInt = ["clubFee", "playerFee", "pointsWin", "pointsDraw", "pointsLoss", "courtCount"];
+      const allowedInt = ["clubFee", "playerFee", "pointsWin", "pointsDraw", "pointsLoss", "courtCount", "divisionJoinFeePence"];
       const update: Record<string, any> = { updatedAt: new Date() };
       // Divisions: free-form list managed from /bsl/admin/league. Sanitised
       // string array (trimmed, ≤56 chars, deduped, max 32 entries) so the UI
@@ -2407,8 +2407,120 @@ export function registerBslRoutes(app: Express) {
         pending: pending.map(hydrate),
         confirmed: confirmed.map(hydrate),
         summary,
+        // Hydrated league bits the Club Manager UI needs (division catalogue
+        // + the join-another-division fee). Avoids a second round-trip.
+        league: league ? {
+          divisions: league.divisions || [],
+          divisionJoinFeePence: (league as any).divisionJoinFeePence ?? 2500,
+        } : null,
       });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ---------------------------------------------------------------------------
+  // Club joins an ADDITIONAL division (pay-per-division). The flat fee comes
+  // from `bsl_leagues.divisionJoinFeePence` and is deducted from the *calling*
+  // user's player wallet (the manager / club admin pressing the button must be
+  // a confirmed BSL player in this club). Atomic txn with FOR UPDATE on the
+  // wallet row so two simultaneous clicks can't double-charge or under-charge.
+  // ---------------------------------------------------------------------------
+  app.post("/api/bsl/clubs/:id/join-division", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const division = String(req.body?.division ?? "").trim();
+      if (!division) return res.status(400).json({ message: "division required" });
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+      if (!league) return res.status(500).json({ message: "League not configured" });
+      const knownDivisions: string[] = (league as any).divisions || [];
+      if (knownDivisions.length && !knownDivisions.includes(division)) {
+        return res.status(400).json({ message: `Division "${division}" doesn't exist in this league` });
+      }
+      if (division === club.division) return res.status(400).json({ message: "Already your primary division" });
+      const u: any = (req as any).user;
+      const fee = Math.max(0, Number((league as any).divisionJoinFeePence ?? 2500));
+
+      // Everything race-sensitive happens inside the txn: lock the club row
+      // first, re-read additionalDivisions under that lock, then lock the
+      // caller's player wallet (when a fee applies). Two concurrent join
+      // requests will queue on the club row instead of double-charging or
+      // losing one of the divisions to a last-write-wins overwrite.
+      const result = await db.transaction(async (tx) => {
+        const clubLock = await tx.execute(dsql`
+          SELECT id, name, division, additional_divisions
+            FROM bsl_clubs WHERE id = ${club.id} LIMIT 1 FOR UPDATE`);
+        const cRow: any = (clubLock as any).rows?.[0];
+        if (!cRow) throw Object.assign(new Error("Club not found"), { status: 404 });
+        const currentExtras: string[] = Array.isArray(cRow.additional_divisions) ? cRow.additional_divisions : [];
+        if (division === cRow.division) {
+          throw Object.assign(new Error("Already your primary division"), { status: 400 });
+        }
+        if (currentExtras.includes(division)) {
+          throw Object.assign(new Error("Already joined that division"), { status: 409 });
+        }
+        if (currentExtras.length >= 8) {
+          throw Object.assign(new Error("Maximum of 8 additional divisions reached"), { status: 400 });
+        }
+
+        let chargedPlayerId: number | null = null;
+        let walletAfter: number | null = null;
+        let txRow: any = null;
+        if (fee > 0) {
+          // Lock the caller's player row so the deduction is race-safe.
+          const lockedRows = await tx.execute(dsql`
+            SELECT id, wallet_balance FROM bsl_players
+             WHERE user_id = ${u.id} AND bsl_club_id = ${club.id}
+             LIMIT 1 FOR UPDATE`);
+          const row: any = (lockedRows as any).rows?.[0];
+          if (!row) {
+            throw Object.assign(new Error("You must be a confirmed BSL player in this club to pay the join fee"), { status: 400 });
+          }
+          const balance = Number(row.wallet_balance ?? 0);
+          if (balance < fee) {
+            throw Object.assign(new Error(`Insufficient wallet balance — need £${(fee/100).toFixed(2)}, have £${(balance/100).toFixed(2)}. Top up first.`), { status: 400 });
+          }
+          chargedPlayerId = row.id;
+          walletAfter = balance - fee;
+          await tx.update(bslPlayers)
+            .set({ walletBalance: walletAfter })
+            .where(eq(bslPlayers.id, row.id));
+          [txRow] = await tx.insert(bslWalletTransactions).values({
+            bslPlayerId: row.id,
+            type: "DEDUCTION",
+            amount: fee,
+            status: "APPROVED",
+            reference: genRef("BSL-DIV"),
+            description: `Division join · ${division} · ${cRow.name}`,
+            reviewedById: u.id,
+            reviewedAt: new Date(),
+          }).returning();
+        }
+        const [updated] = await tx.update(bslClubs)
+          .set({ additionalDivisions: [...currentExtras, division] })
+          .where(eq(bslClubs.id, club.id))
+          .returning();
+        return { updated, chargedPlayerId, walletAfter, txRow };
+      });
+
+      await audit(req, "CLUB_JOIN_DIVISION", "bsl_club", club.id, {
+        division,
+        feePence: fee,
+        chargedPlayerId: result.chargedPlayerId,
+        walletAfterPence: result.walletAfter,
+      });
+      res.json({
+        ok: true,
+        club: result.updated,
+        feePence: fee,
+        walletAfterPence: result.walletAfter,
+        transaction: result.txRow,
+      });
+    } catch (err: any) {
+      const status = err?.status || 500;
+      if (status === 500) console.error("[bsl join-division]", err);
+      res.status(status).json({ message: err.message || "Failed to join division" });
+    }
   });
 
   // Manager edits a player's profile fields (display name + bio). Same fields
@@ -2522,16 +2634,35 @@ export function registerBslRoutes(app: Express) {
       if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
       const category = String(req.body.category || "");
       if (!ALLOWED_CATS.includes(category as Cat)) return res.status(400).json({ message: "Invalid category" });
-      const existing = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, id), eq(bslTeams.category, category)));
+      // Division the pair belongs to. Defaults to the club's primary division
+      // for backwards-compatible callers that only send `category`. When the
+      // caller specifies an explicit division, validate it against the set of
+      // divisions this club has actually joined (primary + extras).
+      const requestedDivision = req.body.division ? String(req.body.division).trim() : "";
+      const joinedDivisions = new Set<string>([
+        club.division,
+        ...(Array.isArray((club as any).additionalDivisions) ? (club as any).additionalDivisions : []),
+      ]);
+      const division = requestedDivision || club.division;
+      if (!joinedDivisions.has(division)) {
+        return res.status(400).json({ message: `Club hasn't joined division "${division}". Join it first from the Divisions panel.` });
+      }
+      // pairNumber is per (division, category) so MD-A in Premier and MD-A in
+      // Social are independent and start their own A/B/C lettering sequence.
+      const existing = await db.select().from(bslTeams).where(and(
+        eq(bslTeams.bslClubId, id),
+        eq(bslTeams.division, division),
+        eq(bslTeams.category, category),
+      ));
       const pairNumber = (existing.reduce((m, t) => Math.max(m, t.pairNumber || 0), 0) || 0) + 1;
       const letter = String.fromCharCode(64 + pairNumber); // A, B, C…
       const [created] = await db.insert(bslTeams).values({
         bslClubId: id,
-        name: `${club.name} ${category} Pair ${letter}`,
-        division: club.division,
+        name: `${club.name} ${division} ${category} Pair ${letter}`,
+        division,
         category, pairNumber,
       } as any).returning();
-      await audit(req, "MANAGER_CREATE_PAIR", "bsl_teams", created.id, { category, pairNumber });
+      await audit(req, "MANAGER_CREATE_PAIR", "bsl_teams", created.id, { division, category, pairNumber });
       res.json(created);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -2572,9 +2703,16 @@ export function registerBslRoutes(app: Express) {
       const existing = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslTeamId, teamId));
       if (existing.length >= 2) return res.status(400).json({ message: "Pair is full (2 players max)" });
       if (existing.some(m => m.bslPlayerId === playerId)) return res.status(400).json({ message: "Already in pair" });
-      // One player can only be in one pair per category — pull them off siblings first
+      // One player can only be in one pair per (DIVISION, category). With the
+      // multi-division-club model in place, the same player is allowed to be in
+      // the same category across different divisions (e.g. play MD in Premier
+      // AND in Social) — siblings are only the pairs in the same division+cat.
       if (team.category) {
-        const siblings = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, club.id), eq(bslTeams.category, team.category)));
+        const siblings = await db.select().from(bslTeams).where(and(
+          eq(bslTeams.bslClubId, club.id),
+          eq(bslTeams.division, team.division),
+          eq(bslTeams.category, team.category),
+        ));
         if (siblings.length) {
           await db.delete(bslTeamMembers).where(and(
             inArray(bslTeamMembers.bslTeamId, siblings.map(s => s.id)),

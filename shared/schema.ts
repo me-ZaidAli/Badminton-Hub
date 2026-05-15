@@ -3117,6 +3117,10 @@ export const bslLeagues = pgTable("bsl_leagues", {
   // Per-category player registration fees in pence (admin-editable in Settings).
   // Falls back to playerFee when a category is missing.
   categoryFees: jsonb("category_fees").$type<Record<string, number>>().notNull().default({ MD: 2500, WD: 2500, XD: 3000 }),
+  // Flat fee (pence) charged to a club for joining each ADDITIONAL division
+  // beyond their primary one. Deducted from the requesting admin's player
+  // wallet at the moment they confirm the join. £25 default.
+  divisionJoinFeePence: integer("division_join_fee_pence").notNull().default(2500),
   // Top-up package buttons shown in the player Wallet modal. Each entry:
   // { id, label, amountPence, sortOrder? }. Admin-editable. Empty list disables
   // package buttons (custom-amount-only fallback).
