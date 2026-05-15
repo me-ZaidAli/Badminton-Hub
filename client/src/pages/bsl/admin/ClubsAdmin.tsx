@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check, BadgeCheck, CircleDollarSign, Share2, Plus, Layers,
+  Building2, Search, Flag, ShieldOff, ShieldCheck, ExternalLink, X, Save, Copy, Check, BadgeCheck, CircleDollarSign, Share2, Plus, Layers, Moon, Sun, Trash2, AlertTriangle,
 } from "lucide-react";
 import { Link } from "wouter";
 import { AdminLayout } from "./AdminLayout";
@@ -80,6 +80,36 @@ export default function ClubsAdmin() {
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
 
+  // Super-admin sleep / wake — keeps all club data; just flips a flag.
+  const setSleep = useMutation({
+    mutationFn: async (v: { id: number; sleeping: boolean }) =>
+      (await apiRequest("PATCH", `/api/bsl/admin/clubs/${v.id}/sleep`, { sleeping: v.sleeping })).json(),
+    onSuccess: (_d, v) => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/clubs"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] });
+      toast({ title: v.sleeping ? "Club put to sleep" : "Club woken up", description: v.sleeping ? "Data preserved. Public list shows a Sleeping badge." : "Club is active again." });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  // Super-admin wipe out — hard delete; requires typing the club name.
+  const [wipeTarget, setWipeTarget] = useState<any | null>(null);
+  const [wipeConfirm, setWipeConfirm] = useState("");
+  const wipeOut = useMutation({
+    mutationFn: async (v: { id: number; confirmName: string }) =>
+      (await apiRequest("DELETE", `/api/bsl/admin/clubs/${v.id}/wipe`, { confirmName: v.confirmName })).json(),
+    onSuccess: (d: any) => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/clubs"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/audit"] });
+      setWipeTarget(null); setWipeConfirm("");
+      toast({ title: "Club wiped out", description: `Deleted ${d.fixtures || 0} fixtures. Player accounts preserved.` });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
   return (
     <AdminLayout active="clubs">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
@@ -146,7 +176,14 @@ export default function ClubsAdmin() {
                     <td className="px-2 py-3">{c.division}</td>
                     <td className="px-2 py-3 tabular-nums">{c.teamCount}</td>
                     <td className="px-2 py-3">
-                      <span className="text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded" style={{ background: `${STATUS_COLOR[c.status]}22`, color: STATUS_COLOR[c.status] }}>{c.status.replace("_"," ")}</span>
+                      <div className="flex flex-col items-start gap-1">
+                        <span className="text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded" style={{ background: `${STATUS_COLOR[c.status]}22`, color: STATUS_COLOR[c.status] }}>{c.status.replace("_"," ")}</span>
+                        {c.sleepingAt && (
+                          <span className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded" style={{ background: "hsla(220,40%,60%,0.18)", color: "hsl(220,80%,75%)" }} data-testid={`badge-sleeping-${c.id}`}>
+                            <Moon className="h-3 w-3" /> Sleeping
+                          </span>
+                        )}
+                      </div>
                     </td>
                     <td className="px-2 py-3">
                       {c.inviteCode ? (
@@ -212,6 +249,39 @@ export default function ClubsAdmin() {
                           <a><ActionButton variant="cyan" icon={<Layers className="h-3 w-3" />} testid={`button-manage-club-${c.id}`}>Manage</ActionButton></a>
                         </Link>
                         <ActionButton variant="gold" onClick={() => setEditId(c.id)}>Edit</ActionButton>
+                        {c.sleepingAt ? (
+                          <ActionButton
+                            variant="cyan"
+                            icon={<Sun className="h-3 w-3" />}
+                            onClick={() => setSleep.mutate({ id: c.id, sleeping: false })}
+                            disabled={setSleep.isPending}
+                            testid={`button-wake-club-${c.id}`}
+                          >
+                            Wake
+                          </ActionButton>
+                        ) : (
+                          <ActionButton
+                            variant="ghost"
+                            icon={<Moon className="h-3 w-3" />}
+                            onClick={() => {
+                              if (confirm(`Put "${c.name}" to sleep?\n\nAll data is preserved (fixtures, players, results). The club will appear on public lists with a "Sleeping" badge until you wake it again.`)) {
+                                setSleep.mutate({ id: c.id, sleeping: true });
+                              }
+                            }}
+                            disabled={setSleep.isPending}
+                            testid={`button-sleep-club-${c.id}`}
+                          >
+                            Put to sleep
+                          </ActionButton>
+                        )}
+                        <ActionButton
+                          variant="ghost"
+                          icon={<Trash2 className="h-3 w-3" />}
+                          onClick={() => { setWipeTarget(c); setWipeConfirm(""); }}
+                          testid={`button-wipe-club-${c.id}`}
+                        >
+                          Wipe out
+                        </ActionButton>
                       </div>
                     </td>
                   </motion.tr>
@@ -221,6 +291,47 @@ export default function ClubsAdmin() {
           </div>
         )}
       </GlowPanel>
+
+      {wipeTarget && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.7)" }} onClick={() => !wipeOut.isPending && setWipeTarget(null)}>
+          <div className="max-w-md w-full rounded-xl p-5" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.danger}55` }} onClick={(e) => e.stopPropagation()} data-testid="dialog-wipe-club">
+            <div className="flex items-start gap-3 mb-3">
+              <div className="h-10 w-10 rounded-lg flex items-center justify-center shrink-0" style={{ background: `${BSL.danger}22`, color: BSL.danger }}>
+                <AlertTriangle className="h-5 w-5" />
+              </div>
+              <div className="min-w-0">
+                <div className="text-base font-black uppercase tracking-wide" style={{ color: BSL.danger }}>Wipe out club</div>
+                <div className="text-xs mt-1" style={{ color: BSL.muted }}>This is permanent. Fixtures, rubbers, teams and wallet transactions for <span className="font-bold text-white">{wipeTarget.name}</span> will be deleted forever. Player accounts are preserved but will be unlinked from this club.</div>
+              </div>
+            </div>
+            <label className="block text-[11px] uppercase tracking-widest font-bold mb-1" style={{ color: BSL.muted }}>
+              Type <span className="font-mono text-white">{wipeTarget.name}</span> to confirm
+            </label>
+            <input
+              type="text"
+              value={wipeConfirm}
+              onChange={(e) => setWipeConfirm(e.target.value)}
+              autoFocus
+              className="w-full px-3 py-2 rounded-lg text-sm font-mono"
+              style={{ background: "rgba(0,0,0,0.4)", border: `1px solid ${BSL.border}`, color: "white" }}
+              data-testid="input-wipe-confirm"
+            />
+            <div className="flex justify-end gap-2 mt-4">
+              <ActionButton variant="ghost" onClick={() => setWipeTarget(null)} disabled={wipeOut.isPending} testid="button-wipe-cancel">Cancel</ActionButton>
+              <button
+                type="button"
+                disabled={wipeConfirm !== wipeTarget.name || wipeOut.isPending}
+                onClick={() => wipeOut.mutate({ id: wipeTarget.id, confirmName: wipeConfirm })}
+                className="px-3 py-1.5 rounded-lg text-xs font-black uppercase tracking-widest disabled:opacity-40 disabled:cursor-not-allowed inline-flex items-center gap-1.5"
+                style={{ background: BSL.danger, color: "white" }}
+                data-testid="button-wipe-confirm"
+              >
+                <Trash2 className="h-3 w-3" /> {wipeOut.isPending ? "Wiping…" : "Wipe out"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {shareClub && (
         <ShareInviteDialog

@@ -3143,6 +3143,9 @@ export const bslClubs = pgTable("bsl_clubs", {
   adminNotes: text("admin_notes"),
   // Owner-initiated withdrawal from the league. Non-null = club has stepped out.
   withdrawnAt: timestamp("withdrawn_at"),
+  // Super-admin "Put to sleep". Non-null = club is archived but data preserved.
+  // Public listings keep the club visible with a "Sleeping" badge.
+  sleepingAt: timestamp("sleeping_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 

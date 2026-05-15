@@ -240,7 +240,14 @@ export default function LeagueMode() {
                       {c.logoUrl ? <img src={c.logoUrl} className="h-full w-full object-cover" alt={c.name} /> : c.name.slice(0, 2).toUpperCase()}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-semibold truncate">{c.name}</div>
+                      <div className="text-sm font-semibold truncate flex items-center gap-1.5">
+                        {c.name}
+                        {c.sleepingAt && (
+                          <span className="inline-flex items-center text-[9px] uppercase tracking-widest font-black px-1.5 py-0.5 rounded" style={{ background: "hsla(220,40%,60%,0.18)", color: "hsl(220,80%,75%)" }} title="This club is sleeping — data preserved" data-testid={`badge-sleeping-tile-${c.id}`}>
+                            Sleeping
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.cyan }}>{c.division}</div>
                     </div>
                   </motion.div>

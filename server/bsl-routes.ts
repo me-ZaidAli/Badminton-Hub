@@ -392,6 +392,70 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // === SUPER-ADMIN: Put to sleep / Wake up ===
+  // Sets sleepingAt timestamp (or clears it). The club + all data stay visible
+  // but a "Sleeping" badge is shown publicly. OWNER-only.
+  app.patch("/api/bsl/admin/clubs/:id/sleep", requireOwner, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const sleeping = req.body?.sleeping !== false; // default true
+      const [existing] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      const [updated] = await db.update(bslClubs)
+        .set({ sleepingAt: sleeping ? new Date() : null })
+        .where(eq(bslClubs.id, id))
+        .returning();
+      await audit(req, sleeping ? "club.sleep" : "club.wake", "bsl_club", id, {
+        from: existing.sleepingAt, to: updated.sleepingAt, reason: req.body?.reason || null,
+      });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // === SUPER-ADMIN: Wipe out (hard delete) ===
+  // Deletes the club AND every related row (fixtures, rubbers, teams, team
+  // members, wallet transactions, players link). OWNER-only, requires the
+  // confirmation phrase to match the club name to prevent fat-finger wipes.
+  app.delete("/api/bsl/admin/clubs/:id/wipe", requireOwner, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const confirmName = String(req.body?.confirmName || "").trim();
+      const [existing] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ message: "Not found" });
+      if (confirmName !== existing.name) {
+        return res.status(400).json({ message: `Confirmation phrase must exactly match the club name: "${existing.name}"` });
+      }
+
+      const summary = await db.transaction(async (tx) => {
+        // 1) Delete fixtures where this club is home or away (no FK cascade
+        //    from bslClubs to bslFixtures, so we must clear them ourselves).
+        //    bsl_rubbers cascades from bslFixtures.
+        const deletedFixtures = await tx.delete(bslFixtures)
+          .where(or(eq(bslFixtures.homeClubId, id), eq(bslFixtures.awayClubId, id)))
+          .returning({ id: bslFixtures.id });
+
+        // 2) Delete the club row. Cascades: bsl_teams (CASCADE),
+        //    bsl_team_members via teams (CASCADE). Set-NULL: bsl_players,
+        //    bsl_media.tagged_club_id, bsl_audit_log.tagged_club_id.
+        //    Players' wallet history (bsl_wallet_transactions keyed by
+        //    bsl_player_id) is preserved with the player.
+        await tx.delete(bslClubs).where(eq(bslClubs.id, id));
+
+        return { fixtures: deletedFixtures.length };
+      });
+
+      await audit(req, "club.wipe", "bsl_club", id, {
+        clubName: existing.name,
+        deletedFixtures: summary.fixtures,
+        reason: req.body?.reason || null,
+      });
+      res.json({ ok: true, ...summary });
+    } catch (err: any) {
+      console.error("[bsl wipe]", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // === PLAYERS ===
   app.get("/api/bsl/players/me", requireAuth, async (req, res) => {
     try {
