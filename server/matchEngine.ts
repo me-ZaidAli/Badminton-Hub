@@ -173,7 +173,14 @@ function scoreGroup(
   const gradeSpread = spread * ec.gradeSpreadWeight;
   if (spread > 0) factors.push(`grade spread ${spread}: +${gradeSpread.toFixed(1)}`);
 
-  const total = groupRepeat + partnerRepeat + opponentRepeat + gradeSpread;
+  // Same-gender preference: give all-male and all-female groups a sizeable
+  // negative bonus so they win over mixed-gender groups when scores are
+  // otherwise close. Magnitude ≈ groupRepeatPenalty so it dominates a small
+  // grade-spread or single opponent repeat.
+  const sameGenderBonus = isSingleGenderGroup(group) ? -ec.groupRepeatPenalty : 0;
+  if (sameGenderBonus < 0) factors.push(`same-gender bonus: ${sameGenderBonus}`);
+
+  const total = groupRepeat + partnerRepeat + opponentRepeat + gradeSpread + sameGenderBonus;
   return {
     score: total,
     breakdown: { groupRepeat, partnerRepeat, opponentRepeat, gradeSpread, total },
@@ -182,14 +189,14 @@ function scoreGroup(
 }
 
 // Gender-shape rule for a 4-player group:
-//   • 4 male            → MM vs MM
-//   • 4 female          → FF vs FF
-//   • 2 male + 2 female → MM vs FF
+//   • 4 male            → MM vs MM           (preferred)
+//   • 4 female          → FF vs FF           (preferred)
+//   • 2 male + 2 female → MF vs MF           (true mixed doubles — never MM vs FF)
 //   • 3 + 1 (3F+1M or 3M+1F) → ALLOWED ONLY when the lone player is high-grade.
 //     The strong outlier carries the weakest of the trio as their partner so
-//     the match stays competitive (e.g. high-grade male + weakest female
-//     vs the two stronger females).
+//     the match stays competitive.
 // Anything else (3+1 with a low-grade outlier) is rejected before scoring.
+// All-same-gender groups carry a scoring bonus to prioritise them over mixed.
 function isAllowedGenderShape(group: Player[]): boolean {
   const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
   const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
@@ -198,6 +205,14 @@ function isAllowedGenderShape(group: Player[]): boolean {
   if (males.length === 1 && females.length === 3) return isHighGrade(males[0].grade);
   if (females.length === 1 && males.length === 3) return isHighGrade(females[0].grade);
   return false;
+}
+
+// Returns true when the group is all-male or all-female. Used to give
+// single-gender matches a scoring bonus so they're chosen over mixed when
+// scores are otherwise close.
+function isSingleGenderGroup(group: Player[]): boolean {
+  const f = group.filter(p => getEffectiveGender(p) === "FEMALE").length;
+  return f === 0 || f === group.length;
 }
 
 function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]; teamB: Player[] } {
@@ -213,9 +228,12 @@ function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]
   const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
   const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
 
-  // 2 + 2 → always MM vs FF.
+  // 2 + 2 → true mixed doubles: MF vs MF. Pair strongest male with weakest
+  // female (and vice versa) so both teams have similar combined skill.
   if (males.length === 2 && females.length === 2) {
-    return { teamA: males, teamB: females };
+    const mSorted = [...males].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
+    const fSorted = [...females].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
+    return { teamA: [mSorted[0], fSorted[1]], teamB: [mSorted[1], fSorted[0]] };
   }
   // 3 + 1 → strong outlier partners the weakest of the trio for balance.
   if (males.length === 1 && females.length === 3) {
