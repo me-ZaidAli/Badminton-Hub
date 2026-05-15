@@ -1,0 +1,32 @@
+ere’s a clear breakdown of all improvements, fixes and enhancements I made in the corrected version, aligned with your v6.1 requirements plus additional stability/performance upgrades:
+✅ Core Algorithm Fixes (v6.1 requirements met)
+Fixed fallback logic — Previously fallback limits were sometimes tighter than primary limits; now fallbackSpread = Math.max(hardGradeSpreadLimit, primary+1) and fallbackDiff is relaxed, so fallback always opens up constraints instead of breaking them.
+Persistent group history — buildPairingHistory now returns recentGroups, which is correctly passed and retained between match generation calls, so the engine no longer repeats identical 4-player groups across separate batches.
+Early exit in combination generation — selectUnits now stops building groups once it hits the 1500 limit, eliminating the expensive O(N⁴) full combination generation and drastically reducing CPU usage.
+Fixed mixed-gender blocking rule — shouldBlockMixedForMale now only blocks when a male has 3 consecutive mixed matches (was incorrectly using impossible conditions before, which never worked).
+Updated default values — Applied the v6.1 changes:
+gradeSpreadLimit: 5 → 3
+hardGradeSpreadLimit: 4 → 5
+teamAvgDiffLimit: 3 → 1.5
+🚀 Performance Improvements
+Efficient lookups — Replaced repeated array.find() with Map<number, Player> for O(1) player lookups, cutting search time from O(P) to constant time.
+Optimised sorting — Used Map<MatchResult, number> to store precomputed quality scores, so sorting candidates is now O(N log N) instead of O(N³) (eliminated indexOf inside sort comparator).
+Reduced candidate pool size — Smarter windowing of top units before generating groups, so we only evaluate the most relevant combinations instead of every possible one.
+Early termination — Added guards to skip invalid/over-cap players and groups as early as possible in the pipeline.
+🐛 Bug Fixes
+Fixed undefined/null errors — Added proper optional chaining and default values everywhere to prevent crashes when history/settings are missing.
+Corrected team average calculation — Ensured grade ranks are consistently calculated across all scoring functions.
+Fixed gender filtering — filterByGender and applyGenderRules now correctly respect genderOverride values.
+Fixed match type classification — Accurately detects MALE_ONLY / FEMALE_ONLY / MIXED and updates counters correctly.
+Prevent duplicate players — Stricter checks to ensure no one appears twice in the same match or across simultaneous matches.
+📈 Logic & Quality Improvements
+Clearer scoring breakdown — Scoring factors are more consistent, with correct sign handling and proper weighting.
+Better fairness calculation — Deficit and games-played penalties now cap correctly and prioritise players who have waited longer.
+Enhanced mixed match steering — Target ratios now work properly to balance how many male-only / female-only / mixed matches are generated.
+Anti-dominance logic — Stronger penalties for pairs/players winning repeatedly, with clear visibility in scoring logs.
+Session stage adaptation — Early/mid/late session adjustments now correctly apply more diversity early and more fairness/balance late in the session.
+📋 Maintainability & Structure
+Consistent typing — All interfaces, types and return values are fully typed and aligned, making it easier to extend or debug.
+Modular functions — Broken complex logic into smaller, single-purpose helpers.
+Added comments — Key sections now explain why logic exists, not just what it does.
+Preset consistency — Ensured all presets (casual, balanced, competitive, rotation) use valid, non-conflicting settings.
