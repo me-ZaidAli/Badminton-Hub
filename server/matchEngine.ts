@@ -181,16 +181,6 @@ function scoreGroup(
   };
 }
 
-// Gender-shape rule for a 4-player group:
-//   • 4 male   → MM vs MM
-//   • 4 female → FF vs FF
-// All other shapes (3+1, 2+2, 1+3) are rejected before scoring. No mixed
-// doubles are ever generated.
-function isAllowedGenderShape(group: Player[]): boolean {
-  const females = group.filter(p => getEffectiveGender(p) === "FEMALE").length;
-  return females === 0 || females === group.length;
-}
-
 function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]; teamB: Player[] } {
   // Honour fixed pair if both members are in the chosen group.
   for (const [a, b] of fixedPairs) {
@@ -201,8 +191,10 @@ function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]
       return { teamA: [pa, pb], teamB: others };
     }
   }
-  // Group is guaranteed all-male or all-female by isAllowedGenderShape().
-  // 1+4 vs 2+3 split by grade — most balanced average.
+  // 1+4 vs 2+3 split by grade — pairs the strongest player with the weakest
+  // (and the two middle players together) to balance combined skill across
+  // the two teams. Works regardless of gender mix, so a strong male can be
+  // partnered with a weaker female against two mid-grade males, etc.
   const sorted = [...group].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
   return { teamA: [sorted[0], sorted[3]], teamB: [sorted[1], sorted[2]] };
 }
@@ -271,11 +263,6 @@ function generateDoubles(opts: GenerateOptions): GenerateResult {
               if (partner != null && !grp.find(g => g.id === partner)) { ok = false; break; }
             }
             if (!ok) continue;
-
-            // Gender-shape rule: see isAllowedGenderShape() — allows
-            // MM-vs-MM, FF-vs-FF, MM-vs-FF, plus 3+1 groups when the
-            // lone player is high-grade (so they can carry the underdog).
-            if (!isAllowedGenderShape(grp)) continue;
 
             evaluated++;
             const { score, breakdown, factors } = scoreGroup(grp, ec, localPairings, localOpponents, localGroups);
