@@ -26,10 +26,20 @@ export default function LeagueControl() {
   const [cvcDayId, setCvcDayId] = useState<string>("");
 
   const divisions: string[] = league?.divisions || [];
-  const teamCountByDiv: Record<string, number> = {};
-  (clubs || []).filter((c: any) => c.status === "ACTIVE").forEach((c: any) => {
-    teamCountByDiv[c.division] = (teamCountByDiv[c.division] || 0) + (c.teamCount || 1);
+  // Count CLUBS per division (not summed teamCount). A club belongs to its
+  // primary `division` plus any entry in `additionalDivisions` — multi-division
+  // clubs count once for each division they participate in. Status is NOT
+  // filtered to ACTIVE here because the user (super-admin) needs to see
+  // pending/sleeping clubs too — those still occupy a division slot.
+  const clubCountByDiv: Record<string, number> = {};
+  (clubs || []).forEach((c: any) => {
+    const divs = new Set<string>();
+    if (c.division) divs.add(c.division);
+    (Array.isArray(c.additionalDivisions) ? c.additionalDivisions : []).forEach((d: string) => divs.add(d));
+    divs.forEach((d) => { clubCountByDiv[d] = (clubCountByDiv[d] || 0) + 1; });
   });
+  // Backwards-compat alias retained so existing JSX references continue to work.
+  const teamCountByDiv = clubCountByDiv;
 
   const updateDivisions = useMutation({
     mutationFn: async (divs: string[]) => (await apiRequest("PATCH", "/api/bsl/league", { divisions: divs })).json(),
@@ -101,7 +111,7 @@ export default function LeagueControl() {
                   }}
                   className="flex-1 bg-transparent border-0 font-bold focus:outline-none"
                 />
-                <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.cyan }}>{teamCountByDiv[d] || 0} teams</span>
+                <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.cyan }}>{clubCountByDiv[d] || 0} {(clubCountByDiv[d] || 0) === 1 ? "club" : "clubs"}</span>
                 <button
                   onClick={() => {
                     if (!confirm(`Delete division "${d}"? Clubs/teams in this division will keep their record but will no longer match any division filter.`)) return;
@@ -137,7 +147,7 @@ export default function LeagueControl() {
               <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Division</label>
               <select value={genDivision} onChange={e => setGenDivision(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-gen-division">
                 <option value="">Select division…</option>
-                {divisions.map(d => <option key={d} value={d}>{d} ({teamCountByDiv[d] || 0} teams)</option>)}
+                {divisions.map(d => <option key={d} value={d}>{d} ({clubCountByDiv[d] || 0} clubs)</option>)}
               </select>
             </div>
             <div>

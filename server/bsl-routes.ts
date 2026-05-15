@@ -1,5 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import { eq, desc, and, or, sql as dsql, inArray } from "drizzle-orm";
+import { eq, desc, and, or, sql as dsql, inArray, ilike, asc } from "drizzle-orm";
 import { db } from "./db";
 import multer from "multer";
 import path from "path";
@@ -323,6 +323,7 @@ export function registerBslRoutes(app: Express) {
         categoryPairs: pairs,
         logoUrl: logoUrl || null,
         clubId: clubId || null, managerUserId: user.id, paymentReference,
+        additionalDivisions: [],
       } as any).returning();
       // Auto-create one team per pair, lettered A/B/C... within each category
       const teamRows: any[] = [];
@@ -1286,17 +1287,22 @@ export function registerBslRoutes(app: Express) {
   // their behalf). Returns up to 20 lightweight rows.
   app.get("/api/bsl/admin/users/search", requireAdmin, async (req, res) => {
     try {
-      const q = String(req.query.q || "").trim().toLowerCase();
-      // Pull a generous slice so the dropdown is populated even with no query.
-      // NOTE: users table has no `username` column — match on fullName + email only.
-      const rows = await db.select({
+      const q = String(req.query.q || "").trim();
+      // Use SQL ILIKE so the search hits ALL users — the previous approach
+      // pulled `desc(users.id) LIMIT 500` then JS-filtered, so older accounts
+      // (Mikey Hewitt, Pawan, etc.) were silently chopped off the bottom and
+      // never appeared in the admin "Create player" dropdown. Empty query
+      // returns 50 alphabetical names so the picker still has content on open.
+      const baseSel = db.select({
         id: users.id, fullName: users.fullName, email: users.email,
-      }).from(users).orderBy(desc(users.id)).limit(500);
-      const filtered = q.length === 0 ? rows.slice(0, 50) : rows.filter(r =>
-        (r.fullName || "").toLowerCase().includes(q) ||
-        (r.email || "").toLowerCase().includes(q)
-      ).slice(0, 50);
-      res.json(filtered);
+      }).from(users);
+      const rows = q.length === 0
+        ? await baseSel.orderBy(asc(users.fullName)).limit(50)
+        : await baseSel
+            .where(or(ilike(users.fullName, `%${q}%`), ilike(users.email, `%${q}%`))!)
+            .orderBy(asc(users.fullName))
+            .limit(50);
+      res.json(rows);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -1344,7 +1350,7 @@ export function registerBslRoutes(app: Express) {
   app.post("/api/bsl/admin/clubs", requireAdmin, async (req, res) => {
     try {
       const u = (req as any).user;
-      const { name, division, categoryPairs, logoUrl, managerUserId, status } = req.body;
+      const { name, division, categoryPairs, logoUrl, managerUserId, status, additionalDivisions } = req.body;
       if (!name || !division) return res.status(400).json({ message: "Name and division required" });
       const ALLOWED = ["MD", "WD", "XD"];
       const SHORT: Record<string, string> = { MD: "MD", WD: "WD", XD: "XD" };
@@ -1365,8 +1371,17 @@ export function registerBslRoutes(app: Express) {
       const targetStatus = status === "PENDING_PAYMENT" ? "PENDING_PAYMENT" : "ACTIVE";
       const inviteCode = targetStatus === "ACTIVE" ? genInvite() : null;
       const paymentReference = genRef("BSL-CLUB");
+      // Optional secondary divisions a club joins at create time. Sanitised
+      // the same way as the PATCH allowlist (trim, dedupe, drop primary, ≤8).
+      const extraDivs: string[] = Array.isArray(additionalDivisions)
+        ? Array.from(new Set(additionalDivisions
+            .map((s: any) => String(s || "").trim())
+            .filter((s: string) => s.length > 0 && s !== division)
+          )).slice(0, 8)
+        : [];
       const [created] = await db.insert(bslClubs).values({
         name, division,
+        additionalDivisions: extraDivs,
         teamCount: totalPairs,
         categories: Object.keys(pairs),
         categoryPairs: pairs,
@@ -1721,12 +1736,31 @@ export function registerBslRoutes(app: Express) {
   app.patch("/api/bsl/admin/clubs/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const allow = ["name", "division", "teamCount", "logoUrl", "isFlagged", "isSuspended", "adminNotes"];
+      const allow = ["name", "division", "additionalDivisions", "teamCount", "logoUrl", "isFlagged", "isSuspended", "adminNotes"];
       const patch: any = {};
-      for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      // Load existing club so additionalDivisions sanitisation can fall back
+      // to the persisted primary when the caller patches extras only — without
+      // this the primary could slip into the additional list.
+      const [existing] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!existing) return res.status(404).json({ message: "Club not found" });
+      for (const k of allow) {
+        if (!(k in req.body)) continue;
+        let v = req.body[k];
+        // Sanitise additionalDivisions: trim, drop empties, dedupe, drop the
+        // primary if accidentally included, cap at 8.
+        if (k === "additionalDivisions") {
+          if (!Array.isArray(v)) continue;
+          const primary = req.body.division ?? existing.division;
+          const cleaned = Array.from(new Set(v
+            .map((s: any) => String(s || "").trim())
+            .filter((s: string) => s.length > 0 && s !== primary)
+          )).slice(0, 8);
+          v = cleaned;
+        }
+        patch[k] = v;
+      }
       if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
       const [updated] = await db.update(bslClubs).set(patch).where(eq(bslClubs.id, id)).returning();
-      if (!updated) return res.status(404).json({ message: "Club not found" });
       await audit(req, "UPDATE_CLUB", "bsl_club", id, patch);
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -2117,6 +2151,21 @@ export function registerBslRoutes(app: Express) {
         await tx.update(bslTeams).set({ division: to }).where(eq(bslTeams.division, from));
         await tx.execute(dsql`UPDATE bsl_league_days SET division = ${to} WHERE division = ${from}`);
         await tx.execute(dsql`UPDATE bsl_prizes SET division = ${to} WHERE division = ${from}`);
+        // Rename inside additional_divisions[] arrays too. Two-step: replace
+        // `from` → `to` element-wise, then dedupe via unnest+array_agg, then
+        // strip any entry that now duplicates the primary division (which
+        // happens when the club already had `to` as primary and `from` as an
+        // extra — after rename the extra would alias the primary).
+        await tx.execute(dsql`
+          UPDATE bsl_clubs
+             SET additional_divisions = COALESCE(
+               (SELECT array_agg(DISTINCT x ORDER BY x)
+                  FROM unnest(array_replace(additional_divisions, ${from}, ${to})) AS x
+                 WHERE x <> division),
+               ARRAY[]::text[]
+             )
+           WHERE ${from} = ANY(additional_divisions)
+              OR ${to}   = ANY(additional_divisions)`);
         const newDivisions = divisions.map((d) => (d === from ? to : d));
         // Move the divisionGrades key over so the eligibility list follows the rename.
         const dg = { ...((league.divisionGrades || {}) as Record<string, string[]>) };

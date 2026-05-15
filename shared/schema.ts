@@ -3142,6 +3142,10 @@ export const bslClubs = pgTable("bsl_clubs", {
   managerUserId: integer("manager_user_id").notNull().references(() => users.id),
   logoUrl: text("logo_url"),
   division: text("division").notNull(),
+  // Optional secondary/additional divisions a club has teams in. Primary
+  // `division` stays the canonical one; this list lets a club appear in
+  // multiple division standings + fixture pools without changing teamCount.
+  additionalDivisions: text("additional_divisions").array().notNull().default(sql`ARRAY[]::text[]`),
   teamCount: integer("team_count").notNull().default(1),
   categories: text("categories").array().default(sql`ARRAY['MD']::text[]`),
   categoryPairs: jsonb("category_pairs").$type<Record<string, number>>().default({}),

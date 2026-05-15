@@ -173,7 +173,14 @@ export default function ClubsAdmin() {
                         </div>
                       </div>
                     </td>
-                    <td className="px-2 py-3">{c.division}</td>
+                    <td className="px-2 py-3">
+                      <div className="flex flex-wrap items-center gap-1">
+                        <span>{c.division}</span>
+                        {Array.isArray(c.additionalDivisions) && c.additionalDivisions.map((d: string) => (
+                          <span key={d} className="text-[9px] uppercase font-black px-1.5 py-0.5 rounded" style={{ background: `${BSL.cyan}1f`, color: BSL.cyan, border: `1px solid ${BSL.cyan}55` }} data-testid={`badge-extra-div-${c.id}-${d}`}>+{d}</span>
+                        ))}
+                      </div>
+                    </td>
                     <td className="px-2 py-3 tabular-nums">{c.teamCount}</td>
                     <td className="px-2 py-3">
                       <div className="flex flex-col items-start gap-1">
@@ -371,6 +378,7 @@ function ClubEditor({ club, divisions, onClose, onSave }: any) {
   const { toast } = useToast();
   const [form, setForm] = useState({
     name: club.name, division: club.division, teamCount: club.teamCount,
+    additionalDivisions: Array.isArray(club.additionalDivisions) ? [...club.additionalDivisions] : [],
     isFlagged: club.isFlagged, isSuspended: club.isSuspended, adminNotes: club.adminNotes || "",
   });
 
@@ -420,6 +428,41 @@ function ClubEditor({ club, divisions, onClose, onSave }: any) {
             </select>
           </Field>
           <Field label="Team count"><input type="number" min={1} max={5} value={form.teamCount} onChange={e => setForm({ ...form, teamCount: Number(e.target.value) })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-teamcount" /></Field>
+
+          <Field label="Additional divisions (optional)">
+            <div className="flex flex-wrap gap-1.5">
+              {divisions.filter((d: string) => d !== form.division).map((d: string) => {
+                const on = form.additionalDivisions.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setForm({
+                      ...form,
+                      additionalDivisions: on
+                        ? form.additionalDivisions.filter((x: string) => x !== d)
+                        : [...form.additionalDivisions, d],
+                    })}
+                    className="px-2.5 py-1 rounded-full text-[11px] font-bold"
+                    style={{
+                      background: on ? `${BSL.cyan}22` : BSL.cardSoft,
+                      color: on ? BSL.cyan : BSL.muted,
+                      border: `1px solid ${on ? BSL.cyan : BSL.border}`,
+                    }}
+                    data-testid={`toggle-extra-division-${d}`}
+                  >
+                    {on ? "+ " : ""}{d}
+                  </button>
+                );
+              })}
+              {divisions.filter((d: string) => d !== form.division).length === 0 && (
+                <span className="text-[10px]" style={{ color: BSL.faint }}>Add more divisions in League Control to assign extras here.</span>
+              )}
+            </div>
+            <div className="text-[10px] mt-1.5" style={{ color: BSL.faint }}>
+              Primary stays <span className="font-bold text-white">{form.division}</span>. Extras tag the club as participating in additional divisions (used by division counts and roster filters). Each pair (team) still has its own division on the Players tab — that's what fixture generation uses.
+            </div>
+          </Field>
           <div className="grid grid-cols-2 gap-3">
             <Toggle on={form.isFlagged} onChange={(v) => setForm({ ...form, isFlagged: v })} label="Flagged" icon={Flag} tone="gold" testid="toggle-flag" />
             <Toggle on={form.isSuspended} onChange={(v) => setForm({ ...form, isSuspended: v })} label="Suspended" icon={ShieldOff} tone="danger" testid="toggle-suspend" />
@@ -508,6 +551,7 @@ function CreateClubDialog({ divisions, onClose, onSubmit, submitting }: any) {
   const [form, setForm] = useState({
     name: "",
     division: divisions[0] || "Premier",
+    additionalDivisions: [] as string[],
     logoUrl: "",
     status: "ACTIVE" as "ACTIVE" | "PENDING_PAYMENT",
     pairs: { MD: 1, WD: 1, XD: 1 } as Record<string, number>,
@@ -523,10 +567,38 @@ function CreateClubDialog({ divisions, onClose, onSubmit, submitting }: any) {
         </div>
         <div className="space-y-3">
           <Field label="Club name"><input autoFocus value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-create-club-name" /></Field>
-          <Field label="Division">
-            <select value={form.division} onChange={e => setForm({ ...form, division: e.target.value })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-create-club-division">
+          <Field label="Primary division">
+            <select value={form.division} onChange={e => setForm({ ...form, division: e.target.value, additionalDivisions: form.additionalDivisions.filter(d => d !== e.target.value) })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-create-club-division">
               {divisions.map((d: string) => <option key={d} value={d}>{d}</option>)}
             </select>
+          </Field>
+          <Field label="Additional divisions (optional)">
+            <div className="flex flex-wrap gap-1.5">
+              {divisions.filter((d: string) => d !== form.division).map((d: string) => {
+                const on = form.additionalDivisions.includes(d);
+                return (
+                  <button
+                    key={d}
+                    type="button"
+                    onClick={() => setForm({
+                      ...form,
+                      additionalDivisions: on
+                        ? form.additionalDivisions.filter(x => x !== d)
+                        : [...form.additionalDivisions, d],
+                    })}
+                    className="px-2.5 py-1 rounded-full text-[11px] font-bold"
+                    style={{
+                      background: on ? `${BSL.cyan}22` : BSL.cardSoft,
+                      color: on ? BSL.cyan : BSL.muted,
+                      border: `1px solid ${on ? BSL.cyan : BSL.border}`,
+                    }}
+                    data-testid={`toggle-create-extra-division-${d}`}
+                  >
+                    {on ? "+ " : ""}{d}
+                  </button>
+                );
+              })}
+            </div>
           </Field>
           <Field label="Logo URL (optional)"><input value={form.logoUrl} onChange={e => setForm({ ...form, logoUrl: e.target.value })} placeholder="https://…" className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-create-club-logo" /></Field>
           <Field label="Pairs per category">
@@ -551,7 +623,7 @@ function CreateClubDialog({ divisions, onClose, onSubmit, submitting }: any) {
           </Field>
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel-create-club">Cancel</button>
-            <ActionButton variant="gold" disabled={!valid || submitting} onClick={() => onSubmit({ name: form.name.trim(), division: form.division, logoUrl: form.logoUrl || null, status: form.status, categoryPairs: form.pairs })} icon={<Save className="h-3 w-3" />} testid="button-confirm-create-club">
+            <ActionButton variant="gold" disabled={!valid || submitting} onClick={() => onSubmit({ name: form.name.trim(), division: form.division, additionalDivisions: form.additionalDivisions, logoUrl: form.logoUrl || null, status: form.status, categoryPairs: form.pairs })} icon={<Save className="h-3 w-3" />} testid="button-confirm-create-club">
               {submitting ? "Creating…" : "Create club"}
             </ActionButton>
           </div>
