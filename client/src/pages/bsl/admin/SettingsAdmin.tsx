@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Settings as SettingsIcon, Save, Banknote, Trophy, Bell, Palette, Wallet as WalletIcon, Plus, Trash2 } from "lucide-react";
+import { Settings as SettingsIcon, Save, Banknote, Trophy, Bell, Palette, Wallet as WalletIcon, Plus, Trash2, Award, Layers, Edit3 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -39,6 +39,16 @@ export default function SettingsAdmin() {
     topupDiscountPcts: Array.isArray(league.topupDiscountPcts) && league.topupDiscountPcts.length
       ? league.topupDiscountPcts.map((n: any) => String(n))
       : ["0", "50", "70"],
+    // Grade catalogue — admin-defined player ranks (e.g. A1/A2/B1…). Edited as
+    // free-form rows; sortOrder = row index. Falls back to the seeded default
+    // shape so a new league still ships with a sensible list.
+    playerGrades: Array.isArray(league.playerGrades) && league.playerGrades.length
+      ? league.playerGrades.map((g: any) => ({ code: String(g.code || "").toUpperCase(), label: String(g.label || g.code || "") }))
+      : [],
+    // Division → allowed-grades restriction map. Empty list per division = no
+    // restriction (any grade may join). Stored as a flat object keyed by
+    // division name and re-keyed automatically when divisions are renamed.
+    divisionGrades: (league.divisionGrades && typeof league.divisionGrades === "object") ? league.divisionGrades : {},
   }); }, [league]);
 
   const save = useMutation({
@@ -90,6 +100,28 @@ export default function SettingsAdmin() {
           })
           .filter((n: any) => n !== null);
       }
+      // Player grade catalogue — keep only rows with a code, dedupe upper-case.
+      if (Array.isArray(form.playerGrades)) {
+        const seen = new Set<string>();
+        payload.playerGrades = form.playerGrades
+          .map((g: any, i: number) => {
+            const code = String(g.code || "").trim().toUpperCase();
+            if (!code || seen.has(code)) return null;
+            seen.add(code);
+            return { code, label: String(g.label || code).trim() || code, sortOrder: i };
+          })
+          .filter(Boolean);
+      }
+      // Division eligibility map — keep only known divisions, store unique grade codes.
+      if (form.divisionGrades && typeof form.divisionGrades === "object") {
+        const known = new Set<string>(league?.divisions || []);
+        const out: Record<string, string[]> = {};
+        for (const [k, v] of Object.entries(form.divisionGrades as Record<string, any>)) {
+          if (!known.has(k)) continue;
+          if (Array.isArray(v)) out[k] = Array.from(new Set(v.map((s: any) => String(s).toUpperCase()).filter(Boolean)));
+        }
+        payload.divisionGrades = out;
+      }
       // Convert datetime-local string → ISO; only send when non-empty
       if (form.nextLeagueDay) payload.nextLeagueDay = new Date(form.nextLeagueDay).toISOString();
       // Strip undefined keys so the server doesn't try to write them
@@ -103,6 +135,21 @@ export default function SettingsAdmin() {
   });
 
   const F = (k: string, v: any) => setForm({ ...form, [k]: v });
+
+  // Cascading division rename — atomic on the server (clubs + teams + league
+  // days + prizes + the league's own divisions array + divisionGrades key).
+  const [renaming, setRenaming] = useState<{ from: string; to: string } | null>(null);
+  const renameDivision = useMutation({
+    mutationFn: async (v: { from: string; to: string }) => (await apiRequest("POST", "/api/bsl/admin/divisions/rename", v)).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/league"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/standings"] });
+      setRenaming(null);
+      toast({ title: "Division renamed everywhere" });
+    },
+    onError: (e: any) => toast({ title: "Rename failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
 
   return (
     <AdminLayout active="settings">
@@ -249,6 +296,116 @@ export default function SettingsAdmin() {
           </div>
         </GlowPanel>
 
+        <GlowPanel title="Player Grades" tone="cyan" icon={<Award className="h-4 w-4" />}>
+          <div className="text-xs mb-3" style={{ color: BSL.muted }}>
+            Admin-defined grade catalogue. Each player's grade controls which divisions they can join.
+          </div>
+          <div className="space-y-2 mb-3">
+            {(form.playerGrades || []).map((g: any, i: number) => (
+              <div key={i} className="flex items-center gap-2" data-testid={`row-grade-${i}`}>
+                <input
+                  type="text"
+                  value={g.code}
+                  placeholder="A1"
+                  onChange={(e) => {
+                    const next = [...form.playerGrades];
+                    next[i] = { ...next[i], code: e.target.value.toUpperCase().slice(0, 12) };
+                    F("playerGrades", next);
+                  }}
+                  className="w-24 px-3 py-2 rounded-lg text-sm font-mono font-bold"
+                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: BSL.cyan }}
+                  data-testid={`input-grade-code-${i}`}
+                />
+                <input
+                  type="text"
+                  value={g.label}
+                  placeholder="Display label"
+                  onChange={(e) => {
+                    const next = [...form.playerGrades];
+                    next[i] = { ...next[i], label: e.target.value.slice(0, 24) };
+                    F("playerGrades", next);
+                  }}
+                  className="flex-1 px-3 py-2 rounded-lg text-sm"
+                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                  data-testid={`input-grade-label-${i}`}
+                />
+                <button
+                  onClick={() => F("playerGrades", form.playerGrades.filter((_: any, j: number) => j !== i))}
+                  className="p-2 rounded-lg hover:bg-white/10"
+                  style={{ color: BSL.danger }}
+                  data-testid={`button-grade-remove-${i}`}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            ))}
+          </div>
+          <button
+            onClick={() => F("playerGrades", [...(form.playerGrades || []), { code: "", label: "" }])}
+            className="w-full px-3 py-2 rounded-lg text-xs uppercase tracking-widest font-bold flex items-center justify-center gap-1.5"
+            style={{ background: `${BSL.cyan}11`, border: `1px dashed ${BSL.cyan}66`, color: BSL.cyan }}
+            data-testid="button-grade-add"
+          >
+            <Plus className="h-3 w-3" /> Add grade
+          </button>
+          <div className="text-[10px] mt-2" style={{ color: BSL.muted }}>Default: A1 · A2 · B1 · B2 · C1 · C2 · C3.</div>
+        </GlowPanel>
+
+        <GlowPanel title="Divisions & Eligibility" tone="gold" icon={<Layers className="h-4 w-4" />}>
+          <div className="text-xs mb-3" style={{ color: BSL.muted }}>
+            Rename divisions in place (cascades through clubs, teams, league days, prizes — preserves all IDs). Per-division grade restrictions block ineligible players from joining.
+          </div>
+          <div className="space-y-3">
+            {((league?.divisions as string[]) || []).map((divName) => {
+              const allowed: string[] = (form.divisionGrades?.[divName] || []) as string[];
+              const allCodes: string[] = (form.playerGrades || []).map((g: any) => g.code).filter(Boolean);
+              return (
+                <div key={divName} className="p-3 rounded-lg" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-division-${divName}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="font-black text-sm uppercase tracking-tight" style={{ color: BSL.gold }}>{divName}</div>
+                    <button
+                      onClick={() => setRenaming({ from: divName, to: divName })}
+                      className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded"
+                      style={{ background: `${BSL.cyan}1f`, color: BSL.cyan, border: `1px solid ${BSL.cyan}55` }}
+                      data-testid={`button-rename-${divName}`}
+                    >
+                      <Edit3 className="h-3 w-3" /> Rename
+                    </button>
+                  </div>
+                  <div className="text-[10px] uppercase tracking-widest font-bold mb-1.5" style={{ color: BSL.muted }}>Allowed grades</div>
+                  <div className="flex flex-wrap gap-1.5">
+                    {allCodes.length === 0 ? (
+                      <div className="text-[10px]" style={{ color: BSL.faint }}>Define grades above to start restricting.</div>
+                    ) : allCodes.map((code) => {
+                      const on = allowed.includes(code);
+                      return (
+                        <button
+                          key={code}
+                          onClick={() => {
+                            const next = { ...(form.divisionGrades || {}) };
+                            const cur: string[] = next[divName] || [];
+                            next[divName] = on ? cur.filter((c) => c !== code) : [...cur, code];
+                            F("divisionGrades", next);
+                          }}
+                          className="px-2 py-1 rounded-md text-[10px] font-black uppercase tracking-widest"
+                          style={{ background: on ? `${BSL.gold}33` : BSL.card, color: on ? BSL.gold : BSL.muted, border: `1px solid ${on ? BSL.gold : BSL.border}` }}
+                          data-testid={`toggle-divgrade-${divName}-${code}`}
+                        >
+                          {code}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="text-[10px] mt-2" style={{ color: BSL.faint }}>{allowed.length === 0 ? "No restriction — any grade may join." : `Only ${allowed.join(" / ")} may join.`}</div>
+                </div>
+              );
+            })}
+            {(!league?.divisions || league.divisions.length === 0) && (
+              <div className="text-xs" style={{ color: BSL.muted }}>No divisions configured yet — add some via the Competition page.</div>
+            )}
+          </div>
+        </GlowPanel>
+
         <GlowPanel title="Notifications & Branding" tone="cyan" icon={<Bell className="h-4 w-4" />}>
           <button onClick={() => F("notificationsEnabled", !form.notificationsEnabled)} className="flex items-center justify-between p-3 rounded-lg text-sm font-bold w-full mb-3" style={{ background: form.notificationsEnabled ? `${BSL.cyan}22` : BSL.cardSoft, border: `1px solid ${form.notificationsEnabled ? BSL.cyan : BSL.border}`, color: form.notificationsEnabled ? BSL.cyan : BSL.muted }} data-testid="toggle-notif">
             <span className="inline-flex items-center gap-2"><Bell className="h-3.5 w-3.5" /> Push notifications</span>
@@ -263,6 +420,40 @@ export default function SettingsAdmin() {
           </div>
         </GlowPanel>
       </div>
+
+      {renaming && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={() => !renameDivision.isPending && setRenaming(null)}>
+          <div className="w-full max-w-md rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.cyan}55` }} onClick={(e) => e.stopPropagation()} data-testid="dialog-rename-division">
+            <h3 className="text-lg font-black uppercase tracking-tight mb-1">Rename division</h3>
+            <p className="text-xs mb-4" style={{ color: BSL.muted }}>
+              Updates every reference (clubs, teams, league days, prizes, eligibility map) inside one transaction. Existing IDs and standings are preserved.
+            </p>
+            <div className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: BSL.muted }}>From</div>
+            <div className="px-3 py-2 rounded-lg text-sm font-bold mb-3" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: BSL.gold }}>{renaming.from}</div>
+            <div className="text-[10px] uppercase tracking-widest font-bold mb-1" style={{ color: BSL.muted }}>To</div>
+            <input
+              autoFocus
+              type="text"
+              value={renaming.to}
+              onChange={(e) => setRenaming({ ...renaming, to: e.target.value.slice(0, 56) })}
+              className="w-full px-3 py-2 rounded-lg text-sm mb-4"
+              style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+              data-testid="input-rename-to"
+            />
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setRenaming(null)} disabled={renameDivision.isPending} className="px-4 py-2 rounded-lg text-xs font-bold uppercase tracking-widest" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel-rename">Cancel</button>
+              <ActionButton
+                variant="cyan"
+                onClick={() => renameDivision.mutate(renaming)}
+                disabled={!renaming.to.trim() || renaming.from === renaming.to.trim() || renameDivision.isPending}
+                testid="button-confirm-rename"
+              >
+                {renameDivision.isPending ? "Renaming…" : "Rename everywhere"}
+              </ActionButton>
+            </div>
+          </div>
+        </div>
+      )}
     </AdminLayout>
   );
 }

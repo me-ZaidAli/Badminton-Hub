@@ -367,10 +367,44 @@ export default function ClubsAdmin() {
 }
 
 function ClubEditor({ club, divisions, onClose, onSave }: any) {
+  const qc = useQueryClient();
+  const { toast } = useToast();
   const [form, setForm] = useState({
     name: club.name, division: club.division, teamCount: club.teamCount,
     isFlagged: club.isFlagged, isSuspended: club.isSuspended, adminNotes: club.adminNotes || "",
   });
+
+  // Live roster + admin list. We fetch the manager-view (already used by the
+  // /clubs/:id/manage page) to get the active player + user mapping in one go.
+  const { data: managerView } = useQuery<any>({ queryKey: [`/api/bsl/admin/clubs/${club.id}/manager-view`] });
+  const roster: any[] = managerView?.roster || [];
+  const adminUserIds: number[] = Array.isArray(club.adminUserIds) ? club.adminUserIds : [];
+
+  const setAdmins = useMutation({
+    mutationFn: async (userIds: number[]) => (await apiRequest("PATCH", `/api/bsl/clubs/${club.id}/admins`, { userIds })).json(),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] }); toast({ title: "Club admins updated" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  // Reassign owner — OWNER-only on the server, but the button is visible
+  // because we can't tell server-side roles from here cheaply. The 403 message
+  // surfaces if a non-owner tries.
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const { data: ownerCandidates } = useQuery<any[]>({
+    queryKey: ["/api/admin/users/search-for-coach", ownerSearch],
+    queryFn: async () => {
+      if (ownerSearch.trim().length < 2) return [];
+      const r = await fetch(`/api/admin/users/search-for-coach?q=${encodeURIComponent(ownerSearch)}`, { credentials: "include" });
+      return r.ok ? r.json() : [];
+    },
+    enabled: ownerSearch.trim().length >= 2,
+  });
+  const reassignOwner = useMutation({
+    mutationFn: async (userId: number) => (await apiRequest("PATCH", `/api/bsl/admin/clubs/${club.id}/owner`, { userId })).json(),
+    onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] }); setOwnerSearch(""); toast({ title: "Owner reassigned" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={onClose}>
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-lg rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.gold}55`, boxShadow: `0 24px 64px hsla(222,80%,2%,0.6), 0 0 0 1px ${BSL.gold}22` }} onClick={e => e.stopPropagation()} data-testid="dialog-edit-club">
@@ -391,6 +425,66 @@ function ClubEditor({ club, divisions, onClose, onSave }: any) {
             <Toggle on={form.isSuspended} onChange={(v) => setForm({ ...form, isSuspended: v })} label="Suspended" icon={ShieldOff} tone="danger" testid="toggle-suspend" />
           </div>
           <Field label="Admin notes"><textarea value={form.adminNotes} onChange={e => setForm({ ...form, adminNotes: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg text-sm resize-none" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="textarea-notes" /></Field>
+
+          <div className="pt-2 mt-1" style={{ borderTop: `1px solid ${BSL.border}` }}>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: BSL.cyan }}>Club Admins</div>
+            <div className="text-[10px] mb-2" style={{ color: BSL.faint }}>
+              Owner is implicit. Additional admins share full club powers (set captains, edit roster, set grades). Pick from active players only.
+            </div>
+            <div className="space-y-1.5 max-h-40 overflow-y-auto">
+              {roster.filter((p: any) => p.status === "ACTIVE" && p.userId !== club.managerUserId).map((p: any) => {
+                const on = adminUserIds.includes(p.userId);
+                return (
+                  <button
+                    key={p.id}
+                    disabled={setAdmins.isPending}
+                    onClick={() => setAdmins.mutate(on ? adminUserIds.filter((id) => id !== p.userId) : [...adminUserIds, p.userId])}
+                    className="w-full flex items-center justify-between px-2 py-1.5 rounded-md text-xs disabled:opacity-50"
+                    style={{ background: on ? `${BSL.gold}22` : BSL.cardSoft, color: on ? BSL.gold : "white", border: `1px solid ${on ? BSL.gold : BSL.border}` }}
+                    data-testid={`toggle-admin-${p.id}`}
+                  >
+                    <span className="font-bold">{p.displayName}</span>
+                    <span className="text-[10px] uppercase tracking-widest">{on ? "Admin" : "Member"}</span>
+                  </button>
+                );
+              })}
+              {roster.filter((p: any) => p.status === "ACTIVE" && p.userId !== club.managerUserId).length === 0 && (
+                <div className="text-[10px]" style={{ color: BSL.faint }}>No additional active members in this club yet.</div>
+              )}
+            </div>
+          </div>
+
+          <div className="pt-2 mt-1" style={{ borderTop: `1px solid ${BSL.border}` }}>
+            <div className="text-[10px] uppercase tracking-widest font-black mb-2" style={{ color: BSL.cyan }}>Reassign Owner</div>
+            <div className="text-[10px] mb-2" style={{ color: BSL.faint }}>
+              Current owner: <span className="font-bold text-white">user #{club.managerUserId}</span>. OWNER-only — picks the new club manager.
+            </div>
+            <input
+              value={ownerSearch}
+              onChange={(e) => setOwnerSearch(e.target.value)}
+              placeholder="Search by name or email…"
+              className="w-full px-3 py-2 rounded-lg text-sm"
+              style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+              data-testid="input-owner-search"
+            />
+            {(ownerCandidates && ownerCandidates.length > 0) && (
+              <div className="mt-1 max-h-40 overflow-y-auto rounded-lg" style={{ border: `1px solid ${BSL.border}` }}>
+                {ownerCandidates.slice(0, 8).map((u: any) => (
+                  <button
+                    key={u.id}
+                    onClick={() => reassignOwner.mutate(u.id)}
+                    disabled={reassignOwner.isPending || u.id === club.managerUserId}
+                    className="w-full text-left px-3 py-2 text-xs hover:bg-white/5 disabled:opacity-40 flex items-center justify-between"
+                    data-testid={`button-pick-owner-${u.id}`}
+                  >
+                    <span><span className="font-bold">{u.fullName}</span> <span style={{ color: BSL.muted }}>· {u.email}</span></span>
+                    {u.id === club.managerUserId && <span className="text-[10px] uppercase" style={{ color: BSL.gold }}>Current</span>}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
           <div className="flex justify-end gap-2 pt-2">
             <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel">Cancel</button>
             <ActionButton variant="gold" onClick={() => onSave(form)} icon={<Save className="h-3 w-3" />}>Save</ActionButton>

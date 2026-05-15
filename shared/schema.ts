@@ -3125,6 +3125,12 @@ export const bslLeagues = pgTable("bsl_leagues", {
   // Default [0, 50, 70] = 1st full, 2nd 50% off, 3rd 70% off, 4th+ full again.
   // Length defines the discount tier ladder; values clamped 0-100.
   topupDiscountPcts: jsonb("topup_discount_pcts").$type<number[]>().notNull().default([0, 50, 70]),
+  // Admin-defined player grade catalogue. Each entry: { code, label, sortOrder }.
+  // Default seeded in psql migration as A1/A2/B1/B2/C1/C2/C3.
+  playerGrades: jsonb("player_grades").$type<Array<{ code: string; label: string; sortOrder: number }>>().notNull().default([]),
+  // Per-division allowed-grade restrictions: { "Premier": ["A1","A2"], "Division 1": ["B1","B2"], … }.
+  // Empty array OR missing key = no restriction (any grade may join that division).
+  divisionGrades: jsonb("division_grades").$type<Record<string, string[]>>().notNull().default({}),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
 });
@@ -3154,6 +3160,10 @@ export const bslClubs = pgTable("bsl_clubs", {
   // Super-admin "Put to sleep". Non-null = club is archived but data preserved.
   // Public listings keep the club visible with a "Sleeping" badge.
   sleepingAt: timestamp("sleeping_at"),
+  // Additional club admins (beyond managerUserId). Members of this list have
+  // the SAME permissions as managerUserId on every BSL endpoint that uses
+  // loadClubForManager(). Super admin or current managerUserId can edit.
+  adminUserIds: integer("admin_user_ids").array().notNull().default(sql`ARRAY[]::integer[]`),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -3172,6 +3182,11 @@ export const bslTeams = pgTable("bsl_teams", {
   rubbersFor: integer("rubbers_for").notNull().default(0),
   rubbersAgainst: integer("rubbers_against").notNull().default(0),
   points: integer("points").notNull().default(0),
+  // Per-team captain (nullable). Captain permissions are division-specific.
+  // FK to bslPlayers via SET NULL — removing the player from the club blanks
+  // the captain slot rather than cascading the team away. Forward-ref via
+  // callback because bslPlayers is declared below this table.
+  captainPlayerId: integer("captain_player_id").references((): any => bslPlayers.id, { onDelete: "set null" }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -3201,6 +3216,9 @@ export const bslPlayers = pgTable("bsl_players", {
   bio: text("bio"),
   // Categories the player has registered (and paid) for. Subset of MD / WD / XD.
   categories: text("categories").array().notNull().default(sql`ARRAY[]::text[]`),
+  // Player grade code from bslLeagues.playerGrades (e.g. "A1"/"B2"/"C3").
+  // Null = ungraded — blocked from any division that has restrictions set.
+  grade: text("grade"),
   // Set when the BSL club owner confirms this player onto their roster.
   confirmedByOwnerAt: timestamp("confirmed_by_owner_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

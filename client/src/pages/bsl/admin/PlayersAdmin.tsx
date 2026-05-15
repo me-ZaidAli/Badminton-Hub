@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
   Users, Search, ShieldOff, AlertTriangle, X, Save, Wallet as WalletIcon,
-  UserPlus, Zap, Plus, Minus, Tag, Layers,
+  UserPlus, Zap, Plus, Minus, Tag, Layers, Award, ArrowRightLeft,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
@@ -102,6 +102,7 @@ export default function PlayersAdmin() {
                   <th className="text-left px-2 py-2">Player</th>
                   <th className="text-left px-2 py-2">Club</th>
                   <th className="text-left px-2 py-2">Status</th>
+                  <th className="text-left px-2 py-2">Grade</th>
                   <th className="text-left px-2 py-2">Categories</th>
                   <th className="text-left px-2 py-2">Wallet</th>
                   <th className="text-left px-2 py-2">P / W</th>
@@ -117,6 +118,9 @@ export default function PlayersAdmin() {
                     </td>
                     <td className="px-2 py-3 text-xs">{(clubs || []).find((c: any) => c.id === p.bslClubId)?.name || <span style={{ color: BSL.faint }}>—</span>}</td>
                     <td className="px-2 py-3"><span className="text-[10px] uppercase tracking-widest font-black px-2 py-0.5 rounded" style={{ background: `${STATUS_COLOR[p.status]}22`, color: STATUS_COLOR[p.status] }}>{p.status.replace("_"," ")}</span></td>
+                    <td className="px-2 py-3">
+                      {p.grade ? <span className="text-[10px] font-black px-1.5 py-0.5 rounded font-mono" style={{ background: `${BSL.gold}22`, color: BSL.gold }} data-testid={`text-grade-${p.id}`}>{p.grade}</span> : <span className="text-[10px]" style={{ color: BSL.faint }}>—</span>}
+                    </td>
                     <td className="px-2 py-3">
                       <div className="flex gap-1 flex-wrap">
                         {(p.categories || []).length === 0 ? <span className="text-[10px]" style={{ color: BSL.faint }}>—</span> :
@@ -334,6 +338,27 @@ function PlayerEditor({ player, clubs, onClose, onSave, onChanged }: any) {
 
   const liveCats: string[] = live.categories || [];
 
+  // Grade picker — uses the admin-defined grade catalogue from the league.
+  const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
+  const allGrades: Array<{ code: string; label: string }> = Array.isArray(league?.playerGrades) ? league.playerGrades : [];
+  const setGrade = useMutation({
+    mutationFn: async (g: string | null) => (await apiRequest("PATCH", `/api/bsl/players/${player.id}/grade`, { grade: g })).json(),
+    onSuccess: (d: any) => { setLive(d); onChanged?.(); toast({ title: "Grade updated" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
+  // Transfer to another club (across divisions). Locked if matchesPlayed > 0
+  // or the player is in any pair. The server is the source of truth — we
+  // optimistically only enable when matchesPlayed === 0.
+  const [transferTo, setTransferTo] = useState<string>("");
+  const canTransfer = (live.matchesPlayed ?? 0) === 0;
+  const transferable = clubs.filter((c: any) => c.id !== live.bslClubId);
+  const transfer = useMutation({
+    mutationFn: async (toBslClubId: number) => (await apiRequest("POST", `/api/bsl/admin/players/${player.id}/transfer`, { toBslClubId })).json(),
+    onSuccess: (d: any) => { setLive(d); setForm((f: any) => ({ ...f, bslClubId: d.bslClubId, bslTeamId: "" })); setTransferTo(""); onChanged?.(); toast({ title: "Player transferred", description: "New club must re-confirm them." }); },
+    onError: (e: any) => toast({ title: "Transfer blocked", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={onClose}>
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.cyan}55`, boxShadow: `0 24px 64px hsla(222,80%,2%,0.6), 0 0 0 1px ${BSL.cyan}22` }} onClick={e => e.stopPropagation()} data-testid="dialog-edit-player">
@@ -383,6 +408,71 @@ function PlayerEditor({ player, clubs, onClose, onSave, onChanged }: any) {
             })}
           </div>
           <div className="text-[10px] mt-2" style={{ color: BSL.faint }}>Admin override: no fee charged, no balance check.</div>
+        </Section>
+
+        <Section title={<>Grade · <span className="font-mono" style={{ color: BSL.gold }}>{live.grade || "ungraded"}</span></>}>
+          <div className="flex flex-wrap gap-1.5">
+            {allGrades.length === 0 && (
+              <div className="text-[10px]" style={{ color: BSL.faint }}>No grades configured. Set them under League Settings → Player Grades.</div>
+            )}
+            {allGrades.map((g) => {
+              const on = live.grade === g.code;
+              return (
+                <button
+                  key={g.code}
+                  disabled={setGrade.isPending}
+                  onClick={() => setGrade.mutate(on ? null : g.code)}
+                  className="px-2 py-1 rounded-md text-[11px] font-black uppercase tracking-widest font-mono disabled:opacity-50"
+                  style={{ background: on ? `${BSL.gold}33` : BSL.cardSoft, color: on ? BSL.gold : BSL.muted, border: `1px solid ${on ? BSL.gold : BSL.border}` }}
+                  data-testid={`toggle-grade-${g.code}`}
+                >
+                  <Award className="h-3 w-3 inline -mt-0.5 mr-1" /> {g.code}
+                </button>
+              );
+            })}
+            {live.grade && (
+              <button
+                disabled={setGrade.isPending}
+                onClick={() => setGrade.mutate(null)}
+                className="px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-widest disabled:opacity-50"
+                style={{ background: `${BSL.danger}1f`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }}
+                data-testid="button-grade-clear"
+              >
+                Clear
+              </button>
+            )}
+          </div>
+          <div className="text-[10px] mt-2" style={{ color: BSL.faint }}>Per-division eligibility is enforced on club join + admin create.</div>
+        </Section>
+
+        <Section title="Transfer to another club">
+          <div className="grid grid-cols-[1fr_auto] gap-2">
+            <select
+              value={transferTo}
+              onChange={(e) => setTransferTo(e.target.value)}
+              disabled={!canTransfer}
+              className="px-3 py-2 rounded-lg text-sm disabled:opacity-50"
+              style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+              data-testid="select-transfer-club"
+            >
+              <option value="">— Pick destination club —</option>
+              {transferable.map((c: any) => <option key={c.id} value={c.id}>{c.name} · {c.division}</option>)}
+            </select>
+            <button
+              disabled={!canTransfer || !transferTo || transfer.isPending}
+              onClick={() => transfer.mutate(Number(transferTo))}
+              className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest inline-flex items-center gap-1 disabled:opacity-40"
+              style={{ background: `${BSL.cyan}22`, color: BSL.cyan, border: `1px solid ${BSL.cyan}55` }}
+              data-testid="button-transfer-player"
+            >
+              <ArrowRightLeft className="h-3 w-3" /> {transfer.isPending ? "Transferring…" : "Transfer"}
+            </button>
+          </div>
+          <div className="text-[10px] mt-2" style={{ color: canTransfer ? BSL.faint : BSL.danger }}>
+            {canTransfer
+              ? "Allowed only when the player has zero matches played and isn't in a pair lineup."
+              : `Locked — player has ${live.matchesPlayed ?? 0} match record(s) this season.`}
+          </div>
         </Section>
 
         <Section title="Assignment">

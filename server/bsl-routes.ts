@@ -180,6 +180,39 @@ export function registerBslRoutes(app: Express) {
         }
       }
       if ("notificationsEnabled" in body) update.notificationsEnabled = !!body.notificationsEnabled;
+      // Player grade catalogue — admin-defined grade codes (e.g. A1/A2/B1…).
+      // Sanitised: code 1-12 chars (uppercased), label ≤24 chars, dedupe by code, max 32 entries.
+      if ("playerGrades" in body) {
+        const raw = Array.isArray(body.playerGrades) ? body.playerGrades : [];
+        const seen = new Set<string>();
+        const cleaned: Array<{ code: string; label: string; sortOrder: number }> = [];
+        for (const r of raw) {
+          if (!r || typeof r !== "object") continue;
+          const code = String((r as any).code ?? "").trim().toUpperCase().slice(0, 12);
+          if (!code || seen.has(code)) continue;
+          seen.add(code);
+          const label = String((r as any).label ?? code).trim().slice(0, 24) || code;
+          const sortOrder = Number.isFinite(Number((r as any).sortOrder)) ? Number((r as any).sortOrder) : cleaned.length;
+          cleaned.push({ code, label, sortOrder });
+          if (cleaned.length >= 32) break;
+        }
+        cleaned.sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0));
+        update.playerGrades = cleaned;
+      }
+      // Per-division allowed-grade restrictions — { divisionName: ["A1","A2"] }.
+      // Drops unknown division keys against the current divisions list, dedupes
+      // grades, caps to 32 grades per division.
+      if ("divisionGrades" in body && body.divisionGrades && typeof body.divisionGrades === "object") {
+        const [current] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+        const knownDivisions = new Set<string>([...(current?.divisions || []), ...((Array.isArray(body.divisions) ? body.divisions : []) as string[])].map((s) => String(s)));
+        const out: Record<string, string[]> = {};
+        for (const [k, v] of Object.entries(body.divisionGrades as Record<string, any>)) {
+          if (knownDivisions.size && !knownDivisions.has(k)) continue;
+          if (!Array.isArray(v)) continue;
+          out[k] = Array.from(new Set(v.map((g: any) => String(g).trim().toUpperCase()).filter((g: string) => g.length))).slice(0, 32);
+        }
+        update.divisionGrades = out;
+      }
       // Top-up packages — array of { id, label, amountPence, sortOrder }.
       // Sanitise to prevent admin from injecting weird shapes that break the
       // wallet pricing engine. Max 24 packages, label ≤56 chars, amount ≤£10k.
@@ -504,6 +537,16 @@ export function registerBslRoutes(app: Express) {
       if (!club) return res.status(404).json({ message: "Invalid or inactive invite code" });
       const existing = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, user.id)).limit(1);
       if (existing.length) return res.status(400).json({ message: "Already registered as BSL player" });
+      // Eligibility: if the destination division has grade restrictions, the
+      // joining user can't have a record yet — but the player record may have
+      // been pre-graded by an admin via /api/bsl/players/:id/grade or carried
+      // over from a previous club. Check both. Ungraded users joining a
+      // restricted division get a clear error pointing at the allowed list.
+      const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+      const allowedGrades = (league?.divisionGrades as any)?.[club.division] || [];
+      if (allowedGrades.length > 0) {
+        return res.status(400).json({ message: `${club.division} requires a player grade in [${allowedGrades.join(", ")}]. Ask the league admin to set your grade before joining.` });
+      }
       const paymentReference = genRef("BSL-PLR");
       const [created] = await db.insert(bslPlayers).values({
         userId: user.id, bslClubId: club.id, bslTeamId: teamId || null, paymentReference,
@@ -1370,11 +1413,20 @@ export function registerBslRoutes(app: Express) {
       if (!club) return res.status(404).json({ message: "Club not found" });
       const existing = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, uid)).limit(1);
       if (existing.length) return res.status(400).json({ message: "User already has a BSL player profile", player: existing[0] });
+      // Optional grade at create-time. If the destination club's division has
+      // restrictions, enforce — admins still need to respect the rules they set.
+      const grade = req.body.grade ? String(req.body.grade).trim().toUpperCase().slice(0, 12) : null;
+      const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+      if (!isGradeAllowedInDivision(grade, club.division, league?.divisionGrades as any)) {
+        const allowed = (league?.divisionGrades as any)?.[club.division] || [];
+        return res.status(400).json({ message: `Grade "${grade || "ungraded"}" is not allowed in ${club.division}. Allowed: ${allowed.join(", ")}` });
+      }
       const paymentReference = genRef("BSL-PLR");
       const [created] = await db.insert(bslPlayers).values({
         userId: uid,
         bslClubId: cid,
         displayName: displayName || null,
+        grade,
         paymentReference,
         status: activate ? "ACTIVE" : "PENDING_PAYMENT",
         approvedAt: activate ? new Date() : null,
@@ -1684,9 +1736,14 @@ export function registerBslRoutes(app: Express) {
   app.patch("/api/bsl/admin/players/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const allow = ["bslTeamId", "bslClubId", "warnings", "isSuspended", "matchBanCount", "disciplineNotes",
+      // NOTE: bslClubId is intentionally excluded — cross-club moves must go
+      // through POST /api/bsl/admin/players/:id/transfer which enforces the
+      // "no results / no pair lineup" lock + division grade-eligibility check
+      // + clears captain references. Allowing it here would silently bypass
+      // those guards. bslTeamId (pair within same club) is still allowed.
+      const allow = ["bslTeamId", "warnings", "isSuspended", "matchBanCount", "disciplineNotes",
                      "matchesPlayed", "matchesWon", "pointsScored", "walletBalance"];
-      const nullableInts = new Set(["bslTeamId", "bslClubId"]);
+      const nullableInts = new Set(["bslTeamId"]);
       const patch: any = {};
       for (const k of allow) {
         if (!(k in req.body)) continue;
@@ -1998,7 +2055,14 @@ export function registerBslRoutes(app: Express) {
   async function loadOwnedClub(req: Request): Promise<{ club: any | null; canManage: boolean }> {
     const u = (req as any).user;
     if (!u) return { club: null, canManage: false };
-    const [club] = await db.select().from(bslClubs).where(eq(bslClubs.managerUserId, u.id)).limit(1);
+    // Multi-admin parity: a user is the "owner" of a club from a manager-API
+    // perspective if they are the listed managerUserId OR appear in the
+    // club's adminUserIds[] additional-admin list. Same source-of-truth as
+    // loadClubForManager() so /api/bsl/my-club gives club admins the full
+    // owner-equivalent dashboard.
+    const [club] = await db.select().from(bslClubs).where(
+      or(eq(bslClubs.managerUserId, u.id), dsql`${bslClubs.adminUserIds} @> ARRAY[${u.id}]::int[]`)
+    ).limit(1);
     return { club: club ?? null, canManage: !!club || isAdminish(u) };
   }
 
@@ -2006,9 +2070,225 @@ export function registerBslRoutes(app: Express) {
     const u = (req as any).user;
     const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, clubId)).limit(1);
     if (!club) return { club: null, reason: "Club not found" };
-    if (club.managerUserId !== u.id && !isAdminish(u)) return { club: null, reason: "Not your club" };
+    // Owner OR additional club admin OR super admin can manage. adminUserIds
+    // is the multi-admin extension — they get the same permissions as the
+    // managerUserId on every endpoint that funnels through this helper.
+    const isOwner = club.managerUserId === u.id;
+    const isClubAdmin = Array.isArray((club as any).adminUserIds) && (club as any).adminUserIds.includes(u.id);
+    if (!isOwner && !isClubAdmin && !isAdminish(u)) return { club: null, reason: "Not your club" };
     return { club };
   }
+
+  // Division eligibility: returns true when the player's grade is allowed in
+  // the given division. Empty/missing restriction list = no restriction.
+  // An ungraded player is blocked from any division that DOES have a list.
+  function isGradeAllowedInDivision(grade: string | null | undefined, division: string | null | undefined, divisionGrades: Record<string, string[]> | null | undefined): boolean {
+    if (!division) return true;
+    const map = divisionGrades || {};
+    const allowed = Array.isArray(map[division]) ? map[division] : [];
+    if (allowed.length === 0) return true; // no restriction set
+    if (!grade) return false;
+    return allowed.includes(grade);
+  }
+
+  // ---------------------------------------------------------------------------
+  // PERMISSION & GRADING ENDPOINTS
+  // ---------------------------------------------------------------------------
+
+  // Rename a division everywhere it's referenced. Divisions are stored as
+  // string names across `bsl_clubs.division`, `bsl_teams.division`,
+  // `bsl_league_days.division`, `bsl_prizes.division`, and the league's own
+  // `divisions` array, so we wrap the cascade in a single transaction. No row
+  // IDs change — only the label propagates atomically. Idempotent: renaming
+  // to the same name is a no-op.
+  app.post("/api/bsl/admin/divisions/rename", requireAdmin, async (req, res) => {
+    try {
+      const from = String(req.body?.from ?? "").trim();
+      const to = String(req.body?.to ?? "").trim().slice(0, 56);
+      if (!from || !to) return res.status(400).json({ message: "from and to required" });
+      if (from === to) return res.json({ ok: true, noop: true });
+      const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+      if (!league) return res.status(404).json({ message: "League not configured" });
+      const divisions = league.divisions || [];
+      if (!divisions.includes(from)) return res.status(404).json({ message: `Division "${from}" not found` });
+      if (divisions.includes(to)) return res.status(409).json({ message: `Division "${to}" already exists` });
+      await db.transaction(async (tx) => {
+        await tx.update(bslClubs).set({ division: to }).where(eq(bslClubs.division, from));
+        await tx.update(bslTeams).set({ division: to }).where(eq(bslTeams.division, from));
+        await tx.execute(dsql`UPDATE bsl_league_days SET division = ${to} WHERE division = ${from}`);
+        await tx.execute(dsql`UPDATE bsl_prizes SET division = ${to} WHERE division = ${from}`);
+        const newDivisions = divisions.map((d) => (d === from ? to : d));
+        // Move the divisionGrades key over so the eligibility list follows the rename.
+        const dg = { ...((league.divisionGrades || {}) as Record<string, string[]>) };
+        if (from in dg) { dg[to] = dg[from]; delete dg[from]; }
+        await tx.update(bslLeagues).set({ divisions: newDivisions, divisionGrades: dg, updatedAt: new Date() }).where(eq(bslLeagues.id, 1));
+      });
+      await audit(req, "DIVISION_RENAME", "bsl_leagues", 1, { from, to });
+      res.json({ ok: true, from, to });
+    } catch (err: any) {
+      console.error("[bsl divisions rename]", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Set / clear a player's grade. Permission: super admin OR club admin/owner
+  // of the player's current club. Sending grade:null clears the grade.
+  app.patch("/api/bsl/players/:id/grade", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const u = (req as any).user;
+      const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!player) return res.status(404).json({ message: "Player not found" });
+      let allowed = isAdminish(u);
+      if (!allowed && player.bslClubId) {
+        const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, player.bslClubId)).limit(1);
+        if (club && (club.managerUserId === u.id || (Array.isArray((club as any).adminUserIds) && (club as any).adminUserIds.includes(u.id)))) {
+          allowed = true;
+        }
+      }
+      if (!allowed) return res.status(403).json({ message: "Not allowed to edit this player's grade" });
+      const raw = req.body?.grade;
+      let grade: string | null = null;
+      if (raw === null || raw === "" || raw === undefined) grade = null;
+      else {
+        grade = String(raw).trim().toUpperCase().slice(0, 12) || null;
+        // Validate against the league's grade catalogue (when configured)
+        const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+        const known = (league?.playerGrades || []).map((g: any) => String(g.code));
+        if (grade && known.length && !known.includes(grade)) {
+          return res.status(400).json({ message: `Unknown grade "${grade}". Known: ${known.join(", ")}` });
+        }
+      }
+      const [updated] = await db.update(bslPlayers).set({ grade }).where(eq(bslPlayers.id, id)).returning();
+      await audit(req, "PLAYER_SET_GRADE", "bsl_players", id, { grade });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Transfer a player to another club (which may belong to a different
+  // division). Locked once the player has any results / appearances in their
+  // current division during the active season. Super-admin only — divisions
+  // are competitive boundaries and crossing them mid-season is high-impact.
+  app.post("/api/bsl/admin/players/:id/transfer", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const toBslClubId = Number(req.body?.toBslClubId);
+      if (!Number.isFinite(toBslClubId)) return res.status(400).json({ message: "toBslClubId required" });
+      const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!player) return res.status(404).json({ message: "Player not found" });
+      const [toClub] = await db.select().from(bslClubs).where(eq(bslClubs.id, toBslClubId)).limit(1);
+      if (!toClub) return res.status(404).json({ message: "Destination club not found" });
+      if (player.bslClubId === toBslClubId) return res.status(400).json({ message: "Player already in that club" });
+      // Lock check: any played matches OR active pair assignment counts as
+      // "played or has recorded results" for the current season.
+      if (player.matchesPlayed > 0) {
+        return res.status(409).json({ message: "Player has match records this season. Transfer locked until next season." });
+      }
+      const memberships = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslPlayerId, id)).limit(1);
+      if (memberships.length > 0) {
+        return res.status(409).json({ message: "Player is currently in a pair lineup. Remove from pair first." });
+      }
+      // Eligibility check against destination division.
+      const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+      if (!isGradeAllowedInDivision(player.grade, toClub.division, league?.divisionGrades as any)) {
+        const allowed = (league?.divisionGrades as any)?.[toClub.division] || [];
+        return res.status(400).json({ message: `Player grade "${player.grade || "ungraded"}" is not allowed in ${toClub.division}. Allowed: ${allowed.join(", ")}` });
+      }
+      const updated = await db.transaction(async (tx) => {
+        // Clear captain slots that referenced this player on the old club's
+        // teams — captain integrity must not drift across the move. The new
+        // club's owner can re-assign captains afterwards.
+        await tx.update(bslTeams).set({ captainPlayerId: null } as any).where(eq(bslTeams.captainPlayerId, id));
+        const [row] = await tx.update(bslPlayers).set({
+          bslClubId: toBslClubId,
+          bslTeamId: null,
+          confirmedByOwnerAt: null, // requires re-confirmation by new club owner
+        }).where(eq(bslPlayers.id, id)).returning();
+        return row;
+      });
+      await audit(req, "PLAYER_TRANSFER", "bsl_players", id, { fromClubId: player.bslClubId, toClubId: toBslClubId });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Replace the additional-admin list on a club. Only the current
+  // managerUserId or super admin may edit. Each id must be an ACTIVE player
+  // of the club. Owner is implicitly an admin and is removed from the list
+  // if accidentally included.
+  app.patch("/api/bsl/clubs/:id/admins", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const u = (req as any).user;
+      const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      if (club.managerUserId !== u.id && !isAdminish(u)) return res.status(403).json({ message: "Only the owner or super admin can change club admins" });
+      const raw = Array.isArray(req.body?.userIds) ? req.body.userIds : [];
+      const wantedIds = Array.from(new Set(raw.map((n: any) => Number(n)).filter((n: number) => Number.isFinite(n) && n !== club.managerUserId))).slice(0, 16) as number[];
+      // Each wanted user must be an ACTIVE player of this club.
+      let validatedIds: number[] = [];
+      if (wantedIds.length) {
+        const players = await db.select().from(bslPlayers).where(and(eq(bslPlayers.bslClubId, id), eq(bslPlayers.status, "ACTIVE")));
+        const activeUserIds = new Set(players.map((p) => p.userId));
+        validatedIds = wantedIds.filter((uid) => activeUserIds.has(uid));
+        if (validatedIds.length !== wantedIds.length) {
+          return res.status(400).json({ message: "All admins must be ACTIVE players of this club" });
+        }
+      }
+      const [updated] = await db.update(bslClubs).set({ adminUserIds: validatedIds } as any).where(eq(bslClubs.id, id)).returning();
+      await audit(req, "CLUB_SET_ADMINS", "bsl_clubs", id, { adminUserIds: validatedIds });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Reassign club ownership (managerUserId). OWNER-only. The new owner must
+  // be an existing user. Any existing additional-admin entry for them is
+  // pruned (they no longer need to be in the secondary list).
+  app.patch("/api/bsl/admin/clubs/:id/owner", requireOwner, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const userId = Number(req.body?.userId);
+      if (!Number.isFinite(userId)) return res.status(400).json({ message: "userId required" });
+      const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const [user] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!user) return res.status(404).json({ message: "User not found" });
+      const newAdmins = (Array.isArray((club as any).adminUserIds) ? (club as any).adminUserIds : []).filter((x: number) => x !== userId);
+      const [updated] = await db.update(bslClubs).set({ managerUserId: userId, adminUserIds: newAdmins } as any).where(eq(bslClubs.id, id)).returning();
+      await audit(req, "CLUB_REASSIGN_OWNER", "bsl_clubs", id, { from: club.managerUserId, to: userId });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Set / clear the captain for a team (per division). Allowed for the
+  // owning club's manager, additional club admin, or super admin. Captain
+  // must be an ACTIVE player of the same club. Pass playerId:null to clear.
+  app.patch("/api/bsl/teams/:id/captain", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const u = (req as any).user;
+      const [team] = await db.select().from(bslTeams).where(eq(bslTeams.id, id)).limit(1);
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, team.bslClubId)).limit(1);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const isOwner = club.managerUserId === u.id;
+      const isClubAdmin = Array.isArray((club as any).adminUserIds) && (club as any).adminUserIds.includes(u.id);
+      if (!isOwner && !isClubAdmin && !isAdminish(u)) return res.status(403).json({ message: "Not allowed" });
+      const raw = req.body?.playerId;
+      let captainPlayerId: number | null = null;
+      if (raw !== null && raw !== "" && raw !== undefined) {
+        const pid = Number(raw);
+        if (!Number.isFinite(pid)) return res.status(400).json({ message: "playerId must be a number or null" });
+        const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, pid)).limit(1);
+        if (!player) return res.status(404).json({ message: "Captain player not found" });
+        if (player.bslClubId !== team.bslClubId) return res.status(400).json({ message: "Captain must belong to the same club" });
+        if (player.status !== "ACTIVE") return res.status(400).json({ message: "Captain must be an ACTIVE player" });
+        captainPlayerId = pid;
+      }
+      const [updated] = await db.update(bslTeams).set({ captainPlayerId } as any).where(eq(bslTeams.id, id)).returning();
+      await audit(req, "TEAM_SET_CAPTAIN", "bsl_teams", id, { captainPlayerId });
+      res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
 
   // Manager dashboard: club + teams (with members) + roster + pending join
   // requests + per-player paid totals + club-wide stats.
