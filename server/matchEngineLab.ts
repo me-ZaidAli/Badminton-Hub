@@ -227,7 +227,7 @@ export function runSimulation(config: SimulationConfig): SimulationReport {
       });
       generatedMatches = result.matches;
     } else {
-      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
         matchHistory.map(m => ({
           teamAPlayer1Id: m.teamAPlayer1Id,
           teamAPlayer2Id: m.teamAPlayer2Id,
@@ -244,6 +244,7 @@ export function runSimulation(config: SimulationConfig): SimulationReport {
         genderType: config.genderType,
         queueTarget: matchesPerRound,
         recentPairings,
+        recentGroups,
         recentOpponents,
         playerMatchCounts,
       });

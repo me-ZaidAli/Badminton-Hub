@@ -6182,7 +6182,7 @@ export async function registerRoutes(
           }));
 
         if (players.length >= playersPerMatch) {
-          const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+          const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
             existingMatches.map(m => ({
               teamAPlayer1Id: m.teamAPlayer1Id,
               teamAPlayer2Id: m.teamAPlayer2Id,
@@ -6260,6 +6260,7 @@ export async function registerRoutes(
             genderType: gType,
             queueTarget: 1,
             recentPairings,
+            recentGroups,
             recentOpponents,
             playerMatchCounts,
             fixedPairs: extractFixedPairs(signups),
@@ -6416,7 +6417,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Not enough ${label} players available` });
       }
 
-      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
         existingMatches
           .filter(m => m.id !== matchId)
           .map(m => ({
@@ -6460,6 +6461,7 @@ export async function registerRoutes(
         genderType: gType,
         queueTarget: 1,
         recentPairings,
+        recentGroups,
         recentOpponents,
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
@@ -6535,7 +6537,7 @@ export async function registerRoutes(
         }));
 
       const nonQueuedMatches = existingMatches.filter(m => !queuedMatches.some(q => q.id === m.id));
-      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
         nonQueuedMatches.map(m => ({
           teamAPlayer1Id: m.teamAPlayer1Id,
           teamAPlayer2Id: m.teamAPlayer2Id,
@@ -6574,6 +6576,7 @@ export async function registerRoutes(
         genderType: gType,
         queueTarget: queuedMatches.length,
         recentPairings,
+        recentGroups,
         recentOpponents,
         playerMatchCounts,
         fixedPairs: extractFixedPairs(signups),
@@ -6830,7 +6833,7 @@ export async function registerRoutes(
       }
 
       // Build pairing history for fair match distribution
-      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
         existingMatches.map(m => ({
           teamAPlayer1Id: m.teamAPlayer1Id,
           teamAPlayer2Id: m.teamAPlayer2Id,
@@ -6882,6 +6885,7 @@ export async function registerRoutes(
         genderType: genderType,
         queueTarget: matchCount,
         recentPairings,
+        recentGroups,
         recentOpponents,
         playerMatchCounts,
         fixedPairs: extractFixedPairs(eligibleSignups),
@@ -7032,7 +7036,7 @@ export async function registerRoutes(
       const maxMatchesByPlayers = Math.floor(players.length / playersPerMatch);
       const finalTarget = Math.min(effectiveTarget, maxMatchesByPlayers);
 
-      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
         existingMatches.map(m => ({
           teamAPlayer1Id: m.teamAPlayer1Id,
           teamAPlayer2Id: m.teamAPlayer2Id,
@@ -7125,6 +7129,7 @@ export async function registerRoutes(
         genderType: gType,
         queueTarget: finalTarget,
         recentPairings,
+        recentGroups,
         recentOpponents,
         playerMatchCounts,
         fixedPairs,
@@ -7241,7 +7246,7 @@ export async function registerRoutes(
       const allRounds: { round: number; matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; fairnessScore: number }[] }[] = [];
 
       for (let round = 1; round <= totalRounds; round++) {
-        const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+        const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
           simulatedMatchHistory.map(m => ({
             teamAPlayer1Id: m.teamAPlayer1Id,
             teamAPlayer2Id: m.teamAPlayer2Id,
@@ -7291,6 +7296,7 @@ export async function registerRoutes(
           genderType: gType,
           queueTarget: matchesPerRound,
           recentPairings,
+          recentGroups,
           recentOpponents,
           playerMatchCounts,
           priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
@@ -8073,7 +8079,7 @@ export async function registerRoutes(
         teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id,
         teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status,
       }));
-      const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(matchHistory);
+      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(matchHistory);
       for (const s of confirmedSignups) {
         if (!playerMatchCounts.has(s.player.id)) playerMatchCounts.set(s.player.id, 0);
       }

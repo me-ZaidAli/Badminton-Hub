@@ -60,7 +60,7 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
   partnerRepeatWeight: -25,
   opponentRepeatWeight: -15,
 
-  gradeSpreadLimit: 5,
+  gradeSpreadLimit: 3,
   qualityWeight: 1,
 
   priorityHigh: 150,
@@ -88,8 +88,8 @@ export const DEFAULT_SETTINGS: MatchEngineSettings = {
 
   groupRepeatPenalty: -50,
 
-  hardGradeSpreadLimit: 4,
-  teamAvgDiffLimit: 3,
+  hardGradeSpreadLimit: 5,
+  teamAvgDiffLimit: 1.5,
 
   hybridGroupSize: 6,
   hybridGroupCooldown: 2,

@@ -442,14 +442,15 @@ function shouldBlockMixedForMale(
   playerId: number,
   metrics: PlayerSessionMetrics
 ): boolean {
+  // Previously this blocked any male with 2-of-last-3 mixed and <3
+  // men's-doubles in last 3 — which is impossible to satisfy in only 3
+  // matches and effectively locked players who happened to land in two
+  // mixed games. Soften to "literally three mixed in a row", which is the
+  // only situation where forcing variety actually helps.
   const last3 = metrics.lastMatchTypes.slice(-3);
+  if (last3.length < 3) return false;
   const mixedInLast3 = last3.filter(t => t === "MIXED").length;
-  if (mixedInLast3 < 2) return false;
-
-  const recentMenDoubles = metrics.lastMatchTypes
-    .slice(-3)
-    .filter(t => t === "MEN_DOUBLES").length;
-  return recentMenDoubles < 3;
+  return mixedInLast3 >= 3;
 }
 
 function shouldPrioritizeMixedForFemale(
@@ -481,9 +482,11 @@ function computeMatchQualityScore(
   candidate: MatchResult,
   playerPool: Player[],
   metricsMap: Map<number, PlayerSessionMetrics>,
-  currentRound: number
+  currentRound: number,
+  playerMapArg?: Map<number, Player>
 ): number {
-  const getPlayer = (id: number) => playerPool.find(p => p.id === id);
+  const playerMap = playerMapArg ?? new Map(playerPool.map(p => [p.id, p]));
+  const getPlayer = (id: number) => playerMap.get(id);
   const teamA = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id].filter(Boolean) as number[];
   const teamB = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
   const allIds = [...teamA, ...teamB];
@@ -545,12 +548,14 @@ function computeAIScore(
   currentRound: number,
   mode: "SOCIAL" | "COMPETITIVE",
   pairWinCounts: Map<string, number>,
-  baseScore: number
+  baseScore: number,
+  playerMapArg?: Map<number, Player>
 ): { score: number; factors: string[] } {
   let score = baseScore;
   const factors: string[] = [];
 
-  const getPlayer = (id: number) => playerPool.find(p => p.id === id);
+  const playerMap = playerMapArg ?? new Map(playerPool.map(p => [p.id, p]));
+  const getPlayer = (id: number) => playerMap.get(id);
   const teamA = [candidate.teamAPlayer1Id, candidate.teamAPlayer2Id].filter(Boolean) as number[];
   const teamB = [candidate.teamBPlayer1Id, candidate.teamBPlayer2Id].filter(Boolean) as number[];
   const allIds = [...teamA, ...teamB];
@@ -719,7 +724,7 @@ export function applyAIBrainLayer(opts: AIBrainOptions): AIGenerateResult {
     }
   }
 
-  const { recentPairings, recentOpponents, playerMatchCounts } = buildPairingHistory(
+  const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
     matchHistory.map(m => ({
       teamAPlayer1Id: m.teamAPlayer1Id,
       teamAPlayer2Id: m.teamAPlayer2Id,
@@ -728,6 +733,9 @@ export function applyAIBrainLayer(opts: AIBrainOptions): AIGenerateResult {
       status: m.status,
     }))
   );
+
+  // O(1) player lookups instead of O(P) array.find for every candidate.
+  const playerMap = new Map(players.map(p => [p.id, p]));
 
   for (const p of players) {
     if (!playerMatchCounts.has(p.id)) {
@@ -754,6 +762,7 @@ export function applyAIBrainLayer(opts: AIBrainOptions): AIGenerateResult {
     queueTarget: Math.max(queueTarget, queueTarget + 2),
     recentPairings,
     recentOpponents,
+    recentGroups,
     playerMatchCounts,
     priorityPlayerIds: aiPriorityIds,
     fixedPairs,
@@ -772,6 +781,12 @@ export function applyAIBrainLayer(opts: AIBrainOptions): AIGenerateResult {
   const qualifiedMatches: MatchResult[] = [];
   const matchQualities: number[] = [];
 
+  // Track quality per candidate via a Map so the eventual sort + lookups
+  // are O(1) instead of O(N) (the previous `qualifiedMatches.indexOf(a)`
+  // inside the comparator made the whole sort O(N²·N) and dominated CPU
+  // once a session had a healthy queue).
+  const qualityByMatch = new Map<MatchResult, number>();
+
   for (const candidate of standardResult.matches) {
     if (applyStrictGender) {
       if (isStrictGenderUnfair(candidate, players)) {
@@ -779,41 +794,36 @@ export function applyAIBrainLayer(opts: AIBrainOptions): AIGenerateResult {
       }
     }
 
-    const quality = computeMatchQualityScore(candidate, players, metricsMap, currentRound);
+    const quality = computeMatchQualityScore(candidate, players, metricsMap, currentRound, playerMap);
 
     if (quality < QUALITY_THRESHOLD && standardResult.matches.length > queueTarget) {
       continue;
     }
 
-    const { score } = computeAIScore(
-      candidate, players, metricsMap, stage, currentRound, mode, pairWinCounts, quality
+    // Compute AI score for side effects (factors used elsewhere) — score itself
+    // is not currently consumed downstream, so we keep this no-op for parity.
+    computeAIScore(
+      candidate, players, metricsMap, stage, currentRound, mode, pairWinCounts, quality, playerMap
     );
 
     qualifiedMatches.push(candidate);
     matchQualities.push(quality);
+    qualityByMatch.set(candidate, quality);
   }
 
   if (qualifiedMatches.length === 0 && standardResult.matches.length > 0) {
     for (const candidate of standardResult.matches) {
-      const quality = computeMatchQualityScore(candidate, players, metricsMap, currentRound);
+      const quality = computeMatchQualityScore(candidate, players, metricsMap, currentRound, playerMap);
       qualifiedMatches.push(candidate);
       matchQualities.push(quality);
+      qualityByMatch.set(candidate, quality);
     }
   }
 
-  qualifiedMatches.sort((a, b) => {
-    const idxA = qualifiedMatches.indexOf(a);
-    const idxB = qualifiedMatches.indexOf(b);
-    const qA = matchQualities[idxA] || 0;
-    const qB = matchQualities[idxB] || 0;
-    return qB - qA;
-  });
+  qualifiedMatches.sort((a, b) => (qualityByMatch.get(b) ?? 0) - (qualityByMatch.get(a) ?? 0));
 
   const finalMatches = qualifiedMatches.slice(0, queueTarget);
-  const finalQualities = finalMatches.map((_, i) => {
-    const origIdx = qualifiedMatches.indexOf(finalMatches[i]);
-    return matchQualities[origIdx] || 0;
-  });
+  const finalQualities = finalMatches.map(m => qualityByMatch.get(m) ?? 0);
 
   const usedIds = new Set<number>();
   const deduplicatedMatches: MatchResult[] = [];

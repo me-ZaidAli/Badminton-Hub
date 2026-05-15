@@ -39,6 +39,13 @@ type GenerateOptions = {
   recentPairings: Map<string, number>;
   recentOpponents: Map<string, number>;
   playerMatchCounts: Map<number, number>;
+  // Persistent group memory: how many times each exact 4-player group has
+  // already been put on a court this session. Without this, the engine has
+  // no way to penalise repeating the same foursome across separate calls
+  // (which is how it's invoked — once per "next match" — so every call
+  // would otherwise start from a clean group history). Built by
+  // `buildPairingHistory`; safe to omit (defaults to empty).
+  recentGroups?: Map<string, number>;
   priorityPlayerIds?: number[];
   fixedPairs?: FixedPair[];
   settings?: EngineSettings;
@@ -188,7 +195,15 @@ function buildUnits(
   return units;
 }
 
-function selectUnits(sortedUnits: SelectionUnit[]): Player[][] {
+// `selectUnits` previously materialised every C(N,4) combination of singles
+// before the caller sliced them down. With ~16 windowed singles that's 1820
+// arrays allocated on every call to `generateNextMatch` — and the engine is
+// invoked once per queued match. Capping inside the loop with an early exit
+// keeps the hot path bounded regardless of pool size. The cap is high enough
+// to give the scorer plenty of variety; the actual scoring then picks the
+// best one. `units` are already sorted by deficit/wait so the first N groups
+// produced are the most relevant ones anyway.
+function selectUnits(sortedUnits: SelectionUnit[], maxGroups = 1500): Player[][] {
   const groups: Player[][] = [];
   const pairs = sortedUnits.filter(u => u.type === "PAIR");
   const singles = sortedUnits.filter(u => u.type === "SINGLE");
@@ -196,6 +211,7 @@ function selectUnits(sortedUnits: SelectionUnit[]): Player[][] {
   for (let i = 0; i < pairs.length; i++) {
     for (let j = i + 1; j < pairs.length; j++) {
       groups.push([...pairs[i].players, ...pairs[j].players]);
+      if (groups.length >= maxGroups) return groups;
     }
   }
 
@@ -203,6 +219,7 @@ function selectUnits(sortedUnits: SelectionUnit[]): Player[][] {
     for (let i = 0; i < singles.length; i++) {
       for (let j = i + 1; j < singles.length; j++) {
         groups.push([...pair.players, ...singles[i].players, ...singles[j].players]);
+        if (groups.length >= maxGroups) return groups;
       }
     }
   }
@@ -217,6 +234,7 @@ function selectUnits(sortedUnits: SelectionUnit[]): Player[][] {
             ...singles[k].players,
             ...singles[l].players,
           ]);
+          if (groups.length >= maxGroups) return groups;
         }
       }
     }
@@ -728,8 +746,13 @@ function generateNextMatch(
   const primary = tryGenerate(primarySpread, primaryDiff);
   if (primary) return { ...primary, isFallback: false };
 
-  const fallbackSpread = ec.hardGradeSpreadLimit ?? (primarySpread + 1);
-  const fallbackDiff = primaryDiff + 0.5;
+  // The fallback is supposed to RELAX the constraints, not tighten them.
+  // Previously `hardGradeSpreadLimit` was used as-is which (with the old
+  // defaults) was actually smaller than `gradeSpreadLimit` — so the fallback
+  // pass would reject anything the primary already rejected. Force fallback
+  // ≥ primary+1 so it always opens up the allowed grade gap.
+  const fallbackSpread = Math.max(ec.hardGradeSpreadLimit ?? 0, primarySpread + 1);
+  const fallbackDiff = Math.max(ec.teamAvgDiffLimit ?? 0, primaryDiff) + 0.5;
   const fallback = tryGenerate(fallbackSpread, fallbackDiff);
   if (fallback) return { ...fallback, isFallback: true };
 
@@ -762,7 +785,9 @@ function generateDoublesMatches(opts: GenerateOptions): GenerateResult {
   const usedPlayerIds = new Set<number>();
   const playerLastPlayedRound = new Map<number, number>();
   const pairWaitTracker = new Map<string, number>();
-  const localGroupHistory = new Map<string, number>();
+  // Seed group memory from prior matches so we don't repeat the exact same
+  // foursome that already played earlier in the session.
+  const localGroupHistory = new Map(opts.recentGroups ?? new Map<string, number>());
 
   const runningTypeCounts = opts.settings?.existingMatchTypeCounts
     ? { ...opts.settings.existingMatchTypeCounts }
@@ -1069,10 +1094,11 @@ export function replacePlayerInQueuedMatches(
 
 export function buildPairingHistory(
   matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; status: string }[]
-): { recentPairings: Map<string, number>; recentOpponents: Map<string, number>; playerMatchCounts: Map<number, number> } {
+): { recentPairings: Map<string, number>; recentOpponents: Map<string, number>; playerMatchCounts: Map<number, number>; recentGroups: Map<string, number> } {
   const recentPairings = new Map<string, number>();
   const recentOpponents = new Map<string, number>();
   const playerMatchCounts = new Map<number, number>();
+  const recentGroups = new Map<string, number>();
 
   for (const match of matches) {
     const teamA = [match.teamAPlayer1Id, match.teamAPlayer2Id].filter(Boolean) as number[];
@@ -1094,12 +1120,18 @@ export function buildPairingHistory(
       }
     }
 
-    for (const pid of [...teamA, ...teamB]) {
+    const allIds = [...teamA, ...teamB];
+    for (const pid of allIds) {
       playerMatchCounts.set(pid, (playerMatchCounts.get(pid) || 0) + 1);
+    }
+
+    if (allIds.length === 4) {
+      const gk = [...allIds].sort((a, b) => a - b).join("-");
+      recentGroups.set(gk, (recentGroups.get(gk) || 0) + 1);
     }
   }
 
-  return { recentPairings, recentOpponents, playerMatchCounts };
+  return { recentPairings, recentOpponents, playerMatchCounts, recentGroups };
 }
 
 export function countExistingMatchTypes(
