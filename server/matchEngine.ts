@@ -181,16 +181,23 @@ function scoreGroup(
   };
 }
 
-// Same-gender pairing rule: a doubles team is always MM or FF — never one of
-// each. For a group of 4 we therefore allow only:
-//   • 4 male  → MM vs MM
-//   • 4 female → FF vs FF
-//   • 2 male + 2 female → MM vs FF (men's pair vs women's pair)
-// Groups of 3+1 are rejected by canSameGenderSplit() before scoring.
-function canSameGenderSplit(group: Player[]): boolean {
-  const females = group.filter(p => getEffectiveGender(p) === "FEMALE").length;
-  const males = group.length - females;
-  return females === 0 || males === 0 || (females === 2 && males === 2);
+// Gender-shape rule for a 4-player group:
+//   • 4 male            → MM vs MM
+//   • 4 female          → FF vs FF
+//   • 2 male + 2 female → MM vs FF
+//   • 3 + 1 (3F+1M or 3M+1F) → ALLOWED ONLY when the lone player is high-grade.
+//     The strong outlier carries the weakest of the trio as their partner so
+//     the match stays competitive (e.g. high-grade male + weakest female
+//     vs the two stronger females).
+// Anything else (3+1 with a low-grade outlier) is rejected before scoring.
+function isAllowedGenderShape(group: Player[]): boolean {
+  const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
+  const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
+  if (females.length === 0 || males.length === 0) return true;
+  if (females.length === 2 && males.length === 2) return true;
+  if (males.length === 1 && females.length === 3) return isHighGrade(males[0].grade);
+  if (females.length === 1 && males.length === 3) return isHighGrade(females[0].grade);
+  return false;
 }
 
 function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]; teamB: Player[] } {
@@ -203,13 +210,23 @@ function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]
       return { teamA: [pa, pb], teamB: others };
     }
   }
-  // Same-gender constraint: 2M + 2F → always MM vs FF, never split mixed.
   const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
   const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
+
+  // 2 + 2 → always MM vs FF.
   if (males.length === 2 && females.length === 2) {
     return { teamA: males, teamB: females };
   }
-  // Otherwise (4M or 4F): 1+4 vs 2+3 split by grade — most balanced average.
+  // 3 + 1 → strong outlier partners the weakest of the trio for balance.
+  if (males.length === 1 && females.length === 3) {
+    const fSorted = [...females].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
+    return { teamA: [males[0], fSorted[2]], teamB: [fSorted[0], fSorted[1]] };
+  }
+  if (females.length === 1 && males.length === 3) {
+    const mSorted = [...males].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
+    return { teamA: [females[0], mSorted[2]], teamB: [mSorted[0], mSorted[1]] };
+  }
+  // 4 of one gender: 1+4 vs 2+3 split by grade — most balanced average.
   const sorted = [...group].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
   return { teamA: [sorted[0], sorted[3]], teamB: [sorted[1], sorted[2]] };
 }
@@ -279,10 +296,10 @@ function generateDoubles(opts: GenerateOptions): GenerateResult {
             }
             if (!ok) continue;
 
-            // Same-gender pairing rule: skip groups that can't be split into
-            // pure-gender teams (i.e. 3M+1F or 1M+3F). Keeps doubles teams
-            // strictly MM-vs-MM, FF-vs-FF, or MM-vs-FF.
-            if (!canSameGenderSplit(grp)) continue;
+            // Gender-shape rule: see isAllowedGenderShape() — allows
+            // MM-vs-MM, FF-vs-FF, MM-vs-FF, plus 3+1 groups when the
+            // lone player is high-grade (so they can carry the underdog).
+            if (!isAllowedGenderShape(grp)) continue;
 
             evaluated++;
             const { score, breakdown, factors } = scoreGroup(grp, ec, localPairings, localOpponents, localGroups);
