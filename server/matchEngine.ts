@@ -181,6 +181,18 @@ function scoreGroup(
   };
 }
 
+// Same-gender pairing rule: a doubles team is always MM or FF — never one of
+// each. For a group of 4 we therefore allow only:
+//   • 4 male  → MM vs MM
+//   • 4 female → FF vs FF
+//   • 2 male + 2 female → MM vs FF (men's pair vs women's pair)
+// Groups of 3+1 are rejected by canSameGenderSplit() before scoring.
+function canSameGenderSplit(group: Player[]): boolean {
+  const females = group.filter(p => getEffectiveGender(p) === "FEMALE").length;
+  const males = group.length - females;
+  return females === 0 || males === 0 || (females === 2 && males === 2);
+}
+
 function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]; teamB: Player[] } {
   // Honour fixed pair if both members are in the chosen group.
   for (const [a, b] of fixedPairs) {
@@ -191,7 +203,13 @@ function splitTeams(group: Player[], fixedPairs: FixedPair[]): { teamA: Player[]
       return { teamA: [pa, pb], teamB: others };
     }
   }
-  // 1+4 vs 2+3 split by grade — most balanced average.
+  // Same-gender constraint: 2M + 2F → always MM vs FF, never split mixed.
+  const males = group.filter(p => getEffectiveGender(p) !== "FEMALE");
+  const females = group.filter(p => getEffectiveGender(p) === "FEMALE");
+  if (males.length === 2 && females.length === 2) {
+    return { teamA: males, teamB: females };
+  }
+  // Otherwise (4M or 4F): 1+4 vs 2+3 split by grade — most balanced average.
   const sorted = [...group].sort((a, b) => getGradeRank(b.grade) - getGradeRank(a.grade));
   return { teamA: [sorted[0], sorted[3]], teamB: [sorted[1], sorted[2]] };
 }
@@ -260,6 +278,11 @@ function generateDoubles(opts: GenerateOptions): GenerateResult {
               if (partner != null && !grp.find(g => g.id === partner)) { ok = false; break; }
             }
             if (!ok) continue;
+
+            // Same-gender pairing rule: skip groups that can't be split into
+            // pure-gender teams (i.e. 3M+1F or 1M+3F). Keeps doubles teams
+            // strictly MM-vs-MM, FF-vs-FF, or MM-vs-FF.
+            if (!canSameGenderSplit(grp)) continue;
 
             evaluated++;
             const { score, breakdown, factors } = scoreGroup(grp, ec, localPairings, localOpponents, localGroups);
