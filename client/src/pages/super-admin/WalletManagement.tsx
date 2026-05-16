@@ -289,20 +289,71 @@ function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
 
             {/* Per-club balances (matches what user sees on profile) */}
             <div>
-              <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground mb-2">Per-club balances (live from credit ledger)</div>
+              <div className="flex items-center justify-between mb-2 gap-2 flex-wrap">
+                <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Per-club balances (live from credit ledger)</div>
+                {balances.some(b => b.balance !== 0) && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="h-7 text-[11px] border-red-300 text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30"
+                    disabled={setBalanceMutation.isPending}
+                    onClick={() => {
+                      const nonZero = balances.filter(b => b.balance !== 0);
+                      if (nonZero.length === 0) return;
+                      const ok = window.confirm(
+                        `Reset ALL ${nonZero.length} club wallet${nonZero.length > 1 ? "s" : ""} to £0.00?\n\n` +
+                        nonZero.map(b => `• ${b.clubName}: £${(b.balance / 100).toFixed(2)} → £0.00`).join("\n") +
+                        `\n\nWrites a corrective entry to the credit ledger AND wallets table for each. Cannot be undone.`
+                      );
+                      if (!ok) return;
+                      nonZero.forEach(b => {
+                        setBalanceMutation.mutate({
+                          clubId: b.clubId,
+                          targetBalance: 0,
+                          reason: "Manual reset to zero",
+                        });
+                      });
+                    }}
+                    data-testid="button-reset-all-wallets-zero"
+                  >
+                    <RotateCcw className="h-3 w-3 mr-1" /> Reset all to £0
+                  </Button>
+                )}
+              </div>
               {balances.length === 0 ? (
                 <p className="text-sm text-muted-foreground italic">No credit-ledger entries for this user.</p>
               ) : (
                 <div className="flex flex-wrap gap-2" data-testid="list-per-club-balances">
                   {balances.map(b => (
-                    <Badge
+                    <div
                       key={b.clubId}
-                      variant="outline"
-                      className={`text-xs ${b.balance < 0 ? "border-red-300 text-red-600" : "border-emerald-300 text-emerald-700 dark:text-emerald-400"}`}
+                      className={`inline-flex items-center gap-1 rounded-md border px-2 py-1 text-xs ${b.balance < 0 ? "border-red-300 text-red-600" : "border-emerald-300 text-emerald-700 dark:text-emerald-400"}`}
                       data-testid={`badge-club-balance-${b.clubId}`}
                     >
-                      {b.clubName}: {b.balance < 0 ? "-" : ""}£{(Math.abs(b.balance) / 100).toFixed(2)}
-                    </Badge>
+                      <span>{b.clubName}: {b.balance < 0 ? "-" : ""}£{(Math.abs(b.balance) / 100).toFixed(2)}</span>
+                      {b.balance !== 0 && (
+                        <button
+                          type="button"
+                          className="ml-1 inline-flex items-center justify-center rounded-sm h-4 w-4 text-muted-foreground hover:text-red-600 hover:bg-red-100 dark:hover:bg-red-950/40 transition-colors"
+                          title={`Reset ${b.clubName} to £0.00`}
+                          disabled={setBalanceMutation.isPending}
+                          onClick={() => {
+                            const ok = window.confirm(
+                              `Reset ${b.clubName} from £${(b.balance / 100).toFixed(2)} to £0.00?\n\nWrites a corrective entry to BOTH the credit ledger and wallets table.`
+                            );
+                            if (!ok) return;
+                            setBalanceMutation.mutate({
+                              clubId: b.clubId,
+                              targetBalance: 0,
+                              reason: "Manual reset to zero",
+                            });
+                          }}
+                          data-testid={`button-reset-club-${b.clubId}`}
+                        >
+                          <RotateCcw className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
                   ))}
                 </div>
               )}
