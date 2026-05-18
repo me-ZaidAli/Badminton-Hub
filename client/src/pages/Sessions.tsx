@@ -847,7 +847,6 @@ export default function Sessions() {
   const baseFilteredSessions = useMemo(() => {
     let result = sessions;
     if (!result) return [];
-    result = result.filter(s => (s as any).sessionType !== "JUNIORS_ONLY");
     if (clubScope === "my") {
       result = result.filter(s => myClubIds.has(s.clubId));
     }
@@ -1458,6 +1457,7 @@ export default function Sessions() {
           onSignUp={(session) => setJoinSession(session)}
           onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
           adminActions={viewAdminActions}
+          showJuniorTeaser
         />
       )}
 
@@ -1467,6 +1467,7 @@ export default function Sessions() {
           clubs={clubs || []}
           onSessionClick={handleSessionClickFromView}
           adminActions={viewAdminActions}
+          showJuniorTeaser
         />
       )}
 

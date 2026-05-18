@@ -186,6 +186,7 @@ type SessionViewProps = {
   clubs: any[];
   onSessionClick: (session: SessionItem) => void;
   adminActions?: AdminActions;
+  showJuniorTeaser?: boolean;
 };
 
 type TimelineViewProps = SessionViewProps & {
@@ -207,7 +208,105 @@ function getTeamEventTypeInfo(type: string) {
   return TEAM_EVENT_TYPES[type] || TEAM_EVENT_TYPES.OTHER;
 }
 
-function SessionMiniCard({ session, clubs, onSessionClick, adminActions }: { session: SessionItem; clubs: any[]; onSessionClick: (s: SessionItem) => void; adminActions?: AdminActions }) {
+function JuniorTeaserCard({ session, clubs, variant = "timeline" }: { session: SessionItem; clubs: any[]; variant?: "timeline" | "mini" }) {
+  const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
+  const venueName = (session as any).venue?.name || "";
+  const filled = Math.min(session.signupCount || 0, session.maxPlayers || 0);
+  const cap = Math.max(session.maxPlayers || 0, 1);
+  const pct = Math.round((filled / cap) * 100);
+  const bars = [0.55, 0.85, 0.4, 0.95, 0.65, 0.78, 0.5];
+
+  return (
+    <Link href="/juniors">
+      <div
+        className={`group relative overflow-hidden rounded-2xl border-2 border-amber-300/70 dark:border-amber-500/40 bg-gradient-to-br from-amber-50 via-orange-50 to-pink-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-pink-950/30 cursor-pointer transition-all hover:shadow-lg hover:-translate-y-0.5 ${variant === "mini" ? "p-2.5" : "p-3.5"}`}
+        data-testid={`junior-teaser-${session.id}`}
+      >
+        <div className="absolute -top-6 -right-6 w-24 h-24 rounded-full bg-yellow-300/30 dark:bg-yellow-400/15 blur-2xl pointer-events-none" />
+        <div className="absolute -bottom-8 -left-8 w-28 h-28 rounded-full bg-pink-300/30 dark:bg-pink-400/15 blur-2xl pointer-events-none" />
+
+        <div className="relative flex items-start justify-between gap-2 mb-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex-shrink-0 w-9 h-9 rounded-xl bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-md">
+              <Baby className="h-5 w-5 text-white" />
+            </div>
+            <div className="min-w-0">
+              <Badge className="text-[9px] font-extrabold bg-gradient-to-r from-amber-500 to-orange-500 text-white border-0 px-2 py-0 tracking-wider">
+                JUNIORS
+              </Badge>
+              <h4 className="font-extrabold text-sm text-amber-900 dark:text-amber-100 truncate mt-0.5" data-testid={`junior-title-${session.id}`}>
+                {session.title}
+              </h4>
+            </div>
+          </div>
+          <div className="flex flex-col items-end flex-shrink-0">
+            <div className="flex items-end gap-0.5 h-7" aria-hidden>
+              {bars.map((b, i) => (
+                <div
+                  key={i}
+                  className="w-1 rounded-sm bg-gradient-to-t from-amber-500 to-orange-400 opacity-80 transition-transform group-hover:scale-y-110"
+                  style={{ height: `${Math.round(b * 24)}px`, transitionDelay: `${i * 30}ms` }}
+                />
+              ))}
+            </div>
+            <span className="text-[9px] font-bold text-amber-700 dark:text-amber-300 mt-0.5">FUN</span>
+          </div>
+        </div>
+
+        <div className="relative grid grid-cols-3 gap-1.5 mb-2">
+          <div className="rounded-lg bg-white/70 dark:bg-black/20 px-1.5 py-1 text-center">
+            <div className="text-[8px] font-bold text-amber-700 dark:text-amber-300 tracking-wider">TIME</div>
+            <div className="text-[11px] font-extrabold text-amber-900 dark:text-amber-100 tabular-nums">{session.startTime}</div>
+          </div>
+          <div className="rounded-lg bg-white/70 dark:bg-black/20 px-1.5 py-1 text-center">
+            <div className="text-[8px] font-bold text-orange-700 dark:text-orange-300 tracking-wider">SPOTS</div>
+            <div className="text-[11px] font-extrabold text-orange-900 dark:text-orange-100 tabular-nums">{filled}/{cap}</div>
+          </div>
+          <div className="rounded-lg bg-white/70 dark:bg-black/20 px-1.5 py-1 text-center">
+            <div className="text-[8px] font-bold text-pink-700 dark:text-pink-300 tracking-wider">FEE</div>
+            <div className="text-[11px] font-extrabold text-pink-900 dark:text-pink-100 tabular-nums">
+              {session.sessionFee != null ? `£${(session.sessionFee / 100).toFixed(0)}` : "—"}
+            </div>
+          </div>
+        </div>
+
+        <div className="relative h-1.5 rounded-full bg-amber-200/60 dark:bg-amber-900/40 overflow-hidden mb-2">
+          <div
+            className="h-full bg-gradient-to-r from-amber-400 via-orange-400 to-pink-400 rounded-full transition-all"
+            style={{ width: `${pct}%` }}
+            aria-label={`${pct}% full`}
+          />
+        </div>
+
+        {(clubName || venueName) && (
+          <div className="relative flex items-center gap-2 text-[10px] text-amber-800/80 dark:text-amber-200/70 font-medium mb-2 flex-wrap">
+            {clubName && <span className="truncate">🏸 {clubName}</span>}
+            {venueName && (
+              <span className="flex items-center gap-0.5 truncate">
+                <MapPin className="h-2.5 w-2.5" /> {venueName}
+              </span>
+            )}
+          </div>
+        )}
+
+        <div className="relative flex items-center justify-between gap-2 rounded-lg bg-gradient-to-r from-amber-500/15 to-orange-500/15 dark:from-amber-400/10 dark:to-orange-400/10 border border-amber-400/40 dark:border-amber-500/30 px-2 py-1.5">
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Info className="h-3 w-3 text-amber-700 dark:text-amber-300 flex-shrink-0" />
+            <span className="text-[10px] font-semibold text-amber-800 dark:text-amber-200 truncate">
+              Go to the <span className="underline">Juniors</span> tab to sign up
+            </span>
+          </div>
+          <ArrowRight className="h-3 w-3 text-amber-700 dark:text-amber-300 group-hover:translate-x-0.5 transition-transform flex-shrink-0" />
+        </div>
+      </div>
+    </Link>
+  );
+}
+
+function SessionMiniCard({ session, clubs, onSessionClick, adminActions, showJuniorTeaser }: { session: SessionItem; clubs: any[]; onSessionClick: (s: SessionItem) => void; adminActions?: AdminActions; showJuniorTeaser?: boolean }) {
+  if (showJuniorTeaser && session.sessionType === "JUNIORS_ONLY") {
+    return <JuniorTeaserCard session={session} clubs={clubs} variant="mini" />;
+  }
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
   const isPast = new Date(session.date) < new Date();
   const isLive = session.status === "ACTIVE";
@@ -1939,7 +2038,7 @@ function SessionPreviewDialog({
   );
 }
 
-export function CalendarView({ sessions, clubs, onSessionClick, adminActions }: SessionViewProps) {
+export function CalendarView({ sessions, clubs, onSessionClick, adminActions, showJuniorTeaser }: SessionViewProps) {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
 
@@ -2048,7 +2147,7 @@ export function CalendarView({ sessions, clubs, onSessionClick, adminActions }: 
           ) : (
             <div className="grid gap-2 sm:grid-cols-2">
               {selectedDaySessions.map(s => (
-                <SessionMiniCard key={s.id} session={s} clubs={clubs} onSessionClick={onSessionClick} adminActions={adminActions} />
+                <SessionMiniCard key={s.id} session={s} clubs={clubs} onSessionClick={onSessionClick} adminActions={adminActions} showJuniorTeaser={showJuniorTeaser} />
               ))}
             </div>
           )}
@@ -2058,7 +2157,7 @@ export function CalendarView({ sessions, clubs, onSessionClick, adminActions }: 
   );
 }
 
-export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, onWithdraw, adminActions }: TimelineViewProps) {
+export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, onWithdraw, adminActions, showJuniorTeaser }: TimelineViewProps) {
   const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
 
@@ -2443,17 +2542,21 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                           </div>
 
                           <div className="flex-1 min-w-0 tl-card-anim" style={{ animationDelay: `${idx * 70}ms` }}>
-                            <TimelineSessionCard
-                              session={s}
-                              clubs={clubs}
-                              mySignup={mySignupsBySession?.get(s.id)}
-                              isExpanded={expandedSessionId === s.id}
-                              onToggleExpand={() => handleToggleExpand(s.id)}
-                              onNavigate={() => handleNavigate(s)}
-                              onSignUp={onSignUp}
-                              onWithdraw={onWithdraw}
-                              adminActions={adminActions}
-                            />
+                            {showJuniorTeaser && s.sessionType === "JUNIORS_ONLY" ? (
+                              <JuniorTeaserCard session={s} clubs={clubs} variant="timeline" />
+                            ) : (
+                              <TimelineSessionCard
+                                session={s}
+                                clubs={clubs}
+                                mySignup={mySignupsBySession?.get(s.id)}
+                                isExpanded={expandedSessionId === s.id}
+                                onToggleExpand={() => handleToggleExpand(s.id)}
+                                onNavigate={() => handleNavigate(s)}
+                                onSignUp={onSignUp}
+                                onWithdraw={onWithdraw}
+                                adminActions={adminActions}
+                              />
+                            )}
                           </div>
                         </div>
                       );
