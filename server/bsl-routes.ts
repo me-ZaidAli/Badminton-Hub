@@ -1127,6 +1127,39 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // Admin delete a fixture (and cascade its rubbers). Lifecycle-guarded: CLOSED
+  // and LIVE league-days block the delete (use the lifecycle to reopen first).
+  // Without `?force=true`, FINISHED fixtures or ones with any rubber scores are
+  // protected so a mis-click doesn't wipe completed match history.
+  app.delete("/api/bsl/admin/fixtures/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid fixture id" });
+      const force = String(req.query.force || "") === "true";
+      const [fx] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, id)).limit(1);
+      if (!fx) return res.status(404).json({ message: "Fixture not found" });
+      const block = await assertFixtureMutable(id, new Set(), "delete-fixture");
+      if (block) return res.status(409).json({ message: block });
+      const rubbers = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, id));
+      const hasScores = rubbers.some(r => (r.homeScore || 0) > 0 || (r.awayScore || 0) > 0);
+      const isFinished = fx.status === "FINISHED";
+      if ((hasScores || isFinished) && !force) {
+        return res.status(400).json({
+          message: `Fixture has ${isFinished ? "FINISHED status" : "rubber scores"} — pass ?force=true to delete anyway. Standings will recompute.`,
+        });
+      }
+      await db.transaction(async (tx) => {
+        await tx.execute(dsql`SELECT id FROM bsl_fixtures WHERE id = ${id} FOR UPDATE`);
+        await tx.delete(bslRubbers).where(eq(bslRubbers.bslFixtureId, id));
+        await tx.delete(bslFixtures).where(eq(bslFixtures.id, id));
+      });
+      // If we tore down a FINISHED fixture, the league table needs a refresh.
+      if (isFinished) await recomputeStandings();
+      await audit(req, "DELETE_FIXTURE", "bsl_fixture", id, { force, hadScores: hasScores, wasFinished: isFinished });
+      res.json({ deleted: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.patch("/api/bsl/rubbers/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);

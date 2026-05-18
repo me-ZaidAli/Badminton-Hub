@@ -3,7 +3,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "wouter";
 import {
-  Radio, Play, Pause, Square, Clock, Move, AlertCircle, ExternalLink, X, Trophy,
+  Radio, Play, Pause, Square, Clock, Move, AlertCircle, ExternalLink, X, Trophy, Trash2,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
@@ -49,6 +49,33 @@ export default function MatchDayControl() {
   // END now opens the score-entry dialog instead of skipping straight to
   // FINISHED. The dialog itself flips status to FINISHED once scores are saved.
   const onEnd = (id: number) => setFinishingId(id);
+
+  // Two-phase delete: try without force; if backend says force required (FINISHED
+  // or any raw rubber score), reconfirm and retry. Backend is source of truth on
+  // what counts as "scored" — aggregate fixture counters can lag raw rubber edits.
+  const onDelete = async (f: any) => {
+    const homeName = f.homeClubName || f.homeTeamName || `Team #${f.homeTeamId}`;
+    const awayName = f.awayClubName || f.awayTeamName || `Team #${f.awayTeamId}`;
+    if (!confirm(`Delete fixture: ${homeName} vs ${awayName}?`)) return;
+    const tryDelete = async (force: boolean) => {
+      const r = await fetch(`/api/bsl/admin/fixtures/${f.id}${force ? "?force=true" : ""}`, {
+        method: "DELETE", credentials: "include",
+      });
+      return { ok: r.ok, status: r.status, body: await r.json().catch(() => ({})) };
+    };
+    let resp = await tryDelete(false);
+    if (!resp.ok && resp.status === 400 && /force=true/i.test(resp.body?.message || "")) {
+      if (!confirm(`${resp.body.message}\n\nDelete anyway?`)) return;
+      resp = await tryDelete(true);
+    }
+    if (!resp.ok) {
+      toast({ title: "Couldn't delete", description: (resp.body?.message || `HTTP ${resp.status}`).replace(/^\d+:\s*/, ""), variant: "destructive" });
+      return;
+    }
+    qc.invalidateQueries({ queryKey: ["/api/bsl/fixtures"] });
+    qc.invalidateQueries({ queryKey: ["/api/bsl/standings"] });
+    toast({ title: "Fixture deleted" });
+  };
 
   const unassigned = (fixtures || []).filter((f: any) => f.court == null && f.status !== "FINISHED");
   const courts = Array.from({ length: courtCount }, (_, i) => i + 1);
@@ -101,7 +128,7 @@ export default function MatchDayControl() {
                     Drop a fixture here
                   </motion.div>
                 )}
-                {here.map((f: any) => <MatchTile key={f.id} f={f} teamMap={teamMap} onSetStatus={(s) => setStatus.mutate({ id: f.id, status: s })} onEnd={() => onEnd(f.id)} onUnassign={() => updateFixture.mutate({ id: f.id, data: { court: null } })} onDragStart={() => onDragStart(f.id)} />)}
+                {here.map((f: any) => <MatchTile key={f.id} f={f} teamMap={teamMap} onSetStatus={(s) => setStatus.mutate({ id: f.id, status: s })} onEnd={() => onEnd(f.id)} onDelete={() => onDelete(f)} onUnassign={() => updateFixture.mutate({ id: f.id, data: { court: null } })} onDragStart={() => onDragStart(f.id)} />)}
               </AnimatePresence>
             </div>
           );
@@ -118,7 +145,7 @@ export default function MatchDayControl() {
             onDrop={() => onDrop(null)}
             className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3"
           >
-            {unassigned.map((f: any) => <MatchTile key={f.id} f={f} teamMap={teamMap} onSetStatus={(s) => setStatus.mutate({ id: f.id, status: s })} onEnd={() => onEnd(f.id)} onUnassign={null} onDragStart={() => onDragStart(f.id)} />)}
+            {unassigned.map((f: any) => <MatchTile key={f.id} f={f} teamMap={teamMap} onSetStatus={(s) => setStatus.mutate({ id: f.id, status: s })} onEnd={() => onEnd(f.id)} onDelete={() => onDelete(f)} onUnassign={null} onDragStart={() => onDragStart(f.id)} />)}
           </div>
         )}
       </GlowPanel>
@@ -141,7 +168,7 @@ export default function MatchDayControl() {
   );
 }
 
-function MatchTile({ f, teamMap, onSetStatus, onEnd, onUnassign, onDragStart }: any) {
+function MatchTile({ f, teamMap, onSetStatus, onEnd, onDelete, onUnassign, onDragStart }: any) {
   const home = { name: f.homeTeamName || teamMap.get(f.homeTeamId)?.name };
   const away = { name: f.awayTeamName || teamMap.get(f.awayTeamId)?.name };
   const tone = STATUS_TONE[f.status] || STATUS_TONE.SCHEDULED;
@@ -170,7 +197,10 @@ function MatchTile({ f, teamMap, onSetStatus, onEnd, onUnassign, onDragStart }: 
         <ActionButton variant="cyan" onClick={() => onSetStatus("WARMUP")} icon={<Clock className="h-3 w-3" />}>Warm-up</ActionButton>
         <ActionButton variant="gold" onClick={() => onSetStatus("LIVE")} icon={<Play className="h-3 w-3" />}>Start</ActionButton>
         <ActionButton variant="danger" onClick={() => onEnd ? onEnd() : onSetStatus("FINISHED")} icon={<Square className="h-3 w-3" />}>End</ActionButton>
-        {onUnassign && <button onClick={onUnassign} className="ml-auto p-1.5 rounded-md text-[10px]" style={{ background: `${BSL.muted}22`, color: BSL.muted }} data-testid={`button-unassign-${f.id}`}><AlertCircle className="h-3 w-3" /></button>}
+        <div className="ml-auto flex items-center gap-1">
+          {onUnassign && <button onClick={onUnassign} title="Unassign from court" className="p-1.5 rounded-md text-[10px]" style={{ background: `${BSL.muted}22`, color: BSL.muted }} data-testid={`button-unassign-${f.id}`}><AlertCircle className="h-3 w-3" /></button>}
+          {onDelete && <button onClick={onDelete} title="Delete fixture" className="p-1.5 rounded-md" style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }} data-testid={`button-delete-fixture-tile-${f.id}`}><Trash2 className="h-3 w-3" /></button>}
+        </div>
       </div>
     </motion.div>
   );

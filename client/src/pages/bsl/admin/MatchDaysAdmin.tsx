@@ -168,6 +168,31 @@ function MatchDayEditor({ id, league, clubs, onClose }: { id: number; league: an
     onSuccess: () => { refetchAll(); },
     onError: (e: any) => toast({ title: "Couldn't update fixture", description: clean(e?.message), variant: "destructive" }),
   });
+  // Two-phase delete: try without force; if the server says "force required"
+  // (FINISHED status or any raw rubber score), prompt the admin again and
+  // retry with ?force=true. Backend is the source of truth on what counts as
+  // "scored" — frontend aggregate (homeRubbers/awayRubbers) misses raw
+  // mid-match scores, so we always defer to the server message.
+  async function runDeleteFixture(fid: number, label: string) {
+    const tryDelete = async (force: boolean) => {
+      const r = await fetch(`/api/bsl/admin/fixtures/${fid}${force ? "?force=true" : ""}`, {
+        method: "DELETE", credentials: "include",
+      });
+      return { ok: r.ok, status: r.status, body: await r.json().catch(() => ({})) };
+    };
+    if (!confirm(`Delete fixture: ${label}?`)) return;
+    let resp = await tryDelete(false);
+    if (!resp.ok && resp.status === 400 && /force=true/i.test(resp.body?.message || "")) {
+      if (!confirm(`${resp.body.message}\n\nDelete anyway?`)) return;
+      resp = await tryDelete(true);
+    }
+    if (!resp.ok) {
+      toast({ title: "Couldn't delete fixture", description: clean(resp.body?.message) || `HTTP ${resp.status}`, variant: "destructive" });
+      return;
+    }
+    refetchAll();
+    toast({ title: "Fixture deleted" });
+  }
   const addFixture = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/club-fixtures", {
       homeClubId: clubs[0]?.id, awayClubId: clubs[1]?.id, leagueDayId: id,
@@ -297,7 +322,12 @@ function MatchDayEditor({ id, league, clubs, onClose }: { id: number; league: an
                 <div className="space-y-2">
                   {fixtures.map(f => (
                     <FixtureRow key={f.id} f={f} clubs={clubs} disabled={isLocked}
-                      onPatch={(patch) => patchFixture.mutate({ fid: f.id, patch })} />
+                      onPatch={(patch) => patchFixture.mutate({ fid: f.id, patch })}
+                      onDelete={() => {
+                        const home = clubs.find((c: any) => c.id === f.homeClubId)?.name || "Home";
+                        const away = clubs.find((c: any) => c.id === f.awayClubId)?.name || "Away";
+                        runDeleteFixture(f.id, `${home} vs ${away}`);
+                      }} />
                   ))}
                 </div>
               )}
@@ -321,10 +351,10 @@ function MatchDayEditor({ id, league, clubs, onClose }: { id: number; league: an
   );
 }
 
-function FixtureRow({ f, clubs, disabled, onPatch }: { f: any; clubs: any[]; disabled: boolean; onPatch: (p: any) => void }) {
+function FixtureRow({ f, clubs, disabled, onPatch, onDelete }: { f: any; clubs: any[]; disabled: boolean; onPatch: (p: any) => void; onDelete?: () => void }) {
   const dt = f.startTime ? fmtLocal(f.startTime) : "";
   return (
-    <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_120px_auto] gap-2 items-center p-2 rounded-lg" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`row-fixture-${f.id}`}>
+    <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_120px_auto_auto] gap-2 items-center p-2 rounded-lg" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`row-fixture-${f.id}`}>
       <select defaultValue={f.homeClubId || ""} disabled={disabled}
         onChange={(e) => onPatch({ homeClubId: e.target.value ? Number(e.target.value) : null })}
         className="px-2 py-1.5 rounded-md text-xs disabled:opacity-50" style={inp()} data-testid={`select-home-${f.id}`}>
@@ -353,6 +383,16 @@ function FixtureRow({ f, clubs, disabled, onPatch }: { f: any; clubs: any[]; dis
           data-testid={`link-setup-${f.id}`}
         ><ExternalLink className="h-3 w-3" /> Pairs</a>
       </Link>
+      {onDelete && (
+        <button
+          onClick={onDelete}
+          disabled={disabled}
+          title={disabled ? "Locked while LIVE/CLOSED" : "Delete this fixture"}
+          className="p-1.5 rounded-md disabled:opacity-40 hover:opacity-80"
+          style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }}
+          data-testid={`button-delete-fixture-${f.id}`}
+        ><Trash2 className="h-3 w-3" /></button>
+      )}
     </div>
   );
 }
