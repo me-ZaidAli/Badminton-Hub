@@ -35,7 +35,8 @@ Each entry: route + key files. Open `docs/replit-history.md` for full implementa
 ### Birmingham Super League (BSL) — `/bsl`
 Esports-style competition module. Locked palette: bg `222 50% 6%`, cyan `195 100% 60%`, gold `42 95% 55%`. Backend: `server/bsl-routes.ts`. Schema: 5 enums + ~14 `bsl_*` tables in `shared/schema.ts`. **Wallet enum** = `TOPUP | DEDUCTION` (NEVER `DEBIT`).
 
-- **Public**: `/bsl` (LeagueMode), `/bsl/register-club`, `/bsl/join`, `/bsl/wallet`, `/bsl/match/:id`, `/bsl/profile`, `/bsl/my-club`, `/bsl/prizes`.
+- **Public**: `/bsl` (LeagueMode), `/bsl/register-club`, `/bsl/join`, `/bsl/wallet`, `/bsl/match/:id`, `/bsl/profile`, `/bsl/my-club`, `/bsl/prizes`, `/bsl/results` (archive: leaderboard from `/api/bsl/standings` + match days grouped from `/api/bsl/fixtures` + public `GET /api/bsl/league-days` read-only).
+- **Quick Results entry** (`/bsl/admin/quick-results`): bulk-edit form — picks a fixture, lists all rubbers with home/away score inputs, single "Save all" PATCHes `/api/bsl/rubbers/:id` for every changed row.
 - **Admin** (`/bsl/admin/*`, OWNER/ADMIN, sidebar "BSL · Control Panel"): dashboard, league control, match-day live + match-days hub, clubs, players, payments, media, settings, prizes, competition rules. Audit via `audit()` → `bsl_audit_log`.
 - **Share invite**: `client/src/pages/bsl/components/ShareInviteDialog.tsx` (Copy QR PNG via `ClipboardItem`, Save PNG, Web Share). `PrivateRoute` bounces logged-out users to `/login?next=…` (`safeNext()` allows internal `/`-prefix only).
 - **Club-vs-Club fixtures + DnD pair assignment**: `bsl_fixtures.home/away_club_id`. `POST /api/bsl/admin/club-fixtures`, `PATCH /api/bsl/admin/rubbers/:id/assign`. UI `bsl/admin/FixtureSetup.tsx`. All endpoints lifecycle-guarded via `assertFixtureMutable`.

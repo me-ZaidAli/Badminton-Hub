@@ -3,7 +3,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
   Activity, Users, Building2, AlertTriangle, Radio, CheckCircle2,
-  Clock, ShieldAlert, ArrowUpRight, Zap, CreditCard,
+  Clock, ShieldAlert, ArrowUpRight, Zap, CreditCard, ClipboardEdit,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
@@ -91,6 +91,7 @@ export default function BslAdminDashboard() {
         <StatCard label="Flagged Clubs" value={dash?.flaggedClubs} icon={AlertTriangle} tone={dash?.flaggedClubs ? "danger" : "muted"} delay={0.3} href="/bsl/admin/clubs" />
         <StatCard label="Suspensions" value={dash?.suspendedPlayers} icon={ShieldAlert} tone={dash?.suspendedPlayers ? "danger" : "muted"} delay={0.35} href="/bsl/admin/players" />
         <StatCard label="Completed" value={dash?.completedMatches} icon={CheckCircle2} tone="success" delay={0.4} />
+        <StatCard label="Quick Results" value="Enter" hint="type all rubber scores in one form" icon={ClipboardEdit} tone="cyan" delay={0.45} href="/bsl/admin/quick-results" />
       </div>
 
       {/* === AUDIT FEED === */}

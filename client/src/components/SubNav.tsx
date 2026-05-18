@@ -78,6 +78,7 @@ export function BslSubNav() {
   const isAdmin = u && (u.role === "OWNER" || u.role === "ADMIN");
   const items: Item[] = [
     { href: "/bsl", label: "League", icon: Trophy, match: (p) => p === "/bsl" },
+    { href: "/bsl/results", label: "Results", icon: Award, match: (p) => p === "/bsl/results" },
     { href: "/bsl/prizes", label: "Prize Vault", icon: Award },
     { href: "/bsl/wallet", label: "Wallet", icon: WalletIcon, show: !!u },
     { href: "/bsl/my-club", label: "My Club", icon: Users, show: !!u },

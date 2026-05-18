@@ -587,6 +587,14 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // === PUBLIC LEAGUE DAYS (read-only metadata for results archive) ===
+  app.get("/api/bsl/league-days", async (_req, res) => {
+    try {
+      const rows = await db.select().from(bslLeagueDays).orderBy(desc(bslLeagueDays.date));
+      res.json(rows.map(r => ({ id: r.id, date: r.date, venue: r.venue || null, state: (r as any).state || null })));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // === STANDINGS (one row per club; stats aggregated across all the club's pairs) ===
   app.get("/api/bsl/standings", async (req, res) => {
     try {

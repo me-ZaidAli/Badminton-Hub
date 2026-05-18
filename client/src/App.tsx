@@ -185,6 +185,8 @@ const BslAdminPlayers = lazy(() => import("@/pages/bsl/admin/PlayersAdmin"));
 const BslAdminPayments = lazy(() => import("@/pages/bsl/admin/PaymentsAdmin"));
 const BslAdminMedia = lazy(() => import("@/pages/bsl/admin/MediaAdmin"));
 const BslAdminSettings = lazy(() => import("@/pages/bsl/admin/SettingsAdmin"));
+const BslResults = lazy(() => import("@/pages/bsl/Results"));
+const BslAdminQuickResults = lazy(() => import("@/pages/bsl/admin/QuickResults"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
   const { hidden } = useSidebarHidden();
@@ -583,8 +585,14 @@ function Router() {
       <Route path="/bsl/match/:id">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslMatchDetail /></Suspense>} />
       </Route>
+      <Route path="/bsl/results">
+        <Suspense fallback={<LazyFallback />}><BslResults /></Suspense>
+      </Route>
       <Route path="/bsl/admin">
         <BslAdminRoute component={() => <BslAdminDashboard />} />
+      </Route>
+      <Route path="/bsl/admin/quick-results">
+        <BslAdminRoute component={() => <BslAdminQuickResults />} />
       </Route>
       <Route path="/bsl/admin/league">
         <BslAdminRoute component={() => <BslAdminLeague />} />
