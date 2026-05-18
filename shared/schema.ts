@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, date } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -3154,7 +3154,11 @@ export const bslClubs = pgTable("bsl_clubs", {
   categories: text("categories").array().default(sql`ARRAY['MD']::text[]`),
   categoryPairs: jsonb("category_pairs").$type<Record<string, number>>().default({}),
   paymentReference: text("payment_reference").notNull().unique(), // e.g., "BSL-CLUB-XYZ123"
-  paymentProofUrl: text("payment_proof_url"),
+  paymentProofUrl: text("payment_proof_url"), // LEGACY — superseded by payment-details flow (Oct 2026). Kept for old rows.
+  // Self-declared bank-transfer details (manager fills these in; admin cross-checks against bank statement on approval).
+  paymentAmountPence: integer("payment_amount_pence"),
+  paymentDate: date("payment_date"),
+  payerAccountName: text("payer_account_name"),
   inviteCode: text("invite_code").unique(), // generated on approval
   status: bslPaymentStatusEnum("status").notNull().default("PENDING_PAYMENT"),
   rejectionReason: text("rejection_reason"),
@@ -3204,7 +3208,10 @@ export const bslPlayers = pgTable("bsl_players", {
   bslTeamId: integer("bsl_team_id").references(() => bslTeams.id, { onDelete: "set null" }),
   bslClubId: integer("bsl_club_id").references(() => bslClubs.id, { onDelete: "set null" }),
   paymentReference: text("payment_reference").notNull().unique(),
-  paymentProofUrl: text("payment_proof_url"),
+  paymentProofUrl: text("payment_proof_url"), // LEGACY — superseded by payment-details flow (Oct 2026).
+  paymentAmountPence: integer("payment_amount_pence"),
+  paymentDate: date("payment_date"),
+  payerAccountName: text("payer_account_name"),
   status: bslPaymentStatusEnum("status").notNull().default("PENDING_PAYMENT"),
   walletBalance: integer("wallet_balance").notNull().default(0), // in pence
   rejectionReason: text("rejection_reason"),
@@ -3370,7 +3377,9 @@ export const bslWalletTransactions = pgTable("bsl_wallet_transactions", {
   type: bslWalletTxTypeEnum("type").notNull(),
   amount: integer("amount").notNull(), // in pence; positive
   status: bslWalletTxStatusEnum("status").notNull().default("PENDING"),
-  proofUrl: text("proof_url"),
+  proofUrl: text("proof_url"), // LEGACY — superseded by payment-details flow (Oct 2026).
+  paymentDate: date("payment_date"),
+  payerAccountName: text("payer_account_name"),
   reference: text("reference").notNull(),
   description: text("description"),
   reviewedById: integer("reviewed_by_id").references(() => users.id),

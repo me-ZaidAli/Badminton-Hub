@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation, useSearch } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Copy, Hash, Upload, Hourglass, Banknote, Users, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, Hash, Receipt, Hourglass, Banknote, Users, Sparkles } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
@@ -24,7 +24,9 @@ export default function JoinPlayer() {
   const [validatedClub, setValidatedClub] = useState<any>(null);
   const [teamId, setTeamId] = useState<number | null>(null);
   const [createdPlayer, setCreatedPlayer] = useState<any>(null);
-  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [payAmount, setPayAmount] = useState<string>("");
+  const [payDate, setPayDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [payerName, setPayerName] = useState<string>("");
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   // If the user is already a BSL player, don't keep them stuck in the join wizard —
@@ -90,15 +92,20 @@ export default function JoinPlayer() {
 
   const proofMutation = useMutation({
     mutationFn: async () => {
-      if (!proofFile || !createdPlayer) throw new Error("Missing");
-      const fd = new FormData();
-      fd.append("proof", proofFile);
-      const r = await fetch(`/api/bsl/players/${createdPlayer.id}/payment-proof`, { method: "POST", body: fd, credentials: "include" });
-      if (!r.ok) throw new Error(await r.text());
+      if (!createdPlayer) throw new Error("Missing player");
+      const amount = Math.round(parseFloat(payAmount) * 100);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a positive payment amount.");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payDate)) throw new Error("Pick the date you sent the transfer.");
+      if (payerName.trim().length < 2) throw new Error("Enter the bank account name you paid from.");
+      const r = await apiRequest("POST", `/api/bsl/players/${createdPlayer.id}/payment-proof`, {
+        paymentAmountPence: amount,
+        paymentDate: payDate,
+        payerAccountName: payerName.trim(),
+      });
       return r.json();
     },
     onSuccess: (p) => { setCreatedPlayer(p); setStep("done"); qc.invalidateQueries({ queryKey: ["/api/bsl/players/me"] }); },
-    onError: (e: any) => toast({ title: "Upload failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Could not submit", description: e.message, variant: "destructive" }),
   });
 
   return (
@@ -119,7 +126,7 @@ export default function JoinPlayer() {
           step === "code" ? "Invite Code" :
           step === "team" ? "Pick Your Team" :
           step === "payment" ? "Bank Transfer" :
-          step === "proof" ? "Upload Proof" : "Pending"
+          step === "proof" ? "Payment Details" : "Pending"
         } tone="cyan">
           <AnimatePresence mode="wait">
             <motion.div key={step} initial={{ opacity: 0, x: 20 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -20 }} transition={{ duration: 0.3 }}>
@@ -228,25 +235,46 @@ export default function JoinPlayer() {
               )}
               {step === "proof" && (
                 <div className="space-y-4">
+                  <p className="text-sm" style={{ color: BSL.muted }}>
+                    Tell us about the transfer you sent. Admin will cross-check it against the bank statement.
+                  </p>
                   <label className="block">
-                    <input type="file" accept="image/*" hidden onChange={e => setProofFile(e.target.files?.[0] || null)} data-testid="input-player-proof" />
-                    <div className="h-44 rounded-xl flex flex-col items-center justify-center cursor-pointer"
-                      style={{ background: "hsla(0,0%,100%,0.04)", border: `2px dashed hsla(0,0%,100%,0.2)` }}>
-                      {proofFile ? (
-                        <div className="text-center">
-                          <Check className="h-10 w-10 mx-auto mb-2" style={{ color: BSL.success }} />
-                          <div className="text-sm font-semibold">{proofFile.name}</div>
-                        </div>
-                      ) : (
-                        <>
-                          <Upload className="h-8 w-8 mb-2" style={{ color: BSL.cyan }} />
-                          <div className="text-sm" style={{ color: BSL.muted }}>Upload payment confirmation</div>
-                        </>
-                      )}
-                    </div>
+                    <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Amount paid (£)</div>
+                    <input
+                      type="number" inputMode="decimal" min="0" step="0.01"
+                      value={payAmount}
+                      onChange={e => setPayAmount(e.target.value)}
+                      placeholder={`${((league?.playerFee || 0) / 100).toFixed(2)}`}
+                      className="w-full px-3 py-2.5 rounded-lg text-base font-mono outline-none"
+                      style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid ${BSL.cyan}55`, color: "white" }}
+                      data-testid="input-player-pay-amount"
+                    />
                   </label>
-                  <ActionButton variant="cyan" fullWidth onClick={() => proofMutation.mutate()} loading={proofMutation.isPending} disabled={!proofFile}>
-                    Submit Proof
+                  <label className="block">
+                    <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Date of payment</div>
+                    <input
+                      type="date"
+                      value={payDate}
+                      onChange={e => setPayDate(e.target.value)}
+                      className="w-full px-3 py-2.5 rounded-lg text-base font-mono outline-none"
+                      style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid ${BSL.cyan}55`, color: "white" }}
+                      data-testid="input-player-pay-date"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Account name (payer)</div>
+                    <input
+                      type="text" maxLength={120}
+                      value={payerName}
+                      onChange={e => setPayerName(e.target.value)}
+                      placeholder="Name on the bank account you paid from"
+                      className="w-full px-3 py-2.5 rounded-lg text-base outline-none"
+                      style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid ${BSL.cyan}55`, color: "white" }}
+                      data-testid="input-player-payer-name"
+                    />
+                  </label>
+                  <ActionButton variant="cyan" fullWidth onClick={() => proofMutation.mutate()} loading={proofMutation.isPending} disabled={!payAmount || !payDate || payerName.trim().length < 2} icon={<Receipt className="h-4 w-4" />}>
+                    Submit Payment Details
                   </ActionButton>
                 </div>
               )}

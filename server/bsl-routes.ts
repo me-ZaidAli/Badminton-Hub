@@ -345,14 +345,23 @@ export function registerBslRoutes(app: Express) {
       res.json(created);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
-  app.post("/api/bsl/clubs/:id/payment-proof", requireAuth, bslUpload.single("proof"), async (req, res) => {
+  // Self-declared bank-transfer details (no picture upload). Admin will cross-check against the bank statement on approval.
+  app.post("/api/bsl/clubs/:id/payment-proof", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const file = (req as any).file;
-      if (!file) return res.status(400).json({ message: "No file uploaded" });
-      const proofUrl = await saveBufferToBucket(file.buffer, "bsl", file.originalname);
+      const user = (req as any).user;
+      const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const owns = club.managerUserId === user.id || (club as any).contactUserId === user.id || (Array.isArray((club as any).adminUserIds) && (club as any).adminUserIds.includes(user.id));
+      if (!owns && !isAdminish(user)) return res.status(403).json({ message: "Not your club" });
+      const amount = Math.trunc(Number(req.body.paymentAmountPence));
+      const paymentDate = String(req.body.paymentDate || "").trim();
+      const payerAccountName = String(req.body.payerAccountName || "").trim().slice(0, 120);
+      if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: "Enter a positive payment amount." });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return res.status(400).json({ message: "Enter the date you sent the transfer (YYYY-MM-DD)." });
+      if (payerAccountName.length < 2) return res.status(400).json({ message: "Enter the bank account name you paid from." });
       const [updated] = await db.update(bslClubs)
-        .set({ paymentProofUrl: proofUrl, status: "PENDING_VERIFICATION" })
+        .set({ paymentAmountPence: amount, paymentDate, payerAccountName, status: "PENDING_VERIFICATION" })
         .where(eq(bslClubs.id, id)).returning();
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -555,14 +564,21 @@ export function registerBslRoutes(app: Express) {
       res.json(created);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
-  app.post("/api/bsl/players/:id/payment-proof", requireAuth, bslUpload.single("proof"), async (req, res) => {
+  app.post("/api/bsl/players/:id/payment-proof", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const file = (req as any).file;
-      if (!file) return res.status(400).json({ message: "No file uploaded" });
-      const proofUrl = await saveBufferToBucket(file.buffer, "bsl", file.originalname);
+      const user = (req as any).user;
+      const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!player) return res.status(404).json({ message: "Player not found" });
+      if (player.userId !== user.id && !isAdminish(user)) return res.status(403).json({ message: "Not your player record" });
+      const amount = Math.trunc(Number(req.body.paymentAmountPence));
+      const paymentDate = String(req.body.paymentDate || "").trim();
+      const payerAccountName = String(req.body.payerAccountName || "").trim().slice(0, 120);
+      if (!Number.isFinite(amount) || amount <= 0) return res.status(400).json({ message: "Enter a positive payment amount." });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return res.status(400).json({ message: "Enter the date you sent the transfer (YYYY-MM-DD)." });
+      if (payerAccountName.length < 2) return res.status(400).json({ message: "Enter the bank account name you paid from." });
       const [updated] = await db.update(bslPlayers).set({
-        paymentProofUrl: proofUrl, status: "PENDING_VERIFICATION",
+        paymentAmountPence: amount, paymentDate, payerAccountName, status: "PENDING_VERIFICATION",
       }).where(eq(bslPlayers.id, id)).returning();
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -1173,7 +1189,7 @@ export function registerBslRoutes(app: Express) {
       res.json({ balance: p.walletBalance, playerId: p.id, transactions: txs });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
-  app.post("/api/bsl/wallet/topup", requireAuth, bslUpload.single("proof"), async (req, res) => {
+  app.post("/api/bsl/wallet/topup", requireAuth, async (req, res) => {
     try {
       const user = (req as any).user;
       const [p] = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, user.id)).limit(1);
@@ -1220,12 +1236,14 @@ export function registerBslRoutes(app: Express) {
         return res.status(400).json({ message: "Total must be a positive integer in pence (max £10,000)" });
       }
 
-      const file = (req as any).file;
       const reference = genRef("BSL-TOPUP");
-      const proofUrl = file ? await saveBufferToBucket(file.buffer, "bsl", file.originalname) : null;
+      const paymentDate = String(req.body.paymentDate || "").trim();
+      const payerAccountName = String(req.body.payerAccountName || "").trim().slice(0, 120);
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(paymentDate)) return res.status(400).json({ message: "Enter the date you sent the transfer (YYYY-MM-DD)." });
+      if (payerAccountName.length < 2) return res.status(400).json({ message: "Enter the bank account name you paid from." });
       const [tx] = await db.insert(bslWalletTransactions).values({
         bslPlayerId: p.id, type: "TOPUP", amount, reference,
-        proofUrl,
+        paymentDate, payerAccountName,
         description,
       } as any).returning();
       res.json(tx);

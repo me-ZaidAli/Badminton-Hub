@@ -1,7 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { ArrowLeft, Check, X, ExternalLink, Shield, Users, Wallet as WalletIcon } from "lucide-react";
+import { ArrowLeft, Check, X, Shield, Users, Wallet as WalletIcon } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
@@ -77,12 +77,7 @@ export default function AdminVerify() {
                       <div className="font-bold truncate">{c.name}</div>
                       <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{c.division} · {c.teamCount} team{c.teamCount > 1 ? "s" : ""} · ref {c.paymentReference}</div>
                     </div>
-                    {c.paymentProofUrl && (
-                      <a href={c.paymentProofUrl} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-lg"
-                        style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>
-                        <ExternalLink className="h-3 w-3" /> View proof
-                      </a>
-                    )}
+                    <PayDetails amount={c.paymentAmountPence} date={c.paymentDate} payer={c.payerAccountName} testid={`paydetails-club-${c.id}`} />
                     <ActionButton variant="gold" onClick={() => approveClub.mutate(c.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton>
                     <ActionButton variant="danger" onClick={() => rejectClub.mutate(c.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton>
                   </div>
@@ -102,12 +97,7 @@ export default function AdminVerify() {
                       <div className="font-bold" data-testid={`text-player-name-${p.id}`}>{p.displayName || `Player #${p.userId}`}</div>
                       <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{p.email ? `${p.email} · ` : ""}ref {p.paymentReference}</div>
                     </div>
-                    {p.paymentProofUrl && (
-                      <a href={p.paymentProofUrl} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-lg"
-                        style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>
-                        <ExternalLink className="h-3 w-3" /> View proof
-                      </a>
-                    )}
+                    <PayDetails amount={p.paymentAmountPence} date={p.paymentDate} payer={p.payerAccountName} testid={`paydetails-player-${p.id}`} />
                     <ActionButton variant="cyan" onClick={() => approvePlayer.mutate(p.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton>
                     <ActionButton variant="danger" onClick={() => rejectPlayer.mutate(p.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton>
                   </div>
@@ -127,12 +117,7 @@ export default function AdminVerify() {
                       <div className="font-bold">£{(w.amount / 100).toFixed(2)} · {w.description || w.type}</div>
                       <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}><span data-testid={`text-pending-tx-player-${w.id}`}>{w.playerName || (w.bslPlayerId ? `Player #${w.bslPlayerId}` : "—")}</span> · ref {w.reference}</div>
                     </div>
-                    {w.proofUrl && (
-                      <a href={w.proofUrl} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-lg"
-                        style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>
-                        <ExternalLink className="h-3 w-3" /> View
-                      </a>
-                    )}
+                    <PayDetails amount={w.amount} date={w.paymentDate} payer={w.payerAccountName} testid={`paydetails-tx-${w.id}`} />
                     <ActionButton variant="gold" onClick={() => approveTx.mutate(w.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton>
                     <ActionButton variant="danger" onClick={() => rejectTx.mutate(w.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton>
                   </div>
@@ -142,6 +127,18 @@ export default function AdminVerify() {
           </GlowPanel>
         </div>
       </div>
+    </div>
+  );
+}
+
+function PayDetails({ amount, date, payer, testid }: { amount?: number | null; date?: string | null; payer?: string | null; testid?: string }) {
+  if (amount == null && !date && !payer) return null;
+  const fmtDate = date ? new Date(date).toLocaleDateString("en-GB") : "—";
+  const fmtAmount = typeof amount === "number" ? `£${(amount / 100).toFixed(2)}` : "—";
+  return (
+    <div className="text-[10px] inline-flex flex-col gap-0.5 px-3 py-1.5 rounded-lg" style={{ background: `${BSL.cyan}14`, color: BSL.cyan, border: `1px solid ${BSL.cyan}33` }} data-testid={testid}>
+      <span className="font-mono font-bold">{fmtAmount} · {fmtDate}</span>
+      <span className="text-white/70 truncate max-w-[180px]" title={payer || ""}>{payer || "No name supplied"}</span>
     </div>
   );
 }

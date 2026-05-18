@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Wallet as WalletIcon, Upload, Check, X, Hourglass, Copy, Banknote, RotateCcw } from "lucide-react";
+import { ArrowLeft, Plus, Wallet as WalletIcon, Receipt, Check, X, Hourglass, Copy, Banknote, RotateCcw } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { BslSubNav } from "@/components/SubNav";
 import { GlowPanel } from "./components/GlowPanel";
@@ -23,7 +23,8 @@ export default function Wallet() {
   const MAX_CLICKS = 200;
   const [clicks, setClicks] = useState<string[]>([]);
   const [customPounds, setCustomPounds] = useState<string>("");
-  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [payDate, setPayDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [payerName, setPayerName] = useState<string>("");
 
   const { data: wallet } = useQuery<any>({ queryKey: ["/api/bsl/wallet/me"] });
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
@@ -59,17 +60,25 @@ export default function Wallet() {
   const topupMutation = useMutation({
     mutationFn: async () => {
       if (summary.totalPence <= 0) throw new Error("Add at least one package or a custom amount.");
-      const fd = new FormData();
-      fd.append("clickHistory", JSON.stringify(clicks));
-      if (customPence > 0) fd.append("customAmountPence", String(customPence));
-      if (proofFile) fd.append("proof", proofFile);
-      const r = await fetch("/api/bsl/wallet/topup", { method: "POST", body: fd, credentials: "include" });
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payDate)) throw new Error("Pick the date you sent the transfer.");
+      if (payerName.trim().length < 2) throw new Error("Enter the bank account name you paid from.");
+      const r = await fetch("/api/bsl/wallet/topup", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          clickHistory: clicks,
+          customAmountPence: customPence > 0 ? customPence : undefined,
+          paymentDate: payDate,
+          payerAccountName: payerName.trim(),
+        }),
+      });
       if (!r.ok) throw new Error(await r.text());
       return r.json();
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["/api/bsl/wallet/me"] });
-      setShowTopup(false); setProofFile(null); setClicks([]); setCustomPounds("");
+      setShowTopup(false); setPayerName(""); setClicks([]); setCustomPounds("");
       toast({ title: "Top-up submitted", description: "Awaiting admin approval." });
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
@@ -339,24 +348,33 @@ export default function Wallet() {
                   ))}
                 </div>
 
-                {/* Proof upload */}
-                <label className="block">
-                  <input type="file" accept="image/*" hidden onChange={e => setProofFile(e.target.files?.[0] || null)} data-testid="input-topup-proof" />
-                  <div className="h-28 rounded-xl flex flex-col items-center justify-center cursor-pointer"
-                    style={{ background: "hsla(0,0%,100%,0.04)", border: `2px dashed hsla(0,0%,100%,0.2)` }}>
-                    {proofFile ? (
-                      <div className="text-center">
-                        <Check className="h-6 w-6 mx-auto mb-1" style={{ color: BSL.success }} />
-                        <div className="text-xs font-semibold">{proofFile.name}</div>
-                      </div>
-                    ) : (
-                      <>
-                        <Upload className="h-6 w-6 mb-1" style={{ color: BSL.cyan }} />
-                        <div className="text-xs" style={{ color: BSL.muted }}>Upload bank confirmation</div>
-                      </>
-                    )}
-                  </div>
-                </label>
+                {/* Payment details (no picture upload — admin cross-checks the bank statement) */}
+                <div className="rounded-xl p-3 space-y-3" style={{ background: "hsla(0,0%,100%,0.04)", border: `1px solid ${BSL.cyan}33` }}>
+                  <div className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.cyan }}>Your Payment Details</div>
+                  <label className="block">
+                    <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Date of payment</div>
+                    <input
+                      type="date"
+                      value={payDate}
+                      onChange={e => setPayDate(e.target.value)}
+                      className="w-full px-3 py-2 rounded-lg text-sm font-mono outline-none"
+                      style={{ background: "hsla(0,0%,100%,0.06)", border: `1px solid ${BSL.cyan}33`, color: "white" }}
+                      data-testid="input-topup-pay-date"
+                    />
+                  </label>
+                  <label className="block">
+                    <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Account name (payer)</div>
+                    <input
+                      type="text" maxLength={120}
+                      value={payerName}
+                      onChange={e => setPayerName(e.target.value)}
+                      placeholder="Name on the bank account you paid from"
+                      className="w-full px-3 py-2 rounded-lg text-sm outline-none"
+                      style={{ background: "hsla(0,0%,100%,0.06)", border: `1px solid ${BSL.cyan}33`, color: "white" }}
+                      data-testid="input-topup-payer-name"
+                    />
+                  </label>
+                </div>
 
                 <ActionButton
                   variant="gold"

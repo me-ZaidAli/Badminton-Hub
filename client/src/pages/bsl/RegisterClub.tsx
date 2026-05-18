@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, ArrowRight, Check, Copy, Upload, Building2, ImageIcon, Award, Users, Banknote, Hourglass, Sparkles } from "lucide-react";
+import { ArrowLeft, ArrowRight, Check, Copy, Building2, ImageIcon, Award, Users, Banknote, Hourglass, Sparkles, Receipt } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
@@ -16,7 +16,7 @@ const STEPS = [
   { key: "division", label: "Division", icon: Award },
   { key: "categories", label: "Categories", icon: Users },
   { key: "payment", label: "Bank Transfer", icon: Banknote },
-  { key: "proof", label: "Upload Proof", icon: Upload },
+  { key: "proof", label: "Payment Details", icon: Receipt },
   { key: "done", label: "Pending", icon: Hourglass },
 ];
 
@@ -33,7 +33,9 @@ export default function RegisterClub() {
     setCategoryPairs(prev => ({ ...prev, [cat]: Math.max(0, Math.min(8, (prev[cat] || 0) + delta)) }));
   const [logoUrl, setLogoUrl] = useState<string | null>(null);
   const [logoFile, setLogoFile] = useState<File | null>(null);
-  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [payAmount, setPayAmount] = useState<string>(""); // pounds
+  const [payDate, setPayDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [payerName, setPayerName] = useState<string>("");
   const [createdClub, setCreatedClub] = useState<any>(null);
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
@@ -53,11 +55,16 @@ export default function RegisterClub() {
 
   const uploadProofMutation = useMutation({
     mutationFn: async () => {
-      if (!proofFile || !createdClub) throw new Error("Missing file or club");
-      const fd = new FormData();
-      fd.append("proof", proofFile);
-      const r = await fetch(`/api/bsl/clubs/${createdClub.id}/payment-proof`, { method: "POST", body: fd, credentials: "include" });
-      if (!r.ok) throw new Error(await r.text());
+      if (!createdClub) throw new Error("Missing club");
+      const amount = Math.round(parseFloat(payAmount) * 100);
+      if (!Number.isFinite(amount) || amount <= 0) throw new Error("Enter a positive payment amount.");
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(payDate)) throw new Error("Pick the date you sent the transfer.");
+      if (payerName.trim().length < 2) throw new Error("Enter the bank account name you paid from.");
+      const r = await apiRequest("POST", `/api/bsl/clubs/${createdClub.id}/payment-proof`, {
+        paymentAmountPence: amount,
+        paymentDate: payDate,
+        payerAccountName: payerName.trim(),
+      });
       return r.json();
     },
     onSuccess: (updated) => {
@@ -65,7 +72,7 @@ export default function RegisterClub() {
       qc.invalidateQueries({ queryKey: ["/api/bsl/clubs"] });
       setStep(6);
     },
-    onError: (e: any) => toast({ title: "Upload failed", description: e.message, variant: "destructive" }),
+    onError: (e: any) => toast({ title: "Could not submit", description: e.message, variant: "destructive" }),
   });
 
   const handleLogoFile = async (file: File) => {
@@ -294,27 +301,46 @@ export default function RegisterClub() {
               )}
               {step === 5 && (
                 <div className="space-y-4">
-                  <p className="text-sm" style={{ color: BSL.muted }}>Upload a screenshot or photo of your bank transfer confirmation.</p>
-                  <label className="block">
-                    <input type="file" accept="image/*" hidden onChange={e => setProofFile(e.target.files?.[0] || null)} data-testid="input-proof" />
-                    <div
-                      className="h-44 rounded-xl flex flex-col items-center justify-center cursor-pointer"
-                      style={{ background: "hsla(0,0%,100%,0.04)", border: `2px dashed hsla(0,0%,100%,0.2)` }}
-                    >
-                      {proofFile ? (
-                        <div className="text-center">
-                          <Check className="h-10 w-10 mx-auto mb-2" style={{ color: BSL.success }} />
-                          <div className="text-sm font-semibold">{proofFile.name}</div>
-                          <div className="text-xs mt-1" style={{ color: BSL.muted }}>Click to change</div>
-                        </div>
-                      ) : (
-                        <>
-                          <Upload className="h-8 w-8 mb-2" style={{ color: BSL.cyan }} />
-                          <div className="text-sm" style={{ color: BSL.muted }}>Click to upload proof of payment</div>
-                        </>
-                      )}
-                    </div>
-                  </label>
+                  <p className="text-sm" style={{ color: BSL.muted }}>
+                    Tell us about the transfer you just sent. The admin will cross-check this against our bank statement and approve your club.
+                  </p>
+                  <div className="space-y-3">
+                    <label className="block">
+                      <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Amount paid (£)</div>
+                      <input
+                        type="number" inputMode="decimal" min="0" step="0.01"
+                        value={payAmount}
+                        onChange={e => setPayAmount(e.target.value)}
+                        placeholder="e.g. 250.00"
+                        className="w-full px-3 py-2.5 rounded-lg text-base font-mono"
+                        style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid ${BSL.cyan}55`, color: BSL.text }}
+                        data-testid="input-pay-amount"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Date of payment</div>
+                      <input
+                        type="date"
+                        value={payDate}
+                        onChange={e => setPayDate(e.target.value)}
+                        className="w-full px-3 py-2.5 rounded-lg text-base font-mono"
+                        style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid ${BSL.cyan}55`, color: BSL.text }}
+                        data-testid="input-pay-date"
+                      />
+                    </label>
+                    <label className="block">
+                      <div className="text-[10px] uppercase tracking-widest mb-1 font-bold" style={{ color: BSL.muted }}>Account name (payer)</div>
+                      <input
+                        type="text" maxLength={120}
+                        value={payerName}
+                        onChange={e => setPayerName(e.target.value)}
+                        placeholder="Name on the bank account you paid from"
+                        className="w-full px-3 py-2.5 rounded-lg text-base"
+                        style={{ background: "hsla(0,0%,100%,0.05)", border: `1px solid ${BSL.cyan}55`, color: BSL.text }}
+                        data-testid="input-payer-name"
+                      />
+                    </label>
+                  </div>
                 </div>
               )}
               {step === 6 && createdClub && (
@@ -351,8 +377,8 @@ export default function RegisterClub() {
               ) : step === 4 ? (
                 <ActionButton variant="gold" onClick={next} icon={<Check className="h-4 w-4" />}>I Have Paid</ActionButton>
               ) : step === 5 ? (
-                <ActionButton variant="gold" onClick={() => uploadProofMutation.mutate()} loading={uploadProofMutation.isPending} disabled={!proofFile} icon={<Upload className="h-4 w-4" />}>
-                  Submit Proof
+                <ActionButton variant="gold" onClick={() => uploadProofMutation.mutate()} loading={uploadProofMutation.isPending} disabled={!payAmount || !payDate || payerName.trim().length < 2} icon={<Receipt className="h-4 w-4" />}>
+                  Submit Payment Details
                 </ActionButton>
               ) : (
                 <ActionButton variant="gold" onClick={next} disabled={!canProceed} icon={<ArrowRight className="h-4 w-4" />}>Next</ActionButton>

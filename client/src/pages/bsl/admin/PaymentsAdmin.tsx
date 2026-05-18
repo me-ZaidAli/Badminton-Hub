@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { CreditCard, Check, X, ExternalLink, Download, History, Wallet as WalletIcon } from "lucide-react";
+import { CreditCard, Check, X, Download, History, Wallet as WalletIcon } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -60,19 +60,19 @@ export default function PaymentsAdmin() {
               <div className="h-10 w-10 rounded-lg flex items-center justify-center text-xs font-black overflow-hidden" style={{ background: `${BSL.gold}22`, color: BSL.gold }}>{c.logoUrl ? <img src={c.logoUrl} className="h-full w-full object-cover" alt="" /> : c.name.slice(0,2)}</div>
               <div><div className="font-bold">{c.name}</div><div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{c.division} · {c.teamCount}t · ref {c.paymentReference}</div></div>
             </>}
-            proof={c.paymentProofUrl}
+            pay={{ amount: c.paymentAmountPence, date: c.paymentDate, payer: c.payerAccountName }}
             actions={<><ActionButton variant="gold" onClick={() => approveClub.mutate(c.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton><ActionButton variant="danger" onClick={() => rejectClub.mutate(c.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton></>}
           />} />
 
           <Queue title="Pending Players" tone="cyan" items={pending?.players} renderItem={(p: any) => <Row key={p.id} testid={`pending-player-${p.id}`}
             left={<><div><div className="font-bold" data-testid={`text-pending-player-name-${p.id}`}>{p.displayName || `Player #${p.userId}`}</div><div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>{p.email ? `${p.email} · ` : ""}ref {p.paymentReference}</div></div></>}
-            proof={p.paymentProofUrl}
+            pay={{ amount: p.paymentAmountPence, date: p.paymentDate, payer: p.payerAccountName }}
             actions={<><ActionButton variant="cyan" onClick={() => approvePlayer.mutate(p.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton><ActionButton variant="danger" onClick={() => rejectPlayer.mutate(p.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton></>}
           />} />
 
           <Queue title="Wallet Top-Ups" tone="gold" items={pending?.wallets} renderItem={(w: any) => <Row key={w.id} testid={`pending-tx-${w.id}`}
             left={<><WalletIcon className="h-5 w-5" style={{ color: BSL.gold }} /><div><div className="font-bold">£{(w.amount/100).toFixed(2)} · {w.description || w.type}</div><div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}><span data-testid={`text-tx-player-${w.id}`}>{w.playerName || (w.bslPlayerId ? `Player #${w.bslPlayerId}` : "—")}</span> · ref {w.reference}</div></div></>}
-            proof={w.proofUrl}
+            pay={{ amount: w.amount, date: w.paymentDate, payer: w.payerAccountName }}
             actions={<><ActionButton variant="gold" onClick={() => approveTx.mutate(w.id)} icon={<Check className="h-3 w-3" />}>Approve</ActionButton><ActionButton variant="danger" onClick={() => rejectTx.mutate(w.id)} icon={<X className="h-3 w-3" />}>Reject</ActionButton></>}
           />} />
         </div>
@@ -117,11 +117,19 @@ function Queue({ title, tone, items, renderItem }: any) {
     </GlowPanel>
   );
 }
-function Row({ left, proof, actions, testid }: any) {
+function Row({ left, pay, actions, testid }: any) {
+  const hasPay = pay && (pay.amount != null || pay.date || pay.payer);
+  const fmtDate = pay?.date ? new Date(pay.date).toLocaleDateString("en-GB") : "—";
+  const fmtAmount = typeof pay?.amount === "number" ? `£${(pay.amount / 100).toFixed(2)}` : "—";
   return (
     <motion.div initial={{ opacity: 0, x: -8 }} animate={{ opacity: 1, x: 0 }} className="flex flex-wrap items-center gap-3 p-3 rounded-lg" style={{ background: "hsla(0,0%,100%,0.03)" }} data-testid={testid}>
       <div className="flex items-center gap-3 flex-1 min-w-0">{left}</div>
-      {proof && <a href={proof} target="_blank" rel="noreferrer" className="text-xs inline-flex items-center gap-1 px-3 py-1.5 rounded-lg" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}><ExternalLink className="h-3 w-3" /> View proof</a>}
+      {hasPay && (
+        <div className="text-[10px] inline-flex flex-col gap-0.5 px-3 py-1.5 rounded-lg" style={{ background: `${BSL.cyan}14`, color: BSL.cyan, border: `1px solid ${BSL.cyan}33` }}>
+          <span className="font-mono font-bold">{fmtAmount} · {fmtDate}</span>
+          <span className="text-white/70 truncate max-w-[180px]" title={pay?.payer || ""}>{pay?.payer || "No name supplied"}</span>
+        </div>
+      )}
       <div className="flex gap-1">{actions}</div>
     </motion.div>
   );
