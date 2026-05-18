@@ -3234,6 +3234,10 @@ export const bslPlayers = pgTable("bsl_players", {
   // Player grade code from bslLeagues.playerGrades (e.g. "A1"/"B2"/"C3").
   // Null = ungraded — blocked from any division that has restrictions set.
   grade: text("grade"),
+  // Which division (within the club) the player is assigned to. Required when
+  // the club participates in more than one division (primary ∪ additionalDivisions).
+  // Defaults to the club's primary division on create.
+  division: text("division"),
   // Set when the BSL club owner confirms this player onto their roster.
   confirmedByOwnerAt: timestamp("confirmed_by_owner_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

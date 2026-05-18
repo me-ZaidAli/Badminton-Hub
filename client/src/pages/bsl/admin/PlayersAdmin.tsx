@@ -157,6 +157,7 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
   const [search, setSearch] = useState("");
   const [picked, setPicked] = useState<any | null>(null);
   const [clubId, setClubId] = useState<number | "">("");
+  const [division, setDivision] = useState<string>("");
   const [displayName, setDisplayName] = useState("");
   const [activate, setActivate] = useState(true);
   const [showCreateUser, setShowCreateUser] = useState(false);
@@ -176,9 +177,17 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
     enabled: !picked,
   });
 
+  // All (club × division) combinations, so a multi-division club appears once
+  // per division it has actually joined.
+  const clubDivisionOptions = (clubs || []).flatMap((c: any) => {
+    const divs = Array.from(new Set([c.division, ...(Array.isArray(c.additionalDivisions) ? c.additionalDivisions : [])].filter(Boolean)));
+    return divs.map((d: string) => ({ id: c.id, name: c.name, division: d, key: `${c.id}::${d}` }));
+  });
+  const selectedKey = clubId && division ? `${clubId}::${division}` : "";
+
   const create = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/players", {
-      userId: picked.id, bslClubId: Number(clubId),
+      userId: picked.id, bslClubId: Number(clubId), division,
       displayName: displayName || picked.fullName, activate,
     })).json(),
     onSuccess: () => { toast({ title: "Player created" }); onCreated(); },
@@ -254,11 +263,29 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
           )}
         </Section>
 
-        <Section title="2. Assign to a club">
-          <select value={clubId} onChange={e => setClubId(e.target.value ? Number(e.target.value) : "")} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-create-player-club">
-            <option value="">— Pick a club —</option>
-            {clubs.map((c: any) => <option key={c.id} value={c.id}>{c.name} · {c.division}</option>)}
+        <Section title="2. Assign to a club + division">
+          <select
+            value={selectedKey}
+            onChange={e => {
+              const [cid, div] = e.target.value.split("::");
+              if (!cid) { setClubId(""); setDivision(""); return; }
+              setClubId(Number(cid));
+              setDivision(div || "");
+            }}
+            className="w-full px-3 py-2 rounded-lg text-sm"
+            style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+            data-testid="select-create-player-club"
+          >
+            <option value="" style={{ background: BSL.cardSoft, color: "white" }}>— Pick a club + division —</option>
+            {clubDivisionOptions.map(o => (
+              <option key={o.key} value={o.key} style={{ background: BSL.cardSoft, color: "white" }}>
+                {o.name} · {o.division}
+              </option>
+            ))}
           </select>
+          {clubDivisionOptions.length === 0 && (
+            <div className="text-[10px] mt-1" style={{ color: BSL.muted }}>No clubs available — create one first.</div>
+          )}
         </Section>
 
         <Section title="3. Display name (optional)">
@@ -272,7 +299,7 @@ function CreatePlayerDialog({ clubs, onClose, onCreated }: any) {
 
         <div className="flex justify-end gap-2 pt-2">
           <button onClick={onClose} className="px-4 py-2 rounded-lg text-sm font-bold" style={{ background: BSL.cardSoft, color: BSL.muted }} data-testid="button-cancel-create-player">Cancel</button>
-          <ActionButton variant="cyan" onClick={() => create.mutate()} disabled={!picked || !clubId || create.isPending} icon={<UserPlus className="h-3 w-3" />} testid="button-confirm-create-player">
+          <ActionButton variant="cyan" onClick={() => create.mutate()} disabled={!picked || !clubId || !division || create.isPending} icon={<UserPlus className="h-3 w-3" />} testid="button-confirm-create-player">
             {create.isPending ? "Creating…" : "Create player"}
           </ActionButton>
         </div>

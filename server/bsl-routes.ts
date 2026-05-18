@@ -1454,13 +1454,24 @@ export function registerBslRoutes(app: Express) {
       if (!club) return res.status(404).json({ message: "Club not found" });
       const existing = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, uid)).limit(1);
       if (existing.length) return res.status(400).json({ message: "User already has a BSL player profile", player: existing[0] });
-      // Optional grade at create-time. If the destination club's division has
+      // Pick which division (within the club) the player is joining. Falls back
+      // to the club's primary division. Must be one of the club's joined divisions
+      // (primary ∪ additionalDivisions).
+      const clubDivisions = [
+        club.division,
+        ...(Array.isArray((club as any).additionalDivisions) ? (club as any).additionalDivisions : []),
+      ].filter(Boolean);
+      const requestedDivision = req.body.division ? String(req.body.division).trim() : club.division;
+      if (!clubDivisions.includes(requestedDivision)) {
+        return res.status(400).json({ message: `${club.name} is not in division "${requestedDivision}". Joined: ${clubDivisions.join(", ")}` });
+      }
+      // Optional grade at create-time. If the chosen division has
       // restrictions, enforce — admins still need to respect the rules they set.
       const grade = req.body.grade ? String(req.body.grade).trim().toUpperCase().slice(0, 12) : null;
       const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
-      if (!isGradeAllowedInDivision(grade, club.division, league?.divisionGrades as any)) {
-        const allowed = (league?.divisionGrades as any)?.[club.division] || [];
-        return res.status(400).json({ message: `Grade "${grade || "ungraded"}" is not allowed in ${club.division}. Allowed: ${allowed.join(", ")}` });
+      if (!isGradeAllowedInDivision(grade, requestedDivision, league?.divisionGrades as any)) {
+        const allowed = (league?.divisionGrades as any)?.[requestedDivision] || [];
+        return res.status(400).json({ message: `Grade "${grade || "ungraded"}" is not allowed in ${requestedDivision}. Allowed: ${allowed.join(", ")}` });
       }
       const paymentReference = genRef("BSL-PLR");
       const [created] = await db.insert(bslPlayers).values({
@@ -1468,6 +1479,7 @@ export function registerBslRoutes(app: Express) {
         bslClubId: cid,
         displayName: displayName || null,
         grade,
+        division: requestedDivision,
         paymentReference,
         status: activate ? "ACTIVE" : "PENDING_PAYMENT",
         approvedAt: activate ? new Date() : null,
