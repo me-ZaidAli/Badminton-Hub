@@ -3354,7 +3354,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editStartTime, setEditStartTime] = useState("");
   const [editDuration, setEditDuration] = useState<number | "">(120);
   const [editCourts, setEditCourts] = useState<number | "">(0);
-  const [editMaxPlayers, setEditMaxPlayers] = useState(0);
+  const [editMaxPlayers, setEditMaxPlayers] = useState<number | "">(0);
   const [editMatchMode, setEditMatchMode] = useState("SOCIAL");
   const [editPlayersPerSide, setEditPlayersPerSide] = useState(2);
   const [editMatchGenderType, setEditMatchGenderType] = useState("MIXED");
@@ -3373,7 +3373,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editDefaultPoints, setEditDefaultPoints] = useState(21);
   const [editVenueId, setEditVenueId] = useState<number | null>(null);
   const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
-  const [editShuttleTubes, setEditShuttleTubes] = useState(0);
+  const [editShuttleTubes, setEditShuttleTubes] = useState<number | "">(0);
   const [editNumberOfSets, setEditNumberOfSets] = useState(1);
   const [editSessionDetails, setEditSessionDetails] = useState("");
   const [editBannerMessage, setEditBannerMessage] = useState("");
@@ -3507,7 +3507,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       startTime: editStartTime,
       durationMinutes: typeof editDuration === "number" && editDuration >= 15 ? editDuration : 120,
       courtsAvailable: typeof editCourts === "number" && editCourts >= 1 ? Math.min(10, editCourts) : 4,
-      maxPlayers: editMaxPlayers,
+      maxPlayers: typeof editMaxPlayers === "number" && editMaxPlayers >= 2 ? Math.min(100, editMaxPlayers) : 24,
       matchMode: editMatchMode,
       playersPerSide: editPlayersPerSide,
       matchGenderType: editMatchGenderType,
@@ -3525,7 +3525,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       numberOfSets: editNumberOfSets,
       venueId: editVenueId,
       liveStreamUrl: editLiveStreamUrl || "",
-      shuttleTubesUsed: editShuttleTubes,
+      shuttleTubesUsed: typeof editShuttleTubes === "number" && editShuttleTubes >= 0 ? editShuttleTubes : 0,
       sessionDetails: editSessionDetails || null,
       bannerMessage: editBannerEnabled ? (editBannerMessage || null) : null,
       bannerColor: editBannerEnabled ? (editBannerColor || null) : null,
@@ -3887,7 +3887,14 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                 min={2}
                 max={100}
                 value={editMaxPlayers}
-                onChange={(e) => setEditMaxPlayers(Math.min(100, Math.max(2, Number(e.target.value))))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEditMaxPlayers(v === "" ? "" : Number(v));
+                }}
+                onBlur={() => {
+                  if (editMaxPlayers === "" || (typeof editMaxPlayers === "number" && editMaxPlayers < 2)) setEditMaxPlayers(2);
+                  else if (typeof editMaxPlayers === "number" && editMaxPlayers > 100) setEditMaxPlayers(100);
+                }}
                 className="mt-2"
                 data-testid="input-edit-max-players"
               />
@@ -3898,7 +3905,13 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                 type="number"
                 min={0}
                 value={editShuttleTubes}
-                onChange={(e) => setEditShuttleTubes(Math.max(0, Number(e.target.value)))}
+                onChange={(e) => {
+                  const v = e.target.value;
+                  setEditShuttleTubes(v === "" ? "" : Number(v));
+                }}
+                onBlur={() => {
+                  if (editShuttleTubes === "" || (typeof editShuttleTubes === "number" && editShuttleTubes < 0)) setEditShuttleTubes(0);
+                }}
                 className="mt-2"
                 data-testid="input-edit-shuttle-tubes"
               />

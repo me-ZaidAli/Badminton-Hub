@@ -95,13 +95,13 @@ export default function SessionDetail() {
   const [editTitle, setEditTitle] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editStartTime, setEditStartTime] = useState("");
-  const [editDuration, setEditDuration] = useState(120);
-  const [editCourts, setEditCourts] = useState(0);
-  const [editShuttleTubes, setEditShuttleTubes] = useState(0);
+  const [editDuration, setEditDuration] = useState<number | "">(120);
+  const [editCourts, setEditCourts] = useState<number | "">(0);
+  const [editShuttleTubes, setEditShuttleTubes] = useState<number | "">(0);
   const [editCategories, setEditCategories] = useState<string[]>([]);
   const [editLiveStreamUrl, setEditLiveStreamUrl] = useState("");
   const [editClubId, setEditClubId] = useState<number | null>(null);
-  const [editMaxPlayers, setEditMaxPlayers] = useState(0);
+  const [editMaxPlayers, setEditMaxPlayers] = useState<number | "">(0);
   const [editIsPrivate, setEditIsPrivate] = useState(false);
   const [editMatchMode, setEditMatchMode] = useState("SOCIAL");
   const [editPlayersPerSide, setEditPlayersPerSide] = useState(2);
@@ -669,7 +669,8 @@ export default function SessionDetail() {
                           type="number"
                           min={15}
                           value={editDuration}
-                          onChange={(e) => setEditDuration(Math.max(15, Number(e.target.value)))}
+                          onChange={(e) => { const v = e.target.value; setEditDuration(v === "" ? "" : Number(v)); }}
+                          onBlur={() => { if (editDuration === "" || (typeof editDuration === "number" && editDuration < 15)) setEditDuration(120); }}
                           className="mt-2"
                           data-testid="input-edit-duration"
                         />
@@ -681,7 +682,11 @@ export default function SessionDetail() {
                           min={1} 
                           max={10}
                           value={editCourts}
-                          onChange={(e) => setEditCourts(Math.min(10, Math.max(1, Number(e.target.value))))}
+                          onChange={(e) => { const v = e.target.value; setEditCourts(v === "" ? "" : Number(v)); }}
+                          onBlur={() => {
+                            if (editCourts === "" || (typeof editCourts === "number" && editCourts < 1)) setEditCourts(1);
+                            else if (typeof editCourts === "number" && editCourts > 10) setEditCourts(10);
+                          }}
                           className="mt-2"
                           data-testid="input-edit-courts"
                         />
@@ -719,7 +724,11 @@ export default function SessionDetail() {
                           min={2}
                           max={100}
                           value={editMaxPlayers}
-                          onChange={(e) => setEditMaxPlayers(Math.min(100, Math.max(2, Number(e.target.value))))}
+                          onChange={(e) => { const v = e.target.value; setEditMaxPlayers(v === "" ? "" : Number(v)); }}
+                          onBlur={() => {
+                            if (editMaxPlayers === "" || (typeof editMaxPlayers === "number" && editMaxPlayers < 2)) setEditMaxPlayers(2);
+                            else if (typeof editMaxPlayers === "number" && editMaxPlayers > 100) setEditMaxPlayers(100);
+                          }}
                           className="mt-2"
                           data-testid="input-edit-max-players"
                         />
@@ -730,7 +739,8 @@ export default function SessionDetail() {
                           type="number" 
                           min={0}
                           value={editShuttleTubes}
-                          onChange={(e) => setEditShuttleTubes(Math.max(0, Number(e.target.value)))}
+                          onChange={(e) => { const v = e.target.value; setEditShuttleTubes(v === "" ? "" : Number(v)); }}
+                          onBlur={() => { if (editShuttleTubes === "" || (typeof editShuttleTubes === "number" && editShuttleTubes < 0)) setEditShuttleTubes(0); }}
                           className="mt-2"
                           data-testid="input-shuttle-tubes"
                         />
@@ -952,11 +962,11 @@ export default function SessionDetail() {
                           title: editTitle,
                           date: editDate,
                           startTime: editStartTime,
-                          durationMinutes: editDuration,
-                          courtsAvailable: editCourts, 
-                          maxPlayers: editMaxPlayers,
+                          durationMinutes: typeof editDuration === "number" && editDuration >= 15 ? editDuration : 120,
+                          courtsAvailable: typeof editCourts === "number" && editCourts >= 1 ? Math.min(10, editCourts) : 4,
+                          maxPlayers: typeof editMaxPlayers === "number" && editMaxPlayers >= 2 ? Math.min(100, editMaxPlayers) : 24,
                           isPrivate: editIsPrivate,
-                          shuttleTubesUsed: editShuttleTubes,
+                          shuttleTubesUsed: typeof editShuttleTubes === "number" && editShuttleTubes >= 0 ? editShuttleTubes : 0,
                           allowedCategories: editCategories,
                           liveStreamUrl: editLiveStreamUrl || "",
                           matchMode: editMatchMode,
