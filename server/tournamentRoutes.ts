@@ -2135,7 +2135,13 @@ export function registerTournamentRoutes(app: Express) {
                   try {
                     await tx.insert(tournamentTeams).values({ categoryId: updated.categoryId!, player1Id: p1, player2Id: p2 });
                   } catch (e: any) {
-                    if (!/unique|duplicate/i.test(e?.message || "")) throw e;
+                    // Unique-index violation → another player paired with one of these two
+                    // first. Roll back the whole accept and surface a 409 to the client so
+                    // they see a clear "already paired" message instead of a silent success.
+                    if (/unique|duplicate/i.test(e?.message || "")) {
+                      throw Object.assign(new Error("One of you is already paired in this category. Refresh and try again."), { httpStatus: 409 });
+                    }
+                    throw e;
                   }
                 }
               }
@@ -2242,7 +2248,14 @@ export function registerTournamentRoutes(app: Express) {
       if (!cat) return res.status(404).json({ message: "Category not found" });
       const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
       if (!profile) return res.status(404).json({ message: "No player profile" });
-      // Wrap leave in a transaction so cascading deletes and pair-request dissolution
+      // Lifecycle guard: once matches exist in this category, leaving would orphan
+      // brackets/standings. Block the leave and tell the player to contact the admin.
+      const matchCount = await db.select({ count: sql<number>`count(*)::int` })
+        .from(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
+      if ((matchCount[0]?.count || 0) > 0) {
+        return res.status(409).json({ message: "Matches have already been generated for this category — ask an admin to withdraw you." });
+      }
+      // Wrap leave in a transaction so the team delete and pair-request dissolution
       // are atomic against concurrent accept/join calls.
       const removed = await db.transaction(async (tx) => {
         const mine = await tx.select().from(tournamentTeams)
@@ -2252,8 +2265,6 @@ export function registerTournamentRoutes(app: Express) {
           ));
         for (const team of mine) {
           await tx.execute(sql`SELECT id FROM tournament_teams WHERE id = ${team.id} FOR UPDATE`);
-          await tx.delete(tournamentStandings).where(eq(tournamentStandings.teamId, team.id));
-          await tx.delete(tournamentMatches).where(or(eq(tournamentMatches.teamAId, team.id), eq(tournamentMatches.teamBId, team.id)));
           await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
           await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, team.id));
         }
@@ -2288,9 +2299,34 @@ export function registerTournamentRoutes(app: Express) {
           eq(tournamentPairRequests.status, "PENDING"),
         ));
 
+      // Load every team for every category in this tournament so we can return
+      // per-category occupant userIds — the partner picker uses this to hide
+      // players whose slot is already taken.
+      const catIds = cats.map(c => c.id);
+      const allTeams = catIds.length
+        ? await db.select().from(tournamentTeams).where(inArray(tournamentTeams.categoryId, catIds))
+        : [];
+      const profileIdSet = new Set<number>();
+      for (const t of allTeams) {
+        if (t.player1Id) profileIdSet.add(t.player1Id);
+        if (t.player2Id) profileIdSet.add(t.player2Id);
+      }
+      const teamProfiles = profileIdSet.size
+        ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, Array.from(profileIdSet)))
+        : [];
+      const profileIdToUserId = new Map<number, number>(teamProfiles.map(p => [p.id, p.userId]));
+
       const result: any[] = [];
       for (const cat of cats) {
         const team = myTeams.find(t => t.categoryId === cat.id);
+        const occupantUserIds = Array.from(new Set(
+          allTeams
+            .filter(t => t.categoryId === cat.id)
+            .flatMap(t => [t.player1Id, t.player2Id])
+            .filter((pid): pid is number => pid !== null && pid !== undefined)
+            .map(pid => profileIdToUserId.get(pid))
+            .filter((uid): uid is number => typeof uid === "number")
+        ));
         let partner: any = null;
         if (team) {
           const partnerProfileId = team.player1Id === myProfile?.id ? team.player2Id : team.player1Id;
@@ -2315,6 +2351,7 @@ export function registerTournamentRoutes(app: Express) {
           isPaired: !!team && !!team.player2Id,
           partner,
           pendingRequests: enrichedPending,
+          occupantUserIds,
         });
       }
       res.json(result);

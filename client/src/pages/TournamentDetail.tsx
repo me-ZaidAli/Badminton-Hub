@@ -1964,11 +1964,31 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                   className="w-full h-9 pl-10 pr-4 rounded-xl bg-card border border-border text-sm outline-none focus:border-amber-500/40" data-testid="input-partner-search" />
               </div>
               <div className="max-h-64 overflow-y-auto rounded-xl border border-border/50 divide-y divide-border/20">
-                {(registrations || []).filter((r: any) => {
-                  if (r.userId === user?.id) return false;
-                  if (partnerSearch) return r.user?.fullName?.toLowerCase().includes(partnerSearch.toLowerCase());
-                  return true;
-                }).map((r: any) => (
+                {(() => {
+                  const entry: any = myCategories?.find((e: any) => e.category.id === partnerPicker.categoryId);
+                  const cat: any = entry?.category;
+                  // Players who already have a team (solo or paired) in this category
+                  // shouldn't appear as eligible partners — their slot is taken.
+                  const takenUserIds = new Set<number>(entry?.occupantUserIds || []);
+                  const filtered = (registrations || []).filter((r: any) => {
+                    if (r.userId === user?.id) return false;
+                    if (takenUserIds.has(r.userId)) return false;
+                    // Gender restriction — handle both the schema enum ("FEMALE_ONLY"/"MALE_ONLY")
+                    // and the legacy short form ("FEMALE"/"MALE") still used by some category
+                    // creation paths. "ALL"/"MIXED" impose no restriction.
+                    const restriction = (cat?.genderRestriction || "").toUpperCase();
+                    if (restriction === "FEMALE_ONLY" || restriction === "FEMALE") {
+                      const g = (r.profile?.gender || "").toUpperCase();
+                      if (g !== "FEMALE" && g !== "F") return false;
+                    } else if (restriction === "MALE_ONLY" || restriction === "MALE") {
+                      const g = (r.profile?.gender || "").toUpperCase();
+                      if (g !== "MALE" && g !== "M") return false;
+                    }
+                    if (partnerSearch) return r.user?.fullName?.toLowerCase().includes(partnerSearch.toLowerCase());
+                    return true;
+                  });
+                  if (filtered.length === 0) return <div className="p-4 text-center text-xs text-muted-foreground">No eligible partners. Either everyone is already paired, no one else has registered, or no one matches this category's restrictions.</div>;
+                  return filtered.map((r: any) => (
                   <button key={r.id} onClick={() => doSendPair(r.userId, partnerPicker.categoryId)}
                     className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted/30 text-left transition-colors"
                     disabled={sendPairMutation.isPending}
@@ -1980,10 +2000,8 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                     </div>
                     <UserPlus className="h-4 w-4 text-amber-500" />
                   </button>
-                ))}
-                {(registrations || []).filter((r: any) => r.userId !== user?.id).length === 0 && (
-                  <div className="p-4 text-center text-xs text-muted-foreground">No other registered players yet.</div>
-                )}
+                  ));
+                })()}
               </div>
             </div>
           </DialogContent>
@@ -2020,19 +2038,20 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
   const sendPairMutation = useSendPairRequest();
   const respondPairMutation = useRespondPairRequest();
   const { toast } = useToast();
-  const [regType, setRegType] = useState<"INDIVIDUAL" | "PAIR">("INDIVIDUAL");
   const [partnerSearch, setPartnerSearch] = useState("");
   const [proposingTo, setProposingTo] = useState<{ userId: number; name: string } | null>(null);
   const [proposalMessage, setProposalMessage] = useState("");
   const [proposalPairName, setProposalPairName] = useState("");
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
-  const myPendingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
+  // Only show legacy tournament-wide pair requests here (categoryId NULL).
+  // Per-category invites live in the "My Categories" tab.
+  const myPendingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING" && !pr.categoryId) || [];
 
   async function handleRegister() {
     try {
-      await registerMutation.mutateAsync({ tournamentId, registrationType: regType });
-      toast({ title: "Registered!", description: regType === "INDIVIDUAL" ? "You've been added to the player pool." : "Registration submitted." });
+      await registerMutation.mutateAsync({ tournamentId, registrationType: "INDIVIDUAL" });
+      toast({ title: "You're in!", description: "Now open the My Categories tab to pick which categories you want to play." });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -2069,7 +2088,7 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
               <Zap className="h-8 w-8 text-white" />
             </div>
             <h3 className="text-lg font-black text-foreground">Join This Tournament</h3>
-            <p className="text-sm text-muted-foreground max-w-md mx-auto">Sign up as an individual to join the player pool, or register as a pair if you already have a partner.</p>
+            <p className="text-sm text-muted-foreground max-w-md mx-auto">One click to register. After signing up, head to the <span className="font-bold text-amber-500">My Categories</span> tab to pick the categories you want to play in and choose a partner for each one.</p>
             {tournament.entryFee && parseFloat(tournament.entryFee) > 0 && (
               <div className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-amber-500/10 border border-amber-500/30 mx-auto">
                 <Banknote className="h-4 w-4 text-amber-500" />
@@ -2084,15 +2103,7 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
                 )}
               </div>
             )}
-            <div className="flex gap-3 justify-center">
-              {[{ type: "INDIVIDUAL", emoji: "🙋", label: "Individual" }, { type: "PAIR", emoji: "👥", label: "As Pair" }].map(opt => (
-                <button key={opt.type} onClick={() => setRegType(opt.type as any)}
-                  className={cn("px-5 py-3 rounded-xl text-sm font-bold transition-all border", regType === opt.type ? "bg-amber-500/20 text-amber-500 dark:text-amber-400 border-amber-500/30 shadow-lg shadow-amber-500/10" : "bg-card text-muted-foreground border-border/50 hover:border-amber-500/30")}>
-                  {opt.emoji} {opt.label}
-                </button>
-              ))}
-            </div>
-            <Button onClick={handleRegister} disabled={registerMutation.isPending} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 font-bold px-8">
+            <Button onClick={handleRegister} disabled={registerMutation.isPending} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25 font-bold px-8" data-testid="button-register-tournament">
               {registerMutation.isPending ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Zap className="h-4 w-4 mr-2" />}
               Register Now
             </Button>
