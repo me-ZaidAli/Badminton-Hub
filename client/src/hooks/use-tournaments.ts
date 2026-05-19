@@ -466,6 +466,69 @@ export function useAdminCreatePair() {
   });
 }
 
+export interface PlayerTournamentStatsBreakdown {
+  tournamentId: number;
+  tournamentName: string;
+  startDate: string | null;
+  endDate: string | null;
+  status: string | null;
+  matchesPlayed: number;
+  matchesWon: number;
+  matchesLost: number;
+  pointsScored: number;
+  pointsConceded: number;
+  categories: number;
+}
+export interface PlayerTournamentStats {
+  tournamentsPlayed: number;
+  matchesPlayed: number;
+  matchesWon: number;
+  matchesLost: number;
+  pointsScored: number;
+  pointsConceded: number;
+  pointDifference: number;
+  winRate: number;
+  tournaments: PlayerTournamentStatsBreakdown[];
+}
+export function usePlayerTournamentStats(profileId: number | null) {
+  return useQuery<PlayerTournamentStats>({
+    queryKey: ["/api/players", profileId, "tournament-stats"],
+    queryFn: async () => {
+      const res = await fetch(`/api/players/${profileId}/tournament-stats`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load tournament stats");
+      return res.json();
+    },
+    enabled: !!profileId,
+  });
+}
+
+export interface TournamentsLeaderboardRow {
+  userId: number;
+  profileId: number | null;
+  fullName: string;
+  gender: string | null;
+  grade: string | null;
+  clubId: number | null;
+  tournamentsPlayed: number;
+  matchesPlayed: number;
+  matchesWon: number;
+  matchesLost: number;
+  pointsScored: number;
+  pointsConceded: number;
+  pointDifference: number;
+  winRate: number;
+}
+export function useTournamentsLeaderboard() {
+  return useQuery<TournamentsLeaderboardRow[]>({
+    queryKey: ["/api/tournaments-leaderboard"],
+    queryFn: async () => {
+      const res = await fetch("/api/tournaments-leaderboard", { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load leaderboard");
+      return res.json();
+    },
+  });
+}
+
 export function useAdminDissolvePair() {
   return useMutation({
     mutationFn: async ({ tournamentId, userId }: { tournamentId: number; userId: number }) => {

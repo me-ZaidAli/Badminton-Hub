@@ -176,7 +176,14 @@ export default function Tournaments() {
                 </div>
               )}
             </div>
-            {canManage && (
+            <div className="flex items-center gap-2 flex-wrap">
+              <Link href="/tournaments-leaderboard">
+                <Button variant="outline" className="bg-white/10 hover:bg-white/20 border-white/20 text-white" data-testid="button-leaderboard">
+                  <Trophy className="h-4 w-4 mr-2" />
+                  Leaderboard
+                </Button>
+              </Link>
+              {canManage && (
               <Dialog open={createOpen} onOpenChange={setCreateOpen}>
                 <DialogTrigger asChild>
                   <Button className="bg-gradient-to-r from-amber-500 to-orange-600 hover:from-amber-600 hover:to-orange-700 text-white shadow-lg shadow-amber-500/25 border-0 font-bold" data-testid="button-create-tournament">
@@ -270,7 +277,8 @@ export default function Tournaments() {
                   </Form>
                 </DialogContent>
               </Dialog>
-            )}
+              )}
+            </div>
           </div>
         </div>
       </div>

@@ -4523,6 +4523,135 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
     }
   });
 
+  // Cross-tournament aggregated stats for ONE player (by playerProfile id).
+  // Used by the Player Stats popup to show "Tournaments" totals + a per-
+  // tournament breakdown alongside the existing club-match stats.
+  app.get("/api/players/:profileId/tournament-stats", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const profileId = Number(req.params.profileId);
+      if (!Number.isInteger(profileId) || profileId <= 0) {
+        return res.status(400).json({ message: "Invalid profileId" });
+      }
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, profileId));
+      if (!profile) return res.status(404).json({ message: "Player not found" });
+      const userId = profile.userId;
+
+      const rows = await db.select().from(tournamentPlayerStats).where(eq(tournamentPlayerStats.userId, userId));
+      const tIds = Array.from(new Set(rows.map(r => r.tournamentId)));
+      const ts = tIds.length
+        ? await db.select({ id: tournaments.id, name: tournaments.name, startDate: tournaments.startDate, endDate: tournaments.endDate, status: tournaments.status })
+            .from(tournaments).where(inArray(tournaments.id, tIds))
+        : [];
+      const tById = new Map<number, any>(ts.map(t => [t.id, t]));
+
+      const perTournament = new Map<number, { tournamentId: number; tournamentName: string; startDate: any; endDate: any; status: string | null; matchesPlayed: number; matchesWon: number; matchesLost: number; pointsScored: number; pointsConceded: number; categories: number; }>();
+      for (const r of rows) {
+        const t = tById.get(r.tournamentId);
+        const cur = perTournament.get(r.tournamentId) || {
+          tournamentId: r.tournamentId,
+          tournamentName: t?.name || `Tournament #${r.tournamentId}`,
+          startDate: t?.startDate || null,
+          endDate: t?.endDate || null,
+          status: t?.status || null,
+          matchesPlayed: 0, matchesWon: 0, matchesLost: 0, pointsScored: 0, pointsConceded: 0, categories: 0,
+        };
+        cur.matchesPlayed += r.matchesPlayed || 0;
+        cur.matchesWon += r.matchesWon || 0;
+        cur.matchesLost += r.matchesLost || 0;
+        cur.pointsScored += r.pointsScored || 0;
+        cur.pointsConceded += r.pointsConceded || 0;
+        cur.categories += 1;
+        perTournament.set(r.tournamentId, cur);
+      }
+
+      const tournamentsBreakdown = Array.from(perTournament.values()).sort((a, b) => {
+        const ad = a.endDate ? new Date(a.endDate).getTime() : 0;
+        const bd = b.endDate ? new Date(b.endDate).getTime() : 0;
+        return bd - ad;
+      });
+
+      const totals = tournamentsBreakdown.reduce((acc, t) => ({
+        matchesPlayed: acc.matchesPlayed + t.matchesPlayed,
+        matchesWon: acc.matchesWon + t.matchesWon,
+        matchesLost: acc.matchesLost + t.matchesLost,
+        pointsScored: acc.pointsScored + t.pointsScored,
+        pointsConceded: acc.pointsConceded + t.pointsConceded,
+      }), { matchesPlayed: 0, matchesWon: 0, matchesLost: 0, pointsScored: 0, pointsConceded: 0 });
+
+      const winRate = totals.matchesPlayed > 0 ? Math.round((totals.matchesWon / totals.matchesPlayed) * 100) : 0;
+
+      res.json({
+        tournamentsPlayed: tournamentsBreakdown.length,
+        ...totals,
+        pointDifference: totals.pointsScored - totals.pointsConceded,
+        winRate,
+        tournaments: tournamentsBreakdown,
+      });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Global tournaments leaderboard — aggregates tournament_player_stats across
+  // every tournament, one row per user. Sorted by matches won desc by default.
+  app.get("/api/tournaments-leaderboard", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const rows = await db.select().from(tournamentPlayerStats);
+      const userIds = Array.from(new Set(rows.map(r => r.userId)));
+      if (userIds.length === 0) return res.json([]);
+      const usersList = await db.select({ id: users.id, fullName: users.fullName, gender: users.gender }).from(users).where(inArray(users.id, userIds));
+      const profiles = await db.select({ id: playerProfiles.id, userId: playerProfiles.userId, grade: playerProfiles.grade, clubId: playerProfiles.clubId })
+        .from(playerProfiles).where(inArray(playerProfiles.userId, userIds));
+      const uMap = new Map<number, any>(usersList.map(u => [u.id, u]));
+      const pMap = new Map<number, any>(profiles.map(p => [p.userId, p]));
+
+      const agg = new Map<number, { userId: number; profileId: number | null; fullName: string; gender: string | null; grade: string | null; clubId: number | null; tournamentIds: Set<number>; matchesPlayed: number; matchesWon: number; matchesLost: number; pointsScored: number; pointsConceded: number; }>();
+      for (const r of rows) {
+        const u = uMap.get(r.userId);
+        const p = pMap.get(r.userId);
+        const cur = agg.get(r.userId) || {
+          userId: r.userId,
+          profileId: p?.id ?? null,
+          fullName: u?.fullName || `Player #${r.userId}`,
+          gender: u?.gender ?? null,
+          grade: p?.grade ?? null,
+          clubId: p?.clubId ?? null,
+          tournamentIds: new Set<number>(),
+          matchesPlayed: 0, matchesWon: 0, matchesLost: 0, pointsScored: 0, pointsConceded: 0,
+        };
+        cur.tournamentIds.add(r.tournamentId);
+        cur.matchesPlayed += r.matchesPlayed || 0;
+        cur.matchesWon += r.matchesWon || 0;
+        cur.matchesLost += r.matchesLost || 0;
+        cur.pointsScored += r.pointsScored || 0;
+        cur.pointsConceded += r.pointsConceded || 0;
+        agg.set(r.userId, cur);
+      }
+      const out = Array.from(agg.values()).map(a => ({
+        userId: a.userId,
+        profileId: a.profileId,
+        fullName: a.fullName,
+        gender: a.gender,
+        grade: a.grade,
+        clubId: a.clubId,
+        tournamentsPlayed: a.tournamentIds.size,
+        matchesPlayed: a.matchesPlayed,
+        matchesWon: a.matchesWon,
+        matchesLost: a.matchesLost,
+        pointsScored: a.pointsScored,
+        pointsConceded: a.pointsConceded,
+        pointDifference: a.pointsScored - a.pointsConceded,
+        winRate: a.matchesPlayed > 0 ? Math.round((a.matchesWon / a.matchesPlayed) * 100) : 0,
+      }));
+      out.sort((a, b) => (b.matchesWon - a.matchesWon) || (b.pointDifference - a.pointDifference) || (b.winRate - a.winRate));
+      res.json(out);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/tournaments/:id/recalculate-stats", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

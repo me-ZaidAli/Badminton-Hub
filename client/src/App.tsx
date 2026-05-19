@@ -145,6 +145,7 @@ const Messages = lazy(() => import("@/pages/admin/Messages"));
 const ChatModeration = lazy(() => import("@/pages/admin/ChatModeration"));
 const InboxPage = lazy(() => import("@/pages/Inbox"));
 const TournamentsPage = lazy(() => import("@/pages/Tournaments"));
+const TournamentsLeaderboardPage = lazy(() => import("@/pages/TournamentsLeaderboard"));
 const TournamentDetailPage = lazy(() => import("@/pages/TournamentDetail"));
 const TournamentCourtViewPage = lazy(() => import("@/pages/TournamentCourtView"));
 const PolicyPage = lazy(() => import("@/pages/PolicyPage"));
@@ -641,6 +642,9 @@ function Router() {
       </Route>
       <Route path="/tournaments">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TournamentsPage /></Suspense>} />
+      </Route>
+      <Route path="/tournaments-leaderboard">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TournamentsLeaderboardPage /></Suspense>} />
       </Route>
       <Route path="/tournaments/:id/court-view">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><TournamentCourtViewPage /></Suspense>} />

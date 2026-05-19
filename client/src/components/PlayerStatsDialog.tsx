@@ -3,9 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { useDetailedPlayerStats, type DetailedPlayerStats } from "@/hooks/use-clubs";
+import { usePlayerTournamentStats } from "@/hooks/use-tournaments";
 import {
   TrendingUp, TrendingDown, Target, Percent, Swords, Loader2,
-  Building2, Flame, Star, Award, Zap, Medal, Calendar, Users
+  Building2, Flame, Star, Award, Zap, Medal, Calendar, Users, Trophy
 } from "lucide-react";
 import { LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import { format } from "date-fns";
@@ -57,6 +58,7 @@ export function PlayerStatsDialog({
   onOpenChange: (open: boolean) => void;
 }) {
   const { data: stats, isLoading } = useDetailedPlayerStats(open ? profileId : null);
+  const { data: tStats } = usePlayerTournamentStats(open ? profileId : null);
 
   const chartData = stats?.matchHistory
     ? [...stats.matchHistory]
@@ -178,6 +180,72 @@ export function PlayerStatsDialog({
                     </div>
                   ))}
                 </div>
+              </div>
+            )}
+
+            {tStats && tStats.tournamentsPlayed > 0 && (
+              <div data-testid="player-tournament-stats">
+                <h4 className="text-sm font-medium mb-2 flex items-center gap-2">
+                  <Trophy className="w-4 h-4 text-amber-500" />
+                  Tournament Record
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <Trophy className="w-4 h-4 mx-auto mb-1 text-amber-500" />
+                      <div className="text-xl font-bold" data-testid="text-tournaments-played">{tStats.tournamentsPlayed}</div>
+                      <div className="text-xs text-muted-foreground">Tournaments</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <Swords className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                      <div className="text-xl font-bold" data-testid="text-t-matches-played">{tStats.matchesPlayed}</div>
+                      <div className="text-xs text-muted-foreground">Matches</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <TrendingUp className="w-4 h-4 mx-auto mb-1 text-green-500" />
+                      <div className="text-xl font-bold text-green-600" data-testid="text-t-matches-won">{tStats.matchesWon}</div>
+                      <div className="text-xs text-muted-foreground">Won</div>
+                    </CardContent>
+                  </Card>
+                  <Card>
+                    <CardContent className="p-3 text-center">
+                      <Percent className="w-4 h-4 mx-auto mb-1 text-muted-foreground" />
+                      <div className={`text-xl font-bold ${tStats.winRate >= 50 ? "text-green-600" : "text-muted-foreground"}`} data-testid="text-t-win-rate">
+                        {tStats.winRate}%
+                      </div>
+                      <div className="text-xs text-muted-foreground">Win Rate</div>
+                    </CardContent>
+                  </Card>
+                </div>
+                {tStats.tournaments.length > 0 && (
+                  <div className="space-y-1.5 max-h-[200px] overflow-y-auto">
+                    {tStats.tournaments.slice(0, 8).map((t) => (
+                      <div key={t.tournamentId} className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-muted/40 text-sm" data-testid={`tournament-row-${t.tournamentId}`}>
+                        <div className="min-w-0 flex-1">
+                          <div className="font-medium truncate">{t.tournamentName}</div>
+                          <div className="text-xs text-muted-foreground">
+                            {t.endDate ? format(new Date(t.endDate), "MMM yyyy") : "—"}
+                            {t.categories > 1 && ` · ${t.categories} categories`}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-3 text-xs shrink-0">
+                          <div className="text-center">
+                            <div className="font-mono font-bold text-green-600">{t.matchesWon}</div>
+                            <div className="text-[10px] text-muted-foreground">W</div>
+                          </div>
+                          <div className="text-center">
+                            <div className="font-mono font-bold text-red-500">{t.matchesLost}</div>
+                            <div className="text-[10px] text-muted-foreground">L</div>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
             )}
 
