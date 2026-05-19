@@ -2817,7 +2817,13 @@ export function registerTournamentRoutes(app: Express) {
         : [];
       const profileIds = Array.from(new Set(teams.flatMap(t => [t.player1Id, t.player2Id]).filter((x): x is number => !!x)));
       const profs = profileIds.length
-        ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
+        ? await db.select({
+            id: playerProfiles.id,
+            userId: playerProfiles.userId,
+            grade: playerProfiles.grade,
+            matchesPlayed: playerProfiles.matchesPlayed,
+            matchesWon: playerProfiles.matchesWon,
+          }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
         : [];
       const userIds = Array.from(new Set(profs.map(p => p.userId)));
       // PII-min: only return id + fullName for member display (no email).
@@ -2825,15 +2831,20 @@ export function registerTournamentRoutes(app: Express) {
         ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds))
         : [];
       const profileToUser = new Map<number, any>();
+      const profileById = new Map<number, any>();
       for (const p of profs) {
         const u = usrs.find(u => u.id === p.userId);
         if (u) profileToUser.set(p.id, u);
+        profileById.set(p.id, p);
       }
       const result = cats.map(cat => {
         const catTeams = teams.filter(t => t.categoryId === cat.id).map(t => ({
           id: t.id,
           player1: t.player1Id ? profileToUser.get(t.player1Id) || null : null,
           player2: t.player2Id ? profileToUser.get(t.player2Id) || null : null,
+          profile1: t.player1Id ? profileById.get(t.player1Id) || null : null,
+          profile2: t.player2Id ? profileById.get(t.player2Id) || null : null,
+          createdAt: t.createdAt,
           isPaired: !!t.player2Id,
         }));
         return {

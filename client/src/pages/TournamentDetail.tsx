@@ -1381,61 +1381,188 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
         </Dialog>
       )}
 
-      {teamsByCategory && teamsByCategory.length > 0 && (
-        <div className="rounded-2xl border border-border/50 bg-card/40 p-4 space-y-3" data-testid="pairs-by-category">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h3 className="text-sm font-black text-foreground uppercase tracking-wider">Teams by Category</h3>
-              <p className="text-[11px] text-muted-foreground mt-0.5">Confirmed pairs and solo entries grouped by category (multi-category flow).</p>
-            </div>
-          </div>
-          <div className="grid gap-2">
-            {teamsByCategory.map((row: any) => (
-              <div key={row.category.id} className="rounded-xl border border-border/40 bg-background/40 p-3" data-testid={`pairs-cat-row-${row.category.id}`}>
-                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="text-sm font-bold text-foreground">{row.category.name}</span>
-                    <Badge variant="outline" className="text-[10px] font-bold">{(row.category.playersPerSide || 1) > 1 ? "Doubles" : "Singles"}</Badge>
-                    <Badge variant="outline" className="text-[10px] font-bold">{row.category.format}</Badge>
-                    {(() => {
-                      const r = (row.category.genderRestriction || "").toUpperCase();
-                      if (r === "FEMALE_ONLY" || r === "FEMALE") return <Badge className="text-[10px] font-bold bg-pink-500/15 text-pink-500 border-pink-500/30">Female only</Badge>;
-                      if (r === "MALE_ONLY" || r === "MALE") return <Badge className="text-[10px] font-bold bg-blue-500/15 text-blue-500 border-blue-500/30">Male only</Badge>;
-                      return null;
-                    })()}
-                  </div>
-                  <span className="text-[11px] text-muted-foreground" data-testid={`pairs-cat-count-${row.category.id}`}>
-                    {row.confirmedPairs.length} confirmed · {row.soloEntries.length} solo
-                  </span>
-                </div>
-                {row.confirmedPairs.length === 0 && row.soloEntries.length === 0 ? (
-                  <p className="text-[11px] text-muted-foreground italic">No entries yet.</p>
-                ) : (
-                  <div className="space-y-1">
-                    {row.confirmedPairs.map((t: any) => (
-                      <div key={t.id} className="flex items-center gap-2 text-xs text-foreground">
-                        <Check className="h-3 w-3 text-emerald-500 flex-shrink-0" />
-                        <span className="font-bold">{t.player1?.fullName || "?"}</span>
-                        <span className="text-muted-foreground">+</span>
-                        <span className="font-bold">{t.player2?.fullName || "?"}</span>
+      {teamsByCategory && teamsByCategory.length > 0 && teamsByCategory.some((r: any) => r.confirmedPairs.length > 0 || r.soloEntries.length > 0) && (
+        <div className="space-y-8" data-testid="pairs-by-category">
+          {teamsByCategory.map((row: any, catIdx: number) => {
+            if (row.confirmedPairs.length === 0 && row.soloEntries.length === 0) return null;
+            const catKey = `cat-${row.category.id}`;
+            const genderBadge = (() => {
+              const r = (row.category.genderRestriction || "").toUpperCase();
+              if (r === "FEMALE_ONLY" || r === "FEMALE") return <Badge className="text-[10px] font-bold bg-pink-500/15 text-pink-500 border-pink-500/30">Female only</Badge>;
+              if (r === "MALE_ONLY" || r === "MALE") return <Badge className="text-[10px] font-bold bg-blue-500/15 text-blue-500 border-blue-500/30">Male only</Badge>;
+              return null;
+            })();
+            return (
+              <div key={row.category.id} className="space-y-4" data-testid={`pairs-cat-section-${row.category.id}`}>
+                <motion.div
+                  initial={{ opacity: 0, y: 16 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ duration: 0.4, ease: "easeOut", delay: catIdx * 0.05 }}
+                  className="relative overflow-hidden rounded-2xl p-5"
+                  style={{ background: "linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)" }}
+                >
+                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)", backgroundSize: "20px 20px" }} />
+                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent" />
+                  <div className="relative flex items-center justify-between flex-wrap gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <div className="h-1.5 w-1.5 rounded-full bg-violet-400 esports-status-dot" />
+                        <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-violet-400/80">{row.category.name}</span>
+                        <Badge variant="outline" className="text-[9px] font-bold uppercase tracking-wider border-white/10 text-slate-300">{(row.category.playersPerSide || 1) > 1 ? "Doubles" : "Singles"}</Badge>
+                        <Badge variant="outline" className="text-[9px] font-bold uppercase tracking-wider border-white/10 text-slate-300">{row.category.format}</Badge>
+                        {genderBadge}
                       </div>
-                    ))}
+                      <h2 className="text-xl font-black text-white uppercase tracking-wider">Confirmed Pairs</h2>
+                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
+                        {row.confirmedPairs.length === 0 ? "No pairs confirmed yet for this category" : "Elite duos locked in for competition"}
+                        {row.soloEntries.length > 0 && ` · ${row.soloEntries.length} solo waiting`}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      <div className="relative">
+                        <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-violet-500/20 to-cyan-500/20 blur-md" />
+                        <div className="relative h-12 px-4 rounded-xl border border-violet-500/20 flex items-center gap-2" style={{ background: "rgba(139, 92, 246, 0.08)" }}>
+                          <Swords className="h-4 w-4 text-violet-400" />
+                          <span className="text-xl font-black text-white" data-testid={`pairs-cat-count-${row.category.id}`}>{row.confirmedPairs.length}</span>
+                          <span className="text-[9px] uppercase tracking-wider text-violet-300/70 font-bold">Teams</span>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </motion.div>
+
+                {row.confirmedPairs.length > 0 && (
+                  <div className="grid gap-4 sm:grid-cols-2">
+                    {row.confirmedPairs.map((pair: any, idx: number) => {
+                      const p1Name = pair.player1?.fullName || "Player 1";
+                      const p2Name = pair.player2?.fullName || "Player 2";
+                      const accentIdx = idx % esportsAccents.length;
+                      const accent = esportsAccents[accentIdx];
+                      const pairedDate = pair.createdAt ? formatLondon(pair.createdAt, "d MMM yyyy") : null;
+                      const p1Level = getPlayerPowerLevel(pair.profile1?.grade || "C3", pair.profile1?.matchesPlayed || 0, pair.profile1?.matchesWon || 0);
+                      const p2Level = getPlayerPowerLevel(pair.profile2?.grade || "C3", pair.profile2?.matchesPlayed || 0, pair.profile2?.matchesWon || 0);
+                      const quality = getPairQuality(p1Level.power, p2Level.power);
+                      const synergy = getTeamSynergy(p1Level.power, p2Level.power);
+                      const isFeatured = synergy.synergy >= 75;
+                      return (
+                        <motion.div
+                          key={`${catKey}-pair-${pair.id}`}
+                          initial={{ opacity: 0, y: 20, scale: 0.97 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          transition={{ duration: 0.4, delay: idx * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
+                          whileHover={{ scale: 1.015, y: -2 }}
+                          className={cn("group rounded-2xl", isFeatured && "esports-card")}
+                          data-testid={`pair-card-${row.category.id}-${idx}`}
+                        >
+                          <div className={cn("relative rounded-2xl overflow-hidden transition-all duration-300 shadow-lg group-hover:shadow-2xl", accent.glow)} style={{ background: "linear-gradient(145deg, #1a1a2e 0%, #16213e 60%, #0f0f1a 100%)" }}>
+                            <div className={cn("absolute top-0 left-0 right-0 h-px bg-gradient-to-r opacity-60 group-hover:opacity-100 transition-opacity esports-border-glow", accent.neon)} />
+                            <div className={cn("absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r opacity-20 group-hover:opacity-40 transition-opacity", accent.neon)} />
+                            <div className={cn("absolute top-0 left-0 w-px h-full bg-gradient-to-b opacity-30 group-hover:opacity-60 transition-opacity", accent.neon)} />
+                            <div className={cn("absolute top-0 right-0 w-px h-full bg-gradient-to-b opacity-15 group-hover:opacity-30 transition-opacity", accent.neon)} />
+                            {isFeatured && (
+                              <div className="absolute top-2 right-2 z-10">
+                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
+                                  <Flame className="h-2.5 w-2.5 text-amber-400" />
+                                  <span className="text-[8px] font-black uppercase tracking-wider text-amber-400">Featured</span>
+                                </div>
+                              </div>
+                            )}
+                            <div className="relative p-4">
+                              <div className="flex items-center justify-between mb-1.5">
+                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">#{idx + 1}</span>
+                                <div className={cn("relative overflow-hidden px-2.5 py-1 rounded-full", quality.glow)} style={{ background: "rgba(255,255,255,0.04)" }}>
+                                  <div className={cn("absolute inset-0 bg-gradient-to-r opacity-15", quality.gradient)} />
+                                  <span className={cn("relative text-[9px] font-black uppercase tracking-wider", quality.text)}>{quality.label}</span>
+                                </div>
+                              </div>
+                              <h3 className="text-lg font-black tracking-wide truncate mb-4" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${row.category.id}-${idx}`}>
+                                {p1Name} & {p2Name}
+                              </h3>
+                              <div className="flex items-center" data-testid={`pair-players-${row.category.id}-${idx}`}>
+                                {[{ name: p1Name, level: p1Level, grade: pair.profile1?.grade }, { name: p2Name, level: p2Level, grade: pair.profile2?.grade }].map((player, pi) => (
+                                  <div key={pi} className="flex-1 flex flex-col items-center text-center px-1">
+                                    <div className="relative mb-2">
+                                      <div className={cn("absolute -inset-1.5 rounded-full bg-gradient-to-br opacity-30 group-hover:opacity-50 transition-opacity blur-sm", accent.neon)} />
+                                      <div className={cn("relative ring-2 rounded-full", accent.ring)}>
+                                        <PlayerAvatar name={player.name} size="xl" />
+                                      </div>
+                                      <div className={cn("absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-6 rounded-full blur-sm opacity-50", accent.dot)} />
+                                    </div>
+                                    <p className="text-sm font-bold text-white truncate max-w-[90px] leading-tight">{player.name}</p>
+                                    <div className="mt-1.5 flex items-center gap-1.5">
+                                      <GradeTierBadge grade={player.grade || "—"} />
+                                    </div>
+                                    <div className="mt-2 w-full max-w-[80px]">
+                                      <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                        <motion.div initial={{ width: 0 }} animate={{ width: `${player.level.power}%` }} transition={{ duration: 0.8, delay: 0.3 + idx * 0.06, ease: "easeOut" }} className={cn("h-full rounded-full", player.level.bgColor)} style={{ opacity: 0.85 }} />
+                                      </div>
+                                      <span className={cn("text-[8px] font-bold uppercase tracking-wider mt-0.5 block", player.level.color)}>{player.level.label}</span>
+                                    </div>
+                                  </div>
+                                )).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, (
+                                  <div key="vs" className="flex flex-col items-center mx-1 flex-shrink-0">
+                                    <div className="relative">
+                                      <div className="absolute -inset-2 bg-gradient-to-b from-violet-500/10 to-transparent rounded-full blur-md" />
+                                      <div className="relative h-8 w-8 rounded-full border border-white/[0.08] flex items-center justify-center" style={{ background: "rgba(139, 92, 246, 0.1)" }}>
+                                        <span className="text-[10px] font-black text-violet-300/80 tracking-wider">VS</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                ), curr], [] as any[])}
+                              </div>
+                              <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
+                                <div className="flex items-center justify-between mb-2">
+                                  <div className="flex items-center gap-1.5">
+                                    <Zap className="h-3 w-3 text-violet-400" />
+                                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Team Synergy</span>
+                                  </div>
+                                  <span className="text-[10px] font-black text-white/80">{synergy.synergy}%</span>
+                                </div>
+                                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
+                                  <motion.div initial={{ width: 0 }} animate={{ width: `${synergy.synergy}%` }} transition={{ duration: 1, delay: 0.5 + idx * 0.06, ease: "easeOut" }} className={cn("h-full rounded-full bg-gradient-to-r esports-synergy-bar", synergy.color)} style={{ opacity: 0.9 }} />
+                                </div>
+                                <div className="flex items-center justify-between mt-3">
+                                  <div className="flex items-center gap-1.5">
+                                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 esports-status-dot" />
+                                    <span className="text-[9px] font-semibold text-emerald-400/80 uppercase tracking-wider">Ready</span>
+                                  </div>
+                                  {pairedDate && (
+                                    <div className="flex items-center gap-1 text-[9px] text-slate-500">
+                                      <Calendar className="h-2.5 w-2.5" />
+                                      <span>{pairedDate}</span>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        </motion.div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {row.soloEntries.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-3 space-y-1.5" data-testid={`pairs-cat-solo-${row.category.id}`}>
+                    <div className="flex items-center gap-2 mb-1">
+                      <Clock className="h-3 w-3 text-amber-500" />
+                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">Looking for partner</span>
+                    </div>
                     {row.soloEntries.map((t: any) => (
-                      <div key={t.id} className="flex items-center gap-2 text-xs text-muted-foreground">
-                        <Clock className="h-3 w-3 text-amber-500 flex-shrink-0" />
-                        <span>{t.player1?.fullName || "?"}</span>
-                        <span className="italic text-[10px]">(solo / looking for partner)</span>
+                      <div key={t.id} className="flex items-center gap-2 text-xs text-foreground/80 pl-5">
+                        <span className="font-bold">{t.player1?.fullName || "?"}</span>
+                        <span className="italic text-[10px] text-muted-foreground">(solo)</span>
                       </div>
                     ))}
                   </div>
                 )}
               </div>
-            ))}
-          </div>
+            );
+          })}
         </div>
       )}
 
-      {pairs && pairs.length > 0 && (
+      {false && pairs && pairs.length > 0 && (
         <>
           <motion.div
             initial={{ opacity: 0, y: 16 }}
@@ -1710,7 +1837,7 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
         </>
       )}
 
-      {(!pairs || pairs.length === 0) && myIncomingRequests.length === 0 && mySentRequests.length === 0 && (!isIndividual || !playerPool || playerPool.length === 0) && (
+      {(!pairs || pairs.length === 0) && (!teamsByCategory || !teamsByCategory.some((r: any) => r.confirmedPairs.length > 0 || r.soloEntries.length > 0)) && myIncomingRequests.length === 0 && mySentRequests.length === 0 && (!isIndividual || !playerPool || playerPool.length === 0) && (
         <EmptyState icon={UserPlus} title="No Pairs Yet" description={myRegistration ? "No confirmed pairs yet. Other players will appear here once they register." : "No confirmed pairs yet. Register as an individual in the Sign-Up tab to find a partner."} />
       )}
 
