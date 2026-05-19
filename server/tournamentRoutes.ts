@@ -2235,6 +2235,13 @@ export function registerTournamentRoutes(app: Express) {
               const p1 = await ensureProfileTx(updated.fromUserId);
               const p2 = await ensureProfileTx(updated.toUserId);
               if (p1 && p2) {
+                // Advisory locks (sorted to avoid deadlock with concurrent
+                // join-solo for either player) serialise fee-snapshot decisions
+                // across all join/accept paths for these two players in this
+                // tournament.
+                const [lockA, lockB] = p1 < p2 ? [p1, p2] : [p2, p1];
+                await tx.execute(sql`SELECT pg_advisory_xact_lock(${t.id}, ${lockA})`);
+                await tx.execute(sql`SELECT pg_advisory_xact_lock(${t.id}, ${lockB})`);
                 const myTeams = await tx.select().from(tournamentTeams)
                   .where(and(
                     eq(tournamentTeams.categoryId, updated.categoryId!),
@@ -2277,8 +2284,16 @@ export function registerTournamentRoutes(app: Express) {
                     await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
                     await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, team.id));
                   }
-                  if (p1FeeSnapshot == null) p1FeeSnapshot = await resolveCategoryFeePence(updated.categoryId!, updated.fromUserId, tx);
-                  if (p2FeeSnapshot == null) p2FeeSnapshot = await resolveCategoryFeePence(updated.categoryId!, updated.toUserId, tx);
+                  if (p1FeeSnapshot == null) {
+                    const base1 = await resolveCategoryFeePence(updated.categoryId!, updated.fromUserId, tx);
+                    const count1 = await countExistingCategoryEntries(p1, t.id, updated.categoryId!, tx);
+                    p1FeeSnapshot = applyMultiCategoryDiscount(base1, count1);
+                  }
+                  if (p2FeeSnapshot == null) {
+                    const base2 = await resolveCategoryFeePence(updated.categoryId!, updated.toUserId, tx);
+                    const count2 = await countExistingCategoryEntries(p2, t.id, updated.categoryId!, tx);
+                    p2FeeSnapshot = applyMultiCategoryDiscount(base2, count2);
+                  }
                   try {
                     await tx.insert(tournamentTeams).values({
                       categoryId: updated.categoryId!,
@@ -2390,6 +2405,37 @@ export function registerTournamentRoutes(app: Express) {
     return Math.round((Number.isFinite(fee) ? fee : 0) * 100);
   }
 
+  // Multi-category discount (May 2026): a player pays the full fee for their
+  // FIRST category in a tournament, then every additional category is
+  // discounted 50%. The discount is applied at join time and snapshotted onto
+  // the team row, so later leaves/joins do not retroactively re-price.
+  // Returns the number of existing team rows the player already has across the
+  // tournament (excluding the category they're about to join, since we're
+  // about to insert/replace it).
+  async function countExistingCategoryEntries(
+    profileId: number,
+    tournamentId: number,
+    excludeCategoryId: number,
+    txn?: any,
+  ): Promise<number> {
+    const exec = txn || db;
+    const rows = await exec
+      .select({ id: tournamentTeams.id })
+      .from(tournamentTeams)
+      .innerJoin(tournamentCategories, eq(tournamentCategories.id, tournamentTeams.categoryId))
+      .where(and(
+        eq(tournamentCategories.tournamentId, tournamentId),
+        sql`${tournamentTeams.categoryId} <> ${excludeCategoryId}`,
+        or(eq(tournamentTeams.player1Id, profileId), eq(tournamentTeams.player2Id, profileId)),
+      ));
+    return rows.length;
+  }
+
+  function applyMultiCategoryDiscount(feePence: number, existingCount: number): number {
+    if (existingCount <= 0) return feePence;
+    return Math.round(feePence * 0.5);
+  }
+
   async function ensureProfileForUser(userId: number, tournamentId: number): Promise<number | null> {
     const [existing] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
     if (existing) return existing.id;
@@ -2419,21 +2465,44 @@ export function registerTournamentRoutes(app: Express) {
       if (!myReg) return res.status(400).json({ message: "Register for the tournament first" });
       const profileId = await ensureProfileForUser(userId, cat.tournamentId);
       if (!profileId) return res.status(400).json({ message: "Could not create your player profile (tournament has no club)" });
-      // Already in a team for this category? (solo OR paired) — short-circuit.
-      const mine = await db.select().from(tournamentTeams)
-        .where(and(
-          eq(tournamentTeams.categoryId, catId),
-          or(eq(tournamentTeams.player1Id, profileId), eq(tournamentTeams.player2Id, profileId)),
-        ));
-      if (mine.length > 0) return res.json(mine[0]);
-      // Snapshot the fee owed at join time so admin edits to category fees
-      // later don't retroactively change what this entrant owes.
-      const feePence = await resolveCategoryFeePence(catId, userId);
-      const [team] = await db.insert(tournamentTeams).values({
-        categoryId: catId,
-        player1Id: profileId,
-        player1EntryFeePence: feePence,
-      }).returning();
+      // Wrap join in a transaction with a per-(tournament,profile) advisory
+      // lock so concurrent joins across categories by the same player can't
+      // both read existingCount=0 and both charge full fee. Also catches the
+      // unique-index race (same player POSTing twice to the same category)
+      // and returns the existing row idempotently instead of a 500.
+      const team = await db.transaction(async (tx) => {
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${cat.tournamentId}, ${profileId})`);
+        const mine = await tx.select().from(tournamentTeams)
+          .where(and(
+            eq(tournamentTeams.categoryId, catId),
+            or(eq(tournamentTeams.player1Id, profileId), eq(tournamentTeams.player2Id, profileId)),
+          ));
+        if (mine.length > 0) return mine[0];
+        // Multi-category discount: full fee for the first category, 50% off
+        // for every additional category. Snapshot at join time so later
+        // admin fee edits do NOT retroactively change what this entrant owes.
+        const baseFeePence = await resolveCategoryFeePence(catId, userId, tx);
+        const existingCount = await countExistingCategoryEntries(profileId, cat.tournamentId, catId, tx);
+        const feePence = applyMultiCategoryDiscount(baseFeePence, existingCount);
+        try {
+          const [inserted] = await tx.insert(tournamentTeams).values({
+            categoryId: catId,
+            player1Id: profileId,
+            player1EntryFeePence: feePence,
+          }).returning();
+          return inserted;
+        } catch (e: any) {
+          if (/unique|duplicate/i.test(e?.message || "")) {
+            const [existing] = await tx.select().from(tournamentTeams)
+              .where(and(
+                eq(tournamentTeams.categoryId, catId),
+                or(eq(tournamentTeams.player1Id, profileId), eq(tournamentTeams.player2Id, profileId)),
+              ));
+            if (existing) return existing;
+          }
+          throw e;
+        }
+      });
       res.json(team);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
