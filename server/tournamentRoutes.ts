@@ -87,6 +87,19 @@ async function purgeOrphanTeamsForCategory(cat: any) {
   }
 }
 
+// Server-side gender-restriction guard for tournament categories.
+// Mirrors the UI filter in MyCategoriesTab so direct API calls cannot bypass
+// category eligibility. Handles modern `ALL`/`FEMALE_ONLY` plus legacy
+// `MALE_ONLY`/`FEMALE`/`MALE` values that may exist in old rows.
+function genderAllowedForCategory(restriction: string | null | undefined, userGender: string | null | undefined): boolean {
+  const r = (restriction || "ALL").toUpperCase();
+  if (r === "ALL" || r === "MIXED" || r === "") return true;
+  const g = (userGender || "").toUpperCase();
+  if (r === "FEMALE_ONLY" || r === "FEMALE") return g === "FEMALE" || g === "F";
+  if (r === "MALE_ONLY" || r === "MALE") return g === "MALE" || g === "M";
+  return true;
+}
+
 export function registerTournamentRoutes(app: Express) {
 
   app.get("/api/tournaments", async (req, res) => {
@@ -284,16 +297,22 @@ export function registerTournamentRoutes(app: Express) {
       if (!canManage) return res.status(403).json({ message: "Not authorized" });
 
       // Lifecycle guard: if any teams or matches already exist for this category,
-      // refuse the destructive delete. Admins must clear/reset the category first
-      // (or use a dedicated reset endpoint) so player entries aren't silently lost.
-      if (req.query.force !== "true") {
+      // refuse the destructive delete. The `?force=true` override is OWNER-only
+      // (tournament admins cannot silently wipe player entries — they must
+      // clear teams/matches first or escalate).
+      const forceRequested = req.query.force === "true";
+      const isOwner = (req.user as any).role === "OWNER";
+      if (!forceRequested || !isOwner) {
         const [{ teamCount }] = await db.select({ teamCount: sql<number>`count(*)::int` })
           .from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
         const [{ matchCount }] = await db.select({ matchCount: sql<number>`count(*)::int` })
           .from(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
         if ((teamCount || 0) > 0 || (matchCount || 0) > 0) {
+          if (forceRequested && !isOwner) {
+            return res.status(403).json({ message: "Only an OWNER can force-delete a category with existing teams or matches." });
+          }
           return res.status(409).json({
-            message: `Cannot delete category: ${teamCount} team(s) and ${matchCount} match(es) exist. Remove teams and clear matches first, or pass ?force=true to override.`,
+            message: `Cannot delete category: ${teamCount} team(s) and ${matchCount} match(es) exist. Remove teams and clear matches first.`,
           });
         }
       }
@@ -1939,6 +1958,16 @@ export function registerTournamentRoutes(app: Express) {
         const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, categoryId));
         if (!cat || cat.tournamentId !== tournamentId) return res.status(400).json({ message: "Category does not belong to this tournament" });
         if (cat.playersPerSide < 2) return res.status(400).json({ message: "Singles categories don't need a partner — use Join instead." });
+        // Gender-restriction guard for BOTH players (server-side, so a direct
+        // API call can't slip an ineligible user into a restricted category).
+        const [meUser] = await db.select({ gender: users.gender }).from(users).where(eq(users.id, req.user!.id));
+        const [themUser] = await db.select({ gender: users.gender }).from(users).where(eq(users.id, Number(toUserId)));
+        if (!genderAllowedForCategory((cat as any).genderRestriction, meUser?.gender)) {
+          return res.status(403).json({ message: "Your gender does not match this category's restriction." });
+        }
+        if (!genderAllowedForCategory((cat as any).genderRestriction, themUser?.gender)) {
+          return res.status(400).json({ message: "That player's gender does not match this category's restriction." });
+        }
         const [myProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, req.user!.id));
         const [theirProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, Number(toUserId)));
         if (myProfile) {
@@ -2061,6 +2090,21 @@ export function registerTournamentRoutes(app: Express) {
       if (!isAdmin) {
         if (status === "ACCEPTED" && !isRecipient) return res.status(403).json({ message: "Only the recipient can accept this request" });
         if ((status === "DECLINED" || status === "DISSOLVED") && !isRecipient && !isSender) return res.status(403).json({ message: "Not authorized" });
+      }
+
+      // Re-check gender restriction at accept-time too — the category's rule
+      // could have been tightened after the invite was sent, and we shouldn't
+      // materialise an ineligible team.
+      if (status === "ACCEPTED" && existingPr.categoryId) {
+        const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, existingPr.categoryId));
+        if (cat) {
+          const [fromUser] = await db.select({ gender: users.gender }).from(users).where(eq(users.id, existingPr.fromUserId));
+          const [toUser] = await db.select({ gender: users.gender }).from(users).where(eq(users.id, existingPr.toUserId));
+          if (!genderAllowedForCategory((cat as any).genderRestriction, fromUser?.gender) ||
+              !genderAllowedForCategory((cat as any).genderRestriction, toUser?.gender)) {
+            return res.status(403).json({ message: "One of the players no longer meets this category's gender restriction." });
+          }
+        }
       }
 
       // All state mutations run inside one transaction so the status change,
@@ -2237,6 +2281,12 @@ export function registerTournamentRoutes(app: Express) {
       const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
       if (!cat) return res.status(404).json({ message: "Category not found" });
       const userId = (req.user as any).id;
+      // Gender-restriction guard: prevent direct API calls from bypassing the
+      // UI's eligibility filter (e.g. a male user POSTing to a FEMALE_ONLY cat).
+      const [meUser] = await db.select({ gender: users.gender }).from(users).where(eq(users.id, userId));
+      if (!genderAllowedForCategory((cat as any).genderRestriction, meUser?.gender)) {
+        return res.status(403).json({ message: "Your gender does not match this category's restriction." });
+      }
       const [myReg] = await db.select().from(tournamentRegistrations)
         .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.userId, userId)));
       if (!myReg) return res.status(400).json({ message: "Register for the tournament first" });
