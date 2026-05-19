@@ -5158,6 +5158,28 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const [newPairPlayer1, setNewPairPlayer1] = useState<string>("");
   const [newPairPlayer2, setNewPairPlayer2] = useState<string>("");
   const [newPairName, setNewPairName] = useState("");
+  const [newPairCategoryId, setNewPairCategoryId] = useState<string>("");
+  const doublesCategories = (categories || []).filter((c: any) => (c.playersPerSide ?? 2) >= 2);
+  const selectedNewPairCat = doublesCategories.find((c: any) => String(c.id) === newPairCategoryId);
+  const genderAllowsForCat = (cat: any, gender: string | null | undefined): boolean => {
+    const r = String(cat?.genderRestriction || "ALL").toUpperCase();
+    if (r === "ALL" || r === "MIXED" || !r) return true;
+    const g = String(gender || "").toUpperCase();
+    if (r === "FEMALE_ONLY" || r === "FEMALE") return g === "FEMALE" || g === "F";
+    if (r === "MALE_ONLY" || r === "MALE") return g === "MALE" || g === "M";
+    return true;
+  };
+  const candidatePlayers = (() => {
+    const pool: any[] = [];
+    (playerPool || []).forEach((p: any) => pool.push({ userId: p.userId, fullName: p.user?.fullName || `Player ${p.userId}`, gender: p.user?.gender }));
+    (registrations || []).forEach((r: any) => {
+      if (r.status !== "APPROVED" || r.registrationType !== "INDIVIDUAL") return;
+      if (pool.some(p => p.userId === r.userId)) return;
+      pool.push({ userId: r.userId, fullName: r.user?.fullName || `Player ${r.userId}`, gender: r.user?.gender });
+    });
+    if (selectedNewPairCat) return pool.filter(p => genderAllowsForCat(selectedNewPairCat, p.gender));
+    return pool;
+  })();
 
   async function handleApprove(id: number) {
     try { await updateRegMutation.mutateAsync({ id, status: "APPROVED" }); toast({ title: "Approved" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
@@ -5273,6 +5295,27 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
                   <Users className="h-4 w-4 text-emerald-500" />
                   Create New Pair
                 </h4>
+                {doublesCategories.length > 0 && (
+                  <div className="space-y-1">
+                    <label className="text-xs font-bold text-muted-foreground">Category</label>
+                    <Select value={newPairCategoryId} onValueChange={(v) => { setNewPairCategoryId(v); setNewPairPlayer1(""); setNewPairPlayer2(""); }}>
+                      <SelectTrigger className="h-9" data-testid="select-pair-category">
+                        <SelectValue placeholder="Tournament-wide (legacy) — pick a category to land in My Categories" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">Tournament-wide (legacy)</SelectItem>
+                        {doublesCategories.map((c: any) => (
+                          <SelectItem key={c.id} value={String(c.id)}>
+                            {c.name}{c.genderRestriction && c.genderRestriction !== "ALL" ? ` · ${c.genderRestriction}` : ""}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    {selectedNewPairCat && (
+                      <p className="text-[10px] text-muted-foreground">Players filtered by this category's gender restriction. Pair will be created directly in the per-category team list.</p>
+                    )}
+                  </div>
+                )}
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <label className="text-xs font-bold text-muted-foreground">Player 1</label>
@@ -5281,11 +5324,8 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
                         <SelectValue placeholder="Select player..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(playerPool || []).filter((p: any) => String(p.userId) !== newPairPlayer2).map((p: any) => (
-                          <SelectItem key={p.userId} value={String(p.userId)}>{p.user?.fullName || `Player ${p.userId}`}</SelectItem>
-                        ))}
-                        {(registrations || []).filter((r: any) => r.status === "APPROVED" && r.registrationType === "INDIVIDUAL" && !playerPool?.some((p: any) => p.userId === r.userId) && String(r.userId) !== newPairPlayer2).map((r: any) => (
-                          <SelectItem key={r.userId} value={String(r.userId)}>{r.user?.fullName || `Player ${r.userId}`}</SelectItem>
+                        {candidatePlayers.filter((p: any) => String(p.userId) !== newPairPlayer2).map((p: any) => (
+                          <SelectItem key={p.userId} value={String(p.userId)}>{p.fullName}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -5297,11 +5337,8 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
                         <SelectValue placeholder="Select player..." />
                       </SelectTrigger>
                       <SelectContent>
-                        {(playerPool || []).filter((p: any) => String(p.userId) !== newPairPlayer1).map((p: any) => (
-                          <SelectItem key={p.userId} value={String(p.userId)}>{p.user?.fullName || `Player ${p.userId}`}</SelectItem>
-                        ))}
-                        {(registrations || []).filter((r: any) => r.status === "APPROVED" && r.registrationType === "INDIVIDUAL" && !playerPool?.some((p: any) => p.userId === r.userId) && String(r.userId) !== newPairPlayer1).map((r: any) => (
-                          <SelectItem key={r.userId} value={String(r.userId)}>{r.user?.fullName || `Player ${r.userId}`}</SelectItem>
+                        {candidatePlayers.filter((p: any) => String(p.userId) !== newPairPlayer1).map((p: any) => (
+                          <SelectItem key={p.userId} value={String(p.userId)}>{p.fullName}</SelectItem>
                         ))}
                       </SelectContent>
                     </Select>
@@ -5319,21 +5356,23 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
                     data-testid="button-confirm-create-pair"
                     onClick={async () => {
                       try {
+                        const catId = newPairCategoryId && newPairCategoryId !== "__none__" ? Number(newPairCategoryId) : null;
                         await adminCreatePairMutation.mutateAsync({
                           tournamentId,
                           player1Id: Number(newPairPlayer1),
                           player2Id: Number(newPairPlayer2),
                           pairName: newPairName || undefined,
+                          categoryId: catId,
                         });
-                        toast({ title: "Pair Created" });
-                        setNewPairPlayer1(""); setNewPairPlayer2(""); setNewPairName(""); setShowCreatePair(false);
+                        toast({ title: catId ? "Pair Created in Category" : "Pair Created" });
+                        setNewPairPlayer1(""); setNewPairPlayer2(""); setNewPairName(""); setNewPairCategoryId(""); setShowCreatePair(false);
                       } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                     }}>
                     {adminCreatePairMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}
                     Create Pair
                   </Button>
                   <Button size="sm" variant="outline" className="font-bold text-xs"
-                    onClick={() => { setShowCreatePair(false); setNewPairPlayer1(""); setNewPairPlayer2(""); setNewPairName(""); }}>
+                    onClick={() => { setShowCreatePair(false); setNewPairPlayer1(""); setNewPairPlayer2(""); setNewPairName(""); setNewPairCategoryId(""); }}>
                     Cancel
                   </Button>
                 </div>
