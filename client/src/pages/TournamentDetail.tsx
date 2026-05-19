@@ -346,7 +346,7 @@ export default function TournamentDetail() {
 
       {subPage === "overview" && <OverviewTab tournament={tournament} categories={categories} tournamentId={tournamentId} />}
       {subPage === "players" && <PlayersTab tournamentId={tournamentId} />}
-      {subPage === "pairs" && <PairsTab tournamentId={tournamentId} />}
+      {subPage === "pairs" && <PairsTab tournamentId={tournamentId} onNavigate={setSubPage} />}
       {subPage === "signup" && <SignUpTab tournamentId={tournamentId} tournament={tournament} />}
       {subPage === "categories" && <MyCategoriesTab tournamentId={tournamentId} />}
       {subPage === "matches" && activeCategory && <MatchesTab category={activeCategory} canManage={canManage} tournamentId={tournamentId} onGenerateMatches={async () => {
@@ -1071,7 +1071,7 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
   );
 }
 
-function PairsTab({ tournamentId }: { tournamentId: number }) {
+function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNavigate?: (sub: SubPage) => void }) {
   const { data: user } = useUser();
   const { data: pairs, isLoading } = useTournamentPairs(tournamentId);
   const { data: teamsByCategory } = useTournamentTeamsByCategory(tournamentId);
@@ -1284,101 +1284,23 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
         );
       })()}
 
-      {isIndividual && playerPool && playerPool.length > 0 && (
-        <div className="space-y-3" data-testid="pairs-player-pool">
-          <div className="flex items-center justify-between">
-            <div>
-              <div className="flex items-center gap-2 mb-1">
-                <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center">
-                  <Users className="h-3.5 w-3.5 text-white" />
-                </div>
-                <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Find a Partner</h3>
-              </div>
-              <p className="text-[10px] text-muted-foreground ml-8">Send a pair request to any available player</p>
+      {isIndividual && (
+        <div className="rounded-xl border border-cyan-500/25 bg-gradient-to-r from-cyan-500/[0.06] to-blue-500/[0.06] p-4 flex items-center justify-between gap-3 flex-wrap" data-testid="pairs-find-partner-cta">
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="h-9 w-9 rounded-lg bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center flex-shrink-0">
+              <Users className="h-4 w-4 text-white" />
             </div>
-            <Badge variant="outline" className="font-bold">{playerPool.filter((p: any) => p.userId !== user?.id).length} available</Badge>
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground">Looking for a partner?</p>
+              <p className="text-[11px] text-muted-foreground">Pick a category and propose a partner from the <span className="font-bold text-cyan-500">My Categories</span> tab.</p>
+            </div>
           </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input type="text" placeholder="Search players..." value={poolSearch} onChange={e => setPoolSearch(e.target.value)}
-              className="w-full h-9 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors"
-              data-testid="input-pairs-pool-search" />
-          </div>
-          <div className="rounded-xl border border-border/50 overflow-hidden divide-y divide-border/20">
-            {playerPool.filter((p: any) => {
-              if (p.userId === user?.id) return false;
-              if (poolSearch) return p.user?.fullName?.toLowerCase().includes(poolSearch.toLowerCase());
-              return true;
-            }).map((p: any) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`pairs-pool-player-${p.userId}`}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <PlayerAvatar name={p.user?.fullName || "?"} size="sm" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-foreground truncate">{p.user?.fullName}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <GradeTierBadge grade={p.profile?.currentGrade || "—"} />
-                    </div>
-                  </div>
-                </div>
-                {pairRequests?.some((pr: any) => pr.fromUserId === user?.id && pr.toUserId === p.userId && pr.status === "PENDING") ? (
-                  <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold">
-                    <Clock className="h-3 w-3 mr-1" />Pending
-                  </Badge>
-                ) : (
-                  <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 font-bold"
-                    data-testid={`button-pairs-propose-${p.userId}`}
-                    onClick={() => setProposingTo({ userId: p.userId, name: p.user?.fullName || "Player" })}>
-                    <UserPlus className="h-3 w-3 mr-1" />Propose
-                  </Button>
-                )}
-              </div>
-            ))}
-          </div>
+          <Button size="sm" className="bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white font-bold border-0"
+            data-testid="button-pairs-go-categories"
+            onClick={() => onNavigate?.("categories")}>
+            Open My Categories
+          </Button>
         </div>
-      )}
-
-      {proposingTo && (
-        <Dialog open onOpenChange={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-amber-500" />
-                Propose Partner
-              </DialogTitle>
-              <DialogDescription>Send a pair request to {proposingTo.name}</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-3">
-              <div>
-                <label className="text-xs font-bold text-foreground mb-1 block">Team Name (optional)</label>
-                <input type="text" value={proposalPairName} onChange={e => setProposalPairName(e.target.value)} placeholder="e.g. Thunder Smash"
-                  className="w-full h-9 px-3 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40"
-                  data-testid="input-pairs-team-name" />
-              </div>
-              <div>
-                <label className="text-xs font-bold text-foreground mb-1 block">Message (optional)</label>
-                <textarea value={proposalMessage} onChange={e => setProposalMessage(e.target.value)} placeholder="Hey, want to team up?"
-                  className="w-full h-20 px-3 py-2 rounded-lg border border-border bg-card text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 resize-none"
-                  data-testid="input-pairs-message" />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>Cancel</Button>
-              <Button className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
-                disabled={sendPairMutation.isPending}
-                data-testid="button-pairs-send-request"
-                onClick={async () => {
-                  try {
-                    await sendPairMutation.mutateAsync({ tournamentId, toUserId: proposingTo.userId, message: proposalMessage || undefined, pairName: proposalPairName || undefined });
-                    toast({ title: "Pair Request Sent!", description: "They'll receive a notification." });
-                    setProposingTo(null); setProposalMessage(""); setProposalPairName("");
-                  } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                }}>
-                {sendPairMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
-                Send Request
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
       )}
 
       {teamsByCategory && teamsByCategory.length > 0 && teamsByCategory.some((r: any) => r.confirmedPairs.length > 0 || r.soloEntries.length > 0) && (
