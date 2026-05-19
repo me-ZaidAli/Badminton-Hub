@@ -22,6 +22,7 @@ import {
   useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames, useUpdateMatchScheduledTime, useBulkUpdateMatchScheduledTime,
   useTournamentPlayerStats, useRecalculateStats,
   useMyTournamentCategories, useJoinCategorySolo, useLeaveCategory,
+  useConfirmCategoryPayment, useUpdateTeamPayment,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -1882,6 +1883,7 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
   const leaveMutation = useLeaveCategory();
   const sendPairMutation = useSendPairRequest();
   const respondPairMutation = useRespondPairRequest();
+  const confirmPayMutation = useConfirmCategoryPayment();
   const { toast } = useToast();
   const [partnerPicker, setPartnerPicker] = useState<{ categoryId: number; categoryName: string } | null>(null);
   const [partnerSearch, setPartnerSearch] = useState("");
@@ -1963,6 +1965,15 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                   {isPaired && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Paired</Badge>}
                   {isSolo && !isSingles && <Badge className="text-[10px] font-bold bg-amber-500/15 text-amber-500 border-amber-500/30">Looking for partner</Badge>}
                   {isSolo && isSingles && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Entered</Badge>}
+                  {inEntry && entry.myPaymentStatus === "PAID" && (
+                    <Badge className="text-[10px] font-bold bg-emerald-500/20 text-emerald-500 border-emerald-500/30" data-testid={`badge-pay-status-${cat.id}`}>✓ Paid</Badge>
+                  )}
+                  {inEntry && entry.myPaymentStatus === "PENDING" && (
+                    <Badge className="text-[10px] font-bold bg-amber-500/20 text-amber-500 border-amber-500/30" data-testid={`badge-pay-status-${cat.id}`}>Awaiting verification</Badge>
+                  )}
+                  {inEntry && entry.myPaymentStatus === "UNPAID" && entry.myFeePence != null && entry.myFeePence > 0 && (
+                    <Badge className="text-[10px] font-bold bg-red-500/20 text-red-500 border-red-500/30" data-testid={`badge-pay-status-${cat.id}`}>Unpaid</Badge>
+                  )}
                 </div>
                 <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1 flex-wrap">
                   <span>{cat.playersPerSide || 1}-per-side</span>
@@ -2013,6 +2024,19 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                     {isSolo && !isSingles && (
                       <Button size="sm" className="h-8 text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-600 text-white" onClick={() => setPartnerPicker({ categoryId: cat.id, categoryName: cat.name })} data-testid={`button-find-partner-${cat.id}`}>
                         <UserPlus className="h-3 w-3 mr-1" />Find Partner
+                      </Button>
+                    )}
+                    {entry.teamId && entry.myPaymentStatus === "UNPAID" && entry.myFeePence != null && entry.myFeePence > 0 && (
+                      <Button size="sm" className="h-8 text-xs font-bold bg-gradient-to-r from-emerald-500 to-green-600 text-white"
+                        disabled={confirmPayMutation.isPending}
+                        onClick={async () => {
+                          try {
+                            await confirmPayMutation.mutateAsync({ teamId: entry.teamId, tournamentId });
+                            toast({ title: "Payment submitted", description: "Admin will verify shortly." });
+                          } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                        }}
+                        data-testid={`button-pay-cat-${cat.id}`}>
+                        <PoundSterling className="h-3 w-3 mr-1" />Pay £{(entry.myFeePence / 100).toFixed(2)}
                       </Button>
                     )}
                     <Button size="sm" variant="outline" className="h-8 text-xs font-bold border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => setLeaveConfirm({ categoryId: cat.id, categoryName: cat.name })} data-testid={`button-leave-${cat.id}`}>
@@ -6482,8 +6506,26 @@ function CategoryFeeRow({ category, tournament, tournamentId, onDelete }: { cate
 function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; tournament: any }) {
   const { data: finances, isLoading } = useTournamentFinances(tournamentId);
   const updatePaymentMutation = useUpdateTournamentPayment();
+  const updateTeamPayment = useUpdateTeamPayment();
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+
+  function toggleExpand(id: number) {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  async function setTeamPay(teamId: number, slot: 1 | 2, paymentStatus: "UNPAID" | "PENDING" | "PAID") {
+    try {
+      await updateTeamPayment.mutateAsync({ teamId, tournamentId, slot, paymentStatus });
+      toast({ title: `Marked ${paymentStatus}` });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
 
   if (isLoading) return <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />;
   if (!finances) return <EmptyState icon={Wallet} title="No Financial Data" description="Set an entry fee in Settings to track tournament finances." />;
@@ -6641,60 +6683,132 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
           )}
         </div>
         <div className="divide-y divide-border/20">
-          {players.map((player: any) => (
-            <div key={player.id} className={cn("flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors", selectedIds.has(player.id) && "bg-amber-500/5")} data-testid={`finance-player-${player.id}`}>
-              <div className="flex items-center gap-3 min-w-0">
-                <input type="checkbox" checked={selectedIds.has(player.id)}
-                  onChange={() => toggleSelect(player.id)}
-                  className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer flex-shrink-0"
-                  data-testid={`checkbox-finance-${player.id}`} />
-                <PlayerAvatar name={player.user?.fullName || "?"} size="sm" />
-                <div className="min-w-0">
-                  <p className="text-sm font-bold text-foreground truncate">{player.user?.fullName}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span>£{(player.playerFee ?? internalFee).toFixed(2)}</span>
-                    {hasDualFees && (
-                      <Badge className={cn("text-[8px] px-1 py-0 border font-bold", player.isInternal ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30" : "bg-violet-500/10 text-violet-500 border-violet-500/30")}>
-                        {player.isInternal ? "Member" : "External"}
-                      </Badge>
+          {players.map((player: any) => {
+            const cats: any[] = player.categoryFees || [];
+            const isExpanded = expandedIds.has(player.id);
+            const hasCats = cats.length > 0;
+            return (
+              <div key={player.id} className={cn(selectedIds.has(player.id) && "bg-amber-500/5")} data-testid={`finance-player-${player.id}`}>
+                <div className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors">
+                  <div className="flex items-center gap-3 min-w-0 flex-1">
+                    <input type="checkbox" checked={selectedIds.has(player.id)}
+                      onChange={() => toggleSelect(player.id)}
+                      className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer flex-shrink-0"
+                      data-testid={`checkbox-finance-${player.id}`} />
+                    <PlayerAvatar name={player.user?.fullName || "?"} size="sm" />
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm font-bold text-foreground truncate">{player.user?.fullName}</p>
+                        {hasCats && (
+                          <button onClick={() => toggleExpand(player.id)}
+                            className="text-[10px] font-bold text-amber-500 hover:text-amber-400"
+                            data-testid={`button-expand-finance-${player.id}`}>
+                            {isExpanded ? "Hide" : "Show"} {cats.length} {cats.length === 1 ? "category" : "categories"}
+                          </button>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                        <span>£{(player.playerFee ?? internalFee).toFixed(2)} total</span>
+                        {hasCats && (
+                          <>
+                            <span>·</span>
+                            <span className="text-emerald-500 font-bold">£{(player.collectedFee ?? 0).toFixed(2)} paid</span>
+                            {(player.pendingFee ?? 0) > 0 && (
+                              <>
+                                <span>·</span>
+                                <span className="text-amber-500 font-bold">£{player.pendingFee.toFixed(2)} pending</span>
+                              </>
+                            )}
+                          </>
+                        )}
+                        {hasDualFees && (
+                          <Badge className={cn("text-[8px] px-1 py-0 border font-bold", player.isInternal ? "bg-emerald-500/10 text-emerald-500 border-emerald-500/30" : "bg-violet-500/10 text-violet-500 border-violet-500/30")}>
+                            {player.isInternal ? "Member" : "External"}
+                          </Badge>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <Badge className={cn("text-[9px] px-1.5 border font-bold",
+                      player.paymentStatus === "PAID" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                      player.paymentStatus === "PENDING" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+                      "bg-red-500/20 text-red-400 border-red-500/30"
+                    )}>{player.paymentStatus}</Badge>
+                    {!hasCats && player.paymentStatus !== "PAID" && (
+                      <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                        disabled={updatePaymentMutation.isPending}
+                        onClick={async () => {
+                          try {
+                            await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "PAID" });
+                            toast({ title: "Payment Confirmed" });
+                          } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                        }}>
+                        <Check className="h-3 w-3 mr-1" />Paid
+                      </Button>
                     )}
-                    {player.paymentMethod && <span>{player.paymentMethod}</span>}
+                    {!hasCats && player.paymentStatus === "PAID" && (
+                      <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/30 text-red-500"
+                        disabled={updatePaymentMutation.isPending}
+                        onClick={async () => {
+                          try {
+                            await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "UNPAID" });
+                            toast({ title: "Payment Reverted" });
+                          } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                        }}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    )}
                   </div>
                 </div>
-              </div>
-              <div className="flex items-center gap-1.5">
-                <Badge className={cn("text-[9px] px-1.5 border font-bold",
-                  player.paymentStatus === "PAID" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
-                  player.paymentStatus === "PENDING" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
-                  "bg-red-500/20 text-red-400 border-red-500/30"
-                )}>{player.paymentStatus}</Badge>
-                {player.paymentStatus !== "PAID" && (
-                  <Button size="sm" className="h-7 text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
-                    disabled={updatePaymentMutation.isPending}
-                    onClick={async () => {
-                      try {
-                        await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "PAID" });
-                        toast({ title: "Payment Confirmed" });
-                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                    }}>
-                    <Check className="h-3 w-3 mr-1" />Paid
-                  </Button>
+                {hasCats && isExpanded && (
+                  <div className="px-4 pb-3 space-y-1.5">
+                    {cats.map((c: any) => (
+                      <div key={`${c.teamId}-${c.slot}`} className="flex items-center justify-between gap-3 px-3 py-2 rounded-lg bg-muted/30 dark:bg-muted/10 border border-border/30" data-testid={`finance-cat-row-${player.id}-${c.catId}`}>
+                        <div className="min-w-0 flex-1">
+                          <p className="text-xs font-bold text-foreground truncate">{c.categoryName}</p>
+                          <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                            <span>£{c.fee.toFixed(2)}</span>
+                            <Badge className={cn("text-[8px] px-1 py-0 border font-bold",
+                              c.status === "PAID" ? "bg-emerald-500/15 text-emerald-500 border-emerald-500/30" :
+                              c.status === "PENDING" ? "bg-amber-500/15 text-amber-500 border-amber-500/30" :
+                              "bg-red-500/15 text-red-500 border-red-500/30"
+                            )}>{c.status}</Badge>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1">
+                          {c.status !== "PAID" && (
+                            <Button size="sm" className="h-6 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                              disabled={updateTeamPayment.isPending}
+                              onClick={() => setTeamPay(c.teamId, c.slot, "PAID")}
+                              data-testid={`button-team-pay-paid-${c.teamId}-${c.slot}`}>
+                              <Check className="h-3 w-3" />
+                            </Button>
+                          )}
+                          {c.status !== "PENDING" && (
+                            <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-amber-500/30 text-amber-500 font-bold"
+                              disabled={updateTeamPayment.isPending}
+                              onClick={() => setTeamPay(c.teamId, c.slot, "PENDING")}
+                              data-testid={`button-team-pay-pending-${c.teamId}-${c.slot}`}>
+                              <Clock className="h-3 w-3" />
+                            </Button>
+                          )}
+                          {c.status !== "UNPAID" && (
+                            <Button size="sm" variant="outline" className="h-6 px-2 text-[10px] border-red-500/30 text-red-500 font-bold"
+                              disabled={updateTeamPayment.isPending}
+                              onClick={() => setTeamPay(c.teamId, c.slot, "UNPAID")}
+                              data-testid={`button-team-pay-unpaid-${c.teamId}-${c.slot}`}>
+                              <X className="h-3 w-3" />
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
-                {player.paymentStatus === "PAID" && (
-                  <Button size="sm" variant="outline" className="h-7 text-xs border-red-500/30 text-red-500"
-                    disabled={updatePaymentMutation.isPending}
-                    onClick={async () => {
-                      try {
-                        await updatePaymentMutation.mutateAsync({ tournamentId, regId: player.id, paymentStatus: "UNPAID" });
-                        toast({ title: "Payment Reverted" });
-                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                    }}>
-                    <X className="h-3 w-3" />
-                  </Button>
-                )}
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </div>
     </div>

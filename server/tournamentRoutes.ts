@@ -2250,15 +2250,28 @@ export function registerTournamentRoutes(app: Express) {
                   (t.player1Id === p2 && t.player2Id === p1)
                 ));
                 if (!alreadyPaired) {
-                  // Preserve any prior solo-join fee snapshots so a player who
-                  // already joined-solo and is now pairing up isn't re-priced
-                  // at a fee that's been edited since.
+                  // Preserve any prior solo-join fee + payment snapshots so a
+                  // player who already joined-solo (and possibly already paid)
+                  // and is now pairing up isn't re-priced or re-marked unpaid
+                  // when their solo row is collapsed into the paired team.
                   let p1FeeSnapshot: number | null = null;
                   let p2FeeSnapshot: number | null = null;
+                  let p1PayStatus: "UNPAID" | "PENDING" | "PAID" = "UNPAID";
+                  let p2PayStatus: "UNPAID" | "PENDING" | "PAID" = "UNPAID";
+                  let p1PaidAt: Date | null = null;
+                  let p2PaidAt: Date | null = null;
                   for (const team of myTeams) {
                     if (team.player2Id !== null) continue;
-                    if (team.player1Id === p1 && team.player1EntryFeePence != null) p1FeeSnapshot = team.player1EntryFeePence;
-                    if (team.player1Id === p2 && team.player1EntryFeePence != null) p2FeeSnapshot = team.player1EntryFeePence;
+                    if (team.player1Id === p1) {
+                      if (team.player1EntryFeePence != null) p1FeeSnapshot = team.player1EntryFeePence;
+                      if (team.player1PaymentStatus) p1PayStatus = team.player1PaymentStatus;
+                      if (team.player1PaidAt) p1PaidAt = team.player1PaidAt;
+                    }
+                    if (team.player1Id === p2) {
+                      if (team.player1EntryFeePence != null) p2FeeSnapshot = team.player1EntryFeePence;
+                      if (team.player1PaymentStatus) p2PayStatus = team.player1PaymentStatus;
+                      if (team.player1PaidAt) p2PaidAt = team.player1PaidAt;
+                    }
                     await tx.delete(tournamentStandings).where(eq(tournamentStandings.teamId, team.id));
                     await tx.delete(tournamentMatches).where(or(eq(tournamentMatches.teamAId, team.id), eq(tournamentMatches.teamBId, team.id)));
                     await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
@@ -2273,6 +2286,10 @@ export function registerTournamentRoutes(app: Express) {
                       player2Id: p2,
                       player1EntryFeePence: p1FeeSnapshot,
                       player2EntryFeePence: p2FeeSnapshot,
+                      player1PaymentStatus: p1PayStatus,
+                      player2PaymentStatus: p2PayStatus,
+                      player1PaidAt: p1PaidAt,
+                      player2PaidAt: p2PaidAt,
                     });
                   } catch (e: any) {
                     // Unique-index violation → another player paired with one of these two
@@ -2461,10 +2478,13 @@ export function registerTournamentRoutes(app: Express) {
           if (remainingProfileId != null) {
             // Remove any group-pair link tied to the now-solo team (groups are
             // for paired matchups). Keep the team row itself, but demote it.
-            // Preserve the remaining player's original fee snapshot so admin
-            // fee edits between join and leave don't retroactively re-price.
-            const remainingFeeSnapshot =
-              team.player1Id === remainingProfileId ? team.player1EntryFeePence : team.player2EntryFeePence;
+            // Preserve the remaining player's original fee + payment snapshots
+            // so admin edits between join and leave don't retroactively
+            // re-price or reset what they've already paid.
+            const remainingIsP1 = team.player1Id === remainingProfileId;
+            const remainingFeeSnapshot = remainingIsP1 ? team.player1EntryFeePence : team.player2EntryFeePence;
+            const remainingPayStatus = (remainingIsP1 ? team.player1PaymentStatus : team.player2PaymentStatus) || "UNPAID";
+            const remainingPaidAt = remainingIsP1 ? team.player1PaidAt : team.player2PaidAt;
             await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
             await tx.update(tournamentTeams)
               .set({
@@ -2472,6 +2492,10 @@ export function registerTournamentRoutes(app: Express) {
                 player2Id: null,
                 player1EntryFeePence: remainingFeeSnapshot ?? null,
                 player2EntryFeePence: null,
+                player1PaymentStatus: remainingPayStatus,
+                player2PaymentStatus: null,
+                player1PaidAt: remainingPaidAt ?? null,
+                player2PaidAt: null,
               })
               .where(eq(tournamentTeams.id, team.id));
           } else {
@@ -2489,6 +2513,110 @@ export function registerTournamentRoutes(app: Express) {
         return mine.length;
       });
       res.json({ success: true, removed });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ───────────────────────────────────────────────────────────────────────
+  // Per-category payment (May 2026): players pay their fee one category at
+  // a time instead of one lump sum on the tournament registration. Each
+  // tournament_teams row has independent paymentStatus per slot (player1 /
+  // player2). Players confirm their own slot; admins can set any slot.
+  // ───────────────────────────────────────────────────────────────────────
+  app.post("/api/tournament-teams/:teamId/confirm-payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const teamId = Number(req.params.teamId);
+      const userId = (req.user as any).id;
+      const { paymentMethod } = req.body || {};
+      const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      if (!profile) return res.status(404).json({ message: "No player profile" });
+      const isP1 = team.player1Id === profile.id;
+      const isP2 = team.player2Id === profile.id;
+      if (!isP1 && !isP2) return res.status(403).json({ message: "You are not on this team" });
+      const currentStatus = isP1 ? team.player1PaymentStatus : team.player2PaymentStatus;
+      if (currentStatus === "PAID") return res.status(400).json({ message: "Already marked paid" });
+      const patch: any = isP1
+        ? { player1PaymentStatus: "PENDING" as const }
+        : { player2PaymentStatus: "PENDING" as const };
+      const [updated] = await db.update(tournamentTeams).set(patch)
+        .where(eq(tournamentTeams.id, teamId)).returning();
+
+      // Notify tournament admins (mirrors the tournament-level confirm flow).
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, team.categoryId));
+      const [tournament] = cat ? await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId)) : [null];
+      const [player] = await db.select({ fullName: users.fullName }).from(users).where(eq(users.id, userId));
+      if (tournament) {
+        const adminUsers = await db.select({ userId: tournamentAdmins.userId }).from(tournamentAdmins)
+          .where(eq(tournamentAdmins.tournamentId, tournament.id));
+        const adminIds = new Set<number>(adminUsers.map(a => a.userId));
+        if (tournament.createdBy) adminIds.add(tournament.createdBy);
+        const ownerUsers = await db.select({ id: users.id }).from(users).where(eq(users.role, "OWNER"));
+        ownerUsers.forEach(u => adminIds.add(u.id));
+        for (const adminId of adminIds) {
+          await db.insert(notifications).values({
+            userId: adminId,
+            type: "GENERAL",
+            title: "Category Payment Submitted",
+            message: `${player?.fullName} has confirmed payment for "${cat?.name}" in "${tournament.name}". Method: ${paymentMethod || "Bank Transfer"}.`,
+            linkUrl: `/tournaments/${tournament.id}`,
+          });
+        }
+        await db.insert(notifications).values({
+          userId,
+          type: "GENERAL",
+          title: "Payment Submitted",
+          message: `Your payment for "${cat?.name}" in "${tournament.name}" has been submitted and is awaiting admin verification.`,
+          linkUrl: `/tournaments/${tournament.id}`,
+        });
+      }
+      res.json(updated);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.patch("/api/tournament-teams/:teamId/payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const teamId = Number(req.params.teamId);
+      const { slot, paymentStatus } = req.body || {};
+      if (slot !== 1 && slot !== 2) return res.status(400).json({ message: "slot must be 1 or 2" });
+      if (!["UNPAID", "PENDING", "PAID"].includes(paymentStatus)) return res.status(400).json({ message: "Invalid paymentStatus" });
+      const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
+      if (!team) return res.status(404).json({ message: "Team not found" });
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, team.categoryId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const isAdmin = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      if (slot === 2 && team.player2Id == null) return res.status(400).json({ message: "Team has no player 2" });
+      const now = paymentStatus === "PAID" ? new Date() : null;
+      const patch: any = slot === 1
+        ? { player1PaymentStatus: paymentStatus, player1PaidAt: now }
+        : { player2PaymentStatus: paymentStatus, player2PaidAt: now };
+      const [updated] = await db.update(tournamentTeams).set(patch)
+        .where(eq(tournamentTeams.id, teamId)).returning();
+
+      if (paymentStatus === "PAID") {
+        const targetProfileId = slot === 1 ? team.player1Id : team.player2Id;
+        if (targetProfileId) {
+          const [tp] = await db.select({ userId: playerProfiles.userId }).from(playerProfiles).where(eq(playerProfiles.id, targetProfileId));
+          if (tp) {
+            const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
+            await db.insert(notifications).values({
+              userId: tp.userId,
+              type: "GENERAL",
+              title: "Payment Confirmed",
+              message: `Your payment for "${cat.name}" in "${tournament?.name}" has been confirmed. You're all set!`,
+              linkUrl: `/tournaments/${cat.tournamentId}`,
+            });
+          }
+        }
+      }
+      res.json(updated);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }
@@ -2562,6 +2690,27 @@ export function registerTournamentRoutes(app: Express) {
         const teamsHere = allTeams.filter(t => t.categoryId === cat.id);
         const confirmedPairCount = teamsHere.filter(t => !!t.player2Id).length;
         const soloCount = teamsHere.filter(t => !t.player2Id).length;
+        // Per-category caller-facing payment state. The caller's slot (player1
+        // vs player2 on their team) drives the "Pay £X for [category]" button:
+        // we expose both the snapshot fee owed in pence and the per-slot
+        // status so the My Categories tab can render Pay / Awaiting / Paid.
+        let mySlot: 1 | 2 | null = null;
+        let myPaymentStatus: "UNPAID" | "PENDING" | "PAID" | null = null;
+        let myFeePence: number | null = null;
+        let myPaidAt: Date | null = null;
+        if (team && myProfile) {
+          if (team.player1Id === myProfile.id) {
+            mySlot = 1;
+            myPaymentStatus = team.player1PaymentStatus || "UNPAID";
+            myFeePence = team.player1EntryFeePence ?? null;
+            myPaidAt = team.player1PaidAt ?? null;
+          } else if (team.player2Id === myProfile.id) {
+            mySlot = 2;
+            myPaymentStatus = team.player2PaymentStatus || "UNPAID";
+            myFeePence = team.player2EntryFeePence ?? null;
+            myPaidAt = team.player2PaidAt ?? null;
+          }
+        }
         result.push({
           category: cat,
           teamId: team?.id || null,
@@ -2569,6 +2718,10 @@ export function registerTournamentRoutes(app: Express) {
           isPaired: !!team && !!team.player2Id,
           partner,
           pendingRequests: enrichedPending,
+          mySlot,
+          myPaymentStatus,
+          myFeePence,
+          myPaidAt,
           occupantUserIds,
           confirmedPairCount,
           soloCount,
@@ -3249,15 +3402,22 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       // (captured at join/accept time, stored in pence on tournament_teams).
       // Fall back to dynamic calculation only for legacy rows where the
       // snapshot is NULL (created before per-category fees existed).
-      const userCategories = new Map<number, Array<{ catId: number; fee: number; categoryName: string }>>();
+      // userId -> Array<{ catId, fee, status, teamId, slot }>
+      // Per-team-slot payment status (May 2026) is the source of truth.
+      // Each entry represents one paid/unpaid line on the player's row.
+      const userCategories = new Map<number, Array<{
+        catId: number; fee: number; categoryName: string;
+        status: "UNPAID" | "PENDING" | "PAID"; teamId: number; slot: 1 | 2;
+        paidAt: Date | null;
+      }>>();
       for (const t of allTeams) {
         const cFees = catFeeMap.get(t.categoryId);
         if (!cFees) continue;
-        const slots: Array<{ pid: number | null; snapshot: number | null }> = [
-          { pid: t.player1Id, snapshot: (t as any).player1EntryFeePence ?? null },
-          { pid: t.player2Id, snapshot: (t as any).player2EntryFeePence ?? null },
+        const slots: Array<{ pid: number | null; snapshot: number | null; status: any; paidAt: Date | null; slot: 1 | 2 }> = [
+          { pid: t.player1Id, snapshot: (t as any).player1EntryFeePence ?? null, status: (t as any).player1PaymentStatus, paidAt: (t as any).player1PaidAt ?? null, slot: 1 },
+          { pid: t.player2Id, snapshot: (t as any).player2EntryFeePence ?? null, status: (t as any).player2PaymentStatus, paidAt: (t as any).player2PaidAt ?? null, slot: 2 },
         ];
-        for (const { pid, snapshot } of slots) {
+        for (const { pid, snapshot, status, paidAt, slot } of slots) {
           if (pid == null) continue;
           const uid = profileToUserId.get(pid);
           if (uid == null) continue;
@@ -3266,7 +3426,15 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
             : (clubMemberIds.has(uid) ? cFees.internalFee : cFees.externalFee);
           const arr = userCategories.get(uid) || [];
           // Don't double-count if a player somehow appears twice in the same cat.
-          if (!arr.some(e => e.catId === t.categoryId)) arr.push({ catId: t.categoryId, fee, categoryName: cFees.name });
+          if (!arr.some(e => e.catId === t.categoryId)) arr.push({
+            catId: t.categoryId,
+            fee,
+            categoryName: cFees.name,
+            status: (status as any) || "UNPAID",
+            teamId: t.id,
+            slot,
+            paidAt,
+          });
           userCategories.set(uid, arr);
         }
       }
@@ -3282,19 +3450,47 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         const playerFee = catEntries.length > 0
           ? catEntries.reduce((s, e) => s + e.fee, 0)
           : tournamentLevelFee;
-        return { ...reg, user, isInternal, playerFee, categoryFees: catEntries };
+        // Aggregate per-team-slot statuses into a single label for the row.
+        // PAID only if every category entry is PAID; PENDING if any is PENDING
+        // (or mixed paid/unpaid); UNPAID if all are unpaid. When the player
+        // hasn't joined any category, fall back to the legacy tournament-level
+        // paymentStatus column (back-compat for old single-category flow).
+        let aggregatedStatus: "UNPAID" | "PENDING" | "PAID" = "UNPAID";
+        if (catEntries.length === 0) {
+          aggregatedStatus = (reg.paymentStatus as any) || "UNPAID";
+        } else {
+          const allPaid = catEntries.every(e => e.status === "PAID");
+          const anyPaid = catEntries.some(e => e.status === "PAID");
+          const anyPending = catEntries.some(e => e.status === "PENDING");
+          if (allPaid) aggregatedStatus = "PAID";
+          else if (anyPending || anyPaid) aggregatedStatus = "PENDING";
+          else aggregatedStatus = "UNPAID";
+        }
+        const collectedFee = catEntries.filter(e => e.status === "PAID").reduce((s, e) => s + e.fee, 0);
+        const pendingFee = catEntries.filter(e => e.status === "PENDING").reduce((s, e) => s + e.fee, 0);
+        return {
+          ...reg,
+          user,
+          isInternal,
+          playerFee,
+          collectedFee,
+          pendingFee,
+          paymentStatus: aggregatedStatus,
+          categoryFees: catEntries,
+        };
       }));
 
       const approvedPlayers = enriched.filter(r => r.status === "APPROVED");
       const totalExpected = approvedPlayers.reduce((sum, r) => sum + r.playerFee, 0);
-      const totalCollected = enriched.filter(r => r.paymentStatus === "PAID").reduce((sum, r) => sum + r.playerFee, 0);
-      const totalPending = enriched.filter(r => r.paymentStatus === "PENDING").reduce((sum, r) => sum + r.playerFee, 0);
-      const unpaidCount = enriched.filter(r => r.paymentStatus === "UNPAID" && r.status === "APPROVED").length;
+      // Sum per-team-slot collected/pending fees across approved players so the
+      // dashboard numbers reflect per-category settlement (e.g. a player who
+      // paid 2 of 3 categories shows 2/3 of their total in Collected, not 0).
+      const totalCollected = approvedPlayers.reduce((sum, r) => sum + r.collectedFee, 0);
+      const totalPending = approvedPlayers.reduce((sum, r) => sum + r.pendingFee, 0);
+      const unpaidCount = approvedPlayers.filter(r => r.paymentStatus !== "PAID").length;
       const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 
-      // Per-category revenue breakdown for the Finances tab.
-      const paidUserIds = new Set(enriched.filter(r => r.paymentStatus === "PAID").map(r => r.userId));
-      const pendingUserIds = new Set(enriched.filter(r => r.paymentStatus === "PENDING").map(r => r.userId));
+      // Per-category revenue breakdown — driven by per-slot payment status.
       const approvedUserIds = new Set(approvedPlayers.map(r => r.userId));
       const byCategory = Array.from(catFeeMap.entries()).map(([catId, info]) => {
         const teamsHere = allTeams.filter(t => t.categoryId === catId);
@@ -3303,11 +3499,11 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         let collected = 0;
         let pending = 0;
         for (const t of teamsHere) {
-          const slots: Array<{ pid: number | null; snapshot: number | null }> = [
-            { pid: t.player1Id, snapshot: (t as any).player1EntryFeePence ?? null },
-            { pid: t.player2Id, snapshot: (t as any).player2EntryFeePence ?? null },
+          const slots: Array<{ pid: number | null; snapshot: number | null; status: any }> = [
+            { pid: t.player1Id, snapshot: (t as any).player1EntryFeePence ?? null, status: (t as any).player1PaymentStatus },
+            { pid: t.player2Id, snapshot: (t as any).player2EntryFeePence ?? null, status: (t as any).player2PaymentStatus },
           ];
-          for (const { pid, snapshot } of slots) {
+          for (const { pid, snapshot, status } of slots) {
             if (pid == null) continue;
             const uid = profileToUserId.get(pid);
             if (uid == null) continue;
@@ -3316,8 +3512,8 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
               : (clubMemberIds.has(uid) ? info.internalFee : info.externalFee);
             playerCount++;
             if (approvedUserIds.has(uid)) expected += fee;
-            if (paidUserIds.has(uid)) collected += fee;
-            if (pendingUserIds.has(uid)) pending += fee;
+            if (status === "PAID") collected += fee;
+            if (status === "PENDING") pending += fee;
           }
         }
         return {

@@ -683,6 +683,33 @@ export function useUpdateTournamentPayment() {
   });
 }
 
+// ───── Per-category payment (May 2026) ─────
+export function useConfirmCategoryPayment() {
+  return useMutation({
+    mutationFn: async ({ teamId, paymentMethod }: { teamId: number; tournamentId: number; paymentMethod?: string }) => {
+      const res = await apiRequest("POST", `/api/tournament-teams/${teamId}/confirm-payment`, { paymentMethod });
+      return res.json();
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
+    },
+  });
+}
+
+export function useUpdateTeamPayment() {
+  return useMutation({
+    mutationFn: async ({ teamId, slot, paymentStatus }: { teamId: number; tournamentId: number; slot: 1 | 2; paymentStatus: string }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-teams/${teamId}/payment`, { slot, paymentStatus });
+      return res.json();
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
+    },
+  });
+}
+
 export function useTournamentPrizesQuery(tournamentId: number) {
   return useQuery<any[]>({
     queryKey: ["/api/tournaments", tournamentId, "prizes"],

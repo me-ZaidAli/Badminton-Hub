@@ -559,6 +559,13 @@ export const tournamentTeams = pgTable("tournament_teams", {
   // created before per-category fees existed).
   player1EntryFeePence: integer("player1_entry_fee_pence"),
   player2EntryFeePence: integer("player2_entry_fee_pence"),
+  // Per-player per-category payment status (May 2026). Each player on a team
+  // pays their own slot independently — admins can mark one paid without the
+  // other. player2_* is nullable because singles/solo teams have no player 2.
+  player1PaymentStatus: tournamentPaymentStatusEnum("player1_payment_status").default("UNPAID").notNull(),
+  player2PaymentStatus: tournamentPaymentStatusEnum("player2_payment_status"),
+  player1PaidAt: timestamp("player1_paid_at"),
+  player2PaidAt: timestamp("player2_paid_at"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   // Multi-category partner flow (May 2026): a player must not appear in two
