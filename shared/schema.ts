@@ -540,6 +540,8 @@ export const tournamentCategories = pgTable("tournament_categories", {
   scoringFormat: text("scoring_format").default("BEST_OF_3"),
   pointsPerWin: integer("points_per_win").default(2).notNull(),
   pointsPerLoss: integer("points_per_loss").default(0).notNull(),
+  entryFee: text("entry_fee"),
+  externalEntryFee: text("external_entry_fee"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -551,6 +553,12 @@ export const tournamentTeams = pgTable("tournament_teams", {
   seedNumber: integer("seed_number"),
   groupNumber: integer("group_number"),
   subGroupNumber: integer("sub_group_number"),
+  // Per-player fee snapshots, captured at join/accept time in pence so admin
+  // edits to category fees later do NOT retroactively change what existing
+  // entrants owe. NULL means "use the dynamic fee" (back-compat for rows
+  // created before per-category fees existed).
+  player1EntryFeePence: integer("player1_entry_fee_pence"),
+  player2EntryFeePence: integer("player2_entry_fee_pence"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 }, (table) => ({
   // Multi-category partner flow (May 2026): a player must not appear in two

@@ -280,7 +280,25 @@ export function registerTournamentRoutes(app: Express) {
   app.patch("/api/tournament-categories/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
-      const [cat] = await db.update(tournamentCategories).set(req.body).where(eq(tournamentCategories.id, Number(req.params.id))).returning();
+      const catId = Number(req.params.id);
+      const [existing] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!existing) return res.status(404).json({ message: "Category not found" });
+      const canManage = await isTournamentAdmin((req.user as any).id, existing.tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
+      // Normalise fee fields so blanks/nulls fall back to the tournament-level fee
+      // instead of being stored as the string "0" or "".
+      const patch: any = { ...req.body };
+      for (const k of ["entryFee", "externalEntryFee"]) {
+        if (k in patch) {
+          const v = patch[k];
+          if (v === "" || v === null || v === undefined) patch[k] = null;
+          else {
+            const n = parseFloat(String(v));
+            patch[k] = Number.isFinite(n) && n >= 0 ? String(n) : null;
+          }
+        }
+      }
+      const [cat] = await db.update(tournamentCategories).set(patch).where(eq(tournamentCategories.id, catId)).returning();
       res.json(cat);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -2187,15 +2205,30 @@ export function registerTournamentRoutes(app: Express) {
                   (t.player1Id === p2 && t.player2Id === p1)
                 ));
                 if (!alreadyPaired) {
+                  // Preserve any prior solo-join fee snapshots so a player who
+                  // already joined-solo and is now pairing up isn't re-priced
+                  // at a fee that's been edited since.
+                  let p1FeeSnapshot: number | null = null;
+                  let p2FeeSnapshot: number | null = null;
                   for (const team of myTeams) {
                     if (team.player2Id !== null) continue;
+                    if (team.player1Id === p1 && team.player1EntryFeePence != null) p1FeeSnapshot = team.player1EntryFeePence;
+                    if (team.player1Id === p2 && team.player1EntryFeePence != null) p2FeeSnapshot = team.player1EntryFeePence;
                     await tx.delete(tournamentStandings).where(eq(tournamentStandings.teamId, team.id));
                     await tx.delete(tournamentMatches).where(or(eq(tournamentMatches.teamAId, team.id), eq(tournamentMatches.teamBId, team.id)));
                     await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
                     await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, team.id));
                   }
+                  if (p1FeeSnapshot == null) p1FeeSnapshot = await resolveCategoryFeePence(updated.categoryId!, updated.fromUserId, tx);
+                  if (p2FeeSnapshot == null) p2FeeSnapshot = await resolveCategoryFeePence(updated.categoryId!, updated.toUserId, tx);
                   try {
-                    await tx.insert(tournamentTeams).values({ categoryId: updated.categoryId!, player1Id: p1, player2Id: p2 });
+                    await tx.insert(tournamentTeams).values({
+                      categoryId: updated.categoryId!,
+                      player1Id: p1,
+                      player2Id: p2,
+                      player1EntryFeePence: p1FeeSnapshot,
+                      player2EntryFeePence: p2FeeSnapshot,
+                    });
                   } catch (e: any) {
                     // Unique-index violation → another player paired with one of these two
                     // first. Roll back the whole accept and surface a 409 to the client so
@@ -2263,6 +2296,38 @@ export function registerTournamentRoutes(app: Express) {
   // category. Each category entry is materialised as a `tournament_teams` row
   // (player2Id NULL for solo/singles or "looking for partner" placeholders).
   // ─────────────────────────────────────────────────────────────────────────
+  // Resolve the entry fee a player owes for a category at this point in time,
+  // in pence. Used to snapshot fees onto tournament_teams rows so admin edits
+  // to category fees later do not retroactively change what existing entrants
+  // owe. Returns 0 if everything is free, NULL semantics not used.
+  async function resolveCategoryFeePence(
+    categoryId: number,
+    userId: number,
+    txn?: any,
+  ): Promise<number> {
+    const exec = txn || db;
+    const [cat] = await exec.select().from(tournamentCategories).where(eq(tournamentCategories.id, categoryId));
+    if (!cat) return 0;
+    const [tour] = await exec.select().from(tournaments).where(eq(tournaments.id, cat.tournamentId));
+    if (!tour) return 0;
+    const tournamentInternal = parseFloat((tour as any).entryFee || "0") || 0;
+    const tournamentExternal = parseFloat((tour as any).externalEntryFee || (tour as any).entryFee || "0") || 0;
+    const hasOwnInternal = (cat as any).entryFee != null && (cat as any).entryFee !== "";
+    const hasOwnExternal = (cat as any).externalEntryFee != null && (cat as any).externalEntryFee !== "";
+    const internal = hasOwnInternal ? parseFloat((cat as any).entryFee) : tournamentInternal;
+    const external = hasOwnExternal
+      ? parseFloat((cat as any).externalEntryFee)
+      : (hasOwnInternal ? parseFloat((cat as any).entryFee) : tournamentExternal);
+    let isMember = false;
+    if ((tour as any).clubId) {
+      const [m] = await exec.select({ id: playerProfiles.id }).from(playerProfiles)
+        .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, (tour as any).clubId)));
+      isMember = !!m;
+    }
+    const fee = isMember ? internal : external;
+    return Math.round((Number.isFinite(fee) ? fee : 0) * 100);
+  }
+
   async function ensureProfileForUser(userId: number, tournamentId: number): Promise<number | null> {
     const [existing] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
     if (existing) return existing.id;
@@ -2299,7 +2364,14 @@ export function registerTournamentRoutes(app: Express) {
           or(eq(tournamentTeams.player1Id, profileId), eq(tournamentTeams.player2Id, profileId)),
         ));
       if (mine.length > 0) return res.json(mine[0]);
-      const [team] = await db.insert(tournamentTeams).values({ categoryId: catId, player1Id: profileId }).returning();
+      // Snapshot the fee owed at join time so admin edits to category fees
+      // later don't retroactively change what this entrant owes.
+      const feePence = await resolveCategoryFeePence(catId, userId);
+      const [team] = await db.insert(tournamentTeams).values({
+        categoryId: catId,
+        player1Id: profileId,
+        player1EntryFeePence: feePence,
+      }).returning();
       res.json(team);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -2344,9 +2416,18 @@ export function registerTournamentRoutes(app: Express) {
           if (remainingProfileId != null) {
             // Remove any group-pair link tied to the now-solo team (groups are
             // for paired matchups). Keep the team row itself, but demote it.
+            // Preserve the remaining player's original fee snapshot so admin
+            // fee edits between join and leave don't retroactively re-price.
+            const remainingFeeSnapshot =
+              team.player1Id === remainingProfileId ? team.player1EntryFeePence : team.player2EntryFeePence;
             await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
             await tx.update(tournamentTeams)
-              .set({ player1Id: remainingProfileId, player2Id: null })
+              .set({
+                player1Id: remainingProfileId,
+                player2Id: null,
+                player1EntryFeePence: remainingFeeSnapshot ?? null,
+                player2EntryFeePence: null,
+              })
               .where(eq(tournamentTeams.id, team.id));
           } else {
             await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
@@ -3080,8 +3161,25 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const regs = await db.select().from(tournamentRegistrations)
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), ne(tournamentRegistrations.status, "REJECTED")));
 
-      const internalFee = parseFloat(tournament.entryFee || "0");
-      const externalFee = parseFloat(tournament.externalEntryFee || tournament.entryFee || "0");
+      const tournamentInternalFee = parseFloat(tournament.entryFee || "0");
+      const tournamentExternalFee = parseFloat(tournament.externalEntryFee || tournament.entryFee || "0");
+
+      // Per-category fees: each category overrides the tournament-level fee.
+      // Players who join a category owe the category's fee (member vs external rate).
+      const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
+      const catFeeMap = new Map<number, { name: string; internalFee: number; externalFee: number; usesTournamentFee: boolean }>();
+      for (const c of cats) {
+        const hasOwnInternal = c.entryFee != null && c.entryFee !== "";
+        const hasOwnExternal = c.externalEntryFee != null && c.externalEntryFee !== "";
+        const internal = hasOwnInternal ? parseFloat(c.entryFee as string) : tournamentInternalFee;
+        const external = hasOwnExternal ? parseFloat(c.externalEntryFee as string) : (hasOwnInternal ? parseFloat(c.entryFee as string) : tournamentExternalFee);
+        catFeeMap.set(c.id, {
+          name: c.name,
+          internalFee: Number.isFinite(internal) ? internal : 0,
+          externalFee: Number.isFinite(external) ? external : 0,
+          usesTournamentFee: !hasOwnInternal && !hasOwnExternal,
+        });
+      }
 
       const clubMemberIds = new Set<number>();
       if (tournament.clubId) {
@@ -3090,12 +3188,56 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         members.forEach(m => clubMemberIds.add(m.userId));
       }
 
+      // Load every team in this tournament, mapping each profile back to its userId
+      // so we can compute per-player category memberships.
+      const catIds = Array.from(catFeeMap.keys());
+      const allTeams = catIds.length
+        ? await db.select().from(tournamentTeams).where(inArray(tournamentTeams.categoryId, catIds))
+        : [];
+      const profileIds = Array.from(new Set(allTeams.flatMap(t => [t.player1Id, t.player2Id]).filter((x): x is number => x != null)));
+      const profiles = profileIds.length
+        ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
+        : [];
+      const profileToUserId = new Map<number, number>(profiles.map(p => [p.id, p.userId]));
+      // userId -> Array<{ catId, fee }>
+      // For each player on a team we prefer the per-player fee snapshot
+      // (captured at join/accept time, stored in pence on tournament_teams).
+      // Fall back to dynamic calculation only for legacy rows where the
+      // snapshot is NULL (created before per-category fees existed).
+      const userCategories = new Map<number, Array<{ catId: number; fee: number; categoryName: string }>>();
+      for (const t of allTeams) {
+        const cFees = catFeeMap.get(t.categoryId);
+        if (!cFees) continue;
+        const slots: Array<{ pid: number | null; snapshot: number | null }> = [
+          { pid: t.player1Id, snapshot: (t as any).player1EntryFeePence ?? null },
+          { pid: t.player2Id, snapshot: (t as any).player2EntryFeePence ?? null },
+        ];
+        for (const { pid, snapshot } of slots) {
+          if (pid == null) continue;
+          const uid = profileToUserId.get(pid);
+          if (uid == null) continue;
+          const fee = snapshot != null
+            ? snapshot / 100
+            : (clubMemberIds.has(uid) ? cFees.internalFee : cFees.externalFee);
+          const arr = userCategories.get(uid) || [];
+          // Don't double-count if a player somehow appears twice in the same cat.
+          if (!arr.some(e => e.catId === t.categoryId)) arr.push({ catId: t.categoryId, fee, categoryName: cFees.name });
+          userCategories.set(uid, arr);
+        }
+      }
+
       const enriched = await Promise.all(regs.map(async (reg) => {
         const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
           .from(users).where(eq(users.id, reg.userId));
         const isInternal = clubMemberIds.has(reg.userId);
-        const playerFee = isInternal ? internalFee : externalFee;
-        return { ...reg, user, isInternal, playerFee };
+        const tournamentLevelFee = isInternal ? tournamentInternalFee : tournamentExternalFee;
+        const catEntries = userCategories.get(reg.userId) || [];
+        // Fallback: a registered player not yet in any category still owes the
+        // tournament-level fee (back-compat with legacy single-category flow).
+        const playerFee = catEntries.length > 0
+          ? catEntries.reduce((s, e) => s + e.fee, 0)
+          : tournamentLevelFee;
+        return { ...reg, user, isInternal, playerFee, categoryFees: catEntries };
       }));
 
       const approvedPlayers = enriched.filter(r => r.status === "APPROVED");
@@ -3105,9 +3247,50 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const unpaidCount = enriched.filter(r => r.paymentStatus === "UNPAID" && r.status === "APPROVED").length;
       const collectionRate = totalExpected > 0 ? Math.round((totalCollected / totalExpected) * 100) : 0;
 
+      // Per-category revenue breakdown for the Finances tab.
+      const paidUserIds = new Set(enriched.filter(r => r.paymentStatus === "PAID").map(r => r.userId));
+      const pendingUserIds = new Set(enriched.filter(r => r.paymentStatus === "PENDING").map(r => r.userId));
+      const approvedUserIds = new Set(approvedPlayers.map(r => r.userId));
+      const byCategory = Array.from(catFeeMap.entries()).map(([catId, info]) => {
+        const teamsHere = allTeams.filter(t => t.categoryId === catId);
+        let playerCount = 0;
+        let expected = 0;
+        let collected = 0;
+        let pending = 0;
+        for (const t of teamsHere) {
+          const slots: Array<{ pid: number | null; snapshot: number | null }> = [
+            { pid: t.player1Id, snapshot: (t as any).player1EntryFeePence ?? null },
+            { pid: t.player2Id, snapshot: (t as any).player2EntryFeePence ?? null },
+          ];
+          for (const { pid, snapshot } of slots) {
+            if (pid == null) continue;
+            const uid = profileToUserId.get(pid);
+            if (uid == null) continue;
+            const fee = snapshot != null
+              ? snapshot / 100
+              : (clubMemberIds.has(uid) ? info.internalFee : info.externalFee);
+            playerCount++;
+            if (approvedUserIds.has(uid)) expected += fee;
+            if (paidUserIds.has(uid)) collected += fee;
+            if (pendingUserIds.has(uid)) pending += fee;
+          }
+        }
+        return {
+          categoryId: catId,
+          categoryName: info.name,
+          internalFee: info.internalFee,
+          externalFee: info.externalFee,
+          usesTournamentFee: info.usesTournamentFee,
+          playerCount,
+          expected,
+          collected,
+          pending,
+        };
+      });
+
       res.json({
-        entryFee: internalFee,
-        externalEntryFee: externalFee,
+        entryFee: tournamentInternalFee,
+        externalEntryFee: tournamentExternalFee,
         totalExpected,
         totalCollected,
         totalPending,
@@ -3115,6 +3298,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         collectionRate,
         playerCount: approvedPlayers.length,
         players: enriched,
+        byCategory,
       });
     } catch (e: any) {
       res.status(500).json({ message: e.message });

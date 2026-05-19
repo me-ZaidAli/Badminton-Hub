@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import {
   useTournament, useTournamentCategories, useTournamentTeams,
   useTournamentMatches, useTournamentStandings,
-  useCreateCategory, useDeleteCategory, useRegisterTeam, useDeleteTeam, useUpdateTeam,
+  useCreateCategory, useDeleteCategory, useUpdateCategory, useRegisterTeam, useDeleteTeam, useUpdateTeam,
   useGenerateMatches, useScoreMatch, useAdvanceWinners, useAddGroupMatch, useUpdateTournament, useDeleteTournamentMatch,
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs, useTournamentTeamsByCategory,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
@@ -1956,13 +1956,31 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                   {isSolo && !isSingles && <Badge className="text-[10px] font-bold bg-amber-500/15 text-amber-500 border-amber-500/30">Looking for partner</Badge>}
                   {isSolo && isSingles && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Entered</Badge>}
                 </div>
-                <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1 flex-wrap">
                   <span>{cat.playersPerSide || 1}-per-side</span>
                   <span>·</span>
                   <span data-testid={`text-cat-pair-count-${cat.id}`}>
                     {entry.confirmedPairCount ?? 0} confirmed {entry.confirmedPairCount === 1 ? "team" : "teams"}
                   </span>
                   {entry.soloCount ? (<><span>·</span><span>{entry.soloCount} solo / looking</span></>) : null}
+                  {(() => {
+                    const tIn = parseFloat(tournament?.entryFee || "0");
+                    const tEx = parseFloat(tournament?.externalEntryFee || tournament?.entryFee || "0");
+                    const hasOwn = cat.entryFee != null && cat.entryFee !== "";
+                    const hasOwnEx = cat.externalEntryFee != null && cat.externalEntryFee !== "";
+                    const internal = hasOwn ? parseFloat(cat.entryFee) : tIn;
+                    const external = hasOwnEx ? parseFloat(cat.externalEntryFee) : (hasOwn ? parseFloat(cat.entryFee) : tEx);
+                    if (!(internal > 0) && !(external > 0)) return null;
+                    const split = external > 0 && external !== internal;
+                    return (
+                      <>
+                        <span>·</span>
+                        <span className="font-bold text-amber-500" data-testid={`text-cat-entry-fee-${cat.id}`}>
+                          Fee: £{internal.toFixed(2)}{split ? ` / £${external.toFixed(2)}` : ""}
+                        </span>
+                      </>
+                    );
+                  })()}
                 </div>
                 {isPaired && entry.partner && (
                   <p className="text-xs text-muted-foreground mt-1">Partner: <span className="font-bold text-foreground">{entry.partner.fullName}</span></p>
@@ -5372,22 +5390,15 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
           <AdminEntryFeeSection tournament={tournament} tournamentId={tournamentId} />
 
           <div className="rounded-xl border border-border/50 bg-card p-4 space-y-1">
-            <h4 className="font-black text-foreground text-sm uppercase tracking-wider mb-3">Categories</h4>
+            <h4 className="font-black text-foreground text-sm uppercase tracking-wider mb-1">Categories</h4>
+            <p className="text-[11px] text-muted-foreground mb-3">Set a per-category entry fee to override the tournament default. Leave blank to use the tournament fee.</p>
             {categories.length === 0 ? (
               <p className="text-sm text-muted-foreground">No categories created yet.</p>
             ) : categories.map(cat => (
-              <div key={cat.id} className="flex items-center justify-between py-2.5 border-b border-border/20 last:border-0">
-                <div>
-                  <p className="text-sm font-bold text-foreground">{cat.name}</p>
-                  <p className="text-[10px] text-muted-foreground">{cat.format?.replace("_", "+")} · {cat.playersPerSide === 1 ? "Singles" : "Doubles"}</p>
-                </div>
-                <Button size="sm" variant="ghost" className="h-7 text-destructive" data-testid={`button-delete-category-${cat.id}`} onClick={async () => {
-                  if (!window.confirm(`Delete "${cat.name}"? This will remove all matches, standings, and teams in this category.`)) return;
-                  try { await deleteCatMutation.mutateAsync(cat.id); toast({ title: "Category Deleted" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                }}>
-                  <Trash2 className="h-3 w-3" />
-                </Button>
-              </div>
+              <CategoryFeeRow key={cat.id} category={cat} tournament={tournament} tournamentId={tournamentId} onDelete={async () => {
+                if (!window.confirm(`Delete "${cat.name}"? This will remove all matches, standings, and teams in this category.`)) return;
+                try { await deleteCatMutation.mutateAsync(cat.id); toast({ title: "Category Deleted" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+              }} />
             ))}
           </div>
 
@@ -6345,6 +6356,121 @@ function AdminEntryFeeSection({ tournament, tournamentId }: { tournament: any; t
   );
 }
 
+function CategoryFeeRow({ category, tournament, tournamentId, onDelete }: { category: any; tournament: any; tournamentId: number; onDelete: () => void }) {
+  const updateCatMutation = useUpdateCategory();
+  const { toast } = useToast();
+  const [editing, setEditing] = useState(false);
+  const [entryFee, setEntryFee] = useState(category.entryFee ?? "");
+  const [externalEntryFee, setExternalEntryFee] = useState(category.externalEntryFee ?? "");
+
+  const tournamentInternal = parseFloat(tournament.entryFee || "0");
+  const tournamentExternal = parseFloat(tournament.externalEntryFee || tournament.entryFee || "0");
+
+  const effectiveInternal = category.entryFee != null && category.entryFee !== "" ? parseFloat(category.entryFee) : tournamentInternal;
+  const effectiveExternal = category.externalEntryFee != null && category.externalEntryFee !== ""
+    ? parseFloat(category.externalEntryFee)
+    : (category.entryFee != null && category.entryFee !== "" ? parseFloat(category.entryFee) : tournamentExternal);
+  const usesTournamentFee = (category.entryFee == null || category.entryFee === "") && (category.externalEntryFee == null || category.externalEntryFee === "");
+  const hasSplit = effectiveExternal > 0 && effectiveExternal !== effectiveInternal;
+
+  async function handleSave() {
+    try {
+      await updateCatMutation.mutateAsync({
+        id: category.id,
+        tournamentId,
+        entryFee: entryFee === "" ? null : entryFee,
+        externalEntryFee: externalEntryFee === "" ? null : externalEntryFee,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "finances"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "my-categories"] });
+      toast({ title: "Category fee saved" });
+      setEditing(false);
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  }
+
+  return (
+    <div className="py-2.5 border-b border-border/20 last:border-0 space-y-2" data-testid={`category-fee-row-${category.id}`}>
+      <div className="flex items-center justify-between gap-3">
+        <div className="min-w-0">
+          <p className="text-sm font-bold text-foreground truncate">{category.name}</p>
+          <p className="text-[10px] text-muted-foreground">
+            {category.format?.replace("_", "+")} · {category.playersPerSide === 1 ? "Singles" : "Doubles"}
+          </p>
+        </div>
+        <div className="flex items-center gap-2 flex-shrink-0">
+          {!editing && (
+            <div className="text-right">
+              <div className="text-xs font-black text-foreground" data-testid={`text-cat-fee-${category.id}`}>
+                {effectiveInternal > 0 ? `£${effectiveInternal.toFixed(2)}` : "Free"}
+                {hasSplit && <span className="text-muted-foreground font-normal"> / £{effectiveExternal.toFixed(2)}</span>}
+              </div>
+              <div className="text-[9px] text-muted-foreground">
+                {usesTournamentFee ? "Tournament default" : "Category fee"}
+                {hasSplit && " · Member / External"}
+              </div>
+            </div>
+          )}
+          {!editing && (
+            <Button size="sm" variant="ghost" className="h-7 text-xs font-bold" onClick={() => { setEntryFee(category.entryFee ?? ""); setExternalEntryFee(category.externalEntryFee ?? ""); setEditing(true); }} data-testid={`button-edit-cat-fee-${category.id}`}>
+              <Edit3 className="h-3 w-3 mr-1" />Fee
+            </Button>
+          )}
+          <Button size="sm" variant="ghost" className="h-7 text-destructive" data-testid={`button-delete-category-${category.id}`} onClick={onDelete}>
+            <Trash2 className="h-3 w-3" />
+          </Button>
+        </div>
+      </div>
+
+      {editing && (
+        <div className="space-y-2 rounded-lg border border-amber-500/20 bg-amber-500/5 p-3">
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">Member Fee</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">£</span>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={entryFee}
+                  onChange={(e) => setEntryFee(e.target.value)}
+                  placeholder={`${tournamentInternal.toFixed(2)} (default)`}
+                  className="w-full rounded-lg bg-card border border-border text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/60 transition-colors p-2 pl-6"
+                  data-testid={`input-cat-fee-${category.id}`}
+                />
+              </div>
+            </div>
+            <div>
+              <label className="text-[9px] font-bold text-muted-foreground uppercase tracking-wider mb-1 block">External Fee</label>
+              <div className="relative">
+                <span className="absolute left-2 top-1/2 -translate-y-1/2 text-xs font-bold text-muted-foreground">£</span>
+                <input
+                  type="number" step="0.01" min="0"
+                  value={externalEntryFee}
+                  onChange={(e) => setExternalEntryFee(e.target.value)}
+                  placeholder={`${tournamentExternal.toFixed(2)} (default)`}
+                  className="w-full rounded-lg bg-card border border-border text-xs text-foreground placeholder:text-muted-foreground outline-none focus:border-violet-500/60 transition-colors p-2 pl-6"
+                  data-testid={`input-cat-external-fee-${category.id}`}
+                />
+              </div>
+            </div>
+          </div>
+          <p className="text-[9px] text-muted-foreground">Leave blank to inherit the tournament-level entry fee.</p>
+          <div className="flex items-center gap-2">
+            <Button size="sm" className="h-8 bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
+              disabled={updateCatMutation.isPending}
+              onClick={handleSave} data-testid={`button-save-cat-fee-${category.id}`}>
+              {updateCatMutation.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <Check className="h-3 w-3 mr-1" />}Save
+            </Button>
+            <Button size="sm" variant="outline" className="h-8" onClick={() => setEditing(false)}>Cancel</Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; tournament: any }) {
   const { data: finances, isLoading } = useTournamentFinances(tournamentId);
   const updatePaymentMutation = useUpdateTournamentPayment();
@@ -6429,6 +6555,47 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
           <span>{finances.unpaidCount} unpaid</span>
         </div>
       </div>
+
+      {Array.isArray(finances.byCategory) && finances.byCategory.length > 0 && (
+        <div className="rounded-xl border border-border/50 overflow-hidden" data-testid="finance-by-category">
+          <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30 flex items-center justify-between gap-3">
+            <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Revenue by Category</h4>
+            <span className="text-[10px] text-muted-foreground">Per-category entries × fee</span>
+          </div>
+          <div className="divide-y divide-border/20">
+            {finances.byCategory.map((c: any) => {
+              const split = c.externalFee > 0 && c.externalFee !== c.internalFee;
+              return (
+                <div key={c.categoryId} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`finance-cat-${c.categoryId}`}>
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold text-foreground truncate">{c.categoryName}</p>
+                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <span>{c.playerCount} {c.playerCount === 1 ? "entry" : "entries"}</span>
+                      <span>·</span>
+                      <span>
+                        £{c.internalFee.toFixed(2)}{split ? ` / £${c.externalFee.toFixed(2)}` : ""}
+                      </span>
+                      {c.usesTournamentFee && (
+                        <Badge variant="outline" className="text-[8px] px-1 py-0 font-bold">Default</Badge>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-4 text-right flex-shrink-0">
+                    <div>
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase">Expected</p>
+                      <p className="text-sm font-black text-foreground" data-testid={`text-cat-expected-${c.categoryId}`}>£{c.expected.toFixed(2)}</p>
+                    </div>
+                    <div>
+                      <p className="text-[9px] font-bold text-muted-foreground uppercase">Collected</p>
+                      <p className="text-sm font-black text-emerald-500" data-testid={`text-cat-collected-${c.categoryId}`}>£{c.collected.toFixed(2)}</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       <div className="rounded-xl border border-border/50 overflow-hidden">
         <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30 flex items-center justify-between gap-3 flex-wrap">
