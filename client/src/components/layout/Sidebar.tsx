@@ -89,6 +89,7 @@ interface BadgeCounts {
   pendingIncidents: number;
   merchandiseNewOrders: number;
   adminInbox: number;
+  pendingPairRequests: number;
 }
 
 interface NavItem {
@@ -98,6 +99,7 @@ interface NavItem {
   group: string;
   badgeKey?: keyof BadgeCounts;
   secondaryBadgeKey?: keyof BadgeCounts;
+  tertiaryBadgeKey?: keyof BadgeCounts;
   isGodMode?: boolean;
   premiumOnly?: boolean;
   hidden?: boolean;
@@ -280,7 +282,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/community", label: "Community Hub", icon: Sparkles, group: "club" },
 
     { href: "/announcements", label: "Announcements", icon: Megaphone, group: "comms", badgeKey: "announcements", premiumOnly: true },
-    { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts },
+    { href: "/notifications", label: "Notifications", icon: Bell, group: "comms", badgeKey: "notifications", secondaryBadgeKey: "pendingRewards" as keyof BadgeCounts, tertiaryBadgeKey: "pendingPairRequests" as keyof BadgeCounts },
     { href: "/settings/notifications", label: "Push Settings", icon: BellRing, group: "comms" },
     { href: "/inbox", label: "Inbox", icon: Mail, group: "comms", badgeKey: "messages", premiumOnly: true },
     { href: "/tickets", label: isAdminOrOwner ? "Tickets" : "My Tickets", icon: Ticket, group: "comms", badgeKey: "tickets", ...(isAdminOrOwner && { secondaryBadgeKey: "pendingTickets" as keyof BadgeCounts }) },
@@ -944,7 +946,8 @@ export function Sidebar() {
                   const badgeCount = item._hubBadgeKeys && badgeCounts
                     ? item._hubBadgeKeys.reduce((sum, k) => sum + (badgeCounts[k] || 0), 0)
                     : ((item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0)
-                      + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0));
+                      + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0)
+                      + (item.tertiaryBadgeKey && badgeCounts ? badgeCounts[item.tertiaryBadgeKey] : 0));
                   const isLocked = item.premiumOnly && !isPremium;
 
                   const itemClass = cn(
@@ -1179,7 +1182,8 @@ export function MobileTopNav() {
                       const badgeCount = item._hubBadgeKeys && badgeCounts
                         ? item._hubBadgeKeys.reduce((sum, k) => sum + (badgeCounts[k] || 0), 0)
                         : ((item.badgeKey && badgeCounts ? badgeCounts[item.badgeKey] : 0)
-                          + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0));
+                          + (item.secondaryBadgeKey && badgeCounts ? badgeCounts[item.secondaryBadgeKey] : 0)
+                          + (item.tertiaryBadgeKey && badgeCounts ? badgeCounts[item.tertiaryBadgeKey] : 0));
 
                       const buttonVariant = isAdminGroup && isActive
                         ? "default" as const

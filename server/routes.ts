@@ -17378,6 +17378,13 @@ export async function registerRoutes(
         ));
       myOutstandingPayments = myOutstandingResult[0]?.count || 0;
 
+      // Pending tournament partner invites addressed to this user.
+      const pendingPairResult = await db.execute(
+        sql`SELECT COUNT(*)::int AS count FROM tournament_pair_requests
+            WHERE to_user_id = ${userId} AND status = 'PENDING'`
+      );
+      const pendingPairRequests = (pendingPairResult.rows?.[0] as any)?.count || 0;
+
       // New (unviewed) merchandise orders for admins
       let merchandiseNewOrders = 0;
       if (isOwner || adminClubIds.length > 0) {
@@ -17414,12 +17421,13 @@ export async function registerRoutes(
         pendingReferrals,
         merchandiseNewOrders,
         adminInbox,
+        pendingPairRequests,
       };
       badgeCountsCache.set(cacheKey, payload);
       res.json(payload);
     } catch (err: any) {
       console.error("Error fetching badge counts:", err);
-      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0, merchandiseNewOrders: 0, adminInbox: 0 });
+      res.json({ notifications: 0, tickets: 0, messages: 0, announcements: 0, pendingRewards: 0, pendingTickets: 0, pendingIncidents: 0, upcomingSessions: 0, pendingMemberships: 0, outstandingPayments: 0, myOutstandingPayments: 0, pendingReferrals: 0, merchandiseNewOrders: 0, adminInbox: 0, pendingPairRequests: 0 });
     }
   });
 

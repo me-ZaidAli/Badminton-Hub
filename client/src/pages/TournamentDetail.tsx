@@ -139,7 +139,15 @@ export default function TournamentDetail() {
   const { data: tournamentClubs } = useMyTournamentClubs(!!user);
   const { toast } = useToast();
 
-  const [subPage, setSubPage] = useState<SubPage>("players");
+  const initialSubPage = ((): SubPage => {
+    try {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      const allowed: SubPage[] = ["overview", "players", "pairs", "signup", "categories", "matches", "groups", "courts", "stats", "prizes", "admin"];
+      if (tab && (allowed as string[]).includes(tab)) return tab as SubPage;
+    } catch {}
+    return "players";
+  })();
+  const [subPage, setSubPage] = useState<SubPage>(initialSubPage);
   const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
   const [addCategoryOpen, setAddCategoryOpen] = useState(false);
 

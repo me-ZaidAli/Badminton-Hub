@@ -2066,6 +2066,51 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  // Unified inbox: all PENDING pair requests the current user has received
+  // across every tournament they're involved in. Grouped by tournament →
+  // category on the client. Cheap-to-poll (single user filter + small joins).
+  app.get("/api/me/pair-requests", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const userId = (req.user as any).id;
+      const prs = await db.select().from(tournamentPairRequests).where(and(
+        eq(tournamentPairRequests.toUserId, userId),
+        eq(tournamentPairRequests.status, "PENDING"),
+      )).orderBy(desc(tournamentPairRequests.createdAt));
+      if (prs.length === 0) return res.json([]);
+
+      const fromUserIds = [...new Set(prs.map(pr => pr.fromUserId))];
+      const tournamentIds = [...new Set(prs.map(pr => pr.tournamentId))];
+      const categoryIds = [...new Set(prs.map(pr => pr.categoryId).filter(Boolean) as number[])];
+
+      const [fromUsers, ts, cats] = await Promise.all([
+        db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, fromUserIds)),
+        db.select({ id: tournaments.id, name: tournaments.name }).from(tournaments).where(inArray(tournaments.id, tournamentIds)),
+        categoryIds.length > 0
+          ? db.select({ id: tournamentCategories.id, name: tournamentCategories.name }).from(tournamentCategories).where(inArray(tournamentCategories.id, categoryIds))
+          : Promise.resolve([]),
+      ]);
+      const uMap = new Map(fromUsers.map(u => [u.id, u]));
+      const tMap = new Map(ts.map(t => [t.id, t]));
+      const cMap = new Map(cats.map(c => [c.id, c]));
+
+      const enriched = prs.map(pr => ({
+        id: pr.id,
+        tournamentId: pr.tournamentId,
+        tournamentName: tMap.get(pr.tournamentId)?.name || null,
+        categoryId: pr.categoryId,
+        categoryName: pr.categoryId ? (cMap.get(pr.categoryId)?.name || null) : null,
+        fromUserId: pr.fromUserId,
+        fromUserName: uMap.get(pr.fromUserId)?.fullName || "Unknown",
+        message: (pr as any).message ?? null,
+        createdAt: pr.createdAt,
+      }));
+      res.json(enriched);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/tournaments/:id/pair-requests", async (req, res) => {
     try {
       const tournamentId = Number(req.params.id);

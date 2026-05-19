@@ -474,6 +474,31 @@ export function useUpdatePairName() {
   });
 }
 
+export interface MyPendingPairRequest {
+  id: number;
+  tournamentId: number;
+  tournamentName: string | null;
+  categoryId: number | null;
+  categoryName: string | null;
+  fromUserId: number;
+  fromUserName: string;
+  message: string | null;
+  createdAt: string;
+}
+
+export function useMyPendingPairRequests(enabled: boolean = true) {
+  return useQuery<MyPendingPairRequest[]>({
+    queryKey: ["/api/me/pair-requests"],
+    queryFn: async () => {
+      const res = await fetch("/api/me/pair-requests", { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    refetchInterval: 30000,
+    enabled,
+  });
+}
+
 export function useRespondPairRequest() {
   return useMutation({
     mutationFn: async ({ id, status }: { id: number; status: string }) => {

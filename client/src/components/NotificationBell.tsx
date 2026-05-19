@@ -3,12 +3,13 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
-import { Bell, BellOff } from "lucide-react";
+import { Bell, BellOff, Check, X, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useLocation } from "wouter";
 import { formatDistanceToNow } from "date-fns";
 import { useUser } from "@/hooks/use-auth";
 import type { Notification } from "@shared/schema";
+import { useMyPendingPairRequests, useRespondPairRequest, type MyPendingPairRequest } from "@/hooks/use-tournaments";
 
 interface NotificationsResponse {
   notifications: Notification[];
@@ -70,6 +71,30 @@ export function NotificationBell() {
   const notifications = data?.notifications?.slice(0, 10) ?? [];
   const unreadCount = data?.unreadCount ?? 0;
 
+  const { data: pairRequests = [] } = useMyPendingPairRequests(!!user);
+  const respondPairMutation = useRespondPairRequest();
+  const pendingPairCount = pairRequests.length;
+  const totalBadge = unreadCount + pendingPairCount;
+
+  // Group requests by tournament for display.
+  const groupedPairs = pairRequests.reduce<Record<string, { tournamentId: number; tournamentName: string; items: MyPendingPairRequest[] }>>((acc, pr) => {
+    const key = String(pr.tournamentId);
+    if (!acc[key]) acc[key] = { tournamentId: pr.tournamentId, tournamentName: pr.tournamentName || "Tournament", items: [] };
+    acc[key].items.push(pr);
+    return acc;
+  }, {});
+
+  const handleRespond = async (pr: MyPendingPairRequest, status: "ACCEPTED" | "DECLINED") => {
+    try {
+      await respondPairMutation.mutateAsync({ id: pr.id, status });
+      toast({ title: status === "ACCEPTED" ? "Paired!" : "Request declined" });
+      queryClient.invalidateQueries({ queryKey: ["/api/me/pair-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/badge-counts"] });
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  };
+
   const [popoverOpen, setPopoverOpen] = useState(false);
   const hasTriggeredMarkAll = useRef(false);
 
@@ -104,12 +129,12 @@ export function NotificationBell() {
           data-testid="button-notification-bell"
         >
           <Bell className="h-5 w-5" />
-          {unreadCount > 0 && (
+          {totalBadge > 0 && (
             <span
               className="absolute -top-1 -right-1 flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white"
               data-testid="badge-unread-count"
             >
-              {unreadCount > 99 ? "99+" : unreadCount}
+              {totalBadge > 99 ? "99+" : totalBadge}
             </span>
           )}
         </Button>
@@ -133,6 +158,72 @@ export function NotificationBell() {
             </Button>
           )}
         </div>
+        {pendingPairCount > 0 && (
+          <div className="border-b" data-testid="section-pair-requests">
+            <div className="flex items-center gap-2 px-3 py-2 bg-amber-500/5">
+              <UserPlus className="h-3.5 w-3.5 text-amber-500" />
+              <span className="text-[11px] font-bold uppercase tracking-wider text-amber-600 dark:text-amber-400">
+                Partner invites ({pendingPairCount})
+              </span>
+            </div>
+            <div className="max-h-72 overflow-y-auto">
+              {Object.values(groupedPairs).map((group) => (
+                <div key={group.tournamentId} className="border-b last:border-b-0">
+                  <button
+                    type="button"
+                    onClick={() => { setPopoverOpen(false); setLocation(`/tournaments/${group.tournamentId}?tab=categories`); }}
+                    className="w-full text-left px-3 pt-2 pb-1 text-[11px] font-bold text-foreground hover-elevate"
+                    data-testid={`link-tournament-${group.tournamentId}`}
+                  >
+                    {group.tournamentName}
+                  </button>
+                  {group.items.map((pr) => (
+                    <div
+                      key={pr.id}
+                      className="flex items-start justify-between gap-2 px-3 py-2"
+                      data-testid={`pair-request-${pr.id}`}
+                    >
+                      <div className="flex-1 min-w-0">
+                        <p className="text-xs font-medium text-foreground truncate" data-testid={`text-pair-request-from-${pr.id}`}>
+                          {pr.fromUserName}
+                        </p>
+                        {pr.categoryName && (
+                          <p className="text-[11px] text-muted-foreground truncate" data-testid={`text-pair-request-category-${pr.id}`}>
+                            {pr.categoryName}
+                          </p>
+                        )}
+                        <p className="text-[10px] text-muted-foreground/70">
+                          {formatDistanceToNow(new Date(pr.createdAt), { addSuffix: true })}
+                        </p>
+                      </div>
+                      <div className="flex gap-1 shrink-0">
+                        <Button
+                          size="sm"
+                          className="h-7 px-2 text-[10px] bg-emerald-600 hover:bg-emerald-700 text-white font-bold"
+                          disabled={respondPairMutation.isPending}
+                          onClick={(e) => { e.stopPropagation(); handleRespond(pr, "ACCEPTED"); }}
+                          data-testid={`button-accept-pair-${pr.id}`}
+                        >
+                          <Check className="h-3 w-3 mr-0.5" />Accept
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[10px] border-destructive/30 text-destructive hover:bg-destructive/10"
+                          disabled={respondPairMutation.isPending}
+                          onClick={(e) => { e.stopPropagation(); handleRespond(pr, "DECLINED"); }}
+                          data-testid={`button-decline-pair-${pr.id}`}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="max-h-80 overflow-y-auto" data-testid="list-notifications">
           {isLoading ? (
             <div className="p-4 text-center text-sm text-muted-foreground" data-testid="text-loading">
