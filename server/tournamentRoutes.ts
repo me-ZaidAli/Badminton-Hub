@@ -2988,6 +2988,7 @@ export function registerTournamentRoutes(app: Express) {
   });
 
   app.get("/api/tournaments/:id/pairs", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const tournamentId = Number(req.params.id);
       const pairs = await db.select().from(tournamentRegistrations)
@@ -3014,7 +3015,7 @@ export function registerTournamentRoutes(app: Express) {
           (pr.fromUserId === reg.userId && pr.toUserId === reg.partnerId) ||
           (pr.fromUserId === reg.partnerId && pr.toUserId === reg.userId)
         );
-        uniquePairs.push({ id: reg.id, pairRequestId: matchingPR?.id || null, user1, user2, profile1: p1, profile2: p2, pairName: matchingPR?.pairName || null, createdAt: reg.createdAt });
+        uniquePairs.push({ id: reg.id, pairRequestId: matchingPR?.id || null, categoryId: matchingPR?.categoryId ?? null, user1, user2, profile1: p1, profile2: p2, pairName: matchingPR?.pairName || null, createdAt: reg.createdAt });
       }
       res.json(uniquePairs);
     } catch (e: any) {
@@ -3096,6 +3097,100 @@ export function registerTournamentRoutes(app: Express) {
       res.json({ message: "Pair has been dissolved. Both players are now registered as individuals, and removed from any groups." });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Admin-only dissolve of a legacy (tournament-wide) pair.
+  // Mirrors POST /unpair but takes a userId in the body so an admin can free up
+  // both players. Used by the "Legacy Tournament-Wide Pairs" admin panel to
+  // clear out pairs created before per-category pairing existed.
+  app.post("/api/tournaments/:id/admin-dissolve-pair", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Not authenticated" });
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      const userId = Number(req.body?.userId);
+      if (!Number.isInteger(userId) || userId <= 0) {
+        return res.status(400).json({ message: "userId is required" });
+      }
+      // Wrap the whole teardown in a single transaction so partial failures
+      // never leave a half-dissolved pair (e.g. registrations reset but stale
+      // team rows still pointing to the old pair, which would break unique
+      // indexes for future per-category pairing).
+      await db.transaction(async (tx) => {
+        const myRegs = await tx.select().from(tournamentRegistrations)
+          .where(and(
+            eq(tournamentRegistrations.tournamentId, tournamentId),
+            eq(tournamentRegistrations.userId, userId),
+            eq(tournamentRegistrations.registrationType, "PAIR"),
+          ));
+        if (myRegs.length === 0) {
+          const err: any = new Error("Player is not in a pair for this tournament");
+          err.status = 404;
+          throw err;
+        }
+        const partnerId = myRegs[0].partnerId;
+        if (!partnerId) {
+          const err: any = new Error("No partner found");
+          err.status = 400;
+          throw err;
+        }
+
+        await tx.update(tournamentRegistrations)
+          .set({ registrationType: "INDIVIDUAL", partnerId: null, partnerName: null })
+          .where(and(
+            eq(tournamentRegistrations.tournamentId, tournamentId),
+            eq(tournamentRegistrations.userId, userId),
+          ));
+
+        await tx.update(tournamentRegistrations)
+          .set({ registrationType: "INDIVIDUAL", partnerId: null, partnerName: null })
+          .where(and(
+            eq(tournamentRegistrations.tournamentId, tournamentId),
+            eq(tournamentRegistrations.userId, partnerId),
+          ));
+
+        await tx.update(tournamentPairRequests).set({ status: "DISSOLVED" }).where(and(
+          eq(tournamentPairRequests.tournamentId, tournamentId),
+          eq(tournamentPairRequests.status, "ACCEPTED"),
+          or(
+            and(eq(tournamentPairRequests.fromUserId, userId), eq(tournamentPairRequests.toUserId, partnerId)),
+            and(eq(tournamentPairRequests.fromUserId, partnerId), eq(tournamentPairRequests.toUserId, userId)),
+          ),
+        ));
+
+        const [p1Profile] = await tx.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+        const [p2Profile] = await tx.select().from(playerProfiles).where(eq(playerProfiles.userId, partnerId));
+        if (p1Profile && p2Profile) {
+          const tournCats = await tx.select({ id: tournamentCategories.id }).from(tournamentCategories)
+            .where(eq(tournamentCategories.tournamentId, tournamentId));
+          const catIds = tournCats.map(c => c.id);
+          if (catIds.length > 0) {
+            const staleTeams = await tx.select().from(tournamentTeams).where(and(
+              inArray(tournamentTeams.categoryId, catIds),
+              or(
+                and(eq(tournamentTeams.player1Id, p1Profile.id), eq(tournamentTeams.player2Id, p2Profile.id)),
+                and(eq(tournamentTeams.player1Id, p2Profile.id), eq(tournamentTeams.player2Id, p1Profile.id)),
+              ),
+            ));
+            if (staleTeams.length > 0) {
+              const teamIds = staleTeams.map(t => t.id);
+              await tx.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.teamId, teamIds));
+              await tx.delete(tournamentMatches).where(or(
+                inArray(tournamentMatches.teamAId, teamIds),
+                inArray(tournamentMatches.teamBId, teamIds),
+              ));
+              await tx.delete(tournamentStandings).where(inArray(tournamentStandings.teamId, teamIds));
+              await tx.delete(tournamentTeams).where(inArray(tournamentTeams.id, teamIds));
+            }
+          }
+        }
+      });
+
+      res.json({ message: "Pair dissolved. Both players are back to individual entries and free to be paired per category." });
+    } catch (e: any) {
+      res.status(e?.status || 500).json({ message: e.message });
     }
   });
 

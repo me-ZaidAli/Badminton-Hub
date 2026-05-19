@@ -9,7 +9,7 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs, useTournamentTeamsByCategory,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
-  useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
+  useWithdrawRegistration, useAdminCreatePair, useAdminDissolvePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
@@ -1129,6 +1129,9 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
     },
   });
 
+  const adminDissolvePairMutation = useAdminDissolvePair();
+  const legacyPairs = (pairs || []).filter((p: any) => p.categoryId == null);
+
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
   const myIncomingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
   const mySentRequests = pairRequests?.filter((pr: any) => pr.fromUserId === user?.id && pr.status === "PENDING") || [];
@@ -1300,6 +1303,55 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
             onClick={() => onNavigate?.("categories")}>
             Open My Categories
           </Button>
+        </div>
+      )}
+
+      {isAdmin && legacyPairs.length > 0 && (
+        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-3" data-testid="legacy-pairs-panel">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 className="text-base font-bold text-amber-500 flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                Legacy tournament-wide pairs ({legacyPairs.length})
+              </h3>
+              <p className="text-xs text-muted-foreground mt-1">
+                These pairs were created before per-category pairing existed. They're blocking the two players from joining new categories. Dissolve to free them — both players go back to individual entries and can be re-paired separately in each category.
+              </p>
+            </div>
+          </div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {legacyPairs.map((p: any) => {
+              const p1Name = p.user1?.fullName || `Player ${p.user1?.id}`;
+              const p2Name = p.user2?.fullName || `Player ${p.user2?.id}`;
+              return (
+                <div key={`legacy-${p.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-background/40 px-3 py-2" data-testid={`legacy-pair-${p.id}`}>
+                  <div className="min-w-0">
+                    <div className="text-sm font-semibold truncate">{p1Name} &amp; {p2Name}</div>
+                    {p.pairName && <div className="text-[11px] text-muted-foreground truncate">"{p.pairName}"</div>}
+                  </div>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="border-amber-500/40 text-amber-500 hover:bg-amber-500/10 shrink-0"
+                    data-testid={`button-dissolve-legacy-pair-${p.id}`}
+                    disabled={adminDissolvePairMutation.isPending}
+                    onClick={async () => {
+                      if (!p.user1?.id) return;
+                      if (!confirm(`Dissolve the pair "${p1Name} & ${p2Name}"? Both players will become available to be paired in any category.`)) return;
+                      try {
+                        const data = await adminDissolvePairMutation.mutateAsync({ tournamentId, userId: p.user1.id });
+                        toast({ title: "Pair dissolved", description: data.message });
+                      } catch (err: any) {
+                        toast({ title: "Error", description: err.message, variant: "destructive" });
+                      }
+                    }}
+                  >
+                    {adminDissolvePairMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Dissolve"}
+                  </Button>
+                </div>
+              );
+            })}
+          </div>
         </div>
       )}
 
@@ -5173,7 +5225,11 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
     const pool: any[] = [];
     (playerPool || []).forEach((p: any) => pool.push({ userId: p.userId, fullName: p.user?.fullName || `Player ${p.userId}`, gender: p.user?.gender }));
     (registrations || []).forEach((r: any) => {
-      if (r.status !== "APPROVED" || r.registrationType !== "INDIVIDUAL") return;
+      if (r.status !== "APPROVED") return;
+      // Include EVERY approved player — even those already in a pair for another
+      // category. Per-category uniqueness is enforced server-side (409 from the
+      // unique index), and the whole point of multi-category tournaments is that
+      // a player can be in different pairs across categories.
       if (pool.some(p => p.userId === r.userId)) return;
       pool.push({ userId: r.userId, fullName: r.user?.fullName || `Player ${r.userId}`, gender: r.user?.gender });
     });
