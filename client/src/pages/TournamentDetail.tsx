@@ -6,7 +6,7 @@ import {
   useTournamentMatches, useTournamentStandings,
   useCreateCategory, useDeleteCategory, useRegisterTeam, useDeleteTeam, useUpdateTeam,
   useGenerateMatches, useScoreMatch, useAdvanceWinners, useAddGroupMatch, useUpdateTournament, useDeleteTournamentMatch,
-  useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs,
+  useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs, useTournamentTeamsByCategory,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
   useWithdrawRegistration, useAdminCreatePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
@@ -1065,6 +1065,7 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
 function PairsTab({ tournamentId }: { tournamentId: number }) {
   const { data: user } = useUser();
   const { data: pairs, isLoading } = useTournamentPairs(tournamentId);
+  const { data: teamsByCategory } = useTournamentTeamsByCategory(tournamentId);
   const { data: pairRequests } = useTournamentPairRequests(tournamentId);
   const { data: playerPool } = useTournamentPlayerPool(tournamentId);
   const { data: registrations } = useTournamentRegistrations(tournamentId);
@@ -1345,6 +1346,60 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
             </DialogFooter>
           </DialogContent>
         </Dialog>
+      )}
+
+      {teamsByCategory && teamsByCategory.length > 0 && (
+        <div className="rounded-2xl border border-border/50 bg-card/40 p-4 space-y-3" data-testid="pairs-by-category">
+          <div className="flex items-center justify-between flex-wrap gap-2">
+            <div>
+              <h3 className="text-sm font-black text-foreground uppercase tracking-wider">Teams by Category</h3>
+              <p className="text-[11px] text-muted-foreground mt-0.5">Confirmed pairs and solo entries grouped by category (multi-category flow).</p>
+            </div>
+          </div>
+          <div className="grid gap-2">
+            {teamsByCategory.map((row: any) => (
+              <div key={row.category.id} className="rounded-xl border border-border/40 bg-background/40 p-3" data-testid={`pairs-cat-row-${row.category.id}`}>
+                <div className="flex items-center justify-between flex-wrap gap-2 mb-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-sm font-bold text-foreground">{row.category.name}</span>
+                    <Badge variant="outline" className="text-[10px] font-bold">{(row.category.playersPerSide || 1) > 1 ? "Doubles" : "Singles"}</Badge>
+                    <Badge variant="outline" className="text-[10px] font-bold">{row.category.format}</Badge>
+                    {(() => {
+                      const r = (row.category.genderRestriction || "").toUpperCase();
+                      if (r === "FEMALE_ONLY" || r === "FEMALE") return <Badge className="text-[10px] font-bold bg-pink-500/15 text-pink-500 border-pink-500/30">Female only</Badge>;
+                      if (r === "MALE_ONLY" || r === "MALE") return <Badge className="text-[10px] font-bold bg-blue-500/15 text-blue-500 border-blue-500/30">Male only</Badge>;
+                      return null;
+                    })()}
+                  </div>
+                  <span className="text-[11px] text-muted-foreground" data-testid={`pairs-cat-count-${row.category.id}`}>
+                    {row.confirmedPairs.length} confirmed · {row.soloEntries.length} solo
+                  </span>
+                </div>
+                {row.confirmedPairs.length === 0 && row.soloEntries.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground italic">No entries yet.</p>
+                ) : (
+                  <div className="space-y-1">
+                    {row.confirmedPairs.map((t: any) => (
+                      <div key={t.id} className="flex items-center gap-2 text-xs text-foreground">
+                        <Check className="h-3 w-3 text-emerald-500 flex-shrink-0" />
+                        <span className="font-bold">{t.player1?.fullName || "?"}</span>
+                        <span className="text-muted-foreground">+</span>
+                        <span className="font-bold">{t.player2?.fullName || "?"}</span>
+                      </div>
+                    ))}
+                    {row.soloEntries.map((t: any) => (
+                      <div key={t.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <Clock className="h-3 w-3 text-amber-500 flex-shrink-0" />
+                        <span>{t.player1?.fullName || "?"}</span>
+                        <span className="italic text-[10px]">(solo / looking for partner)</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
       )}
 
       {pairs && pairs.length > 0 && (
@@ -1867,9 +1922,23 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                     {isSingles ? "Singles" : "Doubles"}
                   </Badge>
                   <Badge variant="outline" className="text-[10px] font-bold">{cat.format}</Badge>
+                  {(() => {
+                    const r = (cat.genderRestriction || "").toUpperCase();
+                    if (r === "FEMALE_ONLY" || r === "FEMALE") return <Badge className="text-[10px] font-bold bg-pink-500/15 text-pink-500 border-pink-500/30">Female only</Badge>;
+                    if (r === "MALE_ONLY" || r === "MALE") return <Badge className="text-[10px] font-bold bg-blue-500/15 text-blue-500 border-blue-500/30">Male only</Badge>;
+                    return null;
+                  })()}
                   {isPaired && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Paired</Badge>}
                   {isSolo && !isSingles && <Badge className="text-[10px] font-bold bg-amber-500/15 text-amber-500 border-amber-500/30">Looking for partner</Badge>}
                   {isSolo && isSingles && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Entered</Badge>}
+                </div>
+                <div className="flex items-center gap-3 text-[11px] text-muted-foreground mt-1">
+                  <span>{cat.playersPerSide || 1}-per-side</span>
+                  <span>·</span>
+                  <span data-testid={`text-cat-pair-count-${cat.id}`}>
+                    {entry.confirmedPairCount ?? 0} confirmed {entry.confirmedPairCount === 1 ? "team" : "teams"}
+                  </span>
+                  {entry.soloCount ? (<><span>·</span><span>{entry.soloCount} solo / looking</span></>) : null}
                 </div>
                 {isPaired && entry.partner && (
                   <p className="text-xs text-muted-foreground mt-1">Partner: <span className="font-bold text-foreground">{entry.partner.fullName}</span></p>

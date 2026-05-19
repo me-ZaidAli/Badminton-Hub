@@ -560,6 +560,16 @@ export const tournamentTeams = pgTable("tournament_teams", {
   // player1 in one team and player2 in another for the same category).
   uniquePlayer1PerCat: uniqueIndex("unique_player1_per_cat").on(table.categoryId, table.player1Id),
   uniquePlayer2PerCat: uniqueIndex("unique_player2_per_cat").on(table.categoryId, table.player2Id).where(sql`player2_id IS NOT NULL`),
+  // Cross-column guards — without these, a player could appear as player1 in one
+  // paired team and player2 in another paired team in the same category.
+  // Expression-based partial unique indexes normalise the pair to a canonical
+  // ordering so the unique constraint catches both orderings.
+  uniqueMinPlayerPerCat: uniqueIndex("tournament_teams_unique_min_player_per_cat")
+    .on(table.categoryId, sql`LEAST(${table.player1Id}, ${table.player2Id})`)
+    .where(sql`player2_id IS NOT NULL`),
+  uniqueMaxPlayerPerCat: uniqueIndex("tournament_teams_unique_max_player_per_cat")
+    .on(table.categoryId, sql`GREATEST(${table.player1Id}, ${table.player2Id})`)
+    .where(sql`player2_id IS NOT NULL`),
 }));
 
 export const tournamentMatches = pgTable("tournament_matches", {

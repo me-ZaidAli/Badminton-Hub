@@ -2362,6 +2362,10 @@ export function registerTournamentRoutes(app: Express) {
           const [u] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, otherUserId));
           return { ...pr, direction: pr.fromUserId === userId ? "OUTGOING" : "INCOMING", otherUser: u };
         }));
+        // Category-level pair-count breakdown for the My Categories cards.
+        const teamsHere = allTeams.filter(t => t.categoryId === cat.id);
+        const confirmedPairCount = teamsHere.filter(t => !!t.player2Id).length;
+        const soloCount = teamsHere.filter(t => !t.player2Id).length;
         result.push({
           category: cat,
           teamId: team?.id || null,
@@ -2370,8 +2374,54 @@ export function registerTournamentRoutes(app: Express) {
           partner,
           pendingRequests: enrichedPending,
           occupantUserIds,
+          confirmedPairCount,
+          soloCount,
         });
       }
+      res.json(result);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Multi-category partner flow: returns confirmed/solo teams grouped by category
+  // for the per-tournament admin view, sourced from `tournament_teams` (the new
+  // model). Replaces the registration-derived /pairs read for admins who need a
+  // category-aware breakdown.
+  app.get("/api/tournaments/:id/teams-by-category", async (req, res) => {
+    try {
+      const tournamentId = Number(req.params.id);
+      const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
+      const catIds = cats.map(c => c.id);
+      const teams = catIds.length
+        ? await db.select().from(tournamentTeams).where(inArray(tournamentTeams.categoryId, catIds))
+        : [];
+      const profileIds = Array.from(new Set(teams.flatMap(t => [t.player1Id, t.player2Id]).filter((x): x is number => !!x)));
+      const profs = profileIds.length
+        ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
+        : [];
+      const userIds = Array.from(new Set(profs.map(p => p.userId)));
+      const usrs = userIds.length
+        ? await db.select({ id: users.id, fullName: users.fullName, email: users.email }).from(users).where(inArray(users.id, userIds))
+        : [];
+      const profileToUser = new Map<number, any>();
+      for (const p of profs) {
+        const u = usrs.find(u => u.id === p.userId);
+        if (u) profileToUser.set(p.id, u);
+      }
+      const result = cats.map(cat => {
+        const catTeams = teams.filter(t => t.categoryId === cat.id).map(t => ({
+          id: t.id,
+          player1: t.player1Id ? profileToUser.get(t.player1Id) || null : null,
+          player2: t.player2Id ? profileToUser.get(t.player2Id) || null : null,
+          isPaired: !!t.player2Id,
+        }));
+        return {
+          category: cat,
+          confirmedPairs: catTeams.filter(t => t.isPaired),
+          soloEntries: catTeams.filter(t => !t.isPaired),
+        };
+      });
       res.json(result);
     } catch (e: any) {
       res.status(500).json({ message: e.message });

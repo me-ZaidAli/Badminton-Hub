@@ -134,6 +134,19 @@ export function useTournamentPairs(tournamentId: number) {
   });
 }
 
+// Category-grouped teams sourced from tournament_teams (multi-category flow).
+export function useTournamentTeamsByCategory(tournamentId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/tournaments", tournamentId, "teams-by-category"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/teams-by-category`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to fetch teams by category");
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
 export function useTournamentPairRequests(tournamentId: number) {
   return useQuery<any[]>({
     queryKey: ["/api/tournaments", tournamentId, "pair-requests"],
