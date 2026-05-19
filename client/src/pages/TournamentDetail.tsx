@@ -1067,6 +1067,12 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
   const { data: pairs, isLoading } = useTournamentPairs(tournamentId);
   const { data: teamsByCategory } = useTournamentTeamsByCategory(tournamentId);
   const { data: pairRequests } = useTournamentPairRequests(tournamentId);
+  const { data: categories } = useTournamentCategories(tournamentId);
+  const catNameById = (id: number | null | undefined): string => {
+    if (!id) return "Tournament-wide";
+    const c = (categories || []).find((x: any) => x.id === id);
+    return c?.name || `Category #${id}`;
+  };
   const { data: playerPool } = useTournamentPlayerPool(tournamentId);
   const { data: registrations } = useTournamentRegistrations(tournamentId);
   const respondPairMutation = useRespondPairRequest();
@@ -1195,8 +1201,15 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
                 <div className="flex items-center gap-3 min-w-0">
                   <PlayerAvatar name={pr.fromUser?.fullName || "?"} size="sm" />
                   <div className="min-w-0">
-                    <p className="text-sm font-bold text-foreground">{pr.fromUser?.fullName}</p>
-                    <p className="text-xs text-muted-foreground">wants to pair with you</p>
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <p className="text-sm font-bold text-foreground">{pr.fromUser?.fullName}</p>
+                      <Badge variant="outline" className="text-[10px] font-bold border-amber-500/40 text-amber-500" data-testid={`pairs-incoming-cat-${pr.id}`}>
+                        {catNameById(pr.categoryId)}
+                      </Badge>
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      wants to pair with you{pr.categoryId ? ` in ${catNameById(pr.categoryId)}` : ""}
+                    </p>
                     {pr.pairName && <p className="text-xs text-amber-500 font-bold mt-0.5">Team: "{pr.pairName}"</p>}
                     {pr.message && <p className="text-xs text-muted-foreground mt-0.5 italic">"{pr.message}"</p>}
                   </div>
@@ -1239,8 +1252,15 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
               <div className="flex items-center gap-3 min-w-0">
                 <PlayerAvatar name={pr.toUser?.fullName || "?"} size="sm" />
                 <div className="min-w-0">
-                  <p className="text-sm font-bold text-foreground">{pr.toUser?.fullName}</p>
-                  <p className="text-xs text-muted-foreground">Waiting for their response</p>
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-foreground">{pr.toUser?.fullName}</p>
+                    <Badge variant="outline" className="text-[10px] font-bold border-blue-500/40 text-blue-500" data-testid={`pairs-sent-cat-${pr.id}`}>
+                      {catNameById(pr.categoryId)}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Waiting for their response{pr.categoryId ? ` for ${catNameById(pr.categoryId)}` : ""}
+                  </p>
                 </div>
               </div>
               <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold flex-shrink-0">
@@ -2100,48 +2120,16 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
 function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournament: any }) {
   const { data: user } = useUser();
   const { data: registrations } = useTournamentRegistrations(tournamentId);
-  const { data: playerPool } = useTournamentPlayerPool(tournamentId);
-  const { data: pairRequests } = useTournamentPairRequests(tournamentId);
   const registerMutation = useRegisterForTournament();
   const withdrawMutation = useWithdrawRegistration();
-  const sendPairMutation = useSendPairRequest();
-  const respondPairMutation = useRespondPairRequest();
   const { toast } = useToast();
-  const [partnerSearch, setPartnerSearch] = useState("");
-  const [proposingTo, setProposingTo] = useState<{ userId: number; name: string } | null>(null);
-  const [proposalMessage, setProposalMessage] = useState("");
-  const [proposalPairName, setProposalPairName] = useState("");
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
-  // Only show legacy tournament-wide pair requests here (categoryId NULL).
-  // Per-category invites live in the "My Categories" tab.
-  const myPendingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING" && !pr.categoryId) || [];
 
   async function handleRegister() {
     try {
       await registerMutation.mutateAsync({ tournamentId, registrationType: "INDIVIDUAL" });
       toast({ title: "You're in!", description: "Now open the My Categories tab to pick which categories you want to play." });
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  }
-
-  async function handleSendPairRequest(toUserId: number, message?: string, pairName?: string) {
-    try {
-      await sendPairMutation.mutateAsync({ tournamentId, toUserId, message: message || undefined, pairName: pairName || undefined });
-      toast({ title: "Pair Request Sent!", description: "They'll receive a notification and a message." });
-      setProposingTo(null);
-      setProposalMessage("");
-      setProposalPairName("");
-    } catch (err: any) {
-      toast({ title: "Error", description: err.message, variant: "destructive" });
-    }
-  }
-
-  async function handleRespondPairRequest(id: number, status: string) {
-    try {
-      await respondPairMutation.mutateAsync({ id, status });
-      toast({ title: status === "ACCEPTED" ? "Pair Confirmed!" : "Request Declined" });
     } catch (err: any) {
       toast({ title: "Error", description: err.message, variant: "destructive" });
     }
@@ -2205,140 +2193,16 @@ function SignUpTab({ tournamentId, tournament }: { tournamentId: number; tournam
         </div>
       )}
 
-      {myPendingRequests.length > 0 && (
-        <div className="space-y-2">
-          <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Incoming Pair Requests</h3>
-          {myPendingRequests.map((pr: any) => (
-            <div key={pr.id} className="rounded-xl border border-amber-500/30 bg-amber-500/5 dark:bg-amber-500/10 p-4 flex items-center justify-between gap-3">
-              <div className="flex items-center gap-3">
-                <PlayerAvatar name={pr.fromUser?.fullName || "?"} size="sm" />
-                <div>
-                  <p className="text-sm font-bold text-foreground">{pr.fromUser?.fullName}</p>
-                  <p className="text-xs text-muted-foreground">wants to pair with you</p>
-                </div>
-              </div>
-              <div className="flex gap-2">
-                <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white h-8 font-bold" onClick={() => handleRespondPairRequest(pr.id, "ACCEPTED")}>
-                  <Check className="h-3.5 w-3.5 mr-1" />Accept
-                </Button>
-                <Button size="sm" variant="outline" className="h-8 border-destructive/30 text-destructive" onClick={() => handleRespondPairRequest(pr.id, "DECLINED")}>
-                  <X className="h-3.5 w-3.5" />
-                </Button>
-              </div>
-            </div>
-          ))}
-        </div>
-      )}
-
-      {playerPool && playerPool.length > 0 && myRegistration && (
-        <div className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Player Pool</h3>
-              <p className="text-[10px] text-muted-foreground">Available players looking for a partner</p>
-            </div>
-            <Badge variant="outline" className="font-bold">{playerPool.length} available</Badge>
-          </div>
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <input type="text" placeholder="Search pool..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)}
-              className="w-full h-9 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors" />
-          </div>
-          <div className="rounded-xl border border-border/50 overflow-hidden divide-y divide-border/20">
-            {playerPool.filter((p: any) => {
-              if (p.userId === user?.id) return false;
-              if (partnerSearch) return p.user?.fullName?.toLowerCase().includes(partnerSearch.toLowerCase());
-              return true;
-            }).map((p: any) => (
-              <div key={p.id} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors" data-testid={`pool-player-${p.userId}`}>
-                <div className="flex items-center gap-3 min-w-0">
-                  <PlayerAvatar name={p.user?.fullName || "?"} size="sm" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold text-foreground truncate">{p.user?.fullName}</p>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <GradeTierBadge grade={p.profile?.currentGrade || "—"} />
-                      <span>{p.matchesPlayed || 0} played</span>
-                      <span>{p.winRate || 0}% win</span>
-                    </div>
-                  </div>
-                </div>
-                {pairRequests?.some((pr: any) => pr.fromUserId === user?.id && pr.toUserId === p.userId && pr.status === "PENDING") ? (
-                  <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold">
-                    <Clock className="h-3 w-3 mr-1" />Pending
-                  </Badge>
-                ) : (
-                  <Button size="sm" variant="outline" className="h-8 text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10 font-bold"
-                    data-testid={`button-propose-pair-${p.userId}`}
-                    onClick={() => setProposingTo({ userId: p.userId, name: p.user?.fullName || "Player" })}>
-                    <UserPlus className="h-3 w-3 mr-1" />Propose
-                  </Button>
-                )}
-              </div>
-            ))}
+      {myRegistration && (
+        <div className="rounded-xl border border-amber-500/30 bg-gradient-to-br from-amber-500/5 via-orange-500/5 to-amber-500/5 p-4 flex items-start gap-3" data-testid="signup-categories-hint">
+          <ArrowRight className="h-5 w-5 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div>
+            <p className="text-sm font-bold text-foreground">Next: pick your categories</p>
+            <p className="text-xs text-muted-foreground mt-0.5">Head to the <span className="font-bold text-amber-500">My Categories</span> tab to join singles or doubles events. You can pick a different partner for each doubles category there.</p>
           </div>
         </div>
       )}
 
-      {proposingTo && (
-        <Dialog open onOpenChange={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle className="flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-amber-500" />
-                Propose Partner
-              </DialogTitle>
-              <DialogDescription>Send a pair request to {proposingTo.name} for this tournament.</DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4">
-              <div className="flex items-center gap-3 p-3 rounded-xl bg-muted/30 border border-border/30">
-                <PlayerAvatar name={proposingTo.name} size="md" />
-                <div>
-                  <p className="text-sm font-bold text-foreground">{proposingTo.name}</p>
-                  <p className="text-xs text-muted-foreground">Will be notified via in-app message</p>
-                </div>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-foreground">Team Name (optional)</label>
-                <input
-                  type="text"
-                  placeholder='e.g. "The Smashers", "Dynamic Duo"'
-                  value={proposalPairName}
-                  onChange={(e) => setProposalPairName(e.target.value)}
-                  maxLength={50}
-                  className="w-full rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors p-3"
-                  data-testid="input-pair-name"
-                />
-                <p className="text-[10px] text-muted-foreground">Give your pair a fun team name!</p>
-              </div>
-              <div className="space-y-2">
-                <label className="text-xs font-bold text-foreground">Message (optional)</label>
-                <textarea
-                  placeholder="Hey! Want to team up for this tournament?"
-                  value={proposalMessage}
-                  onChange={(e) => setProposalMessage(e.target.value)}
-                  rows={3}
-                  maxLength={200}
-                  className="w-full rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors p-3 resize-none"
-                  data-testid="input-pair-message"
-                />
-                <p className="text-[10px] text-muted-foreground text-right">{proposalMessage.length}/200</p>
-              </div>
-              <div className="flex gap-2 justify-end">
-                <Button variant="outline" onClick={() => { setProposingTo(null); setProposalMessage(""); setProposalPairName(""); }}>
-                  Cancel
-                </Button>
-                <Button className="bg-gradient-to-r from-amber-500 to-orange-600 text-white font-bold border-0"
-                  disabled={sendPairMutation.isPending}
-                  data-testid="button-send-pair-request"
-                  onClick={() => handleSendPairRequest(proposingTo.userId, proposalMessage, proposalPairName)}>
-                  {sendPairMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <UserPlus className="h-4 w-4 mr-1" />}
-                  Send Proposal
-                </Button>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
     </div>
   );
 }

@@ -2389,6 +2389,7 @@ export function registerTournamentRoutes(app: Express) {
   // model). Replaces the registration-derived /pairs read for admins who need a
   // category-aware breakdown.
   app.get("/api/tournaments/:id/teams-by-category", async (req, res) => {
+    if (!req.isAuthenticated()) return res.status(401).json({ message: "Authentication required" });
     try {
       const tournamentId = Number(req.params.id);
       const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
@@ -2401,8 +2402,9 @@ export function registerTournamentRoutes(app: Express) {
         ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
         : [];
       const userIds = Array.from(new Set(profs.map(p => p.userId)));
+      // PII-min: only return id + fullName for member display (no email).
       const usrs = userIds.length
-        ? await db.select({ id: users.id, fullName: users.fullName, email: users.email }).from(users).where(inArray(users.id, userIds))
+        ? await db.select({ id: users.id, fullName: users.fullName }).from(users).where(inArray(users.id, userIds))
         : [];
       const profileToUser = new Map<number, any>();
       for (const p of profs) {
