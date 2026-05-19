@@ -2283,8 +2283,25 @@ export function registerTournamentRoutes(app: Express) {
           ));
         for (const team of mine) {
           await tx.execute(sql`SELECT id FROM tournament_teams WHERE id = ${team.id} FOR UPDATE`);
-          await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
-          await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, team.id));
+          // If team was a paired team and the leaver was only one of the two
+          // players, demote the team to a solo entry for the remaining partner
+          // (so they keep their category slot and can find a new partner).
+          // Only fully wipe the team when the leaver was the sole occupant.
+          const remainingProfileId =
+            team.player2Id != null
+              ? (team.player1Id === profile.id ? team.player2Id : (team.player2Id === profile.id ? team.player1Id : null))
+              : null;
+          if (remainingProfileId != null) {
+            // Remove any group-pair link tied to the now-solo team (groups are
+            // for paired matchups). Keep the team row itself, but demote it.
+            await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
+            await tx.update(tournamentTeams)
+              .set({ player1Id: remainingProfileId, player2Id: null })
+              .where(eq(tournamentTeams.id, team.id));
+          } else {
+            await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
+            await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, team.id));
+          }
         }
         // Also dissolve any ACCEPTED per-category pair requests so the partner is freed up.
         await tx.update(tournamentPairRequests).set({ status: "DISSOLVED" })
