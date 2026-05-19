@@ -3237,18 +3237,45 @@ export function registerTournamentRoutes(app: Express) {
   });
 
   async function getPairComparisonData(tournamentId: number, pairId: number) {
-    const [reg] = await db.select().from(tournamentRegistrations)
-      .where(and(
-        eq(tournamentRegistrations.id, pairId),
-        eq(tournamentRegistrations.tournamentId, tournamentId),
-        eq(tournamentRegistrations.registrationType, "PAIR"),
-      ));
-    if (!reg || !reg.partnerId) return null;
+    let user1Id: number | null = null;
+    let user2Id: number | null = null;
+    let profile1: any = null;
+    let profile2: any = null;
 
-    const [user1] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, reg.userId));
-    const [user2] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, reg.partnerId));
-    const [profile1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
-    const [profile2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.partnerId));
+    // Try category-pair lookup first (new system: pairId = tournament_teams.id).
+    const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, pairId));
+    if (team && team.player1Id && team.player2Id) {
+      // Validate the team belongs to a category in this tournament.
+      const [cat] = await db.select().from(tournamentCategories).where(and(
+        eq(tournamentCategories.id, team.categoryId),
+        eq(tournamentCategories.tournamentId, tournamentId),
+      ));
+      if (cat) {
+        [profile1] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player1Id));
+        [profile2] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, team.player2Id));
+        user1Id = profile1?.userId ?? null;
+        user2Id = profile2?.userId ?? null;
+      }
+    }
+
+    // Fallback: legacy registration-based pair lookup (pairId = tournamentRegistrations.id).
+    if (!user1Id || !user2Id) {
+      const [reg] = await db.select().from(tournamentRegistrations)
+        .where(and(
+          eq(tournamentRegistrations.id, pairId),
+          eq(tournamentRegistrations.tournamentId, tournamentId),
+          eq(tournamentRegistrations.registrationType, "PAIR"),
+        ));
+      if (!reg || !reg.partnerId) return null;
+      user1Id = reg.userId;
+      user2Id = reg.partnerId;
+      [profile1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+      [profile2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.partnerId));
+    }
+
+    if (!user1Id || !user2Id) return null;
+    const [user1] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, user1Id));
+    const [user2] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, user2Id));
 
     async function getPlayerMatchStats(profileId: number) {
       if (!profileId) return { played: 0, won: 0, lost: 0, avgScoreFor: 0, avgScoreAgainst: 0, recentForm: [] as string[] };
