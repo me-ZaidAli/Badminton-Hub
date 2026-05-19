@@ -23,6 +23,7 @@ import {
   useTournamentPlayerStats, useRecalculateStats,
   useMyTournamentCategories, useJoinCategorySolo, useLeaveCategory,
   useConfirmCategoryPayment, useUpdateTeamPayment,
+  usePlayerTournamentStats,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -864,6 +865,7 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
   const grade = player.profile?.currentGrade || "—";
   const profileId = player.profile?.id || null;
   const { data: clubStats, isLoading: clubLoading } = useDetailedPlayerStats(statsTab === "club" ? profileId : null);
+  const { data: allTimeT, isLoading: allTimeLoading } = usePlayerTournamentStats(statsTab === "tournament" ? profileId : null);
 
   const wins = player.matchesWon || 0;
   const losses = player.matchesLost || 0;
@@ -1018,11 +1020,76 @@ function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: an
         {statsTab === "tournament" && (
           <div className="p-4 space-y-4">
             {played === 0 ? (
-              <div className="text-center py-8">
-                <Trophy className="h-8 w-8 text-slate-700 mx-auto mb-2" />
-                <p className="text-sm font-bold text-slate-400">No Tournament Matches Yet</p>
-                <p className="text-xs text-slate-600 mt-1">Stats will appear once this player completes tournament matches.</p>
-              </div>
+              allTimeLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-violet-500" /></div>
+              ) : allTimeT && allTimeT.tournamentsPlayed > 0 ? (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <Trophy className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="font-bold">All-Time Tournament Record</span>
+                    <span className="text-slate-600">· No matches in this tournament yet</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: "Tournaments", value: `${allTimeT.tournamentsPlayed}`, sub: "Played", icon: Trophy, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
+                      { label: "Win Rate", value: `${allTimeT.winRate}%`, sub: `${allTimeT.matchesWon}W / ${allTimeT.matchesLost}L`, icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
+                      { label: "Matches Played", value: `${allTimeT.matchesPlayed}`, sub: "All tournaments", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
+                      { label: "Point Diff", value: `${allTimeT.pointDifference > 0 ? "+" : ""}${allTimeT.pointDifference}`, sub: `${allTimeT.pointsScored} / ${allTimeT.pointsConceded}`, icon: Flame, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
+                    ].map((kpi, i) => (
+                      <div key={i} className="relative rounded-xl overflow-hidden">
+                        <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
+                        <div className="relative p-3 border border-slate-800/60 rounded-xl">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
+                              <kpi.icon className="h-3 w-3 text-white" />
+                            </div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                          </div>
+                          <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
+                          <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {allTimeT.tournaments.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Previous Tournaments ({allTimeT.tournaments.length})
+                      </h4>
+                      <div className="space-y-1 max-h-[250px] overflow-y-auto">
+                        {allTimeT.tournaments.map((t) => (
+                          <div key={t.tournamentId} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-900/50 border border-slate-800/40" data-testid={`alltime-tournament-${t.tournamentId}`}>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-slate-300 truncate">{t.tournamentName}</div>
+                              <div className="text-[10px] text-slate-500">
+                                {t.endDate ? formatLondon(t.endDate, "MMM yyyy") : "—"}
+                                {t.categories > 1 && ` · ${t.categories} categories`}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <div className="text-center">
+                                <div className="text-xs font-mono font-bold text-emerald-400">{t.matchesWon}</div>
+                                <div className="text-[9px] text-slate-600">W</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs font-mono font-bold text-red-400">{t.matchesLost}</div>
+                                <div className="text-[9px] text-slate-600">L</div>
+                              </div>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="text-center py-8">
+                  <Trophy className="h-8 w-8 text-slate-700 mx-auto mb-2" />
+                  <p className="text-sm font-bold text-slate-400">No Tournament Matches Yet</p>
+                  <p className="text-xs text-slate-600 mt-1">Stats will appear once this player completes tournament matches.</p>
+                </div>
+              )
             ) : (
               <>
                 <div className="grid grid-cols-2 gap-2">
