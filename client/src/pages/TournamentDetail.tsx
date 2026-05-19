@@ -21,6 +21,7 @@ import {
   useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
   useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames, useUpdateMatchScheduledTime, useBulkUpdateMatchScheduledTime,
   useTournamentPlayerStats, useRecalculateStats,
+  useMyTournamentCategories, useJoinCategorySolo, useLeaveCategory,
 } from "@/hooks/use-tournaments";
 import { useUser } from "@/hooks/use-auth";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -52,7 +53,7 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import tournamentHeroImg from "@assets/tournament-hero.png";
 
-type SubPage = "overview" | "players" | "pairs" | "signup" | "matches" | "groups" | "courts" | "stats" | "prizes" | "admin";
+type SubPage = "overview" | "players" | "pairs" | "signup" | "categories" | "matches" | "groups" | "courts" | "stats" | "prizes" | "admin";
 
 const categorySchema = z.object({
   name: z.string().min(1, "Name required"),
@@ -194,6 +195,7 @@ export default function TournamentDetail() {
     { key: "players", label: "Players", icon: Users },
     { key: "pairs", label: "Pairs", icon: Users },
     { key: "signup", label: "Sign Up", icon: Zap },
+    { key: "categories", label: "My Categories", icon: LayoutGrid },
     { key: "matches", label: "Matches", icon: Swords },
     { key: "groups", label: "Groups", icon: LayoutGrid },
     { key: "courts", label: "Courts", icon: Monitor },
@@ -337,6 +339,7 @@ export default function TournamentDetail() {
       {subPage === "players" && <PlayersTab tournamentId={tournamentId} />}
       {subPage === "pairs" && <PairsTab tournamentId={tournamentId} />}
       {subPage === "signup" && <SignUpTab tournamentId={tournamentId} tournament={tournament} />}
+      {subPage === "categories" && <MyCategoriesTab tournamentId={tournamentId} />}
       {subPage === "matches" && activeCategory && <MatchesTab category={activeCategory} canManage={canManage} tournamentId={tournamentId} onGenerateMatches={async () => {
         try {
           await autoPopulateMutation.mutateAsync(activeCategory.id);
@@ -1779,6 +1782,230 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
           )}
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
+  const { data: user } = useUser();
+  const { data: myCategories, isLoading } = useMyTournamentCategories(tournamentId);
+  const { data: registrations } = useTournamentRegistrations(tournamentId);
+  const { data: tournament } = useTournament(tournamentId);
+  const joinSoloMutation = useJoinCategorySolo();
+  const leaveMutation = useLeaveCategory();
+  const sendPairMutation = useSendPairRequest();
+  const respondPairMutation = useRespondPairRequest();
+  const { toast } = useToast();
+  const [partnerPicker, setPartnerPicker] = useState<{ categoryId: number; categoryName: string } | null>(null);
+  const [partnerSearch, setPartnerSearch] = useState("");
+  const [leaveConfirm, setLeaveConfirm] = useState<{ categoryId: number; categoryName: string } | null>(null);
+
+  const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
+
+  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>;
+
+  if (!myRegistration) {
+    return (
+      <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-6 text-center space-y-2">
+        <Zap className="h-8 w-8 text-amber-500 mx-auto" />
+        <p className="text-sm font-bold text-foreground">Register first</p>
+        <p className="text-xs text-muted-foreground">Use the <span className="text-amber-500 font-bold">Sign Up</span> tab to register for this tournament, then come back here to join individual categories.</p>
+      </div>
+    );
+  }
+
+  if (!myCategories || myCategories.length === 0) {
+    return (
+      <div className="rounded-2xl border border-border/50 bg-muted/20 p-6 text-center">
+        <p className="text-sm text-muted-foreground">No categories have been created for this tournament yet.</p>
+      </div>
+    );
+  }
+
+  async function doJoinSolo(categoryId: number) {
+    try { await joinSoloMutation.mutateAsync({ categoryId, tournamentId }); toast({ title: "Joined" }); }
+    catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function doLeave(categoryId: number) {
+    try { await leaveMutation.mutateAsync({ categoryId, tournamentId }); toast({ title: "Left category" }); setLeaveConfirm(null); }
+    catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  async function doSendPair(toUserId: number, categoryId: number) {
+    try {
+      await sendPairMutation.mutateAsync({ tournamentId, toUserId, categoryId });
+      toast({ title: "Pair request sent", description: "They'll need to accept before you're officially paired." });
+      setPartnerPicker(null);
+      setPartnerSearch("");
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
+  return (
+    <div className="space-y-4" data-testid="my-categories-tab">
+      <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
+        <p className="text-xs text-muted-foreground">
+          You're registered for <span className="font-bold text-foreground">{tournament?.name}</span>. Join the categories you want to play in below — pick a different partner per doubles category.
+        </p>
+      </div>
+      {myCategories.map((entry: any) => {
+        const cat = entry.category;
+        const isSingles = cat.playersPerSide < 2;
+        const isPaired = entry.isPaired;
+        const isSolo = entry.isSolo;
+        const inEntry = isPaired || isSolo;
+        const pendingIncoming = entry.pendingRequests?.filter((pr: any) => pr.direction === "INCOMING") || [];
+        const pendingOutgoing = entry.pendingRequests?.filter((pr: any) => pr.direction === "OUTGOING") || [];
+
+        return (
+          <div key={cat.id} className="rounded-2xl border border-border/50 bg-card p-4 space-y-3" data-testid={`category-entry-${cat.id}`}>
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <h3 className="text-base font-black text-foreground">{cat.name}</h3>
+                  <Badge variant="outline" className="text-[10px] font-bold">
+                    {isSingles ? "Singles" : "Doubles"}
+                  </Badge>
+                  <Badge variant="outline" className="text-[10px] font-bold">{cat.format}</Badge>
+                  {isPaired && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Paired</Badge>}
+                  {isSolo && !isSingles && <Badge className="text-[10px] font-bold bg-amber-500/15 text-amber-500 border-amber-500/30">Looking for partner</Badge>}
+                  {isSolo && isSingles && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Entered</Badge>}
+                </div>
+                {isPaired && entry.partner && (
+                  <p className="text-xs text-muted-foreground mt-1">Partner: <span className="font-bold text-foreground">{entry.partner.fullName}</span></p>
+                )}
+              </div>
+              <div className="flex gap-2">
+                {!inEntry && (
+                  <>
+                    <Button size="sm" variant="outline" className="h-8 text-xs font-bold" onClick={() => doJoinSolo(cat.id)} disabled={joinSoloMutation.isPending} data-testid={`button-join-solo-${cat.id}`}>
+                      {joinSoloMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
+                      {isSingles ? "Join" : "Join (find partner later)"}
+                    </Button>
+                    {!isSingles && (
+                      <Button size="sm" className="h-8 text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-600 text-white" onClick={() => setPartnerPicker({ categoryId: cat.id, categoryName: cat.name })} data-testid={`button-pick-partner-${cat.id}`}>
+                        <UserPlus className="h-3 w-3 mr-1" />Pick Partner
+                      </Button>
+                    )}
+                  </>
+                )}
+                {inEntry && (
+                  <>
+                    {isSolo && !isSingles && (
+                      <Button size="sm" className="h-8 text-xs font-bold bg-gradient-to-r from-amber-500 to-orange-600 text-white" onClick={() => setPartnerPicker({ categoryId: cat.id, categoryName: cat.name })} data-testid={`button-find-partner-${cat.id}`}>
+                        <UserPlus className="h-3 w-3 mr-1" />Find Partner
+                      </Button>
+                    )}
+                    <Button size="sm" variant="outline" className="h-8 text-xs font-bold border-destructive/30 text-destructive hover:bg-destructive/10" onClick={() => setLeaveConfirm({ categoryId: cat.id, categoryName: cat.name })} data-testid={`button-leave-${cat.id}`}>
+                      <X className="h-3 w-3 mr-1" />Leave
+                    </Button>
+                  </>
+                )}
+              </div>
+            </div>
+
+            {pendingIncoming.length > 0 && (
+              <div className="space-y-2 pt-2 border-t border-border/30">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-amber-500">Incoming pair requests for this category</p>
+                {pendingIncoming.map((pr: any) => (
+                  <div key={pr.id} className="flex items-center justify-between gap-3 p-2 rounded-lg bg-amber-500/5 border border-amber-500/20">
+                    <div className="flex items-center gap-2">
+                      <PlayerAvatar name={pr.otherUser?.fullName || "?"} size="sm" />
+                      <div>
+                        <p className="text-xs font-bold text-foreground">{pr.otherUser?.fullName}</p>
+                        {pr.message && <p className="text-[10px] text-muted-foreground italic">"{pr.message}"</p>}
+                      </div>
+                    </div>
+                    <div className="flex gap-1">
+                      <Button size="sm" className="h-7 text-[10px] bg-emerald-600 text-white font-bold" onClick={async () => {
+                        try { await respondPairMutation.mutateAsync({ id: pr.id, status: "ACCEPTED" }); toast({ title: "Paired!" }); }
+                        catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                      }} data-testid={`button-accept-pair-cat-${pr.id}`}>
+                        <Check className="h-3 w-3 mr-0.5" />Accept
+                      </Button>
+                      <Button size="sm" variant="outline" className="h-7 text-[10px] border-destructive/30 text-destructive" onClick={async () => {
+                        try { await respondPairMutation.mutateAsync({ id: pr.id, status: "DECLINED" }); toast({ title: "Declined" }); }
+                        catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                      }} data-testid={`button-decline-pair-cat-${pr.id}`}>
+                        <X className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {pendingOutgoing.length > 0 && (
+              <div className="space-y-1 pt-2 border-t border-border/30">
+                <p className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">Awaiting response</p>
+                {pendingOutgoing.map((pr: any) => (
+                  <div key={pr.id} className="flex items-center gap-2 text-xs text-muted-foreground">
+                    <Clock className="h-3 w-3 text-amber-500" />
+                    Sent to <span className="font-bold text-foreground">{pr.otherUser?.fullName}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        );
+      })}
+
+      {partnerPicker && (
+        <Dialog open onOpenChange={() => { setPartnerPicker(null); setPartnerSearch(""); }}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Pick partner for {partnerPicker.categoryName}</DialogTitle>
+              <DialogDescription>They'll need to accept your request before you're officially paired in this category.</DialogDescription>
+            </DialogHeader>
+            <div className="space-y-3">
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <input type="text" placeholder="Search registered players..." value={partnerSearch} onChange={e => setPartnerSearch(e.target.value)}
+                  className="w-full h-9 pl-10 pr-4 rounded-xl bg-card border border-border text-sm outline-none focus:border-amber-500/40" data-testid="input-partner-search" />
+              </div>
+              <div className="max-h-64 overflow-y-auto rounded-xl border border-border/50 divide-y divide-border/20">
+                {(registrations || []).filter((r: any) => {
+                  if (r.userId === user?.id) return false;
+                  if (partnerSearch) return r.user?.fullName?.toLowerCase().includes(partnerSearch.toLowerCase());
+                  return true;
+                }).map((r: any) => (
+                  <button key={r.id} onClick={() => doSendPair(r.userId, partnerPicker.categoryId)}
+                    className="w-full flex items-center gap-3 px-3 py-2 hover:bg-muted/30 text-left transition-colors"
+                    disabled={sendPairMutation.isPending}
+                    data-testid={`button-invite-partner-${r.userId}`}>
+                    <PlayerAvatar name={r.user?.fullName || "?"} size="sm" />
+                    <div className="flex-1">
+                      <p className="text-sm font-bold text-foreground">{r.user?.fullName}</p>
+                      <p className="text-[10px] text-muted-foreground">{r.user?.email}</p>
+                    </div>
+                    <UserPlus className="h-4 w-4 text-amber-500" />
+                  </button>
+                ))}
+                {(registrations || []).filter((r: any) => r.userId !== user?.id).length === 0 && (
+                  <div className="p-4 text-center text-xs text-muted-foreground">No other registered players yet.</div>
+                )}
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
+
+      {leaveConfirm && (
+        <Dialog open onOpenChange={() => setLeaveConfirm(null)}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle>Leave {leaveConfirm.categoryName}?</DialogTitle>
+              <DialogDescription>You'll be removed from this category. If you have a partner, your pair will be dissolved for this category only.</DialogDescription>
+            </DialogHeader>
+            <div className="flex gap-2 justify-end">
+              <Button variant="outline" onClick={() => setLeaveConfirm(null)}>Cancel</Button>
+              <Button className="bg-destructive text-destructive-foreground font-bold" onClick={() => doLeave(leaveConfirm.categoryId)} disabled={leaveMutation.isPending} data-testid="button-confirm-leave">
+                {leaveMutation.isPending ? <Loader2 className="h-4 w-4 mr-1 animate-spin" /> : <X className="h-4 w-4 mr-1" />}Leave
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
+      )}
     </div>
   );
 }

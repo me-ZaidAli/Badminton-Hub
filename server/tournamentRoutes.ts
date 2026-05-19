@@ -1912,21 +1912,71 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const tournamentId = Number(req.params.id);
-      const { toUserId, message: pairMessage, pairName } = req.body;
+      const { toUserId, message: pairMessage, pairName, categoryId: rawCategoryId } = req.body;
+      const categoryId = rawCategoryId ? Number(rawCategoryId) : null;
+
+      // If a category is supplied, validate it belongs to this tournament and the
+      // player isn't already partnered (in a team) for that category.
+      if (categoryId) {
+        const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, categoryId));
+        if (!cat || cat.tournamentId !== tournamentId) return res.status(400).json({ message: "Category does not belong to this tournament" });
+        if (cat.playersPerSide < 2) return res.status(400).json({ message: "Singles categories don't need a partner — use Join instead." });
+        const [myProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, req.user!.id));
+        const [theirProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, Number(toUserId)));
+        if (myProfile) {
+          const myTeams = await db.select().from(tournamentTeams)
+            .where(and(
+              eq(tournamentTeams.categoryId, categoryId),
+              or(eq(tournamentTeams.player1Id, myProfile.id), eq(tournamentTeams.player2Id, myProfile.id))
+            ));
+          // Only block when I'm already in a *complete* team (i.e. has a partner).
+          if (myTeams.some(t => t.player1Id && t.player2Id)) {
+            return res.status(400).json({ message: "You already have a partner in this category. Leave the team first." });
+          }
+        }
+        if (theirProfile) {
+          const theirTeams = await db.select().from(tournamentTeams)
+            .where(and(
+              eq(tournamentTeams.categoryId, categoryId),
+              or(eq(tournamentTeams.player1Id, theirProfile.id), eq(tournamentTeams.player2Id, theirProfile.id))
+            ));
+          if (theirTeams.some(t => t.player1Id && t.player2Id)) {
+            return res.status(400).json({ message: "That player already has a partner in this category." });
+          }
+        }
+      }
+
+      // Both players must be registered for this tournament before a pair-request can be created.
+      const meReg = await db.select().from(tournamentRegistrations).where(and(
+        eq(tournamentRegistrations.tournamentId, tournamentId),
+        eq(tournamentRegistrations.userId, req.user!.id),
+      ));
+      if (meReg.length === 0) return res.status(400).json({ message: "Register for the tournament first" });
+      const themReg = await db.select().from(tournamentRegistrations).where(and(
+        eq(tournamentRegistrations.tournamentId, tournamentId),
+        eq(tournamentRegistrations.userId, Number(toUserId)),
+      ));
+      if (themReg.length === 0) return res.status(400).json({ message: "That player isn't registered for this tournament" });
+
+      // Dedupe pending requests in *either direction* for the same (pair, category) so the
+      // same two players can't generate competing PENDING invites.
       const existing = await db.select().from(tournamentPairRequests)
         .where(and(
           eq(tournamentPairRequests.tournamentId, tournamentId),
-          eq(tournamentPairRequests.fromUserId, req.user!.id),
-          eq(tournamentPairRequests.toUserId, toUserId),
           eq(tournamentPairRequests.status, "PENDING"),
+          or(
+            and(eq(tournamentPairRequests.fromUserId, req.user!.id), eq(tournamentPairRequests.toUserId, Number(toUserId))),
+            and(eq(tournamentPairRequests.fromUserId, Number(toUserId)), eq(tournamentPairRequests.toUserId, req.user!.id)),
+          ),
+          categoryId ? eq(tournamentPairRequests.categoryId, categoryId) : isNull(tournamentPairRequests.categoryId),
         ));
-      if (existing.length > 0) return res.status(400).json({ message: "Request already sent" });
+      if (existing.length > 0) return res.status(400).json({ message: "A pair request between you two is already pending for this category" });
 
       const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
       const tournamentName = tournament?.name || "a tournament";
 
       const [pr] = await db.insert(tournamentPairRequests).values({
-        tournamentId, fromUserId: req.user!.id, toUserId, message: pairMessage, pairName: pairName || null,
+        tournamentId, fromUserId: req.user!.id, toUserId, message: pairMessage, pairName: pairName || null, categoryId,
       }).returning();
 
       await db.insert(notifications).values({
@@ -1971,29 +2021,137 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const { status } = req.body;
-      const [pr] = await db.update(tournamentPairRequests).set({ status })
-        .where(eq(tournamentPairRequests.id, Number(req.params.id))).returning();
+      const prId = Number(req.params.id);
+      const userId = (req.user as any).id;
+      // Load the request first so we can authorize the action against it.
+      const [existingPr] = await db.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, prId));
+      if (!existingPr) return res.status(404).json({ message: "Pair request not found" });
+      if (existingPr.status !== "PENDING") return res.status(400).json({ message: `Pair request is already ${existingPr.status}` });
+
+      // Authorization:
+      //  • Recipient (toUserId) may ACCEPT or DECLINE.
+      //  • Sender (fromUserId) may cancel by transitioning to DECLINED/DISSOLVED.
+      //  • Tournament admins may force any transition.
+      // Status allowlist — applied uniformly (including admins) so callers can
+      // never push the request into an unsupported state.
+      if (status !== "ACCEPTED" && status !== "DECLINED" && status !== "DISSOLVED") {
+        return res.status(400).json({ message: "Invalid status" });
+      }
+      const isAdmin = await isTournamentAdmin(userId, existingPr.tournamentId);
+      const isRecipient = userId === existingPr.toUserId;
+      const isSender = userId === existingPr.fromUserId;
+      if (!isAdmin) {
+        if (status === "ACCEPTED" && !isRecipient) return res.status(403).json({ message: "Only the recipient can accept this request" });
+        if ((status === "DECLINED" || status === "DISSOLVED") && !isRecipient && !isSender) return res.status(403).json({ message: "Not authorized" });
+      }
+
+      // All state mutations run inside one transaction so the status change,
+      // sibling-request dissolution, and team materialisation are atomic and
+      // protected by row-level locks. Re-checks the PENDING status after the
+      // FOR UPDATE so a concurrent LEAVE can't dissolve under us.
+      const [t] = await db.select().from(tournaments).where(eq(tournaments.id, existingPr.tournamentId));
+      let pr: typeof existingPr;
+      try {
+        pr = await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT id FROM tournament_pair_requests WHERE id = ${prId} FOR UPDATE`);
+          const [latest] = await tx.select().from(tournamentPairRequests).where(eq(tournamentPairRequests.id, prId));
+          if (latest.status !== "PENDING") {
+            throw Object.assign(new Error(`Pair request is already ${latest.status}`), { httpStatus: 409 });
+          }
+          const [updated] = await tx.update(tournamentPairRequests).set({ status })
+            .where(eq(tournamentPairRequests.id, prId)).returning();
+
+          if (status === "ACCEPTED") {
+            // Per-category accept: dissolve only colliding ACCEPTED requests in the same category.
+            if (updated.categoryId) {
+              await tx.update(tournamentPairRequests).set({ status: "DISSOLVED" }).where(and(
+                eq(tournamentPairRequests.tournamentId, updated.tournamentId),
+                eq(tournamentPairRequests.categoryId, updated.categoryId),
+                eq(tournamentPairRequests.status, "ACCEPTED"),
+                or(
+                  eq(tournamentPairRequests.fromUserId, updated.fromUserId),
+                  eq(tournamentPairRequests.toUserId, updated.fromUserId),
+                  eq(tournamentPairRequests.fromUserId, updated.toUserId),
+                  eq(tournamentPairRequests.toUserId, updated.toUserId),
+                ),
+                ne(tournamentPairRequests.id, updated.id),
+              ));
+            } else {
+              // Legacy tournament-wide pair (categoryId NULL): preserve old behaviour and mutate registrations.
+              await tx.update(tournamentPairRequests).set({ status: "DISSOLVED" }).where(and(
+                eq(tournamentPairRequests.tournamentId, updated.tournamentId),
+                isNull(tournamentPairRequests.categoryId),
+                eq(tournamentPairRequests.status, "ACCEPTED"),
+                or(
+                  eq(tournamentPairRequests.fromUserId, updated.fromUserId),
+                  eq(tournamentPairRequests.toUserId, updated.fromUserId),
+                  eq(tournamentPairRequests.fromUserId, updated.toUserId),
+                  eq(tournamentPairRequests.toUserId, updated.toUserId),
+                ),
+                ne(tournamentPairRequests.id, updated.id),
+              ));
+              await tx.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: updated.toUserId })
+                .where(and(eq(tournamentRegistrations.tournamentId, updated.tournamentId), eq(tournamentRegistrations.userId, updated.fromUserId)));
+              await tx.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: updated.fromUserId })
+                .where(and(eq(tournamentRegistrations.tournamentId, updated.tournamentId), eq(tournamentRegistrations.userId, updated.toUserId)));
+            }
+
+            // Materialise the paired team in this category.
+            if (updated.categoryId) {
+              async function ensureProfileTx(uid: number): Promise<number | null> {
+                const [existing] = await tx.select().from(playerProfiles).where(eq(playerProfiles.userId, uid));
+                if (existing) return existing.id;
+                if (!t?.clubId) return null;
+                try {
+                  const [created] = await tx.insert(playerProfiles).values({ userId: uid, clubId: t.clubId }).returning();
+                  return created.id;
+                } catch { return null; }
+              }
+              const p1 = await ensureProfileTx(updated.fromUserId);
+              const p2 = await ensureProfileTx(updated.toUserId);
+              if (p1 && p2) {
+                const myTeams = await tx.select().from(tournamentTeams)
+                  .where(and(
+                    eq(tournamentTeams.categoryId, updated.categoryId!),
+                    or(
+                      eq(tournamentTeams.player1Id, p1),
+                      eq(tournamentTeams.player1Id, p2),
+                      eq(tournamentTeams.player2Id, p1),
+                      eq(tournamentTeams.player2Id, p2),
+                    )
+                  ));
+                const alreadyPaired = myTeams.find(t => t.player2Id !== null && (
+                  (t.player1Id === p1 && t.player2Id === p2) ||
+                  (t.player1Id === p2 && t.player2Id === p1)
+                ));
+                if (!alreadyPaired) {
+                  for (const team of myTeams) {
+                    if (team.player2Id !== null) continue;
+                    await tx.delete(tournamentStandings).where(eq(tournamentStandings.teamId, team.id));
+                    await tx.delete(tournamentMatches).where(or(eq(tournamentMatches.teamAId, team.id), eq(tournamentMatches.teamBId, team.id)));
+                    await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
+                    await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, team.id));
+                  }
+                  try {
+                    await tx.insert(tournamentTeams).values({ categoryId: updated.categoryId!, player1Id: p1, player2Id: p2 });
+                  } catch (e: any) {
+                    if (!/unique|duplicate/i.test(e?.message || "")) throw e;
+                  }
+                }
+              }
+            }
+          }
+          return updated;
+        });
+      } catch (e: any) {
+        if (e?.httpStatus) return res.status(e.httpStatus).json({ message: e.message });
+        throw e;
+      }
 
       if (status === "ACCEPTED") {
-        // Invalidate any older ACCEPTED pair_requests involving either user so the same
-        // person can never appear in two "active" pairs at once.
-        await db.update(tournamentPairRequests).set({ status: "DISSOLVED" }).where(and(
-          eq(tournamentPairRequests.tournamentId, pr.tournamentId),
-          eq(tournamentPairRequests.status, "ACCEPTED"),
-          or(
-            eq(tournamentPairRequests.fromUserId, pr.fromUserId),
-            eq(tournamentPairRequests.toUserId, pr.fromUserId),
-            eq(tournamentPairRequests.fromUserId, pr.toUserId),
-            eq(tournamentPairRequests.toUserId, pr.toUserId),
-          ),
-          ne(tournamentPairRequests.id, pr.id),
-        ));
-        await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.toUserId })
-          .where(and(eq(tournamentRegistrations.tournamentId, pr.tournamentId), eq(tournamentRegistrations.userId, pr.fromUserId)));
-        await db.update(tournamentRegistrations).set({ registrationType: "PAIR", partnerId: pr.fromUserId })
-          .where(and(eq(tournamentRegistrations.tournamentId, pr.tournamentId), eq(tournamentRegistrations.userId, pr.toUserId)));
-
-        const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, pr.tournamentId));
+        // Side-effects only: status change, sibling-dissolution, and team
+        // materialisation already ran atomically inside the transaction above.
+        const tournament = t;
         const tournamentName = tournament?.name || "a tournament";
         const accepterName = req.user!.fullName || "Your partner";
 
@@ -2026,6 +2184,140 @@ export function registerTournamentRoutes(app: Express) {
         });
       }
       res.json(pr);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // ─────────────────────────────────────────────────────────────────────────
+  // Multi-category participation (May 2026): a player registers once for the
+  // tournament, then joins individual categories with a different partner per
+  // category. Each category entry is materialised as a `tournament_teams` row
+  // (player2Id NULL for solo/singles or "looking for partner" placeholders).
+  // ─────────────────────────────────────────────────────────────────────────
+  async function ensureProfileForUser(userId: number, tournamentId: number): Promise<number | null> {
+    const [existing] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+    if (existing) return existing.id;
+    const [t] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+    if (!t?.clubId) return null;
+    try {
+      const [created] = await db.insert(playerProfiles).values({ userId, clubId: t.clubId }).returning();
+      return created.id;
+    } catch { return null; }
+  }
+
+  app.post("/api/tournament-categories/:id/join-solo", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const userId = (req.user as any).id;
+      const [myReg] = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.userId, userId)));
+      if (!myReg) return res.status(400).json({ message: "Register for the tournament first" });
+      const profileId = await ensureProfileForUser(userId, cat.tournamentId);
+      if (!profileId) return res.status(400).json({ message: "Could not create your player profile (tournament has no club)" });
+      // Already in a team for this category? (solo OR paired) — short-circuit.
+      const mine = await db.select().from(tournamentTeams)
+        .where(and(
+          eq(tournamentTeams.categoryId, catId),
+          or(eq(tournamentTeams.player1Id, profileId), eq(tournamentTeams.player2Id, profileId)),
+        ));
+      if (mine.length > 0) return res.json(mine[0]);
+      const [team] = await db.insert(tournamentTeams).values({ categoryId: catId, player1Id: profileId }).returning();
+      res.json(team);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.post("/api/tournament-categories/:id/leave", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const catId = Number(req.params.id);
+      const userId = (req.user as any).id;
+      // Validate category exists (so destructive deletes can't be aimed at junk IDs).
+      const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
+      if (!cat) return res.status(404).json({ message: "Category not found" });
+      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      if (!profile) return res.status(404).json({ message: "No player profile" });
+      // Wrap leave in a transaction so cascading deletes and pair-request dissolution
+      // are atomic against concurrent accept/join calls.
+      const removed = await db.transaction(async (tx) => {
+        const mine = await tx.select().from(tournamentTeams)
+          .where(and(
+            eq(tournamentTeams.categoryId, catId),
+            or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id)),
+          ));
+        for (const team of mine) {
+          await tx.execute(sql`SELECT id FROM tournament_teams WHERE id = ${team.id} FOR UPDATE`);
+          await tx.delete(tournamentStandings).where(eq(tournamentStandings.teamId, team.id));
+          await tx.delete(tournamentMatches).where(or(eq(tournamentMatches.teamAId, team.id), eq(tournamentMatches.teamBId, team.id)));
+          await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, team.id));
+          await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, team.id));
+        }
+        // Also dissolve any ACCEPTED per-category pair requests so the partner is freed up.
+        await tx.update(tournamentPairRequests).set({ status: "DISSOLVED" })
+          .where(and(
+            eq(tournamentPairRequests.categoryId, catId),
+            eq(tournamentPairRequests.status, "ACCEPTED"),
+            or(eq(tournamentPairRequests.fromUserId, userId), eq(tournamentPairRequests.toUserId, userId)),
+          ));
+        return mine.length;
+      });
+      res.json({ success: true, removed });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  app.get("/api/tournaments/:id/my-categories", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const userId = (req.user as any).id;
+      const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
+      const [myProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      const myTeams = myProfile ? await db.select().from(tournamentTeams)
+        .where(or(eq(tournamentTeams.player1Id, myProfile.id), eq(tournamentTeams.player2Id, myProfile.id))) : [];
+      const allMyPairRequests = await db.select().from(tournamentPairRequests)
+        .where(and(
+          eq(tournamentPairRequests.tournamentId, tournamentId),
+          or(eq(tournamentPairRequests.fromUserId, userId), eq(tournamentPairRequests.toUserId, userId)),
+          eq(tournamentPairRequests.status, "PENDING"),
+        ));
+
+      const result: any[] = [];
+      for (const cat of cats) {
+        const team = myTeams.find(t => t.categoryId === cat.id);
+        let partner: any = null;
+        if (team) {
+          const partnerProfileId = team.player1Id === myProfile?.id ? team.player2Id : team.player1Id;
+          if (partnerProfileId) {
+            const [pp] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, partnerProfileId));
+            if (pp) {
+              const [u] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, pp.userId));
+              partner = u || null;
+            }
+          }
+        }
+        const pendingRequests = allMyPairRequests.filter((pr: any) => pr.categoryId === cat.id);
+        const enrichedPending = await Promise.all(pendingRequests.map(async (pr: any) => {
+          const otherUserId = pr.fromUserId === userId ? pr.toUserId : pr.fromUserId;
+          const [u] = await db.select({ id: users.id, fullName: users.fullName }).from(users).where(eq(users.id, otherUserId));
+          return { ...pr, direction: pr.fromUserId === userId ? "OUTGOING" : "INCOMING", otherUser: u };
+        }));
+        result.push({
+          category: cat,
+          teamId: team?.id || null,
+          isSolo: !!team && !team.player2Id,
+          isPaired: !!team && !!team.player2Id,
+          partner,
+          pendingRequests: enrichedPending,
+        });
+      }
+      res.json(result);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

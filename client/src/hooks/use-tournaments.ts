@@ -474,6 +474,46 @@ export function useRespondPairRequest() {
   });
 }
 
+// ───── Multi-category tournament participation ─────
+export function useMyTournamentCategories(tournamentId: number) {
+  return useQuery<any[]>({
+    queryKey: ["/api/tournaments", tournamentId, "my-categories"],
+    queryFn: async () => {
+      const res = await fetch(`/api/tournaments/${tournamentId}/my-categories`, { credentials: "include" });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!tournamentId,
+  });
+}
+
+export function useJoinCategorySolo() {
+  return useMutation({
+    mutationFn: async ({ categoryId }: { categoryId: number; tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournament-categories/${categoryId}/join-solo`);
+      return res.json();
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", vars.categoryId, "teams"] });
+    },
+  });
+}
+
+export function useLeaveCategory() {
+  return useMutation({
+    mutationFn: async ({ categoryId }: { categoryId: number; tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournament-categories/${categoryId}/leave`);
+      return res.json();
+    },
+    onSuccess: (_d, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "pair-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", vars.categoryId, "teams"] });
+    },
+  });
+}
+
 export function useTournamentIsAdmin(tournamentId: number) {
   return useQuery<{ isAdmin: boolean }>({
     queryKey: ["/api/tournaments", tournamentId, "is-admin"],

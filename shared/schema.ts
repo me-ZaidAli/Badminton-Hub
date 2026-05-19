@@ -629,6 +629,10 @@ export const tournamentPairRequests = pgTable("tournament_pair_requests", {
   tournamentId: integer("tournament_id").references(() => tournaments.id).notNull(),
   fromUserId: integer("from_user_id").references(() => users.id).notNull(),
   toUserId: integer("to_user_id").references(() => users.id).notNull(),
+  // Per-category pair request. NULL = legacy tournament-wide pair (kept for back-compat
+  // with the old single-category flow). New requests should always carry a categoryId so
+  // a player can partner with different people in different categories.
+  categoryId: integer("category_id").references(() => tournamentCategories.id),
   status: tournamentPairRequestStatusEnum("status").default("PENDING").notNull(),
   message: text("message"),
   pairName: text("pair_name"),
