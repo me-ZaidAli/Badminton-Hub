@@ -1492,8 +1492,24 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
                           animate={{ opacity: 1, y: 0, scale: 1 }}
                           transition={{ duration: 0.4, delay: idx * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
                           whileHover={{ scale: 1.015, y: -2 }}
-                          className={cn("group rounded-2xl", isFeatured && "esports-card")}
+                          whileTap={{ scale: 0.98 }}
+                          role="button"
+                          tabIndex={0}
+                          className={cn("group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50 rounded-2xl", isFeatured && "esports-card")}
                           data-testid={`pair-card-${row.category.id}-${idx}`}
+                          onClick={() => {
+                            setComparisonPairId(pair.id);
+                            setComparisonPairNames({ p1: p1Name, p2: p2Name });
+                            setAiAnalysis(null);
+                          }}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter" || e.key === " ") {
+                              e.preventDefault();
+                              setComparisonPairId(pair.id);
+                              setComparisonPairNames({ p1: p1Name, p2: p2Name });
+                              setAiAnalysis(null);
+                            }
+                          }}
                         >
                           <div className={cn("relative rounded-2xl overflow-hidden transition-all duration-300 shadow-lg group-hover:shadow-2xl", accent.glow)} style={{ background: "linear-gradient(145deg, #1a1a2e 0%, #16213e 60%, #0f0f1a 100%)" }}>
                             <div className={cn("absolute top-0 left-0 right-0 h-px bg-gradient-to-r opacity-60 group-hover:opacity-100 transition-opacity esports-border-glow", accent.neon)} />
