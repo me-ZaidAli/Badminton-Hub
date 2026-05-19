@@ -552,7 +552,15 @@ export const tournamentTeams = pgTable("tournament_teams", {
   groupNumber: integer("group_number"),
   subGroupNumber: integer("sub_group_number"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  // Multi-category partner flow (May 2026): a player must not appear in two
+  // confirmed teams in the same category. Enforced at the DB level via partial
+  // unique indexes — also applied via psql for existing deployments. The
+  // LEAST/GREATEST pair guards against cross-column duplicates (e.g. user X as
+  // player1 in one team and player2 in another for the same category).
+  uniquePlayer1PerCat: uniqueIndex("unique_player1_per_cat").on(table.categoryId, table.player1Id),
+  uniquePlayer2PerCat: uniqueIndex("unique_player2_per_cat").on(table.categoryId, table.player2Id).where(sql`player2_id IS NOT NULL`),
+}));
 
 export const tournamentMatches = pgTable("tournament_matches", {
   id: serial("id").primaryKey(),

@@ -283,6 +283,21 @@ export function registerTournamentRoutes(app: Express) {
       const canManage = await isTournamentAdmin((req.user as any).id, cat.tournamentId);
       if (!canManage) return res.status(403).json({ message: "Not authorized" });
 
+      // Lifecycle guard: if any teams or matches already exist for this category,
+      // refuse the destructive delete. Admins must clear/reset the category first
+      // (or use a dedicated reset endpoint) so player entries aren't silently lost.
+      if (req.query.force !== "true") {
+        const [{ teamCount }] = await db.select({ teamCount: sql<number>`count(*)::int` })
+          .from(tournamentTeams).where(eq(tournamentTeams.categoryId, catId));
+        const [{ matchCount }] = await db.select({ matchCount: sql<number>`count(*)::int` })
+          .from(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
+        if ((teamCount || 0) > 0 || (matchCount || 0) > 0) {
+          return res.status(409).json({
+            message: `Cannot delete category: ${teamCount} team(s) and ${matchCount} match(es) exist. Remove teams and clear matches first, or pass ?force=true to override.`,
+          });
+        }
+      }
+
       await db.delete(tournamentPlayerStats).where(eq(tournamentPlayerStats.categoryId, catId));
       await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
       await db.delete(tournamentMatches).where(eq(tournamentMatches.categoryId, catId));
@@ -1601,7 +1616,6 @@ export function registerTournamentRoutes(app: Express) {
     try {
       const tournamentId = Number(req.params.id);
       const userId = req.user!.id;
-      const { registrationType, partnerId, partnerName, categoryId } = req.body;
 
       const existing = await db.select().from(tournamentRegistrations)
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, userId)));
@@ -1624,10 +1638,14 @@ export function registerTournamentRoutes(app: Express) {
         });
       }
 
+      // Multi-category partner flow (May 2026): registration is strictly
+      // tournament-level. Partner + category selection happens later via the
+      // per-category endpoints in MyCategoriesTab. Any legacy body fields are
+      // intentionally ignored.
       const [reg] = await db.insert(tournamentRegistrations).values({
-        tournamentId, userId, registrationType: registrationType || "INDIVIDUAL",
-        partnerId: partnerId || null, partnerName: partnerName || null,
-        status, categoryId: categoryId || null,
+        tournamentId, userId, registrationType: "INDIVIDUAL",
+        partnerId: null, partnerName: null,
+        status, categoryId: null,
       }).returning();
 
       res.json(reg);
