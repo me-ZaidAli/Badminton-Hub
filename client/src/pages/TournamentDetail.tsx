@@ -1186,90 +1186,94 @@ function PairsTab({ tournamentId }: { tournamentId: number }) {
 
   return (
     <div className="space-y-6">
-      {myIncomingRequests.length > 0 && (
-        <div className="space-y-3" data-testid="pairs-incoming-requests">
-          <div className="flex items-center gap-2">
-            <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
-              <UserPlus className="h-3.5 w-3.5 text-white" />
-            </div>
-            <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Incoming Pair Requests</h3>
-            <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/30 text-[10px] font-bold">{myIncomingRequests.length}</Badge>
-          </div>
-          {myIncomingRequests.map((pr: any) => (
-            <div key={pr.id} className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/5 dark:from-amber-500/10 dark:to-orange-500/10 p-4" data-testid={`pairs-incoming-${pr.id}`}>
-              <div className="flex items-center justify-between gap-3 flex-wrap">
-                <div className="flex items-center gap-3 min-w-0">
-                  <PlayerAvatar name={pr.fromUser?.fullName || "?"} size="sm" />
-                  <div className="min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <p className="text-sm font-bold text-foreground">{pr.fromUser?.fullName}</p>
-                      <Badge variant="outline" className="text-[10px] font-bold border-amber-500/40 text-amber-500" data-testid={`pairs-incoming-cat-${pr.id}`}>
-                        {catNameById(pr.categoryId)}
-                      </Badge>
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      wants to pair with you{pr.categoryId ? ` in ${catNameById(pr.categoryId)}` : ""}
-                    </p>
-                    {pr.pairName && <p className="text-xs text-amber-500 font-bold mt-0.5">Team: "{pr.pairName}"</p>}
-                    {pr.message && <p className="text-xs text-muted-foreground mt-0.5 italic">"{pr.message}"</p>}
-                  </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white h-9 font-bold shadow-lg shadow-emerald-500/20 border-0"
-                    disabled={respondPairMutation.isPending}
-                    data-testid={`button-pairs-accept-${pr.id}`}
-                    onClick={async () => {
-                      try {
-                        await respondPairMutation.mutateAsync({ id: pr.id, status: "ACCEPTED" });
-                        toast({ title: "Pair Confirmed!", description: `You're now paired with ${pr.fromUser?.fullName}.` });
-                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                    }}>
-                    <Check className="h-4 w-4 mr-1" />Accept
-                  </Button>
-                  <Button size="sm" variant="outline" className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
-                    disabled={respondPairMutation.isPending}
-                    data-testid={`button-pairs-decline-${pr.id}`}
-                    onClick={async () => {
-                      try {
-                        await respondPairMutation.mutateAsync({ id: pr.id, status: "DECLINED" });
-                        toast({ title: "Request Declined" });
-                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
-                    }}>
-                    <X className="h-4 w-4 mr-1" />Decline
-                  </Button>
-                </div>
+      {(myIncomingRequests.length > 0 || mySentRequests.length > 0) && (() => {
+        // Group both incoming and sent requests by categoryId. Null categoryId
+        // is a legacy tournament-wide pair request and gets its own group.
+        const groups = new Map<string, { catId: number | null; catName: string; incoming: any[]; sent: any[] }>();
+        const keyOf = (cid: number | null | undefined) => cid == null ? "__tw__" : `cat-${cid}`;
+        for (const pr of myIncomingRequests) {
+          const k = keyOf(pr.categoryId);
+          if (!groups.has(k)) groups.set(k, { catId: pr.categoryId ?? null, catName: catNameById(pr.categoryId), incoming: [], sent: [] });
+          groups.get(k)!.incoming.push(pr);
+        }
+        for (const pr of mySentRequests) {
+          const k = keyOf(pr.categoryId);
+          if (!groups.has(k)) groups.set(k, { catId: pr.categoryId ?? null, catName: catNameById(pr.categoryId), incoming: [], sent: [] });
+          groups.get(k)!.sent.push(pr);
+        }
+        return (
+          <div className="space-y-4" data-testid="pairs-pending-by-category">
+            <div className="flex items-center gap-2">
+              <div className="h-6 w-6 rounded-lg bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center">
+                <UserPlus className="h-3.5 w-3.5 text-white" />
               </div>
+              <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Pending Pair Requests</h3>
+              <Badge className="bg-amber-500/15 text-amber-500 border-amber-500/30 text-[10px] font-bold">{myIncomingRequests.length + mySentRequests.length}</Badge>
             </div>
-          ))}
-        </div>
-      )}
-
-      {mySentRequests.length > 0 && (
-        <div className="space-y-3" data-testid="pairs-sent-requests">
-          <h3 className="text-xs font-black text-foreground uppercase tracking-wider">Your Sent Requests</h3>
-          {mySentRequests.map((pr: any) => (
-            <div key={pr.id} className="rounded-xl border border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10 p-4 flex items-center justify-between gap-3" data-testid={`pairs-sent-${pr.id}`}>
-              <div className="flex items-center gap-3 min-w-0">
-                <PlayerAvatar name={pr.toUser?.fullName || "?"} size="sm" />
-                <div className="min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <p className="text-sm font-bold text-foreground">{pr.toUser?.fullName}</p>
-                    <Badge variant="outline" className="text-[10px] font-bold border-blue-500/40 text-blue-500" data-testid={`pairs-sent-cat-${pr.id}`}>
-                      {catNameById(pr.categoryId)}
+            {Array.from(groups.values()).map((g) => (
+              <div key={g.catId ?? "tw"} className="rounded-xl border border-border/50 bg-card/40 p-3 space-y-2" data-testid={`pairs-pending-group-${g.catId ?? "tw"}`}>
+                <div className="flex items-center gap-2 px-1">
+                  <Badge variant="outline" className="text-[10px] font-black uppercase border-amber-500/40 text-amber-500">{g.catName}</Badge>
+                  <span className="text-[10px] text-muted-foreground">{g.incoming.length} incoming · {g.sent.length} sent</span>
+                </div>
+                {g.incoming.map((pr: any) => (
+                  <div key={pr.id} className="rounded-xl border border-amber-500/30 bg-gradient-to-r from-amber-500/5 to-orange-500/5 dark:from-amber-500/10 dark:to-orange-500/10 p-4" data-testid={`pairs-incoming-${pr.id}`}>
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div className="flex items-center gap-3 min-w-0">
+                        <PlayerAvatar name={pr.fromUser?.fullName || "?"} size="sm" />
+                        <div className="min-w-0">
+                          <p className="text-sm font-bold text-foreground">{pr.fromUser?.fullName}</p>
+                          <p className="text-xs text-muted-foreground">wants to pair with you</p>
+                          {pr.pairName && <p className="text-xs text-amber-500 font-bold mt-0.5">Team: "{pr.pairName}"</p>}
+                          {pr.message && <p className="text-xs text-muted-foreground mt-0.5 italic">"{pr.message}"</p>}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white h-9 font-bold shadow-lg shadow-emerald-500/20 border-0"
+                          disabled={respondPairMutation.isPending}
+                          data-testid={`button-pairs-accept-${pr.id}`}
+                          onClick={async () => {
+                            try {
+                              await respondPairMutation.mutateAsync({ id: pr.id, status: "ACCEPTED" });
+                              toast({ title: "Pair Confirmed!", description: `You're now paired with ${pr.fromUser?.fullName}.` });
+                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                          }}>
+                          <Check className="h-4 w-4 mr-1" />Accept
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
+                          disabled={respondPairMutation.isPending}
+                          data-testid={`button-pairs-decline-${pr.id}`}
+                          onClick={async () => {
+                            try {
+                              await respondPairMutation.mutateAsync({ id: pr.id, status: "DECLINED" });
+                              toast({ title: "Request Declined" });
+                            } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                          }}>
+                          <X className="h-4 w-4 mr-1" />Decline
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {g.sent.map((pr: any) => (
+                  <div key={pr.id} className="rounded-xl border border-blue-500/30 bg-blue-500/5 dark:bg-blue-500/10 p-4 flex items-center justify-between gap-3" data-testid={`pairs-sent-${pr.id}`}>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <PlayerAvatar name={pr.toUser?.fullName || "?"} size="sm" />
+                      <div className="min-w-0">
+                        <p className="text-sm font-bold text-foreground">{pr.toUser?.fullName}</p>
+                        <p className="text-xs text-muted-foreground">Waiting for their response</p>
+                      </div>
+                    </div>
+                    <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold flex-shrink-0">
+                      <Clock className="h-3 w-3 mr-1" />Pending
                     </Badge>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    Waiting for their response{pr.categoryId ? ` for ${catNameById(pr.categoryId)}` : ""}
-                  </p>
-                </div>
+                ))}
               </div>
-              <Badge variant="outline" className="text-[10px] text-amber-500 border-amber-500/30 font-bold flex-shrink-0">
-                <Clock className="h-3 w-3 mr-1" />Pending
-              </Badge>
-            </div>
-          ))}
-        </div>
-      )}
+            ))}
+          </div>
+        );
+      })()}
 
       {isIndividual && playerPool && playerPool.length > 0 && (
         <div className="space-y-3" data-testid="pairs-player-pool">

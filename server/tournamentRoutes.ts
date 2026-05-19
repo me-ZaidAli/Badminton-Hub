@@ -2337,9 +2337,12 @@ export function registerTournamentRoutes(app: Express) {
       const result: any[] = [];
       for (const cat of cats) {
         const team = myTeams.find(t => t.categoryId === cat.id);
+        // Only confirmed-pair players (teams with player2Id set) are "occupied"
+        // for the partner picker. Solo entrants ("looking for partner") MUST
+        // still be selectable — that is the entire point of joining solo first.
         const occupantUserIds = Array.from(new Set(
           allTeams
-            .filter(t => t.categoryId === cat.id)
+            .filter(t => t.categoryId === cat.id && !!t.player2Id)
             .flatMap(t => [t.player1Id, t.player2Id])
             .filter((pid): pid is number => pid !== null && pid !== undefined)
             .map(pid => profileIdToUserId.get(pid))
