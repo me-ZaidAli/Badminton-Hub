@@ -1055,11 +1055,12 @@ export function registerBslRoutes(app: Express) {
   // once the fixture has progressed past SCHEDULED/WARMUP. Only DRAFT fixtures
   // can have their slate restructured — we never silently rewrite a LIVE or
   // FINISHED fixture's rubber list.
-  const STRUCTURAL_OK_STATUSES = new Set(["SCHEDULED", "WARMUP"]);
-  function assertFixtureStructural(fixture: any) {
-    if (!STRUCTURAL_OK_STATUSES.has(fixture.status)) {
-      return `Fixture is ${fixture.status} — structural changes are only allowed on SCHEDULED/WARMUP fixtures. Reset the fixture first.`;
-    }
+  // Admins explicitly asked for no FINISHED/LIVE structural lock on
+  // add-rubber / delete-rubber — they want to be able to tidy the slate
+  // after the fact and have standings recompute. The league-day lifecycle
+  // (assertFixtureMutable: CLOSED locks everything, LIVE restricts to
+  // listed actions) is still the source of truth for serious safety.
+  function assertFixtureStructural(_fixture: any) {
     return null;
   }
 
@@ -1075,12 +1076,9 @@ export function registerBslRoutes(app: Express) {
       if (!fixture.homeClubId || !fixture.awayClubId) {
         return res.status(400).json({ message: "add-rubber only supports club-vs-club fixtures" });
       }
-      // Allow adding rubbers during the score-entry workflow (LIVE) as well as
-      // pre-match (SCHEDULED/WARMUP). Only FINISHED fixtures are blocked here —
-      // reset the fixture first if more rubbers are needed after it was closed.
-      if (fixture.status === "FINISHED") {
-        return res.status(409).json({ message: "Fixture is FINISHED — reset it before adding more rubbers." });
-      }
+      // Admins asked for no fixture-status lock — they want to tidy the slate
+      // even after a fixture is FINISHED. The league-day lifecycle guard
+      // (CLOSED hard-locks, LIVE restricts to listed actions) is the safety net.
       const block = await assertFixtureMutable(fixtureId, new Set(), "add-rubber");
       if (block) return res.status(409).json({ message: block });
       // Atomic: lock the fixture row + compute nextNum + insert in one tx so
@@ -1132,7 +1130,13 @@ export function registerBslRoutes(app: Express) {
         await tx.update(bslFixtures).set({ homeRubbers: homeR, awayRubbers: awayR })
           .where(eq(bslFixtures.id, r.bslFixtureId));
       });
-      await audit(req, "DELETE_RUBBER", "bsl_rubber", id, { force, fixtureId: r.bslFixtureId });
+      // If the parent fixture was already FINISHED, the league table is stale
+      // (we just removed scored rubbers). Recompute so standings + leaderboards
+      // reflect the new totals immediately.
+      if (parent.status === "FINISHED") {
+        try { await recomputeStandings(); } catch (e) { console.error("[bsl] recomputeStandings after delete-rubber failed", e); }
+      }
+      await audit(req, "DELETE_RUBBER", "bsl_rubber", id, { force, fixtureId: r.bslFixtureId, recomputed: parent.status === "FINISHED" });
       res.json({ deleted: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -1156,8 +1160,13 @@ export function registerBslRoutes(app: Express) {
       const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, fixtureId)).limit(1);
       if (!fixture) return res.status(404).json({ message: "Fixture not found" });
       if (!fixture.homeClubId || !fixture.awayClubId) return res.status(400).json({ message: "Auto-generate only supports club-vs-club fixtures" });
-      const structBlock = assertFixtureStructural(fixture);
-      if (structBlock) return res.status(409).json({ message: structBlock });
+      // Auto-generate is bulk + can insert team-assigned 0-0 rubbers (which
+      // recomputeStandings would count as draws), so keep the original
+      // SCHEDULED/WARMUP gate here even though the per-rubber add/delete
+      // routes are now unrestricted. Reset the fixture to re-bulk-generate.
+      if (!["SCHEDULED", "WARMUP"].includes(fixture.status)) {
+        return res.status(409).json({ message: `Fixture is ${fixture.status} — auto-generate is only allowed on SCHEDULED/WARMUP fixtures. Use add/remove rubber for individual edits, or reset the fixture to bulk-regenerate.` });
+      }
       const block = await assertFixtureMutable(fixtureId, new Set(), "auto-generate");
       if (block) return res.status(409).json({ message: block });
 
