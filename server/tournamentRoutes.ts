@@ -2137,6 +2137,28 @@ export function registerTournamentRoutes(app: Express) {
             return res.status(400).json({ message: "That player already has a partner in this category." });
           }
         }
+        // Capacity guard at invite-time: if the category is already at maxTeams
+        // AND neither inviter nor invitee has an existing solo slot here, the
+        // pair would create a brand-new team slot — block it. (If either is
+        // already a solo entrant, accepting would collapse rather than add.)
+        if (cat.maxTeams != null && cat.maxTeams > 0) {
+          const [{ count: currentTeams }] = await db
+            .select({ count: sql<number>`count(*)::int` })
+            .from(tournamentTeams)
+            .where(eq(tournamentTeams.categoryId, categoryId));
+          const eitherAlreadyIn = !!(
+            (myProfile && (await db.select().from(tournamentTeams).where(and(
+              eq(tournamentTeams.categoryId, categoryId),
+              or(eq(tournamentTeams.player1Id, myProfile.id), eq(tournamentTeams.player2Id, myProfile.id))
+            )))).length > 0) ||
+            !!(theirProfile && (await db.select().from(tournamentTeams).where(and(
+              eq(tournamentTeams.categoryId, categoryId),
+              or(eq(tournamentTeams.player1Id, theirProfile.id), eq(tournamentTeams.player2Id, theirProfile.id))
+            )))).length > 0;
+          if (Number(currentTeams) >= cat.maxTeams && !eitherAlreadyIn) {
+            return res.status(409).json({ message: `This category is full (${cat.maxTeams} max). Ask the admin to raise the limit.` });
+          }
+        }
       }
 
       // Both players must be registered for this tournament before a pair-request can be created.
@@ -2385,6 +2407,26 @@ export function registerTournamentRoutes(app: Express) {
                   (t.player1Id === p2 && t.player2Id === p1)
                 ));
                 if (!alreadyPaired) {
+                  // Capacity guard at materialise-time: the invite may have
+                  // been sent when there were free slots, but the category
+                  // could have filled since. Recount inside the tx (after
+                  // FOR UPDATE on the pair-request) and refuse if the new
+                  // team would push the count past maxTeams. We subtract any
+                  // existing solo rows for p1/p2 in this category because
+                  // those rows get deleted+collapsed into the paired team
+                  // immediately below, so the net delta is teams_added - solos_removed.
+                  const [catRow] = await tx.select().from(tournamentCategories).where(eq(tournamentCategories.id, updated.categoryId!));
+                  if (catRow?.maxTeams != null && catRow.maxTeams > 0) {
+                    const [{ count: currentTeams }] = await tx
+                      .select({ count: sql<number>`count(*)::int` })
+                      .from(tournamentTeams)
+                      .where(eq(tournamentTeams.categoryId, updated.categoryId!));
+                    const solosBeingCollapsed = myTeams.filter(t => t.player2Id === null && (t.player1Id === p1 || t.player1Id === p2)).length;
+                    const projectedTeams = Number(currentTeams) - solosBeingCollapsed + 1;
+                    if (projectedTeams > catRow.maxTeams) {
+                      throw Object.assign(new Error(`This category filled up before the invite was accepted (${catRow.maxTeams} max). Ask the admin to raise the limit or pick another category.`), { httpStatus: 409 });
+                    }
+                  }
                   // Preserve any prior solo-join fee + payment snapshots so a
                   // player who already joined-solo (and possibly already paid)
                   // and is now pairing up isn't re-priced or re-marked unpaid
@@ -2606,6 +2648,19 @@ export function registerTournamentRoutes(app: Express) {
             or(eq(tournamentTeams.player1Id, profileId), eq(tournamentTeams.player2Id, profileId)),
           ));
         if (mine.length > 0) return mine[0];
+        // Capacity guard: maxTeams (admin-set per-category cap) blocks new
+        // joins once full. Counts every team row (confirmed pair OR solo entry)
+        // since each occupies a slot. Re-checked inside the tx so concurrent
+        // joins can't both squeeze past a full category.
+        if (cat.maxTeams != null && cat.maxTeams > 0) {
+          const [{ count: currentTeams }] = await tx
+            .select({ count: sql<number>`count(*)::int` })
+            .from(tournamentTeams)
+            .where(eq(tournamentTeams.categoryId, catId));
+          if (Number(currentTeams) >= cat.maxTeams) {
+            throw Object.assign(new Error(`This category is full (${cat.maxTeams} max). Ask the admin to raise the limit or pick a different category.`), { httpStatus: 409 });
+          }
+        }
         // Multi-category discount: full fee for the first category, 50% off
         // for every additional category. Snapshot at join time so later
         // admin fee edits do NOT retroactively change what this entrant owes.
@@ -2633,7 +2688,8 @@ export function registerTournamentRoutes(app: Express) {
       });
       res.json(team);
     } catch (e: any) {
-      res.status(500).json({ message: e.message });
+      const code = e?.httpStatus || 500;
+      res.status(code).json({ message: e.message });
     }
   });
 
@@ -2908,6 +2964,13 @@ export function registerTournamentRoutes(app: Express) {
             myPaidAt = team.player2PaidAt ?? null;
           }
         }
+        // Capacity hint for the UI (FULL pill + disabled join buttons). The
+        // server is still the source of truth — the actual block happens on
+        // POST. `slotsLeft` is null when no cap is configured.
+        const totalTeams = teamsHere.length;
+        const maxTeams = (cat as any).maxTeams != null && (cat as any).maxTeams > 0 ? (cat as any).maxTeams : null;
+        const slotsLeft = maxTeams != null ? Math.max(0, maxTeams - totalTeams) : null;
+        const isFull = maxTeams != null && totalTeams >= maxTeams;
         result.push({
           category: cat,
           teamId: team?.id || null,
@@ -2919,6 +2982,10 @@ export function registerTournamentRoutes(app: Express) {
           myPaymentStatus,
           myFeePence,
           myPaidAt,
+          totalTeams,
+          maxTeams,
+          slotsLeft,
+          isFull,
           occupantUserIds,
           confirmedPairCount,
           soloCount,

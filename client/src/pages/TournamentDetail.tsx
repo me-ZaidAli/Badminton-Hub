@@ -2149,6 +2149,21 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                   {isPaired && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Paired</Badge>}
                   {isSolo && !isSingles && <Badge className="text-[10px] font-bold bg-amber-500/15 text-amber-500 border-amber-500/30">Looking for partner</Badge>}
                   {isSolo && isSingles && <Badge className="text-[10px] font-bold bg-emerald-500/15 text-emerald-500 border-emerald-500/30">Entered</Badge>}
+                  {entry.isFull && !inEntry && (
+                    <Badge className="text-[10px] font-bold bg-red-500/20 text-red-500 border-red-500/40" data-testid={`badge-full-${cat.id}`}>
+                      FULL · {entry.totalTeams}/{entry.maxTeams}
+                    </Badge>
+                  )}
+                  {!entry.isFull && entry.maxTeams != null && entry.slotsLeft != null && entry.slotsLeft <= 3 && (
+                    <Badge className="text-[10px] font-bold bg-amber-500/20 text-amber-500 border-amber-500/40" data-testid={`badge-almost-full-${cat.id}`}>
+                      {entry.slotsLeft} slot{entry.slotsLeft === 1 ? "" : "s"} left
+                    </Badge>
+                  )}
+                  {entry.maxTeams != null && !entry.isFull && entry.slotsLeft != null && entry.slotsLeft > 3 && (
+                    <Badge variant="outline" className="text-[10px] font-bold" data-testid={`badge-capacity-${cat.id}`}>
+                      {entry.totalTeams}/{entry.maxTeams}
+                    </Badge>
+                  )}
                   {inEntry && entry.myPaymentStatus === "PAID" && (
                     <Badge className="text-[10px] font-bold bg-emerald-500/20 text-emerald-500 border-emerald-500/30" data-testid={`badge-pay-status-${cat.id}`}>✓ Paid</Badge>
                   )}
@@ -2189,8 +2204,13 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
                   <p className="text-xs text-muted-foreground mt-1">Partner: <span className="font-bold text-foreground">{entry.partner.fullName}</span></p>
                 )}
               </div>
-              <div className="flex gap-2">
-                {!inEntry && (
+              <div className="flex gap-2 flex-wrap">
+                {!inEntry && entry.isFull && (
+                  <div className="text-[11px] font-bold text-red-500 px-3 py-2 rounded-lg border border-red-500/40 bg-red-500/10" data-testid={`text-full-notice-${cat.id}`}>
+                    Category full — registration closed
+                  </div>
+                )}
+                {!inEntry && !entry.isFull && (
                   <>
                     <Button size="sm" variant="outline" className="h-8 text-xs font-bold" onClick={() => doJoinSolo(cat.id)} disabled={joinSoloMutation.isPending} data-testid={`button-join-solo-${cat.id}`}>
                       {joinSoloMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <Plus className="h-3 w-3 mr-1" />}
