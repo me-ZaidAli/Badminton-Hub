@@ -579,11 +579,14 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         data-testid={`select-home-pair-${r.id}`}
                       >
                         <option value="">— Pick home pair —</option>
-                        {homeOpts.map((p: any) => (
-                          <option key={p.id} value={p.id} disabled={homeUsedElsewhere.has(p.id)}>
-                            {p.name}{homeUsedElsewhere.has(p.id) ? " (used)" : ""}
-                          </option>
-                        ))}
+                        {homeOpts.map((p: any) => {
+                          const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players assigned";
+                          return (
+                            <option key={p.id} value={p.id} disabled={homeUsedElsewhere.has(p.id)}>
+                              {p.name} — {names}{homeUsedElsewhere.has(p.id) ? " (used)" : ""}
+                            </option>
+                          );
+                        })}
                       </select>
                       <span className="text-center text-[10px] font-bold" style={{ color: BSL.muted }}>vs</span>
                       <select
@@ -595,11 +598,14 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         data-testid={`select-away-pair-${r.id}`}
                       >
                         <option value="">— Pick away pair —</option>
-                        {awayOpts.map((p: any) => (
-                          <option key={p.id} value={p.id} disabled={awayUsedElsewhere.has(p.id)}>
-                            {p.name}{awayUsedElsewhere.has(p.id) ? " (used)" : ""}
-                          </option>
-                        ))}
+                        {awayOpts.map((p: any) => {
+                          const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players assigned";
+                          return (
+                            <option key={p.id} value={p.id} disabled={awayUsedElsewhere.has(p.id)}>
+                              {p.name} — {names}{awayUsedElsewhere.has(p.id) ? " (used)" : ""}
+                            </option>
+                          );
+                        })}
                       </select>
                     </div>
                   )}

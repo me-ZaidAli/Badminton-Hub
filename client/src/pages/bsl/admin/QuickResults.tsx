@@ -290,11 +290,14 @@ export default function BslAdminQuickResults() {
                           data-testid={`select-rubber-home-pair-${r.id}`}
                         >
                           <option value="">— Pick home pair —</option>
-                          {homeOpts.map(p => (
-                            <option key={p.id} value={p.id} disabled={homeUsedElsewhere.has(p.id)}>
-                              {p.name}{homeUsedElsewhere.has(p.id) ? " (in another rubber)" : ""}
-                            </option>
-                          ))}
+                          {homeOpts.map(p => {
+                            const names = Array.isArray((p as any).playerNames) && (p as any).playerNames.length ? (p as any).playerNames.join(" & ") : "no players assigned";
+                            return (
+                              <option key={p.id} value={p.id} disabled={homeUsedElsewhere.has(p.id)}>
+                                {p.name} — {names}{homeUsedElsewhere.has(p.id) ? " (in another rubber)" : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                         <input
                           type="number"
@@ -318,11 +321,14 @@ export default function BslAdminQuickResults() {
                           data-testid={`select-rubber-away-pair-${r.id}`}
                         >
                           <option value="">— Pick away pair —</option>
-                          {awayOpts.map(p => (
-                            <option key={p.id} value={p.id} disabled={awayUsedElsewhere.has(p.id)}>
-                              {p.name}{awayUsedElsewhere.has(p.id) ? " (in another rubber)" : ""}
-                            </option>
-                          ))}
+                          {awayOpts.map(p => {
+                            const names = Array.isArray((p as any).playerNames) && (p as any).playerNames.length ? (p as any).playerNames.join(" & ") : "no players assigned";
+                            return (
+                              <option key={p.id} value={p.id} disabled={awayUsedElsewhere.has(p.id)}>
+                                {p.name} — {names}{awayUsedElsewhere.has(p.id) ? " (in another rubber)" : ""}
+                              </option>
+                            );
+                          })}
                         </select>
                         <input
                           type="number"

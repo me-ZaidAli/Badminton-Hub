@@ -1777,7 +1777,34 @@ export function registerBslRoutes(app: Express) {
     try {
       const id = Number(req.params.id);
       const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, id));
-      res.json(teams);
+      // Hydrate each pair with its players' display names so pair pickers in
+      // the admin UI can show "Pair name — Player A & Player B" instead of
+      // just the pair label (which is often opaque like "MD-1").
+      const teamIds = teams.map(t => t.id);
+      if (teamIds.length === 0) return res.json(teams);
+      const members = await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds));
+      const playerIds = Array.from(new Set(members.map(m => m.bslPlayerId)));
+      const players = playerIds.length
+        ? await db.select().from(bslPlayers).where(inArray(bslPlayers.id, playerIds))
+        : [];
+      const userIds = Array.from(new Set(players.map(p => p.userId)));
+      const userRows = userIds.length
+        ? await db.select().from(users).where(inArray(users.id, userIds))
+        : [];
+      const userMap = new Map(userRows.map(u => [u.id, u]));
+      const playerNameById = new Map(players.map(p => [
+        p.id,
+        p.displayName || userMap.get(p.userId)?.fullName || userMap.get(p.userId)?.email || `Player #${p.id}`,
+      ]));
+      const membersByTeam = new Map<number, string[]>();
+      for (const m of members) {
+        const arr = membersByTeam.get(m.bslTeamId) || [];
+        const name = playerNameById.get(m.bslPlayerId);
+        if (name) arr.push(name);
+        membersByTeam.set(m.bslTeamId, arr);
+      }
+      const hydrated = teams.map(t => ({ ...t, playerNames: membersByTeam.get(t.id) || [] }));
+      res.json(hydrated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
