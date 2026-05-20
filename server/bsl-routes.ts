@@ -102,37 +102,67 @@ async function recomputeStandings(_leagueId = 1) {
     };
   }
 
+  // Set-based scoring (May 2026): league points = 1 point per SET won across
+  // every rubber. The old "3/1/0 per rubber-match" model was too coarse — a
+  // close 2-1 rubber win counted the same as a 2-0 sweep, and clubs with
+  // lots of close losses scored 0. New rule: each set you win adds 1 league
+  // point; rubbersFor/rubbersAgainst now track SETS for tiebreak. W/D/L
+  // counts still track rubber-match outcomes for the leaderboard display.
+  // pointsFor() is retained as a fallback only for fixtures with no rubber
+  // detail (truly legacy data where only fixture-level homeRubbers exists).
+  // Helper — sets won per side for one rubber. Mirrors rubberRallyPoints()
+  // logic locally so recomputeStandings doesn't depend on a function defined
+  // inside registerBslRoutes(). Supports both multi-set setScores jsonb and
+  // legacy (homeScore, awayScore) treated as a single set.
+  function rubberSets(r: any): { hs: number; as: number } {
+    let hs = 0, as = 0;
+    const sets = Array.isArray(r?.setScores) && r.setScores.length
+      ? r.setScores.map((s: any) => ({ h: Number(s?.h) || 0, a: Number(s?.a) || 0 }))
+      : ((r?.homeScore || 0) > 0 || (r?.awayScore || 0) > 0)
+        ? [{ h: Number(r.homeScore) || 0, a: Number(r.awayScore) || 0 }]
+        : [];
+    for (const s of sets) {
+      if (s.h > s.a) hs++;
+      else if (s.a > s.h) as++;
+    }
+    return { hs, as };
+  }
+
   for (const f of finished) {
-    if (f.homeTeamId != null && f.awayTeamId != null) {
+    if (f.homeTeamId != null && f.awayTeamId != null && (f.homeClubId == null || f.awayClubId == null)) {
+      // Legacy pair-vs-pair fixture with no rubber breakdown: fall back to
+      // fixture-level homeRubbers/awayRubbers as sets won.
       const h = stats[f.homeTeamId]; const a = stats[f.awayTeamId];
       if (!h || !a) continue;
-      const P = pointsFor(f);
       h.p++; a.p++;
       h.rf += f.homeRubbers; h.ra += f.awayRubbers;
       a.rf += f.awayRubbers; a.ra += f.homeRubbers;
-      if (f.homeRubbers > f.awayRubbers) { h.w++; a.l++; h.pts += P.win; a.pts += P.loss; }
-      else if (f.homeRubbers < f.awayRubbers) { a.w++; h.l++; a.pts += P.win; h.pts += P.loss; }
-      else { h.d++; a.d++; h.pts += P.draw; a.pts += P.draw; }
+      h.pts += f.homeRubbers; a.pts += f.awayRubbers;
+      if (f.homeRubbers > f.awayRubbers) { h.w++; a.l++; }
+      else if (f.homeRubbers < f.awayRubbers) { a.w++; h.l++; }
+      else { h.d++; a.d++; }
     }
   }
 
-  // Club-vs-club: credit per-rubber for any finished club fixture.
+  // Club-vs-club: credit per-rubber for any finished club fixture using
+  // sets won as the points unit.
   const finishedClubFixtures = finished.filter(f => f.homeClubId != null && f.awayClubId != null);
   const finishedClubFixtureIds = finishedClubFixtures.map(f => f.id);
-  const fixtureById = new Map(finishedClubFixtures.map(f => [f.id, f]));
   if (finishedClubFixtureIds.length) {
     const rubbers = await db.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, finishedClubFixtureIds));
     for (const r of rubbers) {
       if (r.homeTeamId == null || r.awayTeamId == null) continue;
       const h = stats[r.homeTeamId]; const a = stats[r.awayTeamId];
       if (!h || !a) continue;
-      const P = pointsFor(fixtureById.get(r.bslFixtureId));
+      const { hs, as } = rubberSets(r);
+      if (hs === 0 && as === 0) continue; // unscored rubber — skip
       h.p++; a.p++;
-      h.rf += r.homeScore; h.ra += r.awayScore;
-      a.rf += r.awayScore; a.ra += r.homeScore;
-      if (r.homeScore > r.awayScore) { h.w++; a.l++; h.pts += P.win; a.pts += P.loss; }
-      else if (r.homeScore < r.awayScore) { a.w++; h.l++; a.pts += P.win; h.pts += P.loss; }
-      else { h.d++; a.d++; h.pts += P.draw; a.pts += P.draw; }
+      h.rf += hs; h.ra += as;
+      a.rf += as; a.ra += hs;
+      h.pts += hs; a.pts += as;
+      if (hs > as) { h.w++; a.l++; }
+      else if (hs < as) { a.w++; h.l++; }
+      else { h.d++; a.d++; }
     }
   }
 
