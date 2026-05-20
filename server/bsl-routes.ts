@@ -3823,8 +3823,10 @@ export function registerBslRoutes(app: Express) {
   // Includes ranking (aggregated like /standings), W/L/MP, teams + member names.
   app.get("/api/bsl/challenge-zone/clubs", requireAuth, async (_req, res) => {
     try {
+      // BSL club status enum is PENDING_PAYMENT | PENDING_VERIFICATION | ACTIVE | REJECTED.
+      // Challenge Zone shows live clubs only (ACTIVE + not sleeping).
       const clubs = await db.select().from(bslClubs)
-        .where(and(eq(bslClubs.status, "APPROVED"), dsql`${bslClubs.sleepingAt} IS NULL`));
+        .where(and(eq(bslClubs.status, "ACTIVE"), dsql`${bslClubs.sleepingAt} IS NULL`));
       const teams = await db.select().from(bslTeams);
       const clubIds = clubs.map(c => c.id);
       const members = clubIds.length
