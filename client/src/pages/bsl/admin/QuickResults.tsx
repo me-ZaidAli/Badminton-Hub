@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { ArrowLeft, Save, Loader2, ClipboardEdit, CheckCircle2, Plus, X } from "lucide-react";
+import { ArrowLeft, Save, Loader2, ClipboardEdit, CheckCircle2, Plus, X, Trash2, Trophy } from "lucide-react";
 import { BSLBackground } from "../components/BSLBackground";
 import { BSL } from "../components/BSLPalette";
 import { format } from "date-fns";
@@ -116,6 +116,24 @@ export default function BslAdminQuickResults() {
     onError: (err: any) => toast({ title: "Could not add rubber", description: err?.message || "Server rejected the add.", variant: "destructive" }),
   });
 
+  // Force-delete a rubber row (incl. scored ones). User wants full control
+  // over the slate, so we always pass ?force=true. Standings recompute on the
+  // backend whenever a finished rubber is removed.
+  const deleteRubberMutation = useMutation({
+    mutationFn: async (rubberId: number) => {
+      const r = await apiRequest("DELETE", `/api/bsl/admin/rubbers/${rubberId}?force=true`);
+      return r.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Rubber removed" });
+      queryClient.invalidateQueries({ queryKey: ["/api/bsl/fixtures", selectedId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bsl/fixtures"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bsl/standings"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/bsl/player-leaderboard"] });
+    },
+    onError: (err: any) => toast({ title: "Could not remove rubber", description: err?.message || "Server rejected the delete.", variant: "destructive" }),
+  });
+
   // Local editable scores keyed by rubber id → array of sets (strings, blanks ok).
   // Multi-set entry: each rubber may have any number of sets; winner of each set
   // = side with higher score; rubber winner = side with more sets won. The
@@ -187,25 +205,81 @@ export default function BslAdminQuickResults() {
     },
   });
 
+  // Aggregate everything the bottom summary needs in one pass over the live
+  // (typed-but-unsaved) scores so the totals match what the user sees:
+  //   - rubbers won per side  (existing behaviour)
+  //   - points per pair (sum of set scores across all rubbers a pair played)
+  //   - points per club (sum of all home-side and away-side set scores)
+  // Pair stats key off bslTeamId so a pair playing multiple rubbers accumulates.
   const summary = useMemo(() => {
-    if (!detail) return { h: 0, a: 0 };
-    let h = 0, a = 0;
+    const out = {
+      h: 0, a: 0,                       // rubbers won (home, away)
+      homePts: 0, awayPts: 0,           // total points (sum of set scores) per side
+      homeSets: 0, awaySets: 0,         // sets won per side (totals across rubbers)
+      pairs: new Map<number, { teamId: number; side: "home" | "away"; name: string; points: number; setsWon: number; rubbersWon: number; rubbersPlayed: number }>(),
+    };
+    if (!detail) return out;
+    const homeClubName = (detail as any)?.homeClub?.name || (detail as any)?.homeTeamName || "Home";
+    const awayClubName = (detail as any)?.awayClub?.name || (detail as any)?.awayTeamName || "Away";
+    const stripClub = (name: string, clubName?: string) =>
+      clubName ? (name || "").replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") : (name || "");
+    const ensurePair = (teamId: number | null | undefined, side: "home" | "away") => {
+      if (!teamId) return null;
+      let row = out.pairs.get(teamId);
+      if (!row) {
+        const src = side === "home" ? homePairs : awayPairs;
+        const p = src.find(x => x.id === teamId) as any;
+        const club = side === "home" ? homeClubName : awayClubName;
+        const short = p ? (stripClub(p.name, club) || p.name) : `Pair #${teamId}`;
+        const names = p && Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "";
+        row = { teamId, side, name: names ? `${short} — ${names}` : short, points: 0, setsWon: 0, rubbersWon: 0, rubbersPlayed: 0 };
+        out.pairs.set(teamId, row);
+      }
+      return row;
+    };
     detail.rubbers.forEach(r => {
-      const sets = scores[r.id];
-      let hs = r.homeScore, as = r.awayScore;
-      if (sets && sets.length) {
-        let hw = 0, aw = 0;
-        for (const st of sets) {
+      const typed = scores[r.id];
+      // Use typed sets if present (live preview), else fall back to saved setScores, else single homeScore/awayScore
+      let sets: Array<{ h: number; a: number }> = [];
+      if (typed && typed.length) {
+        for (const st of typed) {
           const sh = Number(st.h), sa = Number(st.a);
           if (!Number.isFinite(sh) || !Number.isFinite(sa)) continue;
-          if (sh > sa) hw++; else if (sa > sh) aw++;
+          if (st.h === "" && st.a === "") continue;
+          sets.push({ h: sh, a: sa });
         }
-        hs = hw; as = aw;
+      } else if (Array.isArray(r.setScores) && r.setScores.length) {
+        sets = r.setScores.map(s => ({ h: Number(s.h) || 0, a: Number(s.a) || 0 }));
+      } else if ((r.homeScore || 0) > 0 || (r.awayScore || 0) > 0) {
+        sets = [{ h: r.homeScore, a: r.awayScore }];
       }
-      if (hs > as) h++; else if (as > hs) a++;
+      let hw = 0, aw = 0, hp = 0, ap = 0;
+      for (const s of sets) {
+        hp += s.h; ap += s.a;
+        if (s.h > s.a) hw++; else if (s.a > s.h) aw++;
+      }
+      out.homePts += hp; out.awayPts += ap;
+      out.homeSets += hw; out.awaySets += aw;
+      const rubberWonBy: "h" | "a" | null = hw > aw ? "h" : aw > hw ? "a" : null;
+      if (rubberWonBy === "h") out.h++;
+      else if (rubberWonBy === "a") out.a++;
+      const hPair = ensurePair(r.homeTeamId, "home");
+      const aPair = ensurePair(r.awayTeamId, "away");
+      if (hPair) {
+        hPair.points += hp;
+        hPair.setsWon += hw;
+        hPair.rubbersPlayed++;
+        if (rubberWonBy === "h") hPair.rubbersWon++;
+      }
+      if (aPair) {
+        aPair.points += ap;
+        aPair.setsWon += aw;
+        aPair.rubbersPlayed++;
+        if (rubberWonBy === "a") aPair.rubbersWon++;
+      }
     });
-    return { h, a };
-  }, [detail, scores]);
+    return out;
+  }, [detail, scores, homePairs, awayPairs]);
 
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
@@ -437,19 +511,116 @@ export default function BslAdminQuickResults() {
                         <span className="text-[10px] font-bold tabular-nums text-white/60">
                           Sets won: <span style={{ color: BSL.gold }}>{hw}</span> – <span style={{ color: BSL.gold }}>{aw}</span>
                         </span>
-                        <span className="text-[10px] text-white/40">
-                          {r.status === "FINISHED" ? (
-                            <span className="inline-flex items-center gap-1 text-emerald-400/80"><CheckCircle2 className="h-3 w-3" /> Saved</span>
-                          ) : (
-                            <span>Will be marked finished on save</span>
-                          )}
-                        </span>
+                        <div className="inline-flex items-center gap-2">
+                          <span className="text-[10px] text-white/40">
+                            {r.status === "FINISHED" ? (
+                              <span className="inline-flex items-center gap-1 text-emerald-400/80"><CheckCircle2 className="h-3 w-3" /> Saved</span>
+                            ) : (
+                              <span>Will be marked finished on save</span>
+                            )}
+                          </span>
+                          <button
+                            type="button"
+                            disabled={deleteRubberMutation.isPending}
+                            onClick={() => {
+                              if (window.confirm(`Remove rubber R${r.rubberNumber} (${r.rubberType})? This deletes its scores and updates the standings.`)) {
+                                deleteRubberMutation.mutate(r.id);
+                              }
+                            }}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded text-[10px] font-bold text-rose-300 hover:bg-rose-500/15 border border-rose-400/30 disabled:opacity-50"
+                            title="Remove this rubber"
+                            data-testid={`button-delete-rubber-${r.id}`}
+                          >
+                            <Trash2 className="h-3 w-3" /> Remove rubber
+                          </button>
+                        </div>
                       </div>
                     </div>
                   );
                 })
               )}
             </div>
+
+            {/* MATCH SUMMARY — points per pair + points per club. Always
+                visible so admins can see the running tally as they type.
+                Numbers update live from the editable scores; once "Save all"
+                is clicked the same numbers feed standings + leaderboards. */}
+            {detail.rubbers.length > 0 && (() => {
+              const homeClubName = (detail as any)?.homeClub?.name || detail.homeTeamName || "Home";
+              const awayClubName = (detail as any)?.awayClub?.name || detail.awayTeamName || "Away";
+              const homeWonMatch = summary.h > summary.a;
+              const awayWonMatch = summary.a > summary.h;
+              const tied = summary.h === summary.a;
+              const homePairs = Array.from(summary.pairs.values()).filter(p => p.side === "home").sort((a, b) => b.points - a.points);
+              const awayPairs = Array.from(summary.pairs.values()).filter(p => p.side === "away").sort((a, b) => b.points - a.points);
+              const ClubBlock = ({ side, name, rubbersWon, sets, pts, isWinner, pairs }: any) => (
+                <div className="rounded-xl border p-3 space-y-2" style={{
+                  borderColor: isWinner ? BSL.gold : `${BSL.cyan}33`,
+                  background: isWinner ? `${BSL.gold}10` : "hsla(222,55%,4%,0.55)",
+                  boxShadow: isWinner ? `0 0 24px ${BSL.gold}33` : "none",
+                }} data-testid={`summary-club-${side}`}>
+                  <div className="flex items-center justify-between gap-2">
+                    <div className="flex items-center gap-1.5 min-w-0">
+                      {isWinner && <Trophy className="h-3.5 w-3.5 flex-none" style={{ color: BSL.gold }} />}
+                      <span className="font-extrabold text-sm truncate" style={{ color: isWinner ? BSL.gold : "white" }} data-testid={`text-club-name-${side}`}>{name}</span>
+                    </div>
+                    <span className="text-[10px] uppercase tracking-wider font-bold" style={{ color: isWinner ? BSL.gold : "white" }}>
+                      {isWinner ? "Winning" : "—"}
+                    </span>
+                  </div>
+                  <div className="grid grid-cols-3 gap-1 text-center">
+                    <div className="rounded bg-black/30 py-1.5">
+                      <div className="text-[9px] uppercase tracking-wider text-white/50 font-bold">Rubbers</div>
+                      <div className="text-base font-extrabold tabular-nums" data-testid={`text-club-rubbers-${side}`}>{rubbersWon}</div>
+                    </div>
+                    <div className="rounded bg-black/30 py-1.5">
+                      <div className="text-[9px] uppercase tracking-wider text-white/50 font-bold">Sets</div>
+                      <div className="text-base font-extrabold tabular-nums" data-testid={`text-club-sets-${side}`}>{sets}</div>
+                    </div>
+                    <div className="rounded bg-black/30 py-1.5">
+                      <div className="text-[9px] uppercase tracking-wider text-white/50 font-bold">Points</div>
+                      <div className="text-base font-extrabold tabular-nums" style={{ color: BSL.cyan }} data-testid={`text-club-points-${side}`}>{pts}</div>
+                    </div>
+                  </div>
+                  {pairs.length > 0 && (
+                    <div className="space-y-1">
+                      <div className="text-[9px] uppercase tracking-wider text-white/50 font-bold">Pairs</div>
+                      {pairs.map((p: any) => (
+                        <div key={p.teamId} className="flex items-center justify-between gap-2 text-[11px]" data-testid={`row-pair-summary-${p.teamId}`}>
+                          <span className="truncate text-white/80">{p.name}</span>
+                          <span className="flex items-center gap-2 tabular-nums font-bold">
+                            <span className="text-white/50 text-[10px]">{p.rubbersWon}/{p.rubbersPlayed} R</span>
+                            <span className="text-white/60 text-[10px]">{p.setsWon} sets</span>
+                            <span style={{ color: BSL.cyan }} data-testid={`text-pair-points-${p.teamId}`}>{p.points} pts</span>
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+              return (
+                <div className="px-4 py-4 border-t space-y-3" style={{ borderColor: `${BSL.cyan}22` }} data-testid="match-summary">
+                  <div className="flex items-center justify-between">
+                    <div className="text-xs font-bold uppercase tracking-wider text-white/60">Match summary</div>
+                    <div className="text-[10px] text-white/40">Club with more points wins the tie</div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <ClubBlock side="home" name={homeClubName}
+                      rubbersWon={summary.h} sets={summary.homeSets} pts={summary.homePts}
+                      isWinner={homeWonMatch} pairs={homePairs} />
+                    <ClubBlock side="away" name={awayClubName}
+                      rubbersWon={summary.a} sets={summary.awaySets} pts={summary.awayPts}
+                      isWinner={awayWonMatch} pairs={awayPairs} />
+                  </div>
+                  <div className="text-center text-[11px] font-bold" style={{ color: tied ? "white" : BSL.gold }} data-testid="text-match-winner">
+                    {tied
+                      ? `Tied — ${summary.homePts} pts each. Add scores or rubbers to decide.`
+                      : `${homeWonMatch ? homeClubName : awayClubName} winning · ${Math.max(summary.homePts, summary.awayPts)} pts vs ${Math.min(summary.homePts, summary.awayPts)} pts`}
+                  </div>
+                </div>
+              );
+            })()}
 
             <div className="px-4 py-3 border-t flex items-center justify-between gap-2 flex-wrap" style={{ borderColor: `${BSL.cyan}22` }}>
               {/* ADD RUBBER — only on club-vs-club fixtures that aren't FINISHED */}
