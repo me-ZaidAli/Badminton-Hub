@@ -151,7 +151,22 @@ export function registerBslRoutes(app: Express) {
     try {
       const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
       if (!league) return res.status(404).json({ message: "League not configured" });
-      res.json(league);
+      // Auto-derive countdown target from the soonest non-CLOSED league day in
+      // the future. Stored `nextLeagueDay` is kept as a manual override — only
+      // used when no upcoming league day exists, OR when the stored value is
+      // itself still in the future. Otherwise the public page would show
+      // 00:00:00:00 forever after an admin forgot to update it.
+      const now = new Date();
+      const upcoming = await db.select().from(bslLeagueDays)
+        .where(eq(bslLeagueDays.bslLeagueId, 1))
+        .orderBy(bslLeagueDays.date);
+      const nextDay = upcoming.find(d => d.date && new Date(d.date).getTime() > now.getTime() && d.state !== "CLOSED");
+      const stored = league.nextLeagueDay ? new Date(league.nextLeagueDay) : null;
+      const storedStillFuture = stored && stored.getTime() > now.getTime();
+      const effectiveNext = nextDay?.date
+        ? new Date(nextDay.date)
+        : (storedStillFuture ? stored : null);
+      res.json({ ...league, nextLeagueDay: effectiveNext });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   app.patch("/api/bsl/league", requireAdmin, async (req, res) => {
@@ -1182,13 +1197,29 @@ export function registerBslRoutes(app: Express) {
       if (awayScore !== undefined) patch.awayScore = awayScore;
       if (status) patch.status = status;
       const [updated] = await db.update(bslRubbers).set(patch).where(eq(bslRubbers.id, id)).returning();
-      // Recompute fixture rubber tally
+      // Recompute fixture rubber tally + auto-finish when every rubber has a
+      // decided score. Without auto-finish the fixture sits in LIVE/SCHEDULED
+      // forever and the standings recompute (which only counts FINISHED
+      // fixtures) never picks up the result. Standings recompute runs on
+      // every score touch so historical finished fixtures get re-aggregated
+      // even if a future schema/category change shifted the points.
       const allRubbers = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, updated.bslFixtureId));
       const homeR = allRubbers.filter(r => r.homeScore > r.awayScore).length;
       const awayR = allRubbers.filter(r => r.awayScore > r.homeScore).length;
-      await db.update(bslFixtures).set({ homeRubbers: homeR, awayRubbers: awayR })
-        .where(eq(bslFixtures.id, updated.bslFixtureId));
-      res.json(updated);
+      const everyRubberScored = allRubbers.length > 0 && allRubbers.every(r => (r.homeScore || 0) > 0 || (r.awayScore || 0) > 0);
+      const [currentFixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, updated.bslFixtureId)).limit(1);
+      const fixturePatch: any = { homeRubbers: homeR, awayRubbers: awayR };
+      let didFinish = false;
+      if (everyRubberScored && currentFixture && currentFixture.status !== "FINISHED") {
+        fixturePatch.status = "FINISHED";
+        didFinish = true;
+      }
+      await db.update(bslFixtures).set(fixturePatch).where(eq(bslFixtures.id, updated.bslFixtureId));
+      // Always recompute — covers (a) auto-finish above, (b) score edits on an
+      // already-FINISHED fixture, (c) any pre-existing FINISHED fixtures whose
+      // standings were never aggregated. Cheap because the table is small.
+      await recomputeStandings();
+      res.json({ ...updated, fixtureAutoFinished: didFinish });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
