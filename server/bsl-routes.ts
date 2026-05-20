@@ -953,15 +953,9 @@ export function registerBslRoutes(app: Express) {
         if (["MD", "WD", "XD"].includes(rubber.rubberType) && team.category !== rubber.rubberType) {
           return res.status(400).json({ message: `This rubber is ${rubber.rubberType} — pair is ${team.category}` });
         }
-        // Block double-booking the same pair in two rubbers of the same fixture
-        // (a pair can't physically play two rubbers at once).
-        const sibling = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, rubber.bslFixtureId));
-        const conflict = sibling.find(r =>
-          r.id !== rubber.id &&
-          ((side === "home" && r.homeTeamId === bslTeamId) ||
-           (side === "away" && r.awayTeamId === bslTeamId))
-        );
-        if (conflict) return res.status(400).json({ message: `This pair is already in rubber ${conflict.rubberNumber}` });
+        // NOTE: pairs may be allocated to multiple rubbers within the same
+        // fixture (admin request) — the previous double-booking guard has been
+        // removed intentionally.
         const members = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslTeamId, bslTeamId));
         const [p1, p2] = members.map(m => m.bslPlayerId);
         if (side === "home") { patch.homeTeamId = bslTeamId; patch.homePlayer1Id = p1 ?? null; patch.homePlayer2Id = p2 ?? null; }

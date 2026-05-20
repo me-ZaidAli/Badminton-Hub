@@ -268,16 +268,20 @@ export default function BslAdminQuickResults() {
                   const isDoubles = ["MD", "WD", "XD"].includes(r.rubberType);
                   const homeOpts = isDoubles ? homePairs.filter(p => p.category === r.rubberType) : homePairs;
                   const awayOpts = isDoubles ? awayPairs.filter(p => p.category === r.rubberType) : awayPairs;
-                  // Sibling-pair conflict for the dropdown options: hide pairs
-                  // already used in another rubber of THIS fixture on the same
-                  // side. Server enforces this too, but pre-filtering avoids
-                  // useless 400s for the admin.
-                  const homeUsedElsewhere = new Set(detail.rubbers.filter(x => x.id !== r.id && x.homeTeamId != null).map(x => x.homeTeamId as number));
-                  const awayUsedElsewhere = new Set(detail.rubbers.filter(x => x.id !== r.id && x.awayTeamId != null).map(x => x.awayTeamId as number));
+                  // Pairs MAY be allocated to multiple rubbers — no sibling
+                  // conflict filtering here or on the server.
                   const homeSelected = homePairs.find(p => p.id === r.homeTeamId) as any;
                   const awaySelected = awayPairs.find(p => p.id === r.awayTeamId) as any;
-                  const fmtPair = (p: any) =>
-                    p ? `${p.name} · ${Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players"}` : "—";
+                  const homeClubName = (detail as any)?.homeClub?.name || (detail as any)?.homeClubName || (detail as any)?.homeTeamName || "";
+                  const awayClubName = (detail as any)?.awayClub?.name || (detail as any)?.awayClubName || (detail as any)?.awayTeamName || "";
+                  const stripClub = (name: string, clubName?: string) =>
+                    clubName ? (name || "").replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") : (name || "");
+                  const fmtPair = (p: any, clubName?: string) => {
+                    if (!p) return "—";
+                    const short = stripClub(p.name, clubName) || p.name;
+                    const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players";
+                    return `${short} · ${names}`;
+                  };
                   return (
                     <div key={r.id} className="px-4 py-3 grid grid-cols-12 gap-2 items-center" data-testid={`rubber-row-${r.id}`}>
                       <div className="col-span-2">
@@ -285,9 +289,9 @@ export default function BslAdminQuickResults() {
                         <div className="text-xs font-bold text-white/80">{r.rubberType}</div>
                       </div>
                       <div className="col-span-12 -mb-1 text-[11px] font-bold flex flex-wrap gap-x-2" data-testid={`text-pair-summary-${r.id}`}>
-                        <span className={homeSelected ? "text-white" : "text-white/40"}>{fmtPair(homeSelected)}</span>
+                        <span className={homeSelected ? "text-white" : "text-white/40"}>{fmtPair(homeSelected, homeClubName)}</span>
                         <span className="text-white/40">vs</span>
-                        <span className={awaySelected ? "text-white" : "text-white/40"}>{fmtPair(awaySelected)}</span>
+                        <span className={awaySelected ? "text-white" : "text-white/40"}>{fmtPair(awaySelected, awayClubName)}</span>
                       </div>
                       <div className="col-span-4 flex flex-col gap-1.5">
                         <select
@@ -301,9 +305,10 @@ export default function BslAdminQuickResults() {
                           <option value="">— Pick home pair —</option>
                           {homeOpts.map(p => {
                             const names = Array.isArray((p as any).playerNames) && (p as any).playerNames.length ? (p as any).playerNames.join(" & ") : "no players assigned";
+                            const short = stripClub(p.name, homeClubName) || p.name;
                             return (
-                              <option key={p.id} value={p.id} disabled={homeUsedElsewhere.has(p.id)}>
-                                {p.name} — {names}{homeUsedElsewhere.has(p.id) ? " (in another rubber)" : ""}
+                              <option key={p.id} value={p.id}>
+                                {short} — {names}
                               </option>
                             );
                           })}
@@ -332,9 +337,10 @@ export default function BslAdminQuickResults() {
                           <option value="">— Pick away pair —</option>
                           {awayOpts.map(p => {
                             const names = Array.isArray((p as any).playerNames) && (p as any).playerNames.length ? (p as any).playerNames.join(" & ") : "no players assigned";
+                            const short = stripClub(p.name, awayClubName) || p.name;
                             return (
-                              <option key={p.id} value={p.id} disabled={awayUsedElsewhere.has(p.id)}>
-                                {p.name} — {names}{awayUsedElsewhere.has(p.id) ? " (in another rubber)" : ""}
+                              <option key={p.id} value={p.id}>
+                                {short} — {names}
                               </option>
                             );
                           })}

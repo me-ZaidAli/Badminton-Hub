@@ -553,19 +553,19 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
               const isDoubles = ["MD", "WD", "XD"].includes(r.rubberType);
               const homeOpts = isDoubles ? homePairs.filter((p: any) => p.category === r.rubberType) : homePairs;
               const awayOpts = isDoubles ? awayPairs.filter((p: any) => p.category === r.rubberType) : awayPairs;
-              const homeUsedElsewhere = new Set(
-                (fixture.rubbers || []).filter((x: any) => x.id !== r.id && x.homeTeamId != null).map((x: any) => x.homeTeamId as number),
-              );
-              const awayUsedElsewhere = new Set(
-                (fixture.rubbers || []).filter((x: any) => x.id !== r.id && x.awayTeamId != null).map((x: any) => x.awayTeamId as number),
-              );
               const pairsDisabled = assigningRubberId === r.id;
               // Resolve currently-selected pair (so we can show its players
               // on the row even after the dropdown closes / its label truncates).
               const homeSelected = homePairs.find((p: any) => p.id === r.homeTeamId);
               const awaySelected = awayPairs.find((p: any) => p.id === r.awayTeamId);
-              const fmtPair = (p: any) =>
-                p ? `${p.name} · ${Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players"}` : "—";
+              const stripClub = (name: string, clubName?: string) =>
+                clubName ? (name || "").replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") : (name || "");
+              const fmtPair = (p: any, clubName?: string) => {
+                if (!p) return "—";
+                const short = stripClub(p.name, clubName) || p.name;
+                const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players";
+                return `${short} · ${names}`;
+              };
               return (
                 <div key={r.id} className="rounded-lg p-2 space-y-1.5" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-rubber-${r.id}`}>
                   {/* Header: rubber number + type + currently-playing pairs */}
@@ -573,9 +573,9 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                     <span className="text-xs font-black" style={{ color: BSL.gold }}>#{r.rubberNumber}</span>
                     <span className="text-xs font-bold uppercase tracking-wider" style={{ color: BSL.muted }}>{r.rubberType}</span>
                     <span className="text-[11px] font-bold ml-auto" data-testid={`text-pair-summary-${r.id}`}>
-                      <span style={{ color: homeSelected ? "white" : BSL.muted }}>{fmtPair(homeSelected)}</span>
+                      <span style={{ color: homeSelected ? "white" : BSL.muted }}>{fmtPair(homeSelected, homeName)}</span>
                       <span className="mx-1.5" style={{ color: BSL.muted }}>vs</span>
-                      <span style={{ color: awaySelected ? "white" : BSL.muted }}>{fmtPair(awaySelected)}</span>
+                      <span style={{ color: awaySelected ? "white" : BSL.muted }}>{fmtPair(awaySelected, awayName)}</span>
                     </span>
                   </div>
                   {/* Pair pickers row — only when we know the club ids */}
@@ -592,9 +592,10 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         <option value="">— Pick home pair —</option>
                         {homeOpts.map((p: any) => {
                           const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players assigned";
+                          const short = stripClub(p.name, homeName) || p.name;
                           return (
-                            <option key={p.id} value={p.id} disabled={homeUsedElsewhere.has(p.id)}>
-                              {p.name} — {names}{homeUsedElsewhere.has(p.id) ? " (used)" : ""}
+                            <option key={p.id} value={p.id}>
+                              {short} — {names}
                             </option>
                           );
                         })}
@@ -611,9 +612,10 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         <option value="">— Pick away pair —</option>
                         {awayOpts.map((p: any) => {
                           const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players assigned";
+                          const short = stripClub(p.name, awayName) || p.name;
                           return (
-                            <option key={p.id} value={p.id} disabled={awayUsedElsewhere.has(p.id)}>
-                              {p.name} — {names}{awayUsedElsewhere.has(p.id) ? " (used)" : ""}
+                            <option key={p.id} value={p.id}>
+                              {short} — {names}
                             </option>
                           );
                         })}
