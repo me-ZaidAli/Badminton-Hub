@@ -623,8 +623,9 @@ export default function BslAdminQuickResults() {
             })()}
 
             <div className="px-4 py-3 border-t flex items-center justify-between gap-2 flex-wrap" style={{ borderColor: `${BSL.cyan}22` }}>
-              {/* ADD RUBBER — only on club-vs-club fixtures that aren't FINISHED */}
-              {homeClubId != null && awayClubId != null && detail.status !== "FINISHED" ? (
+              {/* ADD RUBBER — available on any club-vs-club fixture regardless
+                  of status. Server allows it; standings recompute on save. */}
+              {homeClubId != null && awayClubId != null ? (
                 <div className="flex items-center gap-2">
                   <select
                     value={newRubberType}
