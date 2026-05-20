@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { ArrowLeft, Trophy, Search } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
+import { BslSubNav } from "@/components/SubNav";
 import { BSL } from "./components/BSLPalette";
 
 type Row = {
@@ -54,6 +55,7 @@ export default function BslPlayerLeaderboard() {
   return (
     <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
+      <BslSubNav />
       <div className="max-w-5xl mx-auto px-4 md:px-8 pt-6 md:pt-8 space-y-6">
         <Link href="/bsl">
           <button

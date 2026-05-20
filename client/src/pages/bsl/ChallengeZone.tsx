@@ -7,6 +7,7 @@ import {
   Calendar, MapPin, Send, Check, X, Hourglass, CheckCircle2, AlertCircle, Crown,
 } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
+import { BslSubNav } from "@/components/SubNav";
 import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
 import { BSL } from "./components/BSLPalette";
@@ -104,7 +105,9 @@ export default function ChallengeZone() {
   });
 
   return (
-    <BSLBackground>
+    <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
+      <BSLBackground />
+      <BslSubNav />
       <div className="max-w-6xl mx-auto px-4 py-6 sm:py-10">
         {/* Header */}
         <div className="flex items-center justify-between mb-6">
@@ -242,7 +245,7 @@ export default function ChallengeZone() {
             onClose={() => setChallengeTarget(null)} />
         )}
       </AnimatePresence>
-    </BSLBackground>
+    </div>
   );
 }
 

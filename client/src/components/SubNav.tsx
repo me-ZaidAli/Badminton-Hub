@@ -2,7 +2,7 @@ import { Link, useLocation } from "wouter";
 import { useUser } from "@/hooks/use-auth";
 import {
   Search, BookOpen, GraduationCap, Trophy, Wallet as WalletIcon, Users, User as UserIcon,
-  Award, Settings,
+  Award, Settings, Swords, Medal,
 } from "lucide-react";
 import type { ComponentType, SVGProps } from "react";
 
@@ -78,6 +78,8 @@ export function BslSubNav() {
   const isAdmin = u && (u.role === "OWNER" || u.role === "ADMIN");
   const items: Item[] = [
     { href: "/bsl", label: "League", icon: Trophy, match: (p) => p === "/bsl" },
+    { href: "/bsl/challenge-zone", label: "Challenge Zone", icon: Swords, match: (p) => p === "/bsl/challenge-zone" },
+    { href: "/bsl/player-leaderboard", label: "Player Leaderboard", icon: Medal, match: (p) => p === "/bsl/player-leaderboard" },
     { href: "/bsl/results", label: "Results", icon: Award, match: (p) => p === "/bsl/results" },
     { href: "/bsl/prizes", label: "Prize Vault", icon: Award },
     { href: "/bsl/wallet", label: "Wallet", icon: WalletIcon, show: !!u },
