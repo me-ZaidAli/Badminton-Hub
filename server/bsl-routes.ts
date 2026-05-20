@@ -678,6 +678,85 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // === PLAYER LEADERBOARD ===
+  // Per-player matches won / lost across every FINISHED rubber. Counts both
+  // singles (single playerN slot) and doubles (both playerN slots) — each
+  // player on the winning side gets +1 win, losing side +1 loss. Sets-for /
+  // sets-against come from each rubber's homeScore/awayScore (which now
+  // represent sets-won since the multi-set entry refactor).
+  app.get("/api/bsl/player-leaderboard", async (req, res) => {
+    try {
+      const division = req.query.division as string | undefined;
+      const finished = await db
+        .select()
+        .from(bslRubbers)
+        .where(eq(bslRubbers.status, "FINISHED" as any));
+      const players = await db.select().from(bslPlayers);
+      const clubs = await db.select().from(bslClubs);
+      const cMap = new Map(clubs.map(c => [c.id, c]));
+      type Row = {
+        playerId: number; fullName: string; clubId: number | null; clubName: string;
+        clubLogo: string | null; division: string;
+        matchesPlayed: number; won: number; lost: number;
+        setsFor: number; setsAgainst: number; winRate: number;
+      };
+      const byPlayer = new Map<number, Row>();
+      const ensure = (p: any): Row | null => {
+        if (!p) return null;
+        let row = byPlayer.get(p.id);
+        if (!row) {
+          const club = p.bslClubId != null ? cMap.get(p.bslClubId) : null;
+          row = {
+            playerId: p.id, fullName: p.fullName || `Player #${p.id}`,
+            clubId: p.bslClubId ?? null, clubName: club?.name || "—",
+            clubLogo: club?.logoUrl || null,
+            division: (club?.division as string) || "—",
+            matchesPlayed: 0, won: 0, lost: 0,
+            setsFor: 0, setsAgainst: 0, winRate: 0,
+          };
+          byPlayer.set(p.id, row);
+        }
+        return row;
+      };
+      const pMap = new Map(players.map(p => [p.id, p]));
+      for (const r of finished) {
+        const hs = r.homeScore || 0;
+        const as = r.awayScore || 0;
+        const homeWon = hs > as;
+        const awayWon = as > hs;
+        const homePlayers = [r.homePlayer1Id, r.homePlayer2Id].filter((x): x is number => x != null);
+        const awayPlayers = [r.awayPlayer1Id, r.awayPlayer2Id].filter((x): x is number => x != null);
+        for (const pid of homePlayers) {
+          const row = ensure(pMap.get(pid));
+          if (!row) continue;
+          row.matchesPlayed++;
+          row.setsFor += hs; row.setsAgainst += as;
+          if (homeWon) row.won++;
+          else if (awayWon) row.lost++;
+        }
+        for (const pid of awayPlayers) {
+          const row = ensure(pMap.get(pid));
+          if (!row) continue;
+          row.matchesPlayed++;
+          row.setsFor += as; row.setsAgainst += hs;
+          if (awayWon) row.won++;
+          else if (homeWon) row.lost++;
+        }
+      }
+      let rows = Array.from(byPlayer.values()).map(r => ({
+        ...r,
+        winRate: r.matchesPlayed > 0 ? Math.round((r.won / r.matchesPlayed) * 100) : 0,
+      }));
+      if (division) rows = rows.filter(r => r.division === division);
+      rows.sort((a, b) =>
+        b.won - a.won ||
+        (b.setsFor - b.setsAgainst) - (a.setsFor - a.setsAgainst) ||
+        b.matchesPlayed - a.matchesPlayed ||
+        a.fullName.localeCompare(b.fullName));
+      res.json(rows.map((r, i) => ({ ...r, position: i + 1 })));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // === FIXTURES ===
   app.get("/api/bsl/fixtures", async (req, res) => {
     try {
@@ -1187,10 +1266,32 @@ export function registerBslRoutes(app: Express) {
   app.patch("/api/bsl/rubbers/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const { homeScore, awayScore, status } = req.body;
+      let { homeScore, awayScore, status, setScores } = req.body;
+      // setScores: optional Array<{h:number,a:number}> — when provided, becomes
+      // the source of truth for the rubber. homeScore/awayScore are
+      // recomputed as sets-won (count of sets each side won). This keeps the
+      // existing standings aggregation (which sums homeScore/awayScore per
+      // pair) working unchanged — a rubber tally of "2 sets to 1" credits the
+      // winning pair with 2 sets-for and 1 set-against.
+      if (Array.isArray(setScores)) {
+        const cleaned: { h: number; a: number }[] = [];
+        for (const s of setScores) {
+          if (!s) continue;
+          const h = Number((s as any).h ?? (s as any).scoreA ?? (s as any).home);
+          const a = Number((s as any).a ?? (s as any).scoreB ?? (s as any).away);
+          if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) continue;
+          cleaned.push({ h: Math.round(h), a: Math.round(a) });
+          if (cleaned.length >= 12) break;
+        }
+        setScores = cleaned;
+        homeScore = cleaned.filter(s => s.h > s.a).length;
+        awayScore = cleaned.filter(s => s.a > s.h).length;
+      } else {
+        setScores = undefined;
+      }
       // Lifecycle guard — score entry is allowed when LIVE; pure status
       // mutation or mixed (status+score) payloads must wait for DRAFT/PUBLISHED.
-      const isPureScore = (homeScore !== undefined || awayScore !== undefined) && status === undefined;
+      const isPureScore = (homeScore !== undefined || awayScore !== undefined || setScores !== undefined) && status === undefined;
       const action = isPureScore ? "score" : "edit";
       const [rubberRow] = await db.select().from(bslRubbers).where(eq(bslRubbers.id, id)).limit(1);
       if (rubberRow) {
@@ -1200,6 +1301,7 @@ export function registerBslRoutes(app: Express) {
       const patch: any = {};
       if (homeScore !== undefined) patch.homeScore = homeScore;
       if (awayScore !== undefined) patch.awayScore = awayScore;
+      if (setScores !== undefined) patch.setScores = setScores;
       if (status) patch.status = status;
       // Mark rubber FINISHED only when the caller provides BOTH score sides in
       // this PATCH and at least one is > 0 — that's the "Save all" path from

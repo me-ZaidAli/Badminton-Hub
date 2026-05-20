@@ -188,6 +188,7 @@ const BslAdminPayments = lazy(() => import("@/pages/bsl/admin/PaymentsAdmin"));
 const BslAdminMedia = lazy(() => import("@/pages/bsl/admin/MediaAdmin"));
 const BslAdminSettings = lazy(() => import("@/pages/bsl/admin/SettingsAdmin"));
 const BslResults = lazy(() => import("@/pages/bsl/Results"));
+const BslPlayerLeaderboard = lazy(() => import("@/pages/bsl/PlayerLeaderboard"));
 const BslAdminQuickResults = lazy(() => import("@/pages/bsl/admin/QuickResults"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
@@ -592,6 +593,9 @@ function Router() {
       </Route>
       <Route path="/bsl/results">
         <Suspense fallback={<LazyFallback />}><BslResults /></Suspense>
+      </Route>
+      <Route path="/bsl/player-leaderboard">
+        <Suspense fallback={<LazyFallback />}><BslPlayerLeaderboard /></Suspense>
       </Route>
       <Route path="/bsl/admin">
         <BslAdminRoute component={() => <BslAdminDashboard />} />

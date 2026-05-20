@@ -334,8 +334,11 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
     retry: false,
   });
 
-  // Local edits keyed by rubber id → { home, away } as strings (allow blanks).
-  const [scores, setScores] = useState<Record<number, { home: string; away: string }>>({});
+  // Local edits keyed by rubber id → array of { h, a } sets (strings, blanks allowed).
+  // Multi-set entry: each rubber can have any number of sets; the winner of
+  // each set is the side with the higher score. Rubber winner = side with more
+  // sets won. Server stores both setScores and derived sets-won totals.
+  const [scores, setScores] = useState<Record<number, Array<{ h: string; a: string }>>>({});
   const [saving, setSaving] = useState(false);
   const [newRubberType, setNewRubberType] = useState<typeof RUBBER_TYPES[number]>("MD");
   const [addingRubber, setAddingRubber] = useState(false);
@@ -386,13 +389,17 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
     // Preserve any unsaved edits the admin already typed for existing rubbers
     // when new rubbers are appended via add-rubber.
     setScores((prev) => {
-      const next: Record<number, { home: string; away: string }> = { ...prev };
+      const next: Record<number, Array<{ h: string; a: string }>> = { ...prev };
       fixture.rubbers.forEach((r: any) => {
         if (!next[r.id]) {
-          next[r.id] = {
-            home: r.homeScore != null ? String(r.homeScore) : "",
-            away: r.awayScore != null ? String(r.awayScore) : "",
-          };
+          if (Array.isArray(r.setScores) && r.setScores.length) {
+            next[r.id] = r.setScores.map((s: any) => ({ h: String(s.h ?? ""), a: String(s.a ?? "") }));
+          } else if ((r.homeScore || 0) > 0 || (r.awayScore || 0) > 0) {
+            // Back-compat: synthesise a single set from the legacy scalar score.
+            next[r.id] = [{ h: String(r.homeScore ?? ""), a: String(r.awayScore ?? "") }];
+          } else {
+            next[r.id] = [{ h: "", a: "" }];
+          }
         }
       });
       return next;
@@ -406,11 +413,15 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
   // Live preview of the rubber tally as the admin types.
   const tally = (fixture?.rubbers || []).reduce(
     (acc: any, r: any) => {
-      const s = scores[r.id];
-      if (!s) return acc;
-      const h = Number(s.home); const a = Number(s.away);
-      if (!Number.isFinite(h) || !Number.isFinite(a)) return acc;
-      if (h > a) acc.home++; else if (a > h) acc.away++;
+      const sets = scores[r.id];
+      if (!sets || !sets.length) return acc;
+      let hw = 0, aw = 0;
+      for (const st of sets) {
+        const h = Number(st.h); const a = Number(st.a);
+        if (!Number.isFinite(h) || !Number.isFinite(a)) continue;
+        if (h > a) hw++; else if (a > h) aw++;
+      }
+      if (hw > aw) acc.home++; else if (aw > hw) acc.away++;
       return acc;
     },
     { home: 0, away: 0 },
@@ -460,20 +471,23 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
     let savedAny = false;
     let savedFailed = false;
     try {
-      // Save every rubber whose score actually has values. PATCH /api/bsl/rubbers/:id
-      // is allowed while the league day is LIVE (lifecycle guard).
+      // Save every rubber whose set list has at least one fully-typed set.
+      // PATCH /api/bsl/rubbers/:id is allowed while the league day is LIVE
+      // (lifecycle guard).
       for (const r of (fixture?.rubbers || [])) {
-        const s = scores[r.id];
-        if (!s) continue;
-        const h = s.home === "" ? null : Number(s.home);
-        const a = s.away === "" ? null : Number(s.away);
-        if (h === null || a === null) continue;
-        if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) {
-          throw new Error(`Rubber ${r.rubberNumber}: scores must be 0 or higher.`);
+        const sets = scores[r.id];
+        if (!sets || !sets.length) continue;
+        const cleanSets: { h: number; a: number }[] = [];
+        for (const st of sets) {
+          if (st.h === "" && st.a === "") continue;
+          const h = Number(st.h); const a = Number(st.a);
+          if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) {
+            throw new Error(`Rubber ${r.rubberNumber}: every set score must be 0 or higher.`);
+          }
+          cleanSets.push({ h, a });
         }
-        // Skip API call if unchanged.
-        if (r.homeScore === h && r.awayScore === a) continue;
-        const resp = await apiRequest("PATCH", `/api/bsl/rubbers/${r.id}`, { homeScore: h, awayScore: a });
+        if (!cleanSets.length) continue;
+        const resp = await apiRequest("PATCH", `/api/bsl/rubbers/${r.id}`, { setScores: cleanSets });
         if (!resp.ok) {
           const t = await resp.text();
           savedFailed = true;
@@ -549,7 +563,13 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
         ) : (
           <div className="space-y-2">
             {fixture.rubbers.map((r: any) => {
-              const s = scores[r.id] || { home: "", away: "" };
+              const sets = scores[r.id] || [{ h: "", a: "" }];
+              const setSummary = sets.reduce((acc, st) => {
+                const h = Number(st.h); const a = Number(st.a);
+                if (!Number.isFinite(h) || !Number.isFinite(a)) return acc;
+                if (h > a) acc.h++; else if (a > h) acc.a++;
+                return acc;
+              }, { h: 0, a: 0 });
               const isDoubles = ["MD", "WD", "XD"].includes(r.rubberType);
               const homeOpts = isDoubles ? homePairs.filter((p: any) => p.category === r.rubberType) : homePairs;
               const awayOpts = isDoubles ? awayPairs.filter((p: any) => p.category === r.rubberType) : awayPairs;
@@ -622,32 +642,68 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                       </select>
                     </div>
                   )}
-                  {/* Scores + delete */}
-                  <div className="grid grid-cols-[1fr_20px_1fr_28px] items-center gap-2">
-                    <input
-                      type="number" min={0} inputMode="numeric"
-                      value={s.home}
-                      onChange={(e) => setScores((p) => ({ ...p, [r.id]: { ...(p[r.id] || { home: "", away: "" }), home: e.target.value } }))}
-                      className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
-                      style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
-                      data-testid={`input-home-${r.id}`}
-                    />
-                    <span className="text-center font-black" style={{ color: BSL.muted }}>–</span>
-                    <input
-                      type="number" min={0} inputMode="numeric"
-                      value={s.away}
-                      onChange={(e) => setScores((p) => ({ ...p, [r.id]: { ...(p[r.id] || { home: "", away: "" }), away: e.target.value } }))}
-                      className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
-                      style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
-                      data-testid={`input-away-${r.id}`}
-                    />
-                    <button
-                      onClick={() => handleDeleteRubber(r.id)}
-                      className="p-1.5 rounded-md inline-flex items-center justify-center"
-                      style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }}
-                      title="Remove rubber"
-                      data-testid={`button-delete-rubber-${r.id}`}
-                    ><Trash2 className="h-3 w-3" /></button>
+                  {/* Multi-set scores + delete-rubber */}
+                  <div className="space-y-1.5">
+                    {sets.map((st, idx) => (
+                      <div key={idx} className="grid grid-cols-[28px_1fr_20px_1fr_28px] items-center gap-2">
+                        <span className="text-[10px] font-bold text-center" style={{ color: BSL.muted }}>S{idx + 1}</span>
+                        <input
+                          type="number" min={0} inputMode="numeric"
+                          value={st.h}
+                          onChange={(e) => setScores((p) => {
+                            const cur = (p[r.id] || []).slice();
+                            cur[idx] = { ...(cur[idx] || { h: "", a: "" }), h: e.target.value };
+                            return { ...p, [r.id]: cur };
+                          })}
+                          className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
+                          style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                          data-testid={`input-set-home-${r.id}-${idx}`}
+                        />
+                        <span className="text-center font-black" style={{ color: BSL.muted }}>–</span>
+                        <input
+                          type="number" min={0} inputMode="numeric"
+                          value={st.a}
+                          onChange={(e) => setScores((p) => {
+                            const cur = (p[r.id] || []).slice();
+                            cur[idx] = { ...(cur[idx] || { h: "", a: "" }), a: e.target.value };
+                            return { ...p, [r.id]: cur };
+                          })}
+                          className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
+                          style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                          data-testid={`input-set-away-${r.id}-${idx}`}
+                        />
+                        <button
+                          onClick={() => setScores((p) => {
+                            const cur = (p[r.id] || []).slice();
+                            if (cur.length <= 1) { return { ...p, [r.id]: [{ h: "", a: "" }] }; }
+                            cur.splice(idx, 1);
+                            return { ...p, [r.id]: cur };
+                          })}
+                          className="p-1 rounded-md inline-flex items-center justify-center"
+                          style={{ background: `${BSL.muted}22`, color: BSL.muted, border: `1px solid ${BSL.border}` }}
+                          title="Remove set"
+                          data-testid={`button-remove-set-${r.id}-${idx}`}
+                        ><X className="h-3 w-3" /></button>
+                      </div>
+                    ))}
+                    <div className="flex items-center gap-2 justify-between pl-7">
+                      <button
+                        onClick={() => setScores((p) => ({ ...p, [r.id]: [...(p[r.id] || []), { h: "", a: "" }] }))}
+                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-bold"
+                        style={{ background: `${BSL.cyan}22`, color: BSL.cyan, border: `1px dashed ${BSL.cyan}55` }}
+                        data-testid={`button-add-set-${r.id}`}
+                      ><Plus className="h-3 w-3" /> Add set</button>
+                      <span className="text-[10px] font-bold tabular-nums" style={{ color: BSL.muted }}>
+                        Sets won: <span style={{ color: BSL.gold }}>{setSummary.h}</span> – <span style={{ color: BSL.gold }}>{setSummary.a}</span>
+                      </span>
+                      <button
+                        onClick={() => handleDeleteRubber(r.id)}
+                        className="p-1.5 rounded-md inline-flex items-center justify-center"
+                        style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }}
+                        title="Remove rubber"
+                        data-testid={`button-delete-rubber-${r.id}`}
+                      ><Trash2 className="h-3 w-3" /></button>
+                    </div>
                   </div>
                 </div>
               );

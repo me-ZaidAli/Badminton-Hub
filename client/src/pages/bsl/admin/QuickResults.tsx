@@ -3,7 +3,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
-import { ArrowLeft, Save, Loader2, ClipboardEdit, CheckCircle2, Plus } from "lucide-react";
+import { ArrowLeft, Save, Loader2, ClipboardEdit, CheckCircle2, Plus, X } from "lucide-react";
 import { BSLBackground } from "../components/BSLBackground";
 import { BSL } from "../components/BSLPalette";
 import { format } from "date-fns";
@@ -31,6 +31,7 @@ type Rubber = {
   homeScore: number;
   awayScore: number;
   status: string;
+  setScores?: Array<{ h: number; a: number }> | null;
 };
 type ClubInfo = { id: number; name: string } | null;
 type FixtureDetail = Fixture & {
@@ -115,12 +116,24 @@ export default function BslAdminQuickResults() {
     onError: (err: any) => toast({ title: "Could not add rubber", description: err?.message || "Server rejected the add.", variant: "destructive" }),
   });
 
-  // Local editable scores keyed by rubber id
-  const [scores, setScores] = useState<Record<number, { h: string; a: string }>>({});
+  // Local editable scores keyed by rubber id → array of sets (strings, blanks ok).
+  // Multi-set entry: each rubber may have any number of sets; winner of each set
+  // = side with higher score; rubber winner = side with more sets won. The
+  // backend stores both setScores (jsonb) and the derived sets-won totals into
+  // homeScore/awayScore (which then feed recomputeStandings).
+  const [scores, setScores] = useState<Record<number, Array<{ h: string; a: string }>>>({});
   useEffect(() => {
     if (detail?.rubbers) {
-      const next: Record<number, { h: string; a: string }> = {};
-      detail.rubbers.forEach(r => { next[r.id] = { h: String(r.homeScore ?? 0), a: String(r.awayScore ?? 0) }; });
+      const next: Record<number, Array<{ h: string; a: string }>> = {};
+      detail.rubbers.forEach(r => {
+        if (Array.isArray(r.setScores) && r.setScores.length) {
+          next[r.id] = r.setScores.map(s => ({ h: String(s.h ?? ""), a: String(s.a ?? "") }));
+        } else if ((r.homeScore || 0) > 0 || (r.awayScore || 0) > 0) {
+          next[r.id] = [{ h: String(r.homeScore ?? ""), a: String(r.awayScore ?? "") }];
+        } else {
+          next[r.id] = [{ h: "", a: "" }];
+        }
+      });
       setScores(next);
     }
   }, [detail?.id, detail?.rubbers?.length]);
@@ -128,21 +141,33 @@ export default function BslAdminQuickResults() {
   const saveMutation = useMutation({
     mutationFn: async () => {
       if (!detail) return { count: 0 };
-      const tasks = detail.rubbers.map(r => {
-        const v = scores[r.id];
-        if (!v) return null;
-        const h = Number(v.h);
-        const a = Number(v.a);
-        if (!Number.isFinite(h) || !Number.isFinite(a)) return null;
-        const homeChanged = h !== (r.homeScore ?? 0);
-        const awayChanged = a !== (r.awayScore ?? 0);
-        if (!homeChanged && !awayChanged) return null;
-        return apiRequest("PATCH", `/api/bsl/rubbers/${r.id}`, {
-          homeScore: h,
-          awayScore: a,
-          status: "FINISHED",
-        });
-      }).filter(Boolean) as Promise<any>[];
+      const tasks: Promise<any>[] = [];
+      for (const r of detail.rubbers) {
+        const sets = scores[r.id];
+        if (!sets || !sets.length) continue;
+        const cleanSets: { h: number; a: number }[] = [];
+        for (const st of sets) {
+          if (st.h === "" && st.a === "") continue;
+          const h = Number(st.h); const a = Number(st.a);
+          if (!Number.isFinite(h) || !Number.isFinite(a) || h < 0 || a < 0) {
+            throw new Error(`Rubber R${r.rubberNumber}: every set score must be 0 or higher.`);
+          }
+          cleanSets.push({ h, a });
+        }
+        if (!cleanSets.length) continue;
+        // Cheap unchanged-check: only skip when both stored setScores and the
+        // typed cleanSets match element-for-element.
+        const stored = Array.isArray(r.setScores) ? r.setScores : null;
+        const unchanged = stored && stored.length === cleanSets.length &&
+          stored.every((s, i) => (s.h ?? 0) === cleanSets[i].h && (s.a ?? 0) === cleanSets[i].a);
+        if (unchanged) continue;
+        // Send setScores only — adding `status` would defeat the LIVE-day
+        // "score-only" guard on PATCH /api/bsl/rubbers/:id. Backend marks the
+        // rubber FINISHED automatically once setScores are saved.
+        tasks.push(apiRequest("PATCH", `/api/bsl/rubbers/${r.id}`, {
+          setScores: cleanSets,
+        }));
+      }
       if (tasks.length === 0) return { count: 0 };
       await Promise.all(tasks);
       return { count: tasks.length };
@@ -166,11 +191,18 @@ export default function BslAdminQuickResults() {
     if (!detail) return { h: 0, a: 0 };
     let h = 0, a = 0;
     detail.rubbers.forEach(r => {
-      const v = scores[r.id];
-      const hs = v ? Number(v.h) : r.homeScore;
-      const as = v ? Number(v.a) : r.awayScore;
-      if (hs > as) h++;
-      else if (as > hs) a++;
+      const sets = scores[r.id];
+      let hs = r.homeScore, as = r.awayScore;
+      if (sets && sets.length) {
+        let hw = 0, aw = 0;
+        for (const st of sets) {
+          const sh = Number(st.h), sa = Number(st.a);
+          if (!Number.isFinite(sh) || !Number.isFinite(sa)) continue;
+          if (sh > sa) hw++; else if (sa > sh) aw++;
+        }
+        hs = hw; as = aw;
+      }
+      if (hs > as) h++; else if (as > hs) a++;
     });
     return { h, a };
   }, [detail, scores]);
@@ -260,9 +292,14 @@ export default function BslAdminQuickResults() {
                 </div>
               ) : (
                 detail.rubbers.map(r => {
-                  const v = scores[r.id] || { h: String(r.homeScore ?? 0), a: String(r.awayScore ?? 0) };
-                  const hs = Number(v.h), as = Number(v.a);
-                  const winner = hs > as ? "h" : as > hs ? "a" : null;
+                  const sets = scores[r.id] || [{ h: "", a: "" }];
+                  let hw = 0, aw = 0;
+                  for (const st of sets) {
+                    const sh = Number(st.h), sa = Number(st.a);
+                    if (!Number.isFinite(sh) || !Number.isFinite(sa)) continue;
+                    if (sh > sa) hw++; else if (sa > sh) aw++;
+                  }
+                  const winner = hw > aw ? "h" : aw > hw ? "a" : null;
                   // Filter pair options by rubber type — doubles types lock to
                   // matching pair category (matches the server-side guard).
                   const isDoubles = ["MD", "WD", "XD"].includes(r.rubberType);
@@ -313,16 +350,27 @@ export default function BslAdminQuickResults() {
                             );
                           })}
                         </select>
-                        <input
-                          type="number"
-                          min="0"
-                          inputMode="numeric"
-                          value={v.h}
-                          onChange={(e) => setScores(prev => ({ ...prev, [r.id]: { ...v, h: e.target.value } }))}
-                          className={`w-full bg-black/40 border rounded-lg px-3 py-2 text-center text-lg font-extrabold tabular-nums focus:outline-none focus:ring-2 ${winner === "h" ? "ring-1" : ""}`}
-                          style={{ borderColor: winner === "h" ? BSL.gold : `${BSL.cyan}33`, color: winner === "h" ? BSL.gold : "white" }}
-                          data-testid={`input-rubber-home-${r.id}`}
-                        />
+                        <div className="space-y-1.5">
+                          {sets.map((st, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <span className="text-[10px] font-bold w-6 text-white/40">S{idx + 1}</span>
+                              <input
+                                type="number"
+                                min="0"
+                                inputMode="numeric"
+                                value={st.h}
+                                onChange={(e) => setScores(prev => {
+                                  const cur = (prev[r.id] || []).slice();
+                                  cur[idx] = { ...(cur[idx] || { h: "", a: "" }), h: e.target.value };
+                                  return { ...prev, [r.id]: cur };
+                                })}
+                                className={`flex-1 bg-black/40 border rounded-lg px-2 py-1.5 text-center text-base font-extrabold tabular-nums focus:outline-none focus:ring-2 ${winner === "h" ? "ring-1" : ""}`}
+                                style={{ borderColor: winner === "h" ? BSL.gold : `${BSL.cyan}33`, color: winner === "h" ? BSL.gold : "white" }}
+                                data-testid={`input-rubber-home-set-${r.id}-${idx}`}
+                              />
+                            </div>
+                          ))}
+                        </div>
                       </div>
                       <div className="col-span-2 text-center text-white/40 text-xs font-bold">vs</div>
                       <div className="col-span-4 flex flex-col gap-1.5">
@@ -345,23 +393,57 @@ export default function BslAdminQuickResults() {
                             );
                           })}
                         </select>
-                        <input
-                          type="number"
-                          min="0"
-                          inputMode="numeric"
-                          value={v.a}
-                          onChange={(e) => setScores(prev => ({ ...prev, [r.id]: { ...v, a: e.target.value } }))}
-                          className={`w-full bg-black/40 border rounded-lg px-3 py-2 text-center text-lg font-extrabold tabular-nums focus:outline-none focus:ring-2 ${winner === "a" ? "ring-1" : ""}`}
-                          style={{ borderColor: winner === "a" ? BSL.gold : `${BSL.cyan}33`, color: winner === "a" ? BSL.gold : "white" }}
-                          data-testid={`input-rubber-away-${r.id}`}
-                        />
+                        <div className="space-y-1.5">
+                          {sets.map((st, idx) => (
+                            <div key={idx} className="flex items-center gap-1">
+                              <input
+                                type="number"
+                                min="0"
+                                inputMode="numeric"
+                                value={st.a}
+                                onChange={(e) => setScores(prev => {
+                                  const cur = (prev[r.id] || []).slice();
+                                  cur[idx] = { ...(cur[idx] || { h: "", a: "" }), a: e.target.value };
+                                  return { ...prev, [r.id]: cur };
+                                })}
+                                className={`flex-1 bg-black/40 border rounded-lg px-2 py-1.5 text-center text-base font-extrabold tabular-nums focus:outline-none focus:ring-2 ${winner === "a" ? "ring-1" : ""}`}
+                                style={{ borderColor: winner === "a" ? BSL.gold : `${BSL.cyan}33`, color: winner === "a" ? BSL.gold : "white" }}
+                                data-testid={`input-rubber-away-set-${r.id}-${idx}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setScores(prev => {
+                                  const cur = (prev[r.id] || []).slice();
+                                  if (cur.length <= 1) return { ...prev, [r.id]: [{ h: "", a: "" }] };
+                                  cur.splice(idx, 1);
+                                  return { ...prev, [r.id]: cur };
+                                })}
+                                className="p-1 rounded text-white/40 hover:text-white/80"
+                                title="Remove set"
+                                data-testid={`button-remove-set-${r.id}-${idx}`}
+                              ><X className="h-3 w-3" /></button>
+                            </div>
+                          ))}
+                        </div>
                       </div>
-                      <div className="col-span-12 text-[10px] text-white/40 -mt-1">
-                        {r.status === "FINISHED" ? (
-                          <span className="inline-flex items-center gap-1 text-emerald-400/80"><CheckCircle2 className="h-3 w-3" /> Saved</span>
-                        ) : (
-                          <span>Will be marked finished on save</span>
-                        )}
+                      <div className="col-span-12 flex items-center justify-between gap-2 -mt-1">
+                        <button
+                          type="button"
+                          onClick={() => setScores(prev => ({ ...prev, [r.id]: [...(prev[r.id] || []), { h: "", a: "" }] }))}
+                          className="inline-flex items-center gap-1 px-2 py-1 rounded text-[11px] font-bold"
+                          style={{ background: `${BSL.cyan}22`, color: BSL.cyan, border: `1px dashed ${BSL.cyan}55` }}
+                          data-testid={`button-add-set-${r.id}`}
+                        ><Plus className="h-3 w-3" /> Add set</button>
+                        <span className="text-[10px] font-bold tabular-nums text-white/60">
+                          Sets won: <span style={{ color: BSL.gold }}>{hw}</span> – <span style={{ color: BSL.gold }}>{aw}</span>
+                        </span>
+                        <span className="text-[10px] text-white/40">
+                          {r.status === "FINISHED" ? (
+                            <span className="inline-flex items-center gap-1 text-emerald-400/80"><CheckCircle2 className="h-3 w-3" /> Saved</span>
+                          ) : (
+                            <span>Will be marked finished on save</span>
+                          )}
+                        </span>
                       </div>
                     </div>
                   );
