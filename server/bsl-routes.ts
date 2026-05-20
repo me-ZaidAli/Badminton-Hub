@@ -976,8 +976,12 @@ export function registerBslRoutes(app: Express) {
       if (!fixture.homeClubId || !fixture.awayClubId) {
         return res.status(400).json({ message: "add-rubber only supports club-vs-club fixtures" });
       }
-      const structBlock = assertFixtureStructural(fixture);
-      if (structBlock) return res.status(409).json({ message: structBlock });
+      // Allow adding rubbers during the score-entry workflow (LIVE) as well as
+      // pre-match (SCHEDULED/WARMUP). Only FINISHED fixtures are blocked here —
+      // reset the fixture first if more rubbers are needed after it was closed.
+      if (fixture.status === "FINISHED") {
+        return res.status(409).json({ message: "Fixture is FINISHED — reset it before adding more rubbers." });
+      }
       const block = await assertFixtureMutable(fixtureId, new Set(), "add-rubber");
       if (block) return res.status(409).json({ message: block });
       // Atomic: lock the fixture row + compute nextNum + insert in one tx so
