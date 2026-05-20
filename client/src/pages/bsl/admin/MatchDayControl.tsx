@@ -340,6 +340,47 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
   const [newRubberType, setNewRubberType] = useState<typeof RUBBER_TYPES[number]>("MD");
   const [addingRubber, setAddingRubber] = useState(false);
 
+  // Pair pickers — pull each club's existing bsl_teams so the admin can pick
+  // which pair actually played each rubber. Backend at PATCH
+  // /api/bsl/admin/rubbers/:id/assign enforces category match + sibling
+  // uniqueness; we mirror the same filter here so the dropdown stays sane.
+  const homeClubIdForPairs = fixture?.homeClub?.id ?? fixture?.homeClubId ?? null;
+  const awayClubIdForPairs = fixture?.awayClub?.id ?? fixture?.awayClubId ?? null;
+  const { data: homePairs = [] } = useQuery<any[]>({
+    queryKey: ["/api/bsl/clubs", homeClubIdForPairs, "teams"],
+    enabled: homeClubIdForPairs != null,
+    queryFn: async () => {
+      const r = await fetch(`/api/bsl/clubs/${homeClubIdForPairs}/teams`, { credentials: "include" });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    },
+  });
+  const { data: awayPairs = [] } = useQuery<any[]>({
+    queryKey: ["/api/bsl/clubs", awayClubIdForPairs, "teams"],
+    enabled: awayClubIdForPairs != null,
+    queryFn: async () => {
+      const r = await fetch(`/api/bsl/clubs/${awayClubIdForPairs}/teams`, { credentials: "include" });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    },
+  });
+  const [assigningRubberId, setAssigningRubberId] = useState<number | null>(null);
+  async function handleAssignPair(rubberId: number, side: "home" | "away", bslTeamId: number | null) {
+    setAssigningRubberId(rubberId);
+    try {
+      const resp = await apiRequest("PATCH", `/api/bsl/admin/rubbers/${rubberId}/assign`, { side, bslTeamId });
+      if (!resp.ok) {
+        const body = await resp.json().catch(() => ({}));
+        throw new Error(body?.message || `HTTP ${resp.status}`);
+      }
+      await refetch();
+    } catch (err: any) {
+      toast({ title: "Pair assignment failed", description: (err.message || "").replace(/^\d+:\s*/, ""), variant: "destructive" });
+    } finally {
+      setAssigningRubberId(null);
+    }
+  }
+
   useEffect(() => {
     if (!fixture?.rubbers) return;
     // Preserve any unsaved edits the admin already typed for existing rubbers
@@ -509,34 +550,86 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
           <div className="space-y-2">
             {fixture.rubbers.map((r: any) => {
               const s = scores[r.id] || { home: "", away: "" };
+              const isDoubles = ["MD", "WD", "XD"].includes(r.rubberType);
+              const homeOpts = isDoubles ? homePairs.filter((p: any) => p.category === r.rubberType) : homePairs;
+              const awayOpts = isDoubles ? awayPairs.filter((p: any) => p.category === r.rubberType) : awayPairs;
+              const homeUsedElsewhere = new Set(
+                (fixture.rubbers || []).filter((x: any) => x.id !== r.id && x.homeTeamId != null).map((x: any) => x.homeTeamId as number),
+              );
+              const awayUsedElsewhere = new Set(
+                (fixture.rubbers || []).filter((x: any) => x.id !== r.id && x.awayTeamId != null).map((x: any) => x.awayTeamId as number),
+              );
+              const pairsDisabled = assigningRubberId === r.id;
               return (
-                <div key={r.id} className="grid grid-cols-[40px_1fr_60px_20px_60px_28px] items-center gap-2 rounded-lg p-2" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-rubber-${r.id}`}>
-                  <span className="text-xs font-black" style={{ color: BSL.gold }}>#{r.rubberNumber}</span>
-                  <span className="text-xs font-bold uppercase tracking-wider" style={{ color: BSL.muted }}>{r.rubberType}</span>
-                  <input
-                    type="number" min={0} inputMode="numeric"
-                    value={s.home}
-                    onChange={(e) => setScores((p) => ({ ...p, [r.id]: { ...(p[r.id] || { home: "", away: "" }), home: e.target.value } }))}
-                    className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
-                    style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
-                    data-testid={`input-home-${r.id}`}
-                  />
-                  <span className="text-center font-black" style={{ color: BSL.muted }}>–</span>
-                  <input
-                    type="number" min={0} inputMode="numeric"
-                    value={s.away}
-                    onChange={(e) => setScores((p) => ({ ...p, [r.id]: { ...(p[r.id] || { home: "", away: "" }), away: e.target.value } }))}
-                    className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
-                    style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
-                    data-testid={`input-away-${r.id}`}
-                  />
-                  <button
-                    onClick={() => handleDeleteRubber(r.id)}
-                    className="p-1.5 rounded-md inline-flex items-center justify-center"
-                    style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }}
-                    title="Remove rubber"
-                    data-testid={`button-delete-rubber-${r.id}`}
-                  ><Trash2 className="h-3 w-3" /></button>
+                <div key={r.id} className="rounded-lg p-2 space-y-1.5" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-rubber-${r.id}`}>
+                  {/* Header: rubber number + type */}
+                  <div className="flex items-center gap-2 px-1">
+                    <span className="text-xs font-black" style={{ color: BSL.gold }}>#{r.rubberNumber}</span>
+                    <span className="text-xs font-bold uppercase tracking-wider" style={{ color: BSL.muted }}>{r.rubberType}</span>
+                  </div>
+                  {/* Pair pickers row — only when we know the club ids */}
+                  {(homeClubIdForPairs != null && awayClubIdForPairs != null) && (
+                    <div className="grid grid-cols-[1fr_20px_1fr] items-center gap-2">
+                      <select
+                        value={r.homeTeamId ?? ""}
+                        disabled={pairsDisabled}
+                        onChange={(e) => handleAssignPair(r.id, "home", e.target.value ? Number(e.target.value) : null)}
+                        className="w-full px-2 py-1.5 rounded-md text-xs font-bold truncate"
+                        style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                        data-testid={`select-home-pair-${r.id}`}
+                      >
+                        <option value="">— Pick home pair —</option>
+                        {homeOpts.map((p: any) => (
+                          <option key={p.id} value={p.id} disabled={homeUsedElsewhere.has(p.id)}>
+                            {p.name}{homeUsedElsewhere.has(p.id) ? " (used)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                      <span className="text-center text-[10px] font-bold" style={{ color: BSL.muted }}>vs</span>
+                      <select
+                        value={r.awayTeamId ?? ""}
+                        disabled={pairsDisabled}
+                        onChange={(e) => handleAssignPair(r.id, "away", e.target.value ? Number(e.target.value) : null)}
+                        className="w-full px-2 py-1.5 rounded-md text-xs font-bold truncate"
+                        style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                        data-testid={`select-away-pair-${r.id}`}
+                      >
+                        <option value="">— Pick away pair —</option>
+                        {awayOpts.map((p: any) => (
+                          <option key={p.id} value={p.id} disabled={awayUsedElsewhere.has(p.id)}>
+                            {p.name}{awayUsedElsewhere.has(p.id) ? " (used)" : ""}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  )}
+                  {/* Scores + delete */}
+                  <div className="grid grid-cols-[1fr_20px_1fr_28px] items-center gap-2">
+                    <input
+                      type="number" min={0} inputMode="numeric"
+                      value={s.home}
+                      onChange={(e) => setScores((p) => ({ ...p, [r.id]: { ...(p[r.id] || { home: "", away: "" }), home: e.target.value } }))}
+                      className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
+                      style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                      data-testid={`input-home-${r.id}`}
+                    />
+                    <span className="text-center font-black" style={{ color: BSL.muted }}>–</span>
+                    <input
+                      type="number" min={0} inputMode="numeric"
+                      value={s.away}
+                      onChange={(e) => setScores((p) => ({ ...p, [r.id]: { ...(p[r.id] || { home: "", away: "" }), away: e.target.value } }))}
+                      className="w-full px-2 py-1.5 rounded-md text-center font-bold tabular-nums text-sm"
+                      style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                      data-testid={`input-away-${r.id}`}
+                    />
+                    <button
+                      onClick={() => handleDeleteRubber(r.id)}
+                      className="p-1.5 rounded-md inline-flex items-center justify-center"
+                      style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }}
+                      title="Remove rubber"
+                      data-testid={`button-delete-rubber-${r.id}`}
+                    ><Trash2 className="h-3 w-3" /></button>
+                  </div>
                 </div>
               );
             })}
