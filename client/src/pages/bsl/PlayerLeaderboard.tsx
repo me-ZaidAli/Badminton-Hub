@@ -14,12 +14,13 @@ type PlayerRow = {
   position: number; playerId: number; fullName: string;
   clubId: number | null; clubName: string; clubLogo: string | null; division: string;
   matchesPlayed: number; won: number; lost: number;
-  setsFor: number; setsAgainst: number; winRate: number;
+  setsFor: number; setsAgainst: number; winRate: number; points: number;
 };
 type ClubRow = {
   position: number; clubId: number; clubName: string; clubLogo: string | null; division: string;
-  rubbersPlayed: number; rubbersWon: number; rubbersLost: number;
-  setsFor: number; setsAgainst: number; winRate: number; playerCount: number;
+  played: number; won: number; drawn: number; lost: number;
+  setsFor: number; setsAgainst: number; points: number;
+  winRate: number; playerCount: number;
 };
 type PairRow = {
   position: number; pairKey: string;
@@ -27,7 +28,7 @@ type PairRow = {
   player2Id: number; player2Name: string;
   clubId: number | null; clubName: string; clubLogo: string | null; division: string;
   matchesPlayed: number; won: number; lost: number;
-  setsFor: number; setsAgainst: number; winRate: number;
+  setsFor: number; setsAgainst: number; winRate: number; points: number;
 };
 type Match = {
   rubberId: number; fixtureId: number; date: string | null; rubberType: string | null;
@@ -438,11 +439,10 @@ export default function BslPlayerLeaderboard() {
                       <th className="px-3 py-2 text-left w-12">#</th>
                       <th className="px-3 py-2 text-left">Player</th>
                       <th className="px-3 py-2 text-left">Club</th>
-                      <th className="px-3 py-2 text-center">Played</th>
-                      <th className="px-3 py-2 text-center">Won</th>
-                      <th className="px-3 py-2 text-center">Lost</th>
-                      <th className="px-3 py-2 text-center">Sets ±</th>
+                      <th className="px-3 py-2 text-center">P</th>
+                      <th className="px-3 py-2 text-center">+/−</th>
                       <th className="px-3 py-2 text-center">Win %</th>
+                      <th className="px-3 py-2 text-right">PTS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -470,10 +470,9 @@ export default function BslPlayerLeaderboard() {
                             </span>
                           </td>
                           <td className="px-3 py-2 text-center tabular-nums">{r.matchesPlayed}</td>
-                          <td className="px-3 py-2 text-center tabular-nums font-bold" style={{ color: BSL.gold }} data-testid={`text-won-${r.playerId}`}>{r.won}</td>
-                          <td className="px-3 py-2 text-center tabular-nums text-white/70" data-testid={`text-lost-${r.playerId}`}>{r.lost}</td>
                           <td className={`px-3 py-2 text-center tabular-nums font-bold ${diffColor(d)}`}>{d > 0 ? `+${d}` : d}</td>
-                          <td className="px-3 py-2 text-center tabular-nums">{r.winRate}%</td>
+                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.winRate}%</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black" style={{ color: BSL.cyan }} data-testid={`text-points-${r.playerId}`}>{r.points}</td>
                         </tr>
                       );
                     })}
@@ -494,11 +493,10 @@ export default function BslPlayerLeaderboard() {
                       <th className="px-3 py-2 text-left w-12">#</th>
                       <th className="px-3 py-2 text-left">Club</th>
                       <th className="px-3 py-2 text-center">Players</th>
-                      <th className="px-3 py-2 text-center">Played</th>
-                      <th className="px-3 py-2 text-center">Won</th>
-                      <th className="px-3 py-2 text-center">Lost</th>
-                      <th className="px-3 py-2 text-center">Sets ±</th>
+                      <th className="px-3 py-2 text-center">P</th>
+                      <th className="px-3 py-2 text-center">+/−</th>
                       <th className="px-3 py-2 text-center">Win %</th>
+                      <th className="px-3 py-2 text-right">PTS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -525,11 +523,10 @@ export default function BslPlayerLeaderboard() {
                             </span>
                           </td>
                           <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.playerCount}</td>
-                          <td className="px-3 py-2 text-center tabular-nums">{r.rubbersPlayed}</td>
-                          <td className="px-3 py-2 text-center tabular-nums font-bold" style={{ color: BSL.gold }}>{r.rubbersWon}</td>
-                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.rubbersLost}</td>
+                          <td className="px-3 py-2 text-center tabular-nums">{r.played}</td>
                           <td className={`px-3 py-2 text-center tabular-nums font-bold ${diffColor(d)}`}>{d > 0 ? `+${d}` : d}</td>
-                          <td className="px-3 py-2 text-center tabular-nums">{r.winRate}%</td>
+                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.winRate}%</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black" style={{ color: BSL.cyan }} data-testid={`text-club-points-${r.clubId}`}>{r.points}</td>
                         </tr>
                       );
                     })}
@@ -550,11 +547,10 @@ export default function BslPlayerLeaderboard() {
                       <th className="px-3 py-2 text-left w-12">#</th>
                       <th className="px-3 py-2 text-left">Pair</th>
                       <th className="px-3 py-2 text-left">Club</th>
-                      <th className="px-3 py-2 text-center">Played</th>
-                      <th className="px-3 py-2 text-center">Won</th>
-                      <th className="px-3 py-2 text-center">Lost</th>
-                      <th className="px-3 py-2 text-center">Sets ±</th>
+                      <th className="px-3 py-2 text-center">P</th>
+                      <th className="px-3 py-2 text-center">+/−</th>
                       <th className="px-3 py-2 text-center">Win %</th>
+                      <th className="px-3 py-2 text-right">PTS</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -583,10 +579,9 @@ export default function BslPlayerLeaderboard() {
                             </span>
                           </td>
                           <td className="px-3 py-2 text-center tabular-nums">{r.matchesPlayed}</td>
-                          <td className="px-3 py-2 text-center tabular-nums font-bold" style={{ color: BSL.gold }}>{r.won}</td>
-                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.lost}</td>
                           <td className={`px-3 py-2 text-center tabular-nums font-bold ${diffColor(d)}`}>{d > 0 ? `+${d}` : d}</td>
-                          <td className="px-3 py-2 text-center tabular-nums">{r.winRate}%</td>
+                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.winRate}%</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black" style={{ color: BSL.cyan }} data-testid={`text-pair-points-${r.pairKey}`}>{r.points}</td>
                         </tr>
                       );
                     })}
