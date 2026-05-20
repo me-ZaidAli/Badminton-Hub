@@ -156,16 +156,21 @@ export function registerBslRoutes(app: Express) {
       // used when no upcoming league day exists, OR when the stored value is
       // itself still in the future. Otherwise the public page would show
       // 00:00:00:00 forever after an admin forgot to update it.
+      // We want any non-CLOSED day to count — including one happening today
+      // whose timestamp is technically in the past (the countdown will just
+      // show 00:00:00:00 which is correct for "live now"). Only fall through
+      // to the manual override when there's no scheduled day at all.
       const now = new Date();
       const upcoming = await db.select().from(bslLeagueDays)
         .where(eq(bslLeagueDays.bslLeagueId, 1))
         .orderBy(bslLeagueDays.date);
-      const nextDay = upcoming.find(d => d.date && new Date(d.date).getTime() > now.getTime() && d.state !== "CLOSED");
+      const futureDay = upcoming.find(d => d.date && d.state !== "CLOSED" && new Date(d.date).getTime() > now.getTime());
+      const liveDay = upcoming.find(d => d.date && d.state !== "CLOSED");
       const stored = league.nextLeagueDay ? new Date(league.nextLeagueDay) : null;
       const storedStillFuture = stored && stored.getTime() > now.getTime();
-      const effectiveNext = nextDay?.date
-        ? new Date(nextDay.date)
-        : (storedStillFuture ? stored : null);
+      const effectiveNext = futureDay?.date
+        ? new Date(futureDay.date)
+        : (storedStillFuture ? stored : (liveDay?.date ? new Date(liveDay.date) : null));
       res.json({ ...league, nextLeagueDay: effectiveNext });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -1196,29 +1201,40 @@ export function registerBslRoutes(app: Express) {
       if (homeScore !== undefined) patch.homeScore = homeScore;
       if (awayScore !== undefined) patch.awayScore = awayScore;
       if (status) patch.status = status;
+      // Mark rubber FINISHED only when the caller provides BOTH score sides in
+      // this PATCH and at least one is > 0 — that's the "Save all" path from
+      // the Quick Results form. A one-sided in-progress edit (e.g. typing
+      // 21 into home before away) won't trip the auto-finish. We never
+      // downgrade a status that's already FINISHED/explicit.
+      const bothScoresProvided = homeScore !== undefined && awayScore !== undefined;
+      const anyNonZero = (Number(homeScore) || 0) > 0 || (Number(awayScore) || 0) > 0;
+      if (bothScoresProvided && anyNonZero && !status) {
+        patch.status = "FINISHED";
+      }
       const [updated] = await db.update(bslRubbers).set(patch).where(eq(bslRubbers.id, id)).returning();
-      // Recompute fixture rubber tally + auto-finish when every rubber has a
-      // decided score. Without auto-finish the fixture sits in LIVE/SCHEDULED
-      // forever and the standings recompute (which only counts FINISHED
-      // fixtures) never picks up the result. Standings recompute runs on
-      // every score touch so historical finished fixtures get re-aggregated
-      // even if a future schema/category change shifted the points.
+      // Recompute fixture rubber tally + auto-finish only when every rubber is
+      // explicitly FINISHED (or has a walkover winner). Without auto-finish
+      // the fixture sits in LIVE/SCHEDULED forever and recomputeStandings()
+      // (which only counts FINISHED fixtures) never picks up the result.
       const allRubbers = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, updated.bslFixtureId));
       const homeR = allRubbers.filter(r => r.homeScore > r.awayScore).length;
       const awayR = allRubbers.filter(r => r.awayScore > r.homeScore).length;
-      const everyRubberScored = allRubbers.length > 0 && allRubbers.every(r => (r.homeScore || 0) > 0 || (r.awayScore || 0) > 0);
+      const everyRubberFinished = allRubbers.length > 0 && allRubbers.every(r => r.status === "FINISHED" || r.walkoverWinner);
       const [currentFixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, updated.bslFixtureId)).limit(1);
       const fixturePatch: any = { homeRubbers: homeR, awayRubbers: awayR };
       let didFinish = false;
-      if (everyRubberScored && currentFixture && currentFixture.status !== "FINISHED") {
+      if (everyRubberFinished && currentFixture && currentFixture.status !== "FINISHED") {
         fixturePatch.status = "FINISHED";
         didFinish = true;
       }
       await db.update(bslFixtures).set(fixturePatch).where(eq(bslFixtures.id, updated.bslFixtureId));
-      // Always recompute — covers (a) auto-finish above, (b) score edits on an
-      // already-FINISHED fixture, (c) any pre-existing FINISHED fixtures whose
-      // standings were never aggregated. Cheap because the table is small.
-      await recomputeStandings();
+      // Recompute only on transitions or when editing an already-FINISHED
+      // fixture (score correction). Skipping recompute on every keystroke
+      // avoids the race where two overlapping PATCHes overwrite each other's
+      // standings snapshot with stale data.
+      if (didFinish || currentFixture?.status === "FINISHED") {
+        await recomputeStandings();
+      }
       res.json({ ...updated, fixtureAutoFinished: didFinish });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

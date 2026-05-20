@@ -6252,12 +6252,21 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                   data-testid={`button-remove-player-${reg.id}`}
                   disabled={deleteRegMutation.isPending}
                   onClick={async () => {
+                    const name = reg.user?.fullName || "this player";
+                    const ok = window.confirm(
+                      `Force-withdraw ${name} from the whole tournament?\n\n` +
+                      `This removes them from every category they joined and deletes any matches, ` +
+                      `standings rows and pair requests tied to them. If they had a partner, that ` +
+                      `partner's registration is also removed (they will need to re-register). ` +
+                      `This cannot be undone.`
+                    );
+                    if (!ok) return;
                     try {
                       await deleteRegMutation.mutateAsync(reg.id);
-                      toast({ title: "Player Removed" });
+                      toast({ title: "Player withdrawn", description: `${name} removed from the tournament.` });
                     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
                   }}>
-                  <Trash2 className="h-3 w-3 mr-1" />Remove
+                  <Trash2 className="h-3 w-3 mr-1" />Withdraw
                 </Button>
                 <Badge className={cn("text-[9px] px-1.5 border font-bold",
                   reg.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
