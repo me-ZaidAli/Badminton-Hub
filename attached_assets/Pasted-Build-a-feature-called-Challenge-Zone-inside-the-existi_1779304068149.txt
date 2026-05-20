@@ -1,0 +1,39 @@
+Build a feature called "Challenge Zone" inside the existing BSL (Birmingham Super League) badminton app, following the app’s current design theme exactly — keep colours, fonts, style and layout consistent, but make this section highly interactive, modern and visually impressive, really stand out as a cool feature.
+
+Here is everything it needs to include and do:
+
+MAIN DASHBOARD VIEW
+This is what all club users see when they open this section:
+
+Display all registered clubs clearly, with each club’s card showing:
+Club name and logo
+Current league ranking
+Overall performance stats (wins / losses / matches played)
+Expandable section to view all player pairs / teams that belong to that club
+Make it interactive: users can click/tap on any club to view full details before choosing to challenge them
+Sort or filter options available (by ranking, location, number of teams etc.)
+CHALLENGE CREATION PROCESS
+When a club wants to send a challenge:
+
+Step 1: Select which other club they want to challenge
+Step 2: Only show available dates that have already been added to the system as official "Match Days" — no other dates can be chosen
+Step 3: When a match day is selected, show clear details about that day including:
+Maximum number of matches allowed to take place on that day (this number needs to be easily editable/set by admin at any time)
+Explain the count logic simply:
+1 match = 1 team from your club vs 1 team from the challenged club
+2 matches = 2 teams from your club vs 2 teams from the challenged club, etc.
+If multiple different clubs challenge each other on the same day, each pair counts as one match towards the maximum limit
+Show in real-time how many matches have already been booked for that day and how many remaining slots are left — do not allow new challenges once the maximum number is reached
+Step 4: Confirm and send the challenge — the challenged club gets a notification and can accept or decline
+SYSTEM RULES & CONTROLS
+Admin panel option to add/edit/remove match days and set the maximum number of matches permitted for each individual day
+All challenges are linked strictly only to these set match days
+Automatically update remaining slots whenever a challenge is confirmed or cancelled
+Clear status labels on all challenges: Pending / Accepted / Declined / Completed / Cancelled
+DESIGN & EXPERIENCE REQUIREMENTS
+Follow the existing BSL app theme exactly — match all colours, fonts, button styles and layout structure
+Make all actions smooth and interactive: nice animations when selecting clubs/dates, hover effects, clear visual feedback at every step
+Easy to use on both mobile and desktop screens
+Clean, modern look that feels professional but fun and engaging
+Build all this as a fully functional section that connects properly to the existing app data and settings.
+e?

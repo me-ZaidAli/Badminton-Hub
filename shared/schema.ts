@@ -3306,8 +3306,33 @@ export const bslLeagueDays = pgTable("bsl_league_days", {
   // admin Match Days hub so each day can be hosted at a different location.
   venue: text("venue"),
   notes: text("notes"),
+  // Challenge Zone: max number of inter-club challenge matches that can be
+  // booked against this day. Null = unlimited. Each accepted/pending challenge
+  // consumes `numMatches` slots.
+  maxMatches: integer("max_matches"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Inter-club challenge requests scoped to a specific Match Day.
+// Visible to all logged-in users; only club managers / club admins / team
+// captains / platform OWNER+ADMIN can create or respond.
+export const bslChallenges = pgTable("bsl_challenges", {
+  id: serial("id").primaryKey(),
+  bslLeagueId: integer("bsl_league_id").notNull().default(1),
+  challengerClubId: integer("challenger_club_id").notNull().references(() => bslClubs.id, { onDelete: "cascade" }),
+  opponentClubId: integer("opponent_club_id").notNull().references(() => bslClubs.id, { onDelete: "cascade" }),
+  leagueDayId: integer("league_day_id").notNull().references(() => bslLeagueDays.id, { onDelete: "cascade" }),
+  // PENDING | ACCEPTED | DECLINED | CANCELLED | COMPLETED
+  status: text("status").notNull().default("PENDING"),
+  // How many team-vs-team matches this challenge consumes on the day.
+  numMatches: integer("num_matches").notNull().default(1),
+  message: text("message"),
+  createdById: integer("created_by_id").notNull().references(() => users.id),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+  respondedById: integer("responded_by_id").references(() => users.id),
+  respondedAt: timestamp("responded_at"),
+});
+export type BslChallenge = typeof bslChallenges.$inferSelect;
 
 // Per-category competition rules. Snapshot onto each fixture at generation
 // time so mid-season rule changes don't retroactively rewrite finished games.

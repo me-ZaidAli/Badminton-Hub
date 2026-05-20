@@ -290,6 +290,15 @@ function MatchDayEditor({ id, league, clubs, onClose }: { id: number; league: an
                   <option value="COMPLETED">COMPLETED</option>
                 </select>
               </Field>
+              <Field label="Challenge Zone · Max matches" hint="Maximum inter-club challenge matches that can be booked on this day. Blank = unlimited.">
+                <input type="number" min={0} max={200} defaultValue={day.maxMatches ?? ""}
+                  onBlur={(e) => {
+                    const raw = e.target.value;
+                    const next = raw === "" ? null : Math.max(0, Math.min(200, Math.round(Number(raw))));
+                    if (next !== (day.maxMatches ?? null)) patchDay.mutate({ maxMatches: next });
+                  }}
+                  className="w-full px-3 py-2 rounded-lg text-sm tabular-nums" style={inp()} data-testid="input-edit-max-matches" />
+              </Field>
             </div>
 
             <Field label="Notes (admin / public)">

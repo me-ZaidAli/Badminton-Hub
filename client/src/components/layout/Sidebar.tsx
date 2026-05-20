@@ -270,6 +270,7 @@ export function useNavGroups(): { groups: NavGroup[]; isPremium: boolean; planSt
     { href: "/league", label: "League", icon: Swords, group: "activity", premiumOnly: true },
     { href: "/tournaments", label: "Tournaments", icon: Award, group: "activity" },
     { href: "/bsl", label: "Birmingham Super League", icon: Crown, group: "activity" },
+    { href: "/bsl/challenge-zone", label: "BSL · Challenge Zone", icon: Swords, group: "activity" },
     { href: "/rankings", label: "Rankings", icon: Trophy, group: "activity", premiumOnly: true },
     { href: "/player-intelligence", label: "Player Intel", icon: Activity, group: "activity", premiumOnly: true, hidden: !isEnrolledInSkills },
     { href: "/coach/player-skills", label: "Player Skills", icon: BarChart3, group: "activity", hidden: !isAdminOrOwner, premiumOnly: true },

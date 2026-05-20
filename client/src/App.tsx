@@ -167,6 +167,7 @@ const BslLeagueMode = lazy(() => import("@/pages/bsl/LeagueMode"));
 const BslRegisterClub = lazy(() => import("@/pages/bsl/RegisterClub"));
 const BslJoinPlayer = lazy(() => import("@/pages/bsl/JoinPlayer"));
 const BslWallet = lazy(() => import("@/pages/bsl/Wallet"));
+const BslChallengeZone = lazy(() => import("@/pages/bsl/ChallengeZone"));
 const BslMatchDetail = lazy(() => import("@/pages/bsl/MatchDetail"));
 const BslClubManager = lazy(() => import("@/pages/bsl/ClubManager"));
 const BslPlayerProfile = lazy(() => import("@/pages/bsl/PlayerProfile"));
@@ -576,6 +577,9 @@ function Router() {
       </Route>
       <Route path="/bsl/wallet">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslWallet /></Suspense>} />
+      </Route>
+      <Route path="/bsl/challenge-zone">
+        <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslChallengeZone /></Suspense>} />
       </Route>
       <Route path="/bsl/my-club">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><BslClubManager /></Suspense>} />

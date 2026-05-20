@@ -5,7 +5,7 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import {
-  bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays,
+  bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays, bslChallenges,
   bslFixtures, bslRubbers, bslWalletTransactions, bslAuditLog, bslMedia, users,
   bslTeamMembers, bslCategorySettings, bslFixtureVersions, bslPrizes,
 } from "@shared/schema";
@@ -2101,6 +2101,12 @@ export function registerBslRoutes(app: Express) {
         const v = body.notes;
         patch.notes = typeof v === "string" && v.trim() ? v.trim().slice(0, 2000) : null;
       }
+      if ("maxMatches" in body) {
+        const v = body.maxMatches;
+        patch.maxMatches = v == null || v === ""
+          ? null
+          : Math.max(0, Math.min(200, Math.round(Number(v))));
+      }
       if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
       // Lifecycle guard. Date can be edited any time. Structural fields
       // (division/category/rubbersPerFixture/status) would desync from already-
@@ -3671,6 +3677,283 @@ export function registerBslRoutes(app: Express) {
       const inserted = await db.insert(bslPrizes).values(rows).returning();
       await audit(req, "prize.seeded", "bsl_prize", null, { count: inserted.length, replace });
       res.json({ ok: true, count: inserted.length });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // =============================================================
+  //  CHALLENGE ZONE — inter-club challenge requests
+  // =============================================================
+
+  // Permission: club manager, in adminUserIds, captain of any team in the club,
+  // OR platform OWNER/ADMIN.
+  async function canManageBslClub(req: Request, clubId: number): Promise<boolean> {
+    const user = (req as any).user;
+    if (!user) return false;
+    if (user.role === "OWNER" || user.role === "ADMIN") return true;
+    const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, clubId)).limit(1);
+    if (!club) return false;
+    if (club.managerUserId === user.id) return true;
+    if (Array.isArray((club as any).adminUserIds) && (club as any).adminUserIds.includes(user.id)) return true;
+    // captain check
+    const teams = await db.select().from(bslTeams)
+      .where(and(eq(bslTeams.bslClubId, clubId), dsql`${bslTeams.captainPlayerId} IS NOT NULL`));
+    const capIds = teams.map(t => t.captainPlayerId as number).filter(Boolean);
+    if (capIds.length === 0) return false;
+    const caps = await db.select().from(bslPlayers).where(inArray(bslPlayers.id, capIds));
+    return caps.some(c => c.userId === user.id);
+  }
+
+  async function slotsUsedForDay(leagueDayId: number, excludeChallengeId?: number): Promise<number> {
+    const rows = await db.select().from(bslChallenges)
+      .where(and(
+        eq(bslChallenges.leagueDayId, leagueDayId),
+        inArray(bslChallenges.status, ["PENDING", "ACCEPTED"]),
+      ));
+    return rows
+      .filter(r => excludeChallengeId == null || r.id !== excludeChallengeId)
+      .reduce((s, r) => s + (r.numMatches || 0), 0);
+  }
+
+  // List of clubs visible in the Challenge Zone (any logged-in user can view).
+  // Includes ranking (aggregated like /standings), W/L/MP, teams + member names.
+  app.get("/api/bsl/challenge-zone/clubs", requireAuth, async (_req, res) => {
+    try {
+      const clubs = await db.select().from(bslClubs)
+        .where(and(eq(bslClubs.status, "APPROVED"), dsql`${bslClubs.sleepingAt} IS NULL`));
+      const teams = await db.select().from(bslTeams);
+      const clubIds = clubs.map(c => c.id);
+      const members = clubIds.length
+        ? await db.select({
+            teamId: bslTeamMembers.bslTeamId,
+            playerId: bslPlayers.id,
+            displayName: bslPlayers.displayName,
+            fullName: users.fullName,
+          })
+          .from(bslTeamMembers)
+          .leftJoin(bslPlayers, eq(bslTeamMembers.bslPlayerId, bslPlayers.id))
+          .leftJoin(users, eq(bslPlayers.userId, users.id))
+          .where(inArray(bslPlayers.bslClubId, clubIds))
+        : [];
+      const membersByTeam = new Map<number, Array<{ playerId: number; name: string }>>();
+      for (const m of members as any[]) {
+        if (!m.teamId) continue;
+        const arr = membersByTeam.get(m.teamId) || [];
+        arr.push({ playerId: m.playerId, name: m.displayName || m.fullName || `Player #${m.playerId}` });
+        membersByTeam.set(m.teamId, arr);
+      }
+      // Aggregate stats per club
+      type Agg = { played: number; won: number; lost: number; drawn: number; points: number; rubberDiff: number };
+      const agg = new Map<number, Agg>();
+      for (const t of teams) {
+        const a = agg.get(t.bslClubId) || { played: 0, won: 0, lost: 0, drawn: 0, points: 0, rubberDiff: 0 };
+        a.played += t.played || 0; a.won += t.won || 0; a.lost += t.lost || 0; a.drawn += t.drawn || 0;
+        a.points += t.points || 0; a.rubberDiff += (t.rubbersFor || 0) - (t.rubbersAgainst || 0);
+        agg.set(t.bslClubId, a);
+      }
+      const ranked = clubs.map(c => ({ id: c.id, a: agg.get(c.id) || { played: 0, won: 0, lost: 0, drawn: 0, points: 0, rubberDiff: 0 } }))
+        .sort((x, y) => y.a.points - x.a.points || y.a.rubberDiff - x.a.rubberDiff);
+      const rankById = new Map<number, number>();
+      ranked.forEach((r, i) => rankById.set(r.id, i + 1));
+
+      const out = clubs.map(c => {
+        const a = agg.get(c.id) || { played: 0, won: 0, lost: 0, drawn: 0, points: 0, rubberDiff: 0 };
+        const clubTeams = teams
+          .filter(t => t.bslClubId === c.id)
+          .map(t => ({
+            id: t.id,
+            name: t.name,
+            division: t.division,
+            category: t.category,
+            pairNumber: t.pairNumber,
+            members: membersByTeam.get(t.id) || [],
+          }));
+        return {
+          id: c.id,
+          name: c.name,
+          logoUrl: c.logoUrl,
+          division: c.division,
+          additionalDivisions: c.additionalDivisions || [],
+          managerUserId: c.managerUserId,
+          adminUserIds: c.adminUserIds || [],
+          rank: rankById.get(c.id) ?? null,
+          played: a.played,
+          won: a.won,
+          lost: a.lost,
+          drawn: a.drawn,
+          points: a.points,
+          rubberDiff: a.rubberDiff,
+          teams: clubTeams,
+          teamCount: clubTeams.length,
+        };
+      });
+      out.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
+      res.json(out);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Upcoming match days exposed to the Challenge Zone with live slot counts.
+  app.get("/api/bsl/challenge-zone/match-days", requireAuth, async (_req, res) => {
+    try {
+      const today = new Date(); today.setHours(0, 0, 0, 0);
+      const days = await db.select().from(bslLeagueDays)
+        .where(dsql`${bslLeagueDays.date} >= ${today}`)
+        .orderBy(asc(bslLeagueDays.date));
+      const ids = days.map(d => d.id);
+      const challenges = ids.length
+        ? await db.select().from(bslChallenges).where(and(
+            inArray(bslChallenges.leagueDayId, ids),
+            inArray(bslChallenges.status, ["PENDING", "ACCEPTED"]),
+          ))
+        : [];
+      const usedByDay = new Map<number, number>();
+      for (const c of challenges) usedByDay.set(c.leagueDayId, (usedByDay.get(c.leagueDayId) || 0) + (c.numMatches || 0));
+      res.json(days.map(d => {
+        const used = usedByDay.get(d.id) || 0;
+        const max = (d as any).maxMatches ?? null;
+        return {
+          id: d.id,
+          date: d.date,
+          state: (d as any).state || "DRAFT",
+          status: d.status,
+          venue: (d as any).venue,
+          notes: (d as any).notes,
+          division: d.division,
+          category: d.category,
+          maxMatches: max,
+          slotsUsed: used,
+          slotsRemaining: max == null ? null : Math.max(0, max - used),
+        };
+      }));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // List challenges. Default: every challenge in the league. ?clubId= filters
+  // to one club (inbox + outbox).
+  app.get("/api/bsl/challenges", requireAuth, async (req, res) => {
+    try {
+      const clubId = req.query.clubId ? Number(req.query.clubId) : null;
+      const where = clubId
+        ? or(eq(bslChallenges.challengerClubId, clubId), eq(bslChallenges.opponentClubId, clubId))
+        : undefined;
+      const rows = await (where ? db.select().from(bslChallenges).where(where) : db.select().from(bslChallenges))
+        .orderBy(desc(bslChallenges.createdAt));
+      const clubIds = Array.from(new Set(rows.flatMap(r => [r.challengerClubId, r.opponentClubId])));
+      const dayIds = Array.from(new Set(rows.map(r => r.leagueDayId)));
+      const [clubs, days] = await Promise.all([
+        clubIds.length ? db.select().from(bslClubs).where(inArray(bslClubs.id, clubIds)) : Promise.resolve([] as any[]),
+        dayIds.length ? db.select().from(bslLeagueDays).where(inArray(bslLeagueDays.id, dayIds)) : Promise.resolve([] as any[]),
+      ]);
+      const clubMap = new Map(clubs.map(c => [c.id, c]));
+      const dayMap = new Map(days.map(d => [d.id, d]));
+      res.json(rows.map(r => ({
+        ...r,
+        challengerClub: clubMap.get(r.challengerClubId) ? { id: r.challengerClubId, name: clubMap.get(r.challengerClubId)!.name, logoUrl: clubMap.get(r.challengerClubId)!.logoUrl } : null,
+        opponentClub: clubMap.get(r.opponentClubId) ? { id: r.opponentClubId, name: clubMap.get(r.opponentClubId)!.name, logoUrl: clubMap.get(r.opponentClubId)!.logoUrl } : null,
+        leagueDay: dayMap.get(r.leagueDayId) ? {
+          id: r.leagueDayId,
+          date: dayMap.get(r.leagueDayId)!.date,
+          venue: (dayMap.get(r.leagueDayId)! as any).venue,
+        } : null,
+      })));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Create a challenge. Only manageable-club users can send on behalf of their club.
+  app.post("/api/bsl/challenges", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const challengerClubId = Number(req.body?.challengerClubId);
+      const opponentClubId = Number(req.body?.opponentClubId);
+      const leagueDayId = Number(req.body?.leagueDayId);
+      const numMatches = Math.max(1, Math.min(20, Math.round(Number(req.body?.numMatches ?? 1))));
+      const message = typeof req.body?.message === "string" ? req.body.message.trim().slice(0, 500) : null;
+      if (!challengerClubId || !opponentClubId || !leagueDayId) return res.status(400).json({ message: "challengerClubId, opponentClubId and leagueDayId required" });
+      if (challengerClubId === opponentClubId) return res.status(400).json({ message: "Cannot challenge your own club" });
+      if (!(await canManageBslClub(req, challengerClubId))) return res.status(403).json({ message: "You don't have permission to send challenges on behalf of this club" });
+      const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, leagueDayId)).limit(1);
+      if (!day) return res.status(404).json({ message: "Match day not found" });
+      const [opp] = await db.select().from(bslClubs).where(eq(bslClubs.id, opponentClubId)).limit(1);
+      if (!opp) return res.status(404).json({ message: "Opponent club not found" });
+      const maxMatches = (day as any).maxMatches as number | null;
+      if (maxMatches != null) {
+        const used = await slotsUsedForDay(leagueDayId);
+        if (used + numMatches > maxMatches) {
+          return res.status(409).json({ message: `Not enough slots — ${Math.max(0, maxMatches - used)} of ${maxMatches} remaining on this match day.` });
+        }
+      }
+      const [row] = await db.insert(bslChallenges).values({
+        bslLeagueId: 1,
+        challengerClubId, opponentClubId, leagueDayId,
+        numMatches, message,
+        status: "PENDING",
+        createdById: user.id,
+      }).returning();
+      await audit(req, "CREATE_CHALLENGE", "bsl_challenge", row.id, { opponentClubId, leagueDayId, numMatches });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Respond to a challenge: accept / decline / cancel / complete.
+  app.patch("/api/bsl/challenges/:id", requireAuth, async (req, res) => {
+    try {
+      const user = (req as any).user;
+      const id = Number(req.params.id);
+      const action = String(req.body?.action || "").toLowerCase();
+      if (!["accept", "decline", "cancel", "complete"].includes(action)) return res.status(400).json({ message: "Invalid action" });
+      const [ch] = await db.select().from(bslChallenges).where(eq(bslChallenges.id, id)).limit(1);
+      if (!ch) return res.status(404).json({ message: "Challenge not found" });
+      const isPlatformAdmin = user.role === "OWNER" || user.role === "ADMIN";
+      let allowed = isPlatformAdmin;
+      if (!allowed) {
+        if (action === "accept" || action === "decline") {
+          allowed = await canManageBslClub(req, ch.opponentClubId);
+        } else if (action === "cancel") {
+          allowed = await canManageBslClub(req, ch.challengerClubId);
+        } else if (action === "complete") {
+          allowed = (await canManageBslClub(req, ch.challengerClubId)) || (await canManageBslClub(req, ch.opponentClubId));
+        }
+      }
+      if (!allowed) return res.status(403).json({ message: "You don't have permission to perform this action" });
+
+      if (action === "accept") {
+        if (ch.status !== "PENDING") return res.status(409).json({ message: `Cannot accept — challenge is ${ch.status}` });
+        const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, ch.leagueDayId)).limit(1);
+        const maxMatches = (day as any)?.maxMatches as number | null;
+        if (maxMatches != null) {
+          const used = await slotsUsedForDay(ch.leagueDayId, ch.id);
+          if (used + (ch.numMatches || 0) > maxMatches) {
+            return res.status(409).json({ message: `Match day has filled up — only ${Math.max(0, maxMatches - used)} of ${maxMatches} slots left.` });
+          }
+        }
+        const [updated] = await db.update(bslChallenges).set({
+          status: "ACCEPTED", respondedById: user.id, respondedAt: new Date(),
+        }).where(eq(bslChallenges.id, id)).returning();
+        await audit(req, "ACCEPT_CHALLENGE", "bsl_challenge", id, {});
+        return res.json(updated);
+      }
+      if (action === "decline") {
+        if (ch.status !== "PENDING") return res.status(409).json({ message: `Cannot decline — challenge is ${ch.status}` });
+        const [updated] = await db.update(bslChallenges).set({
+          status: "DECLINED", respondedById: user.id, respondedAt: new Date(),
+        }).where(eq(bslChallenges.id, id)).returning();
+        await audit(req, "DECLINE_CHALLENGE", "bsl_challenge", id, {});
+        return res.json(updated);
+      }
+      if (action === "cancel") {
+        if (ch.status !== "PENDING") return res.status(409).json({ message: `Cannot cancel — challenge is ${ch.status}` });
+        const [updated] = await db.update(bslChallenges).set({
+          status: "CANCELLED", respondedById: user.id, respondedAt: new Date(),
+        }).where(eq(bslChallenges.id, id)).returning();
+        await audit(req, "CANCEL_CHALLENGE", "bsl_challenge", id, {});
+        return res.json(updated);
+      }
+      // complete
+      if (ch.status !== "ACCEPTED") return res.status(409).json({ message: `Cannot complete — challenge is ${ch.status}` });
+      const [updated] = await db.update(bslChallenges).set({
+        status: "COMPLETED", respondedById: user.id, respondedAt: new Date(),
+      }).where(eq(bslChallenges.id, id)).returning();
+      await audit(req, "COMPLETE_CHALLENGE", "bsl_challenge", id, {});
+      return res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 }
