@@ -560,12 +560,23 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                 (fixture.rubbers || []).filter((x: any) => x.id !== r.id && x.awayTeamId != null).map((x: any) => x.awayTeamId as number),
               );
               const pairsDisabled = assigningRubberId === r.id;
+              // Resolve currently-selected pair (so we can show its players
+              // on the row even after the dropdown closes / its label truncates).
+              const homeSelected = homePairs.find((p: any) => p.id === r.homeTeamId);
+              const awaySelected = awayPairs.find((p: any) => p.id === r.awayTeamId);
+              const fmtPair = (p: any) =>
+                p ? `${p.name} · ${Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players"}` : "—";
               return (
                 <div key={r.id} className="rounded-lg p-2 space-y-1.5" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-rubber-${r.id}`}>
-                  {/* Header: rubber number + type */}
-                  <div className="flex items-center gap-2 px-1">
+                  {/* Header: rubber number + type + currently-playing pairs */}
+                  <div className="flex items-center gap-2 px-1 flex-wrap">
                     <span className="text-xs font-black" style={{ color: BSL.gold }}>#{r.rubberNumber}</span>
                     <span className="text-xs font-bold uppercase tracking-wider" style={{ color: BSL.muted }}>{r.rubberType}</span>
+                    <span className="text-[11px] font-bold ml-auto" data-testid={`text-pair-summary-${r.id}`}>
+                      <span style={{ color: homeSelected ? "white" : BSL.muted }}>{fmtPair(homeSelected)}</span>
+                      <span className="mx-1.5" style={{ color: BSL.muted }}>vs</span>
+                      <span style={{ color: awaySelected ? "white" : BSL.muted }}>{fmtPair(awaySelected)}</span>
+                    </span>
                   </div>
                   {/* Pair pickers row — only when we know the club ids */}
                   {(homeClubIdForPairs != null && awayClubIdForPairs != null) && (
@@ -574,7 +585,7 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         value={r.homeTeamId ?? ""}
                         disabled={pairsDisabled}
                         onChange={(e) => handleAssignPair(r.id, "home", e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-2 py-1.5 rounded-md text-xs font-bold truncate"
+                        className="w-full px-2 py-1.5 rounded-md text-xs font-bold"
                         style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
                         data-testid={`select-home-pair-${r.id}`}
                       >
@@ -593,7 +604,7 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         value={r.awayTeamId ?? ""}
                         disabled={pairsDisabled}
                         onChange={(e) => handleAssignPair(r.id, "away", e.target.value ? Number(e.target.value) : null)}
-                        className="w-full px-2 py-1.5 rounded-md text-xs font-bold truncate"
+                        className="w-full px-2 py-1.5 rounded-md text-xs font-bold"
                         style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
                         data-testid={`select-away-pair-${r.id}`}
                       >

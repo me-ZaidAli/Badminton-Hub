@@ -274,18 +274,27 @@ export default function BslAdminQuickResults() {
                   // useless 400s for the admin.
                   const homeUsedElsewhere = new Set(detail.rubbers.filter(x => x.id !== r.id && x.homeTeamId != null).map(x => x.homeTeamId as number));
                   const awayUsedElsewhere = new Set(detail.rubbers.filter(x => x.id !== r.id && x.awayTeamId != null).map(x => x.awayTeamId as number));
+                  const homeSelected = homePairs.find(p => p.id === r.homeTeamId) as any;
+                  const awaySelected = awayPairs.find(p => p.id === r.awayTeamId) as any;
+                  const fmtPair = (p: any) =>
+                    p ? `${p.name} · ${Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players"}` : "—";
                   return (
                     <div key={r.id} className="px-4 py-3 grid grid-cols-12 gap-2 items-center" data-testid={`rubber-row-${r.id}`}>
                       <div className="col-span-2">
                         <div className="text-[10px] uppercase tracking-wider text-white/50 font-bold">R{r.rubberNumber}</div>
                         <div className="text-xs font-bold text-white/80">{r.rubberType}</div>
                       </div>
+                      <div className="col-span-12 -mb-1 text-[11px] font-bold flex flex-wrap gap-x-2" data-testid={`text-pair-summary-${r.id}`}>
+                        <span className={homeSelected ? "text-white" : "text-white/40"}>{fmtPair(homeSelected)}</span>
+                        <span className="text-white/40">vs</span>
+                        <span className={awaySelected ? "text-white" : "text-white/40"}>{fmtPair(awaySelected)}</span>
+                      </div>
                       <div className="col-span-4 flex flex-col gap-1.5">
                         <select
                           value={r.homeTeamId ?? ""}
                           disabled={assignMutation.isPending || homeClubId == null}
                           onChange={(e) => assignMutation.mutate({ rubberId: r.id, side: "home", bslTeamId: e.target.value ? Number(e.target.value) : null })}
-                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold truncate focus:outline-none focus:ring-2"
+                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2"
                           style={{ borderColor: `${BSL.cyan}33` }}
                           data-testid={`select-rubber-home-pair-${r.id}`}
                         >
@@ -316,7 +325,7 @@ export default function BslAdminQuickResults() {
                           value={r.awayTeamId ?? ""}
                           disabled={assignMutation.isPending || awayClubId == null}
                           onChange={(e) => assignMutation.mutate({ rubberId: r.id, side: "away", bslTeamId: e.target.value ? Number(e.target.value) : null })}
-                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold truncate focus:outline-none focus:ring-2"
+                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2"
                           style={{ borderColor: `${BSL.cyan}33` }}
                           data-testid={`select-rubber-away-pair-${r.id}`}
                         >
