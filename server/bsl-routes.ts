@@ -4144,13 +4144,32 @@ export function registerBslRoutes(app: Express) {
 
   // List of clubs visible in the Challenge Zone (any logged-in user can view).
   // Includes ranking (aggregated like /standings), W/L/MP, teams + member names.
-  app.get("/api/bsl/challenge-zone/clubs", requireAuth, async (_req, res) => {
+  // Adds `iAmMember` flag = TRUE only for clubs where the current user is a
+  // real member (manager, club-admin, team captain, or a registered player) —
+  // platform OWNER/ADMIN do NOT inherit membership for every club. They still
+  // get `canActFor` = true on every club so they can broker admin challenges.
+  app.get("/api/bsl/challenge-zone/clubs", requireAuth, async (req, res) => {
     try {
+      const user = (req as any).user;
+      const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
       // BSL club status enum is PENDING_PAYMENT | PENDING_VERIFICATION | ACTIVE | REJECTED.
       // Challenge Zone shows live clubs only (ACTIVE + not sleeping).
       const clubs = await db.select().from(bslClubs)
         .where(and(eq(bslClubs.status, "ACTIVE"), dsql`${bslClubs.sleepingAt} IS NULL`));
       const teams = await db.select().from(bslTeams);
+      // Resolve current user's real-membership club ids: any bslPlayers row
+      // they own OR any team where they are the captain (via bslPlayers).
+      const myPlayerRows = user ? await db.select().from(bslPlayers).where(eq(bslPlayers.userId, user.id)) : [];
+      const memberClubIds = new Set<number>(myPlayerRows.map(p => p.bslClubId));
+      const myPlayerIds = myPlayerRows.map(p => p.id);
+      if (myPlayerIds.length) {
+        const capTeams = await db.select().from(bslTeams).where(inArray(bslTeams.captainPlayerId, myPlayerIds));
+        for (const t of capTeams) memberClubIds.add(t.bslClubId);
+      }
+      for (const c of clubs) {
+        if (user && c.managerUserId === user.id) memberClubIds.add(c.id);
+        if (user && Array.isArray((c as any).adminUserIds) && (c as any).adminUserIds.includes(user.id)) memberClubIds.add(c.id);
+      }
       const clubIds = clubs.map(c => c.id);
       const members = clubIds.length
         ? await db.select({
@@ -4214,6 +4233,11 @@ export function registerBslRoutes(app: Express) {
           rubberDiff: a.rubberDiff,
           teams: clubTeams,
           teamCount: clubTeams.length,
+          // Real membership — only true if user is manager/club-admin/captain/player.
+          // Platform OWNER/ADMIN do NOT get this for every club.
+          iAmMember: memberClubIds.has(c.id),
+          // Can broker challenges on behalf of this club (platform admins can act for any).
+          canActFor: memberClubIds.has(c.id) || isPlatformAdmin,
         };
       });
       out.sort((a, b) => (a.rank ?? 999) - (b.rank ?? 999));
@@ -4304,6 +4328,25 @@ export function registerBslRoutes(app: Express) {
       if (!day) return res.status(404).json({ message: "Match day not found" });
       const [opp] = await db.select().from(bslClubs).where(eq(bslClubs.id, opponentClubId)).limit(1);
       if (!opp) return res.status(404).json({ message: "Opponent club not found" });
+      const [challenger] = await db.select().from(bslClubs).where(eq(bslClubs.id, challengerClubId)).limit(1);
+      if (!challenger) return res.status(404).json({ message: "Challenger club not found" });
+      // RULE 1: Same club pair can only attempt 1 challenge per calendar
+      // month (either direction). Counts PENDING/ACCEPTED/COMPLETED/DECLINED
+      // — once an attempt has been made and the opponent has seen/responded,
+      // the pair is done for the month. CANCELLED is excluded so a challenger
+      // who withdrew before any response can still retry.
+      const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+      const sameMonth = await db.select().from(bslChallenges).where(and(
+        or(
+          and(eq(bslChallenges.challengerClubId, challengerClubId), eq(bslChallenges.opponentClubId, opponentClubId)),
+          and(eq(bslChallenges.challengerClubId, opponentClubId), eq(bslChallenges.opponentClubId, challengerClubId)),
+        ),
+        inArray(bslChallenges.status, ["PENDING", "ACCEPTED", "COMPLETED", "DECLINED"]),
+        dsql`${bslChallenges.createdAt} >= ${monthStart}`,
+      ));
+      if (sameMonth.length > 0) {
+        return res.status(409).json({ message: `${challenger.name} and ${opp.name} have already played their monthly challenge — try again next month.` });
+      }
       const maxMatches = (day as any).maxMatches as number | null;
       if (maxMatches != null) {
         const used = await slotsUsedForDay(leagueDayId);
@@ -4319,6 +4362,21 @@ export function registerBslRoutes(app: Express) {
         createdById: user.id,
       }).returning();
       await audit(req, "CREATE_CHALLENGE", "bsl_challenge", row.id, { opponentClubId, leagueDayId, numMatches });
+      // Notify opponent club's admins + manager.
+      try {
+        const recipients = new Set<number>();
+        if (opp.managerUserId) recipients.add(opp.managerUserId);
+        for (const uid of ((opp as any).adminUserIds || [])) recipients.add(uid);
+        if (recipients.size > 0) {
+          await sendRulePush("bslChallengeReceived", Array.from(recipients), {
+            challengerClub: challenger.name,
+            opponentClub: opp.name,
+            numMatches: String(numMatches),
+            matchPlural: numMatches === 1 ? "" : "es",
+            date: new Date(day.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }),
+          }, { linkUrl: "/bsl/challenge-zone" });
+        }
+      } catch (e) { console.error("[bslChallengeReceived push]", e); }
       res.json(row);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -4345,9 +4403,19 @@ export function registerBslRoutes(app: Express) {
       }
       if (!allowed) return res.status(403).json({ message: "You don't have permission to perform this action" });
 
+      // Helper: load both clubs + day so we can notify after a state change.
+      const loadCtx = async () => {
+        const [day, opp, challenger] = await Promise.all([
+          db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, ch.leagueDayId)).limit(1).then(r => r[0]),
+          db.select().from(bslClubs).where(eq(bslClubs.id, ch.opponentClubId)).limit(1).then(r => r[0]),
+          db.select().from(bslClubs).where(eq(bslClubs.id, ch.challengerClubId)).limit(1).then(r => r[0]),
+        ]);
+        return { day, opp, challenger };
+      };
+
       if (action === "accept") {
         if (ch.status !== "PENDING") return res.status(409).json({ message: `Cannot accept — challenge is ${ch.status}` });
-        const [day] = await db.select().from(bslLeagueDays).where(eq(bslLeagueDays.id, ch.leagueDayId)).limit(1);
+        const { day, opp, challenger } = await loadCtx();
         const maxMatches = (day as any)?.maxMatches as number | null;
         if (maxMatches != null) {
           const used = await slotsUsedForDay(ch.leagueDayId, ch.id);
@@ -4359,14 +4427,48 @@ export function registerBslRoutes(app: Express) {
           status: "ACCEPTED", respondedById: user.id, respondedAt: new Date(),
         }).where(eq(bslChallenges.id, id)).returning();
         await audit(req, "ACCEPT_CHALLENGE", "bsl_challenge", id, {});
+        try {
+          const recipients = new Set<number>();
+          if (challenger?.managerUserId) recipients.add(challenger.managerUserId);
+          for (const uid of ((challenger as any)?.adminUserIds || [])) recipients.add(uid);
+          if (recipients.size > 0 && day && opp && challenger) {
+            await sendRulePush("bslChallengeAccepted", Array.from(recipients), {
+              challengerClub: challenger.name, opponentClub: opp.name,
+              date: new Date(day.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }),
+            }, { linkUrl: "/bsl/challenge-zone" });
+          }
+        } catch (e) { console.error("[bslChallengeAccepted push]", e); }
         return res.json(updated);
       }
       if (action === "decline") {
         if (ch.status !== "PENDING") return res.status(409).json({ message: `Cannot decline — challenge is ${ch.status}` });
+        // RULE 2: cap declines at 3 in the current calendar month. After that
+        // the opponent must accept or let the challenger cancel.
+        const monthStart = new Date(); monthStart.setDate(1); monthStart.setHours(0, 0, 0, 0);
+        const recentDeclines = await db.select().from(bslChallenges).where(and(
+          eq(bslChallenges.opponentClubId, ch.opponentClubId),
+          eq(bslChallenges.status, "DECLINED"),
+          dsql`${bslChallenges.respondedAt} >= ${monthStart}`,
+        ));
+        if (recentDeclines.length >= 3) {
+          return res.status(409).json({ message: "Your club has already declined 3 challenges this month. You must accept or let the challenger cancel." });
+        }
         const [updated] = await db.update(bslChallenges).set({
           status: "DECLINED", respondedById: user.id, respondedAt: new Date(),
         }).where(eq(bslChallenges.id, id)).returning();
         await audit(req, "DECLINE_CHALLENGE", "bsl_challenge", id, {});
+        try {
+          const { day, opp, challenger } = await loadCtx();
+          const recipients = new Set<number>();
+          if (challenger?.managerUserId) recipients.add(challenger.managerUserId);
+          for (const uid of ((challenger as any)?.adminUserIds || [])) recipients.add(uid);
+          if (recipients.size > 0 && day && opp && challenger) {
+            await sendRulePush("bslChallengeDeclined", Array.from(recipients), {
+              challengerClub: challenger.name, opponentClub: opp.name,
+              date: new Date(day.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" }),
+            }, { linkUrl: "/bsl/challenge-zone" });
+          }
+        } catch (e) { console.error("[bslChallengeDeclined push]", e); }
         return res.json(updated);
       }
       if (action === "cancel") {

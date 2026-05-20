@@ -20,6 +20,7 @@ type ClubRow = {
   additionalDivisions: string[]; managerUserId: number; adminUserIds: number[];
   rank: number | null; played: number; won: number; lost: number; drawn: number;
   points: number; rubberDiff: number; teamCount: number;
+  iAmMember: boolean; canActFor: boolean;
   teams: Array<{ id: number; name: string; division: string; category: string | null; pairNumber: number | null; members: Array<{ playerId: number; name: string }> }>;
 };
 type MatchDay = {
@@ -62,17 +63,17 @@ export default function ChallengeZone() {
 
   const isPlatformAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
 
-  // Clubs the current user can act on behalf of (manager or in adminUserIds).
-  // Captain check is server-authoritative, so we still allow attempt; this just
-  // governs the "challenger club" dropdown defaults.
-  const myClubs = useMemo(() => {
-    if (!user) return [] as ClubRow[];
-    if (isPlatformAdmin) return clubs; // admin can act for any
-    return clubs.filter(c =>
-      c.managerUserId === (user as any).id ||
-      (Array.isArray(c.adminUserIds) && c.adminUserIds.includes((user as any).id))
-    );
-  }, [clubs, user, isPlatformAdmin]);
+  // Real-membership clubs (server-authoritative `iAmMember` — manager, club
+  // admin, captain, or registered player). This drives the "YOURS" badge and
+  // defaults the challenger picker. Platform admins do NOT inherit membership.
+  const memberClubs = useMemo(() => clubs.filter(c => c.iAmMember), [clubs]);
+  // Clubs the user is allowed to act on behalf of. Platform admins can act
+  // for any club (brokered admin challenges); regular users only for their own.
+  const myClubs = useMemo(
+    () => (isPlatformAdmin ? clubs : memberClubs),
+    [clubs, memberClubs, isPlatformAdmin],
+  );
+  const memberClubIds = useMemo(() => new Set(memberClubs.map(c => c.id)), [memberClubs]);
 
   const canChallenge = myClubs.length > 0;
 
@@ -85,13 +86,44 @@ export default function ChallengeZone() {
     return rows;
   }, [clubs, search, sortBy]);
 
-  const myChallengeIds = useMemo(
-    () => new Set(myClubs.map(c => c.id)),
-    [myClubs],
-  );
-  const incoming = challenges.filter(c => myChallengeIds.has(c.opponentClubId) && c.status === "PENDING");
-  const outgoing = challenges.filter(c => myChallengeIds.has(c.challengerClubId));
-  const otherChallenges = challenges.filter(c => !myChallengeIds.has(c.opponentClubId) && !myChallengeIds.has(c.challengerClubId));
+  // Incoming/outgoing buckets use REAL membership so a platform admin's
+  // own club challenges land in their own inbox — brokered challenges they
+  // create for other clubs surface in League activity.
+  const incoming = challenges.filter(c => memberClubIds.has(c.opponentClubId) && c.status === "PENDING");
+  const outgoing = challenges.filter(c => memberClubIds.has(c.challengerClubId));
+  const otherChallenges = challenges.filter(c => !memberClubIds.has(c.opponentClubId) && !memberClubIds.has(c.challengerClubId));
+  // Acting set — wider than membership for platform admins (lets them
+  // accept/decline/cancel on behalf of any club from the Challenges tab).
+  const actableClubIds = useMemo(() => new Set(myClubs.map(c => c.id)), [myClubs]);
+
+  // Battle-box drag state — each box represents a Match Day with 2 slots.
+  // Drop a club card onto a slot to place it there. Filling both slots opens
+  // the challenge dialog pre-populated with that pair + that match day.
+  const [boxes, setBoxes] = useState<Record<number, { home: ClubRow | null; away: ClubRow | null }>>({});
+  const [dragClub, setDragClub] = useState<ClubRow | null>(null);
+  const placeClub = (dayId: number, slot: "home" | "away", club: ClubRow) => {
+    setBoxes(prev => {
+      const cur = prev[dayId] || { home: null, away: null };
+      const other = slot === "home" ? cur.away : cur.home;
+      if (other && other.id === club.id) return prev; // can't place same club in both slots
+      return { ...prev, [dayId]: { ...cur, [slot]: club } };
+    });
+  };
+  const clearSlot = (dayId: number, slot: "home" | "away") => {
+    setBoxes(prev => ({ ...prev, [dayId]: { ...(prev[dayId] || { home: null, away: null }), [slot]: null } }));
+  };
+  const launchBoxChallenge = (dayId: number) => {
+    const box = boxes[dayId];
+    if (!box?.home || !box?.away) return;
+    // Pick challenger: prefer user's real-membership side; else first of
+    // canActFor; admins broker either way.
+    const home = box.home, away = box.away;
+    const challenger = home.iAmMember ? home : away.iAmMember ? away : home.canActFor ? home : away;
+    const target = challenger.id === home.id ? away : home;
+    setChallengeTarget(target);
+    setBoxPreselect({ challengerId: challenger.id, leagueDayId: dayId });
+  };
+  const [boxPreselect, setBoxPreselect] = useState<{ challengerId: number; leagueDayId: number } | null>(null);
 
   const respond = useMutation({
     mutationFn: async ({ id, action }: { id: number; action: string }) =>
@@ -194,9 +226,12 @@ export default function ChallengeZone() {
                     <ClubCard key={c.id} club={c}
                       expanded={expanded === c.id}
                       onToggle={() => setExpanded(expanded === c.id ? null : c.id)}
-                      onChallenge={() => setChallengeTarget(c)}
-                      canChallenge={canChallenge && !myChallengeIds.has(c.id)}
-                      isMine={myChallengeIds.has(c.id)} />
+                      onChallenge={() => { setBoxPreselect(null); setChallengeTarget(c); }}
+                      onDragStart={() => setDragClub(c)}
+                      onDragEnd={() => setDragClub(null)}
+                      canChallenge={canChallenge && !c.iAmMember}
+                      isMine={c.iAmMember}
+                      isAdminBroker={isPlatformAdmin && !c.iAmMember} />
                   ))}
                 </AnimatePresence>
               </div>
@@ -215,20 +250,21 @@ export default function ChallengeZone() {
                       <ChallengeList title="Incoming · waiting for your response" tone="cyan"
                         rows={incoming} canRespond user={user as any}
                         onAction={(id, action) => respond.mutate({ id, action })}
-                        myClubIds={myChallengeIds} matchDays={matchDays} />
+                        myClubIds={actableClubIds} matchDays={matchDays} />
                     )}
                     {outgoing.length > 0 && (
                       <ChallengeList title="Sent by your clubs" tone="gold"
                         rows={outgoing} canRespond user={user as any}
                         onAction={(id, action) => respond.mutate({ id, action })}
-                        myClubIds={myChallengeIds} matchDays={matchDays} />
+                        myClubIds={actableClubIds} matchDays={matchDays} />
                     )}
                   </>
                 )}
                 {otherChallenges.length > 0 && (
                   <ChallengeList title="League activity" tone="muted"
-                    rows={otherChallenges} canRespond={false} user={user as any}
-                    onAction={() => {}} myClubIds={myChallengeIds} matchDays={matchDays} />
+                    rows={otherChallenges} canRespond={isPlatformAdmin} user={user as any}
+                    onAction={(id, action) => respond.mutate({ id, action })}
+                    myClubIds={actableClubIds} matchDays={matchDays} />
                 )}
                 {challenges.length === 0 && (
                   <div className="text-center py-12" style={{ color: BSL.muted }}>No challenges yet. Head to the Clubs tab and pick a target.</div>
@@ -239,20 +275,138 @@ export default function ChallengeZone() {
         )}
       </div>
 
+      {/* Sticky Battle Box drag-and-drop strip */}
+      {canChallenge && matchDays.length > 0 && tab === "clubs" && (
+        <BattleBoxStrip matchDays={matchDays} boxes={boxes} dragClub={dragClub}
+          onDrop={placeClub} onClear={clearSlot} onLaunch={launchBoxChallenge} />
+      )}
+
       <AnimatePresence>
         {challengeTarget && (
           <ChallengeDialog target={challengeTarget} myClubs={myClubs} matchDays={matchDays}
-            onClose={() => setChallengeTarget(null)} />
+            preselect={boxPreselect}
+            onClose={() => { setChallengeTarget(null); setBoxPreselect(null); }} />
         )}
       </AnimatePresence>
     </div>
   );
 }
 
-function ClubCard({ club, expanded, onToggle, onChallenge, canChallenge, isMine }: {
-  club: ClubRow; expanded: boolean; onToggle: () => void; onChallenge: () => void;
-  canChallenge: boolean; isMine: boolean;
+function BattleBoxStrip({ matchDays, boxes, dragClub, onDrop, onClear, onLaunch }: {
+  matchDays: MatchDay[]; boxes: Record<number, { home: ClubRow | null; away: ClubRow | null }>;
+  dragClub: ClubRow | null;
+  onDrop: (dayId: number, slot: "home" | "away", club: ClubRow) => void;
+  onClear: (dayId: number, slot: "home" | "away") => void;
+  onLaunch: (dayId: number) => void;
 }) {
+  const usableDays = matchDays.filter(d => d.slotsRemaining == null || d.slotsRemaining > 0).slice(0, 6);
+  if (usableDays.length === 0) return null;
+  return (
+    <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
+      <div className="max-w-6xl mx-auto px-4 pb-3 pointer-events-auto">
+        <div className="rounded-2xl p-3"
+          style={{
+            background: `linear-gradient(180deg, ${BSL.card}f5 0%, ${BSL.bgDeep}f8 100%)`,
+            border: `1px solid ${BSL.cyan}55`,
+            boxShadow: `0 -10px 50px ${BSL.bgDeep}cc, 0 0 30px ${BSL.cyan}33`,
+            backdropFilter: "blur(10px)",
+          }}>
+          <div className="flex items-center justify-between mb-2 px-1">
+            <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: BSL.cyan }}>
+              ⚔ Battle Box — drag clubs into a Match Day to challenge
+            </div>
+            {dragClub && (
+              <div className="text-[10px] font-bold" style={{ color: BSL.gold }}>
+                Dragging: {dragClub.name}
+              </div>
+            )}
+          </div>
+          <div className="flex gap-2 overflow-x-auto pb-1">
+            {usableDays.map(d => {
+              const box = boxes[d.id] || { home: null, away: null };
+              const ready = box.home && box.away;
+              return (
+                <div key={d.id} className="flex-shrink-0 rounded-xl p-2"
+                  style={{
+                    background: BSL.bgDeep,
+                    border: `1px solid ${ready ? BSL.gold : BSL.border}`,
+                    minWidth: 240,
+                    boxShadow: ready ? `0 0 24px ${BSL.gold}55` : "none",
+                  }}
+                  data-testid={`battlebox-${d.id}`}>
+                  <div className="text-[10px] font-bold mb-1.5 px-0.5" style={{ color: BSL.muted }}>
+                    {new Date(d.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                    {d.slotsRemaining != null && <span className="ml-1.5" style={{ color: BSL.faint }}>· {d.slotsRemaining} slots</span>}
+                  </div>
+                  <div className="flex items-center gap-1.5">
+                    <DropSlot box={box.home} slot="home" dayId={d.id} onDrop={onDrop} onClear={onClear} dragClub={dragClub} />
+                    <span className="text-[10px] font-black" style={{ color: BSL.gold }}>VS</span>
+                    <DropSlot box={box.away} slot="away" dayId={d.id} onDrop={onDrop} onClear={onClear} dragClub={dragClub} />
+                  </div>
+                  <button
+                    disabled={!ready}
+                    onClick={() => onLaunch(d.id)}
+                    data-testid={`button-launch-${d.id}`}
+                    className="mt-2 w-full px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    style={{
+                      background: ready ? `linear-gradient(90deg, ${BSL.cyan}, ${BSL.gold})` : BSL.card,
+                      color: ready ? "#000" : BSL.faint,
+                      border: `1px solid ${ready ? BSL.gold : BSL.border}`,
+                      boxShadow: ready ? `0 0 20px ${BSL.gold}88` : "none",
+                    }}>
+                    {ready ? "⚡ Launch Challenge" : "Drop 2 clubs"}
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DropSlot({ box, slot, dayId, onDrop, onClear, dragClub }: {
+  box: ClubRow | null; slot: "home" | "away"; dayId: number;
+  onDrop: (dayId: number, slot: "home" | "away", club: ClubRow) => void;
+  onClear: (dayId: number, slot: "home" | "away") => void;
+  dragClub: ClubRow | null;
+}) {
+  const [over, setOver] = useState(false);
+  const dragging = !!dragClub;
+  return (
+    <div
+      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); }}
+      onDragLeave={() => setOver(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setOver(false);
+        const raw = e.dataTransfer.getData("text/club-id");
+        if (!raw || !dragClub) return;
+        if (dragClub.id === Number(raw)) onDrop(dayId, slot, dragClub);
+      }}
+      className="flex-1 rounded-lg flex items-center justify-center text-[10px] font-bold transition"
+      style={{
+        minHeight: 38,
+        background: box ? `${BSL.cyan}1a` : over ? `${BSL.cyan}33` : `${BSL.card}`,
+        border: `1px dashed ${box ? BSL.cyan : over ? BSL.cyan : dragging ? `${BSL.cyan}88` : BSL.border}`,
+        color: box ? BSL.text : BSL.faint,
+        cursor: box ? "pointer" : "default",
+      }}
+      onClick={() => box && onClear(dayId, slot)}
+      title={box ? "Click to remove" : "Drop a club here"}
+      data-testid={`dropslot-${dayId}-${slot}`}>
+      {box ? <span className="truncate px-2">{box.name}</span> : <span>Drop club</span>}
+    </div>
+  );
+}
+
+function ClubCard({ club, expanded, onToggle, onChallenge, onDragStart, onDragEnd, canChallenge, isMine, isAdminBroker }: {
+  club: ClubRow; expanded: boolean; onToggle: () => void; onChallenge: () => void;
+  onDragStart?: () => void; onDragEnd?: () => void;
+  canChallenge: boolean; isMine: boolean; isAdminBroker?: boolean;
+}) {
+  const draggable = canChallenge || isMine;
   return (
     <motion.div layout
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
@@ -260,9 +414,18 @@ function ClubCard({ club, expanded, onToggle, onChallenge, canChallenge, isMine 
       className="rounded-2xl overflow-hidden"
       style={{
         background: `linear-gradient(180deg, ${BSL.card} 0%, ${BSL.bgDeep} 100%)`,
-        border: `1px solid ${BSL.border}`,
-        boxShadow: `0 4px 30px ${BSL.bgDeep}aa`,
+        border: `1px solid ${isMine ? `${BSL.gold}66` : BSL.border}`,
+        boxShadow: isMine ? `0 0 24px ${BSL.gold}33, 0 4px 30px ${BSL.bgDeep}aa` : `0 4px 30px ${BSL.bgDeep}aa`,
+        cursor: draggable ? "grab" : "default",
       }}
+      draggable={draggable}
+      onDragStart={(e) => {
+        if (!draggable) return;
+        (e as any).dataTransfer.setData("text/club-id", String(club.id));
+        (e as any).dataTransfer.effectAllowed = "move";
+        onDragStart?.();
+      }}
+      onDragEnd={() => onDragEnd?.()}
       data-testid={`card-club-${club.id}`}>
       <div className="p-4">
         <div className="flex items-start gap-3">
@@ -362,12 +525,13 @@ function Stat({ label, value, colour }: { label: string; value: number; colour: 
   );
 }
 
-function ChallengeDialog({ target, myClubs, matchDays, onClose }: {
+function ChallengeDialog({ target, myClubs, matchDays, onClose, preselect }: {
   target: ClubRow; myClubs: ClubRow[]; matchDays: MatchDay[]; onClose: () => void;
+  preselect?: { challengerId: number; leagueDayId: number } | null;
 }) {
   const { toast } = useToast();
-  const [challengerId, setChallengerId] = useState<number | null>(myClubs[0]?.id ?? null);
-  const [leagueDayId, setLeagueDayId] = useState<number | null>(null);
+  const [challengerId, setChallengerId] = useState<number | null>(preselect?.challengerId ?? myClubs[0]?.id ?? null);
+  const [leagueDayId, setLeagueDayId] = useState<number | null>(preselect?.leagueDayId ?? null);
   const [numMatches, setNumMatches] = useState(1);
   const [message, setMessage] = useState("");
 
