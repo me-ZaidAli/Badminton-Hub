@@ -351,9 +351,9 @@ export default function BslAdminQuickResults() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-white/50 font-bold">Rubbers won</div>
-                <div className="text-lg font-extrabold tabular-nums" style={{ color: BSL.gold }}>
-                  {summary.h} <span className="text-white/40 font-medium">–</span> {summary.a}
+                <div className="text-[10px] uppercase tracking-wider text-white/50 font-bold">Sets won</div>
+                <div className="text-lg font-extrabold tabular-nums" style={{ color: BSL.gold }} data-testid="text-fixture-sets-won">
+                  {summary.homeSets} <span className="text-white/40 font-medium">–</span> {summary.awaySets}
                 </div>
               </div>
             </div>
