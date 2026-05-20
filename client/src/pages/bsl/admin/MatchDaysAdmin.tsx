@@ -353,19 +353,40 @@ function MatchDayEditor({ id, league, clubs, onClose }: { id: number; league: an
 
 function FixtureRow({ f, clubs, disabled, onPatch, onDelete }: { f: any; clubs: any[]; disabled: boolean; onPatch: (p: any) => void; onDelete?: () => void }) {
   const dt = f.startTime ? fmtLocal(f.startTime) : "";
+  // Expand each club into one entry per division it participates in (primary
+  // + additionalDivisions) so a club in N divisions shows N times. Value is
+  // `${clubId}|${division}` — parsed on change to set the fixture's division
+  // alongside the club id.
+  type Opt = { clubId: number; name: string; division: string; value: string };
+  const opts: Opt[] = [];
+  (clubs || []).forEach((c: any) => {
+    const divs = new Set<string>();
+    if (c.division) divs.add(c.division);
+    (Array.isArray(c.additionalDivisions) ? c.additionalDivisions : []).forEach((d: string) => { if (d) divs.add(d); });
+    if (divs.size === 0) divs.add("—");
+    divs.forEach((d) => opts.push({ clubId: c.id, name: c.name, division: d, value: `${c.id}|${d}` }));
+  });
+  opts.sort((a, b) => a.division.localeCompare(b.division) || a.name.localeCompare(b.name));
+  const homeValue = f.homeClubId ? `${f.homeClubId}|${f.division || ""}` : "";
+  const awayValue = f.awayClubId ? `${f.awayClubId}|${f.division || ""}` : "";
+  function parse(v: string) {
+    if (!v) return { clubId: null as number | null, division: null as string | null };
+    const [c, d] = v.split("|");
+    return { clubId: Number(c) || null, division: d || null };
+  }
   return (
     <div className="grid grid-cols-1 md:grid-cols-[1fr_1fr_120px_120px_auto_auto] gap-2 items-center p-2 rounded-lg" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`row-fixture-${f.id}`}>
-      <select defaultValue={f.homeClubId || ""} disabled={disabled}
-        onChange={(e) => onPatch({ homeClubId: e.target.value ? Number(e.target.value) : null })}
+      <select defaultValue={homeValue} disabled={disabled}
+        onChange={(e) => { const p = parse(e.target.value); onPatch({ homeClubId: p.clubId, division: p.division }); }}
         className="px-2 py-1.5 rounded-md text-xs disabled:opacity-50" style={inp()} data-testid={`select-home-${f.id}`}>
         <option value="">— Home club —</option>
-        {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        {opts.map(o => <option key={`h-${o.value}`} value={o.value}>{o.name} ({o.division})</option>)}
       </select>
-      <select defaultValue={f.awayClubId || ""} disabled={disabled}
-        onChange={(e) => onPatch({ awayClubId: e.target.value ? Number(e.target.value) : null })}
+      <select defaultValue={awayValue} disabled={disabled}
+        onChange={(e) => { const p = parse(e.target.value); onPatch({ awayClubId: p.clubId, division: p.division }); }}
         className="px-2 py-1.5 rounded-md text-xs disabled:opacity-50" style={inp()} data-testid={`select-away-${f.id}`}>
         <option value="">— Away club —</option>
-        {clubs.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+        {opts.map(o => <option key={`a-${o.value}`} value={o.value}>{o.name} ({o.division})</option>)}
       </select>
       <input type="number" min={1} max={64} placeholder="Court" defaultValue={f.court ?? ""} disabled={disabled}
         onBlur={(e) => {

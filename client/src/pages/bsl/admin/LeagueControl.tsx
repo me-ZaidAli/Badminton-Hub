@@ -74,9 +74,20 @@ export default function LeagueControl() {
     onError: (e: any) => toast({ title: "Failed", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
   });
 
+  // Multi-division clubs need to appear once per division — value encodes
+  // `${clubId}|${division}` so we know which division the fixture belongs to.
+  function parseClubDiv(v: string): { clubId: number | null; division: string | null } {
+    if (!v) return { clubId: null, division: null };
+    const [c, d] = v.split("|");
+    return { clubId: Number(c) || null, division: d || null };
+  }
+  const cvcHomeParsed = parseClubDiv(cvcHome);
+  const cvcAwayParsed = parseClubDiv(cvcAway);
+
   const createClubFixture = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/club-fixtures", {
-      homeClubId: Number(cvcHome), awayClubId: Number(cvcAway),
+      homeClubId: cvcHomeParsed.clubId, awayClubId: cvcAwayParsed.clubId,
+      division: cvcHomeParsed.division || cvcAwayParsed.division || null,
       leagueDayId: cvcDayId ? Number(cvcDayId) : undefined,
     })).json(),
     onSuccess: () => {
@@ -88,6 +99,18 @@ export default function LeagueControl() {
   });
 
   const activeClubs = (clubs || []).filter((c: any) => c.status === "ACTIVE");
+  // Expand each active club into one option per division it participates in
+  // (primary `division` + every `additionalDivisions` entry).
+  type ClubDivOpt = { clubId: number; name: string; division: string; value: string };
+  const clubDivOptions: ClubDivOpt[] = [];
+  activeClubs.forEach((c: any) => {
+    const divs = new Set<string>();
+    if (c.division) divs.add(c.division);
+    (Array.isArray(c.additionalDivisions) ? c.additionalDivisions : []).forEach((d: string) => { if (d) divs.add(d); });
+    if (divs.size === 0) divs.add("—");
+    divs.forEach((d) => clubDivOptions.push({ clubId: c.id, name: c.name, division: d, value: `${c.id}|${d}` }));
+  });
+  clubDivOptions.sort((a, b) => a.division.localeCompare(b.division) || a.name.localeCompare(b.name));
   const clubFixtures = (fixtures || []).filter((f: any) => f.homeClubId != null && f.awayClubId != null);
 
   return (
@@ -171,14 +194,21 @@ export default function LeagueControl() {
             <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Home club</label>
             <select value={cvcHome} onChange={e => setCvcHome(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-cvc-home">
               <option value="">Select home…</option>
-              {activeClubs.map((c: any) => <option key={c.id} value={c.id}>{c.name} ({c.division})</option>)}
+              {clubDivOptions.map((o) => (
+                <option key={o.value} value={o.value}>{o.name} ({o.division})</option>
+              ))}
             </select>
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Away club</label>
             <select value={cvcAway} onChange={e => setCvcAway(e.target.value)} className="w-full mt-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-cvc-away">
               <option value="">Select away…</option>
-              {activeClubs.filter((c: any) => String(c.id) !== cvcHome).map((c: any) => <option key={c.id} value={c.id}>{c.name} ({c.division})</option>)}
+              {clubDivOptions
+                .filter((o) => o.clubId !== cvcHomeParsed.clubId)
+                .filter((o) => !cvcHomeParsed.division || o.division === cvcHomeParsed.division)
+                .map((o) => (
+                  <option key={o.value} value={o.value}>{o.name} ({o.division})</option>
+                ))}
             </select>
           </div>
           <div>

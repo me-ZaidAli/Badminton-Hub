@@ -749,7 +749,7 @@ export function registerBslRoutes(app: Express) {
   app.patch("/api/bsl/fixtures/:id", requireAdmin, async (req, res) => {
     try {
       const id = Number(req.params.id);
-      const { court, status, startTime, homeClubId, awayClubId, bslLeagueDayId } = req.body;
+      const { court, status, startTime, homeClubId, awayClubId, bslLeagueDayId, division } = req.body;
       // Lifecycle guard — block edits on CLOSED days; allow ONLY pure status
       // changes when LIVE. A mixed payload (status + court/startTime) during
       // LIVE is rejected so we don't silently sneak forbidden edits in.
@@ -765,6 +765,7 @@ export function registerBslRoutes(app: Express) {
       if (homeClubId !== undefined) patch.homeClubId = homeClubId == null ? null : Number(homeClubId);
       if (awayClubId !== undefined) patch.awayClubId = awayClubId == null ? null : Number(awayClubId);
       if (bslLeagueDayId !== undefined) patch.bslLeagueDayId = bslLeagueDayId == null ? null : Number(bslLeagueDayId);
+      if (division !== undefined) patch.division = division == null ? null : String(division).trim().slice(0, 56) || null;
       if (patch.homeClubId != null && patch.awayClubId != null && patch.homeClubId === patch.awayClubId) {
         return res.status(400).json({ message: "Home and away clubs must differ" });
       }
@@ -818,9 +819,9 @@ export function registerBslRoutes(app: Express) {
   const DEFAULT_CVC_TYPES: any[] = ["MD", "MD", "WD", "WD", "XD", "XD"];
   app.post("/api/bsl/admin/club-fixtures", requireAdmin, async (req, res) => {
     try {
-      const { homeClubId, awayClubId, leagueDayId, court, startTime, types, category } = req.body as {
+      const { homeClubId, awayClubId, leagueDayId, court, startTime, types, category, division } = req.body as {
         homeClubId: number; awayClubId: number; leagueDayId?: number;
-        court?: number | null; startTime?: string; types?: string[]; category?: string;
+        court?: number | null; startTime?: string; types?: string[]; category?: string; division?: string | null;
       };
       if (!homeClubId || !awayClubId) return res.status(400).json({ message: "homeClubId + awayClubId required" });
       if (homeClubId === awayClubId) return res.status(400).json({ message: "Home and away must differ" });
@@ -850,9 +851,14 @@ export function registerBslRoutes(app: Express) {
       for (const t of lineup) if (!allowed.has(t)) return res.status(400).json({ message: `Invalid rubber type: ${t}` });
       const clubs = await db.select().from(bslClubs).where(inArray(bslClubs.id, [homeClubId, awayClubId]));
       if (clubs.length !== 2) return res.status(404).json({ message: "Club(s) not found" });
+      // Persist division so standings/filters know which division this fixture
+      // counts toward. Multi-division clubs make this required — otherwise a
+      // single club-vs-club fixture would silently count in both divisions.
+      const div = division ? String(division).trim().slice(0, 56) : null;
       const [f] = await db.insert(bslFixtures).values({
         bslLeagueDayId: leagueDayId ?? null,
         category: cat,
+        division: div,
         rulesSnapshot: settings as any,
         homeClubId, awayClubId,
         homeTeamId: null, awayTeamId: null,
