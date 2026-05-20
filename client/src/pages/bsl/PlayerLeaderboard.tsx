@@ -18,8 +18,8 @@ type PlayerRow = {
 };
 type ClubRow = {
   position: number; clubId: number; clubName: string; clubLogo: string | null; division: string;
-  played: number; won: number; drawn: number; lost: number;
-  setsFor: number; setsAgainst: number; points: number;
+  played: number; won: number; lost: number;
+  setsFor: number; setsAgainst: number; points: number; pointsAgainst: number;
   winRate: number; playerCount: number;
 };
 type PairRow = {
