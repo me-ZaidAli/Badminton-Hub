@@ -106,7 +106,7 @@ export function SessionBanner({ message, color, sessionId, variant = "card" }: {
   const firstLine = (message.split(/\r?\n/).find(l => l.trim().length > 0) || message).trim();
   return (
     <div
-      className={`${palette.bar} ${palette.text} ${radius} shadow-sm`}
+      className={`relative z-10 ${palette.bar} ${palette.text} ${radius} shadow-sm`}
       data-testid={`session-banner-${sessionId}`}
       role="status"
     >
