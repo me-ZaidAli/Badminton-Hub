@@ -124,26 +124,6 @@ export default function DashboardBanner({
               {subtitle}
             </p>
           )}
-          {showCtas && (
-            <div className="mt-4 sm:mt-6 flex flex-wrap items-center justify-center gap-3">
-              <Link href="/memberships">
-                <Button
-                  className="bg-white text-[#5865F2] hover:bg-white/90 hover:scale-[1.03] transition-all rounded-full px-6 py-5 text-sm sm:text-base font-bold shadow-xl"
-                  data-testid="button-banner-subscribe"
-                >
-                  Subscribe
-                </Button>
-              </Link>
-              <Link href="/memberships?gift=1">
-                <Button
-                  className="bg-black/25 text-white hover:bg-black/40 hover:scale-[1.03] transition-all rounded-full px-6 py-5 text-sm sm:text-base font-bold border border-white/20 backdrop-blur-md"
-                  data-testid="button-banner-gift"
-                >
-                  <Sparkles className="w-4 h-4 mr-2 text-[#EB459E]" /> Gift Premium
-                </Button>
-              </Link>
-            </div>
-          )}
         </div>
       )}
 
