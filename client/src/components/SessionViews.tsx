@@ -2531,33 +2531,35 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                     </Badge>
                   </div>
 
-                  <div className="space-y-3">
+                  {/* Responsive Discord-Quests-style grid: 1/2/3/4 columns.
+                      When a card is expanded it spans the full row so the
+                      detail panel stays readable. */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
                     {sortedSessions.map((s) => {
                       const idx = cardIdx++;
+                      const isExpandedHere = expandedSessionId === s.id;
 
                       return (
-                        <div key={s.id} className="flex items-start gap-0 group/card">
-                          <div className="hidden sm:flex items-center flex-shrink-0 pt-5 mr-1">
-                            <div className={`w-5 h-px tl-connector-anim ${isPast ? "bg-border/25" : "bg-primary/20"}`} />
-                          </div>
-
-                          <div className="flex-1 min-w-0 tl-card-anim" style={{ animationDelay: `${idx * 70}ms` }}>
-                            {showJuniorTeaser && s.sessionType === "JUNIORS_ONLY" ? (
-                              <JuniorTeaserCard session={s} clubs={clubs} variant="timeline" />
-                            ) : (
-                              <TimelineSessionCard
-                                session={s}
-                                clubs={clubs}
-                                mySignup={mySignupsBySession?.get(s.id)}
-                                isExpanded={expandedSessionId === s.id}
-                                onToggleExpand={() => handleToggleExpand(s.id)}
-                                onNavigate={() => handleNavigate(s)}
-                                onSignUp={onSignUp}
-                                onWithdraw={onWithdraw}
-                                adminActions={adminActions}
-                              />
-                            )}
-                          </div>
+                        <div
+                          key={s.id}
+                          className={`min-w-0 tl-card-anim group/card ${isExpandedHere ? "sm:col-span-2 lg:col-span-3 2xl:col-span-4" : ""}`}
+                          style={{ animationDelay: `${idx * 70}ms` }}
+                        >
+                          {showJuniorTeaser && s.sessionType === "JUNIORS_ONLY" ? (
+                            <JuniorTeaserCard session={s} clubs={clubs} variant="timeline" />
+                          ) : (
+                            <TimelineSessionCard
+                              session={s}
+                              clubs={clubs}
+                              mySignup={mySignupsBySession?.get(s.id)}
+                              isExpanded={isExpandedHere}
+                              onToggleExpand={() => handleToggleExpand(s.id)}
+                              onNavigate={() => handleNavigate(s)}
+                              onSignUp={onSignUp}
+                              onWithdraw={onWithdraw}
+                              adminActions={adminActions}
+                            />
+                          )}
                         </div>
                       );
                     })}

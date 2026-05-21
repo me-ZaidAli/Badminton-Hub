@@ -1,0 +1,133 @@
+Redesign the Sessions section of the badminton app using the Discord Quests / Shop UI as the primary inspiration reference. The goal is to make the Sessions experience feel premium, compact, modern, interactive, and highly visual while preserving ALL existing functionality, backend logic, filters, actions, buttons, metadata, and session properties.
+
+The current timeline view must remain, but the session layout should be transformed into a responsive grid system instead of oversized full-width cards. The new design should dramatically reduce unnecessary vertical space and improve content density without feeling cluttered.
+
+Core layout requirements:
+
+* Keep the vertical timeline/date structure on the left side.
+* Timeline should feel cleaner and more modern:
+
+  * thinner line
+  * glowing timeline nodes
+  * subtle connector animations
+  * compact premium date blocks
+* On the right side of the timeline, sessions should appear in responsive compact cards.
+* Grid behaviour:
+
+  * 4 cards per row on large desktop
+  * 3 cards on medium screens
+  * 2 cards on tablets
+  * 1 card on mobile
+* If more than 4 sessions exist in the same time slot/day, cards automatically wrap onto the next row.
+* Mobile layout must adapt perfectly with stacked cards and touch-friendly controls.
+
+Discord-inspired visual direction:
+
+* Use Discord Quest / Nitro / Shop inspired aesthetics.
+* Maintain the dark blue/purple gaming-style identity already used in the app.
+* Add layered gradients, soft glow effects, premium shadows, and glassmorphism.
+* Cards should feel dynamic and interactive instead of flat containers.
+* Add subtle ambient glow backgrounds behind featured or active sessions.
+* Rounded corners should feel modern and soft like Discord cards.
+* Use smooth transitions everywhere.
+
+Session card redesign:
+Each card should contain ALL current information and controls already existing in the system, including:
+
+* title
+* description
+* venue
+* court information
+* session host
+* session type
+* player count
+* occupancy
+* pricing
+* duration
+* tags
+* badges
+* attendance states
+* action buttons
+* avatars
+* session status
+* waitlist/full indicators
+* admin actions
+* etc
+
+Card structure:
+
+1. Header Area
+
+* Compact banner/image/gradient area.
+* Dynamic gradient overlay.
+* Optional animated glow.
+* Status badges in top-right corner.
+* Capacity or “hot session” indicators.
+
+2. Content Area
+
+* Session title.
+* Short description preview.
+* Tags/chips.
+* Session type labels.
+* Compact metadata rows.
+
+3. Footer Area
+
+* Time.
+* Price.
+* Court count.
+* Occupancy.
+* CTA buttons.
+* Participant avatars.
+* Expand/manage actions.
+
+Hover interactions:
+
+* Card lifts slightly upward.
+* Border glow intensifies.
+* Gradient subtly animates.
+* Shadow deepens.
+* Buttons animate smoothly.
+* Optional shine sweep animation.
+* Optional mouse-follow glow effect.
+* Banner/background slightly zooms on hover.
+* Smooth 200–300ms transitions using Framer Motion.
+
+Important UX improvements:
+
+* Make cards compact but premium.
+* Avoid massive empty areas.
+* Increase information density elegantly.
+* Preserve readability.
+* Improve spacing hierarchy.
+* Keep buttons accessible and touch-friendly.
+
+Filters and controls:
+
+* Preserve all existing filters and search functionality.
+* Restyle filters/buttons to match Discord’s Quest UI.
+* Use pill-style segmented controls.
+* Add hover glow interactions.
+* On mobile, filters should become horizontally scrollable chips.
+
+Animations:
+
+* Use lightweight GPU-accelerated animations only.
+* Framer Motion preferred.
+* Keep animations subtle and premium.
+* No excessive motion or lag.
+
+Performance:
+
+* Optimise rendering for many session cards.
+* Keep hover effects performant.
+* Ensure mobile scrolling remains smooth.
+
+Important:
+
+* Do NOT remove any existing functionality.
+* Do NOT change backend structure.
+* Do NOT remove timeline mode.
+* Do NOT simplify session data.
+* This is purely a next-level premium UI/UX redesign inspired by Discord Quests and Shop pages while preserving all current session system capabilities.
