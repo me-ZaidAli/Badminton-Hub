@@ -102,7 +102,6 @@ export function SessionBanner({ message, color, sessionId, variant = "card" }: {
   }
 
   // Card: single-line preview with chevron; click to expand inline.
-  const [open, setOpen] = useState(false);
   const firstLine = (message.split(/\r?\n/).find(l => l.trim().length > 0) || message).trim();
   return (
     <div
