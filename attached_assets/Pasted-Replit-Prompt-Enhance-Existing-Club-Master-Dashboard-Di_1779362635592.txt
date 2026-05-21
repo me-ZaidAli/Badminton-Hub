@@ -1,0 +1,75 @@
+Replit Prompt: Enhance Existing Club Master Dashboard — Discord Nitro Style
+===========================================================================
+
+⚠️ STRICT RULE: DO NOT create new pages, remove, delete, or change ANY existing sections, widgets, data, navigation, or functionality. 
+Your ONLY job: restyle, redesign layout/visuals, add new sections as specified, apply animations, and improve UI — keep everything already there exactly where and how it works.
+
+🎯 GOAL: Transform the current dark/glass UI to match Discord Nitro’s look: vibrant purple/pink/blue gradients, bold headings, floating elements, smooth animations, premium card styles, same layout structure as the reference screenshots.
+
+---
+
+🔷 1. UPDATE TOP BANNER
+- Replace/modify current banner area: use gradient background (#5865F2 → #EB459E → #7289DA) with soft animated floating particles/stars/shapes like Discord Nitro.
+- Large bold white text centered: "Welcome to your Club Master Dashboard" — same font weight/size as the "UNLOCK A WORLD OF PERKS" heading.
+- Keep existing buttons; restyle them to match Discord’s rounded, glossy "Subscribe/Gift" buttons: hover glow, scale effect, rounded corners, matching color scheme.
+
+---
+
+🔷 2. BADMINTON NEWS SECTION
+- Current "Badminton News" card → make it ONE TALL, FULL-WIDTH card like Discord’s "WHAT'S NEW" box.
+- Style: dark background, subtle gradient border, rounded corners, soft inner glow, hover lift/shadow effect.
+- Keep all existing news content, slider, dates, links — only change visuals.
+- Add clear heading above: **"Badminton News & Updates"** (bold, uppercase style).
+
+---
+
+🔷 3. NEW: CUSTOMISE / THEMES SECTION
+Add this new section below News — match Discord’s "Make this place your space" layout exactly:
+- Heading: **"Customise Your Space"**
+- Text: "Choose from multiple colour themes and styles to make this dashboard yours"
+- Left side: preview image/UI mockup (placeholder okay)
+- Right side: text + button → **"Go to Themes"** — styled like Discord buttons, with pulse/hover animation.
+- Same spacing, alignment, card style as reference.
+
+---
+
+🔷 4. NEW: MEMBERSHIPS SECTION
+Add this section below Themes — exactly like "PICK YOUR PLAN":
+- Heading: **"Pick Your Membership Plan"**
+- Add a dropdown filter: *"Filter by Club"* — connects to existing club data, updates cards below.
+- Two side-by-side cards:
+  • Left: **Basic Membership** → show price, list features, button: *"Request to Join"*
+  • Right: **Premium Membership** → label "POPULAR" badge, more features, button: *"Request to Join"*
+  • Card style: gradients, shadows, hover glow, same as Nitro Basic / Nitro cards.
+- Bottom section: full-width banner like "WHAT ARE YOU WAITING FOR?" — gradient background, centered text: **"Join a membership today and unlock all features!"** + same styled buttons.
+
+---
+
+🔷 5. UPGRADE ALL EXISTING WIDGETS/SECTIONS
+Keep every single existing card: Weather, At A Glance, Week, Up Next, Training, Live Courts, Today’s Deal, Pro Tip, Hydration — ALL stay exactly where they are, same data, same function.
+
+✅ Visual upgrades ONLY:
+- Wrap each in clean, rounded cards (16–20px radius), soft drop shadows, subtle gradient borders.
+- Add clear bold headings to EVERY section (e.g. "YOUR LOCATION", "AT A GLANCE" — same style as Discord section headers).
+- Apply consistent colour palette: deep dark backgrounds, purple/blue/pink accents, white text, highlight colours matching Nitro.
+- Add hover effects: slight lift, glow, border brighten — smooth transitions.
+- Add subtle fade-in animations when page loads / elements appear.
+- Improve spacing, alignment, and visual hierarchy to match Discord’s clean, premium feel.
+
+---
+
+🎨 DESIGN SYSTEM TO USE:
+• Colours: #5865F2, #7289DA, #EB459E, #9932CC, #202225, #313338
+• Font: Inter / Sans-serif — bold headings, regular body
+• Effects: floating particles, gradient backgrounds, hover scale (1.02), glow, soft shadows
+• Cards: rounded corners, dark glass-like backgrounds, thin coloured borders
+• Buttons: rounded, filled/outlined, hover animation
+
+---
+
+✅ FINAL CHECK:
+- Everything old is still there, works exactly as before.
+- New sections added in correct order: Banner → News → Themes → Memberships → Existing widgets.
+- Fully responsive (mobile + desktop).
+- Animations smooth, not overwhelming.
+- Matches Discord Nitro’s modern, premium, colourful style exactly.

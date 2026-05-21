@@ -161,3 +161,9 @@ id = "BmMsqhbDsyJXTmxECg2mp"
 uri = "file://exports/smart-match-engine-v6.1.docx"
 type = "word_document"
 title = "Smart Match Engine v6.1 — Full Algorithm"
+
+[[outputs]]
+id = "8-az0qhNYHcACcinONvBN"
+uri = "file://attached_assets/screenshots/57a9eafa-4ec0-4ca7-86dc-3efee3bb8fa5-00-1h9de06ujxuie_worf_replit_dev_mockup_preview_dashboard-nitro_Dashboard.png"
+type = "image"
+title = "Dashboard — Discord Nitro Style (preview)"
