@@ -2338,10 +2338,13 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         .tl-quest-card::before {
           content: '';
           position: absolute;
-          inset: 0;
+          inset: -1px;
           border-radius: inherit;
-          padding: 1px;
-          background: linear-gradient(135deg, hsl(var(--primary) / 0.0), hsl(var(--accent) / 0.0));
+          padding: 2px;
+          background: linear-gradient(135deg,
+            hsl(var(--primary) / 0.0),
+            hsl(var(--accent) / 0.0),
+            hsl(var(--primary) / 0.0));
           -webkit-mask:
             linear-gradient(#000 0 0) content-box,
             linear-gradient(#000 0 0);
@@ -2349,19 +2352,23 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                   mask-composite: exclude;
           pointer-events: none;
           opacity: 0;
-          transition: opacity 220ms ease, background 220ms ease;
+          transition: opacity 240ms ease, background 240ms ease;
         }
         .group\\/card:hover .tl-quest-card::before {
           opacity: 1;
-          background: linear-gradient(135deg, hsl(var(--primary) / 0.55), hsl(var(--accent) / 0.55));
+          background: linear-gradient(135deg,
+            hsl(var(--primary)) 0%,
+            hsl(var(--accent)) 50%,
+            hsl(var(--primary)) 100%);
         }
         .group\\/card:hover .tl-quest-card {
-          transform: translateY(-3px);
-          border-color: hsl(var(--primary) / 0.45);
+          transform: translateY(-4px);
+          border-color: hsl(var(--primary) / 0.7);
           box-shadow:
             0 1px 0 hsl(var(--background) / 0.5) inset,
-            0 18px 40px -18px hsl(var(--primary) / 0.45),
-            0 0 0 1px hsl(var(--primary) / 0.18);
+            0 24px 50px -16px hsl(var(--primary) / 0.65),
+            0 0 0 1px hsl(var(--primary) / 0.35),
+            0 0 28px -6px hsl(var(--accent) / 0.55);
         }
         /* Subtle shine-sweep across the card on hover */
         .tl-quest-shine {
@@ -2377,18 +2384,18 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
           position: absolute;
           top: -50%;
           left: -75%;
-          width: 50%;
+          width: 60%;
           height: 200%;
           background: linear-gradient(
             115deg,
             transparent 0%,
-            hsl(0 0% 100% / 0.0) 35%,
-            hsl(0 0% 100% / 0.10) 50%,
-            hsl(0 0% 100% / 0.0) 65%,
+            hsl(0 0% 100% / 0.0) 30%,
+            hsl(0 0% 100% / 0.28) 50%,
+            hsl(0 0% 100% / 0.0) 70%,
             transparent 100%
           );
           transform: translateX(0) skewX(-12deg);
-          transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1);
+          transition: transform 850ms cubic-bezier(0.22, 1, 0.36, 1);
         }
         .group\\/card:hover .tl-quest-shine::after {
           transform: translateX(360%) skewX(-12deg);
@@ -2838,7 +2845,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                   {/* Responsive Discord-Quests-style grid: 1/2/3/4 columns.
                       When a card is expanded it spans the full row so the
                       detail panel stays readable. */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3">
                     {sortedSessions.map((s) => {
                       const idx = cardIdx++;
                       const isExpandedHere = expandedSessionId === s.id;
