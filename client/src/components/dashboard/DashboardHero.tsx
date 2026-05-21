@@ -18,6 +18,8 @@ interface DashboardHeroProps {
   userName: string;
   sessions: any[];
   profilePictureUrl?: string | null;
+  slotAfterDeals?: React.ReactNode;
+  slotAfterAtAGlance?: React.ReactNode;
 }
 
 interface WeeklyChallenge {
@@ -100,12 +102,14 @@ function HeroGroup({
   accentText = "text-violet-200",
   testId,
   children,
+  wide = false,
 }: {
   title: string;
   Icon: any;
   accentText?: string;
   testId?: string;
   children: React.ReactNode;
+  wide?: boolean;
 }) {
   return (
     <section className="space-y-3" data-testid={testId}>
@@ -115,7 +119,7 @@ function HeroGroup({
         <div className="flex-1 h-px bg-white/10" />
       </div>
       <div className="hero-group-shell relative rounded-[22px] p-3 sm:p-4 lg:p-5 bg-[hsl(var(--card)/0.55)] backdrop-blur-xl border border-white/10">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
+        <div className={wide ? "grid grid-cols-1 gap-3" : "grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4"}>
           {children}
         </div>
       </div>
@@ -138,7 +142,7 @@ const TIPS = [
 
 const DEAL_COLORS = ["text-amber-300", "text-emerald-300", "text-rose-300", "text-cyan-300", "text-violet-300", "text-lime-300"];
 
-export default function DashboardHero({ userName, sessions, profilePictureUrl }: DashboardHeroProps) {
+export default function DashboardHero({ userName, sessions, profilePictureUrl, slotAfterDeals, slotAfterAtAGlance }: DashboardHeroProps) {
   const now = useLiveClock();
   const { coords, weather, isLoading: wxLoading } = useWeather();
   const tod = timeOfDay(now);
@@ -496,7 +500,111 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
       </Tile>
       </div>
 
-      {/* === GROUP 1: CHALLENGE & WELLNESS === */}
+      {/* === ROW 1: BADMINTON NEWS === */}
+      <HeroGroup title="Badminton News" Icon={Activity} accentText="text-sky-200" testId="hero-row-news" wide>
+        <NewsTile />
+      </HeroGroup>
+
+      {/* === ROW 2: TODAY'S DEALS === */}
+      <HeroGroup title="Today's Deals" Icon={Tag} accentText="text-lime-200" testId="hero-row-deals" wide>
+      <Tile accent="from-lime-500/20 via-emerald-500/15 to-teal-500/15" glowA="bg-lime-400/25" glowB="bg-teal-500/20" testId="hero-partner">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-lime-200/80">
+            <Tag className="w-3 h-3" /><span>Today's deal</span>
+          </div>
+          {deals.length > 1 && (
+            <span className="text-[9px] text-white/40 uppercase tracking-wider tabular-nums" data-testid="text-deal-counter">
+              {dealIdx + 1}/{deals.length}
+            </span>
+          )}
+        </div>
+        {deal ? (
+          <a href={deal.url} target="_blank" rel="noopener noreferrer" className="block group" data-testid={`link-deal-${dealIdx}`}>
+            <div className="mt-3 flex gap-3">
+              {deal.imageUrl ? (
+                <img
+                  src={deal.imageUrl}
+                  alt={deal.brand}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  className="shrink-0 w-16 h-16 rounded-lg object-cover border border-white/10 bg-white/5"
+                  data-testid={`img-deal-${dealIdx}`}
+                />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+                  <span className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[9px] uppercase tracking-wider text-white/65">
+                    {deal.category}
+                  </span>
+                  {deal.sponsored ? (
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-400/20 border border-amber-300/30 text-[9px] uppercase tracking-wider text-amber-200" data-testid={`badge-sponsor-${dealIdx}`}>
+                      Sponsor
+                    </span>
+                  ) : null}
+                </div>
+                <h3 className="text-sm font-extrabold text-white leading-tight truncate group-hover:text-lime-200 transition" data-testid="text-deal-brand">
+                  {deal.brand}
+                </h3>
+                <p className={`text-base font-extrabold mt-0.5 leading-tight line-clamp-2 ${dealColor}`} data-testid="text-deal-offer">
+                  {deal.offer}
+                </p>
+              </div>
+            </div>
+            <div className="mt-2 inline-flex items-center gap-1 text-[10px] text-lime-200 group-hover:text-white">
+              Visit site <ExternalLink className="w-3 h-3" />
+            </div>
+          </a>
+        ) : (
+          <div className="mt-6 flex items-center gap-2 text-white/55">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Finding deals…</span>
+          </div>
+        )}
+      </Tile>
+      </HeroGroup>
+
+      {/* === ROW 3: ANNOUNCEMENTS (injected from Dashboard) === */}
+      {slotAfterDeals}
+
+      {/* === ROW 4: AT A GLANCE === */}
+      <HeroGroup title="At a Glance" Icon={Calendar} accentText="text-emerald-200" testId="hero-row-glance" wide>
+      <Tile accent="from-emerald-500/20 via-teal-500/15 to-cyan-500/15" glowA="bg-emerald-400/25" glowB="bg-cyan-500/20" testId="hero-counters">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200/80">
+            <Calendar className="w-3 h-3" />
+            <span>At a glance</span>
+          </div>
+          <Link href="/sessions">
+            <button className="text-[10px] text-emerald-200 hover:text-white inline-flex items-center gap-0.5" data-testid="link-all-sessions">
+              All <ChevronRight className="w-3 h-3" />
+            </button>
+          </Link>
+        </div>
+        <div className="mt-3 grid grid-cols-2 gap-2">
+          <div className="rounded-xl bg-white/10 border border-white/10 p-2.5">
+            <div className="text-[9px] uppercase tracking-wider text-white/55">Today</div>
+            <div className="text-2xl font-extrabold text-white tabular-nums mt-0.5" data-testid="text-today-sessions">{todaySessions.length}</div>
+            <div className="text-[10px] text-white/60">session{todaySessions.length === 1 ? "" : "s"}</div>
+          </div>
+          <div className="rounded-xl bg-white/10 border border-white/10 p-2.5">
+            <div className="text-[9px] uppercase tracking-wider text-white/55">This week</div>
+            <div className="text-2xl font-extrabold text-white tabular-nums mt-0.5">{weekTotal}</div>
+            <div className="text-[10px] text-white/60">planned</div>
+          </div>
+        </div>
+        {countdownLabel && (
+          <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-emerald-100/90">
+            <Sparkles className="w-3 h-3" />
+            <span>Next session {countdownLabel}</span>
+          </div>
+        )}
+      </Tile>
+      </HeroGroup>
+
+      {/* === ROW 5: YOUR SESSIONS (injected from Dashboard) === */}
+      {slotAfterAtAGlance}
+
+      {/* === GROUP: CHALLENGE & WELLNESS === */}
       <HeroGroup title="Challenge & Wellness" Icon={Dumbbell} accentText="text-amber-200" testId="hero-group-challenge">
       {/* 6. TRAINING CHALLENGES */}
       <Link href="/training-challenges" className="block group" data-testid="hero-challenges">
@@ -588,39 +696,6 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
 
       {/* === GROUP 2: MY PROGRESS === */}
       <HeroGroup title="My Progress" Icon={Calendar} accentText="text-emerald-200" testId="hero-group-progress">
-      {/* 3. TODAY + WEEK COUNTERS */}
-      <Tile accent="from-emerald-500/20 via-teal-500/15 to-cyan-500/15" glowA="bg-emerald-400/25" glowB="bg-cyan-500/20" testId="hero-counters">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200/80">
-            <Calendar className="w-3 h-3" />
-            <span>At a glance</span>
-          </div>
-          <Link href="/sessions">
-            <button className="text-[10px] text-emerald-200 hover:text-white inline-flex items-center gap-0.5" data-testid="link-all-sessions">
-              All <ChevronRight className="w-3 h-3" />
-            </button>
-          </Link>
-        </div>
-        <div className="mt-3 grid grid-cols-2 gap-2">
-          <div className="rounded-xl bg-white/10 border border-white/10 p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-white/55">Today</div>
-            <div className="text-2xl font-extrabold text-white tabular-nums mt-0.5" data-testid="text-today-sessions">{todaySessions.length}</div>
-            <div className="text-[10px] text-white/60">session{todaySessions.length === 1 ? "" : "s"}</div>
-          </div>
-          <div className="rounded-xl bg-white/10 border border-white/10 p-2.5">
-            <div className="text-[9px] uppercase tracking-wider text-white/55">This week</div>
-            <div className="text-2xl font-extrabold text-white tabular-nums mt-0.5">{weekTotal}</div>
-            <div className="text-[10px] text-white/60">planned</div>
-          </div>
-        </div>
-        {countdownLabel && (
-          <div className="mt-3 inline-flex items-center gap-1.5 text-[10px] text-emerald-100/90">
-            <Sparkles className="w-3 h-3" />
-            <span>Next session {countdownLabel}</span>
-          </div>
-        )}
-      </Tile>
-
       {/* 4. WEEK STRIP */}
       <Tile accent="from-violet-500/20 via-fuchsia-500/15 to-pink-500/15" glowA="bg-violet-400/25" glowB="bg-pink-500/20" testId="hero-week-strip">
         <div className="flex items-center justify-between">
@@ -702,7 +777,6 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
       {/* === GROUP 3: CLUB ACTIVITY === */}
       <HeroGroup title="Club Activity" Icon={Activity} accentText="text-fuchsia-200" testId="hero-group-club">
         <CustomPollTile />
-        <NewsTile />
       {/* 7. LIVE COURTS */}
       <Tile accent="from-rose-500/20 via-pink-500/15 to-fuchsia-500/15" glowA="bg-rose-400/25" glowB="bg-fuchsia-500/20" testId="hero-live-courts">
         <div className="flex items-center justify-between">
@@ -784,62 +858,6 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
           </div>
         )}
       </Tile>
-      {/* 8. AI WEB DEAL */}
-      <Tile accent="from-lime-500/20 via-emerald-500/15 to-teal-500/15" glowA="bg-lime-400/25" glowB="bg-teal-500/20" testId="hero-partner">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-lime-200/80">
-            <Tag className="w-3 h-3" /><span>Today's deal</span>
-          </div>
-          {deals.length > 1 && (
-            <span className="text-[9px] text-white/40 uppercase tracking-wider tabular-nums" data-testid="text-deal-counter">
-              {dealIdx + 1}/{deals.length}
-            </span>
-          )}
-        </div>
-        {deal ? (
-          <a href={deal.url} target="_blank" rel="noopener noreferrer" className="block group" data-testid={`link-deal-${dealIdx}`}>
-            <div className="mt-3 flex gap-3">
-              {deal.imageUrl ? (
-                <img
-                  src={deal.imageUrl}
-                  alt={deal.brand}
-                  loading="lazy"
-                  referrerPolicy="no-referrer"
-                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
-                  className="shrink-0 w-16 h-16 rounded-lg object-cover border border-white/10 bg-white/5"
-                  data-testid={`img-deal-${dealIdx}`}
-                />
-              ) : null}
-              <div className="min-w-0 flex-1">
-                <div className="flex items-center gap-1 mb-1.5 flex-wrap">
-                  <span className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[9px] uppercase tracking-wider text-white/65">
-                    {deal.category}
-                  </span>
-                  {deal.sponsored ? (
-                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-400/20 border border-amber-300/30 text-[9px] uppercase tracking-wider text-amber-200" data-testid={`badge-sponsor-${dealIdx}`}>
-                      Sponsor
-                    </span>
-                  ) : null}
-                </div>
-                <h3 className="text-sm font-extrabold text-white leading-tight truncate group-hover:text-lime-200 transition" data-testid="text-deal-brand">
-                  {deal.brand}
-                </h3>
-                <p className={`text-base font-extrabold mt-0.5 leading-tight line-clamp-2 ${dealColor}`} data-testid="text-deal-offer">
-                  {deal.offer}
-                </p>
-              </div>
-            </div>
-            <div className="mt-2 inline-flex items-center gap-1 text-[10px] text-lime-200 group-hover:text-white">
-              Visit site <ExternalLink className="w-3 h-3" />
-            </div>
-          </a>
-        ) : (
-          <div className="mt-6 flex items-center gap-2 text-white/55">
-            <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Finding deals…</span>
-          </div>
-        )}
-      </Tile>
-
       {/* 12. DAILY POLL */}
       <Tile accent="from-orange-500/20 via-amber-500/15 to-yellow-500/15" glowA="bg-orange-400/25" glowB="bg-yellow-500/20" testId="hero-poll">
         <div className="flex items-center justify-between">

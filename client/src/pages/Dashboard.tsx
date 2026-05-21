@@ -9,7 +9,7 @@ import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { PageHeader } from "@/components/ui/page-header";
 import DashboardHero from "@/components/dashboard/DashboardHero";
 import DashboardBanner from "@/components/dashboard/DashboardBanner";
-import { DashboardNewsCard, DashboardThemesCard, DashboardMembershipsSection } from "@/components/dashboard/DashboardNitroSections";
+import { DashboardThemesCard, DashboardMembershipsSection } from "@/components/dashboard/DashboardNitroSections";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -329,13 +329,131 @@ function DashboardContent({
       <div>
         <DashboardBanner heightVh={32} />
         <div className="relative z-10 -mt-12 sm:-mt-16 lg:-mt-20">
-          <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} profilePictureUrl={(user as any)?.profilePictureUrl || null} />
+          <DashboardHero
+            userName={user?.fullName || ""}
+            sessions={(sessions as any[]) || []}
+            profilePictureUrl={(user as any)?.profilePictureUrl || null}
+            slotAfterDeals={activeAnnouncements.length > 0 ? (
+              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-rose-500/15 p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.25)] text-white" data-testid="card-announcements-preview">
+                <div className="pointer-events-none absolute -top-16 -right-10 w-64 h-64 rounded-full bg-amber-400/25 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-20 -left-10 w-64 h-64 rounded-full bg-rose-500/15 blur-3xl" />
+                <div className="relative">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                    <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-amber-200/80">
+                      <Megaphone className="w-3.5 h-3.5" />
+                      <span>Announcements</span>
+                      <Badge className="bg-amber-400/20 text-amber-100 border border-amber-300/40 text-[10px]">{activeAnnouncements.length}</Badge>
+                    </div>
+                    <Link href="/announcements">
+                      <Button variant="ghost" size="sm" className="text-amber-200 hover:text-white hover:bg-white/10" data-testid="button-view-all-announcements">
+                        View All <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                  <div className="space-y-2">
+                    {activeAnnouncements.slice(0, 2).map(announcement => (
+                      <Link key={announcement.id} href="/announcements">
+                        <div className="flex items-start gap-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 cursor-pointer transition" data-testid={`announcement-preview-${announcement.id}`}>
+                          <div className="p-1.5 rounded-md bg-amber-400/20 border border-amber-300/30 shrink-0 mt-0.5">
+                            <Megaphone className="h-3.5 w-3.5 text-amber-200" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate text-white">{announcement.title}</div>
+                            <div className="text-xs text-white/70 mt-0.5 line-clamp-2">{announcement.content}</div>
+                            <div className="text-[10px] text-white/50 mt-1 flex items-center gap-1">
+                              <User className="h-2.5 w-2.5" />
+                              {announcement.author.fullName}
+                              <span className="mx-1">·</span>
+                              {format(new Date(announcement.createdAt), "MMM d")}
+                            </div>
+                          </div>
+                          {announcement.imageUrl && (
+                            <img src={announcement.imageUrl} alt="" className="h-12 w-12 rounded object-cover shrink-0 border border-white/15" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+                          )}
+                        </div>
+                      </Link>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            ) : null}
+            slotAfterAtAGlance={(
+              <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-violet-500/15 p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.25)] text-white" data-testid="card-my-upcoming-sessions">
+                <div className="pointer-events-none absolute -top-20 -right-12 w-72 h-72 rounded-full bg-blue-500/25 blur-3xl" />
+                <div className="pointer-events-none absolute -bottom-24 -left-12 w-72 h-72 rounded-full bg-violet-500/15 blur-3xl" />
+                <div className="relative">
+                  <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
+                    <div>
+                      <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-blue-200/80">
+                        <Calendar className="w-3.5 h-3.5" />
+                        <span>Your Sessions</span>
+                      </div>
+                      <p className="text-xs text-white/60 mt-1">Sessions you have signed up for</p>
+                    </div>
+                    <Link href="/my-sessions">
+                      <Button variant="ghost" size="sm" className="text-blue-200 hover:text-white hover:bg-white/10" data-testid="button-view-all-my-sessions">
+                        View All <ChevronRight className="w-4 h-4 ml-1" />
+                      </Button>
+                    </Link>
+                  </div>
+                  {mySessionsLoading ? (
+                    <div className="space-y-2">
+                      {[1, 2, 3].map(i => <div key={i} className="h-16 bg-white/5 animate-pulse rounded-xl" />)}
+                    </div>
+                  ) : myUpcomingSessions.length > 0 ? (
+                    <div className="space-y-2">
+                      {myUpcomingSessions.map(session => (
+                        <div
+                          key={session.sessionId}
+                          className="flex items-center gap-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 cursor-pointer transition"
+                          onClick={() => setSelectedSession(session)}
+                          data-testid={`my-upcoming-session-${session.sessionId}`}
+                        >
+                          <div className="flex flex-col items-center justify-center w-11 h-11 rounded-lg bg-gradient-to-br from-blue-400/30 to-violet-400/20 border border-blue-300/30 text-white font-bold shrink-0">
+                            <span className="text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
+                            <span className="text-base leading-none mt-0.5">{format(new Date(session.sessionDate), "d")}</span>
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="font-semibold text-sm truncate text-white">{session.sessionTitle}</div>
+                            <div className="text-[11px] text-white/70 flex items-center gap-1 flex-wrap mt-0.5">
+                              <Clock className="w-3 h-3" /> {session.sessionStartTime}
+                              <span className="mx-1">·</span>
+                              {session.courtsAvailable} courts
+                              {session.clubName && (
+                                <>
+                                  <span className="mx-1">·</span>
+                                  <span className="text-blue-200">{session.clubName}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                          <Badge className={`shrink-0 text-[10px] border ${session.sessionStatus === "ACTIVE" ? "bg-emerald-400/20 text-emerald-200 border-emerald-300/40" : "bg-white/10 text-white border-white/20"}`}>
+                            {session.sessionStatus === "ACTIVE" ? "Live" : "Upcoming"}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="text-center py-6 text-sm text-white/70">
+                      <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                      <p className="font-medium">No upcoming sessions</p>
+                      <p className="text-xs text-white/50 mt-1">Browse sessions to sign up</p>
+                      <Link href="/sessions">
+                        <Button variant="outline" size="sm" className="mt-3 bg-white/10 border-white/20 text-white hover:bg-white/20" data-testid="button-browse-sessions">
+                          Browse Sessions
+                        </Button>
+                      </Link>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+          />
         </div>
       </div>
 
-      {/* Discord Nitro–style sections: news, themes, memberships */}
+      {/* Discord Nitro–style sections: themes, memberships (news is now featured above) */}
       <div className="space-y-10 pt-4">
-        <DashboardNewsCard />
         <DashboardThemesCard />
         <DashboardMembershipsSection />
       </div>
@@ -680,51 +798,6 @@ function DashboardContent({
             )}
           </CardContent>
         </Card>
-      )}
-
-      {activeAnnouncements.length > 0 && (
-        <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-amber-500/20 via-orange-500/10 to-rose-500/15 p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.25)] text-white" data-testid="card-announcements-preview">
-          <div className="pointer-events-none absolute -top-16 -right-10 w-64 h-64 rounded-full bg-amber-400/25 blur-3xl" />
-          <div className="pointer-events-none absolute -bottom-20 -left-10 w-64 h-64 rounded-full bg-rose-500/15 blur-3xl" />
-          <div className="relative">
-            <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-amber-200/80">
-                <Megaphone className="w-3.5 h-3.5" />
-                <span>Announcements</span>
-                <Badge className="bg-amber-400/20 text-amber-100 border border-amber-300/40 text-[10px]">{activeAnnouncements.length}</Badge>
-              </div>
-              <Link href="/announcements">
-                <Button variant="ghost" size="sm" className="text-amber-200 hover:text-white hover:bg-white/10" data-testid="button-view-all-announcements">
-                  View All <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
-              </Link>
-            </div>
-            <div className="space-y-2">
-              {activeAnnouncements.slice(0, 2).map(announcement => (
-                <Link key={announcement.id} href="/announcements">
-                  <div className="flex items-start gap-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 cursor-pointer transition" data-testid={`announcement-preview-${announcement.id}`}>
-                    <div className="p-1.5 rounded-md bg-amber-400/20 border border-amber-300/30 shrink-0 mt-0.5">
-                      <Megaphone className="h-3.5 w-3.5 text-amber-200" />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="font-semibold text-sm truncate text-white">{announcement.title}</div>
-                      <div className="text-xs text-white/70 mt-0.5 line-clamp-2">{announcement.content}</div>
-                      <div className="text-[10px] text-white/50 mt-1 flex items-center gap-1">
-                        <User className="h-2.5 w-2.5" />
-                        {announcement.author.fullName}
-                        <span className="mx-1">·</span>
-                        {format(new Date(announcement.createdAt), "MMM d")}
-                      </div>
-                    </div>
-                    {announcement.imageUrl && (
-                      <img src={announcement.imageUrl} alt="" className="h-12 w-12 rounded object-cover shrink-0 border border-white/15" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
-                    )}
-                  </div>
-                </Link>
-              ))}
-            </div>
-          </div>
-        </div>
       )}
 
       <Card className="bg-gradient-to-br from-emerald-500/5 to-emerald-500/10 border-emerald-500/20" data-testid="card-refer-earn">
@@ -1094,82 +1167,6 @@ function DashboardContent({
           </div>
         </Link>
       )}
-
-      <div className="flex items-center gap-2 pt-2">
-        <Calendar className="h-4 w-4 text-blue-500" />
-        <h2 className="text-lg font-bold tracking-tight" data-testid="heading-sessions">Your Sessions</h2>
-        <div className="flex-1 h-px bg-border" />
-      </div>
-
-      <div className="relative overflow-hidden rounded-2xl border border-white/10 bg-gradient-to-br from-blue-500/20 via-indigo-500/10 to-violet-500/15 p-6 lg:p-8 shadow-[0_8px_30px_rgba(0,0,0,0.25)] text-white" data-testid="card-my-upcoming-sessions">
-        <div className="pointer-events-none absolute -top-20 -right-12 w-72 h-72 rounded-full bg-blue-500/25 blur-3xl" />
-        <div className="pointer-events-none absolute -bottom-24 -left-12 w-72 h-72 rounded-full bg-violet-500/15 blur-3xl" />
-        <div className="relative">
-          <div className="flex items-center justify-between flex-wrap gap-2 mb-4">
-            <div>
-              <div className="flex items-center gap-2 text-xs uppercase tracking-[0.2em] text-blue-200/80">
-                <Calendar className="w-3.5 h-3.5" />
-                <span>My Upcoming Sessions</span>
-              </div>
-              <p className="text-xs text-white/60 mt-1">Sessions you have signed up for</p>
-            </div>
-            <Link href="/my-sessions">
-              <Button variant="ghost" size="sm" className="text-blue-200 hover:text-white hover:bg-white/10" data-testid="button-view-all-my-sessions">
-                View All <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
-            </Link>
-          </div>
-          {mySessionsLoading ? (
-            <div className="space-y-2">
-              {[1, 2, 3].map(i => <div key={i} className="h-16 bg-white/5 animate-pulse rounded-xl" />)}
-            </div>
-          ) : myUpcomingSessions.length > 0 ? (
-            <div className="space-y-2">
-              {myUpcomingSessions.map(session => (
-                <div
-                  key={session.sessionId}
-                  className="flex items-center gap-3 p-3 rounded-xl bg-white/10 backdrop-blur-sm border border-white/10 hover:bg-white/15 cursor-pointer transition"
-                  onClick={() => setSelectedSession(session)}
-                  data-testid={`my-upcoming-session-${session.sessionId}`}
-                >
-                  <div className="flex flex-col items-center justify-center w-11 h-11 rounded-lg bg-gradient-to-br from-blue-400/30 to-violet-400/20 border border-blue-300/30 text-white font-bold shrink-0">
-                    <span className="text-[10px] uppercase leading-none">{format(new Date(session.sessionDate), "MMM")}</span>
-                    <span className="text-base leading-none mt-0.5">{format(new Date(session.sessionDate), "d")}</span>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-semibold text-sm truncate text-white">{session.sessionTitle}</div>
-                    <div className="text-[11px] text-white/70 flex items-center gap-1 flex-wrap mt-0.5">
-                      <Clock className="w-3 h-3" /> {session.sessionStartTime}
-                      <span className="mx-1">·</span>
-                      {session.courtsAvailable} courts
-                      {session.clubName && (
-                        <>
-                          <span className="mx-1">·</span>
-                          <span className="text-blue-200">{session.clubName}</span>
-                        </>
-                      )}
-                    </div>
-                  </div>
-                  <Badge className={`shrink-0 text-[10px] border ${session.sessionStatus === "ACTIVE" ? "bg-emerald-400/20 text-emerald-200 border-emerald-300/40" : "bg-white/10 text-white border-white/20"}`}>
-                    {session.sessionStatus === "ACTIVE" ? "Live" : "Upcoming"}
-                  </Badge>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="text-center py-6 text-sm text-white/70">
-              <Calendar className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p className="font-medium">No upcoming sessions</p>
-              <p className="text-xs text-white/50 mt-1">Browse sessions to sign up</p>
-              <Link href="/sessions">
-                <Button variant="outline" size="sm" className="mt-3 bg-white/10 border-white/20 text-white hover:bg-white/20" data-testid="button-browse-sessions">
-                  Browse Sessions
-                </Button>
-              </Link>
-            </div>
-          )}
-        </div>
-      </div>
 
       <div className="flex items-center gap-2 pt-2">
         <Activity className="h-4 w-4 text-violet-500" />
