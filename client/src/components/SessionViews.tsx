@@ -2368,20 +2368,31 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
           inset: 0;
           border-radius: inherit;
           background-size: cover;
-          background-position: center;
+          background-position: center top;
           background-repeat: no-repeat;
-          opacity: 0.18;
-          mix-blend-mode: luminosity;
+          opacity: 0.55;
+          mix-blend-mode: normal;
           pointer-events: none;
           z-index: 0;
+          /* Strong at the top, fades out toward the bottom so it reads as a
+             header image bleeding behind the content rather than tiling. */
+          -webkit-mask-image: linear-gradient(to bottom,
+            rgba(0,0,0,1) 0%,
+            rgba(0,0,0,0.85) 30%,
+            rgba(0,0,0,0.35) 65%,
+            rgba(0,0,0,0.08) 100%);
+                  mask-image: linear-gradient(to bottom,
+            rgba(0,0,0,1) 0%,
+            rgba(0,0,0,0.85) 30%,
+            rgba(0,0,0,0.35) 65%,
+            rgba(0,0,0,0.08) 100%);
           transition: opacity 240ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
         }
         .dark .tl-quest-bg {
-          opacity: 0.22;
-          mix-blend-mode: screen;
+          opacity: 0.7;
         }
         .group\\/card:hover .tl-quest-bg {
-          opacity: 0.32;
+          opacity: 0.85;
           transform: scale(1.04);
         }
         /* Ensure interactive layers sit above the bg image */
