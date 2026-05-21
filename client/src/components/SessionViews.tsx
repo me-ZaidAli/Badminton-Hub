@@ -228,6 +228,21 @@ type TimelineViewProps = SessionViewProps & {
   mySignupsBySession?: Map<number, any>;
   onSignUp?: (session: SessionItem) => void;
   onWithdraw?: (sessionId: number) => void;
+  columns?: 1 | 2 | 3 | 4;
+};
+
+// Static class maps so Tailwind's purge sees every variant literally.
+const TIMELINE_GRID_COLS: Record<1 | 2 | 3 | 4, string> = {
+  1: "grid-cols-1",
+  2: "grid-cols-1 sm:grid-cols-2",
+  3: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3",
+  4: "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4",
+};
+const TIMELINE_EXPANDED_SPAN: Record<1 | 2 | 3 | 4, string> = {
+  1: "",
+  2: "sm:col-span-2",
+  3: "sm:col-span-2 lg:col-span-3",
+  4: "sm:col-span-2 lg:col-span-3 xl:col-span-4",
 };
 
 const TEAM_EVENT_TYPES: Record<string, { label: string; icon: typeof Flag; color: string }> = {
@@ -2264,7 +2279,7 @@ export function CalendarView({ sessions, clubs, onSessionClick, adminActions, sh
   );
 }
 
-export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, onWithdraw, adminActions, showJuniorTeaser }: TimelineViewProps) {
+export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, onWithdraw, adminActions, showJuniorTeaser, columns = 4 }: TimelineViewProps) {
   const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
 
@@ -2928,10 +2943,12 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                     </Badge>
                   </div>
 
-                  {/* Responsive Discord-Quests-style grid: 1/2/3/4 columns.
+                  {/* Responsive Discord-Quests-style grid. Max columns is
+                      user-configurable (1-4) via the toolbar; on narrower
+                      breakpoints we still step down naturally.
                       When a card is expanded it spans the full row so the
                       detail panel stays readable. */}
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-4 gap-3">
+                  <div className={`grid ${TIMELINE_GRID_COLS[columns]} gap-3`}>
                     {sortedSessions.map((s) => {
                       const idx = cardIdx++;
                       const isExpandedHere = expandedSessionId === s.id;
@@ -2939,7 +2956,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                       return (
                         <div
                           key={s.id}
-                          className={`min-w-0 tl-card-anim group/card ${isExpandedHere ? "sm:col-span-2 lg:col-span-3 2xl:col-span-4" : ""}`}
+                          className={`min-w-0 tl-card-anim group/card ${isExpandedHere ? TIMELINE_EXPANDED_SPAN[columns] : ""}`}
                           style={{ animationDelay: `${idx * 70}ms` }}
                         >
                           {showJuniorTeaser && s.sessionType === "JUNIORS_ONLY" ? (

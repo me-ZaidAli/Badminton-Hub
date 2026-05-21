@@ -594,6 +594,11 @@ export default function Sessions() {
     if (saved === "calendar" || saved === "timeline") return saved;
     return "timeline";
   });
+  const [timelineColumns, setTimelineColumns] = useState<1 | 2 | 3 | 4>(() => {
+    const saved = parseInt(localStorage.getItem("sessionsTimelineColumns") || "", 10);
+    if (saved === 1 || saved === 2 || saved === 3 || saved === 4) return saved;
+    return 4;
+  });
   const [timeRange, setTimeRange] = useState<"all" | "week" | "2weeks" | "month">("all");
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
@@ -1078,6 +1083,10 @@ export default function Sessions() {
     localStorage.setItem("sessionsViewMode", viewMode);
   }, [viewMode]);
 
+  useEffect(() => {
+    localStorage.setItem("sessionsTimelineColumns", String(timelineColumns));
+  }, [timelineColumns]);
+
   const handleSessionClickFromView = (session: any) => {
     if (session.isTeamEvent) return;
     setLocation(`/sessions/${session.id}`);
@@ -1317,6 +1326,29 @@ export default function Sessions() {
               <span className="hidden sm:inline">{v.label}</span>
             </Button>
           ))}
+          {viewMode === "timeline" && (
+            <div
+              role="group"
+              aria-label="Timeline columns"
+              className="hidden md:flex items-center gap-0.5 ml-1 pl-1 border-l border-border/60"
+            >
+              {([1, 2, 3, 4] as const).map(n => (
+                <Button
+                  key={n}
+                  variant={timelineColumns === n ? "default" : "ghost"}
+                  size="sm"
+                  className={`h-8 w-8 p-0 text-xs ${timelineColumns === n ? "" : "text-muted-foreground hover:text-foreground"}`}
+                  onClick={() => setTimelineColumns(n)}
+                  title={`${n} column${n === 1 ? "" : "s"}`}
+                  aria-label={`Show ${n} column${n === 1 ? "" : "s"}`}
+                  aria-pressed={timelineColumns === n}
+                  data-testid={`button-timeline-cols-${n}`}
+                >
+                  {n}
+                </Button>
+              ))}
+            </div>
+          )}
         </div>
         <div className="flex items-center gap-1">
           {([
@@ -1469,6 +1501,7 @@ export default function Sessions() {
           onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
           adminActions={viewAdminActions}
           showJuniorTeaser
+          columns={timelineColumns}
         />
       )}
 
@@ -1530,6 +1563,7 @@ export default function Sessions() {
               onSignUp={(session) => setJoinSession(session)}
               onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
               adminActions={viewAdminActions}
+              columns={timelineColumns}
             />
           )}
           {viewMode === "calendar" && (
