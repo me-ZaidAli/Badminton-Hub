@@ -10,6 +10,7 @@ import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startO
 import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, CheckCircle2, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X, LogOut, UserPlus } from "lucide-react";
 import { Link } from "wouter";
 import { SessionTeamBadges } from "@/components/session/SessionTeamBadges";
+import sessionCardBgImage from "@assets/Badminton_scene_with_player_in_action,_realistic_and_cinematic_1779375624298.jpg";
 
 const SESSION_BANNER_COLORS = {
   red:    { bar: "bg-red-500 dark:bg-red-600",       text: "text-white", icon: AlertTriangle },
@@ -1169,6 +1170,13 @@ function TimelineSessionCard({
       onClick={handleCardClick}
       data-testid={`timeline-session-${session.id}`}
     >
+      {/* Cinematic badminton background image (subtle, behind everything) */}
+      <div
+        className="tl-quest-bg"
+        style={{ backgroundImage: `url(${sessionCardBgImage})` }}
+        aria-hidden
+      />
+
       {/* Shine sweep overlay (hover only) */}
       <div className="tl-quest-shine" aria-hidden />
 
@@ -2351,6 +2359,36 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         }
         .tl-card-anim {
           animation: tl-fadeSlideIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        /* Cinematic badminton background image — sits behind every other
+           card layer (banner, content, shine, gradient border). Low opacity
+           so text remains legible; brightens slightly on hover. */
+        .tl-quest-bg {
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          background-size: cover;
+          background-position: center;
+          background-repeat: no-repeat;
+          opacity: 0.18;
+          mix-blend-mode: luminosity;
+          pointer-events: none;
+          z-index: 0;
+          transition: opacity 240ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .dark .tl-quest-bg {
+          opacity: 0.22;
+          mix-blend-mode: screen;
+        }
+        .group\\/card:hover .tl-quest-bg {
+          opacity: 0.32;
+          transform: scale(1.04);
+        }
+        /* Ensure interactive layers sit above the bg image */
+        .tl-quest-banner,
+        .tl-quest-card > .relative {
+          position: relative;
+          z-index: 1;
         }
         /* === Discord-Quests-inspired card surface === */
         .tl-quest-card {
