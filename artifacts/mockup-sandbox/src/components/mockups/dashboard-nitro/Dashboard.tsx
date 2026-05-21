@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { 
@@ -21,8 +21,47 @@ import {
   Award
 } from "lucide-react";
 
-const BannerSection = () => (
-  <section className="relative overflow-hidden rounded-3xl bg-gradient-to-r from-[#5865F2] via-[#EB459E] to-[#7289DA] p-12 text-center shadow-[0_0_40px_rgba(88,101,242,0.3)] animate-fade-in group">
+const BANNER_IMAGES = [
+  "/__mockup/backgrounds/bg-aurora-mountains.png",
+  "/__mockup/backgrounds/bg-dark-forest.png",
+  "/__mockup/backgrounds/bg-dark-waterfall.png",
+  "/__mockup/backgrounds/bg-desert-twilight.png",
+  "/__mockup/backgrounds/bg-ocean-storm.png",
+  "/__mockup/backgrounds/bg-bamboo-dusk.png",
+  "/__mockup/backgrounds/bg-thunderstorm.png",
+  "/__mockup/backgrounds/bg-cosmic-nebula.png",
+];
+const BANNER_ROTATION_MS = 6000;
+const BANNER_FADE_MS = 1800;
+
+const BannerSection = () => {
+  const [bgIdx, setBgIdx] = useState(0);
+  useEffect(() => {
+    BANNER_IMAGES.forEach(src => { const img = new Image(); img.src = src; });
+  }, []);
+  useEffect(() => {
+    const id = setInterval(() => setBgIdx(i => (i + 1) % BANNER_IMAGES.length), BANNER_ROTATION_MS);
+    return () => clearInterval(id);
+  }, []);
+  return (
+  <section className="relative overflow-hidden rounded-3xl p-12 text-center shadow-[0_0_40px_rgba(88,101,242,0.3)] animate-fade-in group min-h-[420px] flex items-center justify-center">
+    {/* Cross-fading background images */}
+    {BANNER_IMAGES.map((src, i) => (
+      <div
+        key={src}
+        className="absolute inset-0 bg-center bg-cover"
+        style={{
+          backgroundImage: `url(${src})`,
+          opacity: i === bgIdx ? 1 : 0,
+          transition: `opacity ${BANNER_FADE_MS}ms ease-in-out`,
+          willChange: 'opacity',
+        }}
+        aria-hidden={i !== bgIdx}
+      />
+    ))}
+    {/* Colour wash on top of the photos so the Nitro palette still reads */}
+    <div className="absolute inset-0 bg-gradient-to-r from-[#5865F2]/70 via-[#EB459E]/55 to-[#7289DA]/70 mix-blend-multiply" />
+    <div className="absolute inset-0 bg-black/25" />
     <div className="absolute inset-0 overflow-hidden pointer-events-none">
       {[...Array(20)].map((_, i) => (
         <div 
@@ -37,6 +76,12 @@ const BannerSection = () => (
             animationDuration: `${Math.random() * 4 + 4}s`
           }}
         />
+      ))}
+    </div>
+    {/* Dot indicators */}
+    <div className="absolute bottom-4 left-1/2 -translate-x-1/2 flex gap-1.5 z-20">
+      {BANNER_IMAGES.map((_, i) => (
+        <span key={i} className={`h-1.5 rounded-full transition-all ${i === bgIdx ? 'w-6 bg-white' : 'w-1.5 bg-white/40'}`} />
       ))}
     </div>
     <div className="relative z-10 space-y-6">
@@ -56,7 +101,8 @@ const BannerSection = () => (
       </div>
     </div>
   </section>
-);
+  );
+};
 
 const NewsSection = () => (
   <section className="space-y-4 animate-fade-in" style={{ animationDelay: '0.1s' }}>
