@@ -1129,22 +1129,70 @@ function TimelineSessionCard({
       aria-expanded={isExpanded}
       aria-controls={`session-details-${session.id}`}
       onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); handleCardClick(); } }}
-      className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
-        isCancelled ? "grayscale-[0.7] opacity-80" : isRealTimePast ? "opacity-55" : ""
-      } ${isElite && !isRealTimePast && !isCancelled ? "ring-1 ring-amber-400/30" : ""} ${isRealTimeLive && !isCancelled ? "tl-live-card-glow" : ""} ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
+      className={`tl-quest-card relative overflow-hidden rounded-xl cursor-pointer focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none h-full flex flex-col ${
+        isCancelled ? "grayscale-[0.6] opacity-85" : isRealTimePast ? "opacity-60" : ""
+      } ${isElite && !isRealTimePast && !isCancelled ? "ring-1 ring-amber-400/30" : ""} ${isRealTimeLive && !isCancelled ? "tl-live-card-glow" : ""} ${isExpanded ? "shadow-lg" : ""}`}
       onClick={handleCardClick}
       data-testid={`timeline-session-${session.id}`}
     >
-      <div className={`absolute left-0 top-0 bottom-0 w-1 ${isCancelled ? "bg-orange-500" : isRealTimeLive ? "bg-green-500 tl-live-stripe" : accentColor}`} />
+      {/* Shine sweep overlay (hover only) */}
+      <div className="tl-quest-shine" aria-hidden />
 
-      {isCancelled && (
-        <div className="flex items-center justify-center gap-3 bg-orange-500 dark:bg-orange-600 text-white px-3 py-2.5 text-lg sm:text-xl font-extrabold uppercase tracking-[0.25em] rounded-t-xl" data-testid={`banner-cancelled-timeline-${session.id}`}>
-          <Ban className="h-5 w-5 sm:h-6 sm:w-6" />
-          <span>Cancelled</span>
-          <Ban className="h-5 w-5 sm:h-6 sm:w-6" />
-        </div>
-      )}
+      {/* Discord-Quests-inspired top gradient banner with status pills overlaid */}
+      <div
+        className={`tl-quest-banner ${
+          isCancelled ? "is-cancelled" :
+          isRealTimeLive ? "is-live" :
+          isSignedUp ? "is-joined" :
+          isFull && !isPast ? "is-full" :
+          isRealTimePast ? "is-past" : ""
+        }`}
+        aria-hidden
+      >
+        {/* Left side: accent strip echoing match mode */}
+        <div className={`absolute left-0 top-0 bottom-0 w-1 ${isCancelled ? "bg-orange-500" : isRealTimeLive ? "bg-green-500 tl-live-stripe" : accentColor}`} />
 
+        {/* Cancelled overlay */}
+        {isCancelled && (
+          <div className="absolute inset-0 flex items-center justify-center gap-2 text-white text-xs font-extrabold uppercase tracking-[0.25em]" data-testid={`banner-cancelled-timeline-${session.id}`}>
+            <Ban className="h-3.5 w-3.5" />
+            <span>Cancelled</span>
+            <Ban className="h-3.5 w-3.5" />
+          </div>
+        )}
+
+        {/* Status pills, top-right of banner */}
+        {!isCancelled && (
+          <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 flex-wrap justify-end max-w-[75%]">
+            {(isLive || isRealTimeLive) && (
+              <span className="tl-live-badge inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[9px] font-bold bg-red-500 text-white shadow-md">
+                <span className="tl-live-dot w-1.5 h-1.5 rounded-full bg-white" />
+                LIVE
+              </span>
+            )}
+            {isRealTimeLive && !isLive && (
+              <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-bold bg-green-500/90 text-white ring-1 ring-white/40">NOW</span>
+            )}
+            {isSignedUp && (
+              <Badge className={`text-[9px] h-4 px-1.5 ${isWaiting ? "bg-amber-500" : "bg-emerald-500"} text-white shadow-md`}>
+                {isWaiting ? "Wait" : "Joined"}
+              </Badge>
+            )}
+            {isSignedUp && !isWaiting && (
+              mySignup?.paymentStatus === "PAID" ? (
+                <Badge className="text-[9px] h-4 px-1.5 bg-blue-600 text-white gap-0.5 shadow-md"><ShieldCheck className="h-2.5 w-2.5" />Paid</Badge>
+              ) : (
+                <Badge variant="outline" className="text-[9px] h-4 px-1.5 border-amber-300 bg-amber-500/80 text-white gap-0.5 shadow-md"><CircleDollarSign className="h-2.5 w-2.5" />Due</Badge>
+              )
+            )}
+            {isFull && !isPast && (
+              <Badge className="text-[9px] h-4 px-1.5 bg-red-500 text-white shadow-md">FULL</Badge>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Optional banner message (admin-set) sits below the gradient banner */}
       {!isCancelled && (session as any).bannerMessage && (
         <SessionBanner
           message={(session as any).bannerMessage}
@@ -1154,58 +1202,22 @@ function TimelineSessionCard({
         />
       )}
 
-      <div className={`p-4 pl-5 border backdrop-blur-sm shadow-sm ${isCancelled ? "rounded-b-xl border-orange-300 dark:border-orange-700/60 bg-muted/40 dark:bg-muted/20" : (session as any).bannerMessage ? "rounded-b-xl" : "rounded-xl"} ${
-        !isCancelled && isSignedUp ? "border-emerald-400/50 bg-emerald-500/5 dark:bg-emerald-500/[0.07]" :
-        !isCancelled && isLive ? "border-green-500/50 bg-green-500/5 dark:bg-green-500/[0.07]" :
-        !isCancelled && isFull && !isPast ? "border-red-400/40 bg-card dark:bg-card/60" :
-        !isCancelled && isExpanded ? "border-primary/40 bg-card dark:bg-card/70" :
-        !isCancelled ? "border-border/60 bg-card dark:bg-card/60 hover:border-primary/30" : ""
-      }`}>
-        <div className="flex items-center justify-between gap-2 mb-2.5">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <h4 className="font-bold text-sm sm:text-base truncate">{session.title || "Session"}</h4>
-            {(isLive || isRealTimeLive) && (
-              <span className="tl-live-badge inline-flex items-center gap-1.5 rounded-md px-2 py-0.5 text-[10px] font-bold bg-red-500 text-white">
-                <span className="tl-live-dot w-1.5 h-1.5 rounded-full bg-white" />
-                LIVE
-              </span>
-            )}
-            {isRealTimeLive && !isLive && (
-              <span className="inline-flex items-center rounded-md px-1.5 py-0.5 text-[9px] font-bold bg-green-500/10 text-green-600 dark:text-green-400 ring-1 ring-green-500/30">NOW</span>
-            )}
-            {isSignedUp && (
-              <>
-                <Badge className={`text-[10px] h-5 ${isWaiting ? "bg-amber-500" : "bg-emerald-500"} text-white`}>
-                  {isWaiting ? "Waitlist" : "Joined"}
-                </Badge>
-                {!isWaiting && mySignup?.paymentStatus === "PAID" ? (
-                  <Badge className="text-[10px] h-5 bg-blue-600 text-white gap-0.5"><ShieldCheck className="h-3 w-3" />Secured</Badge>
-                ) : !isWaiting ? (
-                  <Badge variant="outline" className="text-[10px] h-5 border-orange-400 text-orange-600 dark:text-orange-400 gap-0.5"><ShieldX className="h-3 w-3" />Unsecured</Badge>
-                ) : null}
-                {!isWaiting && (mySignup?.paymentStatus === "PAID" ? (
-                  <Badge className="text-[10px] h-5 bg-emerald-600 text-white gap-0.5"><CircleDollarSign className="h-3 w-3" />Paid</Badge>
-                ) : (
-                  <Badge variant="outline" className="text-[10px] h-5 border-amber-400 text-amber-600 dark:text-amber-400 gap-0.5"><CircleDollarSign className="h-3 w-3" />Pending</Badge>
-                ))}
-              </>
-            )}
-            {isFull && !isPast && (
-              <Badge className="text-[10px] h-5 bg-red-500 text-white">FULL</Badge>
-            )}
-          </div>
-          <div className="flex items-center gap-1 flex-shrink-0">
+      {/* Card body */}
+      <div className="relative flex-1 flex flex-col p-3.5 pt-3">
+        <div className="flex items-start justify-between gap-2 mb-2">
+          <h4 className="font-bold text-sm leading-tight line-clamp-2 min-w-0 flex-1">{session.title || "Session"}</h4>
+          <div className="flex items-center gap-0.5 flex-shrink-0 mt-0.5">
             <button
               type="button"
               onClick={handleNavigate}
               aria-label={`Open ${session.title || "session"}`}
-              className="p-1 rounded-md hover:bg-muted/50 transition-colors"
+              className="p-1 rounded-md hover:bg-primary/15 transition-colors"
               data-testid={`button-navigate-session-${session.id}`}
             >
-              <ArrowRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-primary transition-colors" />
+              <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover/card:text-primary transition-colors" />
             </button>
             <div className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}>
-              <ChevronDown className="h-4 w-4 text-muted-foreground/40" />
+              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50" />
             </div>
           </div>
         </div>
@@ -1222,7 +1234,7 @@ function TimelineSessionCard({
           </div>
         )}
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-1.5 text-xs text-foreground dark:text-white/80 mb-2.5">
+        <div className="grid grid-cols-1 2xl:grid-cols-2 gap-x-3 gap-y-1 text-xs text-foreground dark:text-white/80 mb-2.5">
           {venueName && (
             <div className="flex items-center gap-1.5">
               <MapPin className="h-3.5 w-3.5 flex-shrink-0 text-foreground/70 dark:text-white/60" />
@@ -2252,6 +2264,132 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         }
         .tl-card-anim {
           animation: tl-fadeSlideIn 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
+        }
+        /* === Discord-Quests-inspired card surface === */
+        .tl-quest-card {
+          position: relative;
+          background:
+            linear-gradient(135deg, hsl(var(--card) / 0.92) 0%, hsl(var(--card) / 0.78) 100%);
+          border: 1px solid hsl(var(--border) / 0.55);
+          box-shadow:
+            0 1px 0 hsl(var(--background) / 0.4) inset,
+            0 8px 20px -12px hsl(0 0% 0% / 0.5);
+          transition: transform 220ms cubic-bezier(0.22, 1, 0.36, 1),
+                      box-shadow 220ms ease,
+                      border-color 220ms ease;
+        }
+        .dark .tl-quest-card {
+          background:
+            linear-gradient(135deg, hsl(var(--card) / 0.7) 0%, hsl(var(--card) / 0.5) 100%);
+        }
+        .tl-quest-card::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          padding: 1px;
+          background: linear-gradient(135deg, hsl(var(--primary) / 0.0), hsl(var(--accent) / 0.0));
+          -webkit-mask:
+            linear-gradient(#000 0 0) content-box,
+            linear-gradient(#000 0 0);
+          -webkit-mask-composite: xor;
+                  mask-composite: exclude;
+          pointer-events: none;
+          opacity: 0;
+          transition: opacity 220ms ease, background 220ms ease;
+        }
+        .group\\/card:hover .tl-quest-card::before {
+          opacity: 1;
+          background: linear-gradient(135deg, hsl(var(--primary) / 0.55), hsl(var(--accent) / 0.55));
+        }
+        .group\\/card:hover .tl-quest-card {
+          transform: translateY(-3px);
+          border-color: hsl(var(--primary) / 0.45);
+          box-shadow:
+            0 1px 0 hsl(var(--background) / 0.5) inset,
+            0 18px 40px -18px hsl(var(--primary) / 0.45),
+            0 0 0 1px hsl(var(--primary) / 0.18);
+        }
+        /* Subtle shine-sweep across the card on hover */
+        .tl-quest-shine {
+          position: absolute;
+          inset: 0;
+          border-radius: inherit;
+          overflow: hidden;
+          pointer-events: none;
+          mask-image: linear-gradient(#000, #000);
+        }
+        .tl-quest-shine::after {
+          content: '';
+          position: absolute;
+          top: -50%;
+          left: -75%;
+          width: 50%;
+          height: 200%;
+          background: linear-gradient(
+            115deg,
+            transparent 0%,
+            hsl(0 0% 100% / 0.0) 35%,
+            hsl(0 0% 100% / 0.10) 50%,
+            hsl(0 0% 100% / 0.0) 65%,
+            transparent 100%
+          );
+          transform: translateX(0) skewX(-12deg);
+          transition: transform 750ms cubic-bezier(0.22, 1, 0.36, 1);
+        }
+        .group\\/card:hover .tl-quest-shine::after {
+          transform: translateX(360%) skewX(-12deg);
+        }
+        /* Compact gradient banner header */
+        .tl-quest-banner {
+          position: relative;
+          height: 38px;
+          border-top-left-radius: inherit;
+          border-top-right-radius: inherit;
+          overflow: hidden;
+          background:
+            radial-gradient(120% 200% at 0% 0%, hsl(var(--primary) / 0.55), transparent 55%),
+            radial-gradient(120% 200% at 100% 100%, hsl(var(--accent) / 0.55), transparent 55%),
+            linear-gradient(135deg, hsl(var(--primary) / 0.35), hsl(var(--accent) / 0.35));
+        }
+        .tl-quest-banner.is-live {
+          background:
+            radial-gradient(120% 200% at 0% 0%, rgb(34 197 94 / 0.7), transparent 55%),
+            radial-gradient(120% 200% at 100% 100%, rgb(16 185 129 / 0.7), transparent 55%),
+            linear-gradient(135deg, rgb(34 197 94 / 0.5), rgb(16 185 129 / 0.5));
+        }
+        .tl-quest-banner.is-joined {
+          background:
+            radial-gradient(120% 200% at 0% 0%, rgb(16 185 129 / 0.55), transparent 55%),
+            radial-gradient(120% 200% at 100% 100%, rgb(20 184 166 / 0.55), transparent 55%),
+            linear-gradient(135deg, rgb(16 185 129 / 0.35), rgb(20 184 166 / 0.35));
+        }
+        .tl-quest-banner.is-full {
+          background:
+            radial-gradient(120% 200% at 0% 0%, rgb(239 68 68 / 0.6), transparent 55%),
+            radial-gradient(120% 200% at 100% 100%, rgb(249 115 22 / 0.55), transparent 55%),
+            linear-gradient(135deg, rgb(239 68 68 / 0.35), rgb(249 115 22 / 0.35));
+        }
+        .tl-quest-banner.is-past {
+          background: linear-gradient(135deg, hsl(var(--muted) / 0.6), hsl(var(--muted) / 0.35));
+          filter: grayscale(0.5);
+        }
+        .tl-quest-banner.is-cancelled {
+          background: linear-gradient(135deg, rgb(249 115 22 / 0.65), rgb(234 88 12 / 0.65));
+        }
+        .tl-quest-banner::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background:
+            radial-gradient(circle at 30% 50%, hsl(0 0% 100% / 0.08), transparent 60%);
+          pointer-events: none;
+        }
+        @media (prefers-reduced-motion: reduce) {
+          .tl-quest-card,
+          .tl-quest-card::before,
+          .tl-quest-shine::after { transition: none !important; animation: none !important; }
+          .group\\/card:hover .tl-quest-card { transform: none; }
         }
         .tl-date-anim {
           animation: tl-dateFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
