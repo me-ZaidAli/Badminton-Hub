@@ -196,10 +196,12 @@ export function DashboardMembershipsSection() {
   const [clubId, setClubId] = useState<string>("");
   const selected = approvedClubs.find((c) => String(c.id) === clubId);
 
-  const premiumPrice =
-    selected?.membershipFee != null
-      ? `£${(Number(selected.membershipFee) / 100).toFixed(2)}`
-      : "£9.99";
+  const hasFee = selected != null && selected.membershipFee != null && Number(selected.membershipFee) > 0;
+  const premiumPrice = hasFee
+    ? `£${(Number(selected!.membershipFee) / 100).toFixed(2)}`
+    : selected
+    ? "Not offered"
+    : "Varies";
 
   return (
     <section className="space-y-4" data-testid="section-memberships">
@@ -229,7 +231,7 @@ export function DashboardMembershipsSection() {
           <h3 className="text-xl font-bold text-white mb-1">Basic Membership</h3>
           <p className="text-xs text-white/55 mb-4">Free forever</p>
           <div className="text-4xl font-extrabold text-white mb-6">
-            £0<span className="text-base text-white/55 font-medium">/mo</span>
+            £0<span className="text-base text-white/55 font-medium">/yr</span>
           </div>
           <ul className="space-y-3 mb-6 flex-1">
             {BASIC_FEATURES.map((f) => (
@@ -259,7 +261,9 @@ export function DashboardMembershipsSection() {
             </h3>
             <p className="text-xs text-white/55 mb-4">Everything in Basic, plus more</p>
             <div className="text-4xl font-extrabold text-white mb-6">
-              {premiumPrice}<span className="text-base text-white/55 font-medium">/mo</span>
+              {premiumPrice}
+              {hasFee && <span className="text-base text-white/55 font-medium">/yr</span>}
+              {!selected && <span className="text-base text-white/55 font-medium ml-1">/yr · pick a club</span>}
             </div>
             <ul className="space-y-3 mb-6 flex-1">
               {PREMIUM_FEATURES.map((f) => (
