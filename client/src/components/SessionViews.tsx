@@ -1014,7 +1014,7 @@ function TimelineSessionCard({
         tabIndex={0}
         onClick={handleCardClick}
         onKeyDown={(e) => { if ((e.key === "Enter" || e.key === " ") && e.target === e.currentTarget) { e.preventDefault(); handleCardClick(); } }}
-        className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group ${
+        className={`relative overflow-hidden rounded-xl cursor-pointer transition-all duration-300 hover:shadow-xl focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 outline-none group/card ${
           teLiveStatus === "past" ? "opacity-55" : ""
         } ${isExpanded ? "shadow-lg" : "hover:-translate-y-[3px]"}`}
         data-testid={`timeline-team-event-${session.id}`}
