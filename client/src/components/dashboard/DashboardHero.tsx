@@ -93,6 +93,36 @@ function Tile({ children, accent = "from-violet-600/25 via-fuchsia-500/15 to-cya
   );
 }
 
+// Grouped module container — matches the Discord Nitro card style used below the hero
+function HeroGroup({
+  title,
+  Icon,
+  accentText = "text-violet-200",
+  testId,
+  children,
+}: {
+  title: string;
+  Icon: any;
+  accentText?: string;
+  testId?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <section className="space-y-3" data-testid={testId}>
+      <div className="flex items-center gap-2 pl-1">
+        <Icon className={`w-3.5 h-3.5 ${accentText}`} />
+        <h2 className="text-[11px] font-bold text-white/70 tracking-[0.2em] uppercase">{title}</h2>
+        <div className="flex-1 h-px bg-white/10" />
+      </div>
+      <div className="hero-group-shell relative rounded-[22px] p-3 sm:p-4 lg:p-5 bg-[hsl(var(--card)/0.55)] backdrop-blur-xl border border-white/10">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4">
+          {children}
+        </div>
+      </div>
+    </section>
+  );
+}
+
 const TIPS = [
   "Keep your racket head up during transitions to improve reaction time.",
   "Split-step as your opponent strikes — it's the foundation of fast court coverage.",
@@ -371,10 +401,10 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         : format(nextSession.d, "EEE HH:mm");
 
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 lg:gap-4" data-testid="dashboard-hero">
-      <CustomPollTile />
-      <NewsTile />
+    <div className="space-y-8" data-testid="dashboard-hero">
 
+      {/* === PREMIUM TOP ROW: Time · Weather · Location === */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4 lg:gap-5">
       {/* 1. GREETING + PROFILE PHOTO + CLOCK */}
       <Tile accent={tod.grad} glowA={tod.glowA} glowB={tod.glowB} testId="hero-greeting">
         <div className="flex items-start gap-3">
@@ -440,6 +470,124 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         )}
       </Tile>
 
+      {/* PREMIUM 3: LOCATION */}
+      <Tile accent="from-fuchsia-500/25 via-pink-500/15 to-rose-500/20" glowA="bg-fuchsia-400/30" glowB="bg-rose-500/20" testId="hero-location">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-fuchsia-200/80">
+            <MapPin className="w-3 h-3" /><span>Where you play</span>
+          </div>
+          <Link href="/clubs"><span className="text-[10px] text-fuchsia-200 hover:text-white cursor-pointer inline-flex items-center gap-0.5">Clubs <ChevronRight className="w-3 h-3" /></span></Link>
+        </div>
+        <div className="mt-3">
+          <div className="text-2xl font-extrabold text-white leading-tight truncate" data-testid="text-location-primary">
+            {nextSession?.s?.venueName || nextSession?.s?.venue?.name || nextSession?.s?.clubName || coords?.label || "London"}
+          </div>
+          <div className="text-[11px] text-white/65 mt-0.5 truncate">
+            {coords?.label && coords.label !== "Your location" ? coords.label : "Local area"}
+          </div>
+        </div>
+        <div className="mt-3 flex items-center gap-2 text-[10px] text-white/65">
+          <Activity className="w-3 h-3 text-fuchsia-200" />
+          <span className="tabular-nums">{liveSessions.length} live</span>
+          <span className="text-white/30 mx-1">•</span>
+          <Calendar className="w-3 h-3 text-fuchsia-200" />
+          <span className="tabular-nums">{todaySessions.length} today</span>
+        </div>
+      </Tile>
+      </div>
+
+      {/* === GROUP 1: CHALLENGE & WELLNESS === */}
+      <HeroGroup title="Challenge & Wellness" Icon={Dumbbell} accentText="text-amber-200" testId="hero-group-challenge">
+      {/* 6. TRAINING CHALLENGES */}
+      <Link href="/training-challenges" className="block group" data-testid="hero-challenges">
+        <Tile accent="from-amber-500/20 via-orange-500/15 to-rose-500/20" glowA="bg-amber-400/30" glowB="bg-rose-500/20" className="h-full transition group-hover:border-amber-300/40">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-amber-200/80">
+              <Dumbbell className="w-3 h-3" /><span>Training</span>
+            </div>
+            <ChevronRight className="w-3.5 h-3.5 text-amber-200/60 group-hover:text-white group-hover:translate-x-0.5 transition" />
+          </div>
+          {thisWeekChallenge ? (
+            <>
+              <div className="mt-2">
+                <div className="text-[9px] uppercase tracking-wider text-amber-200/60">Week {thisWeekChallenge.weekNumber}</div>
+                <h3 className="text-sm font-extrabold text-white leading-tight mt-0.5 line-clamp-2" data-testid="text-challenge-title">{thisWeekChallenge.title}</h3>
+              </div>
+              <div className="mt-2.5 grid grid-cols-7 gap-1">
+                {[0, 1, 2, 3, 4, 5, 6].map((dow) => {
+                  const has = thisWeekChallenge.days.some((d) => d.dayOfWeek === dow);
+                  const isToday = dow === todayDow;
+                  return (
+                    <div key={dow} className={`flex flex-col items-center justify-center rounded-md py-1 border ${isToday ? "bg-white/15 border-amber-300/50 shadow-[0_0_10px_rgba(252,211,77,0.4)]" : has ? "bg-amber-400/15 border-amber-300/20" : "bg-white/5 border-white/10"}`}>
+                      <span className="text-[8px] text-white/55">{challengeDayLabels[dow]}</span>
+                      <span className={`mt-0.5 w-1 h-1 rounded-full ${has ? "bg-amber-300" : "bg-white/15"}`} />
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 border border-white/10">
+                <Trophy className="w-3 h-3 text-amber-300" />
+                <span className="text-[10px] font-bold text-white tabular-nums">{thisWeekChallenge.skillPointsReward} pts</span>
+              </div>
+            </>
+          ) : (
+            <div className="mt-3">
+              <h3 className="text-sm font-extrabold text-white">Daily Training</h3>
+              <p className="text-[11px] text-white/70 mt-1">Tap to browse exercises and earn skill points.</p>
+            </div>
+          )}
+        </Tile>
+      </Link>
+
+      {/* 10. HYDRATION TRACKER */}
+      <HydrationTile cups={cups} setCups={setCups} goal={HYDRATION_GOAL} />
+
+      {/* 10b. SHUTTLES HIT TRACKER */}
+      <CounterTile
+        count={shuttles}
+        setCount={setShuttles}
+        goal={SHUTTLES_GOAL}
+        max={SHUTTLES_MAX}
+        label="Shuttles hit"
+        unitLabel="today"
+        icon={Crosshair}
+        accentClass="border-orange-300/20"
+        gradientClass="from-orange-900/40 via-amber-900/25 to-rose-950/60"
+        glowAClass="bg-amber-400/15"
+        glowBClass="bg-orange-500/15"
+        iconColorClass="text-amber-200/85"
+        iconBgEmptyClass="bg-amber-950/40"
+        iconBgFillClass="bg-amber-500/70"
+        testId="hero-shuttles"
+        trophyIcon={ShuttleTubeIcon}
+        trophyLabel="Tubes filled"
+      />
+
+      {/* 10c. BANANAS EATEN TRACKER */}
+      <CounterTile
+        count={bananas}
+        setCount={setBananas}
+        goal={BANANAS_GOAL}
+        max={BANANAS_MAX}
+        label="Bananas eaten"
+        unitLabel="today"
+        icon={Banana}
+        accentClass="border-yellow-300/20"
+        gradientClass="from-yellow-900/40 via-lime-900/25 to-emerald-950/60"
+        glowAClass="bg-yellow-400/15"
+        glowBClass="bg-lime-500/15"
+        iconColorClass="text-yellow-200/85"
+        iconBgEmptyClass="bg-yellow-950/40"
+        iconBgFillClass="bg-yellow-500/70"
+        testId="hero-bananas"
+        trophyIcon={BananaBasketIcon}
+        trophyLabel="Baskets filled"
+      />
+
+      </HeroGroup>
+
+      {/* === GROUP 2: MY PROGRESS === */}
+      <HeroGroup title="My Progress" Icon={Calendar} accentText="text-emerald-200" testId="hero-group-progress">
       {/* 3. TODAY + WEEK COUNTERS */}
       <Tile accent="from-emerald-500/20 via-teal-500/15 to-cyan-500/15" glowA="bg-emerald-400/25" glowB="bg-cyan-500/20" testId="hero-counters">
         <div className="flex items-center justify-between">
@@ -533,47 +681,28 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         )}
       </Tile>
 
-      {/* 6. TRAINING CHALLENGES */}
-      <Link href="/training-challenges" className="block group" data-testid="hero-challenges">
-        <Tile accent="from-amber-500/20 via-orange-500/15 to-rose-500/20" glowA="bg-amber-400/30" glowB="bg-rose-500/20" className="h-full transition group-hover:border-amber-300/40">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-amber-200/80">
-              <Dumbbell className="w-3 h-3" /><span>Training</span>
-            </div>
-            <ChevronRight className="w-3.5 h-3.5 text-amber-200/60 group-hover:text-white group-hover:translate-x-0.5 transition" />
+      {/* 9. PRO TIP */}
+      <Tile accent="from-indigo-500/20 via-violet-500/15 to-purple-500/15" glowA="bg-indigo-400/25" glowB="bg-purple-500/20" testId="hero-tip">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-indigo-200/80">
+            <Lightbulb className="w-3 h-3" /><span>Pro tip</span>
           </div>
-          {thisWeekChallenge ? (
-            <>
-              <div className="mt-2">
-                <div className="text-[9px] uppercase tracking-wider text-amber-200/60">Week {thisWeekChallenge.weekNumber}</div>
-                <h3 className="text-sm font-extrabold text-white leading-tight mt-0.5 line-clamp-2" data-testid="text-challenge-title">{thisWeekChallenge.title}</h3>
-              </div>
-              <div className="mt-2.5 grid grid-cols-7 gap-1">
-                {[0, 1, 2, 3, 4, 5, 6].map((dow) => {
-                  const has = thisWeekChallenge.days.some((d) => d.dayOfWeek === dow);
-                  const isToday = dow === todayDow;
-                  return (
-                    <div key={dow} className={`flex flex-col items-center justify-center rounded-md py-1 border ${isToday ? "bg-white/15 border-amber-300/50 shadow-[0_0_10px_rgba(252,211,77,0.4)]" : has ? "bg-amber-400/15 border-amber-300/20" : "bg-white/5 border-white/10"}`}>
-                      <span className="text-[8px] text-white/55">{challengeDayLabels[dow]}</span>
-                      <span className={`mt-0.5 w-1 h-1 rounded-full ${has ? "bg-amber-300" : "bg-white/15"}`} />
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="mt-3 inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-white/10 border border-white/10">
-                <Trophy className="w-3 h-3 text-amber-300" />
-                <span className="text-[10px] font-bold text-white tabular-nums">{thisWeekChallenge.skillPointsReward} pts</span>
-              </div>
-            </>
-          ) : (
-            <div className="mt-3">
-              <h3 className="text-sm font-extrabold text-white">Daily Training</h3>
-              <p className="text-[11px] text-white/70 mt-1">Tap to browse exercises and earn skill points.</p>
-            </div>
-          )}
-        </Tile>
-      </Link>
+          <span className="text-[9px] text-white/40 uppercase tracking-wider">Daily</span>
+        </div>
+        <div className="mt-3 flex items-start gap-2">
+          <div className="shrink-0 w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
+            <Lightbulb className="w-4 h-4 text-amber-200" />
+          </div>
+          <p className="text-[12px] leading-snug text-white/90 italic" data-testid="text-pro-tip">"{tip}"</p>
+        </div>
+      </Tile>
 
+      </HeroGroup>
+
+      {/* === GROUP 3: CLUB ACTIVITY === */}
+      <HeroGroup title="Club Activity" Icon={Activity} accentText="text-fuchsia-200" testId="hero-group-club">
+        <CustomPollTile />
+        <NewsTile />
       {/* 7. LIVE COURTS */}
       <Tile accent="from-rose-500/20 via-pink-500/15 to-fuchsia-500/15" glowA="bg-rose-400/25" glowB="bg-fuchsia-500/20" testId="hero-live-courts">
         <div className="flex items-center justify-between">
@@ -603,6 +732,58 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         )}
       </Tile>
 
+      {/* 13. NEXT EVENT */}
+      <Tile accent="from-pink-500/20 via-rose-500/15 to-orange-500/15" glowA="bg-pink-400/25" glowB="bg-orange-500/20" testId="hero-event">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-pink-200/80">
+            <PartyPopper className="w-3 h-3" /><span>Next event</span>
+          </div>
+          <Link href="/events">
+            <button className="text-[10px] text-pink-200 hover:text-white inline-flex items-center gap-0.5">
+              All <ChevronRight className="w-3 h-3" />
+            </button>
+          </Link>
+        </div>
+        {nextEvent ? (
+          <Link href={`/events/${nextEvent.e.id}`}>
+            <div className="mt-3 group cursor-pointer" data-testid={`event-${nextEvent.e.id}`}>
+              <div className="flex items-start gap-2.5">
+                <div className="shrink-0 flex flex-col items-center justify-center w-12 rounded-lg bg-pink-400/25 border border-pink-300/30 py-1.5">
+                  <span className="text-[9px] uppercase tracking-wider text-pink-100">{format(nextEvent.d, "MMM")}</span>
+                  <span className="text-base font-extrabold text-white leading-none">{format(nextEvent.d, "d")}</span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-extrabold text-white truncate" data-testid="text-event-title">{nextEvent.e.title}</p>
+                  <p className="text-[10px] text-white/65 truncate flex items-center gap-1 mt-0.5">
+                    <Clock className="w-3 h-3" />{nextEvent.e.startTime || format(nextEvent.d, "HH:mm")}
+                  </p>
+                  {nextEvent.e.location && (
+                    <p className="text-[10px] text-white/60 truncate flex items-center gap-1">
+                      <MapPin className="w-3 h-3" />{nextEvent.e.location}
+                    </p>
+                  )}
+                </div>
+              </div>
+              <div className="mt-2 flex items-center justify-between">
+                <span className="text-[10px] text-white/55 inline-flex items-center gap-1">
+                  <Users className="w-3 h-3" />
+                  {(nextEvent.e.signupCount || 0)}/{nextEvent.e.maxParticipants} signed up
+                </span>
+                {nextEvent.e.isSignedUp && (
+                  <span className="text-[9px] uppercase tracking-wider text-emerald-300 font-bold">You're in</span>
+                )}
+              </div>
+            </div>
+          </Link>
+        ) : (
+          <div className="mt-4">
+            <p className="text-xs text-white/65">No upcoming club events.</p>
+            <Link href="/events">
+              <span className="mt-2 inline-flex items-center gap-1 text-[11px] text-pink-200 hover:text-white underline cursor-pointer">Browse events</span>
+            </Link>
+          </div>
+        )}
+      </Tile>
       {/* 8. AI WEB DEAL */}
       <Tile accent="from-lime-500/20 via-emerald-500/15 to-teal-500/15" glowA="bg-lime-400/25" glowB="bg-teal-500/20" testId="hero-partner">
         <div className="flex items-center justify-between">
@@ -659,86 +840,6 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         )}
       </Tile>
 
-      {/* 9. PRO TIP */}
-      <Tile accent="from-indigo-500/20 via-violet-500/15 to-purple-500/15" glowA="bg-indigo-400/25" glowB="bg-purple-500/20" testId="hero-tip">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-indigo-200/80">
-            <Lightbulb className="w-3 h-3" /><span>Pro tip</span>
-          </div>
-          <span className="text-[9px] text-white/40 uppercase tracking-wider">Daily</span>
-        </div>
-        <div className="mt-3 flex items-start gap-2">
-          <div className="shrink-0 w-8 h-8 rounded-full bg-white/10 border border-white/10 flex items-center justify-center">
-            <Lightbulb className="w-4 h-4 text-amber-200" />
-          </div>
-          <p className="text-[12px] leading-snug text-white/90 italic" data-testid="text-pro-tip">"{tip}"</p>
-        </div>
-      </Tile>
-
-      {/* 10. HYDRATION TRACKER */}
-      <HydrationTile cups={cups} setCups={setCups} goal={HYDRATION_GOAL} />
-
-      {/* 10b. SHUTTLES HIT TRACKER */}
-      <CounterTile
-        count={shuttles}
-        setCount={setShuttles}
-        goal={SHUTTLES_GOAL}
-        max={SHUTTLES_MAX}
-        label="Shuttles hit"
-        unitLabel="today"
-        icon={Crosshair}
-        accentClass="border-orange-300/20"
-        gradientClass="from-orange-900/40 via-amber-900/25 to-rose-950/60"
-        glowAClass="bg-amber-400/15"
-        glowBClass="bg-orange-500/15"
-        iconColorClass="text-amber-200/85"
-        iconBgEmptyClass="bg-amber-950/40"
-        iconBgFillClass="bg-amber-500/70"
-        testId="hero-shuttles"
-        trophyIcon={ShuttleTubeIcon}
-        trophyLabel="Tubes filled"
-      />
-
-      {/* 10c. BANANAS EATEN TRACKER */}
-      <CounterTile
-        count={bananas}
-        setCount={setBananas}
-        goal={BANANAS_GOAL}
-        max={BANANAS_MAX}
-        label="Bananas eaten"
-        unitLabel="today"
-        icon={Banana}
-        accentClass="border-yellow-300/20"
-        gradientClass="from-yellow-900/40 via-lime-900/25 to-emerald-950/60"
-        glowAClass="bg-yellow-400/15"
-        glowBClass="bg-lime-500/15"
-        iconColorClass="text-yellow-200/85"
-        iconBgEmptyClass="bg-yellow-950/40"
-        iconBgFillClass="bg-yellow-500/70"
-        testId="hero-bananas"
-        trophyIcon={BananaBasketIcon}
-        trophyLabel="Baskets filled"
-      />
-
-      {/* 11. DAILY QUOTE / MINDSET */}
-      <Tile accent="from-fuchsia-500/20 via-purple-500/15 to-violet-500/15" glowA="bg-fuchsia-400/25" glowB="bg-violet-500/20" testId="hero-quote">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-fuchsia-200/80">
-            <Quote className="w-3 h-3" /><span>Mindset</span>
-          </div>
-          <span className="text-[9px] text-white/40 uppercase tracking-wider">Daily</span>
-        </div>
-        {quoteData ? (
-          <div className="mt-3">
-            <Quote className="w-5 h-5 text-fuchsia-300/40" />
-            <p className="text-[12px] leading-snug text-white/95 italic mt-1 line-clamp-4" data-testid="text-daily-quote">{quoteData.text}</p>
-            <p className="text-[10px] text-fuchsia-200/80 mt-1.5 font-semibold">— {quoteData.author}</p>
-          </div>
-        ) : (
-          <div className="mt-6 flex items-center gap-2 text-white/55"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
-        )}
-      </Tile>
-
       {/* 12. DAILY POLL */}
       <Tile accent="from-orange-500/20 via-amber-500/15 to-yellow-500/15" glowA="bg-orange-400/25" glowB="bg-yellow-500/20" testId="hero-poll">
         <div className="flex items-center justify-between">
@@ -784,58 +885,26 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         )}
       </Tile>
 
-      {/* 13. NEXT EVENT */}
-      <Tile accent="from-pink-500/20 via-rose-500/15 to-orange-500/15" glowA="bg-pink-400/25" glowB="bg-orange-500/20" testId="hero-event">
+      {/* 11. DAILY QUOTE / MINDSET */}
+      <Tile accent="from-fuchsia-500/20 via-purple-500/15 to-violet-500/15" glowA="bg-fuchsia-400/25" glowB="bg-violet-500/20" testId="hero-quote">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-pink-200/80">
-            <PartyPopper className="w-3 h-3" /><span>Next event</span>
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-fuchsia-200/80">
+            <Quote className="w-3 h-3" /><span>Mindset</span>
           </div>
-          <Link href="/events">
-            <button className="text-[10px] text-pink-200 hover:text-white inline-flex items-center gap-0.5">
-              All <ChevronRight className="w-3 h-3" />
-            </button>
-          </Link>
+          <span className="text-[9px] text-white/40 uppercase tracking-wider">Daily</span>
         </div>
-        {nextEvent ? (
-          <Link href={`/events/${nextEvent.e.id}`}>
-            <div className="mt-3 group cursor-pointer" data-testid={`event-${nextEvent.e.id}`}>
-              <div className="flex items-start gap-2.5">
-                <div className="shrink-0 flex flex-col items-center justify-center w-12 rounded-lg bg-pink-400/25 border border-pink-300/30 py-1.5">
-                  <span className="text-[9px] uppercase tracking-wider text-pink-100">{format(nextEvent.d, "MMM")}</span>
-                  <span className="text-base font-extrabold text-white leading-none">{format(nextEvent.d, "d")}</span>
-                </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-xs font-extrabold text-white truncate" data-testid="text-event-title">{nextEvent.e.title}</p>
-                  <p className="text-[10px] text-white/65 truncate flex items-center gap-1 mt-0.5">
-                    <Clock className="w-3 h-3" />{nextEvent.e.startTime || format(nextEvent.d, "HH:mm")}
-                  </p>
-                  {nextEvent.e.location && (
-                    <p className="text-[10px] text-white/60 truncate flex items-center gap-1">
-                      <MapPin className="w-3 h-3" />{nextEvent.e.location}
-                    </p>
-                  )}
-                </div>
-              </div>
-              <div className="mt-2 flex items-center justify-between">
-                <span className="text-[10px] text-white/55 inline-flex items-center gap-1">
-                  <Users className="w-3 h-3" />
-                  {(nextEvent.e.signupCount || 0)}/{nextEvent.e.maxParticipants} signed up
-                </span>
-                {nextEvent.e.isSignedUp && (
-                  <span className="text-[9px] uppercase tracking-wider text-emerald-300 font-bold">You're in</span>
-                )}
-              </div>
-            </div>
-          </Link>
-        ) : (
-          <div className="mt-4">
-            <p className="text-xs text-white/65">No upcoming club events.</p>
-            <Link href="/events">
-              <span className="mt-2 inline-flex items-center gap-1 text-[11px] text-pink-200 hover:text-white underline cursor-pointer">Browse events</span>
-            </Link>
+        {quoteData ? (
+          <div className="mt-3">
+            <Quote className="w-5 h-5 text-fuchsia-300/40" />
+            <p className="text-[12px] leading-snug text-white/95 italic mt-1 line-clamp-4" data-testid="text-daily-quote">{quoteData.text}</p>
+            <p className="text-[10px] text-fuchsia-200/80 mt-1.5 font-semibold">— {quoteData.author}</p>
           </div>
+        ) : (
+          <div className="mt-6 flex items-center gap-2 text-white/55"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
         )}
       </Tile>
+
+      </HeroGroup>
 
     </div>
   );
