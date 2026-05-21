@@ -237,7 +237,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
   const tip = TIPS[getDayOfYear(now) % TIPS.length];
 
   // AI-SOURCED DAILY DEALS (web)
-  const { data: dealsData } = useQuery<{ deals: Array<{ brand: string; offer: string; url: string; category: string }> }>({
+  const { data: dealsData } = useQuery<{ deals: Array<{ brand: string; offer: string; url: string; category: string; imageUrl?: string; sponsored?: boolean }> }>({
     queryKey: ["/api/daily-content/deals"],
     staleTime: 60 * 60_000,
   });
@@ -617,16 +617,36 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl }:
         </div>
         {deal ? (
           <a href={deal.url} target="_blank" rel="noopener noreferrer" className="block group" data-testid={`link-deal-${dealIdx}`}>
-            <div className="mt-3">
-              <div className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[9px] uppercase tracking-wider text-white/65 mb-1.5">
-                {deal.category}
+            <div className="mt-3 flex gap-3">
+              {deal.imageUrl ? (
+                <img
+                  src={deal.imageUrl}
+                  alt={deal.brand}
+                  loading="lazy"
+                  referrerPolicy="no-referrer"
+                  onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                  className="shrink-0 w-16 h-16 rounded-lg object-cover border border-white/10 bg-white/5"
+                  data-testid={`img-deal-${dealIdx}`}
+                />
+              ) : null}
+              <div className="min-w-0 flex-1">
+                <div className="flex items-center gap-1 mb-1.5 flex-wrap">
+                  <span className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[9px] uppercase tracking-wider text-white/65">
+                    {deal.category}
+                  </span>
+                  {deal.sponsored ? (
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-amber-400/20 border border-amber-300/30 text-[9px] uppercase tracking-wider text-amber-200" data-testid={`badge-sponsor-${dealIdx}`}>
+                      Sponsor
+                    </span>
+                  ) : null}
+                </div>
+                <h3 className="text-sm font-extrabold text-white leading-tight truncate group-hover:text-lime-200 transition" data-testid="text-deal-brand">
+                  {deal.brand}
+                </h3>
+                <p className={`text-base font-extrabold mt-0.5 leading-tight line-clamp-2 ${dealColor}`} data-testid="text-deal-offer">
+                  {deal.offer}
+                </p>
               </div>
-              <h3 className="text-sm font-extrabold text-white leading-tight truncate group-hover:text-lime-200 transition" data-testid="text-deal-brand">
-                {deal.brand}
-              </h3>
-              <p className={`text-lg font-extrabold mt-0.5 leading-tight line-clamp-2 ${dealColor}`} data-testid="text-deal-offer">
-                {deal.offer}
-              </p>
             </div>
             <div className="mt-2 inline-flex items-center gap-1 text-[10px] text-lime-200 group-hover:text-white">
               Visit site <ExternalLink className="w-3 h-3" />

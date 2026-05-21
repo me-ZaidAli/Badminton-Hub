@@ -16,15 +16,15 @@ const FALLBACK_QUOTES = [
   { text: "What you do today can improve all your tomorrows.", author: "Ralph Marston" },
 ];
 
-const FALLBACK_DEALS = [
+const FALLBACK_DEALS: Deal[] = [
+  { brand: "Central Sports", offer: "Shop rackets, shoes & shuttles", url: "https://centralsports.co.uk/", category: "Sponsor", sponsored: true },
+  { brand: "Central Sports", offer: "Yonex restringing service", url: "https://centralsports.co.uk/", category: "Service", sponsored: true },
   { brand: "Yonex", offer: "Up to 25% off rackets", url: "https://www.yonex.com/deals", category: "Rackets" },
   { brand: "Wilson", offer: "Free string with racket", url: "https://www.wilson.com", category: "Rackets" },
   { brand: "Decathlon", offer: "20% off Perfly badminton range", url: "https://www.decathlon.co.uk", category: "Apparel" },
   { brand: "Sports Direct", offer: "Buy 2 get 1 free shuttles", url: "https://www.sportsdirect.com", category: "Shuttles" },
   { brand: "Babolat", offer: "10% off junior rackets", url: "https://www.babolat.com", category: "Junior" },
-  { brand: "Li-Ning", offer: "Free shipping over £50", url: "https://lining.com", category: "Shipping" },
   { brand: "MyProtein", offer: "30% off whey + free shaker", url: "https://www.myprotein.com", category: "Nutrition" },
-  { brand: "RacketDepot", offer: "15% off restringing service", url: "https://racketdepot.co.uk", category: "Service" },
 ];
 
 const FALLBACK_POLLS = [
@@ -39,7 +39,7 @@ const FALLBACK_POLLS = [
 
 type CachedQuote = { date: string; text: string; author: string };
 type CachedPoll = { date: string; question: string; options: string[] };
-type Deal = { brand: string; offer: string; url: string; category: string };
+type Deal = { brand: string; offer: string; url: string; category: string; imageUrl?: string; sponsored?: boolean };
 type CachedDeals = { date: string; deals: Deal[] };
 type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string };
 type CachedNews = { fetchedAt: number; items: NewsItem[] };
@@ -138,7 +138,16 @@ async function generateDeals(dateStr: string): Promise<CachedDeals> {
       body: JSON.stringify({
         model: "gpt-5.1",
         tools: [{ type: "web_search" }],
-        input: `Search the web right now for the 6 best CURRENT live deals, discounts, or promotional offers on badminton/racket-sports gear (rackets, shuttlecocks, strings, shoes, apparel, restringing services, sports nutrition) available to UK shoppers today (${dateStr}). Return STRICT JSON ONLY (no prose, no markdown) in this exact shape: {"deals":[{"brand":"...","offer":"short under 40 chars","url":"https://...","category":"Rackets|Apparel|Shuttles|Shoes|Strings|Service|Nutrition|Junior"}]}. Use the real product URLs you found. Only include offers that look genuinely current.`,
+        input: `Search the web right now for 6 CURRENT live deals on badminton/racket-sports gear available to UK shoppers today (${dateStr}).
+
+IMPORTANT — SPONSORED PARTNER: The FIRST TWO deals MUST be live products from our club sponsor Central Sports (https://centralsports.co.uk/). Browse the site, pick two real product pages (rackets, shoes, shuttles, bags, strings or restringing), and use their real product URLs. Set "sponsored": true and "brand": "Central Sports" on those two. Try to include the product's main image URL in "imageUrl" (https only, must end in .jpg/.jpeg/.png/.webp or be a Shopify/cdn image URL).
+
+The remaining 4 deals can be from other reputable UK retailers (Yonex, Victor, Li-Ning, Babolat, Decathlon, Sports Direct, RacketDepot, MyProtein, etc) — also include "imageUrl" where you can find a real product image.
+
+Return STRICT JSON ONLY (no prose, no markdown) in this exact shape:
+{"deals":[{"brand":"...","offer":"short under 40 chars","url":"https://...","category":"Rackets|Apparel|Shuttles|Shoes|Strings|Service|Nutrition|Junior|Bags|Sponsor","imageUrl":"https://...","sponsored":true}]}
+
+Use the real product URLs and image URLs you actually found. Only include offers that look genuinely current.`,
       }),
     });
     if (r.ok) {
@@ -150,15 +159,27 @@ async function generateDeals(dateStr: string): Promise<CachedDeals> {
       if (m) {
         const parsed = JSON.parse(m[0]);
         if (Array.isArray(parsed?.deals) && parsed.deals.length > 0) {
-          const cleaned: Deal[] = parsed.deals.slice(0, 8).map((d: any) => ({
-            brand: String(d.brand || "").slice(0, 40),
-            offer: String(d.offer || "").slice(0, 60),
-            url: String(d.url || "").slice(0, 400),
-            category: String(d.category || "Deal").slice(0, 24),
-          })).filter((d: Deal) => d.brand && d.offer && d.url.startsWith("http"));
+          const cleaned: Deal[] = parsed.deals.slice(0, 8).map((d: any) => {
+            const imgRaw = String(d.imageUrl || "").trim();
+            const imgOk = /^https:\/\/.+/i.test(imgRaw) && imgRaw.length < 500;
+            return {
+              brand: String(d.brand || "").slice(0, 40),
+              offer: String(d.offer || "").slice(0, 60),
+              url: String(d.url || "").slice(0, 400),
+              category: String(d.category || "Deal").slice(0, 24),
+              imageUrl: imgOk ? imgRaw : undefined,
+              sponsored: Boolean(d.sponsored) || String(d.url || "").includes("centralsports.co.uk") || String(d.brand || "").toLowerCase().includes("central sports"),
+            };
+          }).filter((d: Deal) => d.brand && d.offer && d.url.startsWith("http"));
           if (cleaned.length > 0) {
-            console.log(`[DAILY DEALS] web-search returned ${cleaned.length} deals for ${dateStr}`);
-            return { date: dateStr, deals: cleaned };
+            // Ensure at least one Central Sports deal is present and sorted first
+            const hasSponsor = cleaned.some(d => d.sponsored);
+            if (!hasSponsor) {
+              cleaned.unshift({ brand: "Central Sports", offer: "Shop rackets, shoes & shuttles", url: "https://centralsports.co.uk/", category: "Sponsor", sponsored: true });
+            }
+            cleaned.sort((a, b) => Number(Boolean(b.sponsored)) - Number(Boolean(a.sponsored)));
+            console.log(`[DAILY DEALS] web-search returned ${cleaned.length} deals for ${dateStr} (sponsored: ${cleaned.filter(d => d.sponsored).length})`);
+            return { date: dateStr, deals: cleaned.slice(0, 8) };
           }
         }
       }
@@ -173,7 +194,7 @@ async function generateDeals(dateStr: string): Promise<CachedDeals> {
     const completion = await openai.chat.completions.create({
       model: "gpt-5.1",
       messages: [
-        { role: "system", content: "Return STRICT JSON only: {\"deals\":[{\"brand\":\"...\",\"offer\":\"under 40 chars\",\"url\":\"https://realbrand.com\",\"category\":\"Rackets|Apparel|Shuttles|Shoes|Strings|Service|Nutrition|Junior\"}]}. List 6 plausible CURRENT-STYLE promotional offers on badminton/racket-sports gear from real UK-available brands (Yonex, Victor, Li-Ning, Babolat, Wilson, Decathlon, Sports Direct, MyProtein, RacketDepot, Pro:Direct, etc). Use the brand's real homepage as the URL. Vary categories." },
+        { role: "system", content: "Return STRICT JSON only: {\"deals\":[{\"brand\":\"...\",\"offer\":\"under 40 chars\",\"url\":\"https://realbrand.com\",\"category\":\"Rackets|Apparel|Shuttles|Shoes|Strings|Service|Nutrition|Junior|Sponsor\",\"sponsored\":false}]}. The FIRST TWO deals must be sponsor Central Sports — set brand=\"Central Sports\", url=\"https://centralsports.co.uk/\", sponsored=true, with a believable racket/shoe/shuttle offer. The remaining 4 are plausible CURRENT-STYLE offers from other UK-available brands (Yonex, Victor, Li-Ning, Babolat, Wilson, Decathlon, Sports Direct, MyProtein, RacketDepot, Pro:Direct). Use the brand's real homepage as the URL. Vary categories." },
         { role: "user", content: `Today is ${dateStr}. Give 6 deals.` },
       ],
       response_format: { type: "json_object" },
@@ -186,8 +207,15 @@ async function generateDeals(dateStr: string): Promise<CachedDeals> {
         offer: String(d.offer || "").slice(0, 60),
         url: String(d.url || "").slice(0, 400),
         category: String(d.category || "Deal").slice(0, 24),
+        sponsored: Boolean(d.sponsored) || String(d.url || "").includes("centralsports.co.uk") || String(d.brand || "").toLowerCase().includes("central sports"),
       })).filter((d: Deal) => d.brand && d.offer && d.url.startsWith("http"));
-      if (cleaned.length > 0) return { date: dateStr, deals: cleaned };
+      if (cleaned.length > 0) {
+        if (!cleaned.some(d => d.sponsored)) {
+          cleaned.unshift({ brand: "Central Sports", offer: "Shop rackets, shoes & shuttles", url: "https://centralsports.co.uk/", category: "Sponsor", sponsored: true });
+        }
+        cleaned.sort((a, b) => Number(Boolean(b.sponsored)) - Number(Boolean(a.sponsored)));
+        return { date: dateStr, deals: cleaned.slice(0, 8) };
+      }
     }
   } catch (e) {
     console.warn("[DAILY DEALS] chat fallback failed:", (e as any)?.message);
