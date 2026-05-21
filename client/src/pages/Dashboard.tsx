@@ -9,6 +9,7 @@ import { useClubPlan, useAdminClubId } from "@/hooks/use-club-plan";
 import { PageHeader } from "@/components/ui/page-header";
 import DashboardHero from "@/components/dashboard/DashboardHero";
 import DashboardBanner from "@/components/dashboard/DashboardBanner";
+import { DashboardNewsCard, DashboardThemesCard, DashboardMembershipsSection } from "@/components/dashboard/DashboardNitroSections";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -330,6 +331,13 @@ function DashboardContent({
         <div className="relative z-10 -mt-12 sm:-mt-16 lg:-mt-20">
           <DashboardHero userName={user?.fullName || ""} sessions={(sessions as any[]) || []} profilePictureUrl={(user as any)?.profilePictureUrl || null} />
         </div>
+      </div>
+
+      {/* Discord Nitro–style sections: news, themes, memberships */}
+      <div className="space-y-10 pt-4">
+        <DashboardNewsCard />
+        <DashboardThemesCard />
+        <DashboardMembershipsSection />
       </div>
 
       {((myTournaments && myTournaments.length > 0) || featuredJoinTournament || upcomingList.length > 0) && (
