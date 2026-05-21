@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, CheckCircle2, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, CheckCircle2, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X, LogOut, UserPlus } from "lucide-react";
 import { Link } from "wouter";
 import { SessionTeamBadges } from "@/components/session/SessionTeamBadges";
 
@@ -1416,6 +1416,59 @@ function TimelineSessionCard({
 
         {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onWithdraw={onWithdraw} onNavigate={onNavigate} adminActions={adminActions} />}
       </div>
+
+      {/* Discord-Quests-style hover-reveal action bar (hidden when expanded, cancelled, or past) */}
+      {!isExpanded && !isCancelled && !isRealTimePast && (
+        <div className="tl-quest-actions" aria-hidden={false} data-testid={`quest-actions-${session.id}`}>
+          <div className="tl-quest-actions-inner">
+            {isSignedUp ? (
+              onWithdraw && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onWithdraw(session.id); }}
+                  className="tl-quest-btn tl-quest-btn-danger"
+                  data-testid={`button-quest-withdraw-${session.id}`}
+                >
+                  <LogOut className="h-3.5 w-3.5" />
+                  <span>Withdraw</span>
+                </button>
+              )
+            ) : (
+              onSignUp && !isFull && (
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); onSignUp(session); }}
+                  className="tl-quest-btn tl-quest-btn-primary"
+                  data-testid={`button-quest-join-${session.id}`}
+                >
+                  <UserPlus className="h-3.5 w-3.5" />
+                  <span>Join Session</span>
+                </button>
+              )
+            )}
+            {!isSignedUp && isFull && onSignUp && (
+              <button
+                type="button"
+                onClick={(e) => { e.stopPropagation(); onSignUp(session); }}
+                className="tl-quest-btn tl-quest-btn-warn"
+                data-testid={`button-quest-waitlist-${session.id}`}
+              >
+                <Clock className="h-3.5 w-3.5" />
+                <span>Join Waitlist</span>
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={handleNavigate}
+              className="tl-quest-btn tl-quest-btn-secondary"
+              data-testid={`button-quest-open-${session.id}`}
+            >
+              <span>Open Session</span>
+              <ArrowRight className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2385,11 +2438,124 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
             radial-gradient(circle at 30% 50%, hsl(0 0% 100% / 0.08), transparent 60%);
           pointer-events: none;
         }
+        /* Subtle badminton-themed pattern layer (shuttle + court lines), fades in on hover */
+        .tl-quest-banner::before {
+          content: '';
+          position: absolute;
+          inset: 0;
+          background-image:
+            url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 60' preserveAspectRatio='xMidYMid slice'><g fill='none' stroke='white' stroke-width='0.6' opacity='0.5'><circle cx='30' cy='30' r='10'/><path d='M30 20 L30 8 M22 14 L38 14 M20 18 L40 18 M18 22 L42 22'/></g><g fill='none' stroke='white' stroke-width='0.4' opacity='0.35'><path d='M70 5 L70 55 M90 5 L90 55 M110 5 L110 55 M130 5 L130 55 M150 5 L150 55'/><path d='M65 15 L195 15 M65 45 L195 45'/></g></svg>");
+          background-repeat: no-repeat;
+          background-size: cover;
+          background-position: center;
+          opacity: 0.18;
+          transform: scale(1);
+          transition: opacity 320ms ease, transform 600ms cubic-bezier(0.22, 1, 0.36, 1);
+          pointer-events: none;
+          mix-blend-mode: screen;
+        }
+        .group\\/card:hover .tl-quest-banner::before {
+          opacity: 0.32;
+          transform: scale(1.06);
+        }
+        /* === Hover-reveal action bar (Discord Quest "Launch" footer) === */
+        .tl-quest-actions {
+          position: absolute;
+          left: 0; right: 0; bottom: 0;
+          padding: 8px 10px 10px;
+          background: linear-gradient(to top, hsl(var(--card) / 0.96) 30%, hsl(var(--card) / 0.0) 100%);
+          backdrop-filter: blur(8px);
+          -webkit-backdrop-filter: blur(8px);
+          opacity: 0;
+          transform: translateY(10px);
+          transition: opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
+          pointer-events: none;
+          border-bottom-left-radius: inherit;
+          border-bottom-right-radius: inherit;
+          z-index: 4;
+        }
+        .group\\/card:hover .tl-quest-actions,
+        .group\\/card:focus-within .tl-quest-actions {
+          opacity: 1;
+          transform: translateY(0);
+          pointer-events: auto;
+        }
+        .tl-quest-actions-inner {
+          display: flex;
+          gap: 6px;
+          align-items: stretch;
+          justify-content: stretch;
+        }
+        .tl-quest-btn {
+          flex: 1 1 0;
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 6px;
+          height: 34px;
+          padding: 0 10px;
+          border-radius: 10px;
+          font-size: 12px;
+          font-weight: 700;
+          letter-spacing: 0.01em;
+          border: 1px solid transparent;
+          cursor: pointer;
+          transition: transform 140ms ease, box-shadow 200ms ease, background 200ms ease, border-color 200ms ease, filter 200ms ease;
+          will-change: transform;
+          white-space: nowrap;
+          min-width: 0;
+        }
+        .tl-quest-btn:hover { transform: translateY(-1px) scale(1.02); filter: brightness(1.05); }
+        .tl-quest-btn:active { transform: translateY(0) scale(0.99); }
+        .tl-quest-btn-primary {
+          background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+          color: hsl(var(--primary-foreground));
+          box-shadow: 0 6px 16px -8px hsl(var(--primary) / 0.7), 0 0 0 1px hsl(var(--primary) / 0.25) inset;
+        }
+        .tl-quest-btn-primary:hover {
+          box-shadow: 0 10px 24px -10px hsl(var(--primary) / 0.85), 0 0 0 1px hsl(var(--primary) / 0.45) inset, 0 0 18px -2px hsl(var(--primary) / 0.55);
+        }
+        .tl-quest-btn-secondary {
+          background: hsl(var(--muted) / 0.7);
+          color: hsl(var(--foreground));
+          border-color: hsl(var(--border) / 0.7);
+        }
+        .tl-quest-btn-secondary:hover {
+          background: hsl(var(--muted));
+          border-color: hsl(var(--primary) / 0.5);
+        }
+        .tl-quest-btn-danger {
+          background: linear-gradient(135deg, rgb(244 63 94 / 0.95), rgb(225 29 72 / 0.95));
+          color: white;
+          box-shadow: 0 6px 16px -8px rgb(244 63 94 / 0.7);
+        }
+        .tl-quest-btn-warn {
+          background: linear-gradient(135deg, rgb(245 158 11 / 0.95), rgb(217 119 6 / 0.95));
+          color: white;
+          box-shadow: 0 6px 16px -8px rgb(245 158 11 / 0.7);
+        }
+        /* Touch devices: always show action bar, no hover required */
+        @media (hover: none), (pointer: coarse) {
+          .tl-quest-actions {
+            position: relative;
+            opacity: 1;
+            transform: none;
+            pointer-events: auto;
+            background: transparent;
+            backdrop-filter: none;
+            -webkit-backdrop-filter: none;
+            padding: 6px 10px 10px;
+          }
+        }
         @media (prefers-reduced-motion: reduce) {
           .tl-quest-card,
           .tl-quest-card::before,
-          .tl-quest-shine::after { transition: none !important; animation: none !important; }
+          .tl-quest-shine::after,
+          .tl-quest-banner::before,
+          .tl-quest-actions,
+          .tl-quest-btn { transition: none !important; animation: none !important; }
           .group\\/card:hover .tl-quest-card { transform: none; }
+          .group\\/card:hover .tl-quest-actions { transform: none; }
         }
         .tl-date-anim {
           animation: tl-dateFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;

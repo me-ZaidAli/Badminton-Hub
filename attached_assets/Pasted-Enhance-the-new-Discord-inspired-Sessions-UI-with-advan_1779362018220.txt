@@ -1,0 +1,124 @@
+Enhance the new Discord-inspired Sessions UI with advanced hover interactions, layered card animations, contextual actions, and premium visual depth similar to Discord Quests cards.
+
+Card interaction behaviour:
+
+* The entire session card should feel interactive and alive.
+* Hovering over a card should trigger smooth layered animations.
+* Use Framer Motion for fluid transitions.
+
+Primary hover behaviour:
+
+* When hovering over a session card:
+
+  * reveal the primary action buttons with a smooth fade + slide animation
+  * buttons should appear from the bottom section of the card similar to Discord Quest cards
+  * transition should feel elegant, premium, and responsive
+  * buttons should not instantly pop in
+
+Buttons to reveal on hover:
+
+1. Join / Withdraw button
+
+* Dynamically changes based on attendance state.
+* If user already joined:
+
+  * show “Withdraw”
+* If not joined:
+
+  * show “Join Session”
+* Button should glow subtly on hover.
+
+2. Open Session button
+
+* Secondary button.
+* Clicking this button should go directly into the session page/details immediately.
+* This is separate from the Join button.
+* Should feel similar to “Launch Quest” on Discord.
+
+Card click behaviour:
+
+* Clicking anywhere on the card EXCEPT buttons should still open the session details normally.
+* Preserve all existing click behaviour and routing logic.
+* For admins/coaches/organisers:
+
+  * preserve all admin controls
+  * preserve management actions
+  * preserve edit/manage dropdowns
+  * preserve moderation functionality
+  * preserve attendance management
+  * preserve financial/session controls
+* Admin actions should integrate elegantly into the redesign without clutter.
+
+Hover animation details:
+
+* Card lifts slightly upward.
+* Background gradient shifts subtly.
+* Glow intensity increases.
+* Border becomes more vibrant.
+* Session image/banner slightly zooms.
+* Shadow deepens smoothly.
+* Optional subtle shine sweep animation.
+* All transitions must feel extremely smooth and premium.
+
+Visual top banner enhancement:
+
+* Add a very subtle AI-generated badminton themed visual area at the top of each card.
+* This should behave similarly to Discord Quest banners:
+
+  * soft faded image
+  * partially blurred
+  * low opacity
+  * integrated into the gradient
+  * does NOT interfere with readability
+  * text remains fully clear and accessible
+* Example visuals:
+
+  * badminton shuttle close-up
+  * badminton court lighting
+  * abstract racket motion
+  * neon sports energy
+  * competitive atmosphere
+* The image should softly fade into the card background instead of looking like a separate image block.
+* Add dark overlay gradients to protect readability.
+
+Visual layering:
+
+* Use multiple layers:
+
+  * background glow
+  * AI image fade
+  * gradient overlay
+  * glass surface
+  * hover lighting
+* Make the cards feel deep and dimensional instead of flat.
+
+Micro interactions:
+
+* Buttons should slightly scale on hover.
+* Occupancy bars can animate subtly.
+* Tags/chips can glow faintly on hover.
+* Session heat indicators can pulse softly.
+* Participant avatars can shift slightly upward on hover.
+
+Responsive requirements:
+
+* Hover interactions should gracefully adapt for touch devices.
+* On mobile:
+
+  * action buttons should always remain accessible
+  * hover-only functionality should convert into tap-friendly behaviour
+  * avoid interaction conflicts
+
+Performance:
+
+* Use GPU-accelerated transforms only.
+* Avoid heavy blur stacking.
+* Keep animations lightweight and modern.
+* Optimise for many cards rendered simultaneously.
+
+Important:
+
+* Keep ALL existing session functionality intact.
+* Preserve backend structure and current logic.
+* Preserve current permissions and roles.
+* This is purely a premium UX/UI interaction upgrade inspired by Discord Quests/Shop behaviour.
