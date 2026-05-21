@@ -131,23 +131,25 @@ async function recomputeStandings(_leagueId = 1) {
   for (const f of finished) {
     if (f.homeTeamId != null && f.awayTeamId != null && (f.homeClubId == null || f.awayClubId == null)) {
       // Legacy pair-vs-pair fixture with no rubber breakdown: fall back to
-      // fixture-level homeRubbers/awayRubbers as sets won.
+      // fixture-level homeRubbers/awayRubbers as sets won. Track sets in
+      // rubbersFor/Against for tiebreak; W/D/L applied per fixture outcome.
       const h = stats[f.homeTeamId]; const a = stats[f.awayTeamId];
       if (!h || !a) continue;
       h.p++; a.p++;
       h.rf += f.homeRubbers; h.ra += f.awayRubbers;
       a.rf += f.awayRubbers; a.ra += f.homeRubbers;
-      h.pts += f.homeRubbers; a.pts += f.awayRubbers;
       if (f.homeRubbers > f.awayRubbers) { h.w++; a.l++; }
       else if (f.homeRubbers < f.awayRubbers) { a.w++; h.l++; }
       else { h.d++; a.d++; }
     }
   }
 
-  // Club-vs-club: credit per-rubber for any finished club fixture using
-  // sets won as the points unit.
+  // Club-vs-club: credit per-rubber W/D/L; PTS is league standings points
+  // (pointsWin / pointsDraw / pointsLoss) computed at the end from W/D/L.
   const finishedClubFixtures = finished.filter(f => f.homeClubId != null && f.awayClubId != null);
   const finishedClubFixtureIds = finishedClubFixtures.map(f => f.id);
+  const fixturePtsRule = new Map<number, { win: number; draw: number; loss: number }>();
+  for (const f of finishedClubFixtures) fixturePtsRule.set(f.id, pointsFor(f));
   if (finishedClubFixtureIds.length) {
     const rubbers = await db.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, finishedClubFixtureIds));
     for (const r of rubbers) {
@@ -159,15 +161,19 @@ async function recomputeStandings(_leagueId = 1) {
       h.p++; a.p++;
       h.rf += hs; h.ra += as;
       a.rf += as; a.ra += hs;
-      h.pts += hs; a.pts += as;
       if (hs > as) { h.w++; a.l++; }
       else if (hs < as) { a.w++; h.l++; }
       else { h.d++; a.d++; }
     }
   }
 
+  // PTS = classic league standings points. Use the per-fixture snapshot rule
+  // when available (otherwise league defaults). Applied per W/D/L count.
+  const ptsRule = { win: defaultPts.win, draw: defaultPts.draw, loss: defaultPts.loss };
+
   for (const t of teams) {
     const s = stats[t.id];
+    s.pts = s.w * ptsRule.win + s.d * ptsRule.draw + s.l * ptsRule.loss;
     await db.update(bslTeams).set({
       played: s.p, won: s.w, drawn: s.d, lost: s.l,
       rubbersFor: s.rf, rubbersAgainst: s.ra, points: s.pts,
@@ -4518,4 +4524,23 @@ export function registerBslRoutes(app: Express) {
       return res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
+
+  // Admin-triggered full standings recompute. Useful after changing the
+  // points formula or fixing a data import — re-runs recomputeStandings()
+  // over every FINISHED fixture and overwrites bsl_teams stats.
+  app.post("/api/bsl/admin/recompute-standings", requireAdmin, async (req, res) => {
+    try {
+      await recomputeStandings();
+      await audit(req, "RECOMPUTE_STANDINGS", "bsl_league", 1, {});
+      res.json({ ok: true });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // One-shot startup recompute so the new PTS formula (W/D/L × league
+  // pointsWin/Draw/Loss) overwrites previously stored set-based totals
+  // without anyone needing to FINISH a new fixture first. Fires once per
+  // process boot, 5s after routes register so the DB pool is warm.
+  setTimeout(() => {
+    recomputeStandings().catch(e => console.error("[bsl] startup recomputeStandings failed", e));
+  }, 5000);
 }
