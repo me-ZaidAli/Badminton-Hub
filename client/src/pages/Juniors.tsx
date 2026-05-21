@@ -2335,7 +2335,16 @@ function JuniorSessionsPanel({ juniors, selectedChildId, setSelectedChildId }: {
       .sort((a: any, b: any) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [sessions, isAdmin, isPlatformAdmin, managedClubIds]);
 
-  const upcomingSessions = useMemo(() => juniorSessions.filter((s: any) => s.status !== "COMPLETED"), [juniorSessions]);
+  const upcomingSessions = useMemo(() => {
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+    return juniorSessions.filter((s: any) => {
+      if (s.status === "COMPLETED" || s.status === "CANCELLED") return false;
+      const d = new Date(s.date);
+      d.setHours(0, 0, 0, 0);
+      return d >= todayStart;
+    });
+  }, [juniorSessions]);
 
   const pastSessions = useMemo(() => {
     if (!sessionHistory) return [];

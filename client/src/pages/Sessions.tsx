@@ -927,7 +927,7 @@ export default function Sessions() {
     const n = new Date(); n.setHours(0, 0, 0, 0);
     return juniorFilteredSessions.filter(s => {
       const d = new Date(s.date); d.setHours(0, 0, 0, 0);
-      return d >= n && s.status !== "COMPLETED";
+      return d >= n && s.status !== "COMPLETED" && s.status !== "CANCELLED";
     }).sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
   }, [juniorFilteredSessions]);
 
@@ -940,7 +940,11 @@ export default function Sessions() {
   }, [juniorFilteredSessions]);
 
   const juniorLive = useMemo(() =>
-    juniorFilteredSessions.filter(s => s.status === "ACTIVE" || (s as any).liveMatchCount > 0)
+    juniorFilteredSessions.filter(s =>
+      s.status !== "COMPLETED" &&
+      s.status !== "CANCELLED" &&
+      (s.status === "ACTIVE" || (s as any).liveMatchCount > 0)
+    )
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [juniorFilteredSessions]
   );
@@ -949,6 +953,9 @@ export default function Sessions() {
     const todayStart = new Date();
     todayStart.setHours(0, 0, 0, 0);
     const combined = [...juniorLive, ...juniorUpcoming].filter(s => {
+      // Hard fence: never show finalised/cancelled or anything before today
+      // in the default "All" view — those belong to the Past tab.
+      if (s.status === "COMPLETED" || s.status === "CANCELLED") return false;
       const d = new Date(s.date);
       d.setHours(0, 0, 0, 0);
       return d >= todayStart;
@@ -972,7 +979,11 @@ export default function Sessions() {
   }, [sessions]);
 
   const liveSessions = useMemo(() =>
-    baseFilteredSessions.filter(s => s.status === "ACTIVE" || (s as any).liveMatchCount > 0)
+    baseFilteredSessions.filter(s =>
+      s.status !== "COMPLETED" &&
+      s.status !== "CANCELLED" &&
+      (s.status === "ACTIVE" || (s as any).liveMatchCount > 0)
+    )
       .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
     [baseFilteredSessions]
   );
