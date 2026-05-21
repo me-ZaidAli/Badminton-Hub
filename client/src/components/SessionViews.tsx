@@ -78,20 +78,55 @@ export function FormattedBannerText({ text, keyPrefix = "fmt" }: { text: string;
 }
 
 export function SessionBanner({ message, color, sessionId, variant = "card" }: { message: string; color?: string | null; sessionId: number; variant?: "card" | "modal" }) {
+  // Hook MUST be called unconditionally before any early return (Rules of Hooks).
+  const [open, setOpen] = useState(false);
   if (!message) return null;
   const palette = (color && SESSION_BANNER_COLORS[color as keyof typeof SESSION_BANNER_COLORS]) || SESSION_BANNER_COLORS.blue;
   const Icon = palette.icon;
   const radius = variant === "card" ? "rounded-t-xl" : "rounded-lg";
+
+  // Modal: always show full message (no collapse) — keep historic behaviour.
+  if (variant === "modal") {
+    return (
+      <div
+        className={`flex items-start gap-2.5 px-3.5 py-2.5 text-sm font-semibold ${palette.bar} ${palette.text} ${radius} shadow-sm`}
+        data-testid={`session-banner-${sessionId}`}
+        role="status"
+      >
+        <Icon className="h-4 w-4 mt-0.5 flex-shrink-0" />
+        <div className="flex-1 min-w-0 break-words">
+          <FormattedBannerText text={message} keyPrefix={`banner-${sessionId}`} />
+        </div>
+      </div>
+    );
+  }
+
+  // Card: single-line preview with chevron; click to expand inline.
+  const [open, setOpen] = useState(false);
+  const firstLine = (message.split(/\r?\n/).find(l => l.trim().length > 0) || message).trim();
   return (
     <div
-      className={`flex items-start gap-2.5 px-3.5 py-2.5 text-sm font-semibold ${palette.bar} ${palette.text} ${radius} shadow-sm`}
+      className={`${palette.bar} ${palette.text} ${radius} shadow-sm`}
       data-testid={`session-banner-${sessionId}`}
       role="status"
     >
-      <Icon className="h-4 w-4 mt-0.5 flex-shrink-0" />
-      <div className="flex-1 min-w-0 break-words">
-        <FormattedBannerText text={message} keyPrefix={`banner-${sessionId}`} />
-      </div>
+      <button
+        type="button"
+        onClick={(e) => { e.stopPropagation(); setOpen(o => !o); }}
+        aria-expanded={open}
+        aria-label={open ? "Collapse announcement" : "Expand announcement"}
+        className="w-full flex items-center gap-2 px-3 py-1.5 text-xs font-semibold text-left hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
+        data-testid={`button-session-banner-toggle-${sessionId}`}
+      >
+        <Icon className="h-3.5 w-3.5 flex-shrink-0" />
+        <span className="flex-1 min-w-0 truncate">{firstLine}</span>
+        <ChevronDown className={`h-3.5 w-3.5 flex-shrink-0 transition-transform ${open ? "rotate-180" : ""}`} />
+      </button>
+      {open && (
+        <div className="px-3 pb-2.5 pt-0.5 text-sm font-semibold break-words border-t border-current/10">
+          <FormattedBannerText text={message} keyPrefix={`banner-${sessionId}`} />
+        </div>
+      )}
     </div>
   );
 }
