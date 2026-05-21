@@ -14,7 +14,7 @@ import {
   Sparkles,
 } from "lucide-react";
 
-type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string };
+type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string; imageUrl?: string };
 
 const ROW_ICONS = [Trophy, Flame, Award];
 const ROW_COLORS = ["text-[#EB459E]", "text-[#5865F2]", "text-[#7289DA]"];
@@ -44,10 +44,24 @@ export function DashboardNewsCard() {
               data-testid="link-news-featured"
             >
               <div className="relative h-44 sm:h-48 rounded-xl bg-gradient-to-br from-[#5865F2]/30 via-[#9932CC]/20 to-[#EB459E]/25 flex flex-col justify-between p-5 border border-white/5 overflow-hidden">
-                <Badge className="self-start bg-[#EB459E] hover:bg-[#EB459E]/90 text-white border-none shadow-lg">
+                {featured.imageUrl && (
+                  <>
+                    <img
+                      src={featured.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      className="absolute inset-0 w-full h-full object-cover"
+                      data-testid="img-news-featured"
+                    />
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-black/40 to-black/10" />
+                  </>
+                )}
+                <Badge className="relative self-start bg-[#EB459E] hover:bg-[#EB459E]/90 text-white border-none shadow-lg">
                   Featured
                 </Badge>
-                <h3 className="text-lg sm:text-xl font-bold text-white drop-shadow-md group-hover/feat:text-white/90 transition-colors">
+                <h3 className="relative text-lg sm:text-xl font-bold text-white drop-shadow-md group-hover/feat:text-white/90 transition-colors">
                   {featured.title}
                 </h3>
               </div>
@@ -78,9 +92,21 @@ export function DashboardNewsCard() {
                   className="flex items-start gap-3 p-3 rounded-xl hover:bg-white/5 transition-colors group/item"
                   data-testid={`link-news-${i}`}
                 >
-                  <div className={`p-2 rounded-lg bg-black/30 ${color} group-hover/item:scale-110 transition-transform shrink-0`}>
-                    <Icon className="w-4 h-4" />
-                  </div>
+                  {item.imageUrl ? (
+                    <img
+                      src={item.imageUrl}
+                      alt=""
+                      loading="lazy"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => { (e.currentTarget as HTMLImageElement).style.display = "none"; }}
+                      className="w-12 h-12 rounded-lg object-cover border border-white/10 shrink-0"
+                      data-testid={`img-news-${i}`}
+                    />
+                  ) : (
+                    <div className={`p-2 rounded-lg bg-black/30 ${color} group-hover/item:scale-110 transition-transform shrink-0`}>
+                      <Icon className="w-4 h-4" />
+                    </div>
+                  )}
                   <div className="min-w-0">
                     <h4 className="text-sm font-semibold text-white/90 group-hover/item:text-white line-clamp-2">
                       {item.title}

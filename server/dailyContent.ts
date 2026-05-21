@@ -41,7 +41,7 @@ type CachedQuote = { date: string; text: string; author: string };
 type CachedPoll = { date: string; question: string; options: string[] };
 type Deal = { brand: string; offer: string; url: string; category: string; imageUrl?: string; sponsored?: boolean };
 type CachedDeals = { date: string; deals: Deal[] };
-type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string };
+type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string; imageUrl?: string };
 type CachedNews = { fetchedAt: number; items: NewsItem[] };
 
 const FALLBACK_NEWS: NewsItem[] = [
@@ -234,20 +234,25 @@ async function generateNews(): Promise<CachedNews> {
     const resp: any = await (openai as any).responses.create({
       model: "gpt-5.1",
       tools: [{ type: "web_search" }],
-      input: `Search the web RIGHT NOW for the 6 most important and recent badminton news stories worldwide (today is ${todayStr}). Cover BWF World Tour results, player news, transfers, tournament announcements, equipment launches, English/UK badminton news. Return STRICT JSON ONLY (no prose, no markdown) in this exact shape: {"items":[{"title":"...","source":"site name","url":"https://...","summary":"one sentence under 140 chars","publishedAt":"YYYY-MM-DD or relative"}]}. Use REAL article URLs you actually found in the search results. Prefer reputable sources: BWF, Badminton England, BadmintonCentral, BWF Insidious, Olympic.org, ESPN, Yonex, Victor.`,
+      input: `Search the web RIGHT NOW for the 6 most important and recent badminton news stories worldwide (today is ${todayStr}). Cover BWF World Tour results, player news, transfers, tournament announcements, equipment launches, English/UK badminton news. Return STRICT JSON ONLY (no prose, no markdown) in this exact shape: {"items":[{"title":"...","source":"site name","url":"https://...","summary":"one sentence under 140 chars","publishedAt":"YYYY-MM-DD or relative","imageUrl":"https://..."}]}. Use REAL article URLs you actually found in the search results. For "imageUrl", include the actual lead/hero image displayed on the article page (og:image / featured image) — https only, ending in .jpg/.jpeg/.png/.webp, or a CDN image URL. If you genuinely can't find one, omit the field. Prefer reputable sources: BWF, Badminton England, BadmintonCentral, BWF Insidious, Olympic.org, ESPN, Yonex, Victor.`,
     });
     const text: string = resp?.output_text || "";
     const jsonMatch = text.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       if (Array.isArray(parsed?.items) && parsed.items.length > 0) {
-        const cleaned: NewsItem[] = parsed.items.slice(0, 8).map((n: any) => ({
-          title: String(n.title || "").slice(0, 140).trim(),
-          source: String(n.source || "").slice(0, 40).trim(),
-          url: String(n.url || "").trim(),
-          summary: String(n.summary || "").slice(0, 200).trim(),
-          publishedAt: n.publishedAt ? String(n.publishedAt).slice(0, 30) : undefined,
-        })).filter((n: NewsItem) => n.title && n.url.startsWith("http"));
+        const cleaned: NewsItem[] = parsed.items.slice(0, 8).map((n: any) => {
+          const imgRaw = String(n.imageUrl || "").trim();
+          const imgOk = /^https:\/\/.+/i.test(imgRaw) && imgRaw.length < 600;
+          return {
+            title: String(n.title || "").slice(0, 140).trim(),
+            source: String(n.source || "").slice(0, 40).trim(),
+            url: String(n.url || "").trim(),
+            summary: String(n.summary || "").slice(0, 200).trim(),
+            publishedAt: n.publishedAt ? String(n.publishedAt).slice(0, 30) : undefined,
+            imageUrl: imgOk ? imgRaw : undefined,
+          };
+        }).filter((n: NewsItem) => n.title && n.url.startsWith("http"));
         if (cleaned.length > 0) {
           console.log(`[DAILY NEWS] web-search returned ${cleaned.length} items`);
           return { fetchedAt: now, items: cleaned };

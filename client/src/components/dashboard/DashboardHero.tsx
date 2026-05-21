@@ -9,7 +9,7 @@ import {
 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO, startOfWeek, getISOWeek, getDayOfYear, differenceInMinutes } from "date-fns";
 import { CustomPollTile } from "./CustomPollTile";
-import { NewsTile } from "./NewsTile";
+import { DashboardNewsCard } from "./DashboardNitroSections";
 import { HydrationTile } from "./HydrationTile";
 import { CounterTile } from "./CounterTile";
 import { Crosshair, Banana } from "lucide-react";
@@ -501,9 +501,7 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl, s
       </div>
 
       {/* === ROW 1: BADMINTON NEWS === */}
-      <HeroGroup title="Badminton News" Icon={Activity} accentText="text-sky-200" testId="hero-row-news" wide>
-        <NewsTile />
-      </HeroGroup>
+      <DashboardNewsCard />
 
       {/* === ROW 2: TODAY'S DEALS === */}
       <HeroGroup title="Today's Deals" Icon={Tag} accentText="text-lime-200" testId="hero-row-deals" wide>
