@@ -66,6 +66,12 @@ export default function LeagueControl() {
     onSuccess: () => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/league-days"] }); toast({ title: "Removed" }); },
     onError: (e: any) => toast({ title: "Couldn't delete", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
   });
+  const setDayState = useMutation({
+    mutationFn: async ({ id, state }: { id: number; state: string }) =>
+      (await apiRequest("PATCH", `/api/bsl/admin/league-days/${id}/state`, { state })).json(),
+    onSuccess: (_d, vars) => { qc.invalidateQueries({ queryKey: ["/api/bsl/admin/league-days"] }); toast({ title: `Moved to ${vars.state}` }); },
+    onError: (e: any) => toast({ title: "Couldn't change state", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
+  });
   const generate = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/fixtures/generate", {
       division: genDivision, leagueDayId: genDayId ? Number(genDayId) : undefined,
@@ -115,9 +121,20 @@ export default function LeagueControl() {
 
   return (
     <AdminLayout active="league">
-      <div className="mb-6">
-        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">League <span style={{ color: BSL.gold }}>Control</span></h1>
-        <p className="text-sm mt-1" style={{ color: BSL.muted }}>Seasons · divisions · automated fixture generation · league days</p>
+      <div className="mb-6 flex items-start justify-between gap-4 flex-wrap">
+        <div>
+          <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">League <span style={{ color: BSL.gold }}>Control</span></h1>
+          <p className="text-sm mt-1" style={{ color: BSL.muted }}>Seasons · divisions · automated fixture generation · league days</p>
+        </div>
+        <Link href="/bsl/admin/competition">
+          <a
+            className="inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs uppercase tracking-widest font-bold transition-opacity hover:opacity-80"
+            style={{ background: `${BSL.gold}1a`, border: `1px solid ${BSL.gold}55`, color: BSL.gold }}
+            data-testid="link-competition-settings"
+          >
+            <Settings className="h-3.5 w-3.5" /> Competition rules
+          </a>
+        </Link>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5 mb-5">
@@ -295,11 +312,48 @@ export default function LeagueControl() {
                   data-testid={`day-${d.id}`}
                 >
                   <div className="flex items-center justify-between">
-                    <div className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.cyan }}>{d.state || d.status}</div>
+                    {(() => {
+                      const cur = (d.state || "DRAFT").toUpperCase();
+                      const tone =
+                        cur === "LIVE" ? BSL.danger :
+                        cur === "CLOSED" ? BSL.muted :
+                        cur === "PUBLISHED" ? BSL.success : BSL.cyan;
+                      return (
+                        <div className="text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded" style={{ background: `${tone}22`, color: tone }} data-testid={`state-pill-${d.id}`}>{cur}</div>
+                      );
+                    })()}
                     <div className="text-[10px] uppercase tracking-widest font-bold px-2 py-0.5 rounded" style={{ background: `${BSL.gold}22`, color: BSL.gold }}>
                       {d.rubbersPerFixture ? `${d.rubbersPerFixture} rubbers` : "default"}
                     </div>
                   </div>
+                  {(() => {
+                    const cur = (d.state || "DRAFT").toUpperCase();
+                    const transitions: Record<string, string[]> = {
+                      DRAFT: ["PUBLISHED", "LIVE", "CLOSED"],
+                      PUBLISHED: ["DRAFT", "LIVE", "CLOSED"],
+                      LIVE: ["PUBLISHED", "CLOSED"],
+                      CLOSED: ["PUBLISHED"],
+                    };
+                    const next = transitions[cur] || [];
+                    if (!next.length) return null;
+                    return (
+                      <div className="flex flex-wrap gap-1">
+                        {next.map((s) => (
+                          <button
+                            key={s}
+                            onClick={() => {
+                              if (s === "CLOSED" && !confirm("Close this league day? Standings will be finalised and edits locked.")) return;
+                              setDayState.mutate({ id: d.id, state: s });
+                            }}
+                            disabled={setDayState.isPending}
+                            className="text-[10px] uppercase tracking-widest font-bold px-2 py-1 rounded transition-opacity hover:opacity-80"
+                            style={{ background: "hsla(0,0%,100%,0.04)", border: `1px solid ${BSL.border}`, color: BSL.muted }}
+                            data-testid={`button-state-${s.toLowerCase()}-${d.id}`}
+                          >→ {s}</button>
+                        ))}
+                      </div>
+                    );
+                  })()}
                   <div className="text-lg font-black">{new Date(d.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}</div>
                   <div className="text-xs" style={{ color: BSL.muted }}>{new Date(d.date).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}</div>
 
