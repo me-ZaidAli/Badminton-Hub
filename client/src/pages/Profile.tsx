@@ -935,7 +935,7 @@ function OutstandingModal({ open, onClose, payments }: {
       return res.json();
     },
     onSuccess: (data) => {
-      toast({ title: "Payment Confirmed", description: data.message });
+      toast({ title: "Sent to admin", description: data.message || "Your club admin will verify and mark the session paid." });
       queryClient.invalidateQueries({ queryKey: ["/api/my-outstanding-payments"] });
       setConfirmingSignupId(null);
       setPaymentDate(format(new Date(), "yyyy-MM-dd"));

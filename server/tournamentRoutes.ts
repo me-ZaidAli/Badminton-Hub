@@ -2792,11 +2792,9 @@ export function registerTournamentRoutes(app: Express) {
       if (!isP1 && !isP2) return res.status(403).json({ message: "You are not on this team" });
       const currentStatus = isP1 ? team.player1PaymentStatus : team.player2PaymentStatus;
       if (currentStatus === "PAID") return res.status(400).json({ message: "Already marked paid" });
-      const patch: any = isP1
-        ? { player1PaymentStatus: "PENDING" as const }
-        : { player2PaymentStatus: "PENDING" as const };
-      const [updated] = await db.update(tournamentTeams).set(patch)
-        .where(eq(tournamentTeams.id, teamId)).returning();
+      // Players cannot self-mark their payment status — we only notify admins.
+      // Admin must verify and flip status via PATCH /api/tournament-teams/:teamId/payment.
+      const updated = team;
 
       // Notify tournament admins (mirrors the tournament-level confirm flow).
       const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, team.categoryId));
@@ -3954,8 +3952,12 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, userId)));
       if (!reg) return res.status(404).json({ message: "Registration not found" });
 
+      // Players cannot self-mark their payment status. We record the claim
+      // metadata (method + paymentConfirmed flag) so admins see who claimed
+      // payment, but paymentStatus stays UNPAID until admin verifies via
+      // PATCH /api/tournaments/:id/payment/:regId.
       const [updated] = await db.update(tournamentRegistrations)
-        .set({ paymentStatus: "PENDING", paymentMethod: paymentMethod || "BANK_TRANSFER", paymentConfirmed: true })
+        .set({ paymentMethod: paymentMethod || "BANK_TRANSFER", paymentConfirmed: true })
         .where(eq(tournamentRegistrations.id, reg.id)).returning();
 
       const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
