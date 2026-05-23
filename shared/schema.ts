@@ -444,7 +444,7 @@ export const creditLedger = pgTable("credit_ledger", {
   amount: integer("amount").notNull(),
   reason: text("reason").notNull(),
   linkedSessionId: integer("linked_session_id").references(() => sessions.id),
-  linkedSignupId: integer("linked_signup_id").references(() => sessionSignups.id),
+  linkedSignupId: integer("linked_signup_id").references(() => sessionSignups.id, { onDelete: "set null" }),
   attendanceStatus: text("attendance_status"),
   createdById: integer("created_by_id").references(() => users.id).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
