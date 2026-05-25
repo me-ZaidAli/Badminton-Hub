@@ -114,48 +114,55 @@ export default function AdminClubManager() {
         </GlowPanel>
       )}
 
-      <GlowPanel title="Roster" tone="cyan" icon={<Users className="h-4 w-4" />}>
-        {roster.length === 0 ? (
-          <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>No confirmed players yet.</div>
-        ) : (
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>
-                  <th className="text-left px-2 py-2">Player</th>
-                  <th className="text-left px-2 py-2">Status</th>
-                  <th className="text-left px-2 py-2">Categories</th>
-                  <th className="text-left px-2 py-2">Wallet</th>
-                  <th className="text-left px-2 py-2">P / W</th>
-                  <th className="text-right px-2 py-2">Actions</th>
-                </tr>
-              </thead>
-              <tbody>
-                {roster.map((p: any) => (
-                  <tr key={p.id} className="border-t" style={{ borderColor: BSL.border }} data-testid={`roster-${p.id}`}>
-                    <td className="px-2 py-3">
-                      <div className="font-bold">{p.displayName || p.user?.name || `Player #${p.id}`}</div>
-                      <div className="text-[10px]" style={{ color: BSL.faint }}>{p.user?.email || `user #${p.userId}`}</div>
-                    </td>
-                    <td className="px-2 py-3"><span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded" style={{ background: p.status === "ACTIVE" ? `${BSL.success}22` : `${BSL.muted}22`, color: p.status === "ACTIVE" ? BSL.success : BSL.muted }}>{p.status.replace("_"," ")}</span></td>
-                    <td className="px-2 py-3">
-                      <div className="flex gap-1 flex-wrap">
-                        {(p.categories || []).length === 0 ? <span className="text-[10px]" style={{ color: BSL.faint }}>—</span> :
-                          (p.categories || []).map((c: string) => <span key={c} className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>{c}</span>)}
-                      </div>
-                    </td>
-                    <td className="px-2 py-3 tabular-nums" style={{ color: BSL.gold }}>£{(p.walletBalance/100).toFixed(2)}</td>
-                    <td className="px-2 py-3 tabular-nums">{p.matchesPlayed} / {p.matchesWon}</td>
-                    <td className="px-2 py-3 text-right">
-                      <ActionButton variant="ghost" icon={<UserMinus className="h-3 w-3" />} onClick={() => { if (window.confirm("Remove this player from the club?")) remove.mutate(p.id); }} testid={`button-remove-roster-${p.id}`}>Remove</ActionButton>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </GlowPanel>
+      {/* Roster — one table per joined division. Players with NULL division
+          fall back to the club's primary division so legacy rows still show. */}
+      {(joinedDivisions.length > 0 ? joinedDivisions : [club.division]).map(div => {
+        const divRoster = roster.filter((p: any) => (p.division || club.division) === div);
+        return (
+          <GlowPanel key={`roster-${div}`} title={`${div} — Roster (${divRoster.length})`} tone="cyan" icon={<Users className="h-4 w-4" />}>
+            {divRoster.length === 0 ? (
+              <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>No confirmed players in {div} yet.</div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-sm">
+                  <thead>
+                    <tr className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>
+                      <th className="text-left px-2 py-2">Player</th>
+                      <th className="text-left px-2 py-2">Status</th>
+                      <th className="text-left px-2 py-2">Categories</th>
+                      <th className="text-left px-2 py-2">Wallet</th>
+                      <th className="text-left px-2 py-2">P / W</th>
+                      <th className="text-right px-2 py-2">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {divRoster.map((p: any) => (
+                      <tr key={p.id} className="border-t" style={{ borderColor: BSL.border }} data-testid={`roster-${p.id}`}>
+                        <td className="px-2 py-3">
+                          <div className="font-bold">{p.displayName || p.user?.name || `Player #${p.id}`}</div>
+                          <div className="text-[10px]" style={{ color: BSL.faint }}>{p.user?.email || `user #${p.userId}`}</div>
+                        </td>
+                        <td className="px-2 py-3"><span className="text-[10px] font-black uppercase tracking-widest px-2 py-0.5 rounded" style={{ background: p.status === "ACTIVE" ? `${BSL.success}22` : `${BSL.muted}22`, color: p.status === "ACTIVE" ? BSL.success : BSL.muted }}>{p.status.replace("_"," ")}</span></td>
+                        <td className="px-2 py-3">
+                          <div className="flex gap-1 flex-wrap">
+                            {(p.categories || []).length === 0 ? <span className="text-[10px]" style={{ color: BSL.faint }}>—</span> :
+                              (p.categories || []).map((c: string) => <span key={c} className="text-[10px] font-black px-1.5 py-0.5 rounded" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}>{c}</span>)}
+                          </div>
+                        </td>
+                        <td className="px-2 py-3 tabular-nums" style={{ color: BSL.gold }}>£{(p.walletBalance/100).toFixed(2)}</td>
+                        <td className="px-2 py-3 tabular-nums">{p.matchesPlayed} / {p.matchesWon}</td>
+                        <td className="px-2 py-3 text-right">
+                          <ActionButton variant="ghost" icon={<UserMinus className="h-3 w-3" />} onClick={() => { if (window.confirm("Remove this player from the club?")) remove.mutate(p.id); }} testid={`button-remove-roster-${p.id}`}>Remove</ActionButton>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
+          </GlowPanel>
+        );
+      })}
 
       {joinedDivisions.map(div => {
         const divTeams = teams.filter((t: any) => t.division === div);

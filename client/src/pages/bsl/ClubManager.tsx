@@ -291,9 +291,14 @@ export default function ClubManager() {
           </GlowPanel>
         )}
 
-        {/* Confirmed roster — full breakdown */}
-        <GlowPanel title={`Members (${confirmed.length})`} subtitle="Stats, payments & profile" tone="gold" icon={<Shield className="h-4 w-4" />}>
-          {confirmed.length === 0 ? <Empty text="No confirmed players yet. Share your invite code to get started." /> : (
+        {/* Confirmed roster — one table per joined division so multi-division
+            clubs can see who's signed up to what. Players with NULL division
+            fall back to the club's primary division. */}
+        {(joinedDivisions.length > 0 ? joinedDivisions : [club.division]).map(div => {
+          const divMembers = confirmed.filter(p => (p.division || club.division) === div);
+          return (
+        <GlowPanel key={`members-${div}`} title={`${div} — Members (${divMembers.length})`} subtitle="Stats, payments & profile" tone="gold" icon={<Shield className="h-4 w-4" />}>
+          {divMembers.length === 0 ? <Empty text={`No confirmed players in ${div} yet.`} /> : (
             <div className="overflow-x-auto -mx-2">
               <table className="w-full text-sm" style={{ minWidth: 720 }}>
                 <thead>
@@ -308,7 +313,7 @@ export default function ClubManager() {
                   </tr>
                 </thead>
                 <tbody>
-                  {confirmed.map(p => {
+                  {divMembers.map(p => {
                     const played = p.matchesPlayed || 0;
                     const won = p.matchesWon || 0;
                     const lost = Math.max(0, played - won);
@@ -370,6 +375,8 @@ export default function ClubManager() {
             </div>
           )}
         </GlowPanel>
+          );
+        })}
 
         {/* Divisions — primary + paid-for extras, with a Join Another tile. */}
         <GlowPanel
