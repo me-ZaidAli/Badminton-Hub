@@ -447,7 +447,12 @@ export default function ClubManager() {
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 {CATEGORIES.map(cat => {
                   const catTeams = divTeams.filter(t => t.category === cat).sort((a, b) => (a.pairNumber || 0) - (b.pairNumber || 0));
-                  const eligible = confirmed.filter(p => (p.categories || []).includes(cat));
+                  // Only players who signed up for THIS division (primary divison falls back when player.division is null).
+                  const eligible = confirmed.filter(p => {
+                    if (!(p.categories || []).includes(cat)) return false;
+                    const playerDiv = p.division || club.division;
+                    return playerDiv === div;
+                  });
                   const placed = placedByDivCat[`${div}::${cat}`] || new Set<number>();
                   return (
                     <div key={cat} className="rounded-xl p-3" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}>
@@ -502,9 +507,9 @@ export default function ClubManager() {
                                       }} className="w-full text-xs rounded px-2 py-1"
                                         style={{ background: BSL.cardSoft, color: "white", border: `1px solid ${BSL.border}` }}
                                         data-testid={`select-add-member-${t.id}`} defaultValue="">
-                                        <option value="">+ Add player…</option>
+                                        <option value="" style={{ background: BSL.card, color: "white" }}>+ Add player…</option>
                                         {dropdownOptions.map(p => (
-                                          <option key={p.id} value={p.id}>{p.displayName || p.user?.name || "Player"}</option>
+                                          <option key={p.id} value={p.id} style={{ background: BSL.card, color: "white" }}>{p.displayName || p.user?.name || "Player"}</option>
                                         ))}
                                       </select>
                                     )
