@@ -1988,16 +1988,18 @@ export default function SessionDetail() {
                       >
                         <span className="inline-flex items-center gap-1">
                           {signup.player?.user?.fullName || "Unknown"}
+                          {signup.isTrial && (
+                            <span
+                              className="text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400"
+                              title="On trial — pending club approval"
+                              data-testid={`badge-trial-${signup.id}`}
+                            >(trial)</span>
+                          )}
                           {parentSessionMatchCounts[signup.playerId] != null && (
                             <span className="text-muted-foreground text-xs font-normal">({parentSessionMatchCounts[signup.playerId]})</span>
                           )}
                           {parentPlayerAchievements[signup.playerId]?.trophy && <Trophy className="w-3.5 h-3.5 text-amber-400 inline-block" />}
                           {parentPlayerAchievements[signup.playerId]?.fire && <Flame className="w-3.5 h-3.5 text-orange-400 inline-block" />}
-                          {(signup as any).isTrial && (
-                            <span title="Trial player" className="inline-flex items-center justify-center text-[9px] font-bold leading-none bg-gradient-to-br from-purple-500 to-pink-500 text-white rounded-full w-4 h-4" data-testid={`badge-trial-${signup.id}`}>
-                              T
-                            </span>
-                          )}
                           <SignupFeeEditor
                             signup={signup}
                             canEdit={!!isOrganiser}
@@ -2193,7 +2195,10 @@ export default function SessionDetail() {
                             <AvatarFallback>{(signup.player?.user?.fullName || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                            <p className="font-semibold text-sm truncate">
+                              {signup.player?.user?.fullName || "Unknown"}
+                              {signup.isTrial && <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="On trial — pending club approval">(trial)</span>}
+                            </p>
                             <div className="flex items-center gap-2">
                               <span className="text-xs font-medium text-amber-700 dark:text-amber-400">#{idx + 1}</span>
                               {signup.signupTime && (
@@ -2230,7 +2235,10 @@ export default function SessionDetail() {
                             <AvatarFallback>{(signup.player?.user?.fullName || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="min-w-0">
-                            <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                            <p className="font-semibold text-sm truncate">
+                              {signup.player?.user?.fullName || "Unknown"}
+                              {signup.isTrial && <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="On trial — pending club approval">(trial)</span>}
+                            </p>
                             {signup.signupTime && (
                               <span className="text-[10px] text-muted-foreground">
                                 {new Date(signup.signupTime).toLocaleDateString("en-GB", { day: "2-digit", month: "short" })} {new Date(signup.signupTime).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
@@ -2270,7 +2278,10 @@ export default function SessionDetail() {
                             <AvatarImage src={`https://api.dicebear.com/7.x/initials/svg?seed=${signup.player?.user?.fullName || "?"}`} />
                             <AvatarFallback>{(signup.player?.user?.fullName || "?").slice(0, 2).toUpperCase()}</AvatarFallback>
                           </Avatar>
-                          <p className="font-semibold text-sm truncate">{signup.player?.user?.fullName || "Unknown"}</p>
+                          <p className="font-semibold text-sm truncate">
+                            {signup.player?.user?.fullName || "Unknown"}
+                            {signup.isTrial && <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="On trial — pending club approval">(trial)</span>}
+                          </p>
                         </div>
                         <Badge variant="outline" className="text-xs text-blue-600 dark:text-blue-400 border-blue-300 dark:border-blue-700">Invited</Badge>
                       </div>
@@ -2572,7 +2583,10 @@ export default function SessionDetail() {
                     <div key={s.id} className="flex items-center gap-2 p-3 border rounded-md">
                       <span className="text-sm font-mono text-muted-foreground w-6">{idx + 1}.</span>
                       <div className="flex-1">
-                        <p className="font-medium text-sm">{s.player?.user?.fullName || "Unknown"}</p>
+                        <p className="font-medium text-sm">
+                          {s.player?.user?.fullName || "Unknown"}
+                          {s.isTrial && <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="On trial — pending club approval">(trial)</span>}
+                        </p>
                         <div className="flex items-center gap-2">
                           <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
                           {s.signupTime && (
@@ -2762,7 +2776,10 @@ function PaymentVerificationDashboard({ sessionId, session, signups }: { session
               return (
                 <div key={s.id} className="flex items-center gap-2 p-2 rounded-md border" data-testid={`row-payment-player-${s.id}`}>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{playerName}</p>
+                    <p className="text-sm font-medium truncate">
+                      {playerName}
+                      {s.isTrial && <span className="ml-1 text-[10px] font-semibold uppercase tracking-wide text-amber-700 dark:text-amber-400" title="On trial — pending club approval">(trial)</span>}
+                    </p>
                     <div className="flex items-center gap-1.5 flex-wrap">
                       <span className="text-xs text-muted-foreground">{feeDisplay}</span>
                       <PaymentBadge status={s.paymentStatus} method={s.paymentMethod} />
