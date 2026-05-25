@@ -1499,6 +1499,9 @@ export default function Sessions() {
           mySignupsBySession={mySignupsBySession}
           onSignUp={(session) => setJoinSession(session)}
           onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
+          getLockReason={(s) => getSessionAccess(s.clubId) === "denied"
+            ? "Join this club before signing up for the session"
+            : null}
           adminActions={viewAdminActions}
           showJuniorTeaser
           columns={timelineColumns}
@@ -1562,6 +1565,9 @@ export default function Sessions() {
               mySignupsBySession={mySignupsBySession}
               onSignUp={(session) => setJoinSession(session)}
               onWithdraw={(sessionId) => withdrawMutation.mutate(sessionId)}
+              getLockReason={(s) => getSessionAccess(s.clubId) === "denied"
+                ? "Join this club before signing up for the session"
+                : null}
               adminActions={viewAdminActions}
               columns={timelineColumns}
             />

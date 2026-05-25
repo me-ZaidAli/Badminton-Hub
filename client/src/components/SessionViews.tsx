@@ -7,7 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { useQuery } from "@tanstack/react-query";
 import { format, startOfWeek, endOfWeek, addDays, isSameDay, isSameMonth, startOfMonth, endOfMonth, eachDayOfInterval } from "date-fns";
-import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, CheckCircle2, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X, LogOut, UserPlus } from "lucide-react";
+import { Calendar as CalendarIcon, Clock, Users, MapPin, ChevronLeft, ChevronRight, ChevronDown, ChevronUp, PoundSterling, Layers, CheckCircle, CheckCircle2, Zap, Timer, Swords, BarChart3, Wallet, Pencil, Copy, Baby, Trash2, MoreVertical, ArrowRight, FileText, Trophy, Target, Building2, Bell, ShieldCheck, ShieldX, CircleDollarSign, Flame, Brain, Snowflake, Activity, Crown, Flag, PartyPopper, Dumbbell, Heart, Ban, RefreshCw, AlertTriangle, Megaphone, Info, ExternalLink, Link as LinkIcon, X, LogOut, UserPlus, Lock } from "lucide-react";
 import { Link } from "wouter";
 import { SessionTeamBadges } from "@/components/session/SessionTeamBadges";
 import sessionCardBgImage from "@assets/Badminton_scene_with_player_in_action,_realistic_and_cinematic_1779375624298.jpg";
@@ -228,6 +228,7 @@ type TimelineViewProps = SessionViewProps & {
   mySignupsBySession?: Map<number, any>;
   onSignUp?: (session: SessionItem) => void;
   onWithdraw?: (sessionId: number) => void;
+  getLockReason?: (session: SessionItem) => string | null;
   columns?: 1 | 2 | 3 | 4;
 };
 
@@ -997,6 +998,7 @@ function TimelineSessionCard({
   onNavigate,
   onSignUp,
   onWithdraw,
+  lockedReason,
   adminActions,
 }: {
   session: SessionItem;
@@ -1007,6 +1009,7 @@ function TimelineSessionCard({
   onNavigate: () => void;
   onSignUp?: (session: SessionItem) => void;
   onWithdraw?: (sessionId: number) => void;
+  lockedReason?: string | null;
   adminActions?: AdminActions;
 }) {
   const clubName = clubs?.find(c => c.id === session.clubId)?.name || "";
@@ -1474,8 +1477,23 @@ function TimelineSessionCard({
         {isExpanded && <ExpandedSessionDetails session={session} clubs={clubs} mySignup={mySignup} onSignUp={onSignUp} onWithdraw={onWithdraw} onNavigate={onNavigate} adminActions={adminActions} />}
       </div>
 
-      {/* Discord-Quests-style hover-reveal action bar (hidden when expanded, cancelled, or past) */}
-      {!isExpanded && !isCancelled && !isRealTimePast && (
+      {/* Locked overlay — player isn't a club member, can't sign up */}
+      {lockedReason && !isSignedUp && !isPast && !isCancelled && (
+        <div
+          className="pointer-events-none absolute inset-0 z-20 flex flex-col items-center justify-center gap-2 rounded-[inherit] bg-background/75 dark:bg-background/80 backdrop-blur-[2px]"
+          data-testid={`session-locked-overlay-${session.id}`}
+        >
+          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-amber-500/15 ring-2 ring-amber-500/40 shadow-lg">
+            <Lock className="h-8 w-8 text-amber-600 dark:text-amber-400" />
+          </div>
+          <p className="px-3 text-center text-[11px] font-medium leading-tight text-muted-foreground max-w-[16rem]">
+            {lockedReason}
+          </p>
+        </div>
+      )}
+
+      {/* Discord-Quests-style hover-reveal action bar (hidden when expanded, cancelled, past, or locked) */}
+      {!isExpanded && !isCancelled && !isRealTimePast && !lockedReason && (
         <div className="tl-quest-actions" aria-hidden={false} data-testid={`quest-actions-${session.id}`}>
           <div className="tl-quest-actions-inner">
             {isSignedUp ? (
@@ -2279,7 +2297,7 @@ export function CalendarView({ sessions, clubs, onSessionClick, adminActions, sh
   );
 }
 
-export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, onWithdraw, adminActions, showJuniorTeaser, columns = 4 }: TimelineViewProps) {
+export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySession, onSignUp, onWithdraw, getLockReason, adminActions, showJuniorTeaser, columns = 4 }: TimelineViewProps) {
   const [previewSession, setPreviewSession] = useState<SessionItem | null>(null);
   const [expandedSessionId, setExpandedSessionId] = useState<number | null>(null);
 
@@ -2971,6 +2989,7 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
                               onNavigate={() => handleNavigate(s)}
                               onSignUp={onSignUp}
                               onWithdraw={onWithdraw}
+                              lockedReason={getLockReason ? getLockReason(s) : null}
                               adminActions={adminActions}
                             />
                           )}
