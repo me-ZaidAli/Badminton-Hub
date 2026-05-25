@@ -50,27 +50,15 @@ export default function PlayerProfile() {
 
   const [displayName, setDisplayName] = useState("");
   const [bio, setBio] = useState("");
-  const [division, setDivision] = useState("");
   const [dirty, setDirty] = useState(false);
-
-  // All divisions the club competes in (primary + paid extras) — drives the
-  // division picker on the profile editor when the club is in more than one.
-  const joinedDivisions = useMemo<string[]>(() => {
-    if (!club) return [];
-    const extras = Array.isArray((club as any).additionalDivisions)
-      ? [...(club as any).additionalDivisions].sort((a: string, b: string) => a.localeCompare(b))
-      : [];
-    return [club.division, ...extras.filter((d: string) => d !== club.division)];
-  }, [club]);
 
   useEffect(() => {
     if (me) {
       setDisplayName(me.displayName || "");
       setBio(me.bio || "");
-      setDivision((me as any).division || club?.division || "");
       setDirty(false);
     }
-  }, [me?.id, club?.division]);
+  }, [me?.id]);
 
   const invalidatePlayer = () => {
     qc.invalidateQueries({ queryKey: ["/api/bsl/players/me/dashboard"] });
@@ -80,12 +68,7 @@ export default function PlayerProfile() {
 
   const saveProfile = useMutation({
     mutationFn: async () => {
-      const body: any = { displayName, bio };
-      // Only send division when the club is actually in more than one — saves
-      // a needless write on single-division clubs and avoids surfacing the
-      // "already in a pair" guard for the common case.
-      if (joinedDivisions.length > 1 && division) body.division = division;
-      return (await apiRequest("PATCH", "/api/bsl/players/me", body)).json();
+      return (await apiRequest("PATCH", "/api/bsl/players/me", { displayName, bio })).json();
     },
     onSuccess: () => { invalidatePlayer(); setDirty(false); toast({ title: "Profile saved" }); },
     onError: (e: any) => toast({ title: "Couldn't save", description: cleanErr(e), variant: "destructive" }),
@@ -271,27 +254,6 @@ export default function PlayerProfile() {
               style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
               data-testid="input-display-name" />
           </Field>
-          {/* Division picker — only shown when the club is in more than one
-              division (otherwise it's just informational). Switching is
-              blocked server-side once you're in a pair. */}
-          {joinedDivisions.length > 1 && (
-            <Field label="Division you play in">
-              <select
-                value={division}
-                onChange={e => { setDivision(e.target.value); setDirty(true); }}
-                className="w-full px-3 py-2 rounded-lg text-sm"
-                style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
-                data-testid="select-player-division"
-              >
-                {joinedDivisions.map(d => (
-                  <option key={d} value={d} style={{ background: BSL.card, color: "white" }}>{d}</option>
-                ))}
-              </select>
-              <div className="text-[10px] mt-1" style={{ color: BSL.muted }}>
-                Your club plays in {joinedDivisions.length} divisions. Switching divisions is blocked if you're already in a pair — ask your captain to remove you from your pair(s) first.
-              </div>
-            </Field>
-          )}
           <Field label="Bio">
             <textarea value={bio} onChange={e => { setBio(e.target.value); setDirty(true); }}
               maxLength={600} rows={3} placeholder="Tell other players about yourself…"

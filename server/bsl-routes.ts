@@ -3162,6 +3162,25 @@ export function registerBslRoutes(app: Express) {
       const patch: any = {};
       if (typeof req.body.displayName === "string") patch.displayName = req.body.displayName.slice(0, 80);
       if (typeof req.body.bio === "string") patch.bio = req.body.bio.slice(0, 600);
+      if (typeof req.body.division === "string") {
+        const requested = req.body.division.trim();
+        if (!requested) return res.status(400).json({ message: "Division can't be blank." });
+        const joined = new Set<string>([
+          club.division,
+          ...(Array.isArray((club as any).additionalDivisions) ? (club as any).additionalDivisions : []),
+        ]);
+        if (!joined.has(requested)) {
+          return res.status(400).json({ message: `Club doesn't play in "${requested}". Available: ${[...joined].join(", ")}.` });
+        }
+        const current = p.division || club.division;
+        if (requested !== current) {
+          const memberships = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslPlayerId, playerId));
+          if (memberships.length > 0) {
+            return res.status(409).json({ message: "Player is already in a pair. Remove them from their pair(s) before switching divisions." });
+          }
+        }
+        patch.division = requested;
+      }
       if (!Object.keys(patch).length) return res.status(400).json({ message: "Nothing to update" });
       const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, playerId)).returning();
       await audit(req, "MANAGER_UPDATE_PLAYER", "bsl_players", playerId, patch);
@@ -3372,44 +3391,19 @@ export function registerBslRoutes(app: Express) {
   // PLAYER PROFILE  (the player themselves, not the manager)
   // ============================================================
 
-  // Update display name + bio + (when the club is in >1 divisions) which
-  // division this player competes in. Switching division is blocked once the
-  // player is already placed in any pair — they'd have to be removed from
-  // those pairs first so admins can rebuild for the target division.
+  // Update display name + bio on /api/bsl/players/me. Players cannot change
+  // their own division — that's a club-admin action via
+  // PATCH /api/bsl/clubs/:clubId/players/:playerId.
   app.patch("/api/bsl/players/me", requireAuth, async (req, res) => {
     try {
       const u = (req as any).user;
       const [me] = await db.select().from(bslPlayers).where(eq(bslPlayers.userId, u.id)).limit(1);
       if (!me) return res.status(404).json({ message: "No BSL player profile yet" });
-      const allow = ["displayName", "bio", "division"];
+      const allow = ["displayName", "bio"];
       const patch: any = {};
       for (const k of allow) if (k in req.body) patch[k] = req.body[k];
       if (typeof patch.displayName === "string" && patch.displayName.length > 80) return res.status(400).json({ message: "Display name too long" });
       if (typeof patch.bio === "string" && patch.bio.length > 600) return res.status(400).json({ message: "Bio too long" });
-      if ("division" in patch) {
-        const requested = String(patch.division || "").trim();
-        if (!requested) return res.status(400).json({ message: "Division can't be blank." });
-        if (!me.bslClubId) return res.status(400).json({ message: "Join a club first." });
-        const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, me.bslClubId)).limit(1);
-        if (!club) return res.status(404).json({ message: "Club not found." });
-        const joined = new Set<string>([
-          club.division,
-          ...(Array.isArray((club as any).additionalDivisions) ? (club as any).additionalDivisions : []),
-        ]);
-        if (!joined.has(requested)) {
-          return res.status(400).json({ message: `Your club doesn't play in "${requested}". Available: ${[...joined].join(", ")}.` });
-        }
-        const current = me.division || club.division;
-        if (requested !== current) {
-          // Check the player isn't already in a pair — if they are, the captain/admin
-          // needs to remove them first so they can be re-paired in the new division.
-          const memberships = await db.select().from(bslTeamMembers).where(eq(bslTeamMembers.bslPlayerId, me.id));
-          if (memberships.length > 0) {
-            return res.status(409).json({ message: "You're already in a pair. Ask your club captain to remove you from your pair(s) before switching divisions." });
-          }
-        }
-        patch.division = requested;
-      }
       const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, me.id)).returning();
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }

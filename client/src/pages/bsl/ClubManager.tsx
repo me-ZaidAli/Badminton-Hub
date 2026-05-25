@@ -40,7 +40,7 @@ export default function ClubManager() {
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
-  const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string }>({ displayName: "", bio: "" });
+  const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string; division: string }>({ displayName: "", bio: "", division: "" });
 
   const club = data?.club;
   const teams = data?.teams || [];
@@ -355,7 +355,7 @@ export default function ClubManager() {
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <div className="inline-flex gap-1">
-                            <button onClick={() => { setEditingPlayer(p); setPlayerForm({ displayName: p.displayName || "", bio: p.bio || "" }); }}
+                            <button onClick={() => { setEditingPlayer(p); setPlayerForm({ displayName: p.displayName || "", bio: p.bio || "", division: p.division || club.division || "" }); }}
                               className="p-1.5 rounded-md" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}
                               data-testid={`button-edit-player-${p.id}`} title="Edit player">
                               <Pencil className="h-3 w-3" />
@@ -556,6 +556,25 @@ export default function ClubManager() {
               <Field label="Display name (shown on leaderboard)">
                 <TextInput value={playerForm.displayName} onChange={v => setPlayerForm({ ...playerForm, displayName: v })} testid="input-edit-player-display" />
               </Field>
+              {joinedDivisions.length > 1 && (
+                <div className="mt-3">
+                  <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Division</span>
+                  <select
+                    value={playerForm.division}
+                    onChange={e => setPlayerForm({ ...playerForm, division: e.target.value })}
+                    className="w-full px-3 py-2 rounded-lg text-sm mt-1"
+                    style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                    data-testid="select-edit-player-division"
+                  >
+                    {joinedDivisions.map((d) => (
+                      <option key={d} value={d} style={{ background: BSL.card, color: "white" }}>{d}</option>
+                    ))}
+                  </select>
+                  <p className="text-[10px] mt-1" style={{ color: BSL.muted }}>
+                    Player must not be in a pair to switch divisions — remove them from pairs first.
+                  </p>
+                </div>
+              )}
               <div className="mt-3">
                 <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Bio</span>
                 <textarea value={playerForm.bio} onChange={e => setPlayerForm({ ...playerForm, bio: e.target.value })}
