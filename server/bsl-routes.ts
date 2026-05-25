@@ -3037,6 +3037,7 @@ export function registerBslRoutes(app: Express) {
         league: league ? {
           divisions: league.divisions || [],
           divisionJoinFeePence: (league as any).divisionJoinFeePence ?? 2500,
+          playerGrades: (league as any).playerGrades || [],
         } : null,
       });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
@@ -3181,9 +3182,55 @@ export function registerBslRoutes(app: Express) {
         }
         patch.division = requested;
       }
+      // Grade — validated against the league's grade catalogue when configured.
+      if ("grade" in req.body) {
+        const raw = req.body.grade;
+        if (raw === null || raw === "") {
+          patch.grade = null;
+        } else if (typeof raw === "string") {
+          const g = raw.trim().toUpperCase().slice(0, 12);
+          if (g) {
+            const [league] = await db.select().from(bslLeagues).where(eq(bslLeagues.id, 1)).limit(1);
+            const known = ((league as any)?.playerGrades || []).map((x: any) => String(x.code));
+            if (known.length && !known.includes(g)) {
+              return res.status(400).json({ message: `Unknown grade "${g}". Known: ${known.join(", ")}` });
+            }
+            patch.grade = g;
+          } else {
+            patch.grade = null;
+          }
+        }
+      }
+      // Categories (MD/WD/XD…) — full replacement. Removing a category that
+      // the player is currently paired in also strips them from those pairs
+      // (mirrors POST/DELETE /api/bsl/admin/players/:id/categories cleanup).
+      let categoryChanges: { added: string[]; removed: string[] } | null = null;
+      if (Array.isArray(req.body.categories)) {
+        const ALLOWED = new Set(["MS","WS","MD","WD","XD"]);
+        const next = Array.from(new Set(
+          req.body.categories.map((c: any) => String(c || "").trim().toUpperCase()).filter((c: string) => ALLOWED.has(c))
+        )) as string[];
+        const cur = (p.categories || []) as string[];
+        const added = next.filter(c => !cur.includes(c));
+        const removed = cur.filter(c => !next.includes(c));
+        if (removed.length) {
+          const teamsInRemoved = await db.select().from(bslTeams).where(and(
+            eq(bslTeams.bslClubId, p.bslClubId || 0),
+            inArray(bslTeams.category, removed as any),
+          ));
+          if (teamsInRemoved.length) {
+            await db.delete(bslTeamMembers).where(and(
+              inArray(bslTeamMembers.bslTeamId, teamsInRemoved.map(t => t.id)),
+              eq(bslTeamMembers.bslPlayerId, playerId),
+            ));
+          }
+        }
+        patch.categories = next;
+        categoryChanges = { added, removed };
+      }
       if (!Object.keys(patch).length) return res.status(400).json({ message: "Nothing to update" });
       const [updated] = await db.update(bslPlayers).set(patch).where(eq(bslPlayers.id, playerId)).returning();
-      await audit(req, "MANAGER_UPDATE_PLAYER", "bsl_players", playerId, patch);
+      await audit(req, "MANAGER_UPDATE_PLAYER", "bsl_players", playerId, { ...patch, categoryChanges });
       res.json(updated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

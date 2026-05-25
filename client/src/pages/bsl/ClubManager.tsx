@@ -25,7 +25,7 @@ type ClubData = {
   pending: any[];
   confirmed: any[];
   summary?: { roster: number; pending: number; matchesPlayed: number; matchesWon: number; moneyIn: number; pairs: number };
-  league?: { divisions: string[]; divisionJoinFeePence: number } | null;
+  league?: { divisions: string[]; divisionJoinFeePence: number; playerGrades?: Array<{ code: string; label?: string }> } | null;
 };
 
 export default function ClubManager() {
@@ -40,7 +40,7 @@ export default function ClubManager() {
   const [confirmWithdraw, setConfirmWithdraw] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
-  const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string; division: string }>({ displayName: "", bio: "", division: "" });
+  const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string; division: string; categories: string[]; grade: string }>({ displayName: "", bio: "", division: "", categories: [], grade: "" });
 
   const club = data?.club;
   const teams = data?.teams || [];
@@ -355,7 +355,7 @@ export default function ClubManager() {
                         </td>
                         <td className="px-3 py-2.5 text-right">
                           <div className="inline-flex gap-1">
-                            <button onClick={() => { setEditingPlayer(p); setPlayerForm({ displayName: p.displayName || "", bio: p.bio || "", division: p.division || club.division || "" }); }}
+                            <button onClick={() => { setEditingPlayer(p); setPlayerForm({ displayName: p.displayName || "", bio: p.bio || "", division: p.division || club.division || "", categories: Array.isArray(p.categories) ? [...p.categories] : [], grade: p.grade || "" }); }}
                               className="p-1.5 rounded-md" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }}
                               data-testid={`button-edit-player-${p.id}`} title="Edit player">
                               <Pencil className="h-3 w-3" />
@@ -573,6 +573,70 @@ export default function ClubManager() {
                   <p className="text-[10px] mt-1" style={{ color: BSL.muted }}>
                     Player must not be in a pair to switch divisions — remove them from pairs first.
                   </p>
+                </div>
+              )}
+              <div className="mt-3">
+                <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Categories</span>
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {(["MS","WS","MD","WD","XD"] as const).map(cat => {
+                    const on = playerForm.categories.includes(cat);
+                    return (
+                      <button
+                        key={cat}
+                        type="button"
+                        onClick={() => setPlayerForm(f => ({
+                          ...f,
+                          categories: on ? f.categories.filter(c => c !== cat) : [...f.categories, cat],
+                        }))}
+                        className="text-[11px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest transition"
+                        style={{
+                          background: on ? `${BSL.cyan}33` : BSL.cardSoft,
+                          color: on ? BSL.cyan : BSL.muted,
+                          border: `1px solid ${on ? BSL.cyan : BSL.border}`,
+                        }}
+                        data-testid={`toggle-edit-player-cat-${cat}`}
+                      >{cat}</button>
+                    );
+                  })}
+                </div>
+                <p className="text-[10px] mt-1" style={{ color: BSL.muted }}>
+                  Removing a category they're paired in will also strip them from those pairs.
+                </p>
+              </div>
+              {Array.isArray(data?.league?.playerGrades) && data!.league!.playerGrades.length > 0 && (
+                <div className="mt-3">
+                  <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>
+                    Grade · <span className="font-mono" style={{ color: BSL.gold }}>{playerForm.grade || "ungraded"}</span>
+                  </span>
+                  <div className="flex flex-wrap gap-1.5 mt-1">
+                    {data!.league!.playerGrades.map((g: any) => {
+                      const on = playerForm.grade === g.code;
+                      return (
+                        <button
+                          key={g.code}
+                          type="button"
+                          onClick={() => setPlayerForm(f => ({ ...f, grade: on ? "" : g.code }))}
+                          className="text-[11px] font-black px-2 py-1 rounded-md font-mono transition"
+                          style={{
+                            background: on ? `${BSL.gold}33` : BSL.cardSoft,
+                            color: on ? BSL.gold : BSL.muted,
+                            border: `1px solid ${on ? BSL.gold : BSL.border}`,
+                          }}
+                          data-testid={`toggle-edit-player-grade-${g.code}`}
+                          title={g.label || g.code}
+                        >{g.code}</button>
+                      );
+                    })}
+                    {playerForm.grade && (
+                      <button
+                        type="button"
+                        onClick={() => setPlayerForm(f => ({ ...f, grade: "" }))}
+                        className="text-[10px] px-2 py-1 rounded-md"
+                        style={{ background: BSL.cardSoft, color: BSL.muted, border: `1px solid ${BSL.border}` }}
+                        data-testid="button-edit-player-grade-clear"
+                      >Clear</button>
+                    )}
+                  </div>
                 </div>
               )}
               <div className="mt-3">
