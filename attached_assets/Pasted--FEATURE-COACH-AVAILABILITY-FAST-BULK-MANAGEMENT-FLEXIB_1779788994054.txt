@@ -1,0 +1,116 @@
+---
+FEATURE: COACH AVAILABILITY — FAST BULK MANAGEMENT & FLEXIBLE BOOKING
+APP TYPE: Badminton Training & Club Management App
+SECTION: Coach Dashboard → Availability Tab — **ADMIN / SUPER ADMIN ONLY** (coaches cannot edit)
+RELATED FEATURES: Universal Search, Session Payment Reminders
+GOAL: Replace slow day-by-day setup with the FASTEST possible workflow — 1-click bulk actions, full days, copy, repeat, smart defaults. Let players book any number of hours. **Matches existing dark/neon blue/purple design exactly** — premium, floating, animated, text always visible.
+
+=== 1. PROBLEM SOLVED ===
+❌ Old: Add 2-hour slots one day at a time → slow, repetitive, error-prone
+✅ New: Set up entire week in UNDER 1 MINUTE — maximum speed, minimum clicks
+
+=== 2. UI DESIGN RULES — MATCH EXACTLY YOUR SCREENSHOT ===
+✅ Theme: Dark background (#0F172A / #1E293B), deep blue/teal cards, neon purple/blue accents, white/cyan text
+✅ Style: Rounded corners, soft shadows, subtle glow, floating effect on buttons
+✅ Text: 100% high contrast — always readable on dark background
+✅ Placement: Directly inside "Availability" tab — **above existing "Add weekly time slot"** (keep old method as backup)
+✅ Buttons: Large, clear, color-coded, hover lift + glow animation, smooth transitions
+✅ All new features integrated seamlessly — no layout breaks
+
+=== 3. ⚡ SPEED FEATURES — EVERY SHORTCUT INCLUDED ⚡
+
+---
+🔹 1. STANDARD WEEKLY HOURS — 1 CLICK FOR ENTIRE WEEK 🚀
+*FASTEST OPTION — set your usual working hours for all days at once*
+✅ New Section: **"⚡ SET STANDARD WEEK HOURS"**
+   • Inputs:
+     - Working Days: [✅ Mon] [✅ Tue] [✅ Wed] [✅ Thu] [✅ Fri] [❌ Sat] [❌ Sun] — check/uncheck in 1 click
+     - Standard Start Time: e.g. 17:00
+     - Standard End Time: e.g. 22:00
+     - Default Price Per Hour: £[X.XX]
+   • Button: 🚀 **"APPLY TO ALL SELECTED DAYS"** (bright neon purple — most visible button)
+   • RESULT: Every selected day instantly becomes **FULLY AVAILABLE 17:00–22:00** — open flexible time, no fixed slots. Players can book ANY hours here.
+   • Save as Default: ✅ **"SAVE THESE AS MY STANDARD HOURS"** — next time you open, these values are already filled.
+
+---
+🔹 2. FULL DAY AVAILABILITY — INSTANT OPEN TIME
+✅ **"SET FULL DAY AVAILABILITY"**
+   • Day dropdown → Start → End → Price → ✅ "SET FULL DAY"
+   • Result: Day marked **✅ FULLY AVAILABLE [08:00–22:00] | £15/hr**
+   • Players choose start time + any duration (1, 2, 3+ hours)
+   • Color: Green highlight — clear visual difference from fixed slots
+
+---
+🔹 3. COPY / DUPLICATE / MULTIPLY — 1 CLICK = MULTIPLE DAYS 📋
+✅ **COPY DAY TO DAYS**
+   • Step 1: Pick source day (e.g. Monday already set)
+   • Step 2: Select target days: [Tue] [Wed] [Thu] [Fri] — checkboxes
+   • Step 3: 📋 **"COPY TO SELECTED DAYS"** — exact same times + price copied instantly
+
+✅ **MULTIPLY SLOTS** (for when you still want fixed slots)
+   • Add one slot → click ⚡ **"MULTIPLY THIS SLOT"** → choose days → done. No retyping.
+
+✅ **COPY TO NEXT WEEK / NEXT 4 WEEKS**
+   • Button: ⏭️ **"REPEAT THIS WEEK’S AVAILABILITY"**
+   • Options:
+     - Repeat every week (permanent until changed)
+     - Repeat next 2 weeks
+     - Repeat next 4 weeks
+   • One click — no weekly updates needed anymore
+
+---
+🔹 4. SMART PRESETS — SAVE TIME TEMPLATES 💾
+✅ **SAVE PRESET**
+   • After setting hours you use often: 💾 **"SAVE AS PRESET: EVENING SHIFT / WEEKEND SHIFT / FULL DAY"**
+✅ **LOAD PRESET**
+   • Dropdown: "Evening Shift" → ✅ **"APPLY PRESET"** — entire week fills instantly
+
+---
+🔹 5. QUICK EDIT & CLEAR ✏️
+✅ Hover over any day → ✏️ Edit / ❌ Clear icons appear
+✅ ❌ **"CLEAR ENTIRE WEEK"** / ❌ **"CLEAR ALL FUTURE"** — with confirmation prompt to avoid mistakes
+
+---
+🔹 6. HYBRID SYSTEM — FLEXIBLE + FIXED
+✅ **Full Day = Open Time**: Players choose any hours
+✅ **Fixed Slots**: Players book exactly set times
+✅ **Mixed**: Some days full open, some days fixed slots — system handles both perfectly
+✅ Visual display:
+   • 🟢 Green = Full Flexible Day
+   • 🔵 Blue = Fixed Slots
+   • ⚫ Grey = Closed
+   • All details visible at a glance
+
+---
+🔹 7. PLAYER BOOKING BEHAVIOUR
+✅ **Full Day Available**:
+   > Shows: "Available 17:00–22:00 | £12/hr"
+   > Player selects: Start Time → Number of Hours (1–max available) → Book
+✅ **Fixed Slots**:
+   > Shows exact slots as before
+✅ System automatically blocks booked times — no overlaps
+
+=== 4. PERMISSIONS — STRICT RULE ===
+✅ **ONLY ADMIN / SUPER ADMIN** can access, create, edit, copy, or delete availability
+❌ Coaches CANNOT change their own availability — they only view
+
+=== 5. TECHNICAL & QUALITY RULES (NON-NEGOTIABLE) ===
+❌ NO dummy data, NO duplicates, NO broken copies, NO overlapping times
+✅ ALL actions SAVE INSTANTLY to database — no "save" button needed
+✅ Universal Search compatible: Search "full day", "copy", "evening shift", coach name, etc.
+✅ Mobile optimized: Buttons big enough, stacked layout, no horizontal scroll
+✅ Animations: Smooth fade/slide on copy/apply, success checkmark animation
+✅ All colors from theme variables — NO hardcoding
+✅ Text always high contrast, 4.5:1 minimum
+✅ Code clean, well-commented, fully integrated
+✅ Real-time update: Changes appear immediately everywhere
+
+=== 6. FINAL OUTCOME — SPEED GUARANTEED
+From now on:
+- Standard week: **1 click**
+- Copy days: **1 click**
+- Repeat weeks: **1 click**
+- Presets: **1 click**
+
+Availability setup takes **less than 1 minute per coach** instead of 10–15 minutes. Flexible booking works perfectly, UI matches exactly, everything is fast and easy.
+---

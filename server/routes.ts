@@ -34,6 +34,7 @@ import { registerCoachBookingRoutes } from "./coachBookingRoutes";
 import { registerStepsRoutes } from "./stepsRoutes";
 import { registerNotificationRoutes } from "./notificationRoutes";
 import { registerSessionPaymentReminderRoutes } from "./sessionPaymentReminders";
+import { registerCoachAvailabilityAdminRoutes } from "./coachAvailabilityAdmin";
 import { sendRulePush } from "./notificationRules";
 import { generateSupplierOrderSheet } from "./supplierOrderSheetPdf";
 import { aiHeavyLimiter } from "./rateLimit";
@@ -31599,6 +31600,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
   registerInboxAndAuditRoutes(app);
   registerNotificationRoutes(app);
   registerSessionPaymentReminderRoutes(app);
+  registerCoachAvailabilityAdminRoutes(app);
 
   // === INCIDENT REPORTS ===
   const incidentUploadsDir = path.join(process.cwd(), "public", "uploads", "incidents");

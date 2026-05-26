@@ -3618,6 +3618,10 @@ export const coachAvailabilityRules = pgTable("coach_availability_rules", {
   startTime: text("start_time").notNull(), // "HH:MM"
   endTime: text("end_time").notNull(),
   isActive: boolean("is_active").notNull().default(true),
+  // When true, this is a "Full Day / flexible" window — players pick start
+  // time + duration (1+ hours) instead of fixed slots. Stored as a flag on
+  // the same row to keep the slot-generation pipeline single-source.
+  isFlexible: boolean("is_flexible").notNull().default(false),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 export const insertCoachAvailabilityRuleSchema = createInsertSchema(coachAvailabilityRules).omit({ id: true, createdAt: true });

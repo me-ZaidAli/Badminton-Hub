@@ -13,7 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
-import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle, ShoppingBag, Inbox, ScrollText, ScanText, Vote } from "lucide-react";
+import { Users, Calendar, PoundSterling, Shield, Activity, UserPlus, UserCheck, Download, Building2, Trophy, Upload, CreditCard, BarChart3, Bell, Award, Share2, Swords, Megaphone, Baby, Target, Sparkles, Loader2, TrendingUp, Crown, FlaskConical, MapPin, Settings, Settings2, ChevronRight, Shirt, Package, AlertCircle, ShoppingBag, Inbox, ScrollText, ScanText, Vote, Zap } from "lucide-react";
 import { useState } from "react";
 
 interface ClubSummary {
@@ -454,6 +454,7 @@ export default function AdminDashboard() {
     ...(!isOrganiserOnly ? [{ href: "/admin/push-broadcast", label: "Push Broadcast", description: "Send a one-off push notification to a segment of users", icon: Megaphone, color: "text-orange-500", bg: "bg-orange-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/notification-rules", label: "Auto Reminders", description: "Edit templates and toggle automated event-driven notifications", icon: Bell, color: "text-indigo-500", bg: "bg-indigo-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/session-payment-reminders", label: "Session Payment Reminders", description: "Issue payment reminders for unpaid training/coaching sessions; verify payments", icon: PoundSterling, color: "text-amber-500", bg: "bg-amber-500/10" }] : []),
+    ...(!isOrganiserOnly ? [{ href: "/admin/coach-availability", label: "Coach Availability — Bulk Tools", description: "Set standard week, copy days, repeat weeks, full-day flexible windows — for any coach", icon: Zap, color: "text-violet-500", bg: "bg-violet-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/polls", label: "Club Polls", description: "Create polls for your members and view live results", icon: Vote, color: "text-fuchsia-500", bg: "bg-fuchsia-500/10" }] : []),
     ...(!isOrganiserOnly ? [{ href: "/admin/audit-log", label: "Audit Log", description: "Searchable history of admin actions across your clubs", icon: ScrollText, color: "text-slate-500", bg: "bg-slate-500/10" }] : []),
     { href: "/admin/grading", label: "Grading Progress", description: "Review automatic skill promotions and demotions", icon: Activity, color: "text-amber-500", bg: "bg-amber-500/10" },
