@@ -5,8 +5,9 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Crown, Pencil, Save, AlertTriangle, UserCheck, UserX,
   Users, Plus, Trash2, Shield, X, Check, Trophy, BarChart3, PoundSterling,
-  Gauge, Share2, Layers,
+  Gauge, Share2, Layers, Camera,
 } from "lucide-react";
+import { BslPairSnapshot, type SnapshotPair } from "./components/BslPairSnapshot";
 import { BSLBackground } from "./components/BSLBackground";
 import { BslSubNav } from "@/components/SubNav";
 import { GlowPanel } from "./components/GlowPanel";
@@ -41,6 +42,7 @@ export default function ClubManager() {
   const [shareOpen, setShareOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
   const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string; division: string; categories: string[]; grade: string }>({ displayName: "", bio: "", division: "", categories: [], grade: "" });
+  const [snapshotPair, setSnapshotPair] = useState<SnapshotPair | null>(null);
 
   const club = data?.club;
   const teams = data?.teams || [];
@@ -481,11 +483,41 @@ export default function ClubManager() {
                               <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`pair-${t.id}`}>
                                 <div className="flex items-center justify-between mb-1.5">
                                   <div className="text-xs font-bold">Pair {String.fromCharCode(64 + (t.pairNumber || 1))}</div>
-                                  {teamMembers.length === 0 && (
-                                    <button onClick={() => deletePair.mutate(t.id)} className="text-[10px] hover:underline" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}>
-                                      <Trash2 className="h-3 w-3 inline" />
-                                    </button>
-                                  )}
+                                  <div className="flex items-center gap-1">
+                                    {teamMembers.length > 0 && club && (
+                                      <button
+                                        onClick={() => {
+                                          const resolved = teamMembers
+                                            .map((pid: number) => memberMap.get(pid))
+                                            .filter(Boolean)
+                                            .map((p: any) => ({
+                                              id: p.id,
+                                              name: p.displayName || p.user?.name || `Player #${p.id}`,
+                                              grade: p.grade || null,
+                                              avatarUrl: p.user?.profileImageUrl || p.user?.avatarUrl || null,
+                                            }));
+                                          setSnapshotPair({
+                                            pairLabel: `Pair ${String.fromCharCode(64 + (t.pairNumber || 1))}`,
+                                            category: cat,
+                                            categoryLong: CAT_LABEL[cat],
+                                            division: div,
+                                            members: resolved,
+                                          });
+                                        }}
+                                        title="Download team snapshot"
+                                        className="p-1 rounded hover:opacity-80 transition"
+                                        style={{ color: BSL.cyan, background: `${BSL.cyan}15`, border: `1px solid ${BSL.cyan}44` }}
+                                        data-testid={`button-snapshot-pair-${t.id}`}
+                                      >
+                                        <Camera className="h-3 w-3" />
+                                      </button>
+                                    )}
+                                    {teamMembers.length === 0 && (
+                                      <button onClick={() => deletePair.mutate(t.id)} className="text-[10px] hover:underline" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}>
+                                        <Trash2 className="h-3 w-3 inline" />
+                                      </button>
+                                    )}
+                                  </div>
                                 </div>
                                 <div className="space-y-1">
                                   {teamMembers.map((pid: number) => {
@@ -685,6 +717,15 @@ export default function ClubManager() {
           </motion.div>
         )}
       </AnimatePresence>
+
+      {snapshotPair && club && (
+        <BslPairSnapshot
+          open={!!snapshotPair}
+          onOpenChange={(o) => { if (!o) setSnapshotPair(null); }}
+          pair={snapshotPair}
+          club={{ name: club.name, logoUrl: club.logoUrl || null, inviteCode: club.inviteCode || null }}
+        />
+      )}
     </div>
   );
 }

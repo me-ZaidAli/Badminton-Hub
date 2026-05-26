@@ -3,8 +3,9 @@ import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Layers, Users, Trophy, CheckCircle2, X, Trash2, Plus, UserMinus,
+  ArrowLeft, Layers, Users, Trophy, CheckCircle2, X, Trash2, Plus, UserMinus, Camera,
 } from "lucide-react";
+import { BslPairSnapshot, type SnapshotPair } from "../components/BslPairSnapshot";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -71,6 +72,7 @@ export default function AdminClubManager() {
   const pending: any[] = data?.pending || [];
   const teams: any[] = data?.teams || [];
   const club = data?.club;
+  const [snapshotPair, setSnapshotPair] = useState<SnapshotPair | null>(null);
 
   // Every division the club has joined (primary + paid extras). Each one gets
   // its own per-category pairs panel below, matching the public ClubManager.
@@ -187,6 +189,18 @@ export default function AdminClubManager() {
                   onDeletePair={(teamId: number) => { if (window.confirm("Delete this pair?")) deletePair.mutate(teamId); }}
                   onAddMember={(teamId: number, playerId: number) => addMember.mutate({ teamId, playerId })}
                   onRemoveMember={(teamId: number, playerId: number) => removeMember.mutate({ teamId, playerId })}
+                  onSnapshot={(t: any, members: any[]) => setSnapshotPair({
+                    pairLabel: t.name || `Pair ${t.pairNumber || ""}`.trim(),
+                    category: cat,
+                    categoryLong: ({ MD: "Men's Doubles", WD: "Women's Doubles", XD: "Mixed Doubles" } as Record<string, string>)[cat],
+                    division: div,
+                    members: members.map((m: any) => ({
+                      id: m.id,
+                      name: m.displayName || m.user?.name || `Player #${m.id}`,
+                      grade: m.grade || null,
+                      avatarUrl: m.user?.profileImageUrl || m.user?.avatarUrl || null,
+                    })),
+                  })}
                   busy={createPair.isPending || deletePair.isPending || addMember.isPending || removeMember.isPending}
                 />
               ))}
@@ -194,11 +208,19 @@ export default function AdminClubManager() {
           </GlowPanel>
         );
       })}
+      {snapshotPair && club && (
+        <BslPairSnapshot
+          open={!!snapshotPair}
+          onOpenChange={(o) => { if (!o) setSnapshotPair(null); }}
+          pair={snapshotPair}
+          club={{ name: club.name, logoUrl: club.logoUrl || null, inviteCode: club.inviteCode || null }}
+        />
+      )}
     </AdminLayout>
   );
 }
 
-function CategoryColumn({ cat, division, primaryDivision, teams, roster, onCreatePair, onDeletePair, onAddMember, onRemoveMember, busy }: any) {
+function CategoryColumn({ cat, division, primaryDivision, teams, roster, onCreatePair, onDeletePair, onAddMember, onRemoveMember, onSnapshot, busy }: any) {
   // Players already placed in any pair *of this division+category* — dedupes
   // the dropdown so super-admin doesn't accidentally slot the same player
   // into two sibling pairs in the same division. A player CAN appear in MD
@@ -235,7 +257,14 @@ function CategoryColumn({ cat, division, primaryDivision, teams, roster, onCreat
               <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.bg, border: `1px solid ${BSL.border}` }} data-testid={`pair-${t.id}`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-bold">{t.name}</div>
-                  <button onClick={() => onDeletePair(t.id)} disabled={busy} className="p-1 rounded disabled:opacity-50" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}><Trash2 className="h-3 w-3" /></button>
+                  <div className="flex items-center gap-1">
+                    {members.length > 0 && (
+                      <button onClick={() => onSnapshot(t, members)} disabled={busy} title="Download team snapshot" className="p-1 rounded disabled:opacity-50" style={{ color: BSL.cyan, background: `${BSL.cyan}15`, border: `1px solid ${BSL.cyan}44` }} data-testid={`button-snapshot-pair-${t.id}`}>
+                        <Camera className="h-3 w-3" />
+                      </button>
+                    )}
+                    <button onClick={() => onDeletePair(t.id)} disabled={busy} className="p-1 rounded disabled:opacity-50" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}><Trash2 className="h-3 w-3" /></button>
+                  </div>
                 </div>
                 <div className="space-y-1.5">
                   {members.map((m: any) => (
