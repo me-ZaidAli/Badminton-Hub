@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
-import { Calendar, Trophy, Plus, Trash2, Wand2, Sparkles, Building2, Settings, ArrowRight } from "lucide-react";
+import { Calendar, Trophy, Plus, Trash2, Wand2, Sparkles, Building2, Settings, ArrowRight, Pencil, Save, X } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -89,6 +89,67 @@ export default function LeagueControl() {
   }
   const cvcHomeParsed = parseClubDiv(cvcHome);
   const cvcAwayParsed = parseClubDiv(cvcAway);
+
+  const [editFixtureId, setEditFixtureId] = useState<number | null>(null);
+  const [editForm, setEditForm] = useState<{ homeClubId: string; awayClubId: string; division: string; bslLeagueDayId: string; court: string; startTime: string; status: string }>({ homeClubId: "", awayClubId: "", division: "", bslLeagueDayId: "", court: "", startTime: "", status: "" });
+
+  const editFixture = useMutation({
+    mutationFn: async ({ id, patch }: { id: number; patch: any }) => (await apiRequest("PATCH", `/api/bsl/fixtures/${id}`, patch)).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/fixtures"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/fixtures-showcase"] });
+      setEditFixtureId(null);
+      toast({ title: "Fixture updated" });
+    },
+    onError: (e: any) => toast({ title: "Couldn't update fixture", description: (e?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" }),
+  });
+
+  const deleteFixture = useMutation({
+    mutationFn: async ({ id, force }: { id: number; force?: boolean }) =>
+      (await apiRequest("DELETE", `/api/bsl/admin/fixtures/${id}${force ? "?force=true" : ""}`, {})).json(),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["/api/bsl/fixtures"] });
+      qc.invalidateQueries({ queryKey: ["/api/bsl/fixtures-showcase"] });
+      toast({ title: "Fixture deleted" });
+    },
+  });
+
+  function openEdit(f: any) {
+    setEditFixtureId(f.id);
+    const dt = f.startTime ? new Date(f.startTime) : null;
+    const pad = (n: number) => String(n).padStart(2, "0");
+    const dtLocal = dt ? `${dt.getFullYear()}-${pad(dt.getMonth() + 1)}-${pad(dt.getDate())}T${pad(dt.getHours())}:${pad(dt.getMinutes())}` : "";
+    setEditForm({
+      homeClubId: String(f.homeClubId ?? ""),
+      awayClubId: String(f.awayClubId ?? ""),
+      division: f.division || "",
+      bslLeagueDayId: String(f.bslLeagueDayId ?? ""),
+      court: f.court != null ? String(f.court) : "",
+      startTime: dtLocal,
+      status: f.status || "SCHEDULED",
+    });
+  }
+
+  async function handleDelete(f: any) {
+    const label = `${f.homeClubName || "Home"} vs ${f.awayClubName || "Away"} (#${f.id})`;
+    if (!confirm(`Delete fixture: ${label}?\n\nThis removes the fixture and all its rubbers. Pair assignments will be lost.`)) return;
+    try {
+      await deleteFixture.mutateAsync({ id: f.id });
+    } catch (e: any) {
+      const msg = (e?.message || "").replace(/^\d{3}:\s*/, "");
+      if (msg.includes("force=true") || msg.toLowerCase().includes("finished") || msg.toLowerCase().includes("score")) {
+        if (confirm(`${msg}\n\nForce delete anyway? Standings will recompute.`)) {
+          try {
+            await deleteFixture.mutateAsync({ id: f.id, force: true });
+          } catch (err: any) {
+            toast({ title: "Couldn't delete fixture", description: (err?.message || "").replace(/^\d{3}:\s*/, ""), variant: "destructive" });
+          }
+        }
+      } else {
+        toast({ title: "Couldn't delete fixture", description: msg, variant: "destructive" });
+      }
+    }
+  }
 
   const createClubFixture = useMutation({
     mutationFn: async () => (await apiRequest("POST", "/api/bsl/admin/club-fixtures", {
@@ -246,23 +307,152 @@ export default function LeagueControl() {
         ) : (
           <div className="space-y-2">
             {clubFixtures.slice(0, 12).map((f: any) => {
+              const isEditing = editFixtureId === f.id;
               return (
-                <div key={f.id} className="flex items-center justify-between rounded-lg px-3 py-2"
-                  style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-cvc-fixture-${f.id}`}>
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded font-black" style={{ background: `${BSL.gold}22`, color: BSL.gold }}>#{f.id}</span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold truncate">{f.homeClubName || f.homeTeamName} <span style={{ color: BSL.gold }}>vs</span> {f.awayClubName || f.awayTeamName}</div>
-                      <div className="text-[10px]" style={{ color: BSL.muted }}>
-                        {f.status} · {f.startTime ? new Date(f.startTime).toLocaleString("en-GB") : "Unscheduled"}
+                <div key={f.id} className="rounded-lg" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-cvc-fixture-${f.id}`}>
+                  <div className="flex items-center justify-between px-3 py-2 gap-2 flex-wrap">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-[10px] uppercase tracking-widest px-1.5 py-0.5 rounded font-black" style={{ background: `${BSL.gold}22`, color: BSL.gold }}>#{f.id}</span>
+                      <div className="min-w-0">
+                        <div className="text-sm font-bold truncate">{f.homeClubName || f.homeTeamName} <span style={{ color: BSL.gold }}>vs</span> {f.awayClubName || f.awayTeamName}</div>
+                        <div className="text-[10px]" style={{ color: BSL.muted }}>
+                          {f.status} · {f.startTime ? new Date(f.startTime).toLocaleString("en-GB") : "Unscheduled"}
+                          {f.division ? ` · ${f.division}` : ""}{f.court != null ? ` · Court ${f.court}` : ""}
+                        </div>
                       </div>
                     </div>
+                    <div className="flex items-center gap-1.5 shrink-0">
+                      <Link href={`/bsl/admin/fixtures/${f.id}/setup`}>
+                        <a className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }} data-testid={`link-setup-${f.id}`}>
+                          <Settings className="h-3 w-3" /> Setup pairs
+                        </a>
+                      </Link>
+                      <button
+                        onClick={() => (isEditing ? setEditFixtureId(null) : openEdit(f))}
+                        className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80"
+                        style={{ background: `${BSL.gold}22`, color: BSL.gold }}
+                        data-testid={`button-edit-fixture-${f.id}`}
+                        title="Edit fixture details"
+                      >
+                        {isEditing ? <><X className="h-3 w-3" /> Close</> : <><Pencil className="h-3 w-3" /> Edit</>}
+                      </button>
+                      <button
+                        onClick={() => handleDelete(f)}
+                        disabled={deleteFixture.isPending}
+                        className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-80 disabled:opacity-40"
+                        style={{ background: `${BSL.danger}22`, color: BSL.danger }}
+                        data-testid={`button-delete-fixture-${f.id}`}
+                        title="Delete fixture (and its rubbers)"
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </button>
+                    </div>
                   </div>
-                  <Link href={`/bsl/admin/fixtures/${f.id}/setup`}>
-                    <a className="inline-flex items-center gap-1 text-xs font-bold px-3 py-1.5 rounded-lg" style={{ background: `${BSL.cyan}22`, color: BSL.cyan }} data-testid={`link-setup-${f.id}`}>
-                      <Settings className="h-3 w-3" /> Setup pairs <ArrowRight className="h-3 w-3" />
-                    </a>
-                  </Link>
+                  {isEditing && (
+                    <motion.div
+                      initial={{ opacity: 0, height: 0 }} animate={{ opacity: 1, height: "auto" }}
+                      className="px-3 pb-3 pt-2 border-t" style={{ borderColor: BSL.border }}
+                    >
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2">
+                        <div>
+                          <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Home club</label>
+                          <select value={editForm.homeClubId} onChange={e => setEditForm(s => ({ ...s, homeClubId: e.target.value }))}
+                            className="w-full mt-1 px-2 py-1.5 rounded-md text-xs" style={{ background: BSL.bgDeep, border: `1px solid ${BSL.border}`, color: "white" }}
+                            data-testid={`edit-home-${f.id}`}>
+                            {activeClubs.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Away club</label>
+                          <select value={editForm.awayClubId} onChange={e => setEditForm(s => ({ ...s, awayClubId: e.target.value }))}
+                            className="w-full mt-1 px-2 py-1.5 rounded-md text-xs" style={{ background: BSL.bgDeep, border: `1px solid ${BSL.border}`, color: "white" }}
+                            data-testid={`edit-away-${f.id}`}>
+                            {activeClubs.map((c: any) => <option key={c.id} value={c.id}>{c.name}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Division</label>
+                          <select value={editForm.division} onChange={e => setEditForm(s => ({ ...s, division: e.target.value }))}
+                            className="w-full mt-1 px-2 py-1.5 rounded-md text-xs" style={{ background: BSL.bgDeep, border: `1px solid ${BSL.border}`, color: "white" }}
+                            data-testid={`edit-division-${f.id}`}>
+                            <option value="">—</option>
+                            {divisions.map(d => <option key={d} value={d}>{d}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>League day</label>
+                          <select value={editForm.bslLeagueDayId} onChange={e => setEditForm(s => ({ ...s, bslLeagueDayId: e.target.value }))}
+                            className="w-full mt-1 px-2 py-1.5 rounded-md text-xs" style={{ background: BSL.bgDeep, border: `1px solid ${BSL.border}`, color: "white" }}
+                            data-testid={`edit-day-${f.id}`}>
+                            <option value="">— Unassigned —</option>
+                            {(days || []).map(d => <option key={d.id} value={d.id}>{new Date(d.date).toLocaleDateString("en-GB")}</option>)}
+                          </select>
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Court</label>
+                          <input type="number" min={1} value={editForm.court} onChange={e => setEditForm(s => ({ ...s, court: e.target.value }))}
+                            className="w-full mt-1 px-2 py-1.5 rounded-md text-xs" style={{ background: BSL.bgDeep, border: `1px solid ${BSL.border}`, color: "white" }}
+                            placeholder="e.g. 1" data-testid={`edit-court-${f.id}`} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Start time</label>
+                          <input type="datetime-local" value={editForm.startTime} onChange={e => setEditForm(s => ({ ...s, startTime: e.target.value }))}
+                            className="w-full mt-1 px-2 py-1.5 rounded-md text-xs" style={{ background: BSL.bgDeep, border: `1px solid ${BSL.border}`, color: "white" }}
+                            data-testid={`edit-starttime-${f.id}`} />
+                        </div>
+                        <div>
+                          <label className="text-[10px] uppercase tracking-widest font-bold" style={{ color: BSL.muted }}>Status</label>
+                          <select value={editForm.status} onChange={e => setEditForm(s => ({ ...s, status: e.target.value }))}
+                            className="w-full mt-1 px-2 py-1.5 rounded-md text-xs" style={{ background: BSL.bgDeep, border: `1px solid ${BSL.border}`, color: "white" }}
+                            data-testid={`edit-status-${f.id}`}>
+                            {["SCHEDULED","WARMUP","LIVE","FINISHED"].map(s => <option key={s} value={s}>{s}</option>)}
+                          </select>
+                        </div>
+                      </div>
+                      <div className="flex items-center justify-end gap-2 mt-3">
+                        <button onClick={() => setEditFixtureId(null)} className="text-xs px-3 py-1.5 rounded-md font-bold" style={{ color: BSL.muted }} data-testid={`cancel-edit-${f.id}`}>Cancel</button>
+                        <ActionButton variant="cyan" icon={<Save className="h-3 w-3" />} disabled={editFixture.isPending}
+                          onClick={() => {
+                            // Build a minimal patch of only the fields that actually changed.
+                            // The backend lifecycle guard rejects a "mixed" payload (status + edits)
+                            // when the league day is LIVE — sending only changed fields keeps a
+                            // pure status update pure so LIVE-day status changes go through.
+                            const patch: any = {};
+                            const origHomeClubId = f.homeClubId ?? null;
+                            const origAwayClubId = f.awayClubId ?? null;
+                            const origDivision = f.division || "";
+                            const origDayId = f.bslLeagueDayId ?? null;
+                            const origCourt = f.court ?? null;
+                            const origStatus = f.status || "SCHEDULED";
+                            const origStart = f.startTime ? new Date(f.startTime).getTime() : null;
+
+                            const newHome = editForm.homeClubId ? Number(editForm.homeClubId) : null;
+                            const newAway = editForm.awayClubId ? Number(editForm.awayClubId) : null;
+                            const newDay = editForm.bslLeagueDayId ? Number(editForm.bslLeagueDayId) : null;
+                            const newCourt = editForm.court === "" ? null : Math.max(1, Number(editForm.court));
+                            const newStart = editForm.startTime ? new Date(editForm.startTime).getTime() : null;
+
+                            if (newHome !== origHomeClubId) patch.homeClubId = newHome;
+                            if (newAway !== origAwayClubId) patch.awayClubId = newAway;
+                            if ((editForm.division || "") !== origDivision) patch.division = editForm.division || null;
+                            if (newDay !== origDayId) patch.bslLeagueDayId = newDay;
+                            if (newCourt !== origCourt) patch.court = newCourt;
+                            if (editForm.status !== origStatus) patch.status = editForm.status;
+                            if (newStart !== origStart && editForm.startTime) patch.startTime = new Date(editForm.startTime).toISOString();
+
+                            if (Object.keys(patch).length === 0) {
+                              toast({ title: "No changes to save" });
+                              setEditFixtureId(null);
+                              return;
+                            }
+                            editFixture.mutate({ id: f.id, patch });
+                          }}
+                        >
+                          {editFixture.isPending ? "Saving…" : "Save changes"}
+                        </ActionButton>
+                      </div>
+                    </motion.div>
+                  )}
                 </div>
               );
             })}

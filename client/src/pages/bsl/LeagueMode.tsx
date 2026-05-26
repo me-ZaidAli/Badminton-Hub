@@ -11,6 +11,7 @@ import { ShareInviteDialog } from "./components/ShareInviteDialog";
 import { BslSubNav } from "@/components/SubNav";
 import { StatTile } from "./components/StatTile";
 import { MatchCard } from "./components/MatchCard";
+import { FixtureBattle } from "./components/FixtureBattle";
 import { LeaderRow } from "./components/LeaderRow";
 import { BSL } from "./components/BSLPalette";
 import { useUser } from "@/hooks/use-auth";
@@ -30,6 +31,10 @@ export default function LeagueMode() {
   }});
   const { data: upcomingFixtures = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures", { status: "SCHEDULED" }], queryFn: async () => {
     const r = await fetch("/api/bsl/fixtures?status=SCHEDULED", { credentials: "include" });
+    return r.json();
+  }});
+  const { data: showcase = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures-showcase"], queryFn: async () => {
+    const r = await fetch("/api/bsl/fixtures-showcase?limit=6", { credentials: "include" });
     return r.json();
   }});
   const { data: mvp = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/mvp"] });
@@ -170,6 +175,36 @@ export default function LeagueMode() {
           </div>
         </div>
       </div>
+
+      {/* BATTLE SHOWCASE — full-bleed announcement of upcoming/live fixtures */}
+      {showcase.length > 0 && (
+        <div className="max-w-7xl mx-auto px-4 md:px-8 mt-10">
+          <motion.div
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6 }}
+            className="mb-4 flex items-end justify-between gap-4 flex-wrap"
+          >
+            <div>
+              <div className="text-[10px] uppercase tracking-[0.3em] font-black" style={{ color: BSL.cyan }}>Match Day Announcements</div>
+              <h2 className="text-2xl md:text-4xl font-black uppercase tracking-tight mt-1">
+                Battle <span style={{ color: BSL.gold, textShadow: `0 0 18px ${BSL.gold}66` }}>Card</span>
+              </h2>
+              <p className="text-xs md:text-sm mt-1" style={{ color: BSL.muted }}>
+                Confirmed pairs, every rubber, every player — heads up before you step on court.
+              </p>
+            </div>
+            <div className="text-[11px] uppercase tracking-widest font-bold" style={{ color: BSL.gold }}>
+              {showcase.length} {showcase.length === 1 ? "fixture" : "fixtures"} loaded
+            </div>
+          </motion.div>
+          <div className="grid grid-cols-1 xl:grid-cols-2 gap-5">
+            {showcase.map((f: any) => (
+              <FixtureBattle key={f.id} {...f} />
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* MAIN GRID */}
       <div className="max-w-7xl mx-auto px-4 md:px-8 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-5">
