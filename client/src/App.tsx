@@ -96,6 +96,7 @@ const AdminNotifications = lazy(() => import("@/pages/admin/AdminNotifications")
 const PushBroadcast = lazy(() => import("@/pages/admin/PushBroadcast"));
 const NotificationRules = lazy(() => import("@/pages/admin/NotificationRules"));
 const AdminPolls = lazy(() => import("@/pages/admin/AdminPolls"));
+const AdminSessionPaymentReminders = lazy(() => import("@/pages/admin/SessionPaymentReminders"));
 const NotificationSettings = lazy(() => import("@/pages/NotificationSettings"));
 const AttendanceRewards = lazy(() => import("@/pages/admin/AttendanceRewards"));
 const ClubRewards = lazy(() => import("@/pages/admin/ClubRewards"));
@@ -852,6 +853,9 @@ function Router() {
       </Route>
       <Route path="/admin/polls">
         <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminPolls /></Suspense>} />
+      </Route>
+      <Route path="/admin/session-payment-reminders">
+        <NonOrganiserAdminRoute component={() => <Suspense fallback={<LazyFallback />}><AdminSessionPaymentReminders /></Suspense>} />
       </Route>
       <Route path="/settings/notifications">
         <PrivateRoute component={() => <Suspense fallback={<LazyFallback />}><NotificationSettings /></Suspense>} />

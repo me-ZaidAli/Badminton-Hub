@@ -7,7 +7,7 @@ import {
   clubMemberships,
   clubs,
 } from "@shared/schema";
-import { and, desc, eq, inArray, or, isNull } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import { z } from "zod";
 import { saveBufferToBucket } from "./uploadStorage";
 
@@ -87,8 +87,11 @@ export function registerSessionPaymentReminderRoutes(app: Express) {
         .where(eq(sessionPaymentReminders.id, id));
       if (!row) return res.status(404).json({ message: "Reminder not found" });
       if (row.userId !== req.user!.id) return res.sendStatus(403);
-      if (row.status === "CONFIRMED") {
-        return res.status(409).json({ message: "Already confirmed" });
+      // State machine: user can ONLY confirm from PENDING or REJECTED.
+      // VERIFYING (already submitted) and CONFIRMED (closed) are terminal
+      // for the user side and any second tap would be a no-op race.
+      if (row.status !== "PENDING" && row.status !== "REJECTED") {
+        return res.status(409).json({ message: "Reminder is not awaiting your confirmation" });
       }
 
       let proofUrl: string | null = row.proofUrl;
@@ -100,17 +103,25 @@ export function registerSessionPaymentReminderRoutes(app: Express) {
         );
       }
 
-      const [updated] = await db.update(sessionPaymentReminders)
+      // Conditional UPDATE guards against concurrent taps / stale clients —
+      // if the row was already advanced by a parallel request we get 0 rows
+      // back and surface a 409 instead of silently overwriting.
+      const updated = await db.update(sessionPaymentReminders)
         .set({
           status: "VERIFYING",
           userConfirmedAt: new Date(),
           proofUrl,
-          // Reset any previous rejection so the user message is clean again
           rejectionReason: null,
         })
-        .where(eq(sessionPaymentReminders.id, id))
+        .where(and(
+          eq(sessionPaymentReminders.id, id),
+          inArray(sessionPaymentReminders.status, ["PENDING", "REJECTED"] as any),
+        ))
         .returning();
-      res.json(updated);
+      if (updated.length === 0) {
+        return res.status(409).json({ message: "Reminder state changed — please refresh" });
+      }
+      res.json(updated[0]);
     },
   );
 
@@ -130,11 +141,10 @@ export function registerSessionPaymentReminderRoutes(app: Express) {
     const validStatus = ["PENDING", "VERIFYING", "CONFIRMED", "REJECTED"];
     const conds: any[] = [];
     if (role !== "OWNER") {
-      // ADMINs see only reminders for their clubs (or club_id NULL — orphans).
-      conds.push(or(
-        inArray(sessionPaymentReminders.clubId, clubIds),
-        isNull(sessionPaymentReminders.clubId),
-      ));
+      // ADMINs see ONLY reminders explicitly scoped to clubs they admin.
+      // Orphan (NULL club) reminders are visible to OWNER only — they cannot
+      // be tied to any tenant, so a club ADMIN must not see/action them.
+      conds.push(inArray(sessionPaymentReminders.clubId, clubIds));
     }
     if (status && validStatus.includes(status)) {
       conds.push(eq(sessionPaymentReminders.status, status as any));
@@ -185,15 +195,41 @@ export function registerSessionPaymentReminderRoutes(app: Express) {
         ));
       recipientUserIds = Array.from(new Set(members.map(m => m.userId).filter((v): v is number => v != null)));
     } else if (body.userIds && body.userIds.length > 0) {
-      recipientUserIds = Array.from(new Set(body.userIds));
-      targetClubId = body.clubId ?? null;
-      if (targetClubId && role !== "OWNER" && !allowedClubIds.includes(targetClubId)) {
-        return res.status(403).json({ message: "Not an admin of that club" });
+      const requested = Array.from(new Set(body.userIds));
+      // ALL non-OWNER issuance must be club-scoped, AND every recipient must
+      // be an approved member of that club. This blocks IDOR-style attacks
+      // where a club admin posts arbitrary user IDs they don't manage.
+      if (role !== "OWNER") {
+        const cid = body.clubId;
+        if (!cid) return res.status(400).json({ message: "clubId required for non-owner issuance" });
+        if (!allowedClubIds.includes(cid)) {
+          return res.status(403).json({ message: "Not an admin of that club" });
+        }
+        targetClubId = cid;
+        const memberRows = await db.select({ userId: clubMemberships.userId })
+          .from(clubMemberships)
+          .where(and(
+            eq(clubMemberships.clubId, cid),
+            eq(clubMemberships.membershipStatus, "APPROVED" as any),
+            inArray(clubMemberships.userId, requested),
+          ));
+        const memberSet = new Set(memberRows.map(r => r.userId).filter((v): v is number => v != null));
+        recipientUserIds = requested.filter(uid => memberSet.has(uid));
+        if (recipientUserIds.length !== requested.length) {
+          return res.status(403).json({ message: "Some recipients are not members of that club" });
+        }
+      } else {
+        // OWNER may target any users. clubId (if provided) is just metadata.
+        recipientUserIds = requested;
+        targetClubId = body.clubId ?? null;
       }
     } else {
       return res.status(400).json({ message: "Provide userIds[] or allMembersOfClubId" });
     }
 
+    // Block self-issuance — the issuer should never receive their own reminder
+    // (would be confusing, and the spec says admin issues TO users).
+    recipientUserIds = recipientUserIds.filter(uid => uid !== req.user!.id);
     if (recipientUserIds.length === 0) return res.status(400).json({ message: "No recipients" });
 
     const inserted = await db.insert(sessionPaymentReminders).values(
@@ -236,24 +272,40 @@ export function registerSessionPaymentReminderRoutes(app: Express) {
       .where(eq(sessionPaymentReminders.id, id));
     if (!row) return res.status(404).json({ message: "Not found" });
 
-    // ADMINs can only action reminders for clubs they admin (or NULL club).
+    // Non-OWNER admins can ONLY action reminders that are explicitly scoped
+    // to a club they admin. Orphan (NULL club_id) reminders are OWNER-only
+    // — they have no tenant boundary, so a club admin must never be able
+    // to confirm/reject one even by guessing its id.
     if (role !== "OWNER") {
       const allowedClubIds = await getAdminClubIds(req.user!.id, role);
-      if (row.clubId != null && !allowedClubIds.includes(row.clubId)) {
+      if (row.clubId == null || !allowedClubIds.includes(row.clubId)) {
         return res.sendStatus(403);
       }
     }
 
+    // Spec-mandated state machine: admin CONFIRM/REJECT only acts on a
+    // reminder the user has already moved to VERIFYING. Anything else is
+    // a stale client or out-of-order race — return 409 so the UI refreshes
+    // instead of silently overwriting state.
+    if (row.status !== "VERIFYING") {
+      return res.status(409).json({ message: "Reminder is not awaiting verification" });
+    }
     const newStatus = action === "CONFIRM" ? "CONFIRMED" : "REJECTED";
-    const [updated] = await db.update(sessionPaymentReminders)
+    const updated = await db.update(sessionPaymentReminders)
       .set({
         status: newStatus as any,
         adminActionedAt: new Date(),
         adminActionedByUserId: req.user!.id,
         rejectionReason: action === "REJECT" ? reason! : null,
       })
-      .where(eq(sessionPaymentReminders.id, id))
+      .where(and(
+        eq(sessionPaymentReminders.id, id),
+        eq(sessionPaymentReminders.status, "VERIFYING" as any),
+      ))
       .returning();
-    res.json(updated);
+    if (updated.length === 0) {
+      return res.status(409).json({ message: "Reminder state changed — please refresh" });
+    }
+    res.json(updated[0]);
   });
 }

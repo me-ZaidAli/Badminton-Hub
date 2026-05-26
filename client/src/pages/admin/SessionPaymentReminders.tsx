@@ -210,13 +210,13 @@ export default function SessionPaymentReminders() {
                   </div>
                 )}
                 {r.status === "PENDING" && (
-                  <div className="flex gap-2 shrink-0">
-                    <Button
-                      size="sm" variant="outline" onClick={() => confirmMut.mutate(r.id)}
-                      disabled={confirmMut.isPending}
-                      data-testid={`button-mark-paid-${r.id}`}>
-                      <CheckCircle2 className="h-4 w-4 mr-1" /> Mark paid
-                    </Button>
+                  <div className="text-xs text-muted-foreground italic shrink-0">
+                    Awaiting user confirmation
+                  </div>
+                )}
+                {r.status === "REJECTED" && (
+                  <div className="text-xs text-muted-foreground italic shrink-0">
+                    Awaiting user to re-confirm
                   </div>
                 )}
               </CardContent>
