@@ -3653,10 +3653,22 @@ export async function registerRoutes(
   app.post(api.sessions.withdraw.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const sessionId = Number(req.params.id);
-    const profile = await storage.getPlayerProfile(req.user!.id);
-    if (!profile) return res.sendStatus(400);
 
-    await storage.deleteSessionSignup(sessionId, profile.id);
+    // A user can have multiple player_profiles (one per club). The signup is
+    // stored under whichever profile matched the session's club at join time.
+    // Delete ANY signup row in this session that belongs to one of the user's
+    // profiles — otherwise we'd silently delete the wrong (or no) row and the
+    // player's name would stay on the signup list.
+    const userProfiles = await db.select({ id: playerProfiles.id })
+      .from(playerProfiles)
+      .where(eq(playerProfiles.userId, req.user!.id));
+    if (userProfiles.length === 0) return res.sendStatus(400);
+    const profileIds = userProfiles.map(p => p.id);
+
+    await db.delete(sessionSignups).where(and(
+      eq(sessionSignups.sessionId, sessionId),
+      inArray(sessionSignups.playerId, profileIds),
+    ));
 
     try {
       await removeUserFromSessionChat(sessionId, req.user!.id);
