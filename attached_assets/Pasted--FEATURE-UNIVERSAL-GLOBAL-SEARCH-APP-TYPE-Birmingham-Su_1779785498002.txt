@@ -1,0 +1,96 @@
+---
+FEATURE: UNIVERSAL GLOBAL SEARCH
+APP TYPE: Birmingham Super League - Badminton League Management App
+GOAL: Allow all users to instantly find any section, page, feature, record or action without navigating menus. 100% accurate results, no dummy data, no missing features, no broken links. UI must be premium, modern, animated, and perfectly adapted to all themes.
+
+=== 1. PLACEMENT & VISIBILITY ===
+- Place a single, consistent SEARCH BAR permanently in the TOP HEADER of every single page, visible to ALL user types at all times.
+- Position: Centered or left-aligned in header — always accessible, never hidden inside menus.
+- Design Style: 
+   • **FLOATING EFFECT**: Search bar must appear elevated above the page content — use soft shadows, subtle depth, and rounded corners (large radius, modern look). It should look like it’s "sitting on top" of the interface.
+   • Shape: Tall, comfortable input field (minimum 44px height), fully rounded or soft rounded corners.
+   • Icon: Sleek magnifying glass icon inside the left side, clear and sharp.
+   • Placeholder text changes based on role:
+     • Super Admin / Admin: "Search menus, settings, clubs, players, matches, reports..."
+     • Regular User: "Search schedules, results, rankings, venues, help..."
+- Responsive: On mobile, search bar shrinks proportionally but keeps full style, functionality, and visibility.
+- Clicking or focusing the search bar immediately opens a floating results dropdown below it.
+
+=== 2. UI DESIGN, THEMING & VISIBILITY RULES (CRITICAL) ===
+✅ MODERN & PREMIUM LOOK:
+   • Clean, minimal, sleek design — matches high-end sports apps or esports platforms.
+   • Search bar and results panel must have smooth edges, proper spacing, and clear hierarchy.
+   • **FLOATING BEHAVIOR**: Results dropdown also floats, with stronger shadow than the input field, creating a layered effect above all other content.
+✅ THEME ADAPTATION:
+   • Search bar, icons, borders, and backgrounds must **AUTOMATICALLY ADAPT** to the current app theme (Light mode, Dark mode, Neon Gold/Blue theme, or any custom theme user selects).
+   • Do NOT hardcode colors — read colors dynamically from the app’s existing theme variables.
+✅ TEXT & ICON VISIBILITY — NON-NEGOTIABLE RULE:
+   • All text, icons, and placeholder text **MUST REMAIN 100% VISIBLE AND LEGIBLE** regardless of background color.
+   • System must automatically calculate contrast:
+     - If background is dark → text is light/white.
+     - If background is light → text is dark/black or high-contrast color.
+     - If background is bright/neon → text is black or white depending on which gives better readability.
+   • Never let text blend, fade, or become hard to read — contrast ratio minimum 4.5:1 at all times.
+✅ ANIMATIONS & INTERACTIONS:
+   • **On Focus**: Smooth scale-up (1.03x), slight glow or border highlight, shadow increases smoothly — feels responsive and alive.
+   • **On Typing**: Results dropdown opens with smooth slide-down + fade-in animation (300ms ease).
+   • **Result Items**: When list appears, items fade in one after another with a subtle stagger effect.
+   • **Hover State**: Each result item smoothly highlights, slightly lifts up, or changes background with smooth transition — cursor changes to pointer.
+   • **On Click**: Small satisfying scale-down + bounce effect when selecting an item before navigating.
+   • **Close**: Smooth fade-out and slide-up when clicking outside or pressing Escape.
+   • All animations must be smooth, fast, but not jarring — performance optimized, no lag.
+
+=== 3. USER ROLES & PERMISSIONS ===
+⚠️ STRICT RULE: Results MUST ONLY show items the current user has permission to access. Never show restricted sections or data.
+
+---
+► SUPER ADMIN & ADMIN SEARCH MODE:
+✅ SEARCH SCOPE: Search EVERYTHING in the entire system — no limits. Include:
+   • Navigation menus & sub-menus: Dashboard, League Setup, Clubs, Teams, Players, Matches, Schedules, Venues, Rankings, Settings, Reports, Users, Permissions, Notifications, Help/Support
+   • All database records: Individual clubs, teams, player profiles, specific matches, tournament names, venues, contact details, results, scorecards, invoices, logs
+   • All actions: "Add new player", "Create match", "Generate report", "Edit venue", "Export data"
+✅ SEARCH LOGIC:
+   • Real-time search: results update instantly with every keystroke
+   • PRIORITY ORDER: 
+     1. EXACT matches first (text starts with or equals search term)
+     2. CONTAINS matches (text includes the term anywhere)
+     3. APPROXIMATE / RELEVANT matches (spelling tolerance, synonyms e.g. "game" = "match", "fixture")
+   • Search across: Page titles, menu names, record names, IDs, keywords, descriptions, labels
+✅ RESULTS DISPLAY:
+   • Floating panel, maximum 15 results visible — scroll smoothly if more exist
+   • Each result shows: ICON + CLEAR TITLE + SMALL SUBTEXT (e.g. "Menu Section", "Club • Birmingham Badminton Club", "Match • League Week 5")
+   • Group results logically with clear headers: "Pages & Menus", "Clubs & Teams", "Matches & Events", "Tools & Settings"
+   • Clicking ANY result navigates DIRECTLY and instantly to that exact page, record, or action — NO broken links, NO placeholder pages.
+   • If no matches: Show message "No results found — try different keywords" (never show dummy/fake data)
+
+---
+► REGULAR USER SEARCH MODE:
+✅ SEARCH SCOPE: ONLY search what the user is allowed to see/use:
+   • Public sections: Home, My Profile, My Team, Match Schedules, Live Scores, Results, League Rankings, Venue Information, Rules & Regulations, News, Help/FAQ, Contact
+   • Their own data: Their registered matches, their team details, their history
+✅ SEARCH LOGIC:
+   • Real-time LIVE SUGGESTIONS dropdown appears as they type (like Google search)
+   • Matches: Page names, section titles, fixture dates, team names, venue names, keywords
+   • Include partial matches and common terms
+✅ RESULTS DISPLAY:
+   • Clean floating dropdown list, max 12 items
+   • Each item: Icon + Name + small description
+   • Clicking navigates straight to that exact page or information
+   • No admin-only items, no settings, no restricted data ever appear here
+   • If nothing found: "No matches available"
+
+=== 4. TECHNICAL & QUALITY RULES (NON-NEGOTIABLE) ===
+❌ ABSOLUTELY NO: Dummy data, placeholder links, lorem ipsum text, fake records, or non-functional items.
+✅ ALL links must connect to EXISTING, WORKING pages/features already in the app.
+✅ Search works with partial words, capital letters, lowercase, spaces, and special characters.
+✅ Fast performance: Results appear within 200ms maximum — no loading delays.
+✅ Keyboard support: Arrow keys to navigate results, Enter to select — smooth highlight movement.
+✅ Close dropdown when clicking outside or pressing Escape.
+✅ Design matches exactly the existing app’s visual language, but elevated and modernized.
+✅ Code must be clean, well-commented, and easy to modify later.
+✅ Ensure search indexes are updated automatically whenever new clubs, players, matches or pages are added.
+✅ All styles must be responsive and pass accessibility standards (color contrast, readable text, clear focus states).
+
+=== 5. FINAL OUTCOME ===
+The end result: A perfect, fully functional universal search that saves navigation time, works 100% correctly for every user type, shows only relevant content, and looks visually stunning — floating, animated, perfectly adapting to every theme while keeping text crystal clear at all times.
+---

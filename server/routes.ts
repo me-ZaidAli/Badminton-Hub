@@ -23,6 +23,7 @@ import { registerChatRoutes, autoCreateSessionChat, addUserToSessionChat, remove
 import { registerDailyContentRoutes } from "./dailyContent";
 import { registerCustomPollRoutes } from "./customPolls";
 import { registerTournamentRoutes } from "./tournamentRoutes";
+import { registerGlobalSearchRoute } from "./globalSearch";
 import { registerCommunityRoutes } from "./communityRoutes";
 import { registerDebtRoutes } from "./debtRoutes";
 import { registerMerchandiseAdminRoutes } from "./merchandiseAdminRoutes";
@@ -36058,6 +36059,7 @@ Return ONLY valid JSON in this exact format:
   registerCoachBookingRoutes(app);
   registerStepsRoutes(app);
   registerCustomPollRoutes(app);
+  registerGlobalSearchRoute(app);
 
   return httpServer;
 }

@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, MobileTopNav, useSidebarHidden } from "@/components/layout/Sidebar";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { BottomNavBar, BottomNavSettings } from "@/components/layout/BottomNavBar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
@@ -198,9 +199,20 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
       <MobileTopNav />
       <div className="flex flex-1">
         <Sidebar />
-        <main className={`flex-1 ${hidden ? "" : "md:ml-64"} px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full transition-[margin] duration-300 landscape-expand`}>
-          {children}
-        </main>
+        <div className={`flex-1 flex flex-col ${hidden ? "" : "md:ml-64"} transition-[margin] duration-300 landscape-expand`}>
+          {/* Desktop floating top header with universal global search */}
+          <header
+            className="hidden md:flex sticky top-0 z-40 items-center gap-4 px-6 lg:px-8 py-3 bg-background/70 backdrop-blur-md border-b border-border/40"
+            data-testid="desktop-top-header"
+          >
+            <div className="flex-1 flex justify-center">
+              <GlobalSearch />
+            </div>
+          </header>
+          <main className="flex-1 px-3 py-3 sm:p-4 md:p-8 max-w-7xl mx-auto w-full">
+            {children}
+          </main>
+        </div>
       </div>
       <BottomNavBar />
     </div>

@@ -1,5 +1,6 @@
 import { Link, useLocation } from "wouter";
 import { cn } from "@/lib/utils";
+import { GlobalSearch } from "@/components/layout/GlobalSearch";
 import { useUser, useLogout } from "@/hooks/use-auth";
 import { useMyAdminClubs, useIsOrganiserOnly } from "@/hooks/use-clubs";
 import { useClubPlan, useAdminClubId, useIsAnyClubPremium } from "@/hooks/use-club-plan";
@@ -1095,14 +1096,16 @@ export function MobileTopNav() {
     <div className="md:hidden sticky top-0 z-50" data-sidebar-mobile="wrapper">
       <div className="flex items-center justify-between px-4 py-3 border-b border-border/40 bg-background" data-sidebar-mobile="topbar">
         <Link href="/dashboard">
-          <div className="flex items-center gap-2 cursor-pointer" data-testid="link-mobile-home">
+          <div className="flex items-center gap-2 cursor-pointer shrink-0" data-testid="link-mobile-home">
             <img src={logoPath} alt="Club Master" className="h-8 w-8 rounded-lg object-contain" />
-            <span className="font-display font-bold text-lg">Club Master</span>
           </div>
         </Link>
 
-        <div className="flex items-center gap-2">
-          <ThemeToggle />
+        <div className="flex-1 mx-2">
+          <GlobalSearch compact />
+        </div>
+
+        <div className="flex items-center gap-1 shrink-0">
           <NotificationBell />
           <Button
             variant="ghost"
