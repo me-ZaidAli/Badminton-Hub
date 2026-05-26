@@ -3750,3 +3750,48 @@ export const clubFinanceCalculatorSettings = pgTable("club_finance_calculator_se
 export const insertClubFinanceCalculatorSettingsSchema = createInsertSchema(clubFinanceCalculatorSettings).omit({ id: true, updatedAt: true });
 export type ClubFinanceCalculatorSettings = typeof clubFinanceCalculatorSettings.$inferSelect;
 export type InsertClubFinanceCalculatorSettings = z.infer<typeof insertClubFinanceCalculatorSettingsSchema>;
+
+// === SESSION PAYMENT REMINDERS ============================================
+// Admin-issued reminder telling a player they owe money for unpaid training/
+// coaching sessions. The user sees a floating notification on every page
+// until the admin marks it CONFIRMED. NOT for league/tournament fees.
+//
+// Lifecycle:
+//   PENDING (admin issued) → VERIFYING (user clicked "I have paid") →
+//   CONFIRMED (admin verified)  OR  REJECTED (admin rejected → reverts to PENDING)
+//
+// We keep REJECTED as a distinct status so we can show the admin's reason
+// to the user, but on the user side a REJECTED row is effectively PENDING
+// again (the "I have paid" button re-appears).
+export const sessionPaymentReminderStatusEnum = pgEnum(
+  "session_payment_reminder_status",
+  ["PENDING", "VERIFYING", "CONFIRMED", "REJECTED"],
+);
+
+export const sessionPaymentReminders = pgTable("session_payment_reminders", {
+  id: serial("id").primaryKey(),
+  userId: integer("user_id").references(() => users.id, { onDelete: "cascade" }).notNull(),
+  clubId: integer("club_id").references(() => clubs.id, { onDelete: "set null" }),
+  issuedByUserId: integer("issued_by_user_id").references(() => users.id).notNull(),
+  sessionsCount: integer("sessions_count").notNull().default(1),
+  amountPence: integer("amount_pence").notNull(),
+  description: text("description").notNull(),
+  note: text("note"),
+  dueDate: timestamp("due_date").notNull(),
+  status: sessionPaymentReminderStatusEnum("status").default("PENDING").notNull(),
+  // Set when user clicks "I have made the payment"
+  userConfirmedAt: timestamp("user_confirmed_at"),
+  // Optional uploaded screenshot/receipt
+  proofUrl: text("proof_url"),
+  // Set when admin clicks Confirm / Reject
+  adminActionedAt: timestamp("admin_actioned_at"),
+  adminActionedByUserId: integer("admin_actioned_by_user_id").references(() => users.id),
+  rejectionReason: text("rejection_reason"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertSessionPaymentReminderSchema = createInsertSchema(sessionPaymentReminders).omit({
+  id: true, createdAt: true, status: true, userConfirmedAt: true,
+  adminActionedAt: true, adminActionedByUserId: true, rejectionReason: true, proofUrl: true,
+});
+export type SessionPaymentReminder = typeof sessionPaymentReminders.$inferSelect;
+export type InsertSessionPaymentReminder = z.infer<typeof insertSessionPaymentReminderSchema>;

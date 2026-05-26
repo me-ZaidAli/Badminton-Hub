@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Sidebar, MobileTopNav, useSidebarHidden } from "@/components/layout/Sidebar";
 import { GlobalSearch } from "@/components/layout/GlobalSearch";
+import { SessionPaymentReminderFloater } from "@/components/SessionPaymentReminderFloater";
 import { BottomNavBar, BottomNavSettings } from "@/components/layout/BottomNavBar";
 import PublicLayout from "@/components/layout/PublicLayout";
 import { useUser } from "@/hooks/use-auth";
@@ -215,6 +216,9 @@ function AuthenticatedShell({ children }: { children: React.ReactNode }) {
         </div>
       </div>
       <BottomNavBar />
+      {/* Persistent session-payment reminder — fixed bottom-right on every
+          authenticated page. Mounted at shell level so it survives route changes. */}
+      <SessionPaymentReminderFloater />
     </div>
   );
 }

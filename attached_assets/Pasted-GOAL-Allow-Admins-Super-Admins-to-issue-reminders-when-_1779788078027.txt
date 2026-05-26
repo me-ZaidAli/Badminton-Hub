@@ -1,0 +1,113 @@
+GOAL: Allow Admins/Super Admins to issue reminders when users have unpaid sessions; users see a floating persistent notification on every page until process is completed. Exact workflow: User confirms payment → status changes to verification → Admin confirms → notification disappears. Modern, animated, theme-adaptive UI.
+
+=== 1. USER ROLES & PERMISSIONS ===
+✅ SUPER ADMIN / ADMIN ACTIONS:
+   • Only Admins & Super Admins can ISSUE a payment reminder — specifically for **UNPAID TRAINING / COACHING SESSIONS ONLY**.
+   • Can send reminder to single user, group, or entire club/team members.
+   • When creating reminder, Admin must input:
+     - Number of unpaid sessions
+     - Total amount due
+     - Description: e.g. "Unpaid training sessions — May", "Coaching fees — Week 18", "Private lesson payment"
+     - Due date
+     - Optional note: e.g. "Please settle before next session"
+   • Can view status of all session payments:
+     → [Pending User Confirmation → Ongoing Verification → Payment Confirmed / Rejected]
+   • Can filter/search by status (works with Universal Search bar)
+   • Once Admin marks payment as "CONFIRMED", notification is automatically removed from user’s side everywhere instantly.
+
+✅ REGULAR USER ACTIONS:
+   • Can ONLY see their OWN unpaid session reminders — never see other users’ data.
+   • CANNOT dismiss, hide, or close the notification manually — it stays visible until fully resolved.
+   • Only action: Confirm they have made the payment, and optionally upload proof.
+
+=== 2. NOTIFICATION PLACEMENT & UI DESIGN (CRITICAL) ===
+✅ POSITION:
+   • Appears immediately on user’s Dashboard, then becomes a **FIXED FLOATING ELEMENT** visible on EVERY SINGLE PAGE, always in the **BOTTOM-RIGHT CORNER** — same exact spot always, never moves, never hidden, stays fixed when scrolling.
+   • Proper spacing: Never overlaps with the Universal Search bar or other buttons.
+
+✅ STYLE & THEMING:
+   • Modern, premium floating card — soft shadow, rounded corners, elevated look (same high-quality style as search bar).
+   • **AUTO-ADAPT TO ALL THEMES**: Light Mode, Dark Mode, Neon Gold/Blue, or custom colors — reads colors dynamically from theme variables, NO hardcoding.
+   • **TEXT VISIBILITY RULE — NON-NEGOTIABLE**:
+     - All text, headings, buttons, icons must be **100% readable always**.
+     - System automatically adjusts text color: Dark text on light backgrounds, White/light text on dark/bright backgrounds.
+     - Minimum contrast ratio 4.5:1 — text must never blend or fade.
+   • Content always clearly states it’s for **SESSIONS / TRAINING FEES** — never mentions Super League or competition.
+
+✅ ANIMATIONS:
+   • Appear: Smooth slide-in from bottom-right + fade-in + slight bounce (350ms ease).
+   • Hover: Gentle lift-up effect, shadow deepens smoothly.
+   • Status change: Smooth color transition and content update — no harsh jumps.
+   • Disappear: Smooth fade-out + slide-down when confirmed by Admin.
+
+=== 3. EXACT WORKFLOW & STATUS STEPS — DO NOT MODIFY ===
+⚠️ THIS IS FOR UNPAID SESSIONS / TRAINING ONLY — NO LEAGUE FEES INCLUDED.
+
+---
+🔴 STEP 1: STATUS = **PENDING USER CONFIRMATION**
+• Trigger: Admin issues reminder for unpaid sessions.
+• Notification appears everywhere immediately.
+• What user sees:
+  ⚠️ **SESSION PAYMENT REMINDER**
+  • Unpaid sessions: [X sessions]
+  • Amount Due: £[XX.XX]
+  • Reason: [e.g. "May training sessions"]
+  • Due Date: [DD/MM/YYYY]
+  ✅ Button: **I HAVE MADE THE PAYMENT** (clear, high contrast, rounded, animated hover)
+• User action:
+  - Clicks button → confirmation popup: *"You are confirming payment for your unpaid sessions. This will be sent to admin for verification. Continue?"*
+  - Optional: Allow user to upload screenshot/receipt proof here.
+  - User confirms → system changes status automatically.
+• System update: Status becomes **🔵 ONGOING VERIFICATION**.
+
+---
+🔵 STEP 2: STATUS = **ONGOING VERIFICATION**
+• Trigger: User confirmed payment.
+• Notification updates instantly everywhere — NO page refresh needed.
+• What user sees now:
+  ⏳ **PAYMENT UNDER VERIFICATION**
+  • *"Thank you! Your session payment confirmation has been received and is being checked by our team."*
+  • No buttons / no actions possible — just message.
+  • Color changes to soft blue/turquoise (theme adapted).
+• What Admin sees:
+  • In admin panel: entry marked "Verification Required" with user details, timestamp, and uploaded proof if provided.
+  • Admin can review and choose: **CONFIRM PAYMENT** or **REJECT PAYMENT (with reason)**.
+
+---
+🟢 STEP 3: STATUS = **PAYMENT CONFIRMED — COMPLETED**
+• Trigger: Admin clicks "CONFIRM PAYMENT".
+• System actions:
+  • Status updated to Confirmed in database.
+  • **FLOATING NOTIFICATION INSTANTLY DISAPPEARS** from every page.
+  • Optional success toast: *"✅ Payment confirmed — Thank you! All outstanding sessions are now paid."* (shows 3 seconds only)
+• End of process — no further action needed.
+
+---
+❌ ADDITIONAL CASE: **PAYMENT REJECTED**
+• Trigger: Admin clicks "REJECT PAYMENT" — MUST enter reason (e.g. "No payment received yet", "Proof unclear").
+• System actions:
+  • Status reverts back to **🔴 PENDING USER CONFIRMATION**.
+  • Notification updates instantly.
+  • User sees:
+    ❌ **PAYMENT NOT VERIFIED**
+    • *"Admin message: [Reason from admin]"*
+    • *"Please check and confirm again once payment is made."*
+    • ✅ Button **I HAVE MADE THE PAYMENT** reappears.
+  • Process restarts from Step 1.
+
+=== 4. TECHNICAL & QUALITY RULES (NON-NEGOTIABLE) ===
+❌ ABSOLUTELY NO:
+   - Dummy data / fake records
+   - Notification that can be closed/hidden by user
+   - References to "Super League", "competition", "tournament" anywhere in this feature
+   - Broken steps / missing actions
+✅ ALL data real and connected to existing session records.
+✅ Real-time updates: Any status change appears instantly on user’s screen without refresh.
+✅ Works perfectly together with Universal Search — no overlap, no style conflict.
+✅ Responsive: On mobile, notification shrinks appropriately, stays in corner, does not block important buttons.
+✅ All code clean, well-commented, integrated smoothly.
+✅ Accessible: All text readable, high contrast, keyboard navigable.
+
+=== 5. FINAL OUTCOME ===
+A fully functional Session Payment Reminder system specifically for unpaid training/coaching sessions (not league related). Floats fixed in bottom-right on every page, follows exact workflow: reminder → user confirms → verification → admin confirms → disappears. Modern, animated, adapts to all themes, text always visible. 100% accurate to requirements.
+---
