@@ -1415,7 +1415,23 @@ export function registerBslRoutes(app: Express) {
       const rubbers = await db.select().from(bslRubbers).where(eq(bslRubbers.bslFixtureId, id)).orderBy(bslRubbers.rubberNumber);
       const clubIds = [fixture.homeClubId, fixture.awayClubId].filter((x): x is number => x != null);
       const clubs = clubIds.length ? await db.select().from(bslClubs).where(inArray(bslClubs.id, clubIds)) : [];
-      const teams = clubIds.length ? await db.select().from(bslTeams).where(inArray(bslTeams.bslClubId, clubIds)) : [];
+      // Pairs are filtered to the fixture's division so the admin only sees
+      // pairs that are legally eligible to play in this fixture. Fixtures
+      // with no division set fall back to all pairs in the club (legacy data).
+      // We always UNION in any team already assigned to a rubber on this
+      // fixture, even if it falls outside the division filter — otherwise a
+      // legacy/admin-overridden assignment would disappear from the UI while
+      // its team id still sits on the rubber row (the slot would render blank
+      // and an admin could accidentally overwrite it without realising).
+      const assignedTeamIds = new Set<number>();
+      for (const r of rubbers) {
+        if (r.homeTeamId != null) assignedTeamIds.add(r.homeTeamId);
+        if (r.awayTeamId != null) assignedTeamIds.add(r.awayTeamId);
+      }
+      const allClubTeams = clubIds.length ? await db.select().from(bslTeams).where(inArray(bslTeams.bslClubId, clubIds)) : [];
+      const teams = fixture.division
+        ? allClubTeams.filter(t => t.division === fixture.division || assignedTeamIds.has(t.id))
+        : allClubTeams;
       const teamIds = teams.map(t => t.id);
       const memberRows = teamIds.length
         ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
@@ -2867,6 +2883,10 @@ export function registerBslRoutes(app: Express) {
         await tx.update(bslTeams).set({ division: to }).where(eq(bslTeams.division, from));
         await tx.execute(dsql`UPDATE bsl_league_days SET division = ${to} WHERE division = ${from}`);
         await tx.execute(dsql`UPDATE bsl_prizes SET division = ${to} WHERE division = ${from}`);
+        // Cascade rename to fixture rows too — the setup endpoint filters
+        // pairs by fixture.division, so an unrenamed fixture would suddenly
+        // show zero eligible pairs after a division rename.
+        await tx.execute(dsql`UPDATE bsl_fixtures SET division = ${to} WHERE division = ${from}`);
         // Rename inside additional_divisions[] arrays too. Two-step: replace
         // `from` → `to` element-wise, then dedupe via unnest+array_agg, then
         // strip any entry that now duplicates the primary division (which

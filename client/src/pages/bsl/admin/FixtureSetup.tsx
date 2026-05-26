@@ -13,7 +13,19 @@ import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
 type Player = { id: number; name: string };
-type Pair = { id: number; pairNumber: number; category: string; bslClubId: number; members: Player[] };
+type Pair = { id: number; pairNumber: number; category: string; bslClubId: number; division?: string | null; members: Player[] };
+
+// Compact display label used everywhere a pair is rendered. We prefer the
+// actual player names ("Alice & Bob") over the legacy "Pair A/B/C" label
+// because admins consistently ask "which players are these?" — names are
+// what they recognise. Falls back to the category-tagged Pair letter when a
+// pair has no members yet (newly-created empty slot).
+function pairDisplayName(p: { pairNumber?: number; category?: string | null; members?: { name: string }[] }): string {
+  const names = (p.members || []).map(m => m.name).filter(Boolean);
+  if (names.length > 0) return names.join(" & ");
+  const letter = String.fromCharCode(64 + (p.pairNumber || 1));
+  return `Pair ${letter}${p.category ? ` · ${p.category}` : ""}`;
+}
 type Rubber = {
   id: number; rubberNumber: number; rubberType: string;
   homeTeamId: number | null; awayTeamId: number | null;
@@ -169,17 +181,21 @@ export default function FixtureSetup() {
         </div>
       </div>
 
-      {/* Add-rubber chips: append a single empty slot of the chosen category. */}
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <span className="text-[11px] uppercase tracking-widest" style={{ color: BSL.muted }}>Add rubber:</span>
+      {/* Add-rubber chips: append a single empty slot of the chosen category.
+          Click multiple times to add multiple matches of the same type. */}
+      <div className="mb-4 p-3 rounded-xl flex flex-wrap items-center gap-2" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.cyan}33` }}>
+        <span className="text-[11px] uppercase tracking-widest font-bold" style={{ color: BSL.cyan }}>+ Add another match</span>
+        <span className="text-[10px]" style={{ color: BSL.muted }}>(click to append · keep clicking for more)</span>
+        <div className="flex-1" />
         {(["MD", "WD", "XD", "MS1", "MS2", "WS"] as const).map(cat => (
           <button
             key={cat}
             onClick={() => addRubber.mutate(cat)}
             disabled={addRubber.isPending}
-            className="inline-flex items-center gap-1 rounded-lg px-2.5 py-1 text-[11px] font-bold hover:opacity-80 disabled:opacity-50 transition"
-            style={{ background: `${BSL.cyan}15`, color: BSL.cyan, border: `1px solid ${BSL.cyan}33` }}
+            className="inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-bold hover:opacity-80 disabled:opacity-50 transition"
+            style={{ background: `${BSL.cyan}22`, color: BSL.cyan, border: `1px solid ${BSL.cyan}55` }}
             data-testid={`button-add-rubber-${cat}`}
+            title={RUBBER_LABEL[cat] || cat}
           >
             <Plus className="h-3 w-3" /> {cat}
           </button>
@@ -253,21 +269,23 @@ function PairColumn({ side, club, pairs, placement, drag, setDrag }: {
                 style={{ background: BSL.cardSoft, border: `1px solid ${tone}33` }}
                 data-testid={`pair-card-${side}-${p.id}`}
               >
-                <div className="flex items-center justify-between mb-1">
-                  <div className="flex items-center gap-2">
-                    <GripVertical className="h-3 w-3 opacity-40" />
-                    <span className="px-1.5 py-0.5 rounded text-[10px] font-black" style={{ background: `${tone}22`, color: tone }}>{p.category}</span>
-                    <span className="text-xs font-bold">Pair {String.fromCharCode(64 + (p.pairNumber || 1))}</span>
+                <div className="flex items-center justify-between mb-1 gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <GripVertical className="h-3 w-3 opacity-40 shrink-0" />
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-black shrink-0" style={{ background: `${tone}22`, color: tone }}>{p.category}</span>
+                    <span className="text-xs font-bold truncate" title={pairDisplayName(p)}>
+                      {pairDisplayName({ ...p, category: null })}
+                    </span>
                   </div>
                   {slotted.length > 0 && (
-                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded" style={{ background: `${BSL.success}22`, color: BSL.success }} title={`In rubber ${slotted.join(", ")}`}>
+                    <span className="text-[9px] font-bold px-1.5 py-0.5 rounded shrink-0" style={{ background: `${BSL.success}22`, color: BSL.success }} title={`Assigned to rubber ${slotted.join(", ")} — can be placed in more`}>
                       R{slotted.join("·")}
                     </span>
                   )}
                 </div>
-                <div className="text-[11px] truncate" style={{ color: BSL.muted }}>
-                  {p.members.length === 0 ? "Empty pair" : p.members.map(m => m.name).join(" + ")}
-                </div>
+                {p.members.length === 0 && (
+                  <div className="text-[11px] italic" style={{ color: BSL.faint }}>Empty pair</div>
+                )}
               </motion.div>
             );
           })}
@@ -355,10 +373,10 @@ function RubberSlot({ side, pair, eligible, canDrop, onDrop, onClear, onPick }: 
                 <X className="h-3 w-3" style={{ color: BSL.muted }} />
               </button>
             </div>
-            <div className="text-xs font-bold truncate">Pair {String.fromCharCode(64 + (pair.pairNumber || 1))} · {pair.category}</div>
-            <div className="text-[10px] truncate" style={{ color: BSL.muted }}>
-              {pair.members.length === 0 ? "Empty" : pair.members.map(m => m.name).join(" + ")}
+            <div className="text-xs font-bold truncate" title={pairDisplayName(pair)}>
+              {pairDisplayName({ ...pair, category: null })}
             </div>
+            <div className="text-[10px] truncate" style={{ color: BSL.muted }}>{pair.category}</div>
           </motion.div>
         ) : (
           <motion.div key="empty" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
@@ -376,7 +394,7 @@ function RubberSlot({ side, pair, eligible, canDrop, onDrop, onClear, onPick }: 
                 <option value="">+ Pick or drop pair…</option>
                 {eligible.map(p => (
                   <option key={p.id} value={p.id}>
-                    Pair {String.fromCharCode(64 + (p.pairNumber || 1))} · {p.category}
+                    {pairDisplayName({ ...p, category: null })} · {p.category}
                   </option>
                 ))}
               </select>
