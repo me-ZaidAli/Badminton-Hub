@@ -5,7 +5,7 @@ import { Link } from "wouter";
 import {
   Calendar, MapPin, Sun, Cloud, CloudRain, CloudSnow, CloudLightning, CloudFog, Sparkles, Clock,
   GraduationCap, ChevronRight, Loader2, Wind, Droplets, Dumbbell, Trophy, Users, Tag, Lightbulb, Moon, Sunrise, Sunset, Activity,
-  Quote, GlassWater, Plus, Minus, BarChart3, PartyPopper, ExternalLink,
+  Quote, GlassWater, Plus, Minus, BarChart3, PartyPopper, ExternalLink, Award, ShieldCheck,
 } from "lucide-react";
 import { format, addDays, isSameDay, parseISO, startOfWeek, getISOWeek, getDayOfYear, differenceInMinutes } from "date-fns";
 import { CustomPollTile } from "./CustomPollTile";
@@ -363,6 +363,37 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl, s
     staleTime: 60 * 60_000,
   });
 
+  // BADMINTON ENGLAND TOURNAMENTS (daily-cached web search)
+  type BeTournament = { name: string; startDate: string; endDate?: string; location?: string; level?: string; audience: "ADULT" | "JUNIOR"; url: string };
+  const { data: beTournamentsData } = useQuery<{ adults: BeTournament[]; juniors: BeTournament[] }>({
+    queryKey: ["/api/daily-content/be-tournaments"],
+    staleTime: 60 * 60_000,
+  });
+  const [tourneyTab, setTourneyTab] = useState<"ADULT" | "JUNIOR">("ADULT");
+  const tourneyList = (tourneyTab === "ADULT" ? beTournamentsData?.adults : beTournamentsData?.juniors) || [];
+
+  // BADMINTON ENGLAND COACH COURSES (daily-cached web search)
+  type BeCoachCourse = { title: string; level?: string; startDate: string; endDate?: string; location?: string; url: string };
+  const { data: beCoursesData } = useQuery<{ courses: BeCoachCourse[] }>({
+    queryKey: ["/api/daily-content/be-coach-courses"],
+    staleTime: 60 * 60_000,
+  });
+  const beCourses = beCoursesData?.courses || [];
+
+  function fmtBeDate(d?: string) {
+    if (!d) return "TBA";
+    try { return format(parseISO(d), "d MMM yyyy"); } catch { return d; }
+  }
+  function fmtBeRange(s?: string, e?: string) {
+    if (!s) return "TBA";
+    if (!e || e === s) return fmtBeDate(s);
+    try {
+      const ds = parseISO(s), de = parseISO(e);
+      if (format(ds, "MMM yyyy") === format(de, "MMM yyyy")) return `${format(ds, "d")}–${format(de, "d MMM yyyy")}`;
+      return `${format(ds, "d MMM")} – ${format(de, "d MMM yyyy")}`;
+    } catch { return fmtBeDate(s); }
+  }
+
   // DAILY POLL
   const { data: pollData } = useQuery<{ question: string; options: string[]; counts: number[]; total: number; myVote: number | null }>({
     queryKey: ["/api/daily-content/poll"],
@@ -557,6 +588,119 @@ export default function DashboardHero({ userName, sessions, profilePictureUrl, s
           <div className="mt-6 flex items-center gap-2 text-white/55">
             <Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Finding deals…</span>
           </div>
+        )}
+      </Tile>
+      </HeroGroup>
+
+      {/* === ROW 2b: BADMINTON ENGLAND TOURNAMENTS + COACH COURSES === */}
+      <HeroGroup title="Badminton England" Icon={Award} accentText="text-sky-200" testId="hero-row-be">
+      {/* BE TOURNAMENTS — adult / junior tabs */}
+      <Tile accent="from-sky-500/25 via-blue-500/15 to-indigo-500/15" glowA="bg-sky-400/30" glowB="bg-indigo-500/20" testId="hero-be-tournaments">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-sky-200/80">
+            <Trophy className="w-3 h-3" /><span>BE Tournaments</span>
+          </div>
+          <a href="https://be.tournamentsoftware.com/tournaments" target="_blank" rel="noopener noreferrer" className="text-[9px] text-sky-200/80 hover:text-white uppercase tracking-wider inline-flex items-center gap-0.5" data-testid="link-be-tournaments-all">
+            All <ExternalLink className="w-2.5 h-2.5" />
+          </a>
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-1 p-0.5 rounded-lg bg-white/5 border border-white/10">
+          {(["ADULT", "JUNIOR"] as const).map((t) => (
+            <button
+              key={t}
+              onClick={() => setTourneyTab(t)}
+              className={`text-[10px] font-bold uppercase tracking-wider py-1 rounded-md transition ${
+                tourneyTab === t ? "bg-sky-400/25 text-white border border-sky-300/40" : "text-white/55 hover:text-white/85"
+              }`}
+              data-testid={`tab-be-tournaments-${t.toLowerCase()}`}
+            >
+              {t === "ADULT" ? "Adults" : "Juniors"}
+            </button>
+          ))}
+        </div>
+        {!beTournamentsData ? (
+          <div className="mt-6 flex items-center gap-2 text-white/55"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
+        ) : tourneyList.length === 0 ? (
+          <p className="mt-4 text-[11px] text-white/55">No upcoming {tourneyTab === "ADULT" ? "senior" : "junior"} events found.</p>
+        ) : (
+          <ul className="mt-2.5 space-y-1.5 max-h-[230px] overflow-y-auto pr-0.5">
+            {tourneyList.slice(0, 6).map((t, i) => (
+              <li key={`${t.url}-${i}`}>
+                <a
+                  href={t.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-sky-300/40 transition px-2.5 py-1.5"
+                  data-testid={`link-be-tournament-${tourneyTab.toLowerCase()}-${i}`}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-sky-400/20 border border-sky-300/30 text-[9px] uppercase tracking-wider text-sky-100 tabular-nums">
+                      {fmtBeRange(t.startDate, t.endDate)}
+                    </span>
+                    {t.level && (
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[9px] uppercase tracking-wider text-white/70 truncate max-w-[80px]">
+                        {t.level}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[12px] font-bold text-white leading-tight line-clamp-2" data-testid={`text-be-tournament-name-${i}`}>{t.name}</div>
+                  {t.location && (
+                    <div className="text-[10px] text-white/55 mt-0.5 truncate flex items-center gap-1">
+                      <MapPin className="w-2.5 h-2.5 shrink-0" />{t.location}
+                    </div>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Tile>
+
+      {/* BE COACH COURSES */}
+      <Tile accent="from-emerald-500/20 via-teal-500/15 to-cyan-500/15" glowA="bg-emerald-400/25" glowB="bg-teal-500/20" testId="hero-be-courses">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] text-emerald-200/80">
+            <ShieldCheck className="w-3 h-3" /><span>Coach Courses</span>
+          </div>
+          <a href="https://www.badmintonengland.co.uk/play/coaching-and-officiating/" target="_blank" rel="noopener noreferrer" className="text-[9px] text-emerald-200/80 hover:text-white uppercase tracking-wider inline-flex items-center gap-0.5" data-testid="link-be-courses-all">
+            All <ExternalLink className="w-2.5 h-2.5" />
+          </a>
+        </div>
+        {!beCoursesData ? (
+          <div className="mt-6 flex items-center gap-2 text-white/55"><Loader2 className="w-3.5 h-3.5 animate-spin" /><span className="text-xs">Loading…</span></div>
+        ) : beCourses.length === 0 ? (
+          <p className="mt-4 text-[11px] text-white/55">No upcoming coach courses found.</p>
+        ) : (
+          <ul className="mt-2.5 space-y-1.5 max-h-[270px] overflow-y-auto pr-0.5">
+            {beCourses.slice(0, 8).map((c, i) => (
+              <li key={`${c.url}-${i}`}>
+                <a
+                  href={c.url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="block rounded-lg border border-white/10 bg-white/5 hover:bg-white/10 hover:border-emerald-300/40 transition px-2.5 py-1.5"
+                  data-testid={`link-be-course-${i}`}
+                >
+                  <div className="flex items-center gap-1.5 mb-0.5">
+                    <span className="inline-block px-1.5 py-0.5 rounded bg-emerald-400/20 border border-emerald-300/30 text-[9px] uppercase tracking-wider text-emerald-100 tabular-nums">
+                      {fmtBeRange(c.startDate, c.endDate)}
+                    </span>
+                    {c.level && (
+                      <span className="inline-block px-1.5 py-0.5 rounded bg-white/10 border border-white/10 text-[9px] uppercase tracking-wider text-white/70 truncate max-w-[100px]">
+                        {c.level}
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[12px] font-bold text-white leading-tight line-clamp-2" data-testid={`text-be-course-title-${i}`}>{c.title}</div>
+                  {c.location && (
+                    <div className="text-[10px] text-white/55 mt-0.5 truncate flex items-center gap-1">
+                      <MapPin className="w-2.5 h-2.5 shrink-0" />{c.location}
+                    </div>
+                  )}
+                </a>
+              </li>
+            ))}
+          </ul>
         )}
       </Tile>
       </HeroGroup>

@@ -43,6 +43,10 @@ type Deal = { brand: string; offer: string; url: string; category: string; image
 type CachedDeals = { date: string; deals: Deal[] };
 type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string; imageUrl?: string };
 type CachedNews = { fetchedAt: number; items: NewsItem[] };
+type BeTournament = { name: string; startDate: string; endDate?: string; location?: string; audience: "ADULT" | "JUNIOR"; level?: string; url: string };
+type CachedBeTournaments = { date: string; adults: BeTournament[]; juniors: BeTournament[] };
+type BeCoachCourse = { title: string; level?: string; startDate: string; endDate?: string; location?: string; url: string };
+type CachedBeCoachCourses = { date: string; courses: BeCoachCourse[] };
 
 const FALLBACK_NEWS: NewsItem[] = [
   { title: "BWF World Tour: Latest results & upcoming events", source: "BWF", url: "https://bwfbadminton.com/news/", summary: "Catch up on the latest match results, rankings and tournament schedules from the world tour." },
@@ -55,7 +59,19 @@ let quoteCache: CachedQuote | null = null;
 let pollCache: CachedPoll | null = null;
 let dealsCache: CachedDeals | null = null;
 let newsCache: CachedNews | null = null;
+let beTournamentsCache: CachedBeTournaments | null = null;
+let beCoachCoursesCache: CachedBeCoachCourses | null = null;
 const NEWS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+
+const FALLBACK_BE_TOURNAMENTS_ADULTS: BeTournament[] = [
+  { name: "Browse all Badminton England senior tournaments", startDate: "", audience: "ADULT", url: "https://be.tournamentsoftware.com/tournaments" },
+];
+const FALLBACK_BE_TOURNAMENTS_JUNIORS: BeTournament[] = [
+  { name: "Browse all Badminton England junior tournaments", startDate: "", audience: "JUNIOR", url: "https://be.tournamentsoftware.com/tournaments" },
+];
+const FALLBACK_BE_COURSES: BeCoachCourse[] = [
+  { title: "Browse all Badminton England coach courses", startDate: "", url: "https://www.badmintonengland.co.uk/play/coaching-and-officiating/become-a-coach/" },
+];
 
 // In-memory tally per day. Key = YYYY-MM-DD, value = Map<optionIndex, Set<userId>>
 const pollVotes = new Map<string, Map<number, Set<number>>>();
@@ -265,6 +281,90 @@ async function generateNews(): Promise<CachedNews> {
   return { fetchedAt: now, items: FALLBACK_NEWS };
 }
 
+async function generateBeTournaments(dateStr: string): Promise<CachedBeTournaments> {
+  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    return { date: dateStr, adults: FALLBACK_BE_TOURNAMENTS_ADULTS, juniors: FALLBACK_BE_TOURNAMENTS_JUNIORS };
+  }
+  try {
+    const resp: any = await (openai as any).responses.create({
+      model: "gpt-5.1",
+      tools: [{ type: "web_search" }],
+      input: `Today is ${dateStr}. Search https://be.tournamentsoftware.com/tournaments (the official Badminton England tournament listing on Tournament Software) for upcoming Badminton England tournaments in the UK. Return up to 6 ADULT/senior events and up to 6 JUNIOR (U11/U13/U15/U17/U19) events, sorted by start date ascending, only future dates from today onward.
+
+Return STRICT JSON ONLY (no prose, no markdown) in this exact shape:
+{"adults":[{"name":"...","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","location":"city / venue","level":"e.g. Bronze / Silver / Gold / National","url":"https://be.tournamentsoftware.com/sport/tournament?id=..."}],"juniors":[{"name":"...","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","location":"city / venue","level":"...","url":"https://..."}]}
+
+The "url" MUST be the real tournament detail page on be.tournamentsoftware.com or badmintonengland.co.uk. Drop any event whose date you can't verify. "name" max 90 chars. "location" max 50 chars. "level" max 24 chars.`,
+    });
+    const text: string = resp?.output_text || "";
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) {
+      const parsed = JSON.parse(m[0]);
+      const clean = (arr: any[], audience: "ADULT" | "JUNIOR"): BeTournament[] => {
+        if (!Array.isArray(arr)) return [];
+        return arr.slice(0, 8).map((t: any) => ({
+          name: String(t.name || "").slice(0, 120).trim(),
+          startDate: String(t.startDate || "").slice(0, 10),
+          endDate: t.endDate ? String(t.endDate).slice(0, 10) : undefined,
+          location: t.location ? String(t.location).slice(0, 80).trim() : undefined,
+          level: t.level ? String(t.level).slice(0, 32).trim() : undefined,
+          audience,
+          url: String(t.url || "").slice(0, 400),
+        })).filter((t: BeTournament) => t.name && /^\d{4}-\d{2}-\d{2}$/.test(t.startDate) && t.url.startsWith("http"));
+      };
+      const adults = clean(parsed?.adults, "ADULT");
+      const juniors = clean(parsed?.juniors, "JUNIOR");
+      if (adults.length + juniors.length > 0) {
+        console.log(`[BE TOURNAMENTS] web-search returned adults=${adults.length} juniors=${juniors.length} for ${dateStr}`);
+        return { date: dateStr, adults: adults.length ? adults : FALLBACK_BE_TOURNAMENTS_ADULTS, juniors: juniors.length ? juniors : FALLBACK_BE_TOURNAMENTS_JUNIORS };
+      }
+    }
+  } catch (e) {
+    console.warn("[BE TOURNAMENTS] web_search failed:", (e as any)?.message);
+  }
+  return { date: dateStr, adults: FALLBACK_BE_TOURNAMENTS_ADULTS, juniors: FALLBACK_BE_TOURNAMENTS_JUNIORS };
+}
+
+async function generateBeCoachCourses(dateStr: string): Promise<CachedBeCoachCourses> {
+  if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
+    return { date: dateStr, courses: FALLBACK_BE_COURSES };
+  }
+  try {
+    const resp: any = await (openai as any).responses.create({
+      model: "gpt-5.1",
+      tools: [{ type: "web_search" }],
+      input: `Today is ${dateStr}. Search the Badminton England website (https://www.badmintonengland.co.uk/play/coaching-and-officiating/) and the BE course booking pages for UPCOMING coach qualification & CPD courses in the UK (e.g. Level 1 Coach Award, Level 2 Coach Award, Coach Activator, Coach Educator, Safeguarding, First Aid, CPD workshops). Return up to 8 future courses sorted by start date ascending.
+
+Return STRICT JSON ONLY (no prose, no markdown):
+{"courses":[{"title":"...","level":"Level 1 / Level 2 / CPD / Safeguarding","startDate":"YYYY-MM-DD","endDate":"YYYY-MM-DD","location":"city / venue","url":"https://www.badmintonengland.co.uk/..."}]}
+
+The "url" MUST be the real BE booking / event page. Drop any course whose date you can't verify. "title" max 100 chars. "location" max 60 chars. "level" max 32 chars.`,
+    });
+    const text: string = resp?.output_text || "";
+    const m = text.match(/\{[\s\S]*\}/);
+    if (m) {
+      const parsed = JSON.parse(m[0]);
+      if (Array.isArray(parsed?.courses)) {
+        const cleaned: BeCoachCourse[] = parsed.courses.slice(0, 12).map((c: any) => ({
+          title: String(c.title || "").slice(0, 140).trim(),
+          level: c.level ? String(c.level).slice(0, 40).trim() : undefined,
+          startDate: String(c.startDate || "").slice(0, 10),
+          endDate: c.endDate ? String(c.endDate).slice(0, 10) : undefined,
+          location: c.location ? String(c.location).slice(0, 80).trim() : undefined,
+          url: String(c.url || "").slice(0, 400),
+        })).filter((c: BeCoachCourse) => c.title && /^\d{4}-\d{2}-\d{2}$/.test(c.startDate) && c.url.startsWith("http"));
+        if (cleaned.length > 0) {
+          console.log(`[BE COACH COURSES] web-search returned ${cleaned.length} for ${dateStr}`);
+          return { date: dateStr, courses: cleaned };
+        }
+      }
+    }
+  } catch (e) {
+    console.warn("[BE COACH COURSES] web_search failed:", (e as any)?.message);
+  }
+  return { date: dateStr, courses: FALLBACK_BE_COURSES };
+}
+
 export function registerDailyContentRoutes(app: Express): void {
   // GET /api/daily-content/quote
   app.get("/api/daily-content/quote", async (_req: Request, res: Response) => {
@@ -291,6 +391,24 @@ export function registerDailyContentRoutes(app: Express): void {
       dealsCache = await generateDeals(day);
     }
     res.json(dealsCache);
+  });
+
+  // GET /api/daily-content/be-tournaments
+  app.get("/api/daily-content/be-tournaments", async (_req: Request, res: Response) => {
+    const day = todayKey();
+    if (!beTournamentsCache || beTournamentsCache.date !== day) {
+      beTournamentsCache = await generateBeTournaments(day);
+    }
+    res.json(beTournamentsCache);
+  });
+
+  // GET /api/daily-content/be-coach-courses
+  app.get("/api/daily-content/be-coach-courses", async (_req: Request, res: Response) => {
+    const day = todayKey();
+    if (!beCoachCoursesCache || beCoachCoursesCache.date !== day) {
+      beCoachCoursesCache = await generateBeCoachCourses(day);
+    }
+    res.json(beCoachCoursesCache);
   });
 
   // GET /api/daily-content/poll
