@@ -445,7 +445,7 @@ function ExpandedAttendeesSection({ eventId, canManage }: { eventId: number; can
                         </span>
                       </div>
                       <div className="flex items-center gap-1.5 flex-shrink-0" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                        {fee > 0 && (
+                        {canManage && fee > 0 && (
                           <Badge
                             className={`text-[9px] cursor-default ${
                               attendee.paymentStatus === "PAID" ? "bg-emerald-500 text-white" :
