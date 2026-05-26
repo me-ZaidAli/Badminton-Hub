@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
@@ -231,6 +231,7 @@ export default function ChallengeZone() {
                       onDragEnd={() => setDragClub(null)}
                       canChallenge={canChallenge && !c.iAmMember}
                       isMine={c.iAmMember}
+                      isPlatformAdmin={isPlatformAdmin}
                       isAdminBroker={isPlatformAdmin && !c.iAmMember} />
                   ))}
                 </AnimatePresence>
@@ -278,7 +279,8 @@ export default function ChallengeZone() {
       {/* Sticky Battle Box drag-and-drop strip */}
       {canChallenge && matchDays.length > 0 && tab === "clubs" && (
         <BattleBoxStrip matchDays={matchDays} boxes={boxes} dragClub={dragClub}
-          onDrop={placeClub} onClear={clearSlot} onLaunch={launchBoxChallenge} />
+          onDrop={placeClub} onClear={clearSlot} onLaunch={launchBoxChallenge}
+          myClubs={memberClubs} isPlatformAdmin={isPlatformAdmin} />
       )}
 
       <AnimatePresence>
@@ -292,121 +294,336 @@ export default function ChallengeZone() {
   );
 }
 
-function BattleBoxStrip({ matchDays, boxes, dragClub, onDrop, onClear, onLaunch }: {
+function BattleBoxStrip({ matchDays, boxes, dragClub, onDrop, onClear, onLaunch, myClubs, isPlatformAdmin }: {
   matchDays: MatchDay[]; boxes: Record<number, { home: ClubRow | null; away: ClubRow | null }>;
   dragClub: ClubRow | null;
   onDrop: (dayId: number, slot: "home" | "away", club: ClubRow) => void;
   onClear: (dayId: number, slot: "home" | "away") => void;
   onLaunch: (dayId: number) => void;
+  myClubs: ClubRow[]; isPlatformAdmin: boolean;
 }) {
   const usableDays = matchDays.filter(d => d.slotsRemaining == null || d.slotsRemaining > 0).slice(0, 6);
+
+  // Non-admin owners: home slot is auto-locked to ONE of the user's own
+  // clubs so they can NEVER drop "any club" into their side — they can
+  // only drag an opponent into the away slot. Platform admins keep full
+  // broker freedom (no auto-lock).
+  //
+  // If the user belongs to multiple clubs they pick which one fights via
+  // the small chip selector in the header (`selectedHomeId`). Default = the
+  // first club the API returned (server-side ordering).
+  const [selectedHomeId, setSelectedHomeId] = useState<number | null>(null);
+  const lockedHomeClub = useMemo(() => {
+    if (isPlatformAdmin || myClubs.length === 0) return null;
+    return myClubs.find(c => c.id === selectedHomeId) ?? myClubs[0];
+  }, [isPlatformAdmin, myClubs, selectedHomeId]);
+
+  useEffect(() => {
+    if (!lockedHomeClub) return;
+    for (const d of usableDays) {
+      const cur = boxes[d.id]?.home;
+      if (!cur || cur.id !== lockedHomeClub.id) {
+        onDrop(d.id, "home", lockedHomeClub);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [lockedHomeClub?.id, usableDays.map(d => d.id).join(",")]);
+
   if (usableDays.length === 0) return null;
   return (
     <div className="fixed bottom-0 left-0 right-0 z-40 pointer-events-none">
-      <div className="max-w-6xl mx-auto px-4 pb-3 pointer-events-auto">
-        <div className="rounded-2xl p-3"
+      <div className="max-w-6xl mx-auto px-4 pb-4 pointer-events-auto">
+        <motion.div
+          initial={{ y: 60, opacity: 0 }} animate={{ y: 0, opacity: 1 }}
+          transition={{ type: "spring", stiffness: 220, damping: 24 }}
+          className="rounded-3xl p-5"
           style={{
             background: `linear-gradient(180deg, ${BSL.card}f5 0%, ${BSL.bgDeep}f8 100%)`,
-            border: `1px solid ${BSL.cyan}55`,
-            boxShadow: `0 -10px 50px ${BSL.bgDeep}cc, 0 0 30px ${BSL.cyan}33`,
-            backdropFilter: "blur(10px)",
+            border: `2px solid ${BSL.cyan}66`,
+            boxShadow: `0 -12px 60px ${BSL.bgDeep}cc, 0 0 50px ${BSL.cyan}44, inset 0 1px 0 ${BSL.cyan}22`,
+            backdropFilter: "blur(14px)",
           }}>
-          <div className="flex items-center justify-between mb-2 px-1">
-            <div className="text-[10px] uppercase tracking-widest font-black" style={{ color: BSL.cyan }}>
-              ⚔ Battle Box — drag clubs into a Match Day to challenge
+          {/* Header */}
+          <div className="flex items-center justify-between mb-4 px-1">
+            <div className="flex items-center gap-2.5">
+              <motion.div
+                animate={{ rotate: [0, -8, 8, -8, 0] }}
+                transition={{ duration: 2.4, repeat: Infinity, ease: "easeInOut" }}
+                className="flex items-center justify-center w-9 h-9 rounded-xl"
+                style={{
+                  background: `linear-gradient(135deg, ${BSL.cyan}33, ${BSL.gold}33)`,
+                  border: `1px solid ${BSL.cyan}66`,
+                  boxShadow: `0 0 18px ${BSL.cyan}66`,
+                }}>
+                <Swords className="h-5 w-5" style={{ color: BSL.gold }} />
+              </motion.div>
+              <div>
+                <div className="text-sm uppercase tracking-widest font-black" style={{ color: BSL.cyan, textShadow: `0 0 12px ${BSL.cyan}88` }}>
+                  Battle Box
+                </div>
+                <div className="text-[11px] font-semibold" style={{ color: BSL.muted }}>
+                  {lockedHomeClub
+                    ? `Your club is locked in — drag any opponent into the empty slot`
+                    : "Drag two clubs into a Match Day to start a brokered challenge"}
+                </div>
+                {/* Multi-club picker — only shows when the user belongs to
+                    more than one club. Lets them swap which of their clubs
+                    is locked into the home slot for every Match Day. */}
+                {lockedHomeClub && myClubs.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className="text-[9px] uppercase tracking-widest font-bold" style={{ color: BSL.faint }}>
+                      Fight as:
+                    </span>
+                    {myClubs.map(c => {
+                      const active = c.id === lockedHomeClub.id;
+                      return (
+                        <button key={c.id}
+                          onClick={() => setSelectedHomeId(c.id)}
+                          data-testid={`button-fight-as-${c.id}`}
+                          className="text-[10px] px-2 py-0.5 rounded-full font-bold transition"
+                          style={{
+                            background: active ? `${BSL.gold}33` : `${BSL.card}`,
+                            color: active ? BSL.gold : BSL.muted,
+                            border: `1px solid ${active ? BSL.gold : BSL.border}`,
+                            boxShadow: active ? `0 0 10px ${BSL.gold}55` : "none",
+                          }}>
+                          {c.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
             </div>
             {dragClub && (
-              <div className="text-[10px] font-bold" style={{ color: BSL.gold }}>
-                Dragging: {dragClub.name}
-              </div>
+              <motion.div
+                initial={{ scale: 0.8, opacity: 0 }} animate={{ scale: 1, opacity: 1 }}
+                className="text-[11px] font-black uppercase tracking-widest px-3 py-1.5 rounded-full"
+                style={{ background: `${BSL.gold}22`, color: BSL.gold, border: `1px solid ${BSL.gold}66` }}>
+                ⚡ Dragging {dragClub.name}
+              </motion.div>
             )}
           </div>
-          <div className="flex gap-2 overflow-x-auto pb-1">
+
+          {/* Cards */}
+          <div className="flex gap-3 overflow-x-auto pb-1">
             {usableDays.map(d => {
               const box = boxes[d.id] || { home: null, away: null };
-              const ready = box.home && box.away;
+              const ready = !!(box.home && box.away);
+              const homeLocked = !!lockedHomeClub && box.home?.id === lockedHomeClub.id;
               return (
-                <div key={d.id} className="flex-shrink-0 rounded-xl p-2"
+                <motion.div key={d.id}
+                  whileHover={{ y: -2 }}
+                  className="flex-shrink-0 rounded-2xl p-3 relative overflow-hidden"
                   style={{
-                    background: BSL.bgDeep,
-                    border: `1px solid ${ready ? BSL.gold : BSL.border}`,
-                    minWidth: 240,
-                    boxShadow: ready ? `0 0 24px ${BSL.gold}55` : "none",
+                    background: `linear-gradient(160deg, ${BSL.bgDeep} 0%, ${BSL.card} 100%)`,
+                    border: `1.5px solid ${ready ? BSL.gold : BSL.border}`,
+                    minWidth: 360,
+                    boxShadow: ready
+                      ? `0 0 40px ${BSL.gold}77, 0 0 18px ${BSL.cyan}44 inset`
+                      : `0 4px 22px ${BSL.bgDeep}aa`,
                   }}
                   data-testid={`battlebox-${d.id}`}>
-                  <div className="text-[10px] font-bold mb-1.5 px-0.5" style={{ color: BSL.muted }}>
-                    {new Date(d.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
-                    {d.slotsRemaining != null && <span className="ml-1.5" style={{ color: BSL.faint }}>· {d.slotsRemaining} slots</span>}
+                  {/* Ready spark sweep */}
+                  {ready && (
+                    <motion.div
+                      aria-hidden
+                      initial={{ x: "-100%" }} animate={{ x: "200%" }}
+                      transition={{ duration: 2.2, repeat: Infinity, ease: "linear" }}
+                      className="absolute inset-y-0 w-24 pointer-events-none"
+                      style={{
+                        background: `linear-gradient(90deg, transparent, ${BSL.gold}33, transparent)`,
+                        filter: "blur(6px)",
+                      }} />
+                  )}
+
+                  <div className="flex items-center justify-between mb-2 px-0.5 relative z-10">
+                    <div className="text-[11px] font-black uppercase tracking-widest" style={{ color: BSL.cyan }}>
+                      <Calendar className="inline h-3 w-3 mr-1 -mt-0.5" />
+                      {new Date(d.date).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+                    </div>
+                    {d.slotsRemaining != null && (
+                      <div className="text-[10px] font-bold" style={{ color: BSL.faint }}>
+                        {d.slotsRemaining} slots left
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1.5">
-                    <DropSlot box={box.home} slot="home" dayId={d.id} onDrop={onDrop} onClear={onClear} dragClub={dragClub} />
-                    <span className="text-[10px] font-black" style={{ color: BSL.gold }}>VS</span>
-                    <DropSlot box={box.away} slot="away" dayId={d.id} onDrop={onDrop} onClear={onClear} dragClub={dragClub} />
+
+                  <div className="flex items-center gap-2 relative z-10">
+                    <DropSlot
+                      box={box.home} slot="home" dayId={d.id}
+                      onDrop={onDrop} onClear={onClear} dragClub={dragClub}
+                      locked={homeLocked} label={homeLocked ? "Your Club" : "Home"} />
+
+                    {/* Animated crossed-swords VS */}
+                    <div className="flex flex-col items-center justify-center px-1 relative" style={{ minWidth: 36 }}>
+                      <motion.div
+                        animate={ready
+                          ? { scale: [1, 1.18, 1], rotate: [0, 6, -6, 0] }
+                          : { scale: [1, 1.05, 1] }}
+                        transition={{ duration: ready ? 0.9 : 1.6, repeat: Infinity, ease: "easeInOut" }}
+                        className="relative">
+                        <Swords
+                          className="h-6 w-6"
+                          style={{
+                            color: ready ? BSL.gold : BSL.cyan,
+                            filter: `drop-shadow(0 0 8px ${ready ? BSL.gold : BSL.cyan}aa)`,
+                          }} />
+                        {ready && (
+                          <>
+                            {/* Spark bursts on ready */}
+                            {[0, 1, 2, 3].map(i => (
+                              <motion.span key={i} aria-hidden
+                                initial={{ opacity: 0, scale: 0 }}
+                                animate={{ opacity: [0, 1, 0], scale: [0, 1.4, 0] }}
+                                transition={{ duration: 1.2, repeat: Infinity, delay: i * 0.3 }}
+                                className="absolute top-1/2 left-1/2 w-1 h-1 rounded-full -ml-0.5 -mt-0.5"
+                                style={{
+                                  background: BSL.gold,
+                                  boxShadow: `0 0 6px ${BSL.gold}`,
+                                  transform: `translate(${[10, -10, 10, -10][i]}px, ${[10, 10, -10, -10][i]}px)`,
+                                }} />
+                            ))}
+                          </>
+                        )}
+                      </motion.div>
+                      <div className="text-[9px] font-black mt-0.5" style={{ color: ready ? BSL.gold : BSL.muted }}>VS</div>
+                    </div>
+
+                    <DropSlot
+                      box={box.away} slot="away" dayId={d.id}
+                      onDrop={onDrop} onClear={onClear} dragClub={dragClub}
+                      locked={false} label="Opponent" />
                   </div>
-                  <button
+
+                  <motion.button
                     disabled={!ready}
                     onClick={() => onLaunch(d.id)}
+                    whileTap={ready ? { scale: 0.97 } : undefined}
+                    whileHover={ready ? { scale: 1.02 } : undefined}
                     data-testid={`button-launch-${d.id}`}
-                    className="mt-2 w-full px-2 py-1.5 rounded-lg text-[10px] font-black uppercase tracking-widest transition disabled:opacity-40 disabled:cursor-not-allowed"
+                    className="mt-3 w-full px-3 py-2.5 rounded-xl text-xs font-black uppercase tracking-widest transition disabled:opacity-40 disabled:cursor-not-allowed relative z-10 flex items-center justify-center gap-2"
                     style={{
-                      background: ready ? `linear-gradient(90deg, ${BSL.cyan}, ${BSL.gold})` : BSL.card,
+                      background: ready
+                        ? `linear-gradient(90deg, ${BSL.cyan}, ${BSL.gold})`
+                        : BSL.card,
                       color: ready ? "#000" : BSL.faint,
-                      border: `1px solid ${ready ? BSL.gold : BSL.border}`,
-                      boxShadow: ready ? `0 0 20px ${BSL.gold}88` : "none",
+                      border: `1.5px solid ${ready ? BSL.gold : BSL.border}`,
+                      boxShadow: ready ? `0 0 26px ${BSL.gold}aa, 0 4px 16px ${BSL.cyan}55` : "none",
+                      textShadow: ready ? `0 1px 0 ${BSL.gold}66` : "none",
                     }}>
-                    {ready ? "⚡ Launch Challenge" : "Drop 2 clubs"}
-                  </button>
-                </div>
+                    {ready ? (
+                      <>
+                        <Swords className="h-4 w-4" />
+                        Launch Challenge
+                        <Swords className="h-4 w-4 scale-x-[-1]" />
+                      </>
+                    ) : (
+                      <>Drop an opponent to fight</>
+                    )}
+                  </motion.button>
+                </motion.div>
               );
             })}
           </div>
-        </div>
+        </motion.div>
       </div>
     </div>
   );
 }
 
-function DropSlot({ box, slot, dayId, onDrop, onClear, dragClub }: {
+function DropSlot({ box, slot, dayId, onDrop, onClear, dragClub, locked, label }: {
   box: ClubRow | null; slot: "home" | "away"; dayId: number;
   onDrop: (dayId: number, slot: "home" | "away", club: ClubRow) => void;
   onClear: (dayId: number, slot: "home" | "away") => void;
   dragClub: ClubRow | null;
+  locked: boolean; label: string;
 }) {
   const [over, setOver] = useState(false);
   const dragging = !!dragClub;
+  const filled = !!box;
+  const accent = locked ? BSL.gold : BSL.cyan;
   return (
-    <div
-      onDragOver={(e) => { e.preventDefault(); e.dataTransfer.dropEffect = "move"; setOver(true); }}
+    <motion.div
+      animate={over && !locked ? { scale: 1.04 } : { scale: 1 }}
+      transition={{ type: "spring", stiffness: 400, damping: 22 }}
+      onDragOver={(e) => {
+        if (locked) return;
+        e.preventDefault();
+        e.dataTransfer.dropEffect = "move";
+        setOver(true);
+      }}
       onDragLeave={() => setOver(false)}
       onDrop={(e) => {
+        if (locked) return;
         e.preventDefault();
         setOver(false);
         const raw = e.dataTransfer.getData("text/club-id");
         if (!raw || !dragClub) return;
         if (dragClub.id === Number(raw)) onDrop(dayId, slot, dragClub);
       }}
-      className="flex-1 rounded-lg flex items-center justify-center text-[10px] font-bold transition"
+      onClick={() => !locked && box && onClear(dayId, slot)}
+      title={locked ? "Your club — locked in" : box ? "Click to remove" : "Drop a club here"}
+      data-testid={`dropslot-${dayId}-${slot}`}
+      className="flex-1 rounded-xl flex flex-col items-center justify-center gap-1 text-center transition relative overflow-hidden"
       style={{
-        minHeight: 38,
-        background: box ? `${BSL.cyan}1a` : over ? `${BSL.cyan}33` : `${BSL.card}`,
-        border: `1px dashed ${box ? BSL.cyan : over ? BSL.cyan : dragging ? `${BSL.cyan}88` : BSL.border}`,
-        color: box ? BSL.text : BSL.faint,
-        cursor: box ? "pointer" : "default",
-      }}
-      onClick={() => box && onClear(dayId, slot)}
-      title={box ? "Click to remove" : "Drop a club here"}
-      data-testid={`dropslot-${dayId}-${slot}`}>
-      {box ? <span className="truncate px-2">{box.name}</span> : <span>Drop club</span>}
-    </div>
+        minHeight: 78,
+        padding: "8px 6px",
+        background: filled
+          ? `linear-gradient(160deg, ${accent}22, ${accent}08)`
+          : over
+            ? `${BSL.cyan}25`
+            : dragging
+              ? `${BSL.cyan}10`
+              : BSL.card,
+        border: `1.5px ${filled ? "solid" : "dashed"} ${
+          filled ? accent : over ? BSL.cyan : dragging ? `${BSL.cyan}aa` : BSL.border
+        }`,
+        cursor: locked ? "default" : filled ? "pointer" : dragging ? "copy" : "default",
+        boxShadow: filled ? `0 0 18px ${accent}55, inset 0 0 12px ${accent}22` : "none",
+      }}>
+      {filled ? (
+        <>
+          <div className="w-9 h-9 rounded-lg flex items-center justify-center overflow-hidden"
+            style={{ background: BSL.bgDeep, border: `1px solid ${accent}66` }}>
+            {box!.logoUrl ? (
+              <img src={box!.logoUrl} alt={box!.name} className="w-full h-full object-cover" />
+            ) : (
+              <Crown className="h-4 w-4" style={{ color: accent }} />
+            )}
+          </div>
+          <div className="text-[11px] font-black truncate max-w-full px-1" style={{ color: BSL.text }}>
+            {box!.name}
+          </div>
+          <div className="text-[8px] uppercase tracking-widest font-bold" style={{ color: accent }}>
+            {locked ? "★ Locked" : label}
+          </div>
+        </>
+      ) : (
+        <>
+          <motion.div
+            animate={dragging ? { y: [0, -3, 0] } : { y: 0 }}
+            transition={{ duration: 0.8, repeat: Infinity }}>
+            <Crown className="h-5 w-5" style={{ color: dragging ? BSL.cyan : BSL.faint, opacity: dragging ? 1 : 0.5 }} />
+          </motion.div>
+          <div className="text-[10px] font-bold uppercase tracking-widest" style={{ color: dragging ? BSL.cyan : BSL.faint }}>
+            {dragging ? "Drop here" : label}
+          </div>
+        </>
+      )}
+    </motion.div>
   );
 }
 
-function ClubCard({ club, expanded, onToggle, onChallenge, onDragStart, onDragEnd, canChallenge, isMine, isAdminBroker }: {
+function ClubCard({ club, expanded, onToggle, onChallenge, onDragStart, onDragEnd, canChallenge, isMine, isPlatformAdmin, isAdminBroker }: {
   club: ClubRow; expanded: boolean; onToggle: () => void; onChallenge: () => void;
   onDragStart?: () => void; onDragEnd?: () => void;
-  canChallenge: boolean; isMine: boolean; isAdminBroker?: boolean;
+  canChallenge: boolean; isMine: boolean; isPlatformAdmin?: boolean; isAdminBroker?: boolean;
 }) {
-  const draggable = canChallenge || isMine;
+  // Non-admin owners: their own club is auto-locked into the Battle Box's
+  // home slot, so dragging it would only cause confusion. Only opponents
+  // are draggable for them. Platform admins keep full broker freedom.
+  const draggable = canChallenge || (isMine && !!isPlatformAdmin);
   return (
     <motion.div layout
       initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}
