@@ -44,11 +44,24 @@ function statusTone(status: string) {
   return { color: BSL.gold, label: "UPCOMING", pulse: false };
 }
 
-function pairLabel(p: Pair | null): { line: string; names: string } {
-  if (!p) return { line: "TBA", names: "Awaiting pair assignment" };
-  const names = (p.members || []).map(m => m.name).filter(Boolean);
-  if (names.length === 0) return { line: p.name || "TBA", names: "Players TBA" };
-  return { line: p.name || "Pair", names: names.join(" & ") };
+// Strip noisy prefixes so pair labels show as "Pair A" rather than
+// "Dragon Badminton Club Social Division MD Pair A". The source name
+// usually contains "… Pair X" at the end — keep just that, otherwise
+// fall back to the last 2 words (e.g. "Team 3").
+function shortPairLabel(name: string | null | undefined): string {
+  if (!name) return "Pair";
+  const trimmed = name.trim();
+  const m = trimmed.match(/\bpair\s+([a-z0-9]+)\s*$/i);
+  if (m) return `Pair ${m[1].toUpperCase()}`;
+  const parts = trimmed.split(/\s+/);
+  if (parts.length <= 2) return trimmed;
+  return parts.slice(-2).join(" ");
+}
+
+function pairLabel(p: Pair | null): { line: string; players: string[]; isTBA: boolean } {
+  if (!p) return { line: "TBA", players: [], isTBA: true };
+  const players = (p.members || []).map(m => m.name).filter(Boolean);
+  return { line: shortPairLabel(p.name), players, isTBA: players.length === 0 };
 }
 
 function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | null; leader: boolean; side: "home" | "away" }) {
@@ -109,6 +122,48 @@ function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | 
   );
 }
 
+// One side of a rubber — pair label + per-player coloured chips.
+// Same accent for both players on a pair so it's instantly visible
+// which two players are partnered. The opposite pair uses a different
+// accent (cyan home / gold away).
+function PairBlock({
+  side, label, players, isTBA, won,
+}: { side: "home" | "away"; label: string; players: string[]; isTBA: boolean; won: boolean }) {
+  const accent = side === "home" ? BSL.cyan : BSL.gold;
+  const align = side === "away" ? "items-end text-right" : "items-start text-left";
+  return (
+    <div className={`flex flex-col gap-1.5 min-w-0 ${align}`}>
+      <div
+        className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest"
+        style={{ background: `${accent}22`, color: won ? BSL.gold : accent, border: `1px solid ${accent}55` }}
+      >
+        {label}
+      </div>
+      {isTBA ? (
+        <div className="text-[11px] italic" style={{ color: BSL.muted }}>Awaiting pair</div>
+      ) : (
+        <div className={`flex flex-wrap gap-1 ${side === "away" ? "justify-end" : ""}`}>
+          {players.map((n, i) => (
+            <span
+              key={i}
+              className="inline-block px-2 py-1 rounded-md text-[11px] sm:text-xs font-bold break-words leading-tight"
+              style={{
+                background: `${accent}1f`,
+                color: "white",
+                border: `1px solid ${accent}55`,
+                boxShadow: won ? `0 0 10px ${BSL.gold}33` : undefined,
+              }}
+              data-testid={`battle-rubber-player-${side}-${i}`}
+            >
+              {n}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function RubberRow({ r }: { r: Rubber; side?: "home" | "away" }) {
   const homeWon = (r.homeScore || 0) > (r.awayScore || 0);
   const awayWon = (r.awayScore || 0) > (r.homeScore || 0);
@@ -127,7 +182,7 @@ function RubberRow({ r }: { r: Rubber; side?: "home" | "away" }) {
       }}
       data-testid={`battle-rubber-${r.rubberNumber}`}
     >
-      {/* Rubber badge strip — full width, no competition for space */}
+      {/* Rubber badge strip */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b" style={{ borderColor: "hsla(0,0%,100%,0.06)", background: "hsla(0,0%,0%,0.25)" }}>
         <div
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest tabular-nums"
@@ -146,40 +201,16 @@ function RubberRow({ r }: { r: Rubber; side?: "home" | "away" }) {
         )}
       </div>
 
-      {/* Two rows: HOME pair, AWAY pair — each gets full card width so names never truncate */}
-      <div className="divide-y" style={{ borderColor: "hsla(0,0%,100%,0.04)" }}>
-        <div className="flex items-start gap-2 px-3 py-2">
-          <span
-            className="mt-0.5 shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest"
-            style={{ background: `${BSL.cyan}22`, color: BSL.cyan, border: `1px solid ${BSL.cyan}55` }}
-          >
-            H
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider break-words" style={{ color: homeWon ? BSL.gold : BSL.cyan + "cc" }}>
-              {home.line}
-            </div>
-            <div className={`text-xs sm:text-sm font-bold break-words leading-snug ${homeWon ? "text-white" : "text-white/85"}`} data-testid={`battle-rubber-${r.rubberNumber}-home-names`}>
-              {home.names}
-            </div>
-          </div>
+      {/* HOME vs AWAY — two columns, each pair colour-coded, central "vs" divider */}
+      <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-3 py-2.5">
+        <PairBlock side="home" label={home.line} players={home.players} isTBA={home.isTBA} won={homeWon} />
+        <div
+          className="self-stretch flex items-center justify-center px-1 text-[10px] font-black uppercase tracking-widest"
+          style={{ color: BSL.muted }}
+        >
+          vs
         </div>
-        <div className="flex items-start gap-2 px-3 py-2" style={{ borderTop: "1px solid hsla(0,0%,100%,0.05)" }}>
-          <span
-            className="mt-0.5 shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest"
-            style={{ background: `${BSL.gold}22`, color: BSL.gold, border: `1px solid ${BSL.gold}55` }}
-          >
-            A
-          </span>
-          <div className="min-w-0 flex-1">
-            <div className="text-[10px] font-bold uppercase tracking-wider break-words" style={{ color: awayWon ? BSL.gold : BSL.gold + "aa" }}>
-              {away.line}
-            </div>
-            <div className={`text-xs sm:text-sm font-bold break-words leading-snug ${awayWon ? "text-white" : "text-white/85"}`} data-testid={`battle-rubber-${r.rubberNumber}-away-names`}>
-              {away.names}
-            </div>
-          </div>
-        </div>
+        <PairBlock side="away" label={away.line} players={away.players} isTBA={away.isTBA} won={awayWon} />
       </div>
     </motion.div>
   );
@@ -279,8 +310,9 @@ export function FixtureBattle(p: FixtureBattleProps) {
         />
       )}
 
-      {/* Top status strip */}
-      <div className="relative flex items-center justify-between px-4 sm:px-5 pt-3 sm:pt-4">
+      {/* Top status strip — status + date/time/court only. Division/category
+          are surfaced in their own banner below, so we don't repeat them. */}
+      <div className="relative flex items-center justify-between gap-3 px-4 sm:px-5 pt-3 sm:pt-4 flex-wrap">
         <div className="flex items-center gap-2 text-[10px] sm:text-[11px] uppercase tracking-[0.22em] font-black" style={{ color: tone.color }}>
           {tone.pulse && (
             <motion.span
@@ -291,18 +323,6 @@ export function FixtureBattle(p: FixtureBattleProps) {
             />
           )}
           <span>{tone.label}</span>
-          {p.division && (
-            <>
-              <span className="text-white/30">·</span>
-              <span style={{ color: BSL.muted }}>{p.division}</span>
-            </>
-          )}
-          {p.category && (
-            <>
-              <span className="text-white/30">·</span>
-              <span style={{ color: BSL.muted }}>{p.category}</span>
-            </>
-          )}
         </div>
         <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px]" style={{ color: BSL.muted }}>
           {dt && (
@@ -322,6 +342,27 @@ export function FixtureBattle(p: FixtureBattleProps) {
           )}
         </div>
       </div>
+
+      {/* Division/category banner — shown ONCE here, prominently, so the
+          individual rubber rows don't need to repeat the long division name. */}
+      {(p.division || p.category) && (
+        <div className="relative flex justify-center pt-2 sm:pt-3">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] sm:text-[11px] uppercase tracking-[0.25em] font-black"
+            style={{
+              background: `linear-gradient(90deg, ${BSL.cyan}1f, ${BSL.gold}1f)`,
+              color: "white",
+              border: `1px solid ${BSL.gold}44`,
+              boxShadow: `0 0 18px ${BSL.gold}22`,
+            }}
+            data-testid={`battle-${p.id}-division`}
+          >
+            {p.division}
+            {p.division && p.category && <span className="text-white/40">·</span>}
+            {p.category}
+          </div>
+        </div>
+      )}
 
       {/* Battle row — three equal columns with crests stacked (logo + name centered)
           so neither club name gets squeezed by the score block in the middle. */}
