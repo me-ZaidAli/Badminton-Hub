@@ -174,15 +174,116 @@ export function registerCoachBookingRoutes(app: Express) {
     res.json(rules);
   });
 
+  // Strict HH:MM validator — rejects bogus values like "25:99" that the loose
+  // regex would otherwise accept and persist into the schedule.
+  function isValidHHMM(t: string): boolean {
+    if (!/^\d{2}:\d{2}$/.test(t)) return false;
+    const [h, m] = t.split(":").map(Number);
+    return h >= 0 && h <= 23 && m >= 0 && m <= 59;
+  }
+  // Returns true if [aS,aE) and [bS,bE) overlap on a number line.
+  function rangesOverlap(aS: number, aE: number, bS: number, bE: number): boolean {
+    return aS < bE && bS < aE;
+  }
+
   app.post("/api/coach-bookings/availability/rules", requireAuth, async (req, res) => {
     const coach = await getMyCoach((req as any).user.id);
     if (!coach) return res.status(404).json({ message: "Not a coach" });
     const { dayOfWeek, startTime, endTime } = req.body;
     if (typeof dayOfWeek !== "number" || dayOfWeek < 0 || dayOfWeek > 6) return res.status(400).json({ message: "dayOfWeek 0-6 required" });
-    if (!/^\d{2}:\d{2}$/.test(startTime) || !/^\d{2}:\d{2}$/.test(endTime)) return res.status(400).json({ message: "HH:MM times required" });
+    if (!isValidHHMM(startTime) || !isValidHHMM(endTime)) return res.status(400).json({ message: "HH:MM times required (00:00 to 23:59)" });
     if (timeToMinutes(startTime) >= timeToMinutes(endTime)) return res.status(400).json({ message: "End must be after start" });
+    // Reject exact duplicates against the same coach+day.
+    const existing = await db
+      .select()
+      .from(coachAvailabilityRules)
+      .where(and(eq(coachAvailabilityRules.coachId, coach.id), eq(coachAvailabilityRules.dayOfWeek, dayOfWeek)));
+    if (existing.some((r) => r.startTime === startTime && r.endTime === endTime)) {
+      return res.status(409).json({ message: "That exact slot already exists for this day" });
+    }
     const [row] = await db.insert(coachAvailabilityRules).values({ coachId: coach.id, dayOfWeek, startTime, endTime }).returning();
     res.status(201).json(row);
+  });
+
+  // Bulk-create weekly availability rules — used by the coach dashboard's
+  // "Quick setup" flow which lets a coach pick multiple weekdays + a window
+  // (e.g. Mon/Tue/Wed 10:00-22:00) and have it auto-split into N-hour slots.
+  // Body: { daysOfWeek: number[], slots: [{ startTime: "HH:MM", endTime: "HH:MM" }] }
+  // Server creates one row per (day × slot). Returns the created rows.
+  app.post("/api/coach-bookings/availability/rules/bulk", requireAuth, async (req, res) => {
+    const coach = await getMyCoach((req as any).user.id);
+    if (!coach) return res.status(404).json({ message: "Not a coach" });
+    const { daysOfWeek, slots } = req.body || {};
+    if (!Array.isArray(daysOfWeek) || daysOfWeek.length === 0) {
+      return res.status(400).json({ message: "daysOfWeek (array) required" });
+    }
+    if (!Array.isArray(slots) || slots.length === 0) {
+      return res.status(400).json({ message: "slots (array) required" });
+    }
+    const days = Array.from(new Set(daysOfWeek.map((d: any) => Number(d)))).filter(
+      (d: number) => Number.isInteger(d) && d >= 0 && d <= 6,
+    );
+    if (days.length === 0) return res.status(400).json({ message: "daysOfWeek must contain 0-6" });
+    const cleanSlots: { startTime: string; endTime: string }[] = [];
+    const seenKeys = new Set<string>();
+    for (const s of slots) {
+      const st = String(s?.startTime || "");
+      const et = String(s?.endTime || "");
+      if (!isValidHHMM(st) || !isValidHHMM(et)) {
+        return res.status(400).json({ message: "Each slot needs HH:MM startTime/endTime (00:00 to 23:59)" });
+      }
+      if (timeToMinutes(st) >= timeToMinutes(et)) {
+        return res.status(400).json({ message: `Slot ${st}-${et}: end must be after start` });
+      }
+      const key = `${st}-${et}`;
+      if (seenKeys.has(key)) continue; // dedupe identical slots in the request itself
+      seenKeys.add(key);
+      cleanSlots.push({ startTime: st, endTime: et });
+    }
+    // Cap to prevent runaway inserts (7 days × 48 half-hour slots = 336).
+    const total = days.length * cleanSlots.length;
+    if (total > 400) return res.status(400).json({ message: "Too many slots (max 400 per bulk call)" });
+    // Filter out rows that would duplicate or overlap an existing rule for the
+    // same coach+day. We do this in JS rather than per-row DB checks to keep
+    // the insert atomic and fast. Two passes per day: dedupe against existing,
+    // then dedupe against earlier rows from this very request.
+    const existing = await db
+      .select()
+      .from(coachAvailabilityRules)
+      .where(and(eq(coachAvailabilityRules.coachId, coach.id), inArray(coachAvailabilityRules.dayOfWeek, days)));
+    const existingByDay = new Map<number, { startTime: string; endTime: string }[]>();
+    for (const r of existing) {
+      const arr = existingByDay.get(r.dayOfWeek) || [];
+      arr.push({ startTime: r.startTime, endTime: r.endTime });
+      existingByDay.set(r.dayOfWeek, arr);
+    }
+    const values: { coachId: number; dayOfWeek: number; startTime: string; endTime: string }[] = [];
+    let skippedExisting = 0;
+    let skippedOverlap = 0;
+    for (const dow of days) {
+      const dayExisting = existingByDay.get(dow) || [];
+      const dayAccepted: { startTime: string; endTime: string }[] = [];
+      for (const s of cleanSlots) {
+        const sMin = timeToMinutes(s.startTime);
+        const eMin = timeToMinutes(s.endTime);
+        const dupExact = dayExisting.some((x) => x.startTime === s.startTime && x.endTime === s.endTime)
+          || dayAccepted.some((x) => x.startTime === s.startTime && x.endTime === s.endTime);
+        if (dupExact) { skippedExisting++; continue; }
+        const overlaps = dayExisting.some((x) => rangesOverlap(sMin, eMin, timeToMinutes(x.startTime), timeToMinutes(x.endTime)))
+          || dayAccepted.some((x) => rangesOverlap(sMin, eMin, timeToMinutes(x.startTime), timeToMinutes(x.endTime)));
+        if (overlaps) { skippedOverlap++; continue; }
+        dayAccepted.push(s);
+        values.push({ coachId: coach.id, dayOfWeek: dow, startTime: s.startTime, endTime: s.endTime });
+      }
+    }
+    if (values.length === 0) {
+      return res.status(409).json({
+        message: "All requested slots already exist or overlap existing slots — nothing to add",
+        skippedExisting, skippedOverlap, created: 0,
+      });
+    }
+    const rows = await db.insert(coachAvailabilityRules).values(values).returning();
+    res.status(201).json({ created: rows.length, skippedExisting, skippedOverlap, rules: rows });
   });
 
   app.delete("/api/coach-bookings/availability/rules/:id", requireAuth, async (req, res) => {

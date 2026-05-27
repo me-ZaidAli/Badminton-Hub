@@ -298,38 +298,158 @@ function BookingsList({ bookings }: { bookings: Booking[] }) {
 }
 
 // ─── Weekly availability rules ───────────────────────────────────────────────
+// Helpers used by the "Quick setup" form to split a [start, end] window into
+// equal-length sub-slots of the requested duration (minutes). The last slot
+// is dropped (not truncated) if it would be shorter than the chosen length —
+// coaches expect uniform-length lessons, not a stub at the end.
+function tmin(t: string): number { const [h, m] = t.split(":").map(Number); return h * 60 + m; }
+function mhhmm(min: number): string { const h = Math.floor(min / 60); const m = min % 60; return `${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}`; }
+function splitWindow(start: string, end: string, slotMinutes: number): { startTime: string; endTime: string }[] {
+  const s = tmin(start), e = tmin(end);
+  if (!Number.isFinite(s) || !Number.isFinite(e) || e <= s || slotMinutes <= 0) return [];
+  if (slotMinutes >= e - s) return [{ startTime: start, endTime: end }];
+  const out: { startTime: string; endTime: string }[] = [];
+  for (let cur = s; cur + slotMinutes <= e; cur += slotMinutes) {
+    out.push({ startTime: mhhmm(cur), endTime: mhhmm(cur + slotMinutes) });
+  }
+  return out;
+}
+
 function AvailabilityRules({ rules }: { rules: Rule[] }) {
-  const [dow, setDow] = useState("1");
-  const [start, setStart] = useState("18:00");
-  const [end, setEnd] = useState("21:00");
+  // Quick-setup form: pick days + window + slot length, preview slots,
+  // create them all in one bulk POST. Keeps a single "Add" button so the
+  // coach doesn't repeat themselves for every weekday or every 2-hour block.
+  const [selectedDays, setSelectedDays] = useState<number[]>([1, 2, 3, 4, 5]); // Mon–Fri default
+  const [start, setStart] = useState("10:00");
+  const [end, setEnd] = useState("22:00");
+  const [slotLen, setSlotLen] = useState("120"); // minutes; "0" = one single block
   const { toast } = useToast();
-  const create = useMutation({
-    mutationFn: async () => (await apiRequest("POST", "/api/coach-bookings/availability/rules", { dayOfWeek: Number(dow), startTime: start, endTime: end })).json(),
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ["/api/coach-bookings/availability/rules"] }); },
+
+  const toggleDay = (i: number) =>
+    setSelectedDays((prev) => (prev.includes(i) ? prev.filter((d) => d !== i) : [...prev, i].sort()));
+
+  const previewSlots = slotLen === "0"
+    ? (tmin(end) > tmin(start) ? [{ startTime: start, endTime: end }] : [])
+    : splitWindow(start, end, Number(slotLen));
+  const totalRules = previewSlots.length * selectedDays.length;
+
+  const bulkCreate = useMutation({
+    mutationFn: async () => (await apiRequest("POST", "/api/coach-bookings/availability/rules/bulk", {
+      daysOfWeek: selectedDays, slots: previewSlots,
+    })).json(),
+    onSuccess: (r: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/coach-bookings/availability/rules"] });
+      const created = r?.created ?? totalRules;
+      const skipped = (r?.skippedExisting || 0) + (r?.skippedOverlap || 0);
+      toast({
+        title: `Added ${created} slot${created === 1 ? "" : "s"}`,
+        description: skipped > 0 ? `${skipped} skipped (already existed or overlapped)` : undefined,
+      });
+    },
     onError: (e: any) => toast({ title: "Failed", description: e.message, variant: "destructive" }),
   });
   const del = useMutation({
     mutationFn: async (id: number) => (await apiRequest("DELETE", `/api/coach-bookings/availability/rules/${id}`)).json(),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ["/api/coach-bookings/availability/rules"] }),
   });
+  const clearDay = useMutation({
+    mutationFn: async (dayIdx: number) => {
+      const ids = rules.filter((r) => r.dayOfWeek === dayIdx).map((r) => r.id);
+      // allSettled so a single failed delete doesn't abandon the rest of the
+      // day's rows half-cleared — we report cleared/failed counts to the user.
+      const results = await Promise.allSettled(ids.map((id) => apiRequest("DELETE", `/api/coach-bookings/availability/rules/${id}`)));
+      const cleared = results.filter((r) => r.status === "fulfilled").length;
+      const failed = results.length - cleared;
+      return { cleared, failed };
+    },
+    onSettled: () => queryClient.invalidateQueries({ queryKey: ["/api/coach-bookings/availability/rules"] }),
+    onSuccess: ({ cleared, failed }) => {
+      if (failed > 0) {
+        toast({ title: `Cleared ${cleared}, ${failed} failed`, description: "Some slots couldn't be deleted — try again.", variant: "destructive" });
+      } else if (cleared > 0) {
+        toast({ title: `Cleared ${cleared} slot${cleared === 1 ? "" : "s"}` });
+      }
+    },
+    onError: (e: any) => toast({ title: "Couldn't clear day", description: e.message, variant: "destructive" }),
+  });
 
   return (
     <div className="space-y-4">
       <GlassCard>
-        <CardHeader><CardTitle className="text-base">Add weekly time slot</CardTitle></CardHeader>
-        <CardContent className="space-y-3">
+        <CardHeader>
+          <CardTitle className="text-base">Quick setup</CardTitle>
+          <p className="text-xs text-muted-foreground mt-1">Pick the days, the daily window, and the lesson length — we'll create matching slots for each selected day.</p>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div>
+            <Label className="text-xs uppercase tracking-wider text-muted-foreground">Days</Label>
+            <div className="flex flex-wrap gap-1.5 mt-1.5">
+              {DOW.map((d, i) => {
+                const active = selectedDays.includes(i);
+                return (
+                  <button
+                    key={i}
+                    type="button"
+                    onClick={() => toggleDay(i)}
+                    className={`px-3 py-1.5 rounded-md text-xs font-semibold border transition ${active ? "bg-violet-500/30 border-violet-400/60 text-violet-100" : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"}`}
+                    data-testid={`button-day-${i}`}
+                  >
+                    {d}
+                  </button>
+                );
+              })}
+              <button type="button" onClick={() => setSelectedDays([0, 1, 2, 3, 4, 5, 6])} className="px-2 py-1.5 rounded-md text-[10px] uppercase tracking-wider text-cyan-300 hover:text-cyan-200" data-testid="button-days-all">All</button>
+              <button type="button" onClick={() => setSelectedDays([1, 2, 3, 4, 5])} className="px-2 py-1.5 rounded-md text-[10px] uppercase tracking-wider text-cyan-300 hover:text-cyan-200" data-testid="button-days-weekdays">Weekdays</button>
+              <button type="button" onClick={() => setSelectedDays([0, 6])} className="px-2 py-1.5 rounded-md text-[10px] uppercase tracking-wider text-cyan-300 hover:text-cyan-200" data-testid="button-days-weekend">Weekend</button>
+              <button type="button" onClick={() => setSelectedDays([])} className="px-2 py-1.5 rounded-md text-[10px] uppercase tracking-wider text-muted-foreground hover:text-rose-300" data-testid="button-days-none">Clear</button>
+            </div>
+          </div>
+
           <div className="grid grid-cols-3 gap-2">
+            <div><Label>Window starts</Label><Input type="time" value={start} onChange={(e) => setStart(e.target.value)} data-testid="input-window-start" /></div>
+            <div><Label>Window ends</Label><Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} data-testid="input-window-end" /></div>
             <div>
-              <Label>Day</Label>
-              <Select value={dow} onValueChange={setDow}>
-                <SelectTrigger data-testid="select-dow"><SelectValue /></SelectTrigger>
-                <SelectContent>{DOW.map((d, i) => <SelectItem key={i} value={String(i)}>{d}</SelectItem>)}</SelectContent>
+              <Label>Slot length</Label>
+              <Select value={slotLen} onValueChange={setSlotLen}>
+                <SelectTrigger data-testid="select-slot-length"><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="45">45 min</SelectItem>
+                  <SelectItem value="60">1 hour</SelectItem>
+                  <SelectItem value="90">1.5 hours</SelectItem>
+                  <SelectItem value="120">2 hours</SelectItem>
+                  <SelectItem value="180">3 hours</SelectItem>
+                  <SelectItem value="0">Single block (no split)</SelectItem>
+                </SelectContent>
               </Select>
             </div>
-            <div><Label>Start</Label><Input type="time" value={start} onChange={(e) => setStart(e.target.value)} data-testid="input-rule-start" /></div>
-            <div><Label>End</Label><Input type="time" value={end} onChange={(e) => setEnd(e.target.value)} data-testid="input-rule-end" /></div>
           </div>
-          <Button onClick={() => create.mutate()} disabled={create.isPending} data-testid="button-add-rule"><Plus className="w-4 h-4 mr-1" />Add slot</Button>
+
+          {previewSlots.length > 0 ? (
+            <div className="rounded-lg border border-white/10 bg-white/5 p-3">
+              <div className="text-[11px] uppercase tracking-wider text-muted-foreground mb-2" data-testid="text-preview-summary">
+                Preview · {previewSlots.length} slot{previewSlots.length === 1 ? "" : "s"} × {selectedDays.length} day{selectedDays.length === 1 ? "" : "s"} = <span className="text-cyan-300 font-bold">{totalRules}</span> new rules
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {previewSlots.map((s, i) => (
+                  <span key={i} className="px-2 py-0.5 rounded text-[11px] font-mono bg-violet-500/15 border border-violet-400/30 text-violet-100" data-testid={`text-preview-slot-${i}`}>
+                    {s.startTime}–{s.endTime}
+                  </span>
+                ))}
+              </div>
+            </div>
+          ) : (
+            <div className="text-xs text-amber-300/80">Window must end after it starts (and fit at least one slot).</div>
+          )}
+
+          <Button
+            onClick={() => bulkCreate.mutate()}
+            disabled={bulkCreate.isPending || totalRules === 0 || selectedDays.length === 0}
+            data-testid="button-bulk-add-rules"
+          >
+            {bulkCreate.isPending ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Plus className="w-4 h-4 mr-1" />}
+            Add {totalRules || ""} slot{totalRules === 1 ? "" : "s"} to {selectedDays.length || "0"} day{selectedDays.length === 1 ? "" : "s"}
+          </Button>
         </CardContent>
       </GlassCard>
 
@@ -340,7 +460,18 @@ function AvailabilityRules({ rules }: { rules: Rule[] }) {
             <GlassCard key={dayIdx}>
               <CardContent className="p-3">
                 <div className="flex items-center justify-between gap-3 flex-wrap">
-                  <div className="text-sm font-semibold">{d}</div>
+                  <div className="flex items-center gap-2">
+                    <div className="text-sm font-semibold">{d}</div>
+                    {list.length > 0 && (
+                      <button
+                        onClick={() => { if (confirm(`Clear all ${list.length} slot${list.length === 1 ? "" : "s"} on ${d}?`)) clearDay.mutate(dayIdx); }}
+                        className="text-[10px] uppercase tracking-wider text-rose-300/80 hover:text-rose-200"
+                        data-testid={`button-clear-day-${dayIdx}`}
+                      >
+                        Clear day
+                      </button>
+                    )}
+                  </div>
                   <div className="flex flex-wrap gap-2">
                     {list.length === 0 && <span className="text-xs text-muted-foreground italic">Closed</span>}
                     {list.map((r) => (
