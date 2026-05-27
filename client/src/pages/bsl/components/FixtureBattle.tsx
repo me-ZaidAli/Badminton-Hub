@@ -1,7 +1,12 @@
+import { useRef, useState } from "react";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Activity, Calendar, Clock, MapPin, Swords, Trophy, ChevronRight, Users } from "lucide-react";
+import { Activity, Calendar, Clock, MapPin, Swords, Trophy, ChevronRight, Users, Download, Loader2 } from "lucide-react";
 import { BSL } from "./BSLPalette";
+
+function slugify(s: string) {
+  return (s || "").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "fixture";
+}
 
 type Player = { id: number; name: string };
 type Pair = { id: number; name: string; category: string | null; members: Player[] };
@@ -68,7 +73,7 @@ function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | 
         }}
       >
         {logo ? (
-          <img src={logo} alt={name} className="h-full w-full object-cover" />
+          <img src={logo} alt={name} crossOrigin="anonymous" className="h-full w-full object-cover" />
         ) : (
           name.slice(0, 2).toUpperCase()
         )}
@@ -170,12 +175,50 @@ export function FixtureBattle(p: FixtureBattleProps) {
     return acc + (r.homePair?.members?.length || 0) + (r.awayPair?.members?.length || 0);
   }, 0);
   const dt = p.startTime ? new Date(p.startTime) : null;
+
+  // Snapshot-to-PNG via html2canvas. We mark the card root with a ref and a
+  // `.battle-card-capturing` class while exporting so any elements tagged
+  // `data-export-hide` (footer CTA, the export button itself, animated
+  // scan-light) are visually removed for a clean printable card.
+  const cardRef = useRef<HTMLDivElement>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function downloadPng() {
+    if (!cardRef.current || exporting) return;
+    setExporting(true);
+    const root = cardRef.current;
+    root.classList.add("battle-card-capturing");
+    try {
+      const html2canvas = (await import("html2canvas")).default;
+      const canvas = await html2canvas(root, {
+        backgroundColor: "#070c1a",
+        scale: 2,
+        useCORS: true,
+        allowTaint: false,
+        logging: false,
+      });
+      const url = canvas.toDataURL("image/png");
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `bsl-fixture-${p.id}-${slugify(p.homeClubName)}-vs-${slugify(p.awayClubName)}.png`;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+    } catch (e) {
+      console.error("[FixtureBattle] PNG export failed", e);
+    } finally {
+      root.classList.remove("battle-card-capturing");
+      setExporting(false);
+    }
+  }
+
   return (
     <motion.div
+      ref={cardRef}
       initial={{ opacity: 0, y: 16, scale: 0.985 }}
       animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className="relative rounded-2xl overflow-hidden"
+      className="relative rounded-2xl overflow-hidden [&.battle-card-capturing_[data-export-hide]]:!hidden"
       style={{
         background:
           "radial-gradient(120% 100% at 0% 0%, hsla(195,80%,16%,0.42), transparent 55%), radial-gradient(120% 100% at 100% 0%, hsla(42,80%,18%,0.36), transparent 60%), linear-gradient(160deg, hsla(222,55%,8%,0.95), hsla(222,55%,4%,0.98))",
@@ -184,9 +227,29 @@ export function FixtureBattle(p: FixtureBattleProps) {
       }}
       data-testid={`battle-card-${p.id}`}
     >
+      {/* Floating PNG export button — hidden from the captured image itself. */}
+      <button
+        type="button"
+        onClick={downloadPng}
+        disabled={exporting}
+        data-export-hide
+        className="absolute top-3 right-3 z-20 inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[10px] font-bold uppercase tracking-widest transition hover:scale-105 disabled:opacity-60"
+        style={{
+          background: `${BSL.gold}22`,
+          color: BSL.gold,
+          border: `1px solid ${BSL.gold}66`,
+          boxShadow: `0 4px 14px ${BSL.gold}22`,
+        }}
+        title="Download fixture card as PNG"
+        data-testid={`battle-${p.id}-download-png`}
+      >
+        {exporting ? <Loader2 className="h-3 w-3 animate-spin" /> : <Download className="h-3 w-3" />}
+        {exporting ? "Saving…" : "PNG"}
+      </button>
       {/* Animated diagonal scan-light when LIVE */}
       {p.status === "LIVE" && (
         <motion.div
+          data-export-hide
           className="absolute inset-0 pointer-events-none"
           style={{
             background:
@@ -289,6 +352,7 @@ export function FixtureBattle(p: FixtureBattleProps) {
       {/* Footer CTA */}
       <Link href={`/bsl/match/${p.id}`}>
         <a
+          data-export-hide
           className="relative flex items-center justify-between px-4 sm:px-5 py-2.5 sm:py-3 text-[11px] sm:text-xs font-bold transition-colors hover:bg-white/5"
           style={{
             background: "hsla(0,0%,0%,0.32)",
