@@ -1,0 +1,46 @@
+Improve and build this badminton battle card layout, matching the exact visual style, colors, glowing effects, and structure shown in the reference image — make it hyper-realistic, premium, modern, with perfect UI.
+
+### ✅ EXACT DESIGN RULES (must follow):
+1. **Visual Style & Textures**:
+   - Dark theme background: deep navy/black gradient, subtle texture (like premium sports UI), smooth depth.
+   - **Glowing effects**: Bright neon accent glows — electric blue + gold/yellow highlights, glowing borders around sections, glowing text accents, soft outer glows on headers and active elements.
+   - Typography: Bold, clean modern sans-serif (like Inter/Oxanium), sharp hierarchy — big team names, clear labels, all caps for categories.
+   - Layout: Exact structure as the image — top tabs, logo, team name, subtitle, then 6 match cards in 2 columns, same spacing and alignment.
+   - Colors: 
+     - Background: #0A1428 → #050A14 gradient
+     - Primary glow/blue: #00CCFF (glowing edges, highlights)
+     - Accent gold/yellow: #FFB800 (labels, pair names)
+     - Text: White / light gray for readability
+     - Card backgrounds: Dark semi-transparent, with glowing blue borders
+   - Add hyper-realistic details: soft shadows, inner glows, slight bevel/glass effect, smooth gradients everywhere.
+
+2. **Structure & Content (exact as image)**:
+   - Top bar: "UPCOMING" left, "PNG" download button right
+   - Tabs: "BOTH TEAMS", "[TEAM NAME]", "[OPPOSING TEAM NAME]" — styled like in image, active tab = glowing blue/yellow
+   - Team logo centered, below: "HOME" label, big team name, subtitle: "SINGLE-TEAM LINE-UP • VS [OPPOSING TEAM NAME]"
+   - Section: "BATTLE CARD • 6 RUBBERS" + "22 players" right-aligned
+   - 6 match blocks (R1–R6), 2 per row:
+     - Header: R1 - MD / R2 - MD / R3 - WD / R4 - XD / R5 - XD / R6 - MD + "NOT PLAYED" top-right
+     - Inside: PAIR A / PAIR B / PAIR C labels in gold, player names below, "VS" centered between pairs
+     - Keep **all names exactly as in image**:
+       R1 MD: Shakan Sequeira / Sujith Thummalapalli  VS  Wai Lau / Miraz Choudhury
+       R2 MD: Hassaan Habib / Kiran Moses  VS  Bruno Chan / Hector CHIU
+       R3 WD: heba mubarak / Linh tran  VS  Phuong Pham / Dwi Mitchell
+       R4 XD: Linh tran / James Howorth  VS  Dwi Mitchell / Miraz Choudhury
+       R5 XD: heba mubarak / Kiran Moses  VS  Wai Lau / Phuong Pham
+       R6 MD: Furqan Saleem / Anandu Nandan  VS  Awaiting pair / TBA
+
+3. **✅ FIX THIS (critical)**:
+   - **Single-Team View**: When I select a team tab — **ONLY show players/pairs FROM THAT CLUB** — do NOT display opposing team players. Only show *their* pairs, their names, the category, and "VS [Opponent Pair / TBA]" — no names from the other club.
+   - "Both Teams" view = full original layout, both sides.
+   - All switching between tabs works instantly, cleanly.
+
+4. **Functionality**:
+   - "Download PNG" button = exports exactly what’s on screen (current view: full OR single team) as high-res PNG, sharp, glowing effects preserved.
+   - Responsive, pixel-perfect, looks identical to reference image.
+
+5. **Extra Polish**:
+   - Smooth hover effects, subtle pulse glow on active elements, clean dividers, premium sports-app feel.
+   - Code clean, well-organized, ready to integrate.
+
+Build this with HTML + CSS + JS (or React) — make it look exactly like the image, with all glowing, textures, and correct filtering for single team.

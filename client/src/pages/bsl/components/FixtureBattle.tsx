@@ -127,8 +127,8 @@ function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | 
 // which two players are partnered. The opposite pair uses a different
 // accent (cyan home / gold away).
 function PairBlock({
-  side, label, players, isTBA, won,
-}: { side: "home" | "away"; label: string; players: string[]; isTBA: boolean; won: boolean }) {
+  side, label, players, isTBA, won, hideNames,
+}: { side: "home" | "away"; label: string; players: string[]; isTBA: boolean; won: boolean; hideNames?: boolean }) {
   const accent = side === "home" ? BSL.cyan : BSL.gold;
   const align = side === "away" ? "items-end text-right" : "items-start text-left";
   return (
@@ -141,6 +141,10 @@ function PairBlock({
       </div>
       {isTBA ? (
         <div className="text-[11px] italic" style={{ color: BSL.muted }}>Awaiting pair</div>
+      ) : hideNames ? (
+        // Single-team-focus privacy: don't reveal opponent player names,
+        // just acknowledge there is a pair on the other side.
+        <div className="text-[11px] italic" style={{ color: BSL.muted }}>Opponent pair</div>
       ) : (
         <div className={`flex flex-wrap gap-1 ${side === "away" ? "justify-end" : ""}`}>
           {players.map((n, i) => (
@@ -188,8 +192,9 @@ function RubberRow({ r, focus = "both" }: { r: Rubber; focus?: ViewMode }) {
       transition={{ delay: r.rubberNumber * 0.04, duration: 0.4 }}
       className="relative rounded-xl overflow-hidden"
       style={{
-        background: "linear-gradient(135deg, hsla(195,60%,12%,0.45), hsla(222,55%,6%,0.65) 50%, hsla(42,60%,12%,0.4))",
-        border: `1px solid hsla(0,0%,100%,0.08)`,
+        background: "linear-gradient(135deg, hsla(195,80%,10%,0.55), hsla(222,60%,5%,0.78) 50%, hsla(42,80%,10%,0.5))",
+        border: `1px solid ${BSL.cyan}66`,
+        boxShadow: `0 0 18px ${BSL.cyan}33, inset 0 0 12px ${BSL.cyan}1a`,
       }}
       data-testid={`battle-rubber-${r.rubberNumber}`}
     >
@@ -212,7 +217,9 @@ function RubberRow({ r, focus = "both" }: { r: Rubber; focus?: ViewMode }) {
         )}
       </div>
 
-      {/* HOME vs AWAY — two columns, each pair colour-coded, central "vs" divider */}
+      {/* HOME vs AWAY — two columns, each pair colour-coded, central "vs" divider.
+          In single-team focus mode the RIGHT side is the opponent — we hide their
+          player names (still show pair label) so the card is privacy-clean. */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-3 py-2.5">
         <PairBlock side={leftSide} label={left.line} players={left.players} isTBA={left.isTBA} won={leftWon} />
         <div
@@ -221,7 +228,7 @@ function RubberRow({ r, focus = "both" }: { r: Rubber; focus?: ViewMode }) {
         >
           vs
         </div>
-        <PairBlock side={rightSide} label={right.line} players={right.players} isTBA={right.isTBA} won={rightWon} />
+        <PairBlock side={rightSide} label={right.line} players={right.players} isTBA={right.isTBA} won={rightWon} hideNames={focus !== "both"} />
       </div>
     </motion.div>
   );
