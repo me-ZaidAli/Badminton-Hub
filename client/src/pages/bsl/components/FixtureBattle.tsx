@@ -55,20 +55,20 @@ function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | 
   const accent = side === "home" ? BSL.cyan : BSL.gold;
   return (
     <motion.div
-      initial={{ opacity: 0, x: side === "home" ? -30 : 30, scale: 0.9 }}
-      animate={{ opacity: 1, x: 0, scale: 1 }}
+      initial={{ opacity: 0, y: 20, scale: 0.92 }}
+      animate={{ opacity: 1, y: 0, scale: 1 }}
       transition={{ duration: 0.6, ease: [0.16, 1, 0.3, 1] }}
-      className={`flex items-center gap-3 sm:gap-4 min-w-0 ${side === "away" ? "flex-row-reverse text-right" : ""}`}
+      className="flex flex-col items-center text-center gap-2 min-w-0 w-full"
       data-testid={`battle-${side}`}
     >
       <div
-        className="relative shrink-0 h-16 w-16 sm:h-20 sm:w-20 md:h-24 md:w-24 rounded-2xl overflow-hidden flex items-center justify-center text-lg sm:text-2xl font-black"
+        className="relative shrink-0 h-14 w-14 sm:h-16 sm:w-16 md:h-20 md:w-20 rounded-2xl overflow-hidden flex items-center justify-center text-lg sm:text-2xl font-black"
         style={{
           background: `linear-gradient(135deg, ${accent}33, ${accent}11)`,
           border: `2px solid ${leader ? BSL.gold : accent + "66"}`,
           boxShadow: leader
-            ? `0 0 30px ${BSL.gold}88, inset 0 0 18px ${BSL.gold}33`
-            : `0 0 22px ${accent}44, inset 0 0 12px ${accent}22`,
+            ? `0 0 28px ${BSL.gold}88, inset 0 0 16px ${BSL.gold}33`
+            : `0 0 20px ${accent}44, inset 0 0 10px ${accent}22`,
           color: leader ? BSL.gold : accent,
         }}
       >
@@ -80,13 +80,13 @@ function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | 
         {leader && (
           <motion.div
             className="absolute inset-0 pointer-events-none rounded-2xl"
-            style={{ boxShadow: `inset 0 0 22px ${BSL.gold}aa` }}
+            style={{ boxShadow: `inset 0 0 20px ${BSL.gold}aa` }}
             animate={{ opacity: [0.4, 1, 0.4] }}
             transition={{ duration: 2, repeat: Infinity }}
           />
         )}
       </div>
-      <div className={`min-w-0 ${side === "away" ? "text-right" : ""}`}>
+      <div className="min-w-0 w-full">
         <div
           className="text-[9px] sm:text-[10px] uppercase tracking-[0.22em] font-bold"
           style={{ color: accent }}
@@ -94,11 +94,12 @@ function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | 
           {side === "home" ? "HOME" : "AWAY"}
         </div>
         <div
-          className="text-base sm:text-2xl md:text-3xl font-black leading-tight tracking-tight truncate"
+          className="text-sm sm:text-base md:text-lg font-black leading-tight tracking-tight break-words line-clamp-2"
           style={{
             color: leader ? BSL.gold : "white",
-            textShadow: leader ? `0 0 18px ${BSL.gold}88` : `0 0 12px ${accent}55`,
+            textShadow: leader ? `0 0 14px ${BSL.gold}88` : `0 0 10px ${accent}55`,
           }}
+          title={name}
           data-testid={`battle-${side}-name`}
         >
           {name}
@@ -108,58 +109,76 @@ function ClubCrest({ name, logo, leader, side }: { name: string; logo: string | 
   );
 }
 
-function RubberRow({ r, side }: { r: Rubber; side: "home" | "away" }) {
+function RubberRow({ r }: { r: Rubber; side?: "home" | "away" }) {
   const homeWon = (r.homeScore || 0) > (r.awayScore || 0);
   const awayWon = (r.awayScore || 0) > (r.homeScore || 0);
   const home = pairLabel(r.homePair);
   const away = pairLabel(r.awayPair);
+  const hasScore = r.homeScore != null && r.awayScore != null && (r.homeScore > 0 || r.awayScore > 0);
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay: r.rubberNumber * 0.04, duration: 0.4 }}
-      className="grid grid-cols-[1fr_auto_1fr] items-center gap-2 sm:gap-3 px-3 py-2.5 rounded-xl"
+      className="relative rounded-xl overflow-hidden"
       style={{
-        background: "linear-gradient(90deg, hsla(195,80%,18%,0.18), hsla(42,70%,18%,0.18))",
+        background: "linear-gradient(135deg, hsla(195,60%,12%,0.45), hsla(222,55%,6%,0.65) 50%, hsla(42,60%,12%,0.4))",
         border: `1px solid hsla(0,0%,100%,0.08)`,
       }}
       data-testid={`battle-rubber-${r.rubberNumber}`}
     >
-      <div className="min-w-0">
-        <div className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: homeWon ? BSL.gold : BSL.cyan }}>
-          {home.line}
-        </div>
-        <div className={`text-xs sm:text-sm font-bold truncate ${homeWon ? "text-white" : "text-white/85"}`} title={home.names} data-testid={`battle-rubber-${r.rubberNumber}-home-names`}>
-          {home.names}
-        </div>
-      </div>
-      <div className="flex flex-col items-center gap-0.5 px-2 shrink-0">
+      {/* Rubber badge strip — full width, no competition for space */}
+      <div className="flex items-center justify-between px-3 py-1.5 border-b" style={{ borderColor: "hsla(0,0%,100%,0.06)", background: "hsla(0,0%,0%,0.25)" }}>
         <div
-          className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-widest tabular-nums"
-          style={{
-            background: `${BSL.gold}22`,
-            color: BSL.gold,
-            border: `1px solid ${BSL.gold}44`,
-          }}
+          className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest tabular-nums"
+          style={{ background: `${BSL.gold}22`, color: BSL.gold, border: `1px solid ${BSL.gold}55` }}
         >
-          R{r.rubberNumber} · {r.rubberType}
+          R{r.rubberNumber} <span className="opacity-60">·</span> {r.rubberType}
         </div>
-        {(r.homeScore != null && r.awayScore != null && (r.homeScore > 0 || r.awayScore > 0)) ? (
-          <div className="flex items-center gap-1 text-base font-black tabular-nums">
+        {hasScore ? (
+          <div className="flex items-center gap-1.5 text-base font-black tabular-nums">
             <span style={{ color: homeWon ? BSL.gold : "white" }}>{r.homeScore}</span>
-            <span className="text-white/40">–</span>
+            <span className="text-white/40 text-xs">–</span>
             <span style={{ color: awayWon ? BSL.gold : "white" }}>{r.awayScore}</span>
           </div>
         ) : (
-          <div className="text-[9px] uppercase tracking-widest" style={{ color: BSL.muted }}>vs</div>
+          <span className="text-[9px] uppercase tracking-[0.2em] font-bold" style={{ color: BSL.muted }}>Not played</span>
         )}
       </div>
-      <div className="min-w-0 text-right">
-        <div className="text-[10px] font-bold uppercase tracking-wider truncate" style={{ color: awayWon ? BSL.gold : BSL.gold + "cc" }}>
-          {away.line}
+
+      {/* Two rows: HOME pair, AWAY pair — each gets full card width so names never truncate */}
+      <div className="divide-y" style={{ borderColor: "hsla(0,0%,100%,0.04)" }}>
+        <div className="flex items-start gap-2 px-3 py-2">
+          <span
+            className="mt-0.5 shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest"
+            style={{ background: `${BSL.cyan}22`, color: BSL.cyan, border: `1px solid ${BSL.cyan}55` }}
+          >
+            H
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider break-words" style={{ color: homeWon ? BSL.gold : BSL.cyan + "cc" }}>
+              {home.line}
+            </div>
+            <div className={`text-xs sm:text-sm font-bold break-words leading-snug ${homeWon ? "text-white" : "text-white/85"}`} data-testid={`battle-rubber-${r.rubberNumber}-home-names`}>
+              {home.names}
+            </div>
+          </div>
         </div>
-        <div className={`text-xs sm:text-sm font-bold truncate ${awayWon ? "text-white" : "text-white/85"}`} title={away.names} data-testid={`battle-rubber-${r.rubberNumber}-away-names`}>
-          {away.names}
+        <div className="flex items-start gap-2 px-3 py-2" style={{ borderTop: "1px solid hsla(0,0%,100%,0.05)" }}>
+          <span
+            className="mt-0.5 shrink-0 px-1.5 py-0.5 rounded text-[9px] font-black uppercase tracking-widest"
+            style={{ background: `${BSL.gold}22`, color: BSL.gold, border: `1px solid ${BSL.gold}55` }}
+          >
+            A
+          </span>
+          <div className="min-w-0 flex-1">
+            <div className="text-[10px] font-bold uppercase tracking-wider break-words" style={{ color: awayWon ? BSL.gold : BSL.gold + "aa" }}>
+              {away.line}
+            </div>
+            <div className={`text-xs sm:text-sm font-bold break-words leading-snug ${awayWon ? "text-white" : "text-white/85"}`} data-testid={`battle-rubber-${r.rubberNumber}-away-names`}>
+              {away.names}
+            </div>
+          </div>
         </div>
       </div>
     </motion.div>
@@ -304,12 +323,13 @@ export function FixtureBattle(p: FixtureBattleProps) {
         </div>
       </div>
 
-      {/* Battle row */}
-      <div className="relative grid grid-cols-[1fr_auto_1fr] items-center gap-3 sm:gap-5 px-4 sm:px-6 py-4 sm:py-6">
+      {/* Battle row — three equal columns with crests stacked (logo + name centered)
+          so neither club name gets squeezed by the score block in the middle. */}
+      <div className="relative grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-4 px-3 sm:px-5 py-4 sm:py-5">
         <ClubCrest name={p.homeClubName} logo={p.homeClubLogo} leader={homeLeads} side="home" />
-        <div className="flex flex-col items-center gap-1 shrink-0">
-          <div className="flex items-center gap-2 sm:gap-3 text-4xl sm:text-5xl md:text-6xl font-black tabular-nums">
-            <span style={{ color: homeLeads ? BSL.gold : "white", textShadow: homeLeads ? `0 0 20px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-home-score`}>
+        <div className="flex flex-col items-center gap-1 shrink-0 pt-2 sm:pt-3">
+          <div className="flex items-center gap-1.5 sm:gap-2 text-3xl sm:text-4xl md:text-5xl font-black tabular-nums leading-none">
+            <span style={{ color: homeLeads ? BSL.gold : "white", textShadow: homeLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-home-score`}>
               {p.homeRubbers}
             </span>
             <motion.span
@@ -317,13 +337,13 @@ export function FixtureBattle(p: FixtureBattleProps) {
               animate={p.status === "LIVE" ? { scale: [1, 1.08, 1], rotate: [-2, 2, -2] } : {}}
               transition={{ duration: 1.6, repeat: Infinity }}
             >
-              <Swords className="h-6 w-6 sm:h-8 sm:w-8" />
+              <Swords className="h-5 w-5 sm:h-7 sm:w-7" />
             </motion.span>
-            <span style={{ color: awayLeads ? BSL.gold : "white", textShadow: awayLeads ? `0 0 20px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-away-score`}>
+            <span style={{ color: awayLeads ? BSL.gold : "white", textShadow: awayLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-away-score`}>
               {p.awayRubbers}
             </span>
           </div>
-          <div className="text-[9px] uppercase tracking-[0.22em] font-bold" style={{ color: BSL.muted }}>
+          <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.22em] font-bold whitespace-nowrap" style={{ color: BSL.muted }}>
             Rubbers won
           </div>
         </div>
@@ -332,8 +352,8 @@ export function FixtureBattle(p: FixtureBattleProps) {
 
       {/* Rubber breakdown — pair names */}
       {rubberCount > 0 && (
-        <div className="relative border-t px-3 sm:px-4 py-3 sm:py-4 space-y-1.5 sm:space-y-2" style={{ borderColor: "hsla(0,0%,100%,0.06)" }}>
-          <div className="flex items-center justify-between px-1 mb-1">
+        <div className="relative border-t px-3 sm:px-4 py-3 sm:py-4 space-y-2" style={{ borderColor: "hsla(0,0%,100%,0.06)" }}>
+          <div className="flex items-center justify-between gap-2 px-1 mb-1 flex-wrap">
             <div className="inline-flex items-center gap-1.5 text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: BSL.cyan }}>
               <Trophy className="h-3 w-3" /> Battle Card · {rubberCount} {rubberCount === 1 ? "Rubber" : "Rubbers"}
             </div>
@@ -343,8 +363,8 @@ export function FixtureBattle(p: FixtureBattleProps) {
               </div>
             )}
           </div>
-          <div className="space-y-1.5">
-            {p.rubbers.map(r => <RubberRow key={r.id} r={r} side="home" />)}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+            {p.rubbers.map(r => <RubberRow key={r.id} r={r} />)}
           </div>
         </div>
       )}
