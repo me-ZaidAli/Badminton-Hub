@@ -164,12 +164,23 @@ function PairBlock({
   );
 }
 
-function RubberRow({ r }: { r: Rubber; side?: "home" | "away" }) {
+function RubberRow({ r, focus = "both" }: { r: Rubber; focus?: ViewMode }) {
   const homeWon = (r.homeScore || 0) > (r.awayScore || 0);
   const awayWon = (r.awayScore || 0) > (r.homeScore || 0);
   const home = pairLabel(r.homePair);
   const away = pairLabel(r.awayPair);
   const hasScore = r.homeScore != null && r.awayScore != null && (r.homeScore > 0 || r.awayScore > 0);
+  // In single-team focus, render the focused side on the LEFT so all of
+  // their pairings line up vertically — easier to scan as "my team's card".
+  const leftIsHome = focus !== "away";
+  const left = leftIsHome ? home : away;
+  const right = leftIsHome ? away : home;
+  const leftSide: "home" | "away" = leftIsHome ? "home" : "away";
+  const rightSide: "home" | "away" = leftIsHome ? "away" : "home";
+  const leftWon = leftIsHome ? homeWon : awayWon;
+  const rightWon = leftIsHome ? awayWon : homeWon;
+  const leftScore = leftIsHome ? r.homeScore : r.awayScore;
+  const rightScore = leftIsHome ? r.awayScore : r.homeScore;
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -192,9 +203,9 @@ function RubberRow({ r }: { r: Rubber; side?: "home" | "away" }) {
         </div>
         {hasScore ? (
           <div className="flex items-center gap-1.5 text-base font-black tabular-nums">
-            <span style={{ color: homeWon ? BSL.gold : "white" }}>{r.homeScore}</span>
+            <span style={{ color: leftWon ? BSL.gold : "white" }}>{leftScore}</span>
             <span className="text-white/40 text-xs">–</span>
-            <span style={{ color: awayWon ? BSL.gold : "white" }}>{r.awayScore}</span>
+            <span style={{ color: rightWon ? BSL.gold : "white" }}>{rightScore}</span>
           </div>
         ) : (
           <span className="text-[9px] uppercase tracking-[0.2em] font-bold" style={{ color: BSL.muted }}>Not played</span>
@@ -203,18 +214,20 @@ function RubberRow({ r }: { r: Rubber; side?: "home" | "away" }) {
 
       {/* HOME vs AWAY — two columns, each pair colour-coded, central "vs" divider */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-3 py-2.5">
-        <PairBlock side="home" label={home.line} players={home.players} isTBA={home.isTBA} won={homeWon} />
+        <PairBlock side={leftSide} label={left.line} players={left.players} isTBA={left.isTBA} won={leftWon} />
         <div
           className="self-stretch flex items-center justify-center px-1 text-[10px] font-black uppercase tracking-widest"
           style={{ color: BSL.muted }}
         >
           vs
         </div>
-        <PairBlock side="away" label={away.line} players={away.players} isTBA={away.isTBA} won={awayWon} />
+        <PairBlock side={rightSide} label={right.line} players={right.players} isTBA={right.isTBA} won={rightWon} />
       </div>
     </motion.div>
   );
 }
+
+type ViewMode = "both" | "home" | "away";
 
 export function FixtureBattle(p: FixtureBattleProps) {
   const tone = statusTone(p.status);
@@ -225,6 +238,7 @@ export function FixtureBattle(p: FixtureBattleProps) {
     return acc + (r.homePair?.members?.length || 0) + (r.awayPair?.members?.length || 0);
   }, 0);
   const dt = p.startTime ? new Date(p.startTime) : null;
+  const [viewMode, setViewMode] = useState<ViewMode>("both");
 
   // Snapshot-to-PNG via html2canvas. We mark the card root with a ref and a
   // `.battle-card-capturing` class while exporting so any elements tagged
@@ -250,7 +264,11 @@ export function FixtureBattle(p: FixtureBattleProps) {
       const url = canvas.toDataURL("image/png");
       const a = document.createElement("a");
       a.href = url;
-      a.download = `bsl-fixture-${p.id}-${slugify(p.homeClubName)}-vs-${slugify(p.awayClubName)}.png`;
+      const namePart =
+        viewMode === "home" ? slugify(p.homeClubName) :
+        viewMode === "away" ? slugify(p.awayClubName) :
+        `${slugify(p.homeClubName)}-vs-${slugify(p.awayClubName)}`;
+      a.download = `bsl-fixture-${p.id}-${namePart}.png`;
       document.body.appendChild(a);
       a.click();
       a.remove();
@@ -310,21 +328,27 @@ export function FixtureBattle(p: FixtureBattleProps) {
         />
       )}
 
-      {/* Top status strip — status + date/time/court only. Division/category
-          are surfaced in their own banner below, so we don't repeat them. */}
-      <div className="relative flex items-center justify-between gap-3 px-4 sm:px-5 pt-3 sm:pt-4 flex-wrap">
-        <div className="flex items-center gap-2 text-[10px] sm:text-[11px] uppercase tracking-[0.22em] font-black" style={{ color: tone.color }}>
+      {/* Bold gold gradient status bar — matches the reference card. */}
+      <div
+        className="relative flex items-center justify-between gap-3 px-4 sm:px-5 py-2 sm:py-2.5 flex-wrap"
+        style={{
+          background: p.status === "LIVE"
+            ? `linear-gradient(90deg, ${BSL.danger}cc, ${BSL.danger}66 60%, transparent)`
+            : `linear-gradient(90deg, ${BSL.gold}d9, ${BSL.gold}66 55%, transparent)`,
+          borderBottom: `1px solid ${tone.color}55`,
+        }}
+      >
+        <div className="flex items-center gap-2 text-[11px] sm:text-sm uppercase tracking-[0.25em] font-black text-black/85">
           {tone.pulse && (
             <motion.span
-              className="inline-block h-2 w-2 rounded-full"
-              style={{ background: tone.color, boxShadow: `0 0 10px ${tone.color}` }}
+              className="inline-block h-2 w-2 rounded-full bg-black/80"
               animate={{ opacity: [0.4, 1, 0.4], scale: [1, 1.3, 1] }}
               transition={{ duration: 1.4, repeat: Infinity }}
             />
           )}
           <span>{tone.label}</span>
         </div>
-        <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px]" style={{ color: BSL.muted }}>
+        <div className="flex items-center gap-2 sm:gap-3 text-[10px] sm:text-[11px] text-black/75 font-bold">
           {dt && (
             <span className="inline-flex items-center gap-1 tabular-nums">
               <Calendar className="h-3 w-3" /> {dt.toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
@@ -340,6 +364,42 @@ export function FixtureBattle(p: FixtureBattleProps) {
               <MapPin className="h-3 w-3" /> Court {p.court}
             </span>
           )}
+        </div>
+      </div>
+
+      {/* View-mode toggle — Both teams / Home only / Away only. Hidden from PNG. */}
+      <div
+        data-export-hide
+        className="relative flex items-center justify-center gap-1 px-3 pt-3"
+      >
+        <div
+          className="inline-flex items-center rounded-full p-0.5 gap-0.5"
+          style={{ background: "hsla(0,0%,100%,0.04)", border: `1px solid ${BSL.cyan}33` }}
+        >
+          {([
+            { k: "both", label: "Both Teams" },
+            { k: "home", label: p.homeClubName },
+            { k: "away", label: p.awayClubName },
+          ] as { k: ViewMode; label: string }[]).map(opt => {
+            const active = viewMode === opt.k;
+            return (
+              <button
+                key={opt.k}
+                type="button"
+                onClick={() => setViewMode(opt.k)}
+                className="px-2.5 py-1 rounded-full text-[10px] sm:text-[11px] uppercase tracking-widest font-black transition max-w-[10rem] truncate"
+                style={{
+                  background: active ? `linear-gradient(90deg, ${BSL.cyan}, ${BSL.gold})` : "transparent",
+                  color: active ? "black" : "white",
+                  boxShadow: active ? `0 0 14px ${BSL.gold}66` : undefined,
+                }}
+                data-testid={`battle-${p.id}-view-${opt.k}`}
+                title={opt.label}
+              >
+                {opt.label}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -364,32 +424,48 @@ export function FixtureBattle(p: FixtureBattleProps) {
         </div>
       )}
 
-      {/* Battle row — three equal columns with crests stacked (logo + name centered)
-          so neither club name gets squeezed by the score block in the middle. */}
-      <div className="relative grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-4 px-3 sm:px-5 py-4 sm:py-5">
-        <ClubCrest name={p.homeClubName} logo={p.homeClubLogo} leader={homeLeads} side="home" />
-        <div className="flex flex-col items-center gap-1 shrink-0 pt-2 sm:pt-3">
-          <div className="flex items-center gap-1.5 sm:gap-2 text-3xl sm:text-4xl md:text-5xl font-black tabular-nums leading-none">
-            <span style={{ color: homeLeads ? BSL.gold : "white", textShadow: homeLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-home-score`}>
-              {p.homeRubbers}
-            </span>
-            <motion.span
-              className="text-white/50"
-              animate={p.status === "LIVE" ? { scale: [1, 1.08, 1], rotate: [-2, 2, -2] } : {}}
-              transition={{ duration: 1.6, repeat: Infinity }}
-            >
-              <Swords className="h-5 w-5 sm:h-7 sm:w-7" />
-            </motion.span>
-            <span style={{ color: awayLeads ? BSL.gold : "white", textShadow: awayLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-away-score`}>
-              {p.awayRubbers}
-            </span>
+      {/* Battle row — full vs in "both" mode, single focused crest otherwise. */}
+      {viewMode === "both" ? (
+        <div className="relative grid grid-cols-[1fr_auto_1fr] items-start gap-2 sm:gap-4 px-3 sm:px-5 py-4 sm:py-5">
+          <ClubCrest name={p.homeClubName} logo={p.homeClubLogo} leader={homeLeads} side="home" />
+          <div className="flex flex-col items-center gap-1 shrink-0 pt-2 sm:pt-3">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-3xl sm:text-4xl md:text-5xl font-black tabular-nums leading-none">
+              <span style={{ color: homeLeads ? BSL.gold : "white", textShadow: homeLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-home-score`}>
+                {p.homeRubbers}
+              </span>
+              <motion.span
+                className="text-white/50"
+                animate={p.status === "LIVE" ? { scale: [1, 1.08, 1], rotate: [-2, 2, -2] } : {}}
+                transition={{ duration: 1.6, repeat: Infinity }}
+              >
+                <Swords className="h-5 w-5 sm:h-7 sm:w-7" />
+              </motion.span>
+              <span style={{ color: awayLeads ? BSL.gold : "white", textShadow: awayLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-away-score`}>
+                {p.awayRubbers}
+              </span>
+            </div>
+            <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.22em] font-bold whitespace-nowrap" style={{ color: BSL.muted }}>
+              Rubbers won
+            </div>
           </div>
-          <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.22em] font-bold whitespace-nowrap" style={{ color: BSL.muted }}>
-            Rubbers won
+          <ClubCrest name={p.awayClubName} logo={p.awayClubLogo} leader={awayLeads} side="away" />
+        </div>
+      ) : (
+        <div className="relative flex flex-col items-center gap-2 px-4 py-5">
+          <ClubCrest
+            name={viewMode === "home" ? p.homeClubName : p.awayClubName}
+            logo={viewMode === "home" ? p.homeClubLogo : p.awayClubLogo}
+            leader={viewMode === "home" ? homeLeads : awayLeads}
+            side={viewMode}
+          />
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-[10px] uppercase tracking-[0.22em] font-bold"
+            style={{ background: "hsla(0,0%,100%,0.04)", border: `1px solid ${BSL.cyan}33`, color: BSL.muted }}
+          >
+            Single-team line-up · vs {viewMode === "home" ? p.awayClubName : p.homeClubName}
           </div>
         </div>
-        <ClubCrest name={p.awayClubName} logo={p.awayClubLogo} leader={awayLeads} side="away" />
-      </div>
+      )}
 
       {/* Rubber breakdown — pair names */}
       {rubberCount > 0 && (
@@ -405,7 +481,7 @@ export function FixtureBattle(p: FixtureBattleProps) {
             )}
           </div>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-            {p.rubbers.map(r => <RubberRow key={r.id} r={r} />)}
+            {p.rubbers.map(r => <RubberRow key={r.id} r={r} focus={viewMode} />)}
           </div>
         </div>
       )}

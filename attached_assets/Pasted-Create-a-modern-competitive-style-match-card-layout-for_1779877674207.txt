@@ -1,0 +1,45 @@
+Create a modern, competitive-style match card layout for a badminton app, based on the provided reference image. The design must look sleek, professional, and visually engaging — like a premium sports scorecard or esports match interface.
+
+### ✅ Core Requirements:
+1. **Overall Style**:
+   - Modern, clean, bold, high-contrast design — use dark theme (deep navy/charcoal background) with bright accent colors (neon blue, gold, or vibrant orange) for highlights.
+   - Sharp typography: bold headings, clear hierarchy, modern sans-serif fonts (like Inter, Poppins, or Roboto).
+   - Add subtle gradients, soft shadows, rounded corners, and clean dividers — avoid clutter.
+   - Make it look competitive and premium — similar to pro sports or tournament graphics.
+
+2. **Layout Structure (keep original info, but restyle)**:
+   - Top section: 
+     - "UPCOMING" label
+     - Team logos (left = Home, right = Away)
+     - Team names: *Dragon Badminton Club* (Home) vs *Badminton Performance Group* (Away)
+     - Score/rubbers won: big, bold "0 – 0" with small label "RUBBERS WON"
+   - Middle: "BATTLE CARD • 6 RUBBERS" + player count "22 players"
+   - 6 match blocks (R1–R6), each clearly labeled with category:
+     - MD = Men’s Doubles
+     - WD = Women’s Doubles
+     - XD = Mixed Doubles
+     - Each block shows: Pair A vs Pair B, player names, status = "NOT PLAYED"
+     - Keep all player names exactly as shown in the image.
+     - R6 note: "vs Awaiting pair" / "TBA"
+
+3. **New Feature – 2 Layout Versions**:
+   - **Version 1**: Full match view (both teams, all 6 rubbers) — like original, but fully redesigned.
+   - **Version 2**: Single-team view — *only one team* displayed, showing:
+     - Team logo + name
+     - Division / category label
+     - All their pairings, all 6 rubbers, their opponents, and match categories
+     - Clean, focused layout — no opposing team details.
+
+4. **Functionality**:
+   - Add a button/option: **"Download PNG"** — that exports the current view (either full match OR single team) as a high-quality transparent PNG snippet, ready to save/share.
+   - Make it responsive and sharp — looks great on mobile and desktop.
+
+5. **Visual Details to Add**:
+   - Small icons for each category: 🎾 or 🏸 for badminton, small labels MD / WD / XD.
+   - Highlight "PAIR A" / "PAIR B" with distinct colors.
+   - Make "NOT PLAYED" label subtle but clear.
+   - Keep all original text/names exactly the same — only change design, layout, and add features.
+
+---
+
+Deliver clean, well-organized code (HTML + CSS + JS or React/Vue as preferred) so I can integrate this directly into my app, with all styling and export function working.
