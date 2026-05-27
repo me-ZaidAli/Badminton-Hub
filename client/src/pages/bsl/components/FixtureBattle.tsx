@@ -174,17 +174,95 @@ function RubberRow({ r, focus = "both" }: { r: Rubber; focus?: ViewMode }) {
   const home = pairLabel(r.homePair);
   const away = pairLabel(r.awayPair);
   const hasScore = r.homeScore != null && r.awayScore != null && (r.homeScore > 0 || r.awayScore > 0);
-  // In single-team focus, render the focused side on the LEFT so all of
-  // their pairings line up vertically — easier to scan as "my team's card".
-  const leftIsHome = focus !== "away";
-  const left = leftIsHome ? home : away;
-  const right = leftIsHome ? away : home;
-  const leftSide: "home" | "away" = leftIsHome ? "home" : "away";
-  const rightSide: "home" | "away" = leftIsHome ? "away" : "home";
-  const leftWon = leftIsHome ? homeWon : awayWon;
-  const rightWon = leftIsHome ? awayWon : homeWon;
-  const leftScore = leftIsHome ? r.homeScore : r.awayScore;
-  const rightScore = leftIsHome ? r.awayScore : r.homeScore;
+
+  // Single-team focus: render ONLY the focused team's pair, full-width,
+  // with no opponent block at all. Just a small "vs Pair X" line under
+  // the pair label so the matchup context is visible without leaking
+  // any opponent names.
+  if (focus !== "both") {
+    const focused = focus === "home" ? home : away;
+    const opponent = focus === "home" ? away : home;
+    const focusedSide: "home" | "away" = focus;
+    const focusedWon = focus === "home" ? homeWon : awayWon;
+    const focusedScore = focus === "home" ? r.homeScore : r.awayScore;
+    const opponentScore = focus === "home" ? r.awayScore : r.homeScore;
+    const accent = focusedSide === "home" ? BSL.cyan : BSL.gold;
+    return (
+      <motion.div
+        initial={{ opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: r.rubberNumber * 0.04, duration: 0.4 }}
+        className="relative rounded-xl overflow-hidden"
+        style={{
+          background: "linear-gradient(135deg, hsla(195,80%,10%,0.55), hsla(222,60%,5%,0.85) 60%, hsla(195,80%,10%,0.4))",
+          border: `1px solid ${accent}77`,
+          boxShadow: `0 0 22px ${accent}44, inset 0 0 14px ${accent}1f`,
+        }}
+        data-testid={`battle-rubber-${r.rubberNumber}`}
+      >
+        <div className="flex items-center justify-between px-3 py-2 border-b" style={{ borderColor: `${accent}33`, background: "hsla(0,0%,0%,0.3)" }}>
+          <div
+            className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-[11px] font-black uppercase tracking-widest tabular-nums"
+            style={{ background: `${BSL.gold}22`, color: BSL.gold, border: `1px solid ${BSL.gold}66`, boxShadow: `0 0 10px ${BSL.gold}33` }}
+          >
+            R{r.rubberNumber} <span className="opacity-60">·</span> {r.rubberType}
+          </div>
+          {hasScore ? (
+            <div className="flex items-center gap-1.5 text-base font-black tabular-nums">
+              <span style={{ color: focusedWon ? BSL.gold : "white" }}>{focusedScore}</span>
+              <span className="text-white/40 text-xs">–</span>
+              <span className="text-white/70">{opponentScore}</span>
+            </div>
+          ) : (
+            <span className="text-[10px] uppercase tracking-[0.2em] font-bold" style={{ color: BSL.muted }}>Not played</span>
+          )}
+        </div>
+        <div className="px-4 py-3">
+          <div
+            className="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-widest mb-2"
+            style={{ background: `${accent}22`, color: focusedWon ? BSL.gold : accent, border: `1px solid ${accent}66` }}
+          >
+            {focused.line}
+          </div>
+          {focused.isTBA ? (
+            <div className="text-sm italic" style={{ color: BSL.muted }}>Pair not yet assigned</div>
+          ) : (
+            <div className="flex flex-col gap-1.5">
+              {focused.players.map((n, i) => (
+                <div
+                  key={i}
+                  className="flex items-center gap-2 px-3 py-2 rounded-md text-sm sm:text-base font-bold break-words"
+                  style={{
+                    background: `${accent}1a`,
+                    color: "white",
+                    border: `1px solid ${accent}55`,
+                    boxShadow: focusedWon ? `0 0 10px ${BSL.gold}33` : `0 0 8px ${accent}22`,
+                  }}
+                  data-testid={`battle-rubber-${r.rubberNumber}-player-${i}`}
+                >
+                  <span
+                    className="inline-flex h-5 w-5 items-center justify-center rounded-full text-[10px] font-black"
+                    style={{ background: accent, color: "black" }}
+                  >
+                    {i + 1}
+                  </span>
+                  {n}
+                </div>
+              ))}
+            </div>
+          )}
+          <div
+            className="mt-2.5 pt-2 text-[10px] uppercase tracking-[0.22em] font-bold border-t"
+            style={{ color: BSL.muted, borderColor: `${accent}22` }}
+          >
+            vs {opponent.line}
+          </div>
+        </div>
+      </motion.div>
+    );
+  }
+
+  // "Both teams" view — original side-by-side layout.
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -198,7 +276,6 @@ function RubberRow({ r, focus = "both" }: { r: Rubber; focus?: ViewMode }) {
       }}
       data-testid={`battle-rubber-${r.rubberNumber}`}
     >
-      {/* Rubber badge strip */}
       <div className="flex items-center justify-between px-3 py-1.5 border-b" style={{ borderColor: "hsla(0,0%,100%,0.06)", background: "hsla(0,0%,0%,0.25)" }}>
         <div
           className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-black uppercase tracking-widest tabular-nums"
@@ -208,27 +285,23 @@ function RubberRow({ r, focus = "both" }: { r: Rubber; focus?: ViewMode }) {
         </div>
         {hasScore ? (
           <div className="flex items-center gap-1.5 text-base font-black tabular-nums">
-            <span style={{ color: leftWon ? BSL.gold : "white" }}>{leftScore}</span>
+            <span style={{ color: homeWon ? BSL.gold : "white" }}>{r.homeScore}</span>
             <span className="text-white/40 text-xs">–</span>
-            <span style={{ color: rightWon ? BSL.gold : "white" }}>{rightScore}</span>
+            <span style={{ color: awayWon ? BSL.gold : "white" }}>{r.awayScore}</span>
           </div>
         ) : (
           <span className="text-[9px] uppercase tracking-[0.2em] font-bold" style={{ color: BSL.muted }}>Not played</span>
         )}
       </div>
-
-      {/* HOME vs AWAY — two columns, each pair colour-coded, central "vs" divider.
-          In single-team focus mode the RIGHT side is the opponent — we hide their
-          player names (still show pair label) so the card is privacy-clean. */}
       <div className="grid grid-cols-[1fr_auto_1fr] items-start gap-2 px-3 py-2.5">
-        <PairBlock side={leftSide} label={left.line} players={left.players} isTBA={left.isTBA} won={leftWon} />
+        <PairBlock side="home" label={home.line} players={home.players} isTBA={home.isTBA} won={homeWon} />
         <div
           className="self-stretch flex items-center justify-center px-1 text-[10px] font-black uppercase tracking-widest"
           style={{ color: BSL.muted }}
         >
           vs
         </div>
-        <PairBlock side={rightSide} label={right.line} players={right.players} isTBA={right.isTBA} won={rightWon} hideNames={focus !== "both"} />
+        <PairBlock side="away" label={away.line} players={away.players} isTBA={away.isTBA} won={awayWon} />
       </div>
     </motion.div>
   );
@@ -487,7 +560,7 @@ export function FixtureBattle(p: FixtureBattleProps) {
               </div>
             )}
           </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+          <div className={viewMode === "both" ? "grid grid-cols-1 md:grid-cols-2 gap-2" : "grid grid-cols-1 gap-2.5"}>
             {p.rubbers.map(r => <RubberRow key={r.id} r={r} focus={viewMode} />)}
           </div>
         </div>
