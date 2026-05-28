@@ -4461,7 +4461,10 @@ export async function registerRoutes(
     if (!Number.isFinite(sessionId)) return res.status(400).json({ message: "Invalid session id" });
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
-    if (req.user!.role !== "OWNER" && req.user!.role !== "ADMIN") return res.sendStatus(403);
+    // Club admins, club owners, and platform super-admins (OWNER/ADMIN
+    // roles or anyone with admin privileges scoped to this session's club).
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
 
     try {
       const signups = await storage.getSessionSignups(sessionId);

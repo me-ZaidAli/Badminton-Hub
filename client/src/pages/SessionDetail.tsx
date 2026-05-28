@@ -250,7 +250,8 @@ export default function SessionDetail() {
     entries: { signupId: number; userId: number | null; creditBalance: number; membershipPlanName: string | null; membershipFee: number | null; baseFee: number }[];
   }>({
     queryKey: ["/api/sessions", id, "admin-financials"],
-    enabled: !!session && (user?.role === "OWNER" || user?.role === "ADMIN"),
+    // Club admins, club owners, and platform super-admins only.
+    enabled: !!session && isOrganiser,
   });
   const adminFinBySignup = useMemo(() => {
     const m = new Map<number, NonNullable<typeof adminFinancials>["entries"][number]>();
@@ -2016,7 +2017,7 @@ export default function SessionDetail() {
                           )}
                           {parentPlayerAchievements[signup.playerId]?.trophy && <Trophy className="w-3.5 h-3.5 text-amber-400 inline-block" />}
                           {parentPlayerAchievements[signup.playerId]?.fire && <Flame className="w-3.5 h-3.5 text-orange-400 inline-block" />}
-                          {isSuperAdmin && (
+                          {isOrganiser && (
                             <SignupFeeEditor
                               signup={signup}
                               canEdit={true}
@@ -2026,7 +2027,7 @@ export default function SessionDetail() {
                               membershipFee={adminFinBySignup.get(signup.id)?.membershipFee ?? null}
                             />
                           )}
-                          {isSuperAdmin && adminFinBySignup.get(signup.id)?.userId != null && session && (
+                          {isOrganiser && adminFinBySignup.get(signup.id)?.userId != null && session && (
                             <CreditAdjustChip
                               userId={adminFinBySignup.get(signup.id)!.userId!}
                               clubId={session.clubId}
@@ -2091,6 +2092,36 @@ export default function SessionDetail() {
                         <Badge variant="secondary" className={`text-xs ${getPairColor(pairGroupId)}`} data-testid={`badge-pair-${signup.id}`}>
                           Pair {pairGroupId}
                         </Badge>
+                      )}
+                      {isOrganiser && (
+                        signup.paymentStatus === "PAID" ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-green-300 text-green-700 dark:border-green-700 dark:text-green-400"
+                            data-testid={`badge-payment-paid-${signup.id}`}
+                            title={signup.paymentMethod ? `Paid via ${signup.paymentMethod}` : "Paid"}
+                          >
+                            Paid
+                          </Badge>
+                        ) : signup.paymentStatus === "PENDING" ? (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-amber-300 text-amber-700 dark:border-amber-700 dark:text-amber-400"
+                            data-testid={`badge-payment-pending-${signup.id}`}
+                            title="Awaiting admin verification"
+                          >
+                            Pending
+                          </Badge>
+                        ) : (
+                          <Badge
+                            variant="outline"
+                            className="text-[10px] border-red-300 text-red-700 dark:border-red-700 dark:text-red-400"
+                            data-testid={`badge-payment-unpaid-${signup.id}`}
+                            title="Not yet paid"
+                          >
+                            Unpaid
+                          </Badge>
+                        )
                       )}
                       {isOrganiser && reliabilityScores[signup.playerId] && reliabilityScores[signup.playerId].totalSessions > 0 && (
                         <Badge 
