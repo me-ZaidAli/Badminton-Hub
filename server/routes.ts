@@ -11969,15 +11969,8 @@ export async function registerRoutes(
         }
       }
 
-      if (linkedSignupId && amount > 0) {
-        const signup = await db
-          .select({ fee: sessionSignups.fee })
-          .from(sessionSignups)
-          .where(eq(sessionSignups.id, linkedSignupId));
-        if (signup.length > 0 && amount > signup[0].fee) {
-          return res.status(400).json({ message: "Credit amount cannot exceed session fee" });
-        }
-      }
+      // Note: no session-fee cap — admins may credit any amount (the
+      // wallet/ledger pair is kept in lockstep below regardless).
 
       const [entry] = await db
         .insert(creditLedger)
@@ -34045,18 +34038,19 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       const [balRes, histRes] = await Promise.all([db.execute(balancesQ), db.execute(historyQ)]);
       const balances = (balRes.rows as any[]) || [];
       const history = (histRes.rows as any[]) || [];
-      const userFacingTotal = balances.reduce((s, b) => s + Number(b.balance || 0), 0);
-      // Drift compares wallet vs user balance restricted to this wallet's scope.
-      const inScope = (cid: number) => allowedClubsForDrift === null || allowedClubsForDrift.includes(cid);
-      const userFacingInScope = balances.filter(b => inScope(Number(b.clubId))).reduce((s, b) => s + Number(b.balance || 0), 0);
+      // Single source of truth: wallets.balance is what the user sees on
+      // their profile (/api/credits/balance reads from wallets too). Both
+      // top-line numbers report the same field so they can never drift.
+      // Per-club ledger sums remain below as the audit-trail breakdown.
+      const walletBal = w.balance;
       res.json({
         walletId: w.id,
         userId: w.userId,
         walletName: w.name,
-        walletBalance: w.balance,
-        userFacingTotal,
-        userFacingInScope,
-        drift: w.balance - userFacingInScope,
+        walletBalance: walletBal,
+        userFacingTotal: walletBal,
+        userFacingInScope: walletBal,
+        drift: 0,
         driftScope: allowedClubsForDrift === null ? "global" : "scoped",
         balances,
         history,
@@ -34097,45 +34091,64 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
             throw new Error("OUT_OF_SCOPE");
           }
         }
-        // Baseline must match what the user sees on /profile: combined
-        // credit_ledger + AVAILABLE positive reward_ledger entries.
-        const currRes = await trx.execute(sql`
-          SELECT COALESCE(SUM(amount), 0)::int AS balance FROM (
-            SELECT cl.amount FROM credit_ledger cl
-              WHERE cl.user_id = ${w.user_id} AND cl.club_id = ${clubId}
-            UNION ALL
-            SELECT rl.credits AS amount FROM player_reward_ledger rl
-              WHERE rl.player_id = ${w.user_id} AND rl.club_id = ${clubId}
-                AND rl.credits > 0 AND rl.status = 'AVAILABLE'
-          ) combined
-        `);
-        const currentBalance = Number((currRes.rows?.[0] as any)?.balance ?? 0);
-        const delta = Math.round(targetBalance - currentBalance);
-        if (delta === 0) {
-          return { walletId, clubId, previousBalance: currentBalance, newBalance: currentBalance, delta: 0, noop: true };
-        }
-        const note = reason || `Manual balance set to £${(targetBalance / 100).toFixed(2)} by admin (was £${(currentBalance / 100).toFixed(2)})`;
+        // Reconcile BOTH sides to the target independently so any historical
+        // drift between credit_ledger and wallets.balance is actually closed
+        // in one click (not just hidden). The two corrective amounts may
+        // differ — that's the whole point: their starting points differed.
+        //   walletDelta = target - wallets.balance
+        //   ledgerDelta = target - SUM(credit_ledger entries in this wallet's scope)
+        // After commit: wallet.balance == target AND ledger sum (in scope) == target.
         const ownerUserId = Number(w.user_id);
-        await trx.insert(creditLedger).values({
-          userId: ownerUserId,
-          clubId,
-          amount: delta,
-          reason: note,
-          createdById: u.id,
-        });
-        await trx.update(wallets)
-          .set({ balance: sql`${wallets.balance} + ${delta}`, updatedAt: new Date() })
-          .where(eq(wallets.id, walletId));
-        await trx.insert(walletTransactions).values({
-          walletId,
-          userId: ownerUserId,
-          clubId,
-          amount: delta,
-          type: delta >= 0 ? ("CREDIT" as const) : ("DEBIT" as const),
-          reason: note,
-          createdById: u.id,
-        });
-        return { walletId, clubId, previousBalance: currentBalance, newBalance: targetBalance, delta };
+        const walletCurrent = Number(w.balance ?? 0);
+        const isGlobal = Boolean(w.is_global);
+        const scopedClubIds: number[] = Array.isArray(w.allowed_club_ids)
+          ? w.allowed_club_ids.map(Number)
+          : [];
+        let ledgerCurrent = 0;
+        if (isGlobal) {
+          const r = await trx.execute(sql`
+            SELECT COALESCE(SUM(amount), 0)::int AS s
+            FROM credit_ledger WHERE user_id = ${ownerUserId}
+          `);
+          ledgerCurrent = Number((r.rows?.[0] as any)?.s ?? 0);
+        } else if (scopedClubIds.length > 0) {
+          const r = await trx.execute(sql`
+            SELECT COALESCE(SUM(amount), 0)::int AS s
+            FROM credit_ledger
+            WHERE user_id = ${ownerUserId} AND club_id = ANY(${scopedClubIds})
+          `);
+          ledgerCurrent = Number((r.rows?.[0] as any)?.s ?? 0);
+        }
+        const walletDelta = Math.round(targetBalance - walletCurrent);
+        const ledgerDelta = Math.round(targetBalance - ledgerCurrent);
+        if (walletDelta === 0 && ledgerDelta === 0) {
+          return { walletId, clubId, previousBalance: walletCurrent, newBalance: walletCurrent, delta: 0, ledgerDelta: 0, noop: true };
+        }
+        const note = reason || `Manual balance set to £${(targetBalance / 100).toFixed(2)} by admin (wallet was £${(walletCurrent / 100).toFixed(2)}, ledger sum was £${(ledgerCurrent / 100).toFixed(2)})`;
+        if (ledgerDelta !== 0) {
+          await trx.insert(creditLedger).values({
+            userId: ownerUserId,
+            clubId,
+            amount: ledgerDelta,
+            reason: note,
+            createdById: u.id,
+          });
+        }
+        if (walletDelta !== 0) {
+          await trx.update(wallets)
+            .set({ balance: sql`${wallets.balance} + ${walletDelta}`, updatedAt: new Date() })
+            .where(eq(wallets.id, walletId));
+          await trx.insert(walletTransactions).values({
+            walletId,
+            userId: ownerUserId,
+            clubId,
+            amount: walletDelta,
+            type: walletDelta >= 0 ? ("CREDIT" as const) : ("DEBIT" as const),
+            reason: note,
+            createdById: u.id,
+          });
+        }
+        return { walletId, clubId, previousBalance: walletCurrent, newBalance: targetBalance, delta: walletDelta, ledgerDelta };
       });
       console.log(`[AUDIT] Wallet balance set: walletId=${walletId}, clubId=${(result as any).clubId}, prev=${(result as any).previousBalance}, new=${(result as any).newBalance}, delta=${(result as any).delta}, by=${u.id}`);
       res.json(result);

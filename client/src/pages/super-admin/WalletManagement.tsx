@@ -223,16 +223,10 @@ function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
 
   const balances: { clubId: number; clubName: string; balance: number }[] = unified?.balances || [];
   const history: any[] = unified?.history || [];
-  const userFacingTotal: number = unified?.userFacingTotal ?? 0;
-  const userFacingInScope: number = unified?.userFacingInScope ?? userFacingTotal;
   const walletBalance: number = unified?.walletBalance ?? wallet?.balance ?? 0;
-  const drift: number = unified?.drift ?? 0;
-  const hasDrift = Math.abs(drift) > 0;
-  const driftScope: string = unified?.driftScope ?? "global";
 
-  const targetClubBalance = balances.find(b => b.clubId === Number(amendClubId))?.balance ?? 0;
   const targetPence = amendTarget === "" ? null : Math.round(parseFloat(amendTarget) * 100);
-  const delta = targetPence === null ? null : targetPence - targetClubBalance;
+  const delta = targetPence === null ? null : targetPence - walletBalance;
   const canSubmit = !!amendClubId && targetPence !== null && Number.isFinite(targetPence);
 
   return (
@@ -243,7 +237,7 @@ function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
             <Wallet className="h-5 w-5" /> {wallet?.userName || "User"}'s Wallet · {wallet?.name}
           </DialogTitle>
           <DialogDescription>
-            What the user actually sees on their profile (sourced from the credit ledger), plus the wallet-table balance for drift detection and a manual amend tool.
+            The single balance the user sees on their profile, plus a manual amend tool. Credit ledger and wallet table are kept in lockstep on every change.
           </DialogDescription>
         </DialogHeader>
 
@@ -251,41 +245,21 @@ function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
           <div className="flex items-center justify-center py-12"><Loader2 className="h-6 w-6 animate-spin" /></div>
         ) : (
           <div className="space-y-4">
-            {/* Drift summary */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-              <Card data-testid="card-user-facing-total">
-                <CardContent className="p-3">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">
-                    User sees {driftScope === "scoped" ? "(in this wallet's clubs)" : "(profile total)"}
-                  </div>
-                  <div className="text-xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-user-facing-total">
-                    £{(userFacingInScope / 100).toFixed(2)}
-                  </div>
-                  {driftScope === "scoped" && userFacingTotal !== userFacingInScope && (
-                    <div className="text-[10px] text-muted-foreground mt-0.5">All clubs: £{(userFacingTotal / 100).toFixed(2)}</div>
-                  )}
-                </CardContent>
-              </Card>
-              <Card data-testid="card-wallet-balance">
-                <CardContent className="p-3">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium">Wallet table balance</div>
-                  <div className="text-xl font-bold" data-testid="text-wallet-balance-value">
-                    £{(walletBalance / 100).toFixed(2)}
-                  </div>
-                </CardContent>
-              </Card>
-              <Card className={hasDrift ? "border-amber-300 bg-amber-50/50 dark:bg-amber-950/30" : "border-green-300 bg-green-50/40 dark:bg-green-950/20"} data-testid="card-drift">
-                <CardContent className="p-3">
-                  <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium flex items-center gap-1">
-                    {hasDrift ? <AlertTriangle className="h-3 w-3 text-amber-500" /> : <CheckCircle2 className="h-3 w-3 text-green-600" />}
-                    Drift (wallet − user)
-                  </div>
-                  <div className={`text-xl font-bold ${hasDrift ? "text-amber-600 dark:text-amber-400" : "text-green-600"}`} data-testid="text-drift-value">
-                    {drift >= 0 ? "+" : ""}£{(drift / 100).toFixed(2)}
-                  </div>
-                </CardContent>
-              </Card>
-            </div>
+            {/* Single balance — what the user sees on their profile */}
+            <Card data-testid="card-wallet-balance">
+              <CardContent className="p-4">
+                <div className="text-[10px] uppercase tracking-wide text-muted-foreground font-medium flex items-center gap-1">
+                  <CheckCircle2 className="h-3 w-3 text-green-600" />
+                  Current balance (what the user sees)
+                </div>
+                <div className="text-3xl font-bold text-emerald-600 dark:text-emerald-400" data-testid="text-wallet-balance-value">
+                  £{(walletBalance / 100).toFixed(2)}
+                </div>
+                <div className="text-[10px] text-muted-foreground mt-1">
+                  Sourced from the wallet — same value as the user's profile and the credit ledger after every change.
+                </div>
+              </CardContent>
+            </Card>
 
             {/* Per-club balances (matches what user sees on profile) */}
             <div>
@@ -368,7 +342,7 @@ function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
               </CardHeader>
               <CardContent className="space-y-3">
                 <p className="text-xs text-muted-foreground">
-                  Pick the club, enter the user-facing balance you want it to land on. Writes a corrective entry to BOTH the credit ledger (what users see) and the wallets table — keeps them in lockstep so drift can't reappear.
+                  Enter the balance the user should see. The selected club is just where the audit entry gets tagged. Writes independent corrective amounts to BOTH the credit ledger and the wallets table so each side lands exactly on target — closes any past drift in one click.
                 </p>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
                   <div>
@@ -420,8 +394,8 @@ function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
                 {canSubmit && delta !== null && (
                   <div className="text-xs rounded-md border bg-muted/40 p-2" data-testid="text-amend-preview">
                     Will record <strong>{delta >= 0 ? "+" : ""}£{(delta / 100).toFixed(2)}</strong> against{" "}
-                    <strong>{balances.find(b => b.clubId === Number(amendClubId))?.clubName}</strong>:{" "}
-                    £{(targetClubBalance / 100).toFixed(2)} → £{((targetPence ?? 0) / 100).toFixed(2)}.
+                    <strong>{balances.find(b => b.clubId === Number(amendClubId))?.clubName || "selected club"}</strong>{" "}
+                    so the user's balance moves £{(walletBalance / 100).toFixed(2)} → £{((targetPence ?? 0) / 100).toFixed(2)}.
                   </div>
                 )}
                 <div className="flex justify-end">
@@ -489,9 +463,10 @@ function TransactionLogModal({ walletId, wallet, clubs, open, onClose }: {
             <DialogHeader>
               <DialogTitle>Confirm balance change</DialogTitle>
               <DialogDescription>
-                Set <strong>{balances.find(b => b.clubId === Number(amendClubId))?.clubName}</strong> balance to{" "}
-                <strong>£{((targetPence ?? 0) / 100).toFixed(2)}</strong> ({delta !== null && delta >= 0 ? "+" : ""}£{((delta ?? 0) / 100).toFixed(2)}).
-                Writes to credit ledger AND wallets table.
+                Set the user's balance to <strong>£{((targetPence ?? 0) / 100).toFixed(2)}</strong>
+                {" "}(wallet shifts {delta !== null && delta >= 0 ? "+" : ""}£{((delta ?? 0) / 100).toFixed(2)}).
+                Audit entry tagged on <strong>{balances.find(b => b.clubId === Number(amendClubId))?.clubName || "selected club"}</strong>.
+                Reconciles credit ledger and wallets table to the same value.
               </DialogDescription>
             </DialogHeader>
             <DialogFooter>
