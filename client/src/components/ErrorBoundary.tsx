@@ -36,12 +36,24 @@ export class ErrorBoundary extends Component<Props, State> {
   componentDidCatch(error: Error, errorInfo: any) {
     console.error("ErrorBoundary caught:", error, errorInfo);
     if (isChunkLoadError(error)) {
-      const lastReload = sessionStorage.getItem("chunk-reload-ts");
+      const attempts = parseInt(sessionStorage.getItem("chunk-reload-attempts") || "0", 10);
+      const lastReload = parseInt(sessionStorage.getItem("chunk-reload-ts") || "0", 10);
       const now = Date.now();
-      if (!lastReload || now - parseInt(lastReload) > 10000) {
+      // Allow up to 3 auto-reloads, with a 4s gap, before falling back to manual.
+      if (attempts < 3 && (!lastReload || now - lastReload > 4000)) {
+        sessionStorage.setItem("chunk-reload-attempts", String(attempts + 1));
         sessionStorage.setItem("chunk-reload-ts", String(now));
         window.location.reload();
       }
+    }
+  }
+
+  componentDidMount() {
+    // Successful mount means the app loaded cleanly — reset the reload counter
+    // so a future deploy can again use its 3 free auto-reload attempts.
+    if (typeof sessionStorage !== "undefined") {
+      sessionStorage.removeItem("chunk-reload-attempts");
+      sessionStorage.removeItem("chunk-reload-ts");
     }
   }
 
@@ -67,6 +79,7 @@ export class ErrorBoundary extends Component<Props, State> {
           )}
           <Button
             onClick={() => {
+              try { sessionStorage.removeItem("chunk-reload-attempts"); sessionStorage.removeItem("chunk-reload-ts"); } catch {}
               this.setState({ hasError: false, error: null });
               window.location.reload();
             }}

@@ -15,7 +15,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, PoundSterling, Loader2, LogIn, LogOut, UserPlus, Calendar, ChevronDown, ChevronUp, ChevronRight, MessageSquare, Ban, Send, Bell, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { SessionBanner, UsefulLinks } from "./SessionViews";
-import { SignupFeeEditor, CreditAdjustChip } from "@/pages/SessionDetail";
+import { SignupFeeEditor, CreditAdjustChip } from "@/components/session/SignupFinancialChips";
 
 interface SessionDetailsModalProps {
   session: any;
