@@ -4453,6 +4453,124 @@ export async function registerRoutes(
     });
   });
 
+  // Admin/Organiser: per-signup credit balance + membership pricing breakdown.
+  // Powers the RSVP list on session detail — single batched call to avoid N+1.
+  app.get("/api/sessions/:id/admin-financials", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    if (!Number.isFinite(sessionId)) return res.status(400).json({ message: "Invalid session id" });
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    try {
+      const signups = await storage.getSessionSignups(sessionId);
+      const userIds = Array.from(new Set(
+        signups.map((s: any) => s.player?.userId ?? s.player?.user?.id).filter((x: any) => typeof x === "number")
+      )) as number[];
+
+      const club = await storage.getClub(session.clubId);
+      const baseFee = (session as any).sessionFee ?? (club as any)?.sessionFee ?? 0;
+
+      const balanceByUser = new Map<number, number>();
+      const membershipByUser = new Map<number, { planName: string; defaultSessionFee: number }>();
+
+      if (userIds.length > 0) {
+        const activeWallets = await db.select().from(wallets)
+          .where(and(inArray(wallets.userId, userIds), eq(wallets.isActive, true)));
+        for (const w of activeWallets) {
+          const allowed = !w.allowedClubIds || w.allowedClubIds.length === 0 || w.allowedClubIds.includes(session.clubId);
+          if (!allowed) continue;
+          balanceByUser.set(w.userId, (balanceByUser.get(w.userId) || 0) + (w.balance || 0));
+        }
+
+        const activeMems = await db
+          .select({
+            userId: clubMemberships.userId,
+            planName: membershipPlans.name,
+            defaultSessionFee: membershipPlans.defaultSessionFee,
+          })
+          .from(clubMemberships)
+          .innerJoin(membershipPlans, eq(clubMemberships.planId, membershipPlans.id))
+          .where(and(
+            inArray(clubMemberships.userId, userIds),
+            eq(clubMemberships.clubId, session.clubId),
+            eq(clubMemberships.status, "ACTIVE"),
+          ));
+        for (const m of activeMems) {
+          membershipByUser.set(m.userId, { planName: m.planName, defaultSessionFee: m.defaultSessionFee });
+        }
+      }
+
+      const entries = signups.map((s: any) => {
+        const uid = s.player?.userId ?? s.player?.user?.id;
+        const membership = typeof uid === "number" ? membershipByUser.get(uid) : undefined;
+        return {
+          signupId: s.id,
+          userId: typeof uid === "number" ? uid : null,
+          creditBalance: typeof uid === "number" ? (balanceByUser.get(uid) || 0) : 0,
+          membershipPlanName: membership?.planName || null,
+          membershipFee: membership?.defaultSessionFee ?? null,
+          baseFee,
+        };
+      });
+
+      res.json({ clubId: session.clubId, baseFee, entries });
+    } catch (err: any) {
+      console.error("[admin-financials] error", err);
+      res.status(500).json({ message: "Failed to load admin financials" });
+    }
+  });
+
+  // Adjust a player's credit balance from the session RSVP list.
+  // Session-scoped so club ORGANISERS (not only OWNER/ADMIN) can use it via
+  // canManageSessions, mirroring the access policy of the RSVP list itself.
+  app.post("/api/sessions/:id/credit-adjust", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const sessionId = Number(req.params.id);
+    if (!Number.isFinite(sessionId)) return res.status(400).json({ message: "Invalid session id" });
+    const session = await storage.getSession(sessionId);
+    if (!session) return res.status(404).json({ message: "Session not found" });
+    const admin = req.user!;
+    const canAccess = await canManageSessions(admin.id, admin.role, session.clubId);
+    if (!canAccess) return res.sendStatus(403);
+
+    const schema = z.object({
+      userId: z.number().int().positive(),
+      amount: z.number().int().refine(n => n !== 0, "Amount must be non-zero"),
+      reason: z.string().trim().min(1, "Reason is required").max(500),
+    });
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) return res.status(400).json({ message: parsed.error.errors[0]?.message || "Invalid request" });
+
+    const { userId, amount, reason } = parsed.data;
+
+    try {
+      const [entry] = await db
+        .insert(creditLedger)
+        .values({
+          userId,
+          clubId: session.clubId,
+          amount,
+          reason,
+          linkedSessionId: sessionId,
+          linkedSignupId: null,
+          attendanceStatus: null,
+          createdById: admin.id,
+        })
+        .returning();
+
+      await ensureUserWallet(userId, session.clubId, amount, reason, admin.id);
+
+      console.log(`[CREDIT ADJUST] session=${sessionId} user=${userId} amount=${amount} by=${admin.id}`);
+      res.json(entry);
+    } catch (err: any) {
+      console.error("[credit-adjust] error", err);
+      res.status(500).json({ message: "Failed to adjust credit" });
+    }
+  });
+
   // Admin/Organiser: Update signup payment status
   app.patch("/api/sessions/:sessionId/signups/:signupId/payment-override", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

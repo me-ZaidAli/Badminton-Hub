@@ -12,6 +12,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue } from "@/hooks/use-matches";
@@ -241,12 +242,27 @@ export default function SessionDetail() {
     queryKey: ["/api/sessions", id, "manage-players"],
     enabled: managePlayersOpen && !!session,
   });
+
+  // Admin-only: per-signup credit balance + membership pricing for the RSVP list
+  const { data: adminFinancials } = useQuery<{
+    clubId: number;
+    baseFee: number;
+    entries: { signupId: number; userId: number | null; creditBalance: number; membershipPlanName: string | null; membershipFee: number | null; baseFee: number }[];
+  }>({
+    queryKey: ["/api/sessions", id, "admin-financials"],
+    enabled: !!session && (user?.role === "OWNER" || user?.role === "ADMIN" || (sessionClubs?.some(c => c.id === session?.clubId) ?? false)),
+  });
+  const adminFinBySignup = useMemo(() => {
+    const m = new Map<number, NonNullable<typeof adminFinancials>["entries"][number]>();
+    for (const e of adminFinancials?.entries || []) m.set(e.signupId, e);
+    return m;
+  }, [adminFinancials]);
   const paymentOverrideMutation = useMutation({
     mutationFn: async (data: { signupId: number; paymentStatus?: string; paymentMethod?: string; verifiedByAdmin?: boolean; adminNotes?: string }) => {
       const res = await apiRequest("PATCH", `/api/sessions/${id}/signups/${data.signupId}/payment-override`, data);
       return res.json();
     },
-    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "financial-overview"] }); },
+    onSuccess: () => { refetchManagePlayers(); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "signups"] }); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "financial-overview"] }); qc.invalidateQueries({ queryKey: ["/api/sessions", id, "admin-financials"] }); },
   });
   const statusOverrideMutation = useMutation({
     mutationFn: async (data: { signupId: number; signupStatus: string; waitingListPosition?: number | null }) => {
@@ -1974,7 +1990,7 @@ export default function SessionDetail() {
                         </Button>
                       </div>
                     ) : (
-                      <p 
+                      <div 
                         className={`font-semibold truncate ${isSuperAdmin ? "cursor-pointer hover:underline" : ""}`}
                         onClick={() => {
                           if (isSuperAdmin) {
@@ -1986,7 +2002,7 @@ export default function SessionDetail() {
                         }}
                         data-testid={`text-player-name-${signup.id}`}
                       >
-                        <span className="inline-flex items-center gap-1">
+                        <span className="inline-flex items-center gap-1 flex-wrap">
                           {signup.player?.user?.fullName || "Unknown"}
                           {signup.isTrial && (
                             <span
@@ -2005,9 +2021,19 @@ export default function SessionDetail() {
                             canEdit={!!isOrganiser}
                             onSave={(newFee) => paymentOverrideMutation.mutate({ signupId: signup.id, fee: newFee })}
                             isSaving={paymentOverrideMutation.isPending}
+                            membershipPlanName={adminFinBySignup.get(signup.id)?.membershipPlanName || null}
+                            membershipFee={adminFinBySignup.get(signup.id)?.membershipFee ?? null}
                           />
+                          {isOrganiser && adminFinBySignup.get(signup.id)?.userId != null && session && (
+                            <CreditAdjustChip
+                              userId={adminFinBySignup.get(signup.id)!.userId!}
+                              clubId={session.clubId}
+                              sessionId={id}
+                              balancePence={adminFinBySignup.get(signup.id)!.creditBalance}
+                            />
+                          )}
                         </span>
-                      </p>
+                      </div>
                     )}
                     <div className="flex items-center gap-1.5 flex-wrap mt-1">
                       <Badge 
@@ -2574,7 +2600,18 @@ export default function SessionDetail() {
                 </TabsList>
                 <TabsContent value="confirmed" className="space-y-2 mt-3">
                   {(managePlayersData.confirmed || []).map((s: any) => (
-                    <ManagePlayerRow key={s.id} signup={s} onPaymentOverride={(updates) => paymentOverrideMutation.mutate({ signupId: s.id, ...updates })} onStatusChange={(status) => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: status })} />
+                    <ManagePlayerRow
+                      key={s.id}
+                      signup={s}
+                      sessionId={id}
+                      clubId={session!.clubId}
+                      adminFin={adminFinBySignup.get(s.id)}
+                      isOrganiser={!!isOrganiser}
+                      onFeeChange={(newFee) => paymentOverrideMutation.mutate({ signupId: s.id, fee: newFee } as any)}
+                      isFeeSaving={paymentOverrideMutation.isPending}
+                      onPaymentOverride={(updates) => paymentOverrideMutation.mutate({ signupId: s.id, ...updates })}
+                      onStatusChange={(status) => statusOverrideMutation.mutate({ signupId: s.id, signupStatus: status })}
+                    />
                   ))}
                   {(!managePlayersData.confirmed || managePlayersData.confirmed.length === 0) && <p className="text-sm text-muted-foreground text-center py-4">No confirmed players</p>}
                 </TabsContent>
@@ -5725,13 +5762,18 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   );
 }
 
-function SignupFeeEditor({ signup, canEdit, onSave, isSaving }: { signup: any; canEdit: boolean; onSave: (fee: number) => void; isSaving: boolean }) {
+function SignupFeeEditor({ signup, canEdit, onSave, isSaving, membershipPlanName, membershipFee }: { signup: any; canEdit: boolean; onSave: (fee: number) => void; isSaving: boolean; membershipPlanName?: string | null; membershipFee?: number | null }) {
   const currentFeePence = Number(signup?.fee ?? 0);
   const currentFeePounds = currentFeePence / 100;
   const displayPounds = Number.isInteger(currentFeePounds) ? String(currentFeePounds) : currentFeePounds.toFixed(2);
   const [editing, setEditing] = useState(false);
   const [value, setValue] = useState<string>(displayPounds);
   useEffect(() => { setValue(displayPounds); }, [displayPounds]);
+
+  const isMemberRate = !!membershipPlanName && membershipFee != null && currentFeePence === membershipFee;
+  const tooltip = membershipPlanName
+    ? `${membershipPlanName} rate${membershipFee != null ? ` (£${(membershipFee / 100).toFixed(2)})` : ""}${canEdit ? " — click to edit" : ""}`
+    : (canEdit ? "Click to edit fee" : `Session fee`);
 
   const commit = () => {
     const pounds = Number(value);
@@ -5768,13 +5810,98 @@ function SignupFeeEditor({ signup, canEdit, onSave, isSaving }: { signup: any; c
     <button
       type="button"
       onClick={(e) => { e.stopPropagation(); setEditing(true); }}
-      className="inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded-md bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 text-[11px] font-medium hover:bg-emerald-100 dark:hover:bg-emerald-900/40 transition-colors"
+      className={`inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
+        isMemberRate
+          ? "bg-violet-50 dark:bg-violet-950/30 text-violet-700 dark:text-violet-300 hover:bg-violet-100 dark:hover:bg-violet-900/40"
+          : "bg-emerald-50 dark:bg-emerald-950/30 text-emerald-700 dark:text-emerald-400 hover:bg-emerald-100 dark:hover:bg-emerald-900/40"
+      }`}
       data-testid={`button-edit-fee-${signup.id}`}
-      title="Click to edit fee"
+      title={tooltip}
     >
       £{displayPounds}
+      {isMemberRate && <span className="text-[9px] uppercase tracking-wide opacity-75">m</span>}
       <Pencil className="w-2.5 h-2.5 opacity-70" />
     </button>
+  );
+}
+
+function CreditAdjustChip({ userId, clubId, sessionId, balancePence }: { userId: number; clubId: number; sessionId: number; balancePence: number }) {
+  const { toast } = useToast();
+  const qc = useQueryClient();
+  const [open, setOpen] = useState(false);
+  const [direction, setDirection] = useState<"ADD" | "TAKE">("ADD");
+  const [amount, setAmount] = useState("");
+  const [reason, setReason] = useState("");
+
+  const mutation = useMutation({
+    mutationFn: async () => {
+      const pounds = Number(amount);
+      if (!Number.isFinite(pounds) || pounds <= 0) throw new Error("Enter a positive amount");
+      if (!reason.trim()) throw new Error("Reason is required");
+      const pence = Math.round(pounds * 100) * (direction === "ADD" ? 1 : -1);
+      const res = await apiRequest("POST", `/api/sessions/${sessionId}/credit-adjust`, { userId, amount: pence, reason: reason.trim() });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: direction === "ADD" ? "Credit added" : "Credit deducted" });
+      setOpen(false);
+      setAmount("");
+      setReason("");
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "admin-financials"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "financial-overview"] });
+      qc.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "manage-players"] });
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/credits") });
+    },
+    onError: (e: any) => toast({ title: "Failed", description: e?.message || "Could not update credit", variant: "destructive" }),
+  });
+
+  const balancePounds = balancePence / 100;
+  const balanceLabel = Number.isInteger(balancePounds) ? String(balancePounds) : balancePounds.toFixed(2);
+  const positive = balancePence > 0;
+  const negative = balancePence < 0;
+
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger asChild>
+        <button
+          type="button"
+          className={`inline-flex items-center gap-0.5 ml-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium transition-colors ${
+            positive
+              ? "bg-sky-50 dark:bg-sky-950/30 text-sky-700 dark:text-sky-300 hover:bg-sky-100 dark:hover:bg-sky-900/40"
+              : negative
+                ? "bg-red-50 dark:bg-red-950/30 text-red-700 dark:text-red-300 hover:bg-red-100 dark:hover:bg-red-900/40"
+                : "bg-muted text-muted-foreground hover:bg-muted/80"
+          }`}
+          onClick={(e) => e.stopPropagation()}
+          title={positive ? "Credit balance — click to adjust" : negative ? "Negative balance (owes club) — click to adjust" : "No credit — click to add"}
+          data-testid={`button-credit-${userId}`}
+        >
+          <CircleDollarSign className="w-2.5 h-2.5" />
+          £{balanceLabel}
+        </button>
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-3" align="start" onClick={(e) => e.stopPropagation()} data-testid={`popover-credit-${userId}`}>
+        <p className="text-xs font-semibold mb-2">Adjust player credit</p>
+        <p className="text-[11px] text-muted-foreground mb-2">Current balance: <span className="font-medium text-foreground">£{balanceLabel}</span></p>
+        <div className="flex gap-1 mb-2">
+          <Button size="sm" type="button" variant={direction === "ADD" ? "default" : "outline"} onClick={() => setDirection("ADD")} className="flex-1 h-7 text-xs" data-testid="button-credit-add">Add</Button>
+          <Button size="sm" type="button" variant={direction === "TAKE" ? "default" : "outline"} onClick={() => setDirection("TAKE")} className="flex-1 h-7 text-xs" data-testid="button-credit-take">Take</Button>
+        </div>
+        <div className="space-y-2">
+          <div>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Amount (£)</label>
+            <Input type="number" min="0" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} className="h-8 text-sm" data-testid="input-credit-amount" />
+          </div>
+          <div>
+            <label className="text-[10px] uppercase tracking-wide text-muted-foreground">Reason</label>
+            <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Goodwill refund" className="h-8 text-sm" data-testid="input-credit-reason" />
+          </div>
+          <Button size="sm" type="button" className="w-full h-8 text-xs" disabled={mutation.isPending} onClick={() => mutation.mutate()} data-testid="button-credit-save">
+            {mutation.isPending ? "Saving..." : (direction === "ADD" ? "Add credit" : "Take credit")}
+          </Button>
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 
@@ -5793,14 +5920,47 @@ function PaymentBadge({ status, method }: { status?: string; method?: string }) 
   );
 }
 
-function ManagePlayerRow({ signup, onPaymentOverride, onStatusChange }: { signup: any; onPaymentOverride: (u: any) => void; onStatusChange: (s: string) => void }) {
+function ManagePlayerRow({ signup, sessionId, clubId, adminFin, isOrganiser, onFeeChange, isFeeSaving, onPaymentOverride, onStatusChange }: {
+  signup: any;
+  sessionId: number;
+  clubId: number;
+  adminFin?: { signupId: number; userId: number | null; creditBalance: number; membershipPlanName: string | null; membershipFee: number | null; baseFee: number };
+  isOrganiser: boolean;
+  onFeeChange: (fee: number) => void;
+  isFeeSaving: boolean;
+  onPaymentOverride: (u: any) => void;
+  onStatusChange: (s: string) => void;
+}) {
   const [showOverride, setShowOverride] = useState(false);
   return (
     <div className="p-3 border rounded-md space-y-2">
-      <div className="flex items-center gap-2">
-        <div className="flex-1">
-          <p className="font-medium text-sm">{signup.player?.user?.fullName || "Unknown"}</p>
-          {signup.player?.user?.isJunior && <Badge variant="outline" className="text-xs">Junior</Badge>}
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex-1 min-w-0">
+          <div className="font-medium text-sm flex items-center gap-1 flex-wrap">
+            <span className="truncate">{signup.player?.user?.fullName || "Unknown"}</span>
+            {adminFin?.membershipPlanName && (
+              <Badge variant="outline" className="text-[10px] h-4 px-1 border-violet-300 text-violet-700 dark:border-violet-700 dark:text-violet-300" title={`${adminFin.membershipPlanName} — member rate £${((adminFin.membershipFee || 0) / 100).toFixed(2)}`}>
+                {adminFin.membershipPlanName}
+              </Badge>
+            )}
+            <SignupFeeEditor
+              signup={signup}
+              canEdit={isOrganiser}
+              onSave={onFeeChange}
+              isSaving={isFeeSaving}
+              membershipPlanName={adminFin?.membershipPlanName || null}
+              membershipFee={adminFin?.membershipFee ?? null}
+            />
+            {isOrganiser && adminFin?.userId != null && (
+              <CreditAdjustChip
+                userId={adminFin.userId}
+                clubId={clubId}
+                sessionId={sessionId}
+                balancePence={adminFin.creditBalance}
+              />
+            )}
+          </div>
+          {signup.player?.user?.isJunior && <Badge variant="outline" className="text-xs mt-1">Junior</Badge>}
         </div>
         <PaymentBadge status={signup.paymentStatus} method={signup.paymentMethod} />
         {signup.verifiedByAdmin && <Badge variant="secondary" className="text-xs bg-green-50 dark:bg-green-950">Verified</Badge>}

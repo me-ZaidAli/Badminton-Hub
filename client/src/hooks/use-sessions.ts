@@ -207,6 +207,7 @@ export function useJoinSession() {
     onSuccess: (data: any, sessionId) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "admin-financials"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       if (data?.addedToWaitingList) {
         toast({ title: "Added to Waiting List", description: "You'll be notified when a spot opens up." });
@@ -235,6 +236,7 @@ export function useWithdrawSession() {
     onSuccess: (_, sessionId) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "admin-financials"] });
       queryClient.invalidateQueries({ queryKey: ["/api/auth/me"] });
       toast({ title: "Withdrawn", description: "You have been removed from the session." });
     },
@@ -261,6 +263,7 @@ export function useAdminAddPlayer() {
     onSuccess: (_, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "admin-financials"] });
       toast({ title: "Player Added", description: "Player has been added to the session." });
     },
     onError: (err: Error) => {
@@ -286,6 +289,7 @@ export function useAdminRemovePlayer() {
     onSuccess: (_, { sessionId }) => {
       queryClient.invalidateQueries({ queryKey: [api.sessions.signups.path, sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.sessions.list.path] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", sessionId, "admin-financials"] });
       toast({ title: "Player Removed", description: "Player has been removed from the session." });
     },
     onError: (err: Error) => {
