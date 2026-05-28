@@ -27,20 +27,26 @@ const LazyFallback = () => <div className="h-64 flex items-center justify-center
 export const TrialPlayerContext = createContext<{ isTrialPlayer: boolean; trialStatus: string | null }>({ isTrialPlayer: false, trialStatus: null });
 export function useTrialPlayer() { return useContext(TrialPlayerContext); }
 
-import Home from "@/pages/Home";
-import Pricing from "@/pages/Pricing";
-import Login from "@/pages/auth/Login";
-import Register from "@/pages/auth/Register";
-import ForgotPassword from "@/pages/auth/ForgotPassword";
-import ResetPassword from "@/pages/auth/ResetPassword";
-import Dashboard from "@/pages/Dashboard";
-import Sessions from "@/pages/Sessions";
-import MySessions from "@/pages/MySessions";
-import SessionDetail from "@/pages/SessionDetail";
-import PublicSession from "@/pages/PublicSession";
-import NotFound from "@/pages/not-found";
-import Clubs from "@/pages/Clubs";
-import Profile from "@/pages/Profile";
+// All page-level routes are lazy-loaded so the initial bundle only ships
+// the shell (sidebar, router, auth, theming). Each route is fetched on
+// demand and Suspense shows LazyFallback while it streams in. This was
+// the biggest single contributor to slow first paint on the dashboard
+// — Dashboard.tsx alone is 1300+ lines and pulled in dozens of charts,
+// dialogs and hero tiles even when the user was sitting on /login.
+const Home = lazy(() => import("@/pages/Home"));
+const Pricing = lazy(() => import("@/pages/Pricing"));
+const Login = lazy(() => import("@/pages/auth/Login"));
+const Register = lazy(() => import("@/pages/auth/Register"));
+const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
+const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
+const Dashboard = lazy(() => import("@/pages/Dashboard"));
+const Sessions = lazy(() => import("@/pages/Sessions"));
+const MySessions = lazy(() => import("@/pages/MySessions"));
+const SessionDetail = lazy(() => import("@/pages/SessionDetail"));
+const PublicSession = lazy(() => import("@/pages/PublicSession"));
+const NotFound = lazy(() => import("@/pages/not-found"));
+const Clubs = lazy(() => import("@/pages/Clubs"));
+const Profile = lazy(() => import("@/pages/Profile"));
 
 const CreateClub = lazy(() => import("@/pages/CreateClub"));
 const JoinClub = lazy(() => import("@/pages/JoinClub"));

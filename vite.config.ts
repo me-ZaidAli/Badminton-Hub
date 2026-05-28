@@ -30,6 +30,26 @@ export default defineConfig({
   build: {
     outDir: path.resolve(import.meta.dirname, "dist/public"),
     emptyOutDir: true,
+    // Split heavy third-party libs out of the main bundle so cold loads
+    // can fetch the shell quickly and pull in feature-specific vendors
+    // (charts, maps, image export) only when those routes mount.
+    rollupOptions: {
+      output: {
+        manualChunks: (id) => {
+          if (!id.includes("node_modules")) return undefined;
+          if (id.includes("recharts") || id.includes("d3-")) return "vendor-charts";
+          if (id.includes("leaflet") || id.includes("mapbox-gl")) return "vendor-maps";
+          if (id.includes("html2canvas") || id.includes("jspdf")) return "vendor-export";
+          if (id.includes("framer-motion")) return "vendor-motion";
+          if (id.includes("@radix-ui")) return "vendor-radix";
+          if (id.includes("lucide-react") || id.includes("react-icons")) return "vendor-icons";
+          if (id.includes("@tanstack/react-query")) return "vendor-query";
+          if (id.includes("date-fns")) return "vendor-date";
+          if (id.includes("react-dom") || id.includes("/react/")) return "vendor-react";
+          return "vendor";
+        },
+      },
+    },
   },
   server: {
     fs: {

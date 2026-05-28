@@ -49,11 +49,26 @@ export default function DashboardBanner({
     [],
   );
 
+  // Defer preloading of the 7 follow-up banner images until the browser
+  // is idle (or 2s after mount as a fallback). The first image is shown
+  // via the rendered <div>, so it preloads naturally with the page —
+  // there's no need to compete with the critical bundle + API calls
+  // during initial load.
   useEffect(() => {
-    NATURE_IMAGES.forEach((src) => {
-      const img = new Image();
-      img.src = src;
-    });
+    const preload = () => {
+      NATURE_IMAGES.slice(1).forEach((src) => {
+        const img = new Image();
+        img.src = src;
+      });
+    };
+    const ric = (window as any).requestIdleCallback as undefined | ((cb: () => void, opts?: { timeout: number }) => number);
+    const cic = (window as any).cancelIdleCallback as undefined | ((id: number) => void);
+    if (typeof ric === "function") {
+      const handle = ric(preload, { timeout: 4000 });
+      return () => { if (typeof cic === "function") cic(handle); };
+    }
+    const t = setTimeout(preload, 2000);
+    return () => clearTimeout(t);
   }, []);
 
   useEffect(() => {
