@@ -11733,7 +11733,16 @@ export async function registerRoutes(
         );
       }
 
-      queryConditions.push(eq(sessionSignups.signupStatus, "CONFIRMED"));
+      // Include every active signup state so the financial panel matches
+      // the RSVP list. Previously this was hardcoded to CONFIRMED only,
+      // which silently hid INVITED players (added by admin via the invite
+      // flow) and WAITING players (waitlist) until something promoted
+      // them to CONFIRMED — the source of the "Annie doesn't show until
+      // I mark her paid" inconsistency. NOT_ATTENDING and CANCELLED stay
+      // excluded since those players don't owe a fee.
+      queryConditions.push(
+        inArray(sessionSignups.signupStatus, ["CONFIRMED", "INVITED", "WAITING"] as any)
+      );
 
       const signupsData = await db
         .select({
