@@ -250,7 +250,7 @@ export default function SessionDetail() {
     entries: { signupId: number; userId: number | null; creditBalance: number; membershipPlanName: string | null; membershipFee: number | null; baseFee: number }[];
   }>({
     queryKey: ["/api/sessions", id, "admin-financials"],
-    enabled: !!session && (user?.role === "OWNER" || user?.role === "ADMIN" || (sessionClubs?.some(c => c.id === session?.clubId) ?? false)),
+    enabled: !!session && (user?.role === "OWNER" || user?.role === "ADMIN"),
   });
   const adminFinBySignup = useMemo(() => {
     const m = new Map<number, NonNullable<typeof adminFinancials>["entries"][number]>();
@@ -2016,15 +2016,17 @@ export default function SessionDetail() {
                           )}
                           {parentPlayerAchievements[signup.playerId]?.trophy && <Trophy className="w-3.5 h-3.5 text-amber-400 inline-block" />}
                           {parentPlayerAchievements[signup.playerId]?.fire && <Flame className="w-3.5 h-3.5 text-orange-400 inline-block" />}
-                          <SignupFeeEditor
-                            signup={signup}
-                            canEdit={!!isOrganiser}
-                            onSave={(newFee) => paymentOverrideMutation.mutate({ signupId: signup.id, fee: newFee })}
-                            isSaving={paymentOverrideMutation.isPending}
-                            membershipPlanName={adminFinBySignup.get(signup.id)?.membershipPlanName || null}
-                            membershipFee={adminFinBySignup.get(signup.id)?.membershipFee ?? null}
-                          />
-                          {isOrganiser && adminFinBySignup.get(signup.id)?.userId != null && session && (
+                          {isSuperAdmin && (
+                            <SignupFeeEditor
+                              signup={signup}
+                              canEdit={true}
+                              onSave={(newFee) => paymentOverrideMutation.mutate({ signupId: signup.id, fee: newFee })}
+                              isSaving={paymentOverrideMutation.isPending}
+                              membershipPlanName={adminFinBySignup.get(signup.id)?.membershipPlanName || null}
+                              membershipFee={adminFinBySignup.get(signup.id)?.membershipFee ?? null}
+                            />
+                          )}
+                          {isSuperAdmin && adminFinBySignup.get(signup.id)?.userId != null && session && (
                             <CreditAdjustChip
                               userId={adminFinBySignup.get(signup.id)!.userId!}
                               clubId={session.clubId}
@@ -2606,7 +2608,7 @@ export default function SessionDetail() {
                       sessionId={id}
                       clubId={session!.clubId}
                       adminFin={adminFinBySignup.get(s.id)}
-                      isOrganiser={!!isOrganiser}
+                      isOrganiser={isSuperAdmin}
                       onFeeChange={(newFee) => paymentOverrideMutation.mutate({ signupId: s.id, fee: newFee } as any)}
                       isFeeSaving={paymentOverrideMutation.isPending}
                       onPaymentOverride={(updates) => paymentOverrideMutation.mutate({ signupId: s.id, ...updates })}
