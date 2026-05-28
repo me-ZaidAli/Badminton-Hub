@@ -221,8 +221,13 @@ export default function BslAdminQuickResults() {
     if (!detail) return out;
     const homeClubName = (detail as any)?.homeClub?.name || (detail as any)?.homeTeamName || "Home";
     const awayClubName = (detail as any)?.awayClub?.name || (detail as any)?.awayTeamName || "Away";
-    const stripClub = (name: string, clubName?: string) =>
-      clubName ? (name || "").replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") : (name || "");
+    const stripClub = (name: string, clubName?: string) => {
+      let s = name || "";
+      if (clubName) s = s.replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "");
+      // Also strip any leading "<Anything> Division " prefix (e.g. "Social Division MD Pair B" → "MD Pair B").
+      s = s.replace(/^.*?\bDivision\b\s*/i, "");
+      return s.trim();
+    };
     const ensurePair = (teamId: number | null | undefined, side: "home" | "away") => {
       if (!teamId) return null;
       let row = out.pairs.get(teamId);
@@ -385,8 +390,12 @@ export default function BslAdminQuickResults() {
                   const awaySelected = awayPairs.find(p => p.id === r.awayTeamId) as any;
                   const homeClubName = (detail as any)?.homeClub?.name || (detail as any)?.homeClubName || (detail as any)?.homeTeamName || "";
                   const awayClubName = (detail as any)?.awayClub?.name || (detail as any)?.awayClubName || (detail as any)?.awayTeamName || "";
-                  const stripClub = (name: string, clubName?: string) =>
-                    clubName ? (name || "").replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") : (name || "");
+                  const stripClub = (name: string, clubName?: string) => {
+                    let s = name || "";
+                    if (clubName) s = s.replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "");
+                    s = s.replace(/^.*?\bDivision\b\s*/i, "");
+                    return s.trim();
+                  };
                   const fmtPair = (p: any, clubName?: string) => {
                     if (!p) return "—";
                     const short = stripClub(p.name, clubName) || p.name;
@@ -409,16 +418,16 @@ export default function BslAdminQuickResults() {
                           value={r.homeTeamId ?? ""}
                           disabled={assignMutation.isPending || homeClubId == null}
                           onChange={(e) => assignMutation.mutate({ rubberId: r.id, side: "home", bslTeamId: e.target.value ? Number(e.target.value) : null })}
-                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2"
-                          style={{ borderColor: `${BSL.cyan}33` }}
+                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 text-white"
+                          style={{ borderColor: `${BSL.cyan}33`, colorScheme: "dark" }}
                           data-testid={`select-rubber-home-pair-${r.id}`}
                         >
-                          <option value="">— Pick home pair —</option>
+                          <option value="" style={{ background: BSL.card, color: "white" }}>— Pick home pair —</option>
                           {homeOpts.map(p => {
                             const names = Array.isArray((p as any).playerNames) && (p as any).playerNames.length ? (p as any).playerNames.join(" & ") : "no players assigned";
                             const short = stripClub(p.name, homeClubName) || p.name;
                             return (
-                              <option key={p.id} value={p.id}>
+                              <option key={p.id} value={p.id} style={{ background: BSL.card, color: "white" }}>
                                 {short} — {names}
                               </option>
                             );
@@ -452,16 +461,16 @@ export default function BslAdminQuickResults() {
                           value={r.awayTeamId ?? ""}
                           disabled={assignMutation.isPending || awayClubId == null}
                           onChange={(e) => assignMutation.mutate({ rubberId: r.id, side: "away", bslTeamId: e.target.value ? Number(e.target.value) : null })}
-                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2"
-                          style={{ borderColor: `${BSL.cyan}33` }}
+                          className="w-full bg-black/40 border rounded-lg px-2 py-1.5 text-xs font-bold focus:outline-none focus:ring-2 text-white"
+                          style={{ borderColor: `${BSL.cyan}33`, colorScheme: "dark" }}
                           data-testid={`select-rubber-away-pair-${r.id}`}
                         >
-                          <option value="">— Pick away pair —</option>
+                          <option value="" style={{ background: BSL.card, color: "white" }}>— Pick away pair —</option>
                           {awayOpts.map(p => {
                             const names = Array.isArray((p as any).playerNames) && (p as any).playerNames.length ? (p as any).playerNames.join(" & ") : "no players assigned";
                             const short = stripClub(p.name, awayClubName) || p.name;
                             return (
-                              <option key={p.id} value={p.id}>
+                              <option key={p.id} value={p.id} style={{ background: BSL.card, color: "white" }}>
                                 {short} — {names}
                               </option>
                             );

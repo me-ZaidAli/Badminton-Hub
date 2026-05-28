@@ -578,8 +578,13 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
               // on the row even after the dropdown closes / its label truncates).
               const homeSelected = homePairs.find((p: any) => p.id === r.homeTeamId);
               const awaySelected = awayPairs.find((p: any) => p.id === r.awayTeamId);
-              const stripClub = (name: string, clubName?: string) =>
-                clubName ? (name || "").replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "") : (name || "");
+              const stripClub = (name: string, clubName?: string) => {
+                let s = name || "";
+                if (clubName) s = s.replace(new RegExp("^" + clubName.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "\\s*", "i"), "");
+                // Also strip any leading "<Anything> Division " prefix.
+                s = s.replace(/^.*?\bDivision\b\s*/i, "");
+                return s.trim();
+              };
               const fmtPair = (p: any, clubName?: string) => {
                 if (!p) return "—";
                 const short = stripClub(p.name, clubName) || p.name;
@@ -606,15 +611,15 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         disabled={pairsDisabled}
                         onChange={(e) => handleAssignPair(r.id, "home", e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-2 py-1.5 rounded-md text-xs font-bold"
-                        style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                        style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white", colorScheme: "dark" }}
                         data-testid={`select-home-pair-${r.id}`}
                       >
-                        <option value="">— Pick home pair —</option>
+                        <option value="" style={{ background: BSL.card, color: "white" }}>— Pick home pair —</option>
                         {homeOpts.map((p: any) => {
                           const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players assigned";
                           const short = stripClub(p.name, homeName) || p.name;
                           return (
-                            <option key={p.id} value={p.id}>
+                            <option key={p.id} value={p.id} style={{ background: BSL.card, color: "white" }}>
                               {short} — {names}
                             </option>
                           );
@@ -626,15 +631,15 @@ function FinishMatchDialog({ fixtureId, teamMap, onClose, onFinished }: any) {
                         disabled={pairsDisabled}
                         onChange={(e) => handleAssignPair(r.id, "away", e.target.value ? Number(e.target.value) : null)}
                         className="w-full px-2 py-1.5 rounded-md text-xs font-bold"
-                        style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white" }}
+                        style={{ background: BSL.card, border: `1px solid ${BSL.border}`, color: "white", colorScheme: "dark" }}
                         data-testid={`select-away-pair-${r.id}`}
                       >
-                        <option value="">— Pick away pair —</option>
+                        <option value="" style={{ background: BSL.card, color: "white" }}>— Pick away pair —</option>
                         {awayOpts.map((p: any) => {
                           const names = Array.isArray(p.playerNames) && p.playerNames.length ? p.playerNames.join(" & ") : "no players assigned";
                           const short = stripClub(p.name, awayName) || p.name;
                           return (
-                            <option key={p.id} value={p.id}>
+                            <option key={p.id} value={p.id} style={{ background: BSL.card, color: "white" }}>
                               {short} — {names}
                             </option>
                           );
