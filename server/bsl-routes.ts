@@ -3007,7 +3007,9 @@ export function registerBslRoutes(app: Express) {
       const id = Number(req.params.id);
       if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
       const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
-      if (!player) return res.status(404).json({ message: "Player not found" });
+      // Idempotent: a second DELETE on the same id is a no-op success so
+      // UI/network retries don't surface as scary 404s.
+      if (!player) return res.json({ ok: true, alreadyDeleted: true, deletedId: id });
 
       // Block when the player has stats this season OR appears in any rubber
       // (bsl_rubbers has NO ACTION FKs so the delete would 23503 otherwise).

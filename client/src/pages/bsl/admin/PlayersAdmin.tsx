@@ -45,6 +45,12 @@ export default function PlayersAdmin() {
     qc.invalidateQueries({ queryKey: ["/api/bsl/admin/players"] });
     qc.invalidateQueries({ queryKey: ["/api/bsl/admin/dashboard"] });
     qc.invalidateQueries({ queryKey: ["/api/bsl/admin/pending"] });
+    // Broader admin surfaces that show roster / pair / membership data —
+    // a delete or transfer from here also changes those views.
+    qc.invalidateQueries({ queryKey: ["/api/bsl/admin/clubs"] });
+    qc.invalidateQueries({ queryKey: ["/api/bsl/clubs"] });
+    qc.invalidateQueries({ queryKey: ["/api/bsl/players"] });
+    qc.invalidateQueries({ queryKey: ["/api/bsl/my-club"] });
   };
 
   const update = useMutation({
