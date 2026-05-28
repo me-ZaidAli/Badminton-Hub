@@ -2996,6 +2996,50 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // Hard-delete a BSL player profile. The user account is untouched — only the
+  // bsl_players row + cascade children (bsl_team_members, bsl_wallet_transactions)
+  // disappear. After deletion the underlying user can be re-added later via the
+  // normal admin-create or join flow. Blocked when the player has any rubber
+  // history (bsl_rubbers FKs are NO ACTION) — caller must use Transfer or
+  // wait for next season instead.
+  app.delete("/api/bsl/admin/players/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "Invalid id" });
+      const [player] = await db.select().from(bslPlayers).where(eq(bslPlayers.id, id)).limit(1);
+      if (!player) return res.status(404).json({ message: "Player not found" });
+
+      // Block when the player has stats this season OR appears in any rubber
+      // (bsl_rubbers has NO ACTION FKs so the delete would 23503 otherwise).
+      if ((player.matchesPlayed ?? 0) > 0) {
+        return res.status(409).json({ message: "Player has match records this season. Use Transfer, or clear stats first." });
+      }
+      const inRubber = await db.select({ id: bslRubbers.id }).from(bslRubbers).where(
+        or(
+          eq(bslRubbers.homePlayer1Id, id),
+          eq(bslRubbers.homePlayer2Id, id),
+          eq(bslRubbers.awayPlayer1Id, id),
+          eq(bslRubbers.awayPlayer2Id, id),
+        )
+      ).limit(1);
+      if (inRubber.length > 0) {
+        return res.status(409).json({ message: "Player appears in recorded rubbers. Delete blocked — use Transfer or wait for season reset." });
+      }
+
+      await db.transaction(async (tx) => {
+        // Null-out captain slot first (SET NULL on cascade, but be explicit).
+        await tx.update(bslTeams).set({ captainPlayerId: null } as any).where(eq(bslTeams.captainPlayerId, id));
+        // bsl_team_members + bsl_wallet_transactions cascade via FK.
+        await tx.delete(bslPlayers).where(eq(bslPlayers.id, id));
+      });
+      await audit(req, "ADMIN_DELETE_PLAYER", "bsl_player", id, { userId: player.userId, bslClubId: player.bslClubId, prevStatus: player.status });
+      res.json({ ok: true, deletedId: id, userId: player.userId });
+    } catch (err: any) {
+      console.error("[bsl admin delete player] error", err);
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   // Replace the additional-admin list on a club. Only the current
   // managerUserId or super admin may edit. Each id must be an ACTIVE player
   // of the club. Owner is implicitly an admin and is removed from the list

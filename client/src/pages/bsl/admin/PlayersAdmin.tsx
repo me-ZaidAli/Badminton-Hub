@@ -4,7 +4,7 @@ import { motion } from "framer-motion";
 import { Link } from "wouter";
 import {
   Users, Search, ShieldOff, AlertTriangle, X, Save, Wallet as WalletIcon,
-  UserPlus, Zap, Plus, Minus, Tag, Layers, Award, ArrowRightLeft,
+  UserPlus, Zap, Plus, Minus, Tag, Layers, Award, ArrowRightLeft, Trash2,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
@@ -386,6 +386,19 @@ function PlayerEditor({ player, clubs, onClose, onSave, onChanged }: any) {
     onError: (e: any) => toast({ title: "Transfer blocked", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
   });
 
+  // Hard-delete (admin only). User account is untouched — the same user can
+  // be re-added to BSL afterwards via "Create player".
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const deletePlayer = useMutation({
+    mutationFn: async () => (await apiRequest("DELETE", `/api/bsl/admin/players/${player.id}`)).json(),
+    onSuccess: () => {
+      onChanged?.();
+      toast({ title: "Player removed from BSL", description: "Their user account is unchanged — you can re-add them anytime." });
+      onClose();
+    },
+    onError: (e: any) => toast({ title: "Delete blocked", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
+
   return (
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={onClose}>
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.cyan}55`, boxShadow: `0 24px 64px hsla(222,80%,2%,0.6), 0 0 0 1px ${BSL.cyan}22` }} onClick={e => e.stopPropagation()} data-testid="dialog-edit-player">
@@ -542,6 +555,48 @@ function PlayerEditor({ player, clubs, onClose, onSave, onChanged }: any) {
             {form.isSuspended ? "ON" : "OFF"}
           </button>
           <Field label="Discipline notes"><textarea value={form.disciplineNotes} onChange={e => setForm({ ...form, disciplineNotes: e.target.value })} rows={3} className="w-full px-3 py-2 rounded-lg text-sm resize-none mt-3" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="textarea-discipline" /></Field>
+        </Section>
+
+        <Section title="Danger zone">
+          <div className="p-3 rounded-lg" style={{ background: `${BSL.danger}11`, border: `1px solid ${BSL.danger}55` }}>
+            <div className="flex items-start gap-2 mb-2">
+              <AlertTriangle className="h-4 w-4 flex-shrink-0 mt-0.5" style={{ color: BSL.danger }} />
+              <div className="text-[11px]" style={{ color: BSL.muted }}>
+                Remove this player's BSL profile entirely. Their user account stays — you can re-add them to any club afterwards via <strong style={{ color: BSL.cyan }}>Create player</strong>. Wallet history, pair assignments and team-member rows are deleted. Blocked if the player has any match record this season — use <strong>Transfer</strong> or clear their stats first.
+              </div>
+            </div>
+            {!confirmDelete ? (
+              <button
+                onClick={() => setConfirmDelete(true)}
+                className="w-full px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest inline-flex items-center justify-center gap-1"
+                style={{ background: `${BSL.danger}22`, color: BSL.danger, border: `1px solid ${BSL.danger}55` }}
+                data-testid="button-delete-player"
+              >
+                <Trash2 className="h-3 w-3" /> Remove from BSL
+              </button>
+            ) : (
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  onClick={() => setConfirmDelete(false)}
+                  disabled={deletePlayer.isPending}
+                  className="px-3 py-2 rounded-lg text-xs font-bold disabled:opacity-50"
+                  style={{ background: BSL.cardSoft, color: BSL.muted }}
+                  data-testid="button-delete-cancel"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deletePlayer.mutate()}
+                  disabled={deletePlayer.isPending}
+                  className="px-3 py-2 rounded-lg text-xs font-black uppercase tracking-widest inline-flex items-center justify-center gap-1 disabled:opacity-50"
+                  style={{ background: BSL.danger, color: "white", border: `1px solid ${BSL.danger}` }}
+                  data-testid="button-delete-confirm"
+                >
+                  <Trash2 className="h-3 w-3" /> {deletePlayer.isPending ? "Removing…" : "Yes, remove"}
+                </button>
+              </div>
+            )}
+          </div>
         </Section>
 
         <div className="flex justify-end gap-2 pt-4">
