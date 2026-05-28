@@ -5795,7 +5795,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
   );
 }
 
-function SignupFeeEditor({ signup, canEdit, onSave, isSaving, membershipPlanName, membershipFee }: { signup: any; canEdit: boolean; onSave: (fee: number) => void; isSaving: boolean; membershipPlanName?: string | null; membershipFee?: number | null }) {
+export function SignupFeeEditor({ signup, canEdit, onSave, isSaving, membershipPlanName, membershipFee }: { signup: any; canEdit: boolean; onSave: (fee: number) => void; isSaving: boolean; membershipPlanName?: string | null; membershipFee?: number | null }) {
   const currentFeePence = Number(signup?.fee ?? 0);
   const currentFeePounds = currentFeePence / 100;
   const displayPounds = Number.isInteger(currentFeePounds) ? String(currentFeePounds) : currentFeePounds.toFixed(2);
@@ -5858,7 +5858,7 @@ function SignupFeeEditor({ signup, canEdit, onSave, isSaving, membershipPlanName
   );
 }
 
-function CreditAdjustChip({ userId, clubId, sessionId, balancePence }: { userId: number; clubId: number; sessionId: number; balancePence: number }) {
+export function CreditAdjustChip({ userId, clubId, sessionId, balancePence }: { userId: number; clubId: number; sessionId: number; balancePence: number }) {
   const { toast } = useToast();
   const qc = useQueryClient();
   const [open, setOpen] = useState(false);

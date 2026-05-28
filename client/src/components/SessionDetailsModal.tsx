@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -15,6 +15,7 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Users, Clock, CheckCircle, XCircle, Mail, UserMinus, PoundSterling, Loader2, LogIn, LogOut, UserPlus, Calendar, ChevronDown, ChevronUp, ChevronRight, MessageSquare, Ban, Send, Bell, FileText } from "lucide-react";
 import { format } from "date-fns";
 import { SessionBanner, UsefulLinks } from "./SessionViews";
+import { SignupFeeEditor, CreditAdjustChip } from "@/pages/SessionDetail";
 
 interface SessionDetailsModalProps {
   session: any;
@@ -64,6 +65,20 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
     },
     enabled: open && !isAdmin,
   });
+
+  const { data: adminFinancials } = useQuery<{
+    clubId: number;
+    baseFee: number;
+    entries: { signupId: number; userId: number | null; creditBalance: number; membershipPlanName: string | null; membershipFee: number | null; baseFee: number }[];
+  }>({
+    queryKey: ["/api/sessions", session.id, "admin-financials"],
+    enabled: open && isAdmin,
+  });
+  const adminFinBySignup = useMemo(() => {
+    const m = new Map<number, NonNullable<typeof adminFinancials>["entries"][number]>();
+    for (const e of adminFinancials?.entries || []) m.set(e.signupId, e);
+    return m;
+  }, [adminFinancials]);
 
   const { data: clubMembers } = useQuery<any[]>({
     queryKey: ["/api/clubs", session.clubId, "members"],
@@ -332,6 +347,33 @@ export function SessionDetailsModal({ session, open, onOpenChange, isAdmin }: Se
             {grade && <Badge variant="outline" className="text-[10px] px-1.5 py-0 shrink-0">{grade}</Badge>}
             {signup.signupStatus === "WAITING" && waitingPosition && (
               <Badge variant="secondary" className="text-[10px] px-1.5 py-0 shrink-0">#{waitingPosition}</Badge>
+            )}
+            {isAdmin && isConfirmedStatus && (
+              <Badge
+                variant={isPaid ? "default" : "destructive"}
+                className="text-[10px] px-1.5 py-0 shrink-0"
+                data-testid={`modal-badge-payment-${signup.id}`}
+              >
+                {isPaid ? "Paid" : "Unpaid"}
+              </Badge>
+            )}
+            {isAdmin && (
+              <SignupFeeEditor
+                signup={signup}
+                canEdit={true}
+                onSave={(newFee) => paymentMutation.mutate({ signupId: signup.id, updates: { fee: newFee } as any })}
+                isSaving={paymentMutation.isPending}
+                membershipPlanName={adminFinBySignup.get(signup.id)?.membershipPlanName || null}
+                membershipFee={adminFinBySignup.get(signup.id)?.membershipFee ?? null}
+              />
+            )}
+            {isAdmin && adminFinBySignup.get(signup.id)?.userId != null && (
+              <CreditAdjustChip
+                userId={adminFinBySignup.get(signup.id)!.userId!}
+                clubId={session.clubId}
+                sessionId={session.id}
+                balancePence={adminFinBySignup.get(signup.id)!.creditBalance}
+              />
             )}
           </div>
           {timeStamp}
