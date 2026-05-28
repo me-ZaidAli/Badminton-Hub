@@ -21,7 +21,7 @@ import {
   useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
   useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames, useUpdateMatchScheduledTime, useBulkUpdateMatchScheduledTime,
   useTournamentPlayerStats, useRecalculateStats,
-  useMyTournamentCategories, useJoinCategorySolo, useLeaveCategory,
+  useMyTournamentCategories, useJoinCategorySolo, useLeaveCategory, useSelfUnpair,
   useConfirmCategoryPayment, useUpdateTeamPayment,
   usePlayerTournamentStats,
 } from "@/hooks/use-tournaments";
@@ -2065,6 +2065,7 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
   const { data: tournament } = useTournament(tournamentId);
   const joinSoloMutation = useJoinCategorySolo();
   const leaveMutation = useLeaveCategory();
+  const selfUnpairMutation = useSelfUnpair();
   const sendPairMutation = useSendPairRequest();
   const respondPairMutation = useRespondPairRequest();
   const confirmPayMutation = useConfirmCategoryPayment();
@@ -2114,6 +2115,21 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
+  // Detect a legacy tournament-wide pair. Pairs created before per-category
+  // pairing existed live on the registration row (registrationType=PAIR with
+  // a partnerId). They block this player from being paired per-category until
+  // they unpair, so we show a banner with a self-dissolve button.
+  const isLegacyPaired = myRegistration?.registrationType === "PAIR" && !!myRegistration?.partnerId && myRegistration?.status === "APPROVED";
+  const legacyPartner = isLegacyPaired
+    ? (registrations || []).find((r: any) => r.userId === myRegistration.partnerId)
+    : null;
+  const legacyPartnerName = legacyPartner?.user?.fullName || legacyPartner?.user?.email || myRegistration?.partnerName || "your partner";
+
+  async function doSelfUnpair() {
+    try { await selfUnpairMutation.mutateAsync({ tournamentId }); toast({ title: "Unpaired", description: "You can now pick a different partner per category." }); }
+    catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
   return (
     <div className="space-y-4" data-testid="my-categories-tab">
       <div className="rounded-xl border border-border/50 bg-muted/20 p-3">
@@ -2121,6 +2137,26 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
           You're registered for <span className="font-bold text-foreground">{tournament?.name}</span>. Join the categories you want to play in below — pick a different partner per doubles category.
         </p>
       </div>
+      {isLegacyPaired && (
+        <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3" data-testid="legacy-pair-banner">
+          <div className="flex items-start gap-2">
+            <Zap className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
+            <div className="min-w-0">
+              <p className="text-sm font-bold text-foreground">You're paired with {legacyPartnerName} for the whole tournament</p>
+              <p className="text-xs text-muted-foreground mt-1">
+                This is an older tournament-wide pairing. Categories now use a per-category partner — so as long as this pairing is in place, you can't pick a different partner per category. Unpair below to free both of you up to join each category individually.
+              </p>
+            </div>
+          </div>
+          <div className="flex justify-end">
+            <Button size="sm" variant="outline" className="h-8 text-xs font-bold border-destructive/40 text-destructive hover:bg-destructive/10"
+              onClick={doSelfUnpair} disabled={selfUnpairMutation.isPending} data-testid="button-self-unpair">
+              {selfUnpairMutation.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <X className="h-3 w-3 mr-1" />}
+              Unpair with {legacyPartnerName}
+            </Button>
+          </div>
+        </div>
+      )}
       {myCategories.map((entry: any) => {
         const cat = entry.category;
         const isSingles = cat.playersPerSide < 2;
