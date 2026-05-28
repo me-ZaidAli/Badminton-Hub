@@ -43,7 +43,10 @@ export class ErrorBoundary extends Component<Props, State> {
       if (attempts < 3 && (!lastReload || now - lastReload > 4000)) {
         sessionStorage.setItem("chunk-reload-attempts", String(attempts + 1));
         sessionStorage.setItem("chunk-reload-ts", String(now));
-        window.location.reload();
+        // Cache-bust the URL so any stale cached index.html is bypassed.
+        const url = new URL(window.location.href);
+        url.searchParams.set("_cb", String(now));
+        window.location.replace(url.toString());
       }
     }
   }
