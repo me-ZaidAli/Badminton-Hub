@@ -63,8 +63,14 @@ export const queryClient = new QueryClient({
     queries: {
       queryFn: getQueryFn({ on401: "throw" }),
       refetchInterval: false,
+      // Refetch when the user comes back to the tab so stale dashboards
+      // freshen up, but only once the data is actually stale (60s).
+      // Bumped from 30s → 60s + 5min gcTime so quick tab-flips, route
+      // changes, and dialog opens reuse the cache instead of firing a
+      // round-trip every time.
       refetchOnWindowFocus: true,
-      staleTime: 30 * 1000,
+      staleTime: 60 * 1000,
+      gcTime: 5 * 60 * 1000,
       retry: false,
     },
     mutations: {

@@ -154,13 +154,20 @@ app.use((req, res, next) => {
       log(`serving on port ${port}`);
       console.log(`[APP BASE URL] ${process.env.APP_URL || process.env.REPLIT_DEPLOYMENT_URL || process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || 'none detected'}`);
 
-      ensureHotIndexes().catch(err => console.error("Ensure hot indexes failed:", err));
-      ensureRuleSeeds().catch(err => console.error("Ensure rule seeds failed:", err));
-      seedJuniorSkills().catch(err => console.error("Seed junior skills failed:", err));
-      seedExercises().catch(err => console.error("Seed exercises failed:", err));
-      seedPlayerSkillCategories().catch(err => console.error("Seed player skills failed:", err));
-      seedRecognitionCards().catch(err => console.error("Seed recognition cards failed:", err));
-      syncParentChildLinks().catch(err => console.error("Sync parent links failed:", err));
+      // Defer all idempotent boot work (index creation + seed checks +
+      // parent-link sync) by 3s so the HTTP listener can start serving
+      // requests immediately instead of competing with seven DB jobs
+      // for the connection pool on cold start. This dramatically
+      // improves first-request latency on Replit cold starts.
+      setTimeout(() => {
+        ensureHotIndexes().catch(err => console.error("Ensure hot indexes failed:", err));
+        ensureRuleSeeds().catch(err => console.error("Ensure rule seeds failed:", err));
+        seedJuniorSkills().catch(err => console.error("Seed junior skills failed:", err));
+        seedExercises().catch(err => console.error("Seed exercises failed:", err));
+        seedPlayerSkillCategories().catch(err => console.error("Seed player skills failed:", err));
+        seedRecognitionCards().catch(err => console.error("Seed recognition cards failed:", err));
+        syncParentChildLinks().catch(err => console.error("Sync parent links failed:", err));
+      }, 3000);
 
       setInterval(async () => {
         try {

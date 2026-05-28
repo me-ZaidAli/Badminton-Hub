@@ -111,6 +111,7 @@ function DashboardContent({
 
   const { data: mySessions, isLoading: mySessionsLoading } = useQuery<any[]>({
     queryKey: ["/api/my-sessions"],
+    staleTime: 60_000,
   });
 
   const withdrawMutation = useMutation({
