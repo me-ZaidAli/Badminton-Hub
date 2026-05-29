@@ -34431,33 +34431,58 @@ Return ONLY valid JSON in this exact format:
         return `${names}::${m.scoreA}-${m.scoreB}`;
       };
 
-      let allExtracted: any[] = [];
+      const allExtracted: any[] = [];
       const seenFingerprints = new Set<string>();
 
-      for (let imgIdx = 0; imgIdx < files.length; imgIdx++) {
-        const file = files[imgIdx];
-        const base64Image = file.buffer.toString("base64");
-        const mimeType = file.mimetype || "image/png";
-        const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
+      const processImage = async (file: Express.Multer.File, imgIdx: number): Promise<any[]> => {
+        try {
+          const base64Image = file.buffer.toString("base64");
+          const mimeType = file.mimetype || "image/png";
+          const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
 
-        console.log(`[AI Match Extract] Processing image ${imgIdx + 1} of ${files.length}`);
+          console.log(`[AI Match Extract] Processing image ${imgIdx + 1} of ${files.length}`);
 
-        let extracted = await extractFromImage(imageContent,
-          "Extract EVERY match result from this score sheet image. Count the total number of match rows first, then extract ALL of them. Do NOT skip any rows. Do NOT stop early. If you see 30 rows, output 30 matches. If you see 19 rows, output 19 matches. Preserve exact top-to-bottom order."
-        );
-
-        console.log(`[AI Match Extract] Image ${imgIdx + 1} first pass: ${extracted.length} matches`);
-
-        if (extracted.length > 0 && extracted.length <= 20) {
-          const retryMatches = await extractFromImage(imageContent,
-            `CRITICAL: On a previous attempt only ${extracted.length} matches were found from this image, but there are likely MORE rows. Please count EVERY row in the image very carefully. Scroll your attention from the VERY FIRST row at the top to the VERY LAST row at the bottom. Extract ALL of them. Do NOT stop after ${extracted.length}. Output every single match row visible in the image.`
+          let extracted = await extractFromImage(imageContent,
+            "Extract EVERY match result from this score sheet image. Count the total number of match rows first, then extract ALL of them. Do NOT skip any rows. Do NOT stop early. If you see 30 rows, output 30 matches. If you see 19 rows, output 19 matches. Preserve exact top-to-bottom order."
           );
-          if (retryMatches.length > extracted.length) {
-            console.log(`[AI Match Extract] Image ${imgIdx + 1} retry found more: ${retryMatches.length} vs ${extracted.length}`);
-            extracted = retryMatches;
-          }
-        }
 
+          console.log(`[AI Match Extract] Image ${imgIdx + 1} first pass: ${extracted.length} matches`);
+
+          if (extracted.length > 0 && extracted.length <= 20) {
+            const retryMatches = await extractFromImage(imageContent,
+              `CRITICAL: On a previous attempt only ${extracted.length} matches were found from this image, but there are likely MORE rows. Please count EVERY row in the image very carefully. Scroll your attention from the VERY FIRST row at the top to the VERY LAST row at the bottom. Extract ALL of them. Do NOT stop after ${extracted.length}. Output every single match row visible in the image.`
+            );
+            if (retryMatches.length > extracted.length) {
+              console.log(`[AI Match Extract] Image ${imgIdx + 1} retry found more: ${retryMatches.length} vs ${extracted.length}`);
+              extracted = retryMatches;
+            }
+          }
+
+          return extracted;
+        } catch (imgErr: any) {
+          console.error(`[AI Match Extract] Image ${imgIdx + 1} failed:`, imgErr?.message || imgErr);
+          return [];
+        }
+      };
+
+      // Process images in parallel so multiple images finish in roughly the
+      // time of a single image (sequential processing was exceeding the request
+      // timeout once two or more images were uploaded). A small concurrency cap
+      // keeps the OpenAI burst and memory use bounded for larger uploads.
+      const CONCURRENCY = 4;
+      const perImageResults: any[][] = new Array(files.length);
+      let nextIdx = 0;
+      const worker = async () => {
+        while (true) {
+          const imgIdx = nextIdx++;
+          if (imgIdx >= files.length) break;
+          perImageResults[imgIdx] = await processImage(files[imgIdx], imgIdx);
+        }
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker()));
+
+      // Dedupe in image order so the output stays deterministic and top-to-bottom.
+      perImageResults.forEach((extracted, imgIdx) => {
         for (const m of extracted) {
           const fp = getMatchFingerprint(m);
           if (!seenFingerprints.has(fp)) {
@@ -34467,9 +34492,8 @@ Return ONLY valid JSON in this exact format:
             console.log(`[AI Match Extract] Skipping duplicate match: ${fp}`);
           }
         }
-
         console.log(`[AI Match Extract] After image ${imgIdx + 1}: ${allExtracted.length} unique matches total`);
-      }
+      });
 
       const extractedMatches = allExtracted.map((m: any) => {
         const scoreA = Math.max(0, parseInt(m.scoreA) || 0);
