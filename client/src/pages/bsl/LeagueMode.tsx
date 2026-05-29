@@ -60,7 +60,7 @@ export default function LeagueMode() {
       />
       {/* HERO BANNER */}
       <div className="relative">
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6 md:pt-8">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 pt-6 md:pt-8">
           <motion.div
             initial={{ opacity: 0, y: -16, scale: 0.99 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
@@ -125,7 +125,7 @@ export default function LeagueMode() {
           </motion.div>
         </div>
 
-        <div className="max-w-7xl mx-auto px-4 md:px-8 pt-6">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 pt-6">
 
           {/* QUICK ACTIONS */}
           <motion.div
@@ -178,7 +178,7 @@ export default function LeagueMode() {
 
       {/* BATTLE SHOWCASE — full-bleed announcement of upcoming/live fixtures */}
       {showcase.length > 0 && (
-        <div className="max-w-7xl mx-auto px-4 md:px-8 mt-10">
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 mt-10">
           <motion.div
             initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
@@ -207,7 +207,7 @@ export default function LeagueMode() {
       )}
 
       {/* MAIN GRID */}
-      <div className="max-w-7xl mx-auto px-4 md:px-8 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-5">
+      <div className="max-w-[1600px] mx-auto px-4 md:px-8 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-5">
         {/* LIVE & UPCOMING (2/3) */}
         <div className="lg:col-span-2 space-y-5">
           <GlowPanel
