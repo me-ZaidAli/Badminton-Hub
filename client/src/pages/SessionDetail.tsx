@@ -243,6 +243,13 @@ export default function SessionDetail() {
     enabled: managePlayersOpen && !!session,
   });
 
+  // Organiser determination — must be computed before any query that gates on it
+  // (e.g. the admin-financials query below references isOrganiser in its `enabled`).
+  const { data: sessionClubs } = useMySessionClubs(!!user);
+  const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
+  const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
+  const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
+
   // Admin-only: per-signup credit balance + membership pricing for the RSVP list
   const { data: adminFinancials } = useQuery<{
     clubId: number;
@@ -333,7 +340,6 @@ export default function SessionDetail() {
     { value: "16-18", label: "16 to 18 years" },
   ];
 
-  const { data: sessionClubs } = useMySessionClubs(!!user);
   const { data: adminClubs } = useMyAdminClubs(!!user);
   const { data: allClubs } = useClubs();
   const { data: venues } = useVenues(session?.clubId || null);
@@ -349,9 +355,6 @@ export default function SessionDetail() {
   const isOnWaitingList = userSignup && (userSignup as any).signupStatus === "WAITING";
   const isInvited = userSignup && (userSignup as any).signupStatus === "INVITED";
   const sessionIsFull = (signups?.filter(s => (s as any).signupStatus === "CONFIRMED" || !(s as any).signupStatus) || []).length >= (session?.maxPlayers || 0);
-  const managedClubIds = new Set(sessionClubs?.map(c => c.id) || []);
-  const isSuperAdmin = user?.role === "OWNER" || user?.role === "ADMIN";
-  const isOrganiser = isSuperAdmin || (session ? managedClubIds.has(session.clubId) : false);
   const isOrganiserOnly = useIsOrganiserOnly(!!user);
 
   const { data: deletedMatchesData } = useQuery<{ count: number }>({
