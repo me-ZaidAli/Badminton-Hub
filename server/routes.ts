@@ -36073,6 +36073,31 @@ Return ONLY valid JSON in this exact format:
     }
   });
 
+  app.delete("/api/team-events/:id/signups/:signupId", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const user = req.user!;
+      const eventId = Number(req.params.id);
+      const signupId = Number(req.params.signupId);
+
+      const [event] = await db.select().from(teamEvents).where(eq(teamEvents.id, eventId));
+      if (!event) return res.status(404).json({ message: "Team event not found" });
+
+      const canAccess = await hasAdminAccess(user.id, user.role, event.clubId);
+      if (!canAccess) return res.sendStatus(403);
+
+      const [signup] = await db.select({ id: teamEventSignups.id, teamEventId: teamEventSignups.teamEventId })
+        .from(teamEventSignups).where(eq(teamEventSignups.id, signupId)).limit(1);
+      if (!signup) return res.status(404).json({ message: "Signup not found" });
+      if (signup.teamEventId !== eventId) return res.status(400).json({ message: "Signup does not belong to this event" });
+
+      await db.update(teamEventSignups).set({ status: "CANCELLED" }).where(eq(teamEventSignups.id, signupId));
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message });
+    }
+  });
+
   app.get("/api/team-events/:id/financial-overview", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

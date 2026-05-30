@@ -335,6 +335,21 @@ function ExpandedAttendeesSection({ eventId, canManage }: { eventId: number; can
     },
   });
 
+  const removeMutation = useMutation({
+    mutationFn: async (signupId: number) => {
+      const res = await apiRequest("DELETE", `/api/team-events/${eventId}/signups/${signupId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/team-events", eventId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-events"] });
+      toast({ title: "Removed", description: "Player has been removed from this event." });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
   useEffect(() => {
     if (contentRef.current) {
       setHeight(contentRef.current.scrollHeight);
@@ -458,36 +473,49 @@ function ExpandedAttendeesSection({ eventId, canManage }: { eventId: number; can
                              attendee.paymentStatus === "PENDING" ? "£ Pending" : "£ Unpaid"}
                           </Badge>
                         )}
-                        {canManage && fee > 0 && (
+                        {canManage && (
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-6 w-6" data-testid={`button-payment-menu-${attendee.id}`}>
+                              <Button variant="ghost" size="icon" className="h-6 w-6" data-testid={`button-attendee-menu-${attendee.id}`}>
                                 <MoreVertical className="h-3 w-3" />
                               </Button>
                             </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end" className="w-36">
+                            <DropdownMenuContent align="end" className="w-44">
+                              {fee > 0 && (
+                                <>
+                                  <DropdownMenuItem
+                                    onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "PAID" })}
+                                    data-testid={`button-mark-paid-${attendee.id}`}
+                                  >
+                                    <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Mark Paid
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "PENDING" })}
+                                    data-testid={`button-mark-pending-${attendee.id}`}
+                                  >
+                                    <Clock className="h-3.5 w-3.5 mr-2 text-amber-500" /> Mark Pending
+                                  </DropdownMenuItem>
+                                  <DropdownMenuItem
+                                    onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "UNPAID" })}
+                                    data-testid={`button-mark-unpaid-${attendee.id}`}
+                                  >
+                                    <AlertTriangle className="h-3.5 w-3.5 mr-2 text-red-500" /> Mark Unpaid
+                                  </DropdownMenuItem>
+                                  <DropdownMenuSeparator />
+                                </>
+                              )}
                               <DropdownMenuItem
-                                onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "PAID" })}
-                                data-testid={`button-mark-paid-${attendee.id}`}
+                                onClick={() => removeMutation.mutate(attendee.id)}
+                                disabled={removeMutation.isPending}
+                                className="text-red-600"
+                                data-testid={`button-remove-attendee-${attendee.id}`}
                               >
-                                <CheckCircle className="h-3.5 w-3.5 mr-2 text-emerald-500" /> Mark Paid
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "PENDING" })}
-                                data-testid={`button-mark-pending-${attendee.id}`}
-                              >
-                                <Clock className="h-3.5 w-3.5 mr-2 text-amber-500" /> Mark Pending
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                onClick={() => paymentMutation.mutate({ signupId: attendee.id, paymentStatus: "UNPAID" })}
-                                data-testid={`button-mark-unpaid-${attendee.id}`}
-                              >
-                                <AlertTriangle className="h-3.5 w-3.5 mr-2 text-red-500" /> Mark Unpaid
+                                <UserMinus className="h-3.5 w-3.5 mr-2" /> Remove from event
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
                         )}
-                        {!(canManage && fee > 0) && (
+                        {!canManage && (
                           <span className="text-[10px] text-muted-foreground tabular-nums">
                             {format(new Date(attendee.createdAt), "dd MMM")}
                           </span>
@@ -719,8 +747,9 @@ export default function TeamEventsTab({ canManageEvents }: TeamEventsTabProps) {
       const res = await apiRequest("POST", `/api/team-events/${eventId}/signup`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, eventId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-events", eventId] });
       toast({ title: "Signed up", description: "You've been signed up for this team event." });
     },
     onError: (error: any) => {
@@ -733,8 +762,9 @@ export default function TeamEventsTab({ canManageEvents }: TeamEventsTabProps) {
       const res = await apiRequest("DELETE", `/api/team-events/${eventId}/signup`);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (_data, eventId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/team-events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/team-events", eventId] });
       toast({ title: "Withdrawn", description: "You've withdrawn from this team event." });
     },
     onError: (error: any) => {
