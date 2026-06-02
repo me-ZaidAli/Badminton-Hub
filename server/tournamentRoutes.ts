@@ -260,6 +260,8 @@ export function registerTournamentRoutes(app: Express) {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
       const tournamentId = Number(req.params.id);
+      const canManage = await isTournamentAdmin((req.user as any).id, tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Not authorized" });
       const [cat] = await db.insert(tournamentCategories).values({ tournamentId, ...req.body }).returning();
       res.json(cat);
     } catch (e: any) {
