@@ -1023,6 +1023,7 @@ export class DatabaseStorage implements IStorage {
     if (teamIds.rows && teamIds.rows.length > 0) {
       const ids = teamIds.rows.map((r: any) => r.id);
       for (const tid of ids) {
+        await db.execute(sql`DELETE FROM tournament_group_pairs WHERE team_id = ${tid}`);
         await db.execute(sql`DELETE FROM tournament_standings WHERE team_id = ${tid}`);
         await db.execute(sql`DELETE FROM tournament_matches WHERE team_a_id = ${tid} OR team_b_id = ${tid} OR winner_id = ${tid}`);
       }
@@ -1085,6 +1086,7 @@ export class DatabaseStorage implements IStorage {
         if (teamIds.rows && teamIds.rows.length > 0) {
           const ids = teamIds.rows.map((r: any) => r.id);
           for (const tid of ids) {
+            await db.execute(sql`DELETE FROM tournament_group_pairs WHERE team_id = ${tid}`);
             await db.execute(sql`DELETE FROM tournament_standings WHERE team_id = ${tid}`);
             await db.execute(sql`DELETE FROM tournament_matches WHERE team_a_id = ${tid} OR team_b_id = ${tid} OR winner_id = ${tid}`);
           }
@@ -1211,6 +1213,16 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`UPDATE chat_messages SET deleted_by_id = NULL WHERE deleted_by_id = ${userId}`);
     await db.execute(sql`UPDATE email_templates SET created_by = NULL WHERE created_by = ${userId}`);
     await db.execute(sql`UPDATE membership_requests SET approved_by_id = NULL WHERE approved_by_id = ${userId}`);
+
+    // Remove the user from every tournament and team event they signed up for.
+    await db.execute(sql`DELETE FROM tournament_group_pairs WHERE pair_request_id IN (SELECT id FROM tournament_pair_requests WHERE from_user_id = ${userId} OR to_user_id = ${userId})`);
+    await db.execute(sql`DELETE FROM tournament_pair_requests WHERE from_user_id = ${userId} OR to_user_id = ${userId}`);
+    await db.execute(sql`UPDATE tournament_registrations SET partner_id = NULL WHERE partner_id = ${userId}`);
+    await db.execute(sql`DELETE FROM tournament_registrations WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM tournament_waitlist WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM tournament_player_stats WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM tournament_admins WHERE user_id = ${userId} OR granted_by = ${userId}`);
+    await db.execute(sql`DELETE FROM team_event_signups WHERE user_id = ${userId}`);
 
     await db.delete(users).where(eq(users.id, userId));
   }

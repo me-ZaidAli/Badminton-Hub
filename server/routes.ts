@@ -9613,20 +9613,13 @@ export async function registerRoutes(
         if (keepCountry !== undefined) {
           mergeUpdates.country = keepCountry === "remove" ? removeUser.country : keepUser.country;
         }
-        if (Object.keys(mergeUpdates).length > 0) {
-          await db.update(users).set(mergeUpdates).where(eq(users.id, keepUserId));
-        }
-
-        await db.update(users).set({
-          closedAt: new Date(),
-          closedReason: "MERGED",
-          accountStatus: "SUSPENDED",
-        }).where(eq(users.id, removeUserId));
-
+        // Write the audit log BEFORE deleting the removed account. secondaryProfileId
+        // is set to 0 (not the removed profile's id) so deleteUserCompletely does not
+        // wipe this very log when it cleans up the removed user's merge records.
         const finalEmail = mergeUpdates.email || keepUser.email;
         await db.insert(profileMergeLogs).values({
           primaryProfileId: keepProfiles[0]?.id || 0,
-          secondaryProfileId: removeProfiles[0]?.id || 0,
+          secondaryProfileId: 0,
           mergedByUserId: req.user!.id,
           keptEmail: finalEmail,
           keptUserId: keepUserId,
@@ -9636,6 +9629,7 @@ export async function registerRoutes(
             removeUserName: removeUser.fullName,
             keepUserId,
             removeUserId,
+            removedProfileId: removeProfiles[0]?.id || null,
             profilesMerged,
             profilesTransferred,
             totalSessionsReassigned,
@@ -9643,6 +9637,17 @@ export async function registerRoutes(
             totalCreditsMerged,
           },
         });
+
+        // Completely delete the merged-away account and everything still tied to it
+        // (archived profiles, tournament sign-ups, team events, etc.). The keep data
+        // was already reassigned to the surviving account above.
+        await storage.deleteUserCompletely(removeUserId);
+
+        // Apply the chosen field overrides to the surviving account AFTER the old
+        // account is gone, so a kept email/phone is free to reuse.
+        if (Object.keys(mergeUpdates).length > 0) {
+          await db.update(users).set(mergeUpdates).where(eq(users.id, keepUserId));
+        }
 
         await db.execute(sql`COMMIT`);
 

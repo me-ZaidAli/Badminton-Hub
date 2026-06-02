@@ -737,7 +737,7 @@ export function GlobalMergeModal({ open, onClose }: GlobalMergeModalProps) {
                 </p>
                 <p className="text-xs text-muted-foreground">
                   All match history, session signups, rewards, memberships, messages, donations, and tickets will be transferred.
-                  The removed account will be deactivated. A full audit log will be created.
+                  The removed account will then be permanently deleted, including any tournament and team-event sign-ups. A full audit log will be created.
                 </p>
                 {(fieldSelections.email === "remove" || fieldSelections.password === "remove") && (
                   <div className="mt-2 p-2 bg-muted/50 rounded text-xs">
