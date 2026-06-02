@@ -167,3 +167,9 @@ id = "8-az0qhNYHcACcinONvBN"
 uri = "file://attached_assets/screenshots/57a9eafa-4ec0-4ca7-86dc-3efee3bb8fa5-00-1h9de06ujxuie_worf_replit_dev_mockup_preview_dashboard-nitro_Dashboard.png"
 type = "image"
 title = "Dashboard — Discord Nitro Style (preview)"
+
+[[outputs]]
+id = "G47knb1PdnM3zyZbgJAKU"
+uri = "file://dist/club-master-source.tar.gz"
+type = "unspecified"
+title = "Club Master — source code (.tar.gz)"
