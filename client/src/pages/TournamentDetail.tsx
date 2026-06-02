@@ -9,7 +9,7 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs, useTournamentTeamsByCategory,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
-  useWithdrawRegistration, useAdminCreatePair, useAdminAddPlayer, useAdminDissolvePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
+  useWithdrawRegistration, useAdminCreatePair, useAdminAddPlayer, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
@@ -1196,8 +1196,28 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
     },
   });
 
-  const adminDissolvePairMutation = useAdminDissolvePair();
-  const legacyPairs = (pairs || []).filter((p: any) => p.categoryId == null);
+  // Pairs that were formed without a specific category (tournament-wide). These
+  // have no per-category team row, so we surface them as their own section below
+  // instead of hiding them. We trust whatever pairs exist in the system.
+  const tournamentWidePairs = (pairs || [])
+    .filter((p: any) => p.categoryId == null)
+    .map((p: any) => ({
+      id: p.id,
+      player1: p.user1,
+      player2: p.user2,
+      profile1: p.profile1,
+      profile2: p.profile2,
+      createdAt: p.createdAt,
+      isPaired: true,
+    }));
+  const tournamentWideRows = tournamentWidePairs.length > 0
+    ? [{
+        category: { id: -1, name: "Tournament-wide", playersPerSide: 2, format: "Pairs", genderRestriction: "ALL" },
+        confirmedPairs: tournamentWidePairs,
+        soloEntries: [] as any[],
+      }]
+    : [];
+  const allTeamRows = [...(teamsByCategory || []), ...tournamentWideRows];
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
   const myIncomingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
@@ -1373,58 +1393,9 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
         </div>
       )}
 
-      {isAdmin && legacyPairs.length > 0 && (
-        <div className="rounded-2xl border border-amber-500/30 bg-amber-500/5 p-5 space-y-3" data-testid="legacy-pairs-panel">
-          <div className="flex items-center justify-between flex-wrap gap-2">
-            <div>
-              <h3 className="text-base font-bold text-amber-500 flex items-center gap-2">
-                <AlertTriangle className="h-4 w-4" />
-                Legacy tournament-wide pairs ({legacyPairs.length})
-              </h3>
-              <p className="text-xs text-muted-foreground mt-1">
-                These pairs were created before per-category pairing existed. They're blocking the two players from joining new categories. Dissolve to free them — both players go back to individual entries and can be re-paired separately in each category.
-              </p>
-            </div>
-          </div>
-          <div className="grid gap-2 sm:grid-cols-2">
-            {legacyPairs.map((p: any) => {
-              const p1Name = p.user1?.fullName || `Player ${p.user1?.id}`;
-              const p2Name = p.user2?.fullName || `Player ${p.user2?.id}`;
-              return (
-                <div key={`legacy-${p.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-amber-500/20 bg-background/40 px-3 py-2" data-testid={`legacy-pair-${p.id}`}>
-                  <div className="min-w-0">
-                    <div className="text-sm font-semibold truncate">{p1Name} &amp; {p2Name}</div>
-                    {p.pairName && <div className="text-[11px] text-muted-foreground truncate">"{p.pairName}"</div>}
-                  </div>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    className="border-amber-500/40 text-amber-500 hover:bg-amber-500/10 shrink-0"
-                    data-testid={`button-dissolve-legacy-pair-${p.id}`}
-                    disabled={adminDissolvePairMutation.isPending}
-                    onClick={async () => {
-                      if (!p.user1?.id) return;
-                      if (!confirm(`Dissolve the pair "${p1Name} & ${p2Name}"? Both players will become available to be paired in any category.`)) return;
-                      try {
-                        const data = await adminDissolvePairMutation.mutateAsync({ tournamentId, userId: p.user1.id });
-                        toast({ title: "Pair dissolved", description: data.message });
-                      } catch (err: any) {
-                        toast({ title: "Error", description: err.message, variant: "destructive" });
-                      }
-                    }}
-                  >
-                    {adminDissolvePairMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Dissolve"}
-                  </Button>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-
-      {teamsByCategory && teamsByCategory.length > 0 && teamsByCategory.some((r: any) => r.confirmedPairs.length > 0 || r.soloEntries.length > 0) && (
+      {allTeamRows.length > 0 && allTeamRows.some((r: any) => r.confirmedPairs.length > 0 || r.soloEntries.length > 0) && (
         <div className="space-y-8" data-testid="pairs-by-category">
-          {teamsByCategory.map((row: any, catIdx: number) => {
+          {allTeamRows.map((row: any, catIdx: number) => {
             if (row.confirmedPairs.length === 0 && row.soloEntries.length === 0) return null;
             const catKey = `cat-${row.category.id}`;
             const genderBadge = (() => {
