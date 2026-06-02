@@ -9,7 +9,7 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs, useTournamentTeamsByCategory,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
-  useWithdrawRegistration, useAdminCreatePair, useAdminDissolvePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
+  useWithdrawRegistration, useAdminCreatePair, useAdminAddPlayer, useAdminDissolvePair, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
@@ -5340,6 +5340,10 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();
   const adminCreatePairMutation = useAdminCreatePair();
+  const addPlayerMutation = useAdminAddPlayer();
+  const [addPlayerOpen, setAddPlayerOpen] = useState(false);
+  const [addPlayerSearch, setAddPlayerSearch] = useState("");
+  const { data: systemUsers } = useQuery<any[]>({ queryKey: ["/api/tournaments", tournamentId, "addable-players"], enabled: addPlayerOpen });
   const [editingTeam, setEditingTeam] = useState<any>(null);
   const [selectedCatId, setSelectedCatId] = useState<number | null>(null);
   const activeCatId = selectedCatId || (categories.length > 0 ? categories[0].id : null);
@@ -5395,6 +5399,11 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
         <Button size="sm" variant={tournament.isLocked ? "destructive" : "outline"} onClick={handleLock} className="font-bold">
           <Lock className="h-3.5 w-3.5 mr-1" />{tournament.isLocked ? "Unlock" : "Lock"} Tournament
         </Button>
+        <Button size="sm" variant="outline" className="font-bold border-violet-500/30 text-violet-500 hover:bg-violet-500/10"
+          data-testid="button-add-player"
+          onClick={() => setAddPlayerOpen(true)}>
+          <UserPlus className="h-3.5 w-3.5 mr-1" />Add Player
+        </Button>
         <Button size="sm" variant="outline" className="font-bold border-emerald-500/30 text-emerald-500 hover:bg-emerald-500/10"
           data-testid="button-seed-demo-players"
           disabled={seedDemoMutation.isPending}
@@ -5427,6 +5436,47 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
           Restart Tournament
         </Button>
       </div>
+
+      <Dialog open={addPlayerOpen} onOpenChange={(o) => { setAddPlayerOpen(o); if (!o) setAddPlayerSearch(""); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Add Player</DialogTitle>
+            <DialogDescription>Pick an existing player from the system to add to this tournament. They will be added as approved.</DialogDescription>
+          </DialogHeader>
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input placeholder="Search players by name or email..." value={addPlayerSearch}
+              onChange={e => setAddPlayerSearch(e.target.value)} className="pl-9" data-testid="input-add-player-search" />
+          </div>
+          <div className="max-h-72 overflow-y-auto space-y-1 mt-2">
+            {(() => {
+              const registeredIds = new Set((registrations || []).map((r: any) => r.userId));
+              const q = addPlayerSearch.trim().toLowerCase();
+              const matches = (systemUsers || [])
+                .filter((u: any) => !registeredIds.has(u.id))
+                .filter((u: any) => !q || (u.fullName || "").toLowerCase().includes(q) || (u.email || "").toLowerCase().includes(q))
+                .slice(0, 50);
+              if (!matches.length) return <p className="text-sm text-muted-foreground py-6 text-center">No matching players.</p>;
+              return matches.map((u: any) => (
+                <button key={u.id} data-testid={`button-add-player-${u.id}`}
+                  disabled={addPlayerMutation.isPending}
+                  onClick={async () => {
+                    try {
+                      await addPlayerMutation.mutateAsync({ tournamentId, userId: u.id });
+                      toast({ title: "Player Added", description: `${u.fullName || "Player"} added to the tournament.` });
+                      setAddPlayerOpen(false);
+                      setAddPlayerSearch("");
+                    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                  }}
+                  className="w-full flex items-center justify-between gap-2 rounded-lg px-3 py-2 text-left text-sm hover:bg-muted/50 disabled:opacity-50">
+                  <span className="font-medium truncate">{u.fullName || `Player ${u.id}`}</span>
+                  <span className="text-xs text-muted-foreground truncate">{u.email}</span>
+                </button>
+              ));
+            })()}
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={confirmRestart} onOpenChange={setConfirmRestart}>
         <DialogContent>

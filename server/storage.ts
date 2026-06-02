@@ -1035,6 +1035,16 @@ export class DatabaseStorage implements IStorage {
 
     await db.execute(sql`DELETE FROM profile_merge_logs WHERE primary_profile_id = ${id} OR secondary_profile_id = ${id}`);
 
+    await db.execute(sql`DELETE FROM player_achievements_record WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM player_coach_notes WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM player_skill_evaluations WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM player_skill_review_requests WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM player_analytics_enrollments WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM player_skill_progress WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM player_skill_progress_history WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM tshirts WHERE player_id = ${id}`);
+    await db.execute(sql`DELETE FROM tshirt_requests WHERE player_id = ${id}`);
+
     await db.delete(playerProfiles).where(eq(playerProfiles.id, id));
   }
 
@@ -1060,6 +1070,7 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM league_match_players WHERE user_id = ${userId}`);
     await db.execute(sql`UPDATE league_matches SET created_by = NULL WHERE created_by = ${userId}`);
 
+    await db.execute(sql`DELETE FROM card_credit_transactions WHERE user_id = ${userId} OR issued_by_id = ${userId} OR user_card_id IN (SELECT id FROM user_cards WHERE user_id = ${userId})`);
     await db.execute(sql`DELETE FROM user_cards WHERE user_id = ${userId}`);
     await db.execute(sql`UPDATE user_cards SET issued_by = NULL WHERE issued_by = ${userId}`);
 
@@ -1102,6 +1113,11 @@ export class DatabaseStorage implements IStorage {
         await db.execute(sql`DELETE FROM player_coach_notes WHERE player_id = ${pid}`);
         await db.execute(sql`DELETE FROM player_skill_evaluations WHERE player_id = ${pid}`);
         await db.execute(sql`DELETE FROM player_skill_review_requests WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM player_analytics_enrollments WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM player_skill_progress WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM player_skill_progress_history WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM tshirts WHERE player_id = ${pid}`);
+        await db.execute(sql`DELETE FROM tshirt_requests WHERE player_id = ${pid}`);
       }
 
       await db.delete(playerProfiles).where(inArray(playerProfiles.id, profileIds));
@@ -1117,7 +1133,11 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM credit_ledger WHERE created_by_id = ${userId}`);
     await db.execute(sql`DELETE FROM club_memberships WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM membership_requests WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM merchandise_order_items WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE merchandise_order_history SET changed_by_id = NULL WHERE changed_by_id = ${userId}`);
+    await db.execute(sql`DELETE FROM merchandise_order_history WHERE order_id IN (SELECT id FROM merchandise_orders WHERE user_id = ${userId})`);
     await db.execute(sql`DELETE FROM merchandise_orders WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE merchandise_products SET created_by = NULL WHERE created_by = ${userId}`);
     await db.execute(sql`DELETE FROM notifications WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM notification_logs WHERE recipient_user_id = ${userId}`);
     await db.execute(sql`DELETE FROM announcement_archives WHERE user_id = ${userId}`);
@@ -1223,6 +1243,52 @@ export class DatabaseStorage implements IStorage {
     await db.execute(sql`DELETE FROM tournament_player_stats WHERE user_id = ${userId}`);
     await db.execute(sql`DELETE FROM tournament_admins WHERE user_id = ${userId} OR granted_by = ${userId}`);
     await db.execute(sql`DELETE FROM team_event_signups WHERE user_id = ${userId}`);
+
+    // Wallet ledgers — every user has a wallet, so these block deletion otherwise.
+    await db.execute(sql`DELETE FROM wallet_transactions WHERE user_id = ${userId} OR created_by_id = ${userId} OR wallet_id IN (SELECT id FROM wallets WHERE user_id = ${userId} OR created_by_id = ${userId})`);
+    await db.execute(sql`DELETE FROM wallets WHERE user_id = ${userId} OR created_by_id = ${userId}`);
+
+    // Sessions the user was assigned to as staff (legacy single-id FK columns).
+    await db.execute(sql`UPDATE sessions SET coach_user_id = NULL WHERE coach_user_id = ${userId}`);
+    await db.execute(sql`UPDATE sessions SET coordinator_user_id = NULL WHERE coordinator_user_id = ${userId}`);
+    await db.execute(sql`UPDATE sessions SET organiser_user_id = NULL WHERE organiser_user_id = ${userId}`);
+
+    // Skill / analytics rows this user created for other players.
+    await db.execute(sql`DELETE FROM player_analytics_enrollments WHERE enrolled_by_user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM player_skill_progress WHERE updated_by_user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM player_skill_progress_history WHERE changed_by_user_id = ${userId}`);
+
+    // T-shirts.
+    await db.execute(sql`UPDATE tshirts SET confirmed_by_id = NULL WHERE confirmed_by_id = ${userId}`);
+    await db.execute(sql`DELETE FROM tshirt_batches WHERE created_by_id = ${userId}`);
+
+    // Community + food (delete children before parents).
+    await db.execute(sql`DELETE FROM community_likes WHERE user_id = ${userId} OR post_id IN (SELECT id FROM community_posts WHERE user_id = ${userId} OR event_id IN (SELECT id FROM community_events WHERE created_by = ${userId}))`);
+    await db.execute(sql`DELETE FROM community_comments WHERE user_id = ${userId} OR post_id IN (SELECT id FROM community_posts WHERE user_id = ${userId} OR event_id IN (SELECT id FROM community_events WHERE created_by = ${userId}))`);
+    await db.execute(sql`DELETE FROM community_reviews WHERE user_id = ${userId} OR event_id IN (SELECT id FROM community_events WHERE created_by = ${userId})`);
+    await db.execute(sql`DELETE FROM community_event_participants WHERE user_id = ${userId} OR event_id IN (SELECT id FROM community_events WHERE created_by = ${userId})`);
+    await db.execute(sql`DELETE FROM food_entries WHERE user_id = ${userId} OR event_id IN (SELECT id FROM community_events WHERE created_by = ${userId})`);
+    await db.execute(sql`DELETE FROM food_interests WHERE user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM community_posts WHERE user_id = ${userId} OR event_id IN (SELECT id FROM community_events WHERE created_by = ${userId})`);
+    await db.execute(sql`DELETE FROM community_events WHERE created_by = ${userId}`);
+
+    // Custom polls + assorted audit references.
+    await db.execute(sql`DELETE FROM custom_polls WHERE created_by_id = ${userId}`);
+    await db.execute(sql`UPDATE club_finance_calculator_settings SET updated_by_user_id = NULL WHERE updated_by_user_id = ${userId}`);
+    await db.execute(sql`UPDATE grade_history SET changed_by_user_id = NULL WHERE changed_by_user_id = ${userId}`);
+    await db.execute(sql`UPDATE session_payment_reminders SET admin_actioned_by_user_id = NULL WHERE admin_actioned_by_user_id = ${userId}`);
+    await db.execute(sql`DELETE FROM session_payment_reminders WHERE issued_by_user_id = ${userId}`);
+
+    // BSL links.
+    await db.execute(sql`UPDATE bsl_players SET approved_by_id = NULL WHERE approved_by_id = ${userId}`);
+    await db.execute(sql`DELETE FROM bsl_players WHERE user_id = ${userId}`);
+    await db.execute(sql`UPDATE bsl_clubs SET approved_by_id = NULL WHERE approved_by_id = ${userId}`);
+    await db.execute(sql`UPDATE bsl_wallet_transactions SET reviewed_by_id = NULL WHERE reviewed_by_id = ${userId}`);
+    await db.execute(sql`UPDATE bsl_audit_log SET actor_user_id = NULL WHERE actor_user_id = ${userId}`);
+    await db.execute(sql`UPDATE bsl_media SET uploaded_by_id = NULL WHERE uploaded_by_id = ${userId}`);
+    await db.execute(sql`UPDATE bsl_fixture_versions SET archived_by_id = NULL WHERE archived_by_id = ${userId}`);
+    await db.execute(sql`UPDATE bsl_challenges SET responded_by_id = NULL WHERE responded_by_id = ${userId}`);
+    await db.execute(sql`DELETE FROM bsl_challenges WHERE created_by_id = ${userId}`);
 
     await db.delete(users).where(eq(users.id, userId));
   }

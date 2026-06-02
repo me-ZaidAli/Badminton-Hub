@@ -466,6 +466,19 @@ export function useAdminCreatePair() {
   });
 }
 
+export function useAdminAddPlayer() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, userId }: { tournamentId: number; userId: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/admin-add-player`, { userId });
+      return res.json();
+    },
+    onSuccess: (_data: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "registrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "player-pool"] });
+    },
+  });
+}
+
 export interface PlayerTournamentStatsBreakdown {
   tournamentId: number;
   tournamentName: string;

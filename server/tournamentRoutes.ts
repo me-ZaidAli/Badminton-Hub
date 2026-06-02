@@ -1691,6 +1691,66 @@ export function registerTournamentRoutes(app: Express) {
     }
   });
 
+  // Admin picker: every system player not already registered in this tournament.
+  app.get("/api/tournaments/:id/addable-players", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const canManage = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Only tournament admins can view this list." });
+
+      const regs = await db.select({ userId: tournamentRegistrations.userId })
+        .from(tournamentRegistrations).where(eq(tournamentRegistrations.tournamentId, tournamentId));
+      const registeredIds = new Set(regs.map(r => r.userId));
+
+      const allUsers = await db.select({ id: users.id, fullName: users.fullName, email: users.email, gender: users.gender })
+        .from(users).orderBy(asc(users.fullName));
+      res.json(allUsers.filter(u => !registeredIds.has(u.id)));
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Admin adds an existing player from the system straight into the tournament.
+  app.post("/api/tournaments/:id/admin-add-player", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const targetUserId = Number(req.body?.userId);
+      if (!targetUserId) return res.status(400).json({ message: "userId is required" });
+
+      const canManage = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!canManage) return res.status(403).json({ message: "Only tournament admins can add players." });
+
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      if (!tournament) return res.status(404).json({ message: "Tournament not found" });
+
+      const [targetUser] = await db.select().from(users).where(eq(users.id, targetUserId));
+      if (!targetUser) return res.status(404).json({ message: "Player not found" });
+
+      const existing = await db.select().from(tournamentRegistrations)
+        .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), eq(tournamentRegistrations.userId, targetUserId)));
+      if (existing.length > 0) {
+        // Already in the tournament — just make sure they are approved.
+        const [reg] = await db.update(tournamentRegistrations)
+          .set({ status: "APPROVED" })
+          .where(eq(tournamentRegistrations.id, existing[0].id)).returning();
+        await db.delete(tournamentWaitlist)
+          .where(and(eq(tournamentWaitlist.tournamentId, tournamentId), eq(tournamentWaitlist.userId, targetUserId)));
+        return res.json(reg);
+      }
+
+      const [reg] = await db.insert(tournamentRegistrations).values({
+        tournamentId, userId: targetUserId, registrationType: "INDIVIDUAL",
+        partnerId: null, partnerName: null, status: "APPROVED", categoryId: null,
+      }).returning();
+
+      res.json(reg);
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.get("/api/tournaments/:id/registrations", async (req, res) => {
     try {
       const tournamentId = Number(req.params.id);
