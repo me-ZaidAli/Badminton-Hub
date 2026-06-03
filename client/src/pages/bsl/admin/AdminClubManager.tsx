@@ -4,12 +4,14 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
   ArrowLeft, Layers, Users, Trophy, CheckCircle2, X, Trash2, Plus, UserMinus, Camera,
+  Pencil, Save, UserPlus,
 } from "lucide-react";
 import { BslPairSnapshot, type SnapshotPair } from "../components/BslPairSnapshot";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
 import { BSL } from "../components/BSLPalette";
+import { CreatePlayerDialog } from "./PlayerCreateDialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -68,11 +70,41 @@ export default function AdminClubManager() {
     onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
   });
 
+  // League grade catalogue (for the player editor's grade picker) + the full
+  // clubs list (so the Create Player dialog can pre-select THIS club).
+  const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
+  const playerGrades: Array<{ code: string; label?: string }> = Array.isArray(league?.playerGrades) ? league.playerGrades : [];
+  const { data: clubs } = useQuery<any[]>({ queryKey: ["/api/bsl/admin/clubs"] });
+
   const roster: any[] = data?.confirmed || [];
   const pending: any[] = data?.pending || [];
   const teams: any[] = data?.teams || [];
   const club = data?.club;
   const [snapshotPair, setSnapshotPair] = useState<SnapshotPair | null>(null);
+
+  // Add / edit player state. Edit saves through the club-scoped manager
+  // endpoint (super-admin is authorised via loadClubForManager), which already
+  // handles display name, within-club division switch, categories and grade.
+  const [creating, setCreating] = useState(false);
+  const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
+  const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string; division: string; categories: string[]; grade: string }>(
+    { displayName: "", bio: "", division: "", categories: [], grade: "" }
+  );
+  const openEdit = (p: any) => {
+    setEditingPlayer(p);
+    setPlayerForm({
+      displayName: p.displayName || "",
+      bio: p.bio || "",
+      division: p.division || club?.division || "",
+      categories: Array.isArray(p.categories) ? [...p.categories] : [],
+      grade: p.grade || "",
+    });
+  };
+  const savePlayer = useMutation({
+    mutationFn: async () => (await apiRequest("PATCH", `/api/bsl/clubs/${clubId}/players/${editingPlayer.id}`, playerForm)).json(),
+    onSuccess: () => { inv(); setEditingPlayer(null); toast({ title: "Player updated" }); },
+    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
+  });
 
   // Every division the club has joined (primary + paid extras). Each one gets
   // its own per-category pairs panel below, matching the public ClubManager.
@@ -93,8 +125,13 @@ export default function AdminClubManager() {
         <Link href="/bsl/admin/clubs"><a className="inline-flex items-center gap-1 text-xs uppercase tracking-widest mb-2" style={{ color: BSL.muted }} data-testid="link-back-clubs">
           <ArrowLeft className="h-3 w-3" /> Back to clubs
         </a></Link>
-        <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Manage <span style={{ color: BSL.gold }}>{club.name}</span></h1>
-        <p className="text-sm mt-1" style={{ color: BSL.muted }}>{club.division} · {data?.summary?.roster ?? 0} confirmed · {data?.summary?.pending ?? 0} pending · {data?.summary?.pairs ?? 0} pairs</p>
+        <div className="flex items-start justify-between gap-3 flex-wrap">
+          <div>
+            <h1 className="text-3xl md:text-4xl font-black uppercase tracking-tight">Manage <span style={{ color: BSL.gold }}>{club.name}</span></h1>
+            <p className="text-sm mt-1" style={{ color: BSL.muted }}>{club.division} · {data?.summary?.roster ?? 0} confirmed · {data?.summary?.pending ?? 0} pending · {data?.summary?.pairs ?? 0} pairs</p>
+          </div>
+          <ActionButton variant="cyan" icon={<UserPlus className="h-3 w-3" />} onClick={() => setCreating(true)} testid="button-create-player">Add player</ActionButton>
+        </div>
       </div>
 
       {pending.length > 0 && (
@@ -154,7 +191,10 @@ export default function AdminClubManager() {
                         <td className="px-2 py-3 tabular-nums" style={{ color: BSL.gold }}>£{(p.walletBalance/100).toFixed(2)}</td>
                         <td className="px-2 py-3 tabular-nums">{p.matchesPlayed} / {p.matchesWon}</td>
                         <td className="px-2 py-3 text-right">
-                          <ActionButton variant="ghost" icon={<UserMinus className="h-3 w-3" />} onClick={() => { if (window.confirm("Remove this player from the club?")) remove.mutate(p.id); }} testid={`button-remove-roster-${p.id}`}>Remove</ActionButton>
+                          <div className="inline-flex gap-1">
+                            <ActionButton variant="cyan" icon={<Pencil className="h-3 w-3" />} onClick={() => openEdit(p)} testid={`button-edit-roster-${p.id}`}>Edit</ActionButton>
+                            <ActionButton variant="ghost" icon={<UserMinus className="h-3 w-3" />} onClick={() => { if (window.confirm("Remove this player from the club?")) remove.mutate(p.id); }} testid={`button-remove-roster-${p.id}`}>Remove</ActionButton>
+                          </div>
                         </td>
                       </tr>
                     ))}
@@ -215,6 +255,109 @@ export default function AdminClubManager() {
           pair={snapshotPair}
           club={{ name: club.name, logoUrl: club.logoUrl || null, inviteCode: club.inviteCode || null }}
         />
+      )}
+
+      {/* Add player — reuses the admin Create Player dialog, pre-set to this club. */}
+      {creating && (
+        <CreatePlayerDialog
+          clubs={clubs || []}
+          defaultClubId={clubId}
+          defaultDivision={club.division}
+          onClose={() => setCreating(false)}
+          onCreated={() => { setCreating(false); inv(); }}
+        />
+      )}
+
+      {/* Edit player — display name, division (within club), categories, grade, bio. */}
+      {editingPlayer && (
+        <motion.div className="fixed inset-0 z-50 flex items-center justify-center px-4"
+          style={{ background: "rgba(0,0,0,0.7)" }}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          onClick={() => setEditingPlayer(null)}>
+          <motion.div className="w-full max-w-md rounded-2xl p-6 max-h-[90vh] overflow-y-auto" style={{ background: BSL.card, border: `1px solid ${BSL.cyan}55` }}
+            initial={{ scale: 0.95 }} animate={{ scale: 1 }}
+            onClick={e => e.stopPropagation()} data-testid="modal-edit-player">
+            <div className="flex items-center gap-3 mb-4">
+              <Pencil className="h-5 w-5" style={{ color: BSL.cyan }} />
+              <h3 className="text-lg font-bold">Edit {editingPlayer.displayName || editingPlayer.user?.name || "player"}</h3>
+            </div>
+
+            <div>
+              <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Display name (shown on leaderboard)</span>
+              <input value={playerForm.displayName} onChange={e => setPlayerForm({ ...playerForm, displayName: e.target.value })}
+                className="w-full px-3 py-2 rounded-lg text-sm mt-1" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                data-testid="input-edit-player-display" />
+            </div>
+
+            {joinedDivisions.length > 1 && (
+              <div className="mt-3">
+                <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Division</span>
+                <select value={playerForm.division} onChange={e => setPlayerForm({ ...playerForm, division: e.target.value })}
+                  className="w-full px-3 py-2 rounded-lg text-sm mt-1" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                  data-testid="select-edit-player-division">
+                  {joinedDivisions.map((d) => <option key={d} value={d} style={{ background: BSL.card, color: "white" }}>{d}</option>)}
+                </select>
+                <p className="text-[10px] mt-1" style={{ color: BSL.muted }}>Player must not be in a pair to switch divisions — remove them from pairs first.</p>
+              </div>
+            )}
+
+            <div className="mt-3">
+              <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Categories</span>
+              <div className="flex flex-wrap gap-2 mt-1">
+                {(["MS","WS","MD","WD","XD"] as const).map(cat => {
+                  const on = playerForm.categories.includes(cat);
+                  return (
+                    <button key={cat} type="button"
+                      onClick={() => setPlayerForm(f => ({ ...f, categories: on ? f.categories.filter(c => c !== cat) : [...f.categories, cat] }))}
+                      className="text-[11px] font-black px-2.5 py-1 rounded-md uppercase tracking-widest transition"
+                      style={{ background: on ? `${BSL.cyan}33` : BSL.cardSoft, color: on ? BSL.cyan : BSL.muted, border: `1px solid ${on ? BSL.cyan : BSL.border}` }}
+                      data-testid={`toggle-edit-player-cat-${cat}`}>{cat}</button>
+                  );
+                })}
+              </div>
+              <p className="text-[10px] mt-1" style={{ color: BSL.muted }}>Removing a category they're paired in will also strip them from those pairs.</p>
+            </div>
+
+            {playerGrades.length > 0 && (
+              <div className="mt-3">
+                <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>
+                  Grade · <span className="font-mono" style={{ color: BSL.gold }}>{playerForm.grade || "ungraded"}</span>
+                </span>
+                <div className="flex flex-wrap gap-1.5 mt-1">
+                  {playerGrades.map((g) => {
+                    const on = playerForm.grade === g.code;
+                    return (
+                      <button key={g.code} type="button"
+                        onClick={() => setPlayerForm(f => ({ ...f, grade: on ? "" : g.code }))}
+                        className="text-[11px] font-black px-2 py-1 rounded-md font-mono transition"
+                        style={{ background: on ? `${BSL.gold}33` : BSL.cardSoft, color: on ? BSL.gold : BSL.muted, border: `1px solid ${on ? BSL.gold : BSL.border}` }}
+                        data-testid={`toggle-edit-player-grade-${g.code}`} title={g.label || g.code}>{g.code}</button>
+                    );
+                  })}
+                  {playerForm.grade && (
+                    <button type="button" onClick={() => setPlayerForm(f => ({ ...f, grade: "" }))}
+                      className="text-[10px] px-2 py-1 rounded-md" style={{ background: BSL.cardSoft, color: BSL.muted, border: `1px solid ${BSL.border}` }}
+                      data-testid="button-edit-player-grade-clear">Clear</button>
+                  )}
+                </div>
+              </div>
+            )}
+
+            <div className="mt-3">
+              <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.muted }}>Bio</span>
+              <textarea value={playerForm.bio} onChange={e => setPlayerForm({ ...playerForm, bio: e.target.value })} rows={3} maxLength={600}
+                className="w-full px-3 py-2 rounded-lg text-sm mt-1" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
+                data-testid="input-edit-player-bio" />
+            </div>
+
+            <div className="mt-4 flex gap-2 justify-end">
+              <ActionButton variant="ghost" onClick={() => setEditingPlayer(null)} icon={<X className="h-3 w-3" />} testid="button-cancel-edit-player">Cancel</ActionButton>
+              <ActionButton variant="gold" onClick={() => savePlayer.mutate()} disabled={savePlayer.isPending} icon={<Save className="h-3 w-3" />} testid="button-save-edit-player">
+                {savePlayer.isPending ? "Saving…" : "Save"}
+              </ActionButton>
+            </div>
+          </motion.div>
+        </motion.div>
       )}
     </AdminLayout>
   );

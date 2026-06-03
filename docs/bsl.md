@@ -47,6 +47,9 @@ All 3 BSL payment endpoints (`POST /api/bsl/clubs/:id/payment-proof`, `POST /api
 ### Club Manager Dashboard (`/bsl/my-club`)
 6-tile strip + Members table. `loadClubForManager()`. Pairs in `bsl_team_members` (max 2, auto-removes from sibling).
 
+### Admin "Manage [Club]" page (`/bsl/admin/clubs/:id/manage`, `AdminClubManager.tsx`)
+Owner/club-admin/super-admin full player management, mirroring `/bsl/my-club`. "Add player" reuses the shared `CreatePlayerDialog` (`PlayerCreateDialog.tsx`, also used by Players DB) pre-set to this club via `defaultClubId/defaultDivision`. Per-roster-row "Edit" modal (display name, division within joined divisions, categories MS/WS/MD/WD/XD, grade from `/api/bsl/league`, bio) saves via the club-scoped `PATCH /api/bsl/clubs/:clubId/players/:playerId` (NOT the admin-only `/api/bsl/admin/players/:id`, which excludes division). Division switch is 409-blocked when the player is in a pair; categories are full-replacement (removed cats strip pair memberships).
+
 ### Player Profile (`/bsl/profile`)
 Single round-trip `GET /api/bsl/players/me/dashboard`. Per-fixture home/away derived from rubber slot. Categories register/unregister: atomic conditional UPDATE with SQL `CASE` for tier pricing keyed off `array_length(categories,1)`.
 
