@@ -1,5 +1,5 @@
 import type { Express, Request, Response, NextFunction } from "express";
-import { eq, desc, and, or, sql as dsql, inArray, ilike, asc } from "drizzle-orm";
+import { eq, desc, and, or, sql as dsql, inArray, ilike, asc, isNull } from "drizzle-orm";
 import { db } from "./db";
 import multer from "multer";
 import path from "path";
@@ -1428,10 +1428,32 @@ export function registerBslRoutes(app: Express) {
         if (r.homeTeamId != null) assignedTeamIds.add(r.homeTeamId);
         if (r.awayTeamId != null) assignedTeamIds.add(r.awayTeamId);
       }
+      // Pair feed is now MATCH-SCOPED. For each club side we prefer the pairs
+      // the manager built specifically for THIS fixture (bslFixtureId === id).
+      // If a side has no match-specific pairs yet, we gracefully fall back to
+      // that club's legacy club-level pairs (bslFixtureId IS NULL) filtered to
+      // the fixture's division — so existing fixtures keep working until the
+      // admin builds match pairs. Either way we always UNION in any team
+      // already sitting on a rubber so an assigned pair never vanishes.
+      const fixtureDivision = await resolveFixtureDivision(fixture);
       const allClubTeams = clubIds.length ? await db.select().from(bslTeams).where(inArray(bslTeams.bslClubId, clubIds)) : [];
-      const teams = fixture.division
-        ? allClubTeams.filter(t => t.division === fixture.division || assignedTeamIds.has(t.id))
-        : allClubTeams;
+      const pickForClub = (clubId: number) => {
+        const mine = allClubTeams.filter(t => t.bslClubId === clubId);
+        const matchScoped = mine.filter(t => t.bslFixtureId === id);
+        let base: typeof mine;
+        if (matchScoped.length > 0) {
+          base = matchScoped;
+        } else {
+          // Legacy fallback: club-level pairs in this division (or all if no
+          // division resolved). Exclude any other fixture's match-scoped pairs.
+          const clubLevel = mine.filter(t => t.bslFixtureId == null);
+          base = fixtureDivision ? clubLevel.filter(t => t.division === fixtureDivision) : clubLevel;
+        }
+        // Always include any team already assigned to a rubber on this fixture.
+        const assignedExtras = mine.filter(t => assignedTeamIds.has(t.id) && !base.some(b => b.id === t.id));
+        return [...base, ...assignedExtras];
+      };
+      const teams = clubIds.flatMap(cid => pickForClub(cid));
       const teamIds = teams.map(t => t.id);
       const memberRows = teamIds.length
         ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
@@ -1636,8 +1658,20 @@ export function registerBslRoutes(app: Express) {
       const block = await assertFixtureMutable(fixtureId, new Set(), "auto-generate");
       if (block) return res.status(409).json({ message: block });
 
-      // Pull both sides' pairs grouped by category.
-      const teams = await db.select().from(bslTeams).where(inArray(bslTeams.bslClubId, [fixture.homeClubId, fixture.awayClubId]));
+      // Pull both sides' pairs grouped by category. Match-scoped pairs win:
+      // for each club we use the pairs built for THIS fixture if any exist,
+      // otherwise fall back to the club's legacy club-level pairs in the
+      // fixture's division — mirroring the setup screen's pair feed.
+      const fixtureDivision = await resolveFixtureDivision(fixture);
+      const allTeams = await db.select().from(bslTeams).where(inArray(bslTeams.bslClubId, [fixture.homeClubId, fixture.awayClubId]));
+      const teamsForClub = (clubId: number) => {
+        const mine = allTeams.filter(t => t.bslClubId === clubId);
+        const matchScoped = mine.filter(t => t.bslFixtureId === fixtureId);
+        if (matchScoped.length > 0) return matchScoped;
+        const clubLevel = mine.filter(t => t.bslFixtureId == null);
+        return fixtureDivision ? clubLevel.filter(t => t.division === fixtureDivision) : clubLevel;
+      };
+      const teams = [...teamsForClub(fixture.homeClubId), ...teamsForClub(fixture.awayClubId)];
       const homeByCat: Record<string, any[]> = {};
       const awayByCat: Record<string, any[]> = {};
       for (const t of teams) {
@@ -2252,7 +2286,9 @@ export function registerBslRoutes(app: Express) {
       const id = Number(req.params.id);
       const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
       if (!club) return res.status(404).json({ message: "Club not found" });
-      const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, club.id));
+      // Club-level pair grids only — match-scoped pairs (bslFixtureId set) are
+      // managed from the per-fixture "Match Pairs" panel, not here.
+      const teams = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, club.id), isNull(bslTeams.bslFixtureId)));
       const teamIds = teams.map(t => t.id);
       const members = teamIds.length
         ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
@@ -2845,6 +2881,16 @@ export function registerBslRoutes(app: Express) {
     return { club };
   }
 
+  // A fixture has no division column of its own — it inherits the division of
+  // the league day it belongs to. Returns the division name (or null when the
+  // fixture isn't attached to a day / the day has no division set).
+  async function resolveFixtureDivision(fixture: any): Promise<string | null> {
+    if (!fixture?.bslLeagueDayId) return null;
+    const [day] = await db.select({ division: bslLeagueDays.division })
+      .from(bslLeagueDays).where(eq(bslLeagueDays.id, fixture.bslLeagueDayId)).limit(1);
+    return day?.division || null;
+  }
+
   // Division eligibility: returns true when the player's grade is allowed in
   // the given division. Empty/missing restriction list = no restriction.
   // An ungraded player is blocked from any division that DOES have a list.
@@ -3127,7 +3173,9 @@ export function registerBslRoutes(app: Express) {
     try {
       const { club } = await loadOwnedClub(req);
       if (!club) return res.json({ club: null });
-      const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, club.id));
+      // Club-level pair grids only — match-scoped pairs (bslFixtureId set) are
+      // managed from the per-fixture "Match Pairs" panel, not here.
+      const teams = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, club.id), isNull(bslTeams.bslFixtureId)));
       const teamIds = teams.map(t => t.id);
       const members = teamIds.length
         ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
@@ -3474,7 +3522,94 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // Manager creates an extra pair within a category
+  // List this club's matches (fixtures it plays in, home or away) so the
+  // manager can pick one and build pairs just for that match. Sorted soonest
+  // first by the league-day date. Each entry carries the opponent name, the
+  // match division, the date and status, and which side this club is on.
+  app.get("/api/bsl/clubs/:id/fixtures", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const fixtures = await db.select().from(bslFixtures)
+        .where(or(eq(bslFixtures.homeClubId, id), eq(bslFixtures.awayClubId, id)));
+      const otherClubIds = Array.from(new Set(
+        fixtures.map(f => (f.homeClubId === id ? f.awayClubId : f.homeClubId)).filter((x): x is number => x != null)
+      ));
+      const otherClubs = otherClubIds.length
+        ? await db.select({ id: bslClubs.id, name: bslClubs.name }).from(bslClubs).where(inArray(bslClubs.id, otherClubIds))
+        : [];
+      const clubNameMap = new Map(otherClubs.map(c => [c.id, c.name]));
+      const dayIds = Array.from(new Set(fixtures.map(f => f.bslLeagueDayId).filter((x): x is number => x != null)));
+      const days = dayIds.length
+        ? await db.select({ id: bslLeagueDays.id, date: bslLeagueDays.date, division: bslLeagueDays.division, venue: bslLeagueDays.venue })
+            .from(bslLeagueDays).where(inArray(bslLeagueDays.id, dayIds))
+        : [];
+      const dayMap = new Map(days.map(d => [d.id, d]));
+      // How many pairs the club has already built for each fixture, so the UI
+      // can flag matches that still need setting up.
+      const builtCounts = await db.select({ bslFixtureId: bslTeams.bslFixtureId }).from(bslTeams)
+        .where(eq(bslTeams.bslClubId, id));
+      const pairCountByFixture = new Map<number, number>();
+      for (const t of builtCounts) {
+        if (t.bslFixtureId != null) pairCountByFixture.set(t.bslFixtureId, (pairCountByFixture.get(t.bslFixtureId) || 0) + 1);
+      }
+      const rows = fixtures.map(f => {
+        const side = f.homeClubId === id ? "home" : "away";
+        const opponentId = side === "home" ? f.awayClubId : f.homeClubId;
+        const day = f.bslLeagueDayId != null ? dayMap.get(f.bslLeagueDayId) : null;
+        return {
+          id: f.id,
+          side,
+          opponentName: opponentId != null ? (clubNameMap.get(opponentId) || `Club #${opponentId}`) : "TBC",
+          division: day?.division || null,
+          category: f.category || null,
+          date: day?.date || f.startTime || null,
+          venue: day?.venue || null,
+          status: f.status,
+          myPairCount: pairCountByFixture.get(f.id) || 0,
+        };
+      }).sort((a, b) => {
+        const ta = a.date ? new Date(a.date).getTime() : Number.MAX_SAFE_INTEGER;
+        const tb = b.date ? new Date(b.date).getTime() : Number.MAX_SAFE_INTEGER;
+        return ta - tb;
+      });
+      res.json({ fixtures: rows });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Pairs this club has built for ONE specific match, plus the match's
+  // division so the UI can scope the eligible-player dropdowns correctly.
+  app.get("/api/bsl/clubs/:id/fixtures/:fixtureId/pairs", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const fixtureId = Number(req.params.fixtureId);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, fixtureId)).limit(1);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      if (fixture.homeClubId !== id && fixture.awayClubId !== id) {
+        return res.status(403).json({ message: "This match doesn't belong to your club" });
+      }
+      const division = await resolveFixtureDivision(fixture);
+      const teams = await db.select().from(bslTeams)
+        .where(and(eq(bslTeams.bslClubId, id), eq(bslTeams.bslFixtureId, fixtureId)));
+      const teamIds = teams.map(t => t.id);
+      const members = teamIds.length
+        ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
+        : [];
+      res.json({
+        fixture: {
+          id: fixture.id,
+          division,
+          side: fixture.homeClubId === id ? "home" : "away",
+          status: fixture.status,
+        },
+        teams: teams.map(t => ({ ...t, members: members.filter(m => m.bslTeamId === t.id).map(m => m.bslPlayerId) })),
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   app.post("/api/bsl/clubs/:id/teams", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
@@ -3491,26 +3626,45 @@ export function registerBslRoutes(app: Express) {
         club.division,
         ...(Array.isArray((club as any).additionalDivisions) ? (club as any).additionalDivisions : []),
       ]);
-      const division = requestedDivision || club.division;
+      // Optional match scoping. When `bslFixtureId` is supplied the pair belongs
+      // to ONE specific fixture and only shows on that fixture's setup screen.
+      // The division is then taken from the fixture itself (so a match pair
+      // always matches the match it's built for), overriding any requested one.
+      let bslFixtureId: number | null = null;
+      let division = requestedDivision || club.division;
+      if (req.body.bslFixtureId != null) {
+        const fid = Number(req.body.bslFixtureId);
+        if (!Number.isFinite(fid)) return res.status(400).json({ message: "Invalid fixture id" });
+        const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, fid)).limit(1);
+        if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+        if (fixture.homeClubId !== id && fixture.awayClubId !== id) {
+          return res.status(403).json({ message: "This match doesn't belong to your club" });
+        }
+        bslFixtureId = fid;
+        division = (await resolveFixtureDivision(fixture)) || division;
+      }
       if (!joinedDivisions.has(division)) {
         return res.status(400).json({ message: `Club hasn't joined division "${division}". Join it first from the Divisions panel.` });
       }
-      // pairNumber is per (division, category) so MD-A in Premier and MD-A in
-      // Social are independent and start their own A/B/C lettering sequence.
+      // pairNumber is per (division, category, fixture-scope) so a club-level
+      // MD ladder and a per-match MD pair list each start their own A/B/C
+      // lettering sequence and don't clash.
       const existing = await db.select().from(bslTeams).where(and(
         eq(bslTeams.bslClubId, id),
         eq(bslTeams.division, division),
         eq(bslTeams.category, category),
+        bslFixtureId == null ? isNull(bslTeams.bslFixtureId) : eq(bslTeams.bslFixtureId, bslFixtureId),
       ));
       const pairNumber = (existing.reduce((m, t) => Math.max(m, t.pairNumber || 0), 0) || 0) + 1;
       const letter = String.fromCharCode(64 + pairNumber); // A, B, C…
       const [created] = await db.insert(bslTeams).values({
         bslClubId: id,
+        bslFixtureId,
         name: `${club.name} ${division} ${category} Pair ${letter}`,
         division,
         category, pairNumber,
       } as any).returning();
-      await audit(req, "MANAGER_CREATE_PAIR", "bsl_teams", created.id, { division, category, pairNumber });
+      await audit(req, "MANAGER_CREATE_PAIR", "bsl_teams", created.id, { division, category, pairNumber, bslFixtureId });
       res.json(created);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
@@ -3555,11 +3709,16 @@ export function registerBslRoutes(app: Express) {
       // multi-division-club model in place, the same player is allowed to be in
       // the same category across different divisions (e.g. play MD in Premier
       // AND in Social) — siblings are only the pairs in the same division+cat.
+      // Siblings are scoped to the same fixture-scope too: a player CAN be in a
+      // club-level MD pair AND a match-specific MD pair (and in a different
+      // match's MD pair) — those are independent rosters. Only same
+      // (division, category, fixture-scope) pairs are mutually exclusive.
       if (team.category) {
         const siblings = await db.select().from(bslTeams).where(and(
           eq(bslTeams.bslClubId, club.id),
           eq(bslTeams.division, team.division),
           eq(bslTeams.category, team.category),
+          team.bslFixtureId == null ? isNull(bslTeams.bslFixtureId) : eq(bslTeams.bslFixtureId, team.bslFixtureId),
         ));
         if (siblings.length) {
           await db.delete(bslTeamMembers).where(and(

@@ -11,6 +11,7 @@ import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
 import { BSL } from "../components/BSLPalette";
+import { MatchPairsManager } from "../components/MatchPairsManager";
 import { CreatePlayerDialog } from "./PlayerCreateDialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -248,6 +249,9 @@ export default function AdminClubManager() {
           </GlowPanel>
         );
       })}
+      {/* Match-specific pairs — pick a match and build its pairs */}
+      <MatchPairsManager clubId={clubId} roster={roster} primaryDivision={club.division} />
+
       {snapshotPair && club && (
         <BslPairSnapshot
           open={!!snapshotPair}

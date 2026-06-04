@@ -14,6 +14,7 @@ import { GlowPanel } from "./components/GlowPanel";
 import { ActionButton } from "./components/ActionButton";
 import { BSL } from "./components/BSLPalette";
 import { ShareInviteDialog } from "./components/ShareInviteDialog";
+import { MatchPairsManager } from "./components/MatchPairsManager";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 
@@ -569,6 +570,11 @@ export default function ClubManager() {
             </GlowPanel>
           );
         })}
+      </div>
+
+      {/* Match-specific pairs — pick a match and build its pairs */}
+      <div className="mt-4">
+        <MatchPairsManager clubId={club.id} roster={confirmed} primaryDivision={club.division} />
       </div>
 
       {/* Player edit modal */}

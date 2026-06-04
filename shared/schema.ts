@@ -3219,6 +3219,13 @@ export const bslClubs = pgTable("bsl_clubs", {
 export const bslTeams = pgTable("bsl_teams", {
   id: serial("id").primaryKey(),
   bslClubId: integer("bsl_club_id").notNull().references(() => bslClubs.id, { onDelete: "cascade" }),
+  // Match-scoped pairs (Task: fixture-specific pairs). NULL = a club-level pair
+  // (the legacy default, shown in the club's "Pairs by category" grids and
+  // reusable across fixtures). Non-null = a pair built for ONE specific fixture
+  // and only surfaced on that fixture's setup screen. Forward-ref via callback
+  // because bslFixtures is declared further down this file. ON DELETE CASCADE so
+  // deleting a fixture cleans up its match-scoped pairs.
+  bslFixtureId: integer("bsl_fixture_id").references((): any => bslFixtures.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   division: text("division").notNull(),
   category: text("category"),
