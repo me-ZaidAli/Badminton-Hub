@@ -1,0 +1,189 @@
+# Replit Project Prompt: Dragon BPG Badminton Performance Dashboard
+## Modern Dark-Mode Web App — Real Data, Advanced Stats, FULL ADMIN CONTROL
+
+Create a fully responsive badminton statistics web application with a UI **exactly matching the reference design** — sleek dark theme (#0f172a / #121826 / #1e293b), blue accents (#2563eb), card-based layout, sidebars, graphs, and detailed panels. This is for **Dragon BPG Badminton Club**, built using **HTML, Tailwind CSS v3, JavaScript, Chart.js, and Firebase (or simple JSON with admin panel)**. All data is **badminton-specific**, structured like real Badminton England / BWF data, and **100% editable/manageable by a Super Admin**.
+
+---
+
+## 🎨 DESIGN & LAYOUT (EXACT AS IMAGE)
+- **Left Sidebar**:
+  - User/Club profile section
+  - Navigation: Dashboard, My Feed, Results, Rankings, Events, Training, Members, **ADMIN PANEL**
+  - Favourite Leagues / Circuits: All England, National Championships, Regional Leagues, County Events
+  - Favourite Clubs / Teams: Dragon BPG, opponents, partner clubs
+  - Icons, active states, hover effects — match dark blue/black style perfectly
+- **Central Main Area**:
+  - Featured match/event card (large, prominent) — club logos, names, date, venue, score/status
+  - Sections: Latest Results, Upcoming Fixtures, Rankings, Performance Graphs
+  - All content in rounded cards with subtle borders, shadows, clear typography
+- **Right Sidebar**:
+  - Top Ranked Players / Teams
+  - Club Performance Overview (graph exactly like "Balance" chart in image)
+  - Notifications / Latest News
+  - Quick stats summary
+- **Color Palette**:
+  - Backgrounds: #0f172a, #121826, #1e293b
+  - Cards: #273042, #334155
+  - Accent: #2563eb, #3b82f6
+  - Success/Wins: #10b981
+  - Losses: #ef4444
+  - Neutral: #94a3b8
+- **Font**: Inter, clean, modern, high contrast
+- **Fully responsive**: desktop → tablet → mobile
+
+---
+
+## 🔐 SUPER ADMIN SYSTEM — FULL MANAGEMENT CONTROL
+**Core requirement: Super Admin can add, edit, delete EVERY piece of data in the app**
+
+### ✅ ADMIN LOGIN & ACCESS
+- Secure login system: only **Super Admin** has full access
+- Admin Panel visible **only** when logged in
+- Role-based: Super Admin = full control; Staff = limited edit; User = view only
+- Simple authentication (email/password)
+
+### ✅ EVERYTHING EDITABLE — ADMIN MODULES
+#### 1. CLUB MANAGEMENT
+- Add new club / team
+- Edit club details: name, logo, league/division, location, ranking, contact info
+- Delete / archive clubs
+- Assign clubs to leagues/circuits
+- Edit club history, achievements, founding info
+
+#### 2. PLAYER MANAGEMENT
+- Add new player: name, DOB, category (U10–U18 / Senior), discipline (Singles/Doubles/Mixed), handedness, height, photo
+- Edit ALL player stats: rankings, results, skill levels, fitness data
+- Assign players to teams / divisions / squads
+- Mark active/inactive
+- Bulk import / export players
+
+#### 3. MATCH & RESULT MANAGEMENT
+- Add new match: date, competition, round, venue, home/away clubs, grade/rating of opposition
+- Enter/edit scores: sets won/lost, points per set, duration
+- Edit result: Win / Loss / Draw
+- Add detailed match data: rally stats, serve accuracy, errors, performance notes
+- Attach players, partners, opponents to each match
+- Edit historical matches
+
+#### 4. COMPETITION & LEAGUE MANAGEMENT
+- Create/edit leagues, circuits, tournaments
+- Set divisions, age groups, seasons
+- Manage fixtures, draws, brackets
+- Update rankings & points tables manually
+
+#### 5. STATISTICS & DATA EDITOR
+- **EVERY SINGLE NUMBER / GRAPH POINT IS EDITABLE**
+- Edit monthly progress data, form trends, ranking history
+- Adjust win rates, averages, skill metrics
+- Add/remove data points for graphs
+- Override auto-calculated values
+
+#### 6. TRAINING & DEVELOPMENT DATA
+- Log attendance, sessions, fitness tests
+- Enter coach ratings, feedback, targets
+- Track skill progression over time — **fully editable**
+
+#### 7. CONTENT MANAGEMENT
+- Edit news, notifications, featured cards
+- Update calendar, events, deadlines
+
+---
+
+## 📊 BADMINTON DATA — FULL, DETAILED, REAL STRUCTURE
+*(All fields editable by Admin)*
+
+### 1. MAIN DASHBOARD
+- Overview: total matches, wins, win %, sets, points difference
+- Graph: Club form over time (points, rank, win rate) — **editable data points**
+- Latest results, upcoming events, top performers
+
+### 2. CLUB DASHBOARD (when click club)
+#### ✅ CLUB HEADER
+- Name, logo, league, division, ranking, points
+#### ✅ MATCH HISTORY
+- Date, competition, opponent, result, score, grade, venue
+- Filter: date, competition, result
+#### ✅ SEASON STATS
+- Matches, wins, draws, losses, win %, set ratio, points average
+- Form guide (last 5/10)
+- Performance vs strong/weak/equal teams
+#### ✅ PROGRESS GRAPH
+- Monthly: points, rank, win rate — **Admin edits every value**
+#### ✅ TEAMS / DIVISIONS
+- Junior: U10, U12, U14, U16, U18
+- Senior: Men’s, Women’s, Mixed
+- Performance / Development / Beginner
+- Each team: own results, stats, players, graphs
+#### ✅ HEAD-TO-HEAD
+- Full history vs every opponent
+#### ✅ VENUE STATS
+- Home / Away / Neutral win rates
+
+### 3. PLAYER PROFILE (when click player)
+#### ✅ BASIC INFO
+- Name, age, category, discipline, hand, height, photo, club rank, national rank
+#### ✅ CAREER STATS
+- Matches, wins, losses, win %, sets, points
+- Average points, longest rally, max points
+#### ✅ BREAKDOWN
+- Singles / Doubles / Mixed results
+- Performance by age group, venue, court side
+- vs left/right handed players
+#### ✅ FORM GRAPH
+- Rating over time — **Admin editable**
+#### ✅ MATCH LIST
+- Every match: date, event, partner, opponents, score, duration, rating change
+#### ✅ SKILL METRICS
+- Serve accuracy %, Smash win %, Net %, Drive %, Error rate
+- Fitness: speed, agility, endurance
+- Comparison to averages
+#### ✅ PARTNER HISTORY
+- Win % with every partner
+
+### 4. ADVANCED BADMINTON DATA
+*(Admin adds/edits all)*
+- **Rally Analysis**: avg length, outcome %
+- **Set Analysis**: 1st set vs decider, performance after win/loss first set
+- **Trends**: win from behind / lose from ahead
+- **Time-based**: performance by time of day, half of match
+- **Competition Level**: club / county / regional / national / international
+- **Rank History**: monthly/yearly
+- **Points Difference**
+- **Eligibility**: age/division rules
+
+---
+
+## 📊 DATA VISUALIZATION (Chart.js)
+- **Line Charts**: progress, form, ranking
+- **Bar Charts**: comparisons
+- **Pie/Doughnut**: win/loss, set outcomes
+- **Area Charts**: trends
+- **Tables**: sortable, filterable
+- All graphs **pull from editable data**; Admin can adjust any point
+- Dark theme styling, tooltips, clear labels
+
+---
+
+## ⚙️ TECHNICAL REQUIREMENTS
+1. **Frontend**: HTML, Tailwind CSS v3, JavaScript, Chart.js
+2. **Backend/Data**:
+   - Use **Firebase Firestore** or **Node.js + JSON file** so Admin can edit via UI
+   - All data stored in structured JSON matching **Badminton England / BWF format**
+   - Modular components: Dashboard, Club, Player, Admin
+3. **Admin Panel**:
+   - Separate section with forms, tables, edit buttons, save/cancel
+   - Inline editing where possible
+   - Confirmation for delete
+   - Bulk actions
+4. **Navigation**: Dashboard → Club → Player → Admin
+5. **Security**: Admin login, protected routes
+6. **Run in Replit**: full working app, no errors
+
+---
+
+✅ **FINAL RESULT**:
+- Looks exactly like the reference image
+- 100% badminton-specific
+- **Super Admin can add, edit, delete EVERYTHING**
+- All stats, graphs, matches, players, clubs are fully manageable
+- Ready to populate with real data
