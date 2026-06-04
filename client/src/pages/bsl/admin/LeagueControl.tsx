@@ -24,6 +24,7 @@ export default function LeagueControl() {
   const [cvcHome, setCvcHome] = useState("");
   const [cvcAway, setCvcAway] = useState("");
   const [cvcDayId, setCvcDayId] = useState<string>("");
+  const [fixtureTab, setFixtureTab] = useState<"upcoming" | "past">("upcoming");
 
   const divisions: string[] = league?.divisions || [];
   // Count CLUBS per division (not summed teamCount). A club belongs to its
@@ -179,6 +180,26 @@ export default function LeagueControl() {
   });
   clubDivOptions.sort((a, b) => a.division.localeCompare(b.division) || a.name.localeCompare(b.name));
   const clubFixtures = (fixtures || []).filter((f: any) => f.homeClubId != null && f.awayClubId != null);
+  // A fixture counts as "past" once it's finished or its scheduled start is in the
+  // past. Unscheduled fixtures (no start time) always stay under Upcoming so they
+  // don't get lost. Sort upcoming soonest-first, past most-recent-first.
+  const nowMs = Date.now();
+  const isPastFixture = (f: any) =>
+    f.status === "FINISHED" || (f.startTime != null && new Date(f.startTime).getTime() < nowMs);
+  const startMs = (f: any) => (f.startTime ? new Date(f.startTime).getTime() : null);
+  const upcomingFixtures = clubFixtures
+    .filter((f: any) => !isPastFixture(f))
+    .sort((a: any, b: any) => {
+      const am = startMs(a), bm = startMs(b);
+      if (am == null && bm == null) return 0;
+      if (am == null) return 1; // unscheduled to the bottom
+      if (bm == null) return -1;
+      return am - bm;
+    });
+  const pastFixtures = clubFixtures
+    .filter(isPastFixture)
+    .sort((a: any, b: any) => (startMs(b) ?? 0) - (startMs(a) ?? 0));
+  const shownFixtures = fixtureTab === "past" ? pastFixtures : upcomingFixtures;
 
   return (
     <AdminLayout active="league">
@@ -302,11 +323,41 @@ export default function LeagueControl() {
             </ActionButton>
           </div>
         </div>
-        {clubFixtures.length === 0 ? (
-          <div className="text-xs py-3 text-center" style={{ color: BSL.muted }}>No club-vs-club fixtures yet. Create one above.</div>
+        <div className="flex items-center gap-1.5 mb-3">
+          {([
+            ["upcoming", "Upcoming", upcomingFixtures.length],
+            ["past", "Past", pastFixtures.length],
+          ] as const).map(([key, label, count]) => {
+            const active = fixtureTab === key;
+            return (
+              <button
+                key={key}
+                onClick={() => setFixtureTab(key)}
+                className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-90"
+                style={{
+                  background: active ? `${BSL.cyan}22` : BSL.cardSoft,
+                  color: active ? BSL.cyan : BSL.muted,
+                  border: `1px solid ${active ? BSL.cyan : BSL.border}`,
+                }}
+                data-testid={`tab-fixtures-${key}`}
+              >
+                {label}
+                <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black" style={{ background: active ? `${BSL.cyan}33` : `${BSL.muted}22`, color: active ? BSL.cyan : BSL.muted }}>{count}</span>
+              </button>
+            );
+          })}
+        </div>
+        {shownFixtures.length === 0 ? (
+          <div className="text-xs py-3 text-center" style={{ color: BSL.muted }}>
+            {clubFixtures.length === 0
+              ? "No club-vs-club fixtures yet. Create one above."
+              : fixtureTab === "past"
+                ? "No past fixtures yet."
+                : "No upcoming fixtures. Create one above."}
+          </div>
         ) : (
           <div className="space-y-2">
-            {clubFixtures.slice(0, 12).map((f: any) => {
+            {shownFixtures.slice(0, 12).map((f: any) => {
               const isEditing = editFixtureId === f.id;
               return (
                 <div key={f.id} className="rounded-lg" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`row-cvc-fixture-${f.id}`}>
