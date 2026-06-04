@@ -321,11 +321,18 @@ export function FixtureBattle(p: FixtureBattleProps) {
   const homeLeads = homePts > awayPts;
   const awayLeads = awayPts > homePts;
   const rubberCount = p.rubbers?.length || 0;
-  const playerCount = p.rubbers.reduce((acc, r) => {
-    return acc + (r.homePair?.members?.length || 0) + (r.awayPair?.members?.length || 0);
-  }, 0);
   const dt = p.startTime ? new Date(p.startTime) : null;
   const [viewMode, setViewMode] = useState<ViewMode>("both");
+
+  // Player tally respects the selected team: when a single team is focused,
+  // only count that team's players — not the opponent's.
+  const playerCount = p.rubbers.reduce((acc, r) => {
+    const homeMembers = r.homePair?.members?.length || 0;
+    const awayMembers = r.awayPair?.members?.length || 0;
+    if (viewMode === "home") return acc + homeMembers;
+    if (viewMode === "away") return acc + awayMembers;
+    return acc + homeMembers + awayMembers;
+  }, 0);
 
   // Snapshot-to-PNG via html2canvas. We mark the card root with a ref and a
   // `.battle-card-capturing` class while exporting so any elements tagged

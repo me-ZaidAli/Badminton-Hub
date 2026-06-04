@@ -54,6 +54,51 @@ export type GenerateResult = {
   matches: MatchResult[];
 };
 
+export function buildSessionHistory(
+  matchRecords: {
+    status: string;
+    teamAPlayer1Id: number | null;
+    teamAPlayer2Id: number | null;
+    teamBPlayer1Id: number | null;
+    teamBPlayer2Id: number | null;
+  }[],
+): {
+  playerMatchCounts: Map<number, number>;
+  partnerHistory: Map<string, number>;
+} {
+  const playerMatchCounts = new Map<number, number>();
+  const partnerHistory = new Map<string, number>();
+
+  for (const m of matchRecords) {
+    if (m.status !== "COMPLETED" && m.status !== "LIVE") continue;
+
+    const teamA = [m.teamAPlayer1Id, m.teamAPlayer2Id].filter(
+      (id): id is number => id !== null,
+    );
+    const teamB = [m.teamBPlayer1Id, m.teamBPlayer2Id].filter(
+      (id): id is number => id !== null,
+    );
+
+    for (const id of [...teamA, ...teamB]) {
+      playerMatchCounts.set(id, (playerMatchCounts.get(id) ?? 0) + 1);
+    }
+
+    // Record partner pairings
+    if (teamA.length === 2) {
+      const [a, b] = teamA;
+      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+      partnerHistory.set(key, (partnerHistory.get(key) ?? 0) + 1);
+    }
+    if (teamB.length === 2) {
+      const [a, b] = teamB;
+      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
+      partnerHistory.set(key, (partnerHistory.get(key) ?? 0) + 1);
+    }
+  }
+
+  return { playerMatchCounts, partnerHistory };
+}
+
 // ─── Grade ranking ────────────────────────────────────────────────────────────
 
 /**
@@ -385,45 +430,6 @@ function findFirstValidGroup(
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
-
-/**
- * Build the per-session history the engine needs from a list of matches.
- * Counts only matches that actually happened (COMPLETED or LIVE):
- *   - playerMatchCounts: how many matches each player has played this session
- *   - partnerHistory: how many times each pair partnered (key "min-max")
- */
-export function buildSessionHistory(
-  matches: {
-    status: string;
-    teamAPlayer1Id: number | null;
-    teamAPlayer2Id: number | null;
-    teamBPlayer1Id: number | null;
-    teamBPlayer2Id: number | null;
-  }[],
-): { playerMatchCounts: Map<number, number>; partnerHistory: Map<string, number> } {
-  const playerMatchCounts = new Map<number, number>();
-  const partnerHistory = new Map<string, number>();
-
-  for (const match of matches) {
-    if (match.status !== "COMPLETED" && match.status !== "LIVE") continue;
-    const teamA = [match.teamAPlayer1Id, match.teamAPlayer2Id].filter((id): id is number => id != null);
-    const teamB = [match.teamBPlayer1Id, match.teamBPlayer2Id].filter((id): id is number => id != null);
-
-    for (const id of [...teamA, ...teamB]) {
-      playerMatchCounts.set(id, (playerMatchCounts.get(id) ?? 0) + 1);
-    }
-    if (teamA.length === 2) {
-      const k = pairKey(teamA[0], teamA[1]);
-      partnerHistory.set(k, (partnerHistory.get(k) ?? 0) + 1);
-    }
-    if (teamB.length === 2) {
-      const k = pairKey(teamB[0], teamB[1]);
-      partnerHistory.set(k, (partnerHistory.get(k) ?? 0) + 1);
-    }
-  }
-
-  return { playerMatchCounts, partnerHistory };
-}
 
 export function generateMatches(opts: GenerateOptions): GenerateResult {
   const {
