@@ -4,10 +4,9 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   ArrowLeft, Crown, Pencil, Save, AlertTriangle, UserCheck, UserX,
-  Users, Plus, Trash2, Shield, X, Check, Trophy, BarChart3, PoundSterling,
-  Gauge, Share2, Layers, Camera,
+  Users, Plus, Shield, X, Check, Trophy, BarChart3, PoundSterling,
+  Gauge, Share2, Layers,
 } from "lucide-react";
-import { BslPairSnapshot, type SnapshotPair } from "./components/BslPairSnapshot";
 import { BSLBackground } from "./components/BSLBackground";
 import { BslSubNav } from "@/components/SubNav";
 import { GlowPanel } from "./components/GlowPanel";
@@ -17,9 +16,6 @@ import { ShareInviteDialog } from "./components/ShareInviteDialog";
 import { MatchPairsManager } from "./components/MatchPairsManager";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
-
-const CATEGORIES = ["MD", "WD", "XD"] as const;
-const CAT_LABEL: Record<string, string> = { MD: "Men's Doubles", WD: "Women's Doubles", XD: "Mixed Doubles" };
 
 type ClubData = {
   club: any | null;
@@ -43,14 +39,11 @@ export default function ClubManager() {
   const [shareOpen, setShareOpen] = useState(false);
   const [editingPlayer, setEditingPlayer] = useState<any | null>(null);
   const [playerForm, setPlayerForm] = useState<{ displayName: string; bio: string; division: string; categories: string[]; grade: string }>({ displayName: "", bio: "", division: "", categories: [], grade: "" });
-  const [snapshotPair, setSnapshotPair] = useState<SnapshotPair | null>(null);
 
   const club = data?.club;
-  const teams = data?.teams || [];
   const pending = data?.pending || [];
   const confirmed = data?.confirmed || [];
   const summary = data?.summary;
-  const memberMap = new Map<number, any>(confirmed.map(p => [p.id, p]));
 
   // List of divisions this club has joined: primary + the paid-for extras.
   // The first entry is always the primary; the rest sort A→Z for stability.
@@ -71,21 +64,6 @@ export default function ClubManager() {
   }, [data?.league?.divisions, joinedDivisions]);
 
   const joinFeePence = data?.league?.divisionJoinFeePence ?? 2500;
-
-  // For each (division, category), the set of player IDs already placed in
-  // some pair. Used to hide them from sibling-pair "+ Add player" dropdowns —
-  // a player can be in MD across multiple divisions but NOT in two MD pairs
-  // inside the same division. Server enforces it; UI mirrors it.
-  const placedByDivCat = useMemo(() => {
-    const m: Record<string, Set<number>> = {};
-    for (const t of teams) {
-      if (!t.category || !t.division) continue;
-      const key = `${t.division}::${t.category}`;
-      if (!m[key]) m[key] = new Set();
-      for (const pid of (t.members || [])) m[key].add(pid);
-    }
-    return m;
-  }, [teams]);
 
   const startEdit = () => {
     if (!club) return;
@@ -130,13 +108,6 @@ export default function ClubManager() {
     onError: onErr("Couldn't update player"),
   });
 
-  const createPair = useMutation({
-    mutationFn: async (vars: { category: string; division: string }) =>
-      (await apiRequest("POST", `/api/bsl/clubs/${club.id}/teams`, vars)).json(),
-    onSuccess: () => { inv(); toast({ title: "Pair created" }); },
-    onError: onErr("Couldn't create pair"),
-  });
-
   const [joinDivisionPick, setJoinDivisionPick] = useState<string>("");
   const joinDivision = useMutation({
     mutationFn: async (division: string) =>
@@ -151,26 +122,6 @@ export default function ClubManager() {
       });
     },
     onError: onErr("Couldn't join division"),
-  });
-
-  const deletePair = useMutation({
-    mutationFn: async (teamId: number) => (await apiRequest("DELETE", `/api/bsl/teams/${teamId}/manage`)).json(),
-    onSuccess: () => { inv(); toast({ title: "Pair deleted" }); },
-    onError: onErr("Couldn't delete pair"),
-  });
-
-  const addMember = useMutation({
-    mutationFn: async (vars: { teamId: number; bslPlayerId: number }) =>
-      (await apiRequest("POST", `/api/bsl/teams/${vars.teamId}/members`, { bslPlayerId: vars.bslPlayerId })).json(),
-    onSuccess: () => { inv(); toast({ title: "Player added to pair" }); },
-    onError: onErr("Couldn't add to pair"),
-  });
-
-  const removeMember = useMutation({
-    mutationFn: async (vars: { teamId: number; playerId: number }) =>
-      (await apiRequest("DELETE", `/api/bsl/teams/${vars.teamId}/members/${vars.playerId}`)).json(),
-    onSuccess: () => { inv(); toast({ title: "Removed from pair" }); },
-    onError: onErr("Couldn't remove from pair"),
   });
 
   if (isLoading) {
@@ -275,7 +226,7 @@ export default function ClubManager() {
 
         {/* Pending requests */}
         {pending.length > 0 && (
-          <GlowPanel title={`Pending join requests (${pending.length})`} tone="cyan" icon={<UserCheck className="h-4 w-4" />}>
+          <GlowPanel title={`Pending join requests (${pending.length})`} tone="cyan" icon={<UserCheck className="h-4 w-4" />} collapsible defaultOpen>
             <ul className="space-y-2">
               {pending.map(p => (
                 <li key={p.id} className="flex items-center justify-between rounded-lg px-3 py-2"
@@ -300,7 +251,7 @@ export default function ClubManager() {
         {(joinedDivisions.length > 0 ? joinedDivisions : [club.division]).map(div => {
           const divMembers = confirmed.filter(p => (p.division || club.division) === div);
           return (
-        <GlowPanel key={`members-${div}`} title={`${div} — Members (${divMembers.length})`} subtitle="Stats, payments & profile" tone="gold" icon={<Shield className="h-4 w-4" />}>
+        <GlowPanel key={`members-${div}`} title={`${div} — Members (${divMembers.length})`} subtitle="Stats, payments & profile" tone="gold" icon={<Shield className="h-4 w-4" />} collapsible defaultOpen>
           {divMembers.length === 0 ? <Empty text={`No confirmed players in ${div} yet.`} /> : (
             <div className="overflow-x-auto -mx-2">
               <table className="w-full text-sm" style={{ minWidth: 720 }}>
@@ -384,9 +335,11 @@ export default function ClubManager() {
         {/* Divisions — primary + paid-for extras, with a Join Another tile. */}
         <GlowPanel
           title="Divisions"
-          subtitle={`Your club competes in ${joinedDivisions.length} division${joinedDivisions.length === 1 ? "" : "s"}. Each division gets its own pair grid below.`}
+          subtitle={`Your club competes in ${joinedDivisions.length} division${joinedDivisions.length === 1 ? "" : "s"}.`}
           tone="cyan"
           icon={<Layers className="h-4 w-4" />}
+          collapsible
+          defaultOpen
         >
           <div className="flex flex-wrap items-center gap-2">
             {joinedDivisions.map((d, i) => (
@@ -439,137 +392,10 @@ export default function ClubManager() {
             )}
           </div>
           <div className="mt-2 text-[10px]" style={{ color: BSL.muted }}>
-            Each division a club joins gets its own MD/WD/XD pair grid below. The same player can be paired in the same category across multiple divisions (e.g. play MD in Premier and Social).
+            Pairs are now built per match in the Match Pairs section below. The same player can be paired in the same category across multiple matches.
           </div>
         </GlowPanel>
 
-        {/* Pairs grouped by Division → Category */}
-        {joinedDivisions.map(div => {
-          const divTeams = teams.filter(t => t.division === div);
-          return (
-            <GlowPanel
-              key={div}
-              title={`${div} — Pairs by category`}
-              subtitle={`${divTeams.length} pair${divTeams.length === 1 ? "" : "s"} across MD/WD/XD`}
-              tone="gold"
-              icon={<Users className="h-4 w-4" />}
-            >
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                {CATEGORIES.map(cat => {
-                  const catTeams = divTeams.filter(t => t.category === cat).sort((a, b) => (a.pairNumber || 0) - (b.pairNumber || 0));
-                  // Only players who signed up for THIS division (primary divison falls back when player.division is null).
-                  const eligible = confirmed.filter(p => {
-                    if (!(p.categories || []).includes(cat)) return false;
-                    const playerDiv = p.division || club.division;
-                    return playerDiv === div;
-                  });
-                  const placed = placedByDivCat[`${div}::${cat}`] || new Set<number>();
-                  return (
-                    <div key={cat} className="rounded-xl p-3" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}>
-                      <div className="flex items-center justify-between mb-2">
-                        <div>
-                          <div className="font-bold text-sm" style={{ color: BSL.gold }}>{cat}</div>
-                          <div className="text-[10px]" style={{ color: BSL.muted }}>{CAT_LABEL[cat]}</div>
-                        </div>
-                        <ActionButton variant="cyan" onClick={() => createPair.mutate({ category: cat, division: div })} disabled={createPair.isPending} icon={<Plus className="h-3 w-3" />} data-testid={`button-add-pair-${div}-${cat}`}>Pair</ActionButton>
-                      </div>
-                      {catTeams.length === 0 ? <Empty text="No pairs yet." /> : (
-                        <div className="space-y-2">
-                          {catTeams.map(t => {
-                            const teamMembers = t.members || [];
-                            const dropdownOptions = eligible.filter(p =>
-                              !teamMembers.includes(p.id) && !placed.has(p.id)
-                            );
-                            return (
-                              <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.card, border: `1px solid ${BSL.border}` }} data-testid={`pair-${t.id}`}>
-                                <div className="flex items-center justify-between mb-1.5">
-                                  <div className="text-xs font-bold">Pair {String.fromCharCode(64 + (t.pairNumber || 1))}</div>
-                                  <div className="flex items-center gap-1">
-                                    {teamMembers.length > 0 && club && (
-                                      <button
-                                        onClick={() => {
-                                          const resolved = teamMembers
-                                            .map((pid: number) => memberMap.get(pid))
-                                            .filter(Boolean)
-                                            .map((p: any) => ({
-                                              id: p.id,
-                                              name: p.displayName || p.user?.name || `Player #${p.id}`,
-                                              grade: p.grade || null,
-                                              avatarUrl: p.user?.profileImageUrl || p.user?.avatarUrl || null,
-                                            }));
-                                          setSnapshotPair({
-                                            pairLabel: `Pair ${String.fromCharCode(64 + (t.pairNumber || 1))}`,
-                                            category: cat,
-                                            categoryLong: CAT_LABEL[cat],
-                                            division: div,
-                                            members: resolved,
-                                          });
-                                        }}
-                                        title="Download team snapshot"
-                                        className="p-1 rounded hover:opacity-80 transition"
-                                        style={{ color: BSL.cyan, background: `${BSL.cyan}15`, border: `1px solid ${BSL.cyan}44` }}
-                                        data-testid={`button-snapshot-pair-${t.id}`}
-                                      >
-                                        <Camera className="h-3 w-3" />
-                                      </button>
-                                    )}
-                                    {teamMembers.length === 0 && (
-                                      <button onClick={() => deletePair.mutate(t.id)} className="text-[10px] hover:underline" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}>
-                                        <Trash2 className="h-3 w-3 inline" />
-                                      </button>
-                                    )}
-                                  </div>
-                                </div>
-                                <div className="space-y-1">
-                                  {teamMembers.map((pid: number) => {
-                                    const p = memberMap.get(pid);
-                                    if (!p) return null;
-                                    return (
-                                      <div key={pid} className="flex items-center justify-between text-xs px-2 py-1 rounded"
-                                        style={{ background: `${BSL.gold}15` }} data-testid={`pair-member-${t.id}-${pid}`}>
-                                        <span>{p.displayName || p.user?.name || "Player"}</span>
-                                        <button onClick={() => removeMember.mutate({ teamId: t.id, playerId: pid })}
-                                          className="hover:opacity-70" data-testid={`button-remove-member-${t.id}-${pid}`}>
-                                          <X className="h-3 w-3" />
-                                        </button>
-                                      </div>
-                                    );
-                                  })}
-                                  {teamMembers.length < 2 && (
-                                    dropdownOptions.length === 0 ? (
-                                      <div className="text-[10px] italic px-2 py-1" style={{ color: BSL.muted }}>
-                                        {eligible.length === 0 ? "No eligible players yet" : "All eligible players already paired in this division"}
-                                      </div>
-                                    ) : (
-                                      <select onChange={e => {
-                                        const v = Number(e.target.value);
-                                        if (v) { addMember.mutate({ teamId: t.id, bslPlayerId: v }); e.currentTarget.value = ""; }
-                                      }} className="w-full text-xs rounded px-2 py-1"
-                                        style={{ background: BSL.cardSoft, color: "white", border: `1px solid ${BSL.border}` }}
-                                        data-testid={`select-add-member-${t.id}`} defaultValue="">
-                                        <option value="" style={{ background: BSL.card, color: "white" }}>+ Add player…</option>
-                                        {dropdownOptions.map(p => (
-                                          <option key={p.id} value={p.id} style={{ background: BSL.card, color: "white" }}>{p.displayName || p.user?.name || "Player"}</option>
-                                        ))}
-                                      </select>
-                                    )
-                                  )}
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      )}
-                      <div className="mt-2 text-[10px]" style={{ color: BSL.muted }}>
-                        {eligible.length} eligible · {placed.size} placed in {div}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </GlowPanel>
-          );
-        })}
       </div>
 
       {/* Match-specific pairs — pick a match and build its pairs */}
@@ -723,15 +549,6 @@ export default function ClubManager() {
           </motion.div>
         )}
       </AnimatePresence>
-
-      {snapshotPair && club && (
-        <BslPairSnapshot
-          open={!!snapshotPair}
-          onOpenChange={(o) => { if (!o) setSnapshotPair(null); }}
-          pair={snapshotPair}
-          club={{ name: club.name, logoUrl: club.logoUrl || null, inviteCode: club.inviteCode || null }}
-        />
-      )}
     </div>
   );
 }

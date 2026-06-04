@@ -3,10 +3,9 @@ import { useParams, Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import {
-  ArrowLeft, Layers, Users, Trophy, CheckCircle2, X, Trash2, Plus, UserMinus, Camera,
+  ArrowLeft, Users, CheckCircle2, X, Plus, UserMinus,
   Pencil, Save, UserPlus,
 } from "lucide-react";
-import { BslPairSnapshot, type SnapshotPair } from "../components/BslPairSnapshot";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
 import { ActionButton } from "../components/ActionButton";
@@ -15,9 +14,6 @@ import { MatchPairsManager } from "../components/MatchPairsManager";
 import { CreatePlayerDialog } from "./PlayerCreateDialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-
-const CATS = ["MD", "WD", "XD"] as const;
-type Cat = typeof CATS[number];
 
 // Admin-only: roster + pair manager for any club. Reuses the manager endpoints
 // (which already accept admin via loadClubForManager) — only the read endpoint
@@ -47,30 +43,6 @@ export default function AdminClubManager() {
     onSuccess: () => { inv(); toast({ title: "Player removed" }); },
     onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
   });
-  const createPair = useMutation({
-    mutationFn: async ({ cat, division }: { cat: Cat; division: string }) =>
-      (await apiRequest("POST", `/api/bsl/clubs/${clubId}/teams`, { category: cat, division })).json(),
-    onSuccess: () => { inv(); toast({ title: "Pair created" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
-  });
-  const deletePair = useMutation({
-    mutationFn: async (teamId: number) => (await apiRequest("DELETE", `/api/bsl/teams/${teamId}/manage`)).json(),
-    onSuccess: () => { inv(); toast({ title: "Pair deleted" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
-  });
-  const addMember = useMutation({
-    mutationFn: async ({ teamId, playerId }: { teamId: number; playerId: number }) =>
-      (await apiRequest("POST", `/api/bsl/teams/${teamId}/members`, { bslPlayerId: playerId })).json(),
-    onSuccess: () => { inv(); toast({ title: "Added to pair" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
-  });
-  const removeMember = useMutation({
-    mutationFn: async ({ teamId, playerId }: { teamId: number; playerId: number }) =>
-      (await apiRequest("DELETE", `/api/bsl/teams/${teamId}/members/${playerId}`)).json(),
-    onSuccess: () => { inv(); toast({ title: "Removed from pair" }); },
-    onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
-  });
-
   // League grade catalogue (for the player editor's grade picker) + the full
   // clubs list (so the Create Player dialog can pre-select THIS club).
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
@@ -79,9 +51,7 @@ export default function AdminClubManager() {
 
   const roster: any[] = data?.confirmed || [];
   const pending: any[] = data?.pending || [];
-  const teams: any[] = data?.teams || [];
   const club = data?.club;
-  const [snapshotPair, setSnapshotPair] = useState<SnapshotPair | null>(null);
 
   // Add / edit player state. Edit saves through the club-scoped manager
   // endpoint (super-admin is authorised via loadClubForManager), which already
@@ -207,59 +177,8 @@ export default function AdminClubManager() {
         );
       })}
 
-      {joinedDivisions.map(div => {
-        const divTeams = teams.filter((t: any) => t.division === div);
-        return (
-          <GlowPanel
-            key={div}
-            title={`${div} — Pairs by category`}
-            subtitle={`${divTeams.length} pair${divTeams.length === 1 ? "" : "s"} across MD/WD/XD`}
-            tone="gold"
-            icon={<Trophy className="h-4 w-4" />}
-          >
-            <div className="grid gap-4 md:grid-cols-3">
-              {CATS.map(cat => (
-                <CategoryColumn
-                  key={cat}
-                  cat={cat}
-                  division={div}
-                  primaryDivision={club.division}
-                  teams={divTeams.filter((t: any) => t.category === cat)}
-                  roster={roster}
-                  onCreatePair={() => createPair.mutate({ cat, division: div })}
-                  onDeletePair={(teamId: number) => { if (window.confirm("Delete this pair?")) deletePair.mutate(teamId); }}
-                  onAddMember={(teamId: number, playerId: number) => addMember.mutate({ teamId, playerId })}
-                  onRemoveMember={(teamId: number, playerId: number) => removeMember.mutate({ teamId, playerId })}
-                  onSnapshot={(t: any, members: any[]) => setSnapshotPair({
-                    pairLabel: t.name || `Pair ${t.pairNumber || ""}`.trim(),
-                    category: cat,
-                    categoryLong: ({ MD: "Men's Doubles", WD: "Women's Doubles", XD: "Mixed Doubles" } as Record<string, string>)[cat],
-                    division: div,
-                    members: members.map((m: any) => ({
-                      id: m.id,
-                      name: m.displayName || m.user?.name || `Player #${m.id}`,
-                      grade: m.grade || null,
-                      avatarUrl: m.user?.profileImageUrl || m.user?.avatarUrl || null,
-                    })),
-                  })}
-                  busy={createPair.isPending || deletePair.isPending || addMember.isPending || removeMember.isPending}
-                />
-              ))}
-            </div>
-          </GlowPanel>
-        );
-      })}
       {/* Match-specific pairs — pick a match and build its pairs */}
       <MatchPairsManager clubId={clubId} roster={roster} primaryDivision={club.division} />
-
-      {snapshotPair && club && (
-        <BslPairSnapshot
-          open={!!snapshotPair}
-          onOpenChange={(o) => { if (!o) setSnapshotPair(null); }}
-          pair={snapshotPair}
-          club={{ name: club.name, logoUrl: club.logoUrl || null, inviteCode: club.inviteCode || null }}
-        />
-      )}
 
       {/* Add player — reuses the admin Create Player dialog, pre-set to this club. */}
       {creating && (
@@ -367,81 +286,3 @@ export default function AdminClubManager() {
   );
 }
 
-function CategoryColumn({ cat, division, primaryDivision, teams, roster, onCreatePair, onDeletePair, onAddMember, onRemoveMember, onSnapshot, busy }: any) {
-  // Players already placed in any pair *of this division+category* — dedupes
-  // the dropdown so super-admin doesn't accidentally slot the same player
-  // into two sibling pairs in the same division. A player CAN appear in MD
-  // pairs across two divisions, so scoping by `division` here is intentional.
-  const placed = useMemo(() => {
-    const s = new Set<number>();
-    for (const t of teams) for (const m of t.members || []) s.add(m);
-    return s;
-  }, [teams]);
-  // Eligible = signed up for this category AND assigned to this division.
-  // Players with NULL division fall back to the club's primary division.
-  const eligible = roster.filter((p: any) => {
-    if (!(p.categories || []).includes(cat)) return false;
-    const playerDiv = p.division || primaryDivision;
-    return playerDiv === division;
-  });
-  return (
-    <div className="rounded-xl p-3" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }} data-testid={`column-${division}-${cat}`}>
-      <div className="flex items-center justify-between mb-3">
-        <div className="text-sm font-black uppercase tracking-widest" style={{ color: BSL.cyan }}><Layers className="h-3 w-3 inline mr-1" />{cat}</div>
-        <button onClick={onCreatePair} disabled={busy} className="text-[10px] font-black uppercase tracking-widest inline-flex items-center gap-1 px-2 py-1 rounded disabled:opacity-50" style={{ background: `${BSL.gold}22`, color: BSL.gold, border: `1px solid ${BSL.gold}55` }} data-testid={`button-add-pair-${division}-${cat}`}>
-          <Plus className="h-3 w-3" /> Pair
-        </button>
-      </div>
-      {teams.length === 0 ? (
-        <div className="py-4 text-center text-xs" style={{ color: BSL.faint }}>No pairs yet.</div>
-      ) : (
-        <div className="space-y-3">
-          {teams.map((t: any) => {
-            const members = (t.members || []).map((id: number) => roster.find((p: any) => p.id === id)).filter(Boolean);
-            const candidates = eligible.filter((p: any) => !placed.has(p.id) || members.some((m: any) => m.id === p.id));
-            const free = candidates.filter((p: any) => !members.some((m: any) => m.id === p.id));
-            return (
-              <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.bg, border: `1px solid ${BSL.border}` }} data-testid={`pair-${t.id}`}>
-                <div className="flex items-center justify-between mb-2">
-                  <div className="text-xs font-bold">{t.name}</div>
-                  <div className="flex items-center gap-1">
-                    {members.length > 0 && (
-                      <button onClick={() => onSnapshot(t, members)} disabled={busy} title="Download team snapshot" className="p-1 rounded disabled:opacity-50" style={{ color: BSL.cyan, background: `${BSL.cyan}15`, border: `1px solid ${BSL.cyan}44` }} data-testid={`button-snapshot-pair-${t.id}`}>
-                        <Camera className="h-3 w-3" />
-                      </button>
-                    )}
-                    <button onClick={() => onDeletePair(t.id)} disabled={busy} className="p-1 rounded disabled:opacity-50" style={{ color: BSL.danger }} data-testid={`button-delete-pair-${t.id}`}><Trash2 className="h-3 w-3" /></button>
-                  </div>
-                </div>
-                <div className="space-y-1.5">
-                  {members.map((m: any) => (
-                    <div key={m.id} className="flex items-center justify-between p-1.5 rounded text-xs" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}>
-                      <span className="truncate">{m.displayName || m.user?.name || `#${m.id}`}</span>
-                      <button onClick={() => onRemoveMember(t.id, m.id)} disabled={busy} className="p-0.5 disabled:opacity-50" style={{ color: BSL.danger }} data-testid={`button-remove-member-${t.id}-${m.id}`}><X className="h-3 w-3" /></button>
-                    </div>
-                  ))}
-                  {(t.members || []).length < 2 && (
-                    <select
-                      value=""
-                      onChange={e => { const v = Number(e.target.value); if (v) onAddMember(t.id, v); }}
-                      disabled={busy || free.length === 0}
-                      className="w-full px-2 py-1.5 rounded text-xs disabled:opacity-50"
-                      style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }}
-                      data-testid={`select-add-member-${t.id}`}
-                    >
-                      <option value="" style={{ background: BSL.card, color: "white" }}>{free.length === 0 ? `No eligible ${cat} players in ${division}` : `+ Add ${cat} player…`}</option>
-                      {free.map((p: any) => <option key={p.id} value={p.id} style={{ background: BSL.card, color: "white" }}>{p.displayName || p.user?.name || `#${p.id}`}</option>)}
-                    </select>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-          <div className="mt-1 text-[10px]" style={{ color: BSL.muted }}>
-            {eligible.length} eligible · {placed.size} placed in {division}
-          </div>
-        </div>
-      )}
-    </div>
-  );
-}

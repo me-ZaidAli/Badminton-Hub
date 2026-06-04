@@ -2286,9 +2286,11 @@ export function registerBslRoutes(app: Express) {
       const id = Number(req.params.id);
       const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, id)).limit(1);
       if (!club) return res.status(404).json({ message: "Club not found" });
-      // Club-level pair grids only — match-scoped pairs (bslFixtureId set) are
-      // managed from the per-fixture "Match Pairs" panel, not here.
-      const teams = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, club.id), isNull(bslTeams.bslFixtureId)));
+      // All pairs for this club — both legacy club-level pairs and the
+      // match-scoped pairs (bslFixtureId set) built from the "Match Pairs"
+      // panel. They count toward the club's pair total and flow into every
+      // team display.
+      const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, club.id));
       const teamIds = teams.map(t => t.id);
       const members = teamIds.length
         ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))
@@ -3173,9 +3175,11 @@ export function registerBslRoutes(app: Express) {
     try {
       const { club } = await loadOwnedClub(req);
       if (!club) return res.json({ club: null });
-      // Club-level pair grids only — match-scoped pairs (bslFixtureId set) are
-      // managed from the per-fixture "Match Pairs" panel, not here.
-      const teams = await db.select().from(bslTeams).where(and(eq(bslTeams.bslClubId, club.id), isNull(bslTeams.bslFixtureId)));
+      // All pairs for this club — both legacy club-level pairs and the
+      // match-scoped pairs (bslFixtureId set) built from the "Match Pairs"
+      // panel. They count toward the club's pair total and flow into every
+      // team display.
+      const teams = await db.select().from(bslTeams).where(eq(bslTeams.bslClubId, club.id));
       const teamIds = teams.map(t => t.id);
       const members = teamIds.length
         ? await db.select().from(bslTeamMembers).where(inArray(bslTeamMembers.bslTeamId, teamIds))

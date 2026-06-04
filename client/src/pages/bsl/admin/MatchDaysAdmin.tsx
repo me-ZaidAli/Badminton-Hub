@@ -49,7 +49,27 @@ export default function MatchDaysAdmin() {
     onError: (e: any) => toast({ title: "Couldn't add", description: clean(e?.message), variant: "destructive" }),
   });
 
-  const sorted = useMemo(() => (days || []).slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [days]);
+  // Local-time day key so a match day flips to "Past" at local midnight, not UTC.
+  const dayKey = (v: string | Date) => {
+    const d = new Date(v);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const todayKey = (() => {
+    const n = new Date();
+    const pad = (x: number) => String(x).padStart(2, "0");
+    return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
+  })();
+  const upcoming = useMemo(
+    () => (days || []).filter(d => dayKey(d.date) >= todayKey).slice().sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()),
+    [days, todayKey],
+  );
+  const past = useMemo(
+    () => (days || []).filter(d => dayKey(d.date) < todayKey).slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
+    [days, todayKey],
+  );
+  const [dayTab, setDayTab] = useState<"upcoming" | "past">("upcoming");
+  const shownDays = dayTab === "upcoming" ? upcoming : past;
 
   return (
     <AdminLayout active="match-days">
@@ -80,12 +100,31 @@ export default function MatchDaysAdmin() {
 
       <div className="h-5" />
 
-      <GlowPanel title="All match days" subtitle={`${sorted.length} scheduled · click any card to edit everything`} tone="gold" icon={<CalendarDays className="h-4 w-4" />}>
-        {!sorted.length ? (
-          <div className="py-10 text-center text-sm" style={{ color: BSL.muted }}>No match days scheduled yet.</div>
+      <GlowPanel title="All match days" subtitle={`${upcoming.length} upcoming · ${past.length} past · click any card to edit everything`} tone="gold" icon={<CalendarDays className="h-4 w-4" />} collapsible defaultOpen>
+        <div className="flex items-center gap-2 mb-4">
+          {([["upcoming", `Upcoming (${upcoming.length})`], ["past", `Past (${past.length})`]] as const).map(([key, label]) => {
+            const active = dayTab === key;
+            return (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setDayTab(key)}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
+                style={{
+                  background: active ? `${BSL.cyan}22` : "transparent",
+                  color: active ? BSL.cyan : BSL.muted,
+                  border: `1px solid ${active ? BSL.cyan : BSL.border}`,
+                }}
+                data-testid={`tab-match-days-${key}`}
+              >{label}</button>
+            );
+          })}
+        </div>
+        {!shownDays.length ? (
+          <div className="py-10 text-center text-sm" style={{ color: BSL.muted }}>{dayTab === "upcoming" ? "No upcoming match days." : "No past match days."}</div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-            {sorted.map((d, i) => {
+            {shownDays.map((d, i) => {
               const state = (d.state || "DRAFT").toUpperCase();
               const tone = STATE_TONE[state] || STATE_TONE.DRAFT;
               return (

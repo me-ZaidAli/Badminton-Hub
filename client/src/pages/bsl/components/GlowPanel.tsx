@@ -1,5 +1,6 @@
-import { motion, type HTMLMotionProps } from "framer-motion";
-import { type ReactNode } from "react";
+import { motion, AnimatePresence, type HTMLMotionProps } from "framer-motion";
+import { useState, type ReactNode } from "react";
+import { ChevronDown } from "lucide-react";
 import { BSL } from "./BSLPalette";
 
 type Tone = "gold" | "cyan" | "neutral";
@@ -10,14 +11,19 @@ interface Props extends Omit<HTMLMotionProps<"div">, "title"> {
   action?: ReactNode;
   icon?: ReactNode;
   noPadding?: boolean;
+  collapsible?: boolean;
+  defaultOpen?: boolean;
   children: ReactNode;
 }
 
 export function GlowPanel({
-  title, subtitle, tone = "neutral", action, icon, noPadding, children, className = "", ...rest
+  title, subtitle, tone = "neutral", action, icon, noPadding, collapsible = false, defaultOpen = true, children, className = "", ...rest
 }: Props) {
+  const [open, setOpen] = useState(defaultOpen);
   const accent = tone === "gold" ? BSL.gold : tone === "cyan" ? BSL.cyan : "transparent";
   const ringTone = tone === "gold" ? "hsla(42,95%,55%,0.45)" : tone === "cyan" ? "hsla(195,100%,60%,0.45)" : "hsla(255,255%,255%,0.10)";
+  const slug = typeof title === "string" ? title.toLowerCase().replace(/\s+/g, "-") : "glow";
+  const showBody = !collapsible || open;
   return (
     <motion.div
       initial={{ opacity: 0, y: 24 }}
@@ -30,7 +36,7 @@ export function GlowPanel({
         border: `1px solid ${ringTone}`,
         boxShadow: `0 24px 60px -20px hsla(222,80%,2%,0.85), inset 0 1px 0 hsla(0,0%,100%,0.05)`,
       }}
-      data-testid={`panel-${typeof title === "string" ? title.toLowerCase().replace(/\s+/g, "-") : "glow"}`}
+      data-testid={`panel-${slug}`}
       {...rest}
     >
       {/* Top edge accent */}
@@ -44,8 +50,22 @@ export function GlowPanel({
         style={{ background: accent === "transparent" ? BSL.cyan : accent }}
       />
       {(title || action) && (
-        <div className="relative flex items-center justify-between gap-3 px-5 pt-5">
-          <div className="flex items-center gap-3 min-w-0">
+        <div className={`relative flex items-center justify-between gap-3 px-5 pt-5 ${collapsible && !open ? "pb-5" : ""}`}>
+          <div
+            className={`flex items-center gap-3 min-w-0 ${collapsible ? "cursor-pointer select-none" : ""}`}
+            onClick={collapsible ? () => setOpen(o => !o) : undefined}
+            role={collapsible ? "button" : undefined}
+            tabIndex={collapsible ? 0 : undefined}
+            onKeyDown={collapsible ? (e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setOpen(o => !o); } } : undefined}
+            aria-expanded={collapsible ? open : undefined}
+            data-testid={collapsible ? `button-toggle-panel-${slug}` : undefined}
+          >
+            {collapsible && (
+              <ChevronDown
+                className="h-4 w-4 shrink-0 transition-transform duration-200"
+                style={{ color: BSL.muted, transform: open ? "rotate(0deg)" : "rotate(-90deg)" }}
+              />
+            )}
             {icon && (
               <div
                 className="flex h-9 w-9 items-center justify-center rounded-lg shrink-0"
@@ -62,7 +82,20 @@ export function GlowPanel({
           {action && <div className="shrink-0">{action}</div>}
         </div>
       )}
-      <div className={noPadding ? "" : "relative px-5 pt-4 pb-5"}>{children}</div>
+      <AnimatePresence initial={false}>
+        {showBody && (
+          <motion.div
+            key="panel-body"
+            initial={collapsible ? { height: 0, opacity: 0 } : false}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25, ease: [0.16, 1, 0.3, 1] }}
+            style={{ overflow: "hidden" }}
+          >
+            <div className={noPadding ? "" : "relative px-5 pt-4 pb-5"}>{children}</div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </motion.div>
   );
 }

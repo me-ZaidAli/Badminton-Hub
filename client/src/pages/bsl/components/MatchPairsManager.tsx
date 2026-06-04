@@ -46,7 +46,30 @@ export function MatchPairsManager({
     queryFn: async () => (await fetch(`/api/bsl/clubs/${clubId}/fixtures`, { credentials: "include" })).json(),
     enabled: Number.isFinite(clubId),
   });
+  const [tab, setTab] = useState<"upcoming" | "completed">("upcoming");
   const fixtures = fixturesData?.fixtures || [];
+
+  // Local-time day key so a match flips to "Completed" at local midnight, not UTC.
+  const dayKey = (v: string | null) => {
+    if (!v) return "";
+    const d = new Date(v);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const todayKey = (() => {
+    const n = new Date();
+    const pad = (x: number) => String(x).padStart(2, "0");
+    return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
+  })();
+  const isCompleted = (f: FixtureRow) =>
+    f.status === "FINISHED" || (!!f.date && dayKey(f.date) < todayKey);
+  const upcomingFixtures = fixtures.filter(f => !isCompleted(f));
+  const completedFixtures = fixtures.filter(isCompleted);
+  const shownFixtures = tab === "upcoming" ? upcomingFixtures : completedFixtures;
+  const readOnly = tab === "completed";
+
+  const switchTab = (next: "upcoming" | "completed") => { setTab(next); setSelectedId(null); };
+
   const selected = fixtures.find(f => f.id === selectedId) || null;
 
   const pairsKey = ["/api/bsl/clubs", clubId, "fixtures", selectedId, "pairs"];
@@ -96,9 +119,11 @@ export function MatchPairsManager({
   return (
     <GlowPanel
       title="Match Pairs"
-      subtitle="Pick a match, then build the pairs that play in it. These show on that match's setup screen only."
+      subtitle="Pick a match, then build the pairs that play in it. Finished and past matches move to the Completed tab (view only)."
       tone="cyan"
       icon={<Swords className="h-4 w-4" />}
+      collapsible
+      defaultOpen
     >
       {fixturesLoading ? (
         <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>Loading matches…</div>
@@ -108,75 +133,107 @@ export function MatchPairsManager({
         </div>
       ) : (
         <>
-          {/* Match picker */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
-            {fixtures.map(f => {
-              const active = f.id === selectedId;
+          {/* Upcoming / Completed tabs */}
+          <div className="flex items-center gap-2 mb-4">
+            {([["upcoming", `Upcoming (${upcomingFixtures.length})`], ["completed", `Completed (${completedFixtures.length})`]] as const).map(([key, label]) => {
+              const active = tab === key;
               return (
                 <button
-                  key={f.id}
+                  key={key}
                   type="button"
-                  onClick={() => setSelectedId(f.id)}
-                  className="text-left rounded-xl p-3 transition"
+                  onClick={() => switchTab(key)}
+                  className="px-3 py-1.5 rounded-lg text-xs font-bold uppercase tracking-wider transition"
                   style={{
-                    background: active ? `${BSL.cyan}1f` : BSL.cardSoft,
+                    background: active ? `${BSL.cyan}22` : "transparent",
+                    color: active ? BSL.cyan : BSL.muted,
                     border: `1px solid ${active ? BSL.cyan : BSL.border}`,
                   }}
-                  data-testid={`button-pick-match-${f.id}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <div className="text-sm font-bold truncate">
-                      {f.side === "home" ? "vs" : "@"} {f.opponentName}
-                    </div>
-                    <span
-                      className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0"
-                      style={{ background: `${BSL.muted}22`, color: BSL.muted }}
-                    >
-                      {f.status}
-                    </span>
-                  </div>
-                  <div className="mt-1 flex items-center gap-1 text-[10px]" style={{ color: BSL.muted }}>
-                    <CalendarDays className="h-3 w-3" /> {fmtDate(f.date)}
-                    {f.division ? <span style={{ color: BSL.gold }}>· {f.division}</span> : null}
-                  </div>
-                  <div className="mt-1 text-[10px]" style={{ color: f.myPairCount > 0 ? BSL.success : BSL.faint }}>
-                    {f.myPairCount > 0 ? `${f.myPairCount} pair${f.myPairCount === 1 ? "" : "s"} built` : "No pairs built yet"}
-                  </div>
-                </button>
+                  data-testid={`tab-match-pairs-${key}`}
+                >{label}</button>
               );
             })}
           </div>
 
+          {shownFixtures.length === 0 ? (
+            <div className="py-6 text-center text-sm" style={{ color: BSL.muted }} data-testid="text-no-tab-matches">
+              {tab === "upcoming" ? "No upcoming matches." : "No completed matches yet."}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-4">
+              {shownFixtures.map(f => {
+                const active = f.id === selectedId;
+                return (
+                  <button
+                    key={f.id}
+                    type="button"
+                    onClick={() => setSelectedId(f.id)}
+                    className="text-left rounded-xl p-3 transition"
+                    style={{
+                      background: active ? `${BSL.cyan}1f` : BSL.cardSoft,
+                      border: `1px solid ${active ? BSL.cyan : BSL.border}`,
+                    }}
+                    data-testid={`button-pick-match-${f.id}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="text-sm font-bold truncate">
+                        {f.side === "home" ? "vs" : "@"} {f.opponentName}
+                      </div>
+                      <span
+                        className="text-[9px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded shrink-0"
+                        style={{ background: `${BSL.muted}22`, color: BSL.muted }}
+                      >
+                        {f.status}
+                      </span>
+                    </div>
+                    <div className="mt-1 flex items-center gap-1 text-[10px]" style={{ color: BSL.muted }}>
+                      <CalendarDays className="h-3 w-3" /> {fmtDate(f.date)}
+                      {f.division ? <span style={{ color: BSL.gold }}>· {f.division}</span> : null}
+                    </div>
+                    <div className="mt-1 text-[10px]" style={{ color: f.myPairCount > 0 ? BSL.success : BSL.faint }}>
+                      {f.myPairCount > 0 ? `${f.myPairCount} pair${f.myPairCount === 1 ? "" : "s"} built` : "No pairs built yet"}
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           {/* Selected match pair builder */}
           {selected == null ? (
             <div className="py-6 text-center text-sm" style={{ color: BSL.muted }} data-testid="text-pick-a-match">
-              Pick a match above to set up its pairs.
+              {readOnly ? "Pick a completed match above to review its pairs." : "Pick a match above to set up its pairs."}
             </div>
           ) : pairsLoading ? (
             <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>Loading pairs…</div>
           ) : (
             <div>
               <div className="mb-3 text-xs" style={{ color: BSL.muted }}>
-                Building pairs for <span className="font-bold" style={{ color: BSL.cyan }}>{selected.side === "home" ? "vs" : "@"} {selected.opponentName}</span>
+                {readOnly ? "Pairs that played in " : "Building pairs for "}
+                <span className="font-bold" style={{ color: BSL.cyan }}>{selected.side === "home" ? "vs" : "@"} {selected.opponentName}</span>
                 {fixtureDivision ? <> · <span style={{ color: BSL.gold }}>{fixtureDivision}</span></> : null}
               </div>
-              <div className="grid gap-4 md:grid-cols-3">
-                {CATS.map(cat => (
-                  <MatchCategoryColumn
-                    key={cat}
-                    cat={cat}
-                    division={fixtureDivision || primaryDivision}
-                    primaryDivision={primaryDivision}
-                    teams={teams.filter(t => t.category === cat)}
-                    roster={roster}
-                    busy={busy}
-                    onCreatePair={() => createPair.mutate(cat)}
-                    onDeletePair={(teamId: number) => { if (window.confirm("Remove this pair from the match?")) deletePair.mutate(teamId); }}
-                    onAddMember={(teamId: number, playerId: number) => addMember.mutate({ teamId, playerId })}
-                    onRemoveMember={(teamId: number, playerId: number) => removeMember.mutate({ teamId, playerId })}
-                  />
-                ))}
-              </div>
+              {readOnly && teams.length === 0 ? (
+                <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>No pairs were built for this match.</div>
+              ) : (
+                <div className="grid gap-4 md:grid-cols-3">
+                  {CATS.map(cat => (
+                    <MatchCategoryColumn
+                      key={cat}
+                      cat={cat}
+                      division={fixtureDivision || primaryDivision}
+                      primaryDivision={primaryDivision}
+                      teams={teams.filter(t => t.category === cat)}
+                      roster={roster}
+                      busy={busy}
+                      readOnly={readOnly}
+                      onCreatePair={() => createPair.mutate(cat)}
+                      onDeletePair={(teamId: number) => { if (window.confirm("Remove this pair from the match?")) deletePair.mutate(teamId); }}
+                      onAddMember={(teamId: number, playerId: number) => addMember.mutate({ teamId, playerId })}
+                      onRemoveMember={(teamId: number, playerId: number) => removeMember.mutate({ teamId, playerId })}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </>
@@ -186,7 +243,7 @@ export function MatchPairsManager({
 }
 
 function MatchCategoryColumn({
-  cat, division, primaryDivision, teams, roster, busy, onCreatePair, onDeletePair, onAddMember, onRemoveMember,
+  cat, division, primaryDivision, teams, roster, busy, readOnly, onCreatePair, onDeletePair, onAddMember, onRemoveMember,
 }: {
   cat: Cat;
   division: string;
@@ -194,6 +251,7 @@ function MatchCategoryColumn({
   teams: any[];
   roster: any[];
   busy: boolean;
+  readOnly?: boolean;
   onCreatePair: () => void;
   onDeletePair: (teamId: number) => void;
   onAddMember: (teamId: number, playerId: number) => void;
@@ -221,7 +279,9 @@ function MatchCategoryColumn({
           <div className="text-sm font-black uppercase tracking-widest" style={{ color: BSL.cyan }}>{cat}</div>
           <div className="text-[10px]" style={{ color: BSL.muted }}>{CAT_LABEL[cat]}</div>
         </div>
-        <ActionButton variant="cyan" onClick={onCreatePair} disabled={busy} icon={<Plus className="h-3 w-3" />} data-testid={`button-add-match-pair-${cat}`}>Pair</ActionButton>
+        {!readOnly && (
+          <ActionButton variant="cyan" onClick={onCreatePair} disabled={busy} icon={<Plus className="h-3 w-3" />} data-testid={`button-add-match-pair-${cat}`}>Pair</ActionButton>
+        )}
       </div>
       {teams.length === 0 ? (
         <div className="py-4 text-center text-xs" style={{ color: BSL.faint }}>No pairs yet.</div>
@@ -234,16 +294,18 @@ function MatchCategoryColumn({
               <div key={t.id} className="rounded-lg p-2" style={{ background: BSL.bg, border: `1px solid ${BSL.border}` }} data-testid={`match-pair-${t.id}`}>
                 <div className="flex items-center justify-between mb-2">
                   <div className="text-xs font-bold">{t.name}</div>
-                  <button
-                    onClick={() => onDeletePair(t.id)}
-                    disabled={busy}
-                    className="p-1 rounded disabled:opacity-50"
-                    style={{ color: BSL.danger }}
-                    title="Remove pair"
-                    data-testid={`button-delete-match-pair-${t.id}`}
-                  >
-                    <Trash2 className="h-3 w-3" />
-                  </button>
+                  {!readOnly && (
+                    <button
+                      onClick={() => onDeletePair(t.id)}
+                      disabled={busy}
+                      className="p-1 rounded disabled:opacity-50"
+                      style={{ color: BSL.danger }}
+                      title="Remove pair"
+                      data-testid={`button-delete-match-pair-${t.id}`}
+                    >
+                      <Trash2 className="h-3 w-3" />
+                    </button>
+                  )}
                 </div>
                 <div className="space-y-1">
                   {members.length === 0 ? (
@@ -251,13 +313,15 @@ function MatchCategoryColumn({
                   ) : members.map((m: any) => (
                     <div key={m.id} className="flex items-center justify-between text-xs rounded px-2 py-1" style={{ background: BSL.cardSoft }} data-testid={`match-pair-member-${t.id}-${m.id}`}>
                       <span className="flex items-center gap-1"><Users className="h-3 w-3" style={{ color: BSL.cyan }} /> {nameOf(m)}</span>
-                      <button onClick={() => onRemoveMember(t.id, m.id)} disabled={busy} className="disabled:opacity-50" style={{ color: BSL.muted }} title="Remove player" data-testid={`button-remove-match-member-${t.id}-${m.id}`}>
-                        <UserMinus className="h-3 w-3" />
-                      </button>
+                      {!readOnly && (
+                        <button onClick={() => onRemoveMember(t.id, m.id)} disabled={busy} className="disabled:opacity-50" style={{ color: BSL.muted }} title="Remove player" data-testid={`button-remove-match-member-${t.id}-${m.id}`}>
+                          <UserMinus className="h-3 w-3" />
+                        </button>
+                      )}
                     </div>
                   ))}
                 </div>
-                {members.length < 2 && (
+                {!readOnly && members.length < 2 && (
                   <select
                     value=""
                     onChange={e => { const pid = Number(e.target.value); if (pid) onAddMember(t.id, pid); }}
