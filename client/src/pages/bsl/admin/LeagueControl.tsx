@@ -25,6 +25,7 @@ export default function LeagueControl() {
   const [cvcAway, setCvcAway] = useState("");
   const [cvcDayId, setCvcDayId] = useState<string>("");
   const [fixtureTab, setFixtureTab] = useState<"upcoming" | "past">("upcoming");
+  const [dayTab, setDayTab] = useState<"upcoming" | "past">("upcoming");
 
   const divisions: string[] = league?.divisions || [];
   // Count CLUBS per division (not summed teamCount). A club belongs to its
@@ -200,6 +201,30 @@ export default function LeagueControl() {
     .filter(isPastFixture)
     .sort((a: any, b: any) => (startMs(b) ?? 0) - (startMs(a) ?? 0));
   const shownFixtures = fixtureTab === "past" ? pastFixtures : upcomingFixtures;
+
+  // A league day counts as "past" once it's CLOSED (finalised) or its calendar
+  // day is before today. Local-time day key so a day flips to "Past" at local
+  // midnight (matching MatchDaysAdmin), not at its exact start time or in UTC.
+  const dayKey = (v: string | Date) => {
+    const d = new Date(v);
+    const pad = (n: number) => String(n).padStart(2, "0");
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  };
+  const todayKey = (() => {
+    const n = new Date();
+    const pad = (x: number) => String(x).padStart(2, "0");
+    return `${n.getFullYear()}-${pad(n.getMonth() + 1)}-${pad(n.getDate())}`;
+  })();
+  const dayMs = (d: any) => (d.date ? new Date(d.date).getTime() : null);
+  const isPastDay = (d: any) =>
+    (d.state || "").toUpperCase() === "CLOSED" || (d.date != null && dayKey(d.date) < todayKey);
+  const upcomingDays = (days || [])
+    .filter((d: any) => !isPastDay(d))
+    .sort((a: any, b: any) => (dayMs(a) ?? 0) - (dayMs(b) ?? 0));
+  const pastDays = (days || [])
+    .filter(isPastDay)
+    .sort((a: any, b: any) => (dayMs(b) ?? 0) - (dayMs(a) ?? 0));
+  const shownDays = dayTab === "past" ? pastDays : upcomingDays;
 
   return (
     <AdminLayout active="league">
@@ -538,8 +563,36 @@ export default function LeagueControl() {
         {!days?.length ? (
           <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>No league days scheduled.</div>
         ) : (
+          <>
+          <div className="flex items-center gap-1.5 mb-3">
+            {([
+              ["upcoming", "Upcoming", upcomingDays.length],
+              ["past", "Past", pastDays.length],
+            ] as const).map(([key, label, count]) => {
+              const active = dayTab === key;
+              return (
+                <button
+                  key={key}
+                  onClick={() => setDayTab(key)}
+                  className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1.5 rounded-lg transition-opacity hover:opacity-90"
+                  style={{
+                    background: active ? `${BSL.gold}22` : BSL.cardSoft,
+                    color: active ? BSL.gold : BSL.muted,
+                    border: `1px solid ${active ? BSL.gold : BSL.border}`,
+                  }}
+                  data-testid={`tab-days-${key}`}
+                >
+                  {label}
+                  <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black" style={{ background: active ? `${BSL.gold}33` : `${BSL.muted}22`, color: active ? BSL.gold : BSL.muted }}>{count}</span>
+                </button>
+              );
+            })}
+          </div>
+          {shownDays.length === 0 ? (
+            <div className="py-6 text-center text-sm" style={{ color: BSL.muted }}>{dayTab === "past" ? "No past league days yet." : "No upcoming league days."}</div>
+          ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {days.map((d, i) => {
+            {shownDays.map((d, i) => {
               // Pre-format date for the datetime-local input (UTC → local).
               const local = new Date(d.date);
               const pad = (n: number) => String(n).padStart(2, "0");
@@ -633,6 +686,8 @@ export default function LeagueControl() {
               );
             })}
           </div>
+          )}
+          </>
         )}
       </GlowPanel>
     </AdminLayout>
