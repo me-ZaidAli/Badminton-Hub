@@ -11,6 +11,10 @@ interface Props {
   awayClubLogo?: string | null;
   homeRubbers: number;
   awayRubbers: number;
+  homePoints?: number;
+  awayPoints?: number;
+  homeSets?: number;
+  awaySets?: number;
   status: string;
   court?: number | null;
   startTime?: string | Date | null;
@@ -51,8 +55,12 @@ function TeamBlock({ name, logo, score, leader }: { name: string; logo?: string 
 
 export function MatchCard(p: Props) {
   const tone = statusTone(p.status);
-  const homeLeads = p.homeRubbers > p.awayRubbers;
-  const awayLeads = p.awayRubbers > p.homeRubbers;
+  // Points are what count, so they're the headline score; rubbers/sets sit
+  // underneath for context.
+  const homePts = p.homePoints ?? 0;
+  const awayPts = p.awayPoints ?? 0;
+  const homeLeads = homePts > awayPts;
+  const awayLeads = awayPts > homePts;
   return (
     <Link href={`/bsl/match/${p.id}`}>
       <motion.div
@@ -83,14 +91,16 @@ export function MatchCard(p: Props) {
           </div>
         </div>
         <div className="px-4 py-3 space-y-2.5">
-          <TeamBlock name={p.homeTeamName} logo={p.homeClubLogo} score={p.homeRubbers} leader={homeLeads} />
-          <TeamBlock name={p.awayTeamName} logo={p.awayClubLogo} score={p.awayRubbers} leader={awayLeads} />
+          <TeamBlock name={p.homeTeamName} logo={p.homeClubLogo} score={homePts} leader={homeLeads} />
+          <TeamBlock name={p.awayTeamName} logo={p.awayClubLogo} score={awayPts} leader={awayLeads} />
         </div>
         <div
           className="flex items-center justify-between px-4 py-2 text-[11px]"
           style={{ background: "hsla(0,0%,0%,0.25)", color: BSL.muted, borderTop: `1px solid hsla(0,0%,100%,0.05)` }}
         >
-          <span className="inline-flex items-center gap-1.5"><Activity className="h-3 w-3" /> 6 Rubbers</span>
+          <span className="inline-flex items-center gap-1.5">
+            <Activity className="h-3 w-3" /> Points · {p.homeRubbers}–{p.awayRubbers} rubbers
+          </span>
           <span className="inline-flex items-center gap-1 font-semibold" style={{ color: BSL.cyan }}>
             View match <ChevronRight className="h-3 w-3" />
           </span>

@@ -30,6 +30,10 @@ export interface FixtureBattleProps {
   division: string | null;
   homeRubbers: number;
   awayRubbers: number;
+  homePoints?: number;
+  awayPoints?: number;
+  homeSets?: number;
+  awaySets?: number;
   homeClubName: string;
   awayClubName: string;
   homeClubLogo: string | null;
@@ -311,8 +315,11 @@ type ViewMode = "both" | "home" | "away";
 
 export function FixtureBattle(p: FixtureBattleProps) {
   const tone = statusTone(p.status);
-  const homeLeads = p.homeRubbers > p.awayRubbers;
-  const awayLeads = p.awayRubbers > p.homeRubbers;
+  // Points decide it, so the big number is points; rubbers/sets sit below.
+  const homePts = p.homePoints ?? 0;
+  const awayPts = p.awayPoints ?? 0;
+  const homeLeads = homePts > awayPts;
+  const awayLeads = awayPts > homePts;
   const rubberCount = p.rubbers?.length || 0;
   const playerCount = p.rubbers.reduce((acc, r) => {
     return acc + (r.homePair?.members?.length || 0) + (r.awayPair?.members?.length || 0);
@@ -511,7 +518,7 @@ export function FixtureBattle(p: FixtureBattleProps) {
           <div className="flex flex-col items-center gap-1 shrink-0 pt-2 sm:pt-3">
             <div className="flex items-center gap-1.5 sm:gap-2 text-3xl sm:text-4xl md:text-5xl font-black tabular-nums leading-none">
               <span style={{ color: homeLeads ? BSL.gold : "white", textShadow: homeLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-home-score`}>
-                {p.homeRubbers}
+                {homePts}
               </span>
               <motion.span
                 className="text-white/50"
@@ -521,11 +528,11 @@ export function FixtureBattle(p: FixtureBattleProps) {
                 <Swords className="h-5 w-5 sm:h-7 sm:w-7" />
               </motion.span>
               <span style={{ color: awayLeads ? BSL.gold : "white", textShadow: awayLeads ? `0 0 18px ${BSL.gold}aa` : undefined }} data-testid={`battle-${p.id}-away-score`}>
-                {p.awayRubbers}
+                {awayPts}
               </span>
             </div>
-            <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.22em] font-bold whitespace-nowrap" style={{ color: BSL.muted }}>
-              Rubbers won
+            <div className="text-[8px] sm:text-[9px] uppercase tracking-[0.22em] font-bold whitespace-nowrap text-center" style={{ color: BSL.muted }}>
+              Points · {p.homeRubbers}–{p.awayRubbers} rubbers
             </div>
           </div>
           <ClubCrest name={p.awayClubName} logo={p.awayClubLogo} leader={awayLeads} side="away" />

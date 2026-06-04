@@ -75,6 +75,29 @@ const bslUpload = multer({
 // the fixture), so "played" reflects matches played by that pair, not by the
 // club — which keeps the bslTeams table the single source of truth for the
 // per-club aggregation downstream (`/api/bsl/standings`).
+// Aggregate a fixture's per-side POINTS and SETS straight from its rubber rows.
+// Points = the sum of every set score a side scored across all rubbers (the
+// "what actually counts" number players care about). Sets = how many individual
+// sets each side won. Falls back to (homeScore, awayScore) as one set when no
+// multi-set setScores jsonb is present. Used to surface live "score by points"
+// on every public fixture surface (match centre, results list, showcase, cards).
+function computeFixtureScore(rubberRows: any[]): { homePoints: number; awayPoints: number; homeSets: number; awaySets: number } {
+  let homePoints = 0, awayPoints = 0, homeSets = 0, awaySets = 0;
+  for (const r of rubberRows || []) {
+    const sets = Array.isArray(r?.setScores) && r.setScores.length
+      ? r.setScores.map((s: any) => ({ h: Number(s?.h) || 0, a: Number(s?.a) || 0 }))
+      : ((r?.homeScore || 0) > 0 || (r?.awayScore || 0) > 0)
+        ? [{ h: Number(r.homeScore) || 0, a: Number(r.awayScore) || 0 }]
+        : [];
+    for (const s of sets) {
+      homePoints += s.h; awayPoints += s.a;
+      if (s.h > s.a) homeSets++;
+      else if (s.a > s.h) awaySets++;
+    }
+  }
+  return { homePoints, awayPoints, homeSets, awaySets };
+}
+
 async function recomputeStandings(_leagueId = 1) {
   const teams = await db.select().from(bslTeams);
   const fixtures = await db.select().from(bslFixtures);
@@ -1120,11 +1143,24 @@ export function registerBslRoutes(app: Express) {
   app.get("/api/bsl/fixtures", async (req, res) => {
     try {
       const status = req.query.status as string | undefined;
-      const all = await db.select().from(bslFixtures).orderBy(bslFixtures.startTime);
+      const allFixtures = await db.select().from(bslFixtures).orderBy(bslFixtures.startTime);
+      // Apply the status filter up-front so we only hydrate the fixtures we return.
+      const all = status ? allFixtures.filter(f => f.status === status) : allFixtures;
       const teams = await db.select().from(bslTeams);
       const clubs = await db.select().from(bslClubs);
+      // Fetch rubbers only for the fixtures we're returning (this endpoint is
+      // polled every 10s, so a full-table rubbers scan would be wasteful).
+      const fixtureIds = all.map(f => f.id);
+      const allRubbers = fixtureIds.length
+        ? await db.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, fixtureIds))
+        : [];
       const tMap = new Map(teams.map(t => [t.id, t]));
       const cMap = new Map(clubs.map(c => [c.id, c]));
+      const rubbersByFixture = new Map<number, any[]>();
+      for (const r of allRubbers) {
+        const arr = rubbersByFixture.get(r.bslFixtureId) || [];
+        arr.push(r); rubbersByFixture.set(r.bslFixtureId, arr);
+      }
       const enriched = all.map(f => {
         const ht = f.homeTeamId != null ? tMap.get(f.homeTeamId) : null;
         const at = f.awayTeamId != null ? tMap.get(f.awayTeamId) : null;
@@ -1132,6 +1168,7 @@ export function registerBslRoutes(app: Express) {
         const ac = f.awayClubId != null ? cMap.get(f.awayClubId) : (at ? cMap.get(at.bslClubId) : null);
         return {
           ...f,
+          ...computeFixtureScore(rubbersByFixture.get(f.id) || []),
           // For club-vs-club fixtures (no team set yet) show the club name as
           // the headline. Pair-vs-pair fixtures keep the original team name.
           homeTeamName: ht?.name || hc?.name || "TBD",
@@ -1142,8 +1179,7 @@ export function registerBslRoutes(app: Express) {
           awayClubLogo: ac?.logoUrl || null,
         };
       });
-      const filtered = status ? enriched.filter(f => f.status === status) : enriched;
-      res.json(filtered);
+      res.json(enriched);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   // Showcase: hydrated upcoming + live fixtures with rubber pairs + member
@@ -1205,7 +1241,8 @@ export function registerBslRoutes(app: Express) {
       const enriched = picked.map(f => {
         const hc = f.homeClubId != null ? cMap.get(f.homeClubId) : null;
         const ac = f.awayClubId != null ? cMap.get(f.awayClubId) : null;
-        const fixtureRubbers = rubbers.filter(r => r.bslFixtureId === f.id).map(r => ({
+        const rawRubbers = rubbers.filter(r => r.bslFixtureId === f.id);
+        const fixtureRubbers = rawRubbers.map(r => ({
           id: r.id,
           rubberNumber: r.rubberNumber,
           rubberType: r.rubberType,
@@ -1224,6 +1261,7 @@ export function registerBslRoutes(app: Express) {
           division: f.division,
           homeRubbers: f.homeRubbers,
           awayRubbers: f.awayRubbers,
+          ...computeFixtureScore(rawRubbers),
           homeClubId: f.homeClubId,
           awayClubId: f.awayClubId,
           homeClubName: hc?.name || "TBD",
@@ -1256,7 +1294,7 @@ export function registerBslRoutes(app: Express) {
       const cMap = new Map(clubRows.map(c => [c.id, c]));
       const homeClub = fixture.homeClubId != null ? cMap.get(fixture.homeClubId) || null : null;
       const awayClub = fixture.awayClubId != null ? cMap.get(fixture.awayClubId) || null : null;
-      res.json({ ...fixture, rubbers, teams, homeClub, awayClub });
+      res.json({ ...fixture, rubbers, teams, homeClub, awayClub, ...computeFixtureScore(rubbers) });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
   app.post("/api/bsl/fixtures", requireAdmin, async (req, res) => {

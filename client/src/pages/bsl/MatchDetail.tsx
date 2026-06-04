@@ -92,6 +92,10 @@ export default function MatchDetail() {
   const { data: match } = useQuery<any>({
     queryKey: ["/api/bsl/fixtures", id],
     enabled: !!id,
+    // Poll every 10s so everyone watching sees scores update live as the admin
+    // types them into Quick Results — no manual refresh needed.
+    refetchInterval: 10000,
+    refetchOnWindowFocus: true,
     queryFn: async () => {
       const r = await fetch(`/api/bsl/fixtures/${id}`, { credentials: "include" });
       return r.json();
@@ -155,19 +159,25 @@ export default function MatchDetail() {
             <div className="text-center">
               <div className="text-xs uppercase tracking-widest mb-2" style={{ color: BSL.muted }}>Home</div>
               <div className="text-lg md:text-xl font-bold mb-2">{home?.name || "TBD"}</div>
-              <div className="text-6xl md:text-7xl font-black tabular-nums" style={{ color: BSL.gold, textShadow: `0 0 32px ${BSL.gold}66` }} data-testid="home-rubbers">
-                {match.homeRubbers}
+              <div className="text-6xl md:text-7xl font-black tabular-nums" style={{ color: BSL.gold, textShadow: `0 0 32px ${BSL.gold}66` }} data-testid="home-points">
+                {match.homePoints ?? 0}
+              </div>
+              <div className="text-[10px] uppercase tracking-widest mt-2" style={{ color: BSL.muted }} data-testid="home-rubbers-sets">
+                {match.homeRubbers} rubbers · {match.homeSets ?? 0} sets
               </div>
             </div>
             <div className="text-center">
               <div className="text-3xl font-thin" style={{ color: BSL.faint }}>VS</div>
-              <div className="text-[10px] uppercase tracking-widest mt-1" style={{ color: BSL.muted }}>Rubbers</div>
+              <div className="text-[10px] uppercase tracking-widest mt-1" style={{ color: BSL.muted }}>Points</div>
             </div>
             <div className="text-center">
               <div className="text-xs uppercase tracking-widest mb-2" style={{ color: BSL.muted }}>Away</div>
               <div className="text-lg md:text-xl font-bold mb-2">{away?.name || "TBD"}</div>
-              <div className="text-6xl md:text-7xl font-black tabular-nums" style={{ color: BSL.cyan, textShadow: `0 0 32px ${BSL.cyan}66` }} data-testid="away-rubbers">
-                {match.awayRubbers}
+              <div className="text-6xl md:text-7xl font-black tabular-nums" style={{ color: BSL.cyan, textShadow: `0 0 32px ${BSL.cyan}66` }} data-testid="away-points">
+                {match.awayPoints ?? 0}
+              </div>
+              <div className="text-[10px] uppercase tracking-widest mt-2" style={{ color: BSL.muted }} data-testid="away-rubbers-sets">
+                {match.awayRubbers} rubbers · {match.awaySets ?? 0} sets
               </div>
             </div>
           </div>

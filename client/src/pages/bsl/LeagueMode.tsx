@@ -25,15 +25,17 @@ export default function LeagueMode() {
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: standings = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/standings"] });
-  const { data: liveFixtures = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures", { status: "LIVE" }], queryFn: async () => {
+  // Poll live/showcase fixtures every 10s so the board updates scores by itself
+  // as the admin enters them — no refresh needed.
+  const { data: liveFixtures = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures", { status: "LIVE" }], refetchInterval: 10000, queryFn: async () => {
     const r = await fetch("/api/bsl/fixtures?status=LIVE", { credentials: "include" });
     return r.json();
   }});
-  const { data: upcomingFixtures = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures", { status: "SCHEDULED" }], queryFn: async () => {
+  const { data: upcomingFixtures = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures", { status: "SCHEDULED" }], refetchInterval: 30000, queryFn: async () => {
     const r = await fetch("/api/bsl/fixtures?status=SCHEDULED", { credentials: "include" });
     return r.json();
   }});
-  const { data: showcase = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures-showcase"], queryFn: async () => {
+  const { data: showcase = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures-showcase"], refetchInterval: 10000, queryFn: async () => {
     const r = await fetch("/api/bsl/fixtures-showcase?limit=6", { credentials: "include" });
     return r.json();
   }});

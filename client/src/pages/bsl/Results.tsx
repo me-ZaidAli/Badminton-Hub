@@ -16,6 +16,10 @@ type Fixture = {
   awayTeamName: string;
   homeRubbers: number;
   awayRubbers: number;
+  homePoints?: number;
+  awayPoints?: number;
+  homeSets?: number;
+  awaySets?: number;
   category?: string | null;
   homeClubLogo: string | null;
   awayClubLogo: string | null;
@@ -39,8 +43,10 @@ type Standing = {
 };
 
 export default function BslResults() {
-  const { data: fixtures = [] } = useQuery<Fixture[]>({ queryKey: ["/api/bsl/fixtures"] });
-  const { data: standings = [] } = useQuery<Standing[]>({ queryKey: ["/api/bsl/standings"] });
+  // Poll fixtures + standings every 10s so results update live for everyone as
+  // the admin enters scores in Quick Results.
+  const { data: fixtures = [] } = useQuery<Fixture[]>({ queryKey: ["/api/bsl/fixtures"], refetchInterval: 10000 });
+  const { data: standings = [] } = useQuery<Standing[]>({ queryKey: ["/api/bsl/standings"], refetchInterval: 10000 });
   const { data: leagueDays = [] } = useQuery<LeagueDay[]>({ queryKey: ["/api/bsl/league-days"] });
 
   const [expanded, setExpanded] = useState<Set<number>>(new Set());
@@ -48,7 +54,7 @@ export default function BslResults() {
   const dayMap = useMemo(() => new Map(leagueDays.map(d => [d.id, d])), [leagueDays]);
 
   const grouped = useMemo(() => {
-    const finished = fixtures.filter(f => f.status === "FINISHED" || (f.homeRubbers + f.awayRubbers) > 0);
+    const finished = fixtures.filter(f => f.status === "FINISHED" || f.status === "LIVE" || f.status === "WARMUP" || (f.homeRubbers + f.awayRubbers) > 0);
     const byDay = new Map<string, { dayId: number | null; date: Date | null; fixtures: Fixture[] }>();
     finished.forEach(f => {
       const dayId = f.bslLeagueDayId;
@@ -195,8 +201,11 @@ export default function BslResults() {
                   {isOpen && (
                     <div className="border-t divide-y" style={{ borderColor: `${BSL.cyan}22` }}>
                       {g.fixtures.map(f => {
-                        const homeWon = f.homeRubbers > f.awayRubbers;
-                        const awayWon = f.awayRubbers > f.homeRubbers;
+                        const homePts = f.homePoints ?? 0;
+                        const awayPts = f.awayPoints ?? 0;
+                        const homeWon = homePts > awayPts;
+                        const awayWon = awayPts > homePts;
+                        const isLive = f.status === "LIVE" || f.status === "WARMUP";
                         return (
                           <Link key={f.id} href={`/bsl/match/${f.id}`}>
                             <div
@@ -207,16 +216,28 @@ export default function BslResults() {
                                 {f.homeClubLogo ? <img src={f.homeClubLogo} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" /> : <div className="w-5 h-5 rounded bg-white/10" />}
                                 <span className={`truncate text-sm ${homeWon ? "font-extrabold text-white" : "text-white/70"}`}>{f.homeTeamName}</span>
                               </div>
-                              <div className="col-span-2 text-center font-extrabold tabular-nums" style={{ color: BSL.gold }}>
-                                {f.homeRubbers} <span className="text-white/40 font-medium">–</span> {f.awayRubbers}
+                              <div className="col-span-2 text-center">
+                                <div className="font-extrabold tabular-nums" style={{ color: BSL.gold }} data-testid={`fixture-points-${f.id}`}>
+                                  {homePts} <span className="text-white/40 font-medium">–</span> {awayPts}
+                                </div>
+                                <div className="text-[9px] uppercase tracking-wider text-white/40">
+                                  {f.homeRubbers}–{f.awayRubbers} rub
+                                </div>
                               </div>
                               <div className="col-span-5 flex items-center gap-2 min-w-0 justify-end">
                                 <span className={`truncate text-sm ${awayWon ? "font-extrabold text-white" : "text-white/70"}`}>{f.awayTeamName}</span>
                                 {f.awayClubLogo ? <img src={f.awayClubLogo} alt="" className="w-5 h-5 rounded object-cover flex-shrink-0" /> : <div className="w-5 h-5 rounded bg-white/10" />}
                               </div>
-                              {f.category && (
-                                <div className="col-span-12 -mt-1 text-center text-[9px] uppercase tracking-wider text-white/40">{f.category}</div>
-                              )}
+                              <div className="col-span-12 -mt-1 flex items-center justify-center gap-2">
+                                {isLive && (
+                                  <span className="inline-flex items-center gap-1 text-[9px] uppercase tracking-wider font-bold" style={{ color: BSL.danger }} data-testid={`fixture-live-${f.id}`}>
+                                    <span className="inline-block h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: BSL.danger }} /> Live
+                                  </span>
+                                )}
+                                {f.category && (
+                                  <span className="text-[9px] uppercase tracking-wider text-white/40">{f.category}</span>
+                                )}
+                              </div>
                             </div>
                           </Link>
                         );
