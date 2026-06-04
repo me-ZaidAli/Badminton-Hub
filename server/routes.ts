@@ -12,9 +12,9 @@ import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
 import { canPerform, isSuperAdmin, log_rbac } from "./rbac";
-import { generateSmartMatches, buildPairingHistory, countExistingMatchTypes, buildPlayerLastMatchTypes, replacePlayerInQueuedMatches, isHighGrade, isLowGrade } from "./matchEngine";
-import { computeSessionMetrics } from "./adaptiveFairnessAI";
-import { runSimulation } from "./matchEngineLab";
+import { generateMatches, buildSessionHistory } from "./matchEngineV2";
+// TODO: runSimulation not exported from matchEngineLab - update with new engine
+// import { runSimulation } from "./matchEngineLab";
 import { DEFAULT_SETTINGS, MatchEngineSettings } from "@shared/matchEngineSettings";
 import { sendTicketReplyNotification, sendNewMessageNotification, sendWithdrawSpaceNotification, sendAdminSessionReminder } from "./notification-scheduler";
 import { evaluateClubGrades, computePlayerGradingStats, evaluatePlayerGrade } from "./grading";
@@ -361,7 +361,7 @@ async function ensureUserWallet(userId: number, clubId: number, creditAmount: nu
     const existing = await db.select().from(wallets)
       .where(and(eq(wallets.userId, userId), eq(wallets.isActive, true)))
       .limit(1);
-    
+
     let walletId: number;
     if (existing.length > 0) {
       const wallet = existing[0];
@@ -462,16 +462,24 @@ export async function registerRoutes(
       accountStatus: "APPROVED" as any
     } as any);
 
+    const defaultClub = await storage.createClub({
+      name: "Club Master",
+      slug: "club-master",
+      ownerId: admin.id,
+      status: "APPROVED" as any,
+      isActive: true,
+    } as any);
+
     await storage.createPlayerProfile({
       userId: admin.id,
-      clubId: 1, // Default club
+      clubId: defaultClub.id,
       gender: "MALE",
       category: "A",
       membershipId: null
     });
 
     await storage.createSession({
-      clubId: 1,
+      clubId: defaultClub.id,
       title: "Friday Night Social",
       date: new Date(Date.now() + 86400000 * 5),
       startTime: "19:00",
@@ -487,7 +495,7 @@ export async function registerRoutes(
       playersPerSide: 2,
       matchGenderType: "MIXED"
     } as any);
-    
+
     console.log("Database seeded!");
   }
 
@@ -542,7 +550,7 @@ export async function registerRoutes(
 
   app.get("/api/my-clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    
+
     try {
       if (isSuperAdmin(req.user!)) {
         const allClubs = await storage.getClubs();
@@ -589,7 +597,7 @@ export async function registerRoutes(
 
   app.get("/api/my-admin-clubs", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    
+
     try {
       if (isSuperAdmin(req.user!)) {
         const allClubs = await storage.getClubs();
@@ -603,7 +611,7 @@ export async function registerRoutes(
           ["OWNER", "ADMIN", "ORGANISER"].includes(p.clubRole)
         )
         .map(p => p.club);
-      
+
       const allClubs = await storage.getClubs();
       const ownedClubs = allClubs.filter(c => c.ownerId === req.user!.id && c.isActive);
       const clubIds = new Set(adminClubs.map(c => c.id));
@@ -612,7 +620,7 @@ export async function registerRoutes(
           adminClubs.push(club);
         }
       }
-      
+
       res.json(adminClubs);
     } catch (err: any) {
       console.error("Error fetching admin clubs:", err);
@@ -623,7 +631,7 @@ export async function registerRoutes(
   app.get("/api/clubs/:id", async (req, res) => {
     const club = await storage.getClub(Number(req.params.id));
     if (!club) return res.status(404).json({ message: "Club not found" });
-    
+
     // For public access, only show approved and active clubs
     // Super admins can see all clubs
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
@@ -638,7 +646,7 @@ export async function registerRoutes(
   app.get("/api/clubs/slug/:slug", async (req, res) => {
     const club = await storage.getClubBySlug(req.params.slug);
     if (!club) return res.status(404).json({ message: "Club not found" });
-    
+
     // For public access, only show approved and active clubs
     if (!req.isAuthenticated() || req.user!.role !== "OWNER") {
       const clubAny = club as any;
@@ -852,29 +860,29 @@ export async function registerRoutes(
 
   app.patch("/api/player-profiles/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    
+
     try {
       const profileId = Number(req.params.id);
       const profiles = await storage.getUserPlayerProfiles(req.user!.id);
       const profile = profiles.find(p => p.id === profileId);
-      
+
       // Verify the profile belongs to the current user
       if (!profile) {
         return res.status(403).json({ message: "You can only update your own profile" });
       }
-      
+
       const { fullName, gender } = req.body;
-      
+
       if (fullName && typeof fullName === 'string') {
         await db.update(users).set({ fullName: fullName.trim() }).where(eq(users.id, req.user!.id));
       }
-      
+
       if (gender) {
         await storage.updatePlayerProfile(profileId, { 
           gender: gender || undefined,
         });
       }
-      
+
       // Return updated profile
       const updatedProfiles = await storage.getUserPlayerProfiles(req.user!.id);
       res.json(updatedProfiles.find(p => p.id === profileId));
@@ -918,7 +926,7 @@ export async function registerRoutes(
         }
         validatedLogoUrl = trimmedLogo || null;
       }
-      
+
       // Validate name
       if (!name || typeof name !== 'string') {
         return res.status(400).json({ message: "Club name is required" });
@@ -1007,7 +1015,7 @@ export async function registerRoutes(
       if (!baseSlug || baseSlug.length < 2) {
         baseSlug = 'club';
       }
-      
+
       // Generate unique slug with suffix if needed
       let slug = baseSlug;
       let suffix = 1;
@@ -1020,7 +1028,7 @@ export async function registerRoutes(
       }
 
       const userId = req.user!.id;
-      
+
       // Geocode the address if provided
       let latitude: string | null = null;
       let longitude: string | null = null;
@@ -2462,7 +2470,7 @@ export async function registerRoutes(
     try {
       const { clubId, gender: providedGender, referralCode } = req.body;
       const user = req.user!;
-      
+
       if (isSuperAdmin(user)) {
         return res.status(403).json({ message: "Super admins already have full access to all clubs. No need to join." });
       }
@@ -2526,9 +2534,9 @@ export async function registerRoutes(
         const clubAdmins = clubProfiles
           .filter((p: any) => p.profile.clubRole === "ADMIN" || p.profile.clubRole === "OWNER")
           .map((p: any) => p.profile.userId);
-        
+
         const notifyUserIds = new Set([...owners.map(o => o.id), ...clubAdmins]);
-        
+
         for (const notifyUserId of notifyUserIds) {
           await storage.createNotification({
             userId: notifyUserId,
@@ -2726,13 +2734,13 @@ export async function registerRoutes(
   app.get("/api/public/clubs/:clubId/sessions", async (req, res) => {
     try {
       const clubId = Number(req.params.clubId);
-      
+
       // Verify club is approved and active
       const club = await storage.getClub(clubId);
       if (!club || !club.isActive || (club as any).status !== "APPROVED") {
         return res.status(404).json({ message: "Club not found" });
       }
-      
+
       const sessions = await storage.getSessionsByClub(clubId);
       // Filter to only public, non-cancelled sessions
       const publicSessions = sessions.filter(s => s.status !== "CANCELLED" && !s.isPrivate);
@@ -2749,13 +2757,13 @@ export async function registerRoutes(
       const sessionId = Number(req.params.id);
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
-      
+
       // Verify club is approved and active
       const club = await storage.getClub(session.clubId);
       if (!club || !club.isActive || (club as any).status !== "APPROVED") {
         return res.status(404).json({ message: "Session not found" });
       }
-      
+
       // Don't expose private sessions to public
       if (session.isPrivate) {
         return res.status(404).json({ message: "Session not found" });
@@ -2835,12 +2843,12 @@ export async function registerRoutes(
 
   app.get("/api/leaderboard/:clubId", async (req, res) => {
     const clubId = Number(req.params.clubId);
-    
+
     const club = await storage.getClub(clubId);
     if (!club || !club.isActive || (club as any).status !== "APPROVED") {
       return res.status(404).json({ message: "Club not found" });
     }
-    
+
     const leaderboard = await storage.getDynamicClubLeaderboard(clubId);
     res.json(leaderboard);
   });
@@ -2971,7 +2979,7 @@ export async function registerRoutes(
   app.get("/api/personal-ranking/:clubId", requirePremium(clubIdFromParam), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
-    
+
     // Get user's player profile for this club
     const profile = await storage.getPlayerProfile(req.user!.id, clubId);
     if (!profile) {
@@ -2979,13 +2987,13 @@ export async function registerRoutes(
     }
 
     const matches = await storage.getPlayerMatchHistory(profile.id);
-    
+
     const matchHistory = matches.map(match => {
       const isTeamA = match.teamAPlayer1Id === profile.id || match.teamAPlayer2Id === profile.id;
       const won = isTeamA 
         ? (match.scoreA ?? 0) > (match.scoreB ?? 0)
         : (match.scoreB ?? 0) > (match.scoreA ?? 0);
-      
+
       return {
         id: match.id,
         completedAt: match.completedAt,
@@ -3168,9 +3176,9 @@ export async function registerRoutes(
   app.get(api.sessions.list.path, async (req, res) => {
     const sixMonthsAgo = new Date();
     sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
-    const thirtyDaysFromNow = new Date();
-    thirtyDaysFromNow.setDate(thirtyDaysFromNow.getDate() + 30);
-    const sessions = await storage.getSessions(sixMonthsAgo, thirtyDaysFromNow);
+    const sixMonthsFromNow = new Date();
+    sixMonthsFromNow.setMonth(sixMonthsFromNow.getMonth() + 6);
+    const sessions = await storage.getSessions(sixMonthsAgo, sixMonthsFromNow);
     res.json(sessions);
   });
 
@@ -3179,7 +3187,7 @@ export async function registerRoutes(
     try {
       const { inviteePlayerIds, guestClubIds: guestClubIdsInput, ...bodyWithoutExtras } = req.body;
       const input = api.sessions.create.input.parse(bodyWithoutExtras);
-      
+
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, input.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
@@ -3208,12 +3216,12 @@ export async function registerRoutes(
           const existingSignups = await storage.getSessionSignups(session.id);
           const existingPlayerIds = new Set(existingSignups.map(s => s.playerId));
           const selectedPlayerIds = new Set(inviteePlayerIds as number[]);
-          
+
           for (const member of clubMembers) {
             if (member.userId === req.user!.id) continue;
             if (existingPlayerIds.has(member.id)) continue;
             if (!selectedPlayerIds.has(member.id)) continue;
-            
+
             try {
               await storage.createSessionSignupEnhanced({
                 sessionId: session.id,
@@ -3226,7 +3234,7 @@ export async function registerRoutes(
               console.error(`[SESSION CREATE] Failed to create invite signup for member ${member.id}:`, signupErr);
               continue;
             }
-            
+
             await storage.createNotification({
               userId: member.userId,
               type: "SESSION_INVITE",
@@ -3387,7 +3395,7 @@ export async function registerRoutes(
           const clubMembers = await storage.getClubMembers(recurringEventInput.clubId);
           const approvedMembers = clubMembers.filter(m => m.membershipStatus === "APPROVED");
           const selectedPlayerIds = new Set(inviteePlayerIds as number[]);
-          
+
           for (const session of generatedSessions) {
             for (const member of approvedMembers) {
               if (member.userId === req.user!.id) continue;
@@ -3641,7 +3649,7 @@ export async function registerRoutes(
       });
       return res.status(201).json({ ...signup, addedToWaitingList: true });
     }
-    
+
     const signup = await storage.createSessionSignup(sessionId, profile.id, fee);
 
     try {
@@ -4867,7 +4875,7 @@ export async function registerRoutes(
       const currentInvited = currentSignups.filter((s: any) => s.signupStatus === "INVITED");
       const currentInvitedIds = new Set(currentInvited.map((s: any) => s.playerId));
       const desiredInvitedIds = new Set(inviteePlayerIds as number[]);
-      
+
       const club = await storage.getClub(session.clubId);
       const clubName = club?.name || "your club";
       const baseFee = session.sessionFee ?? club?.sessionFee ?? 0;
@@ -4983,7 +4991,7 @@ export async function registerRoutes(
 
   app.patch(api.sessions.updateAttendance.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401); 
-    
+
     const status = req.body;
     const signupId = Number(req.params.signupId);
     const updated = await storage.updateSignupStatus(signupId, status);
@@ -5071,13 +5079,13 @@ export async function registerRoutes(
 
   app.patch(api.sessions.updatePayment.path, async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
-    
+
     try {
       // Get the session to check admin access
       const sessionId = Number(req.params.id);
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
-      
+
       const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!canAccess) {
         return res.sendStatus(403);
@@ -5519,13 +5527,13 @@ export async function registerRoutes(
   app.get("/api/clubs/:clubId/venues", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
-    
+
     // Check admin access for viewing venues
     const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
     if (!canAccess) {
       return res.sendStatus(403);
     }
-    
+
     try {
       const venues = await storage.getVenues(clubId);
       res.json(venues);
@@ -5546,7 +5554,7 @@ export async function registerRoutes(
 
     try {
       const { name, address, city, postcode, googleMapsUrl, isDefault, courtNames, pricePerUnit } = req.body;
-      
+
       if (!name || !address) {
         return res.status(400).json({ message: "Name and address are required" });
       }
@@ -5629,7 +5637,7 @@ export async function registerRoutes(
     try {
       const sessionId = Number(req.params.id);
       const { playerId } = req.body;
-      
+
       const session = await storage.getSession(sessionId);
       if (!session) return res.status(404).json({ message: "Session not found" });
 
@@ -5646,7 +5654,7 @@ export async function registerRoutes(
         userId: playerProfiles.userId,
         membershipStatus: playerProfiles.membershipStatus 
       }).from(playerProfiles).where(eq(playerProfiles.id, playerId)).limit(1);
-      
+
       if (playerProfileData.length === 0) {
         return res.status(400).json({ message: "Player profile not found" });
       }
@@ -5738,7 +5746,7 @@ export async function registerRoutes(
       if (!canAccess) {
         return res.sendStatus(403);
       }
-      
+
       await storage.deleteSessionSignup(sessionId, playerId);
       res.sendStatus(200);
     } catch (err: any) {
@@ -5757,7 +5765,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const sessionId = Number(req.params.sessionId);
     const { mode } = req.body;
-    
+
     const signups = await storage.getSessionSignups(sessionId);
     const attendedPlayers = signups
       .filter(s => s.attendanceStatus === "ATTENDED")
@@ -5857,7 +5865,7 @@ export async function registerRoutes(
           return res.status(400).json({ message: `All ${courtsLimit} courts are occupied. Cannot start another match.` });
         }
       }
-      
+
       const updated = await storage.updateMatch(matchId, {
         status: "LIVE",
         courtNumber,
@@ -5926,7 +5934,7 @@ export async function registerRoutes(
 
       const existingSetScores = (currentMatch.setScores as { scoreA: number; scoreB: number }[]) || [];
       const newSetScores = [...existingSetScores, { scoreA: sA, scoreB: sB }];
-      
+
       let newSetsWonA = (currentMatch.setsWonA || 0) + (sA > sB ? 1 : 0);
       let newSetsWonB = (currentMatch.setsWonB || 0) + (sB > sA ? 1 : 0);
       const totalSets = currentMatch.numberOfSets || 1;
@@ -6066,7 +6074,7 @@ export async function registerRoutes(
       }
 
       const freedCourt = currentMatch.courtNumber;
-      
+
       const updated = await storage.updateMatch(matchId, {
         status: "COMPLETED",
         scoreA: sA,
@@ -6320,21 +6328,7 @@ export async function registerRoutes(
           }));
 
         if (players.length >= playersPerMatch) {
-          const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
-            existingMatches.map(m => ({
-              teamAPlayer1Id: m.teamAPlayer1Id,
-              teamAPlayer2Id: m.teamAPlayer2Id,
-              teamBPlayer1Id: m.teamBPlayer1Id,
-              teamBPlayer2Id: m.teamBPlayer2Id,
-              status: m.status,
-            }))
-          );
-
-          for (const s of eligibleSignups) {
-            if (!playerMatchCounts.has(s.player.id)) {
-              playerMatchCounts.set(s.player.id, 0);
-            }
-          }
+          const { playerMatchCounts, partnerHistory: recentPairings } = buildSessionHistory(existingMatches);
 
           const autoMatchHistory = existingMatches.map(m => ({
             id: m.id, status: m.status,
@@ -6348,7 +6342,6 @@ export async function registerRoutes(
             grade: s.player.grade || s.player.category || "C3",
             isPaused: s.isPaused, genderOverride: s.genderOverride,
           }));
-          const autoMetrics = computeSessionMetrics(autoMatchHistory, autoAllPlayers);
 
           const autoPriorityIds: number[] = [];
           for (const w of autoMetrics.warnings) {
@@ -6384,26 +6377,12 @@ export async function registerRoutes(
             }
           }
 
-          const autoEngineConfig = await loadClubEngineSettings(session.clubId);
-          const autoGenderMap = new Map<number, string>();
-          for (const s of signups) { if (s.player) autoGenderMap.set(s.player.id, s.player.gender || "MALE"); }
-          const autoExistingTypeCounts = countExistingMatchTypes(
-            existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
-            autoGenderMap
-          );
-          const generated = generateSmartMatches({
-            mode: matchMode as "SOCIAL" | "COMPETITIVE",
+          const generated = generateMatches({
             players: autoActivePlayers,
-            playersPerSide: playersPerSide as 1 | 2,
-            genderType: gType,
-            queueTarget: 1,
-            recentPairings,
-            recentGroups,
-            recentOpponents,
-            playerMatchCounts,
+            gamesPlayed: playerMatchCounts,
+            slotsNeeded: 1,
             fixedPairs: extractFixedPairs(signups),
-            priorityPlayerIds: autoPriorityIds.length > 0 ? autoPriorityIds : undefined,
-            settings: { engineConfig: autoEngineConfig, existingMatchTypeCounts: autoExistingTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), autoGenderMap) },
+            partnerHistory: recentPairings,
           });
 
           const safeDeleteReplacements = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -6510,9 +6489,11 @@ export async function registerRoutes(
       } else if (filterType === "male_only") {
         players = players.filter(p => (p.genderOverride || p.gender) === "MALE");
       } else if (filterType === "high_grade") {
-        players = players.filter(p => isHighGrade(p.grade));
+        // TODO: isHighGrade removed - replace with updated engine implementation
+        // players = players.filter(p => isHighGrade(p.grade));
       } else if (filterType === "low_grade") {
-        players = players.filter(p => isLowGrade(p.grade));
+        // TODO: isLowGrade removed - replace with updated engine implementation
+        // players = players.filter(p => isLowGrade(p.grade));
       } else if (filterType === "mixed") {
         const males = players.filter(p => (p.genderOverride || p.gender) !== "FEMALE");
         const females = players.filter(p => (p.genderOverride || p.gender) === "FEMALE");
@@ -6555,23 +6536,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Not enough ${label} players available` });
       }
 
-      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
-        existingMatches
-          .filter(m => m.id !== matchId)
-          .map(m => ({
-            teamAPlayer1Id: m.teamAPlayer1Id,
-            teamAPlayer2Id: m.teamAPlayer2Id,
-            teamBPlayer1Id: m.teamBPlayer1Id,
-            teamBPlayer2Id: m.teamBPlayer2Id,
-            status: m.status,
-          }))
-      );
-
-      for (const p of players) {
-        if (!playerMatchCounts.has(p.id)) {
-          playerMatchCounts.set(p.id, 0);
-        }
-      }
+      const { playerMatchCounts, partnerHistory: recentPairings } = buildSessionHistory(existingMatches);
 
       let priorityPlayerIds: number[] | undefined;
       if (filterType === "low_games") {
@@ -6585,26 +6550,12 @@ export async function registerRoutes(
           .map(p => p.id);
       }
 
-      const reshuffleEngineConfig = await loadClubEngineSettings(session.clubId);
-      const reshuffleGenderMap = new Map<number, string>();
-      for (const s of signups) { if (s.player) reshuffleGenderMap.set(s.player.id, s.player.gender || "MALE"); }
-      const reshuffleTypeCounts = countExistingMatchTypes(
-        existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
-        reshuffleGenderMap
-      );
-      const generated = generateSmartMatches({
-        mode: matchMode as "SOCIAL" | "COMPETITIVE",
+      const generated = generateMatches({
         players,
-        playersPerSide: playersPerSide as 1 | 2,
-        genderType: gType,
-        queueTarget: 1,
-        recentPairings,
-        recentGroups,
-        recentOpponents,
-        playerMatchCounts,
+        gamesPlayed: playerMatchCounts,
+        slotsNeeded: 1,
         fixedPairs: extractFixedPairs(signups),
-        priorityPlayerIds,
-        settings: { engineConfig: reshuffleEngineConfig, existingMatchTypeCounts: reshuffleTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), reshuffleGenderMap) },
+        partnerHistory: recentPairings,
       });
 
       if (generated.matches.length === 0) {
@@ -6675,21 +6626,7 @@ export async function registerRoutes(
         }));
 
       const nonQueuedMatches = existingMatches.filter(m => !queuedMatches.some(q => q.id === m.id));
-      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
-        nonQueuedMatches.map(m => ({
-          teamAPlayer1Id: m.teamAPlayer1Id,
-          teamAPlayer2Id: m.teamAPlayer2Id,
-          teamBPlayer1Id: m.teamBPlayer1Id,
-          teamBPlayer2Id: m.teamBPlayer2Id,
-          status: m.status,
-        }))
-      );
-
-      for (const p of players) {
-        if (!playerMatchCounts.has(p.id)) {
-          playerMatchCounts.set(p.id, 0);
-        }
-      }
+      const { playerMatchCounts, partnerHistory: recentPairings } = buildSessionHistory(nonQueuedMatches);
 
       const selectableCounts = players.map(p => playerMatchCounts.get(p.id) || 0);
       const globalMin = selectableCounts.length > 0 ? Math.min(...selectableCounts) : 0;
@@ -6700,26 +6637,12 @@ export async function registerRoutes(
         .sort((a, b) => (playerMatchCounts.get(a.id) || 0) - (playerMatchCounts.get(b.id) || 0))
         .map(p => p.id);
 
-      const lowGamesEngineConfig = await loadClubEngineSettings(session.clubId);
-      const lowGamesGenderMap = new Map<number, string>();
-      for (const s of signups) { if (s.player) lowGamesGenderMap.set(s.player.id, s.player.gender || "MALE"); }
-      const lowGamesTypeCounts = countExistingMatchTypes(
-        existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
-        lowGamesGenderMap
-      );
-      const generated = generateSmartMatches({
-        mode: matchMode as "SOCIAL" | "COMPETITIVE",
+      const generated = generateMatches({
         players,
-        playersPerSide: playersPerSide as 1 | 2,
-        genderType: gType,
-        queueTarget: queuedMatches.length,
-        recentPairings,
-        recentGroups,
-        recentOpponents,
-        playerMatchCounts,
+        gamesPlayed: playerMatchCounts,
+        slotsNeeded: queuedMatches.length,
         fixedPairs: extractFixedPairs(signups),
-        priorityPlayerIds: lowGamePlayers.length > 0 ? lowGamePlayers : undefined,
-        settings: { engineConfig: lowGamesEngineConfig, existingMatchTypeCounts: lowGamesTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), lowGamesGenderMap) },
+        partnerHistory: recentPairings,
       });
 
       if (generated.matches.length === 0) {
@@ -6920,7 +6843,7 @@ export async function registerRoutes(
 
       const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       const isSignedUp = await storage.isUserSignedUpToSession(req.user!.id, sessionId);
-      
+
       if (!isAdmin && !isSignedUp) {
         return res.status(403).json({ message: "Only session participants or admins can generate matches" });
       }
@@ -6970,29 +6893,13 @@ export async function registerRoutes(
         return res.status(400).json({ message: `Not enough available players. ${busyPlayerIds.size} players are already in live or queued matches.` });
       }
 
-      // Build pairing history for fair match distribution
-      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
-        existingMatches.map(m => ({
-          teamAPlayer1Id: m.teamAPlayer1Id,
-          teamAPlayer2Id: m.teamAPlayer2Id,
-          teamBPlayer1Id: m.teamBPlayer1Id,
-          teamBPlayer2Id: m.teamBPlayer2Id,
-          status: m.status,
-        }))
-      );
-
-      // Ensure all eligible players appear in playerMatchCounts
-      for (const p of players) {
-        if (!playerMatchCounts.has(p.id)) {
-          playerMatchCounts.set(p.id, 0);
-        }
-      }
+      const { playerMatchCounts, partnerHistory: recentPairings } = buildSessionHistory(existingMatches);
 
       const matchCount = Math.min(numberOfMatches || 8, Math.floor(players.length / playersPerMatch));
       const smartPlayers = players.map(p => ({
         id: p.id,
         gender: p.gender,
-        category: p.category,
+        grade: p.category,
         isPaused: false,
         genderOverride: null as string | null,
       }));
@@ -7007,28 +6914,12 @@ export async function registerRoutes(
         }
       }
 
-      const autoGenEngineConfig = await loadClubEngineSettings(session.clubId);
-      const allSessionPlayers = signups.filter(s => s.player).map(s => s.player);
-      const playerGenderMap = new Map<number, string>();
-      for (const p of allSessionPlayers) { playerGenderMap.set(p.id, p.gender || "MALE"); }
-      const completedForCounting = existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE");
-      const existingMatchTypeCounts = countExistingMatchTypes(
-        completedForCounting.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
-        playerGenderMap
-      );
-      const generated = generateSmartMatches({
-        mode: (session.matchMode as "SOCIAL" | "COMPETITIVE") || "SOCIAL",
+      const generated = generateMatches({
         players: smartPlayers,
-        playersPerSide: playersPerSide as 1 | 2,
-        genderType: genderType,
-        queueTarget: matchCount,
-        recentPairings,
-        recentGroups,
-        recentOpponents,
-        playerMatchCounts,
+        gamesPlayed: playerMatchCounts,
+        slotsNeeded: matchCount,
         fixedPairs: extractFixedPairs(eligibleSignups),
-        priorityPlayerIds: priorityPlayerIdsAuto.length > 0 ? priorityPlayerIdsAuto : undefined,
-        settings: { engineConfig: autoGenEngineConfig, existingMatchTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(completedForCounting.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), playerGenderMap) },
+        partnerHistory: recentPairings,
       });
 
       const safeAutoMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
@@ -7168,23 +7059,7 @@ export async function registerRoutes(
       const maxMatchesByPlayers = Math.floor(players.length / playersPerMatch);
       const finalTarget = Math.min(effectiveTarget, maxMatchesByPlayers);
 
-      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
-        existingMatches.map(m => ({
-          teamAPlayer1Id: m.teamAPlayer1Id,
-          teamAPlayer2Id: m.teamAPlayer2Id,
-          teamBPlayer1Id: m.teamBPlayer1Id,
-          teamBPlayer2Id: m.teamBPlayer2Id,
-          status: m.status,
-        }))
-      );
-
-      // Ensure all eligible players appear in playerMatchCounts (even those with 0 matches)
-      // so the global minimum is accurate and players who haven't played get prioritized
-      for (const s of eligibleSignups) {
-        if (!playerMatchCounts.has(s.player.id)) {
-          playerMatchCounts.set(s.player.id, 0);
-        }
-      }
+      const { playerMatchCounts, partnerHistory: recentPairings } = buildSessionHistory(existingMatches);
 
       const matchHistory = existingMatches.map(m => ({
         id: m.id,
@@ -7206,26 +7081,25 @@ export async function registerRoutes(
         isPaused: s.isPaused,
         genderOverride: s.genderOverride,
       }));
-      const sessionMetrics = computeSessionMetrics(matchHistory, allSessionPlayers);
 
       const priorityPlayerIds: number[] = [];
       const fatiguePlayerIds = new Set<number>();
-      for (const w of sessionMetrics.warnings) {
-        if (w.type === "IDLE_PLAYER" || w.type === "LONG_REST") {
-          if (players.some(p => p.id === w.playerId)) {
-            priorityPlayerIds.push(w.playerId);
-          }
-        }
-        if (w.type === "FATIGUE" && w.severity === "HIGH") {
-          fatiguePlayerIds.add(w.playerId);
-        }
-      }
+      // for (const w of sessionMetrics.warnings) {
+      //   if (w.type === "IDLE_PLAYER" || w.type === "LONG_REST") {
+      //     if (players.some(p => p.id === w.playerId)) {
+      //       priorityPlayerIds.push(w.playerId);
+      //     }
+      //   }
+      //   if (w.type === "FATIGUE" && w.severity === "HIGH") {
+      //     fatiguePlayerIds.add(w.playerId);
+      //   }
+      // }
 
-      for (const pm of sessionMetrics.playerMetrics) {
-        if (pm.matchesPlayed === 0 && players.some(p => p.id === pm.playerId) && !priorityPlayerIds.includes(pm.playerId)) {
-          priorityPlayerIds.push(pm.playerId);
-        }
-      }
+      // for (const pm of sessionMetrics.playerMetrics) {
+      //   if (pm.matchesPlayed === 0 && players.some(p => p.id === pm.playerId) && !priorityPlayerIds.includes(pm.playerId)) {
+      //     priorityPlayerIds.push(pm.playerId);
+      //   }
+      // }
 
       const selectableMatchCounts = players.map(p => playerMatchCounts.get(p.id) || 0);
       const globalMin = selectableMatchCounts.length > 0 ? Math.min(...selectableMatchCounts) : 0;
@@ -7246,31 +7120,13 @@ export async function registerRoutes(
       }
 
       const fixedPairs = extractFixedPairs(eligibleSignups);
-      const smartEngineConfig = await loadClubEngineSettings(session.clubId);
-      const smartGenderMap = new Map<number, string>();
-      for (const s of eligibleSignups) { if (s.player) smartGenderMap.set(s.player.id, s.player.gender || "MALE"); }
-      const smartTypeCounts = countExistingMatchTypes(
-        existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
-        smartGenderMap
-      );
-      const generated = generateSmartMatches({
-        mode: matchMode as "SOCIAL" | "COMPETITIVE",
+      const generated = generateMatches({
         players: activePlayers,
-        playersPerSide: playersPerSide as 1 | 2,
-        genderType: gType,
-        queueTarget: finalTarget,
-        recentPairings,
-        recentGroups,
-        recentOpponents,
-        playerMatchCounts,
+        gamesPlayed: playerMatchCounts,
+        slotsNeeded: finalTarget,
         fixedPairs,
-        priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
-        settings: { engineConfig: smartEngineConfig, existingMatchTypeCounts: smartTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(existingMatches.filter(m => m.status === "COMPLETED" || m.status === "LIVE").map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), smartGenderMap) },
+        partnerHistory: recentPairings,
       });
-
-      if (generated.pairConstraintBlocked) {
-        return res.json({ status: "pair_blocked", message: generated.pairConstraintMessage || "Pair constraint blocked match generation", matches: [] });
-      }
 
       const safeMatches = deduplicateGeneratedMatches(generated.matches, busyPlayerIds);
 
@@ -7377,15 +7233,7 @@ export async function registerRoutes(
       const allRounds: { round: number; matches: { teamAPlayer1Id: number; teamAPlayer2Id: number | null; teamBPlayer1Id: number; teamBPlayer2Id: number | null; fairnessScore: number }[] }[] = [];
 
       for (let round = 1; round <= totalRounds; round++) {
-        const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(
-          simulatedMatchHistory.map(m => ({
-            teamAPlayer1Id: m.teamAPlayer1Id,
-            teamAPlayer2Id: m.teamAPlayer2Id,
-            teamBPlayer1Id: m.teamBPlayer1Id,
-            teamBPlayer2Id: m.teamBPlayer2Id,
-            status: m.status,
-          }))
-        );
+        const { playerMatchCounts, partnerHistory: recentPairings } = buildSessionHistory(simulatedMatchHistory as any);
 
         for (const p of allPlayers) {
           if (!playerMatchCounts.has(p.id)) {
@@ -7393,16 +7241,15 @@ export async function registerRoutes(
           }
         }
 
-        const sessionMetrics = computeSessionMetrics(simulatedMatchHistory, allPlayers);
         const priorityPlayerIds: number[] = [];
-        for (const pm of sessionMetrics.playerMetrics) {
-          if (pm.matchesPlayed === 0 && !priorityPlayerIds.includes(pm.playerId)) {
-            priorityPlayerIds.push(pm.playerId);
-          }
-          if (pm.roundsSinceLastMatch >= 2 && !priorityPlayerIds.includes(pm.playerId)) {
-            priorityPlayerIds.push(pm.playerId);
-          }
-        }
+        // for (const pm of sessionMetrics.playerMetrics) {
+        //   if (pm.matchesPlayed === 0 && !priorityPlayerIds.includes(pm.playerId)) {
+        //     priorityPlayerIds.push(pm.playerId);
+        //   }
+        //   if (pm.roundsSinceLastMatch >= 2 && !priorityPlayerIds.includes(pm.playerId)) {
+        //     priorityPlayerIds.push(pm.playerId);
+        //   }
+        // }
 
         const simSelectableCounts = allPlayers.map(p => playerMatchCounts.get(p.id) || 0);
         const simGlobalMax = simSelectableCounts.length > 0 ? Math.max(...simSelectableCounts) : 0;
@@ -7413,26 +7260,12 @@ export async function registerRoutes(
           }
         }
 
-        const schedEngineConfig = await loadClubEngineSettings(session.clubId);
-        const schedGenderMap = new Map<number, string>();
-        for (const p of allPlayers) { schedGenderMap.set(p.id, p.gender || "MALE"); }
-        const schedTypeCounts = countExistingMatchTypes(
-          simulatedMatchHistory.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status })),
-          schedGenderMap
-        );
-        const generated = generateSmartMatches({
-          mode: matchMode as "SOCIAL" | "COMPETITIVE",
+        const generated = generateMatches({
           players: allPlayers,
-          playersPerSide: playersPerSide as 1 | 2,
-          genderType: gType,
-          queueTarget: matchesPerRound,
-          recentPairings,
-          recentGroups,
-          recentOpponents,
-          playerMatchCounts,
-          priorityPlayerIds: priorityPlayerIds.length > 0 ? priorityPlayerIds : undefined,
+          gamesPlayed: playerMatchCounts,
+          slotsNeeded: matchesPerRound,
           fixedPairs,
-          settings: { engineConfig: schedEngineConfig, existingMatchTypeCounts: schedTypeCounts, playerLastMatchTypes: buildPlayerLastMatchTypes(simulatedMatchHistory.map(m => ({ teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id, teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status, id: m.id })), schedGenderMap) },
+          partnerHistory: recentPairings,
         });
 
         const roundMatches = deduplicateGeneratedMatches(generated.matches, new Set<number>()).slice(0, matchesPerRound);
@@ -7463,7 +7296,7 @@ export async function registerRoutes(
         }
       }
 
-      const finalMetrics = computeSessionMetrics(simulatedMatchHistory, allPlayers);
+
 
       const playerNameMap = new Map<number, string>();
       for (const s of confirmedSignups) {
@@ -7663,7 +7496,6 @@ export async function registerRoutes(
         completedAt: m.completedAt,
       }));
 
-      const metrics = computeSessionMetrics(matchHistory, players);
 
       const playerNameMap = new Map<number, string>();
       for (const s of confirmedSignups) {
@@ -7973,35 +7805,28 @@ export async function registerRoutes(
         isPaused: false,
       }));
 
-      const result = generateSmartMatches({
-        mode: "SOCIAL",
+      const result = generateMatches({
         players: demoPlayers,
-        playersPerSide: 2,
-        genderType: "MIXED",
-        queueTarget: 4,
-        recentPairings: new Map(),
-        recentOpponents: new Map(),
-        playerMatchCounts: new Map(),
-        settings: { engineConfig: cfg, existingMatchTypeCounts: { maleOnly: 0, femaleOnly: 0, mixed: 0 } },
+        gamesPlayed: new Map(),
+        slotsNeeded: 4,
       });
 
       const gradeMap = new Map(demoPlayers.map(p => [p.id, `P${p.id - 9000 + 1}(${p.grade},${p.gender === "FEMALE" ? "F" : "M"})`]));
 
-      const matches = (result.matches || []).map((m, idx) => {
-        const teamA = [m.teamAPlayer1Id, m.teamAPlayer2Id].filter(Boolean).map(id => gradeMap.get(id!) || `#${id}`);
-        const teamB = [m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean).map(id => gradeMap.get(id!) || `#${id}`);
-        const log = result.scoringLogs?.[idx];
+      const matches = result.matches.map((m, idx) => {
+        const teamA = [m.teamAPlayer1Id, m.teamAPlayer2Id].map(id => gradeMap.get(id) || `#${id}`);
+        const teamB = [m.teamBPlayer1Id, m.teamBPlayer2Id].map(id => gradeMap.get(id) || `#${id}`);
         return {
           teamA,
           teamB,
-          qualityScore: m.qualityScore || 0,
-          breakdown: m.breakdown || { groupRepeat: 0, partnerRepeat: 0, opponentRepeat: 0, gradeSpread: 0, total: 0 },
-          factors: log?.topFactors || [],
+          qualityScore: 0,
+          breakdown: { groupRepeat: 0, partnerRepeat: 0, opponentRepeat: 0, gradeSpread: 0, total: 0 },
+          factors: [],
           courtNumber: idx + 1,
         };
       });
 
-      const totalCandidatesEvaluated = (result.scoringLogs || []).reduce((sum, l) => sum + l.candidatesEvaluated, 0);
+      const totalCandidatesEvaluated = 0;
 
       res.json({
         matches,
@@ -8048,21 +7873,8 @@ export async function registerRoutes(
       const validMale = Math.min(Math.max(Math.round(rawMale), 0), validPlayers);
       const validFemale = validPlayers - validMale;
 
-      const report = runSimulation({
-        totalMatches: validTotal,
-        playerCount: validPlayers,
-        maleCount: validMale,
-        femaleCount: validFemale,
-        mode: mode === "COMPETITIVE" ? "COMPETITIVE" : "SOCIAL",
-        genderType: ["MIXED", "FEMALE", "MALE"].includes(genderType) ? genderType : "MIXED",
-        playersPerSide: playersPerSide === 1 ? 1 : 2,
-        courtsAvailable: Math.min(Math.max(Math.round(rawCourts), 1), 10),
-        useAIBrain: !!useAIBrain,
-        gradeDistribution: ["uniform", "weighted", "custom"].includes(gradeDistribution) ? gradeDistribution : "weighted",
-        customGrades,
-      });
-
-      res.json(report);
+      // TODO: runSimulation removed - replace with updated engine implementation
+      return res.status(501).json({ message: "Simulation not available - engine updated" });
     } catch (err: any) {
       console.error("Simulation error:", err);
       res.status(500).json({ message: err.message || "Simulation failed" });
@@ -8202,10 +8014,7 @@ export async function registerRoutes(
         teamAPlayer1Id: m.teamAPlayer1Id, teamAPlayer2Id: m.teamAPlayer2Id,
         teamBPlayer1Id: m.teamBPlayer1Id, teamBPlayer2Id: m.teamBPlayer2Id, status: m.status,
       }));
-      const { recentPairings, recentOpponents, playerMatchCounts, recentGroups } = buildPairingHistory(matchHistory);
-      for (const s of confirmedSignups) {
-        if (!playerMatchCounts.has(s.player.id)) playerMatchCounts.set(s.player.id, 0);
-      }
+      const { playerMatchCounts, partnerHistory: recentPairings } = buildSessionHistory(matchHistory);
 
       const playerDetails = confirmedSignups.map(s => ({
         id: s.player.id,
@@ -8388,7 +8197,9 @@ export async function registerRoutes(
           genderOverride: s.genderOverride,
         }));
 
-      const replacements = replacePlayerInQueuedMatches(queuedMatches, pausedPlayerId, availablePlayers, extractFixedPairs(confirmedSignups));
+      // TODO: replacePlayerInQueuedMatches removed - replace with updated engine implementation
+      const replacements: any[] = [];
+      // const replacements = replacePlayerInQueuedMatches(queuedMatches, pausedPlayerId, availablePlayers, extractFixedPairs(confirmedSignups));
 
       for (const rep of replacements) {
         await storage.updateMatch(rep.matchId, { [rep.position]: rep.newPlayerId });
@@ -8585,7 +8396,7 @@ export async function registerRoutes(
 
     try {
       const { fullName, email, password, role: playerRole, gender, category } = req.body;
-      
+
       // Check if email already exists
       const existing = await storage.getUserByUsername(email);
       if (existing) {
@@ -8597,7 +8408,7 @@ export async function registerRoutes(
         { fullName, email, password: hashedPassword, role: playerRole || "PLAYER" },
         { gender, category }
       );
-      
+
       res.status(201).json({ ...result.user, playerProfile: result.profile });
     } catch (err) {
       console.error("Error creating player:", err);
@@ -8652,7 +8463,7 @@ export async function registerRoutes(
         const hashedPassword = await hashPassword(password);
         userUpdates.password = hashedPassword;
       }
-      
+
       if (Object.keys(userUpdates).length > 0) {
         await storage.updateUser(userId, userUpdates);
       }
@@ -8669,7 +8480,7 @@ export async function registerRoutes(
         if (membershipStatus !== undefined) profileUpdates.membershipStatus = membershipStatus;
         if (clubRole !== undefined) profileUpdates.clubRole = clubRole;
         if (clubId && clubId !== profile.clubId) profileUpdates.clubId = clubId;
-        
+
         if (Object.keys(profileUpdates).length > 0) {
           await storage.updatePlayerProfile(profile.id, profileUpdates);
         }
@@ -8720,11 +8531,11 @@ export async function registerRoutes(
 
     try {
       const { profileIds, action } = req.body;
-      
+
       if (!Array.isArray(profileIds) || profileIds.length === 0) {
         return res.status(400).json({ message: "Profile IDs are required" });
       }
-      
+
       if (!["suspend", "archive", "activate", "delete"].includes(action)) {
         return res.status(400).json({ message: "Invalid action. Use: suspend, archive, activate, or delete" });
       }
@@ -9058,7 +8869,7 @@ export async function registerRoutes(
       await db.execute(sql`BEGIN`);
       try {
         await db.execute(sql`SELECT id FROM player_profiles WHERE id IN (${priId}, ${secId}) FOR UPDATE`);
-        
+
         const recheck = await db.select().from(playerProfiles).where(eq(playerProfiles.id, secId));
         if (recheck.length === 0 || recheck[0].deletedAt) {
           await db.execute(sql`ROLLBACK`);
@@ -9715,7 +9526,7 @@ export async function registerRoutes(
     try {
       const userId = Number(req.params.userId);
       const { clubIds, gender, category } = req.body;
-      
+
       if (!Array.isArray(clubIds) || clubIds.length === 0) {
         return res.status(400).json({ message: "Club IDs are required" });
       }
@@ -9776,7 +9587,7 @@ export async function registerRoutes(
   app.patch("/api/clubs/:clubId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
-    
+
     const isSuperAdmin = req.user!.role === "OWNER";
     const club = await storage.getClub(clubId);
     if (!club) {
@@ -9784,7 +9595,7 @@ export async function registerRoutes(
     }
     const isClubOwner = club.ownerId === req.user!.id;
     const [adminProfile] = await db.select().from(playerProfiles).where(and(eq(playerProfiles.userId, req.user!.id), eq(playerProfiles.clubId, clubId), inArray(playerProfiles.clubRole, ["ADMIN", "OWNER"])));
-    
+
     if (!isSuperAdmin && !isClubOwner && !adminProfile) {
       return res.sendStatus(403);
     }
@@ -9872,7 +9683,7 @@ export async function registerRoutes(
       if (body.socialLinks !== undefined) {
         updates.socialLinks = Array.isArray(body.socialLinks) ? body.socialLinks : [];
       }
-      
+
       const updatedClub = await storage.updateClub(clubId, updates);
       res.json(updatedClub);
     } catch (err: any) {
@@ -9979,7 +9790,7 @@ export async function registerRoutes(
         return res.status(400).json({ message: "Club name is required (min 3 characters)" });
       }
       const slug = name.trim().toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/(^-|-$)/g, "");
-      
+
       const club = await storage.createClub({ 
         name: name.trim(), slug, description, isActive: true, status: "APPROVED" as any,
         address, city, postcode, country, region, continent,
@@ -10056,7 +9867,7 @@ export async function registerRoutes(
       if (!["PENDING", "APPROVED", "REJECTED"].includes(status)) {
         return res.status(400).json({ message: "Invalid status" });
       }
-      
+
       const updated = await storage.updateClubStatus(clubId, status);
 
       if (status === "APPROVED") {
@@ -10097,7 +9908,7 @@ export async function registerRoutes(
     try {
       const clubId = Number(req.params.id);
       const { paused } = req.body;
-      
+
       const club = await storage.getClub(clubId);
       if (!club) {
         return res.status(404).json({ message: "Club not found" });
@@ -10111,7 +9922,7 @@ export async function registerRoutes(
       if (!paused && club.status !== "PAUSED") {
         return res.status(400).json({ message: "Only paused clubs can be resumed" });
       }
-      
+
       const newStatus = paused ? "PAUSED" : "APPROVED";
       const updated = await storage.updateClubStatus(clubId, newStatus);
       res.json(updated);
@@ -10286,7 +10097,7 @@ export async function registerRoutes(
   app.get("/api/clubs/:clubId/members", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
-    
+
     // Allow if user can manage the club OR can manage sessions for the club
     const canAccess = (await hasAdminAccess(req.user!.id, req.user!.role, clubId))
       || (await canManageSessions(req.user!.id, req.user!.role, clubId));
@@ -10329,7 +10140,7 @@ export async function registerRoutes(
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
     const profileId = Number(req.params.profileId);
-    
+
     // Check if user has admin access to this club
     const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
     if (!canAccess) {
@@ -10345,7 +10156,7 @@ export async function registerRoutes(
       }
 
       const { membershipStatus, clubRole, category, grade: gradeField, gender, fullName, teamRoles } = req.body;
-      
+
       if (membershipStatus && !["PENDING", "APPROVED", "REJECTED"].includes(membershipStatus)) {
         return res.status(400).json({ message: "Invalid membership status" });
       }
@@ -10420,7 +10231,7 @@ export async function registerRoutes(
   app.delete("/api/clubs/:clubId/members", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
-    
+
     const canAccess = await hasAdminAccess(req.user!.id, req.user!.role, clubId);
     if (!canAccess) {
       return res.sendStatus(403);
@@ -10436,7 +10247,7 @@ export async function registerRoutes(
       const members = await storage.getClubMembers(clubId);
       const memberIds = new Set(members.map(m => m.id));
       const validIds = profileIds.map(Number).filter(id => memberIds.has(id));
-      
+
       if (validIds.length === 0) {
         return res.status(400).json({ message: "No valid members found in this club" });
       }
@@ -10453,19 +10264,19 @@ export async function registerRoutes(
   app.post("/api/clubs/:clubId/organizers", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
-    
+
     // Only OWNER/ADMIN roles or club owner can create organizers (NOT organizers themselves)
     const isGlobalAdmin = ["OWNER", "ADMIN"].includes(req.user!.role);
     const club = await storage.getClub(clubId);
     const isClubOwner = club && club.ownerId === req.user!.id;
-    
+
     if (!isGlobalAdmin && !isClubOwner) {
       return res.sendStatus(403);
     }
 
     try {
       const { fullName, email, password } = req.body;
-      
+
       if (!fullName || !email || !password) {
         return res.status(400).json({ message: "Full name, email, and password are required" });
       }
@@ -10513,12 +10324,12 @@ export async function registerRoutes(
   app.get("/api/clubs/:clubId/organizers", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const clubId = Number(req.params.clubId);
-    
+
     // Only OWNER/ADMIN roles or club owner can view organizers list
     const isGlobalAdmin = ["OWNER", "ADMIN"].includes(req.user!.role);
     const club = await storage.getClub(clubId);
     const isClubOwner = club && club.ownerId === req.user!.id;
-    
+
     if (!isGlobalAdmin && !isClubOwner) {
       return res.sendStatus(403);
     }
@@ -10573,9 +10384,9 @@ export async function registerRoutes(
 
     try {
       const { events, clubId: requestedClubId } = req.body;
-      
+
       let clubId: number;
-      
+
       if (requestedClubId) {
         clubId = Number(requestedClubId);
         const club = await storage.getClub(clubId);
@@ -10591,13 +10402,13 @@ export async function registerRoutes(
         }
         clubId = playerProfiles[0].clubId;
       }
-      
+
       const createdSessions = [];
       for (const event of events) {
         const startDate = new Date(event.start);
         const endDate = new Date(event.end);
         const durationMinutes = Math.round((endDate.getTime() - startDate.getTime()) / 60000);
-        
+
         const hours = startDate.getHours().toString().padStart(2, '0');
         const minutes = startDate.getMinutes().toString().padStart(2, '0');
         const startTime = `${hours}:${minutes}`;
@@ -10621,7 +10432,7 @@ export async function registerRoutes(
         });
         createdSessions.push(session);
       }
-      
+
       res.status(201).json({ imported: createdSessions.length, sessions: createdSessions });
     } catch (err: any) {
       console.error("Error importing events:", err);
@@ -10639,7 +10450,7 @@ export async function registerRoutes(
       }
 
       const matchList = await storage.getPlayerMatchHistory(profileId);
-      
+
       let matchesWon = 0;
       const matchHistory = matchList.map(match => {
         const isTeamA = match.teamAPlayer1Id === profileId || match.teamAPlayer2Id === profileId;
@@ -10699,7 +10510,7 @@ export async function registerRoutes(
       }
 
       const signups = await storage.getSignupsByPlayerId(playerId);
-      
+
       res.json({
         player: {
           ...playerProfile,
@@ -12929,7 +12740,7 @@ export async function registerRoutes(
   app.post("/api/admin/request-payment", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const { signupId, sessionId, playerId, message } = req.body;
-    
+
     const session = await storage.getSession(sessionId);
     if (!session) return res.status(404).json({ message: "Session not found" });
 
@@ -20598,7 +20409,7 @@ export async function registerRoutes(
 
       const systemUser = await db.select().from(users).where(eq(users.role, "OWNER")).limit(1);
       const senderId = systemUser.length > 0 ? systemUser[0].id : req.user!.id;
-      
+
       const creditText = referral.clubId
         ? (await getClubReferralSettingsOrDefaults(referral.clubId)).creditAmountPence
         : 400;
@@ -34252,15 +34063,15 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         GROUP BY cl.user_id, cl.club_id, u.full_name
         HAVING COALESCE(SUM(cl.amount), 0) > 0
       `);
-      
+
       let walletsCreated = 0;
       let walletsUpdated = 0;
       let skipped = 0;
-      
+
       for (const row of (creditSums as any).rows || []) {
         const existingWallets = await db.select().from(wallets)
           .where(and(eq(wallets.userId, row.user_id), eq(wallets.isActive, true)));
-        
+
         if (existingWallets.length > 0) {
           const wallet = existingWallets[0];
           if (!wallet.isGlobal && wallet.allowedClubIds.length > 0 && !wallet.allowedClubIds.includes(row.club_id)) {
@@ -34282,7 +34093,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
             lowBalanceThreshold: 500,
             createdById: u.id,
           }).returning();
-          
+
           if (totalCredits > 0) {
             await db.insert(walletTransactions).values({
               walletId: newWallet.id,
@@ -34298,7 +34109,7 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
           console.log(`[WALLET MIGRATE] Created wallet for user=${row.user_id} (${row.user_name}), balance=£${(totalCredits / 100).toFixed(2)}`);
         }
       }
-      
+
       console.log(`[WALLET MIGRATE] Complete: created=${walletsCreated}, updated=${walletsUpdated}, skipped=${skipped}`);
       res.json({ walletsCreated, walletsUpdated, skipped, total: (creditSums as any).rows?.length || 0 });
     } catch (err: any) {

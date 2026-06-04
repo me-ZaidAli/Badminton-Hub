@@ -54,61 +54,6 @@ export type GenerateResult = {
   matches: MatchResult[];
 };
 
-/**
- * Derives match-engine history maps from existing session match records.
- *
- * - playerMatchCounts: how many COMPLETED or LIVE matches each player has played
- * - partnerHistory:    how many times each pair has been on the same team
- *
- * Both are keyed to the current session so they are naturally session-scoped
- * and require no extra storage — they are recomputed on every engine call from
- * the match records already in the DB.
- */
-export function buildSessionHistory(
-  matchRecords: {
-    status: string;
-    teamAPlayer1Id: number | null;
-    teamAPlayer2Id: number | null;
-    teamBPlayer1Id: number | null;
-    teamBPlayer2Id: number | null;
-  }[],
-): {
-  playerMatchCounts: Map<number, number>;
-  partnerHistory: Map<string, number>;
-} {
-  const playerMatchCounts = new Map<number, number>();
-  const partnerHistory = new Map<string, number>();
-
-  for (const m of matchRecords) {
-    if (m.status !== "COMPLETED" && m.status !== "LIVE") continue;
-
-    const teamA = [m.teamAPlayer1Id, m.teamAPlayer2Id].filter(
-      (id): id is number => id !== null,
-    );
-    const teamB = [m.teamBPlayer1Id, m.teamBPlayer2Id].filter(
-      (id): id is number => id !== null,
-    );
-
-    for (const id of [...teamA, ...teamB]) {
-      playerMatchCounts.set(id, (playerMatchCounts.get(id) ?? 0) + 1);
-    }
-
-    // Record partner pairings
-    if (teamA.length === 2) {
-      const [a, b] = teamA;
-      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-      partnerHistory.set(key, (partnerHistory.get(key) ?? 0) + 1);
-    }
-    if (teamB.length === 2) {
-      const [a, b] = teamB;
-      const key = a < b ? `${a}-${b}` : `${b}-${a}`;
-      partnerHistory.set(key, (partnerHistory.get(key) ?? 0) + 1);
-    }
-  }
-
-  return { playerMatchCounts, partnerHistory };
-}
-
 // ─── Grade ranking ────────────────────────────────────────────────────────────
 
 /**
@@ -293,15 +238,30 @@ function hasRepeatFreeSplit(
 function isAllMale(team: Player[]): boolean {
   return team.every((p) => gender(p) === "MALE");
 }
+
 function isAllFemale(team: Player[]): boolean {
   return team.every((p) => gender(p) === "FEMALE");
 }
+
+function isMixed(team: Player[]): boolean {
+  const f = team.filter((p) => gender(p) === "FEMALE").length;
+  return f > 0 && f < team.length;
+}
+
 function splitGenderAllowed(teamA: Player[], teamB: Player[]): boolean {
-  // Block: all-male team vs all-female team (either side)
-  return !(
+  // Block: all-male vs all-female (either side)
+  if (
     (isAllMale(teamA) && isAllFemale(teamB)) ||
     (isAllFemale(teamA) && isAllMale(teamB))
-  );
+  )
+    return false;
+  // Block: mixed pair vs all-female pair (either side)
+  if (
+    (isMixed(teamA) && isAllFemale(teamB)) ||
+    (isAllFemale(teamA) && isMixed(teamB))
+  )
+    return false;
+  return true;
 }
 
 function bestSplit(
@@ -338,6 +298,8 @@ function bestSplit(
   return best;
 }
 
+// ─── Combination search ─────────────────────────────────────────────────────
+
 function groupKey(group: Player[]): string {
   return group
     .map((p) => p.id)
@@ -345,6 +307,20 @@ function groupKey(group: Player[]): string {
     .join("-");
 }
 
+/**
+ * Find the first combination of 4 players from `pool` that is grade-valid,
+ * gender-valid, and fixed-pair-respecting.
+ *
+ * `femaleSpreadLimit` allows a looser grade spread for all-female groups so
+ * that 2F vs 2F matches can form even when female players span more grade
+ * tiers than the general limit allows. Pruning during recursion uses
+ * max(spreadLimit, femaleSpreadLimit) to avoid cutting off all-female branches
+ * prematurely; the tighter per-composition check happens at the leaf.
+ *
+ * When `groupHistory` is provided, groups that have already played together
+ * are skipped in favour of fresh groups. The first seen-group is held as a
+ * fallback and returned only if no unseen group exists.
+ */
 function findFirstValidGroup(
   pool: Player[],
   poolRanks: number[],
@@ -409,6 +385,45 @@ function findFirstValidGroup(
 }
 
 // ─── Main export ──────────────────────────────────────────────────────────────
+
+/**
+ * Build the per-session history the engine needs from a list of matches.
+ * Counts only matches that actually happened (COMPLETED or LIVE):
+ *   - playerMatchCounts: how many matches each player has played this session
+ *   - partnerHistory: how many times each pair partnered (key "min-max")
+ */
+export function buildSessionHistory(
+  matches: {
+    status: string;
+    teamAPlayer1Id: number | null;
+    teamAPlayer2Id: number | null;
+    teamBPlayer1Id: number | null;
+    teamBPlayer2Id: number | null;
+  }[],
+): { playerMatchCounts: Map<number, number>; partnerHistory: Map<string, number> } {
+  const playerMatchCounts = new Map<number, number>();
+  const partnerHistory = new Map<string, number>();
+
+  for (const match of matches) {
+    if (match.status !== "COMPLETED" && match.status !== "LIVE") continue;
+    const teamA = [match.teamAPlayer1Id, match.teamAPlayer2Id].filter((id): id is number => id != null);
+    const teamB = [match.teamBPlayer1Id, match.teamBPlayer2Id].filter((id): id is number => id != null);
+
+    for (const id of [...teamA, ...teamB]) {
+      playerMatchCounts.set(id, (playerMatchCounts.get(id) ?? 0) + 1);
+    }
+    if (teamA.length === 2) {
+      const k = pairKey(teamA[0], teamA[1]);
+      partnerHistory.set(k, (partnerHistory.get(k) ?? 0) + 1);
+    }
+    if (teamB.length === 2) {
+      const k = pairKey(teamB[0], teamB[1]);
+      partnerHistory.set(k, (partnerHistory.get(k) ?? 0) + 1);
+    }
+  }
+
+  return { playerMatchCounts, partnerHistory };
+}
 
 export function generateMatches(opts: GenerateOptions): GenerateResult {
   const {
