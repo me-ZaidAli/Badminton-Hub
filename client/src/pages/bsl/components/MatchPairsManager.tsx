@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { CalendarDays, Plus, Trash2, UserMinus, Users, Swords } from "lucide-react";
 import { GlowPanel } from "./GlowPanel";
@@ -46,7 +46,14 @@ export function MatchPairsManager({
     queryFn: async () => (await fetch(`/api/bsl/clubs/${clubId}/fixtures`, { credentials: "include" })).json(),
     enabled: Number.isFinite(clubId),
   });
-  const [tab, setTab] = useState<"upcoming" | "completed">("upcoming");
+  const [tab, setTab] = useState<"upcoming" | "completed">(() => {
+    const saved = localStorage.getItem("matchPairsTab");
+    if (saved === "upcoming" || saved === "completed") return saved;
+    return "upcoming";
+  });
+  useEffect(() => {
+    localStorage.setItem("matchPairsTab", tab);
+  }, [tab]);
   const fixtures = fixturesData?.fixtures || [];
 
   // Local-time day key so a match flips to "Completed" at local midnight, not UTC.

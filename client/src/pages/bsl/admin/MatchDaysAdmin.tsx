@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { CalendarDays, MapPin, Users, Plus, X, Trash2, Save, ExternalLink, Settings2, Activity } from "lucide-react";
@@ -68,7 +68,14 @@ export default function MatchDaysAdmin() {
     () => (days || []).filter(d => dayKey(d.date) < todayKey).slice().sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()),
     [days, todayKey],
   );
-  const [dayTab, setDayTab] = useState<"upcoming" | "past">("upcoming");
+  const [dayTab, setDayTab] = useState<"upcoming" | "past">(() => {
+    const saved = localStorage.getItem("matchDaysTab");
+    if (saved === "upcoming" || saved === "past") return saved;
+    return "upcoming";
+  });
+  useEffect(() => {
+    localStorage.setItem("matchDaysTab", dayTab);
+  }, [dayTab]);
   const shownDays = dayTab === "upcoming" ? upcoming : past;
 
   return (
