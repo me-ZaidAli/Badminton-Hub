@@ -2763,8 +2763,13 @@ export function registerTournamentRoutes(app: Express) {
       // Validate category exists (so destructive deletes can't be aimed at junk IDs).
       const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, catId));
       if (!cat) return res.status(404).json({ message: "Category not found" });
-      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
-      if (!profile) return res.status(404).json({ message: "No player profile" });
+      // Match against EVERY profile this user owns (a user can have more than
+      // one player_profile) so leaving works even when their team sits under a
+      // non-primary profile.
+      const myProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      if (!myProfiles.length) return res.status(404).json({ message: "No player profile" });
+      const myProfileIds = myProfiles.map(p => p.id);
+      const isMine = (pid: number | null) => pid != null && myProfileIds.includes(pid);
       // Lifecycle guard: once matches exist in this category, leaving would orphan
       // brackets/standings. Block the leave and tell the player to contact the admin.
       const matchCount = await db.select({ count: sql<number>`count(*)::int` })
@@ -2778,7 +2783,7 @@ export function registerTournamentRoutes(app: Express) {
         const mine = await tx.select().from(tournamentTeams)
           .where(and(
             eq(tournamentTeams.categoryId, catId),
-            or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id)),
+            or(inArray(tournamentTeams.player1Id, myProfileIds), inArray(tournamentTeams.player2Id, myProfileIds)),
           ));
         for (const team of mine) {
           await tx.execute(sql`SELECT id FROM tournament_teams WHERE id = ${team.id} FOR UPDATE`);
@@ -2788,7 +2793,7 @@ export function registerTournamentRoutes(app: Express) {
           // Only fully wipe the team when the leaver was the sole occupant.
           const remainingProfileId =
             team.player2Id != null
-              ? (team.player1Id === profile.id ? team.player2Id : (team.player2Id === profile.id ? team.player1Id : null))
+              ? (isMine(team.player1Id) ? team.player2Id : (isMine(team.player2Id) ? team.player1Id : null))
               : null;
           if (remainingProfileId != null) {
             // Remove any group-pair link tied to the now-solo team (groups are
@@ -2847,10 +2852,14 @@ export function registerTournamentRoutes(app: Express) {
       const { paymentMethod } = req.body || {};
       const [team] = await db.select().from(tournamentTeams).where(eq(tournamentTeams.id, teamId));
       if (!team) return res.status(404).json({ message: "Team not found" });
-      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
-      if (!profile) return res.status(404).json({ message: "No player profile" });
-      const isP1 = team.player1Id === profile.id;
-      const isP2 = team.player2Id === profile.id;
+      // Match against EVERY profile this user owns (a user can have more than
+      // one player_profile) so a player whose team sits under a non-primary
+      // profile isn't wrongly told "You are not on this team".
+      const myProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      if (!myProfiles.length) return res.status(404).json({ message: "No player profile" });
+      const myProfileIds = myProfiles.map(p => p.id);
+      const isP1 = team.player1Id != null && myProfileIds.includes(team.player1Id);
+      const isP2 = team.player2Id != null && myProfileIds.includes(team.player2Id);
       if (!isP1 && !isP2) return res.status(403).json({ message: "You are not on this team" });
       const currentStatus = isP1 ? team.player1PaymentStatus : team.player2PaymentStatus;
       if (currentStatus === "PAID") return res.status(400).json({ message: "Already marked paid" });
@@ -2941,9 +2950,16 @@ export function registerTournamentRoutes(app: Express) {
       const tournamentId = Number(req.params.id);
       const userId = (req.user as any).id;
       const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
-      const [myProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
-      const myTeams = myProfile ? await db.select().from(tournamentTeams)
-        .where(or(eq(tournamentTeams.player1Id, myProfile.id), eq(tournamentTeams.player2Id, myProfile.id))) : [];
+      // A single user can have more than one player_profile (e.g. created per
+      // club/sport context). Teams + pair-requests may be stored under ANY of
+      // them, so we must match against EVERY profile id this user owns — not
+      // just the first one — otherwise an already-paired player looks unpaired
+      // and is wrongly re-prompted to Join / Pick Partner.
+      const myProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
+      const myProfileIds = myProfiles.map(p => p.id);
+      const myProfile = myProfiles[0];
+      const myTeams = myProfileIds.length ? await db.select().from(tournamentTeams)
+        .where(or(inArray(tournamentTeams.player1Id, myProfileIds), inArray(tournamentTeams.player2Id, myProfileIds))) : [];
       const allMyPairRequests = await db.select().from(tournamentPairRequests)
         .where(and(
           eq(tournamentPairRequests.tournamentId, tournamentId),
@@ -2984,7 +3000,7 @@ export function registerTournamentRoutes(app: Express) {
         ));
         let partner: any = null;
         if (team) {
-          const partnerProfileId = team.player1Id === myProfile?.id ? team.player2Id : team.player1Id;
+          const partnerProfileId = (team.player1Id != null && myProfileIds.includes(team.player1Id)) ? team.player2Id : team.player1Id;
           if (partnerProfileId) {
             const [pp] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, partnerProfileId));
             if (pp) {
@@ -3011,13 +3027,13 @@ export function registerTournamentRoutes(app: Express) {
         let myPaymentStatus: "UNPAID" | "PENDING" | "PAID" | null = null;
         let myFeePence: number | null = null;
         let myPaidAt: Date | null = null;
-        if (team && myProfile) {
-          if (team.player1Id === myProfile.id) {
+        if (team) {
+          if (team.player1Id != null && myProfileIds.includes(team.player1Id)) {
             mySlot = 1;
             myPaymentStatus = team.player1PaymentStatus || "UNPAID";
             myFeePence = team.player1EntryFeePence ?? null;
             myPaidAt = team.player1PaidAt ?? null;
-          } else if (team.player2Id === myProfile.id) {
+          } else if (team.player2Id != null && myProfileIds.includes(team.player2Id)) {
             mySlot = 2;
             myPaymentStatus = team.player2PaymentStatus || "UNPAID";
             myFeePence = team.player2EntryFeePence ?? null;

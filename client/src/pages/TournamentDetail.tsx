@@ -2091,6 +2091,10 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
   // a partnerId). They block this player from being paired per-category until
   // they unpair, so we show a banner with a self-dissolve button.
   const isLegacyPaired = myRegistration?.registrationType === "PAIR" && !!myRegistration?.partnerId && myRegistration?.status === "APPROVED";
+  // If the player already has at least one per-category entry (paired or solo),
+  // they are NOT actually blocked — the "unpair" prompt would only confuse them
+  // into undoing a partner they've already set, so hide it in that case.
+  const hasAnyCategoryEntry = (myCategories || []).some((e: any) => e.isPaired || e.isSolo);
   const legacyPartner = isLegacyPaired
     ? (registrations || []).find((r: any) => r.userId === myRegistration.partnerId)
     : null;
@@ -2108,7 +2112,7 @@ function MyCategoriesTab({ tournamentId }: { tournamentId: number }) {
           You're registered for <span className="font-bold text-foreground">{tournament?.name}</span>. Join the categories you want to play in below — pick a different partner per doubles category.
         </p>
       </div>
-      {isLegacyPaired && (
+      {isLegacyPaired && !hasAnyCategoryEntry && (
         <div className="rounded-2xl border border-amber-500/40 bg-amber-500/10 p-4 space-y-3" data-testid="legacy-pair-banner">
           <div className="flex items-start gap-2">
             <Zap className="h-5 w-5 text-amber-500 shrink-0 mt-0.5" />
