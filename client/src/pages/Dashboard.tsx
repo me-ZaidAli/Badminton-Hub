@@ -1,4 +1,4 @@
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, type ReactNode } from "react";
 import { useUser } from "@/hooks/use-auth";
 import { useSessions } from "@/hooks/use-sessions";
 import { useQuery, useMutation } from "@tanstack/react-query";
@@ -18,18 +18,73 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Link, Redirect, useLocation } from "wouter";
 import { format, isPast, isFuture, subMonths, startOfMonth, endOfMonth, isWithinInterval } from "date-fns";
 import {
-  Calendar, Trophy, Zap, Users, Clock, Loader2, ChevronRight, Activity, Megaphone, User, LogOut, Eye, Gift,
+  Calendar, Trophy, Zap, Users, Clock, Loader2, ChevronRight, ChevronDown, Activity, Megaphone, User, LogOut, Eye, Gift,
   MapPin, Swords, CreditCard, Crown, Shield, Star, ArrowUpRight, ArrowDownRight, Shirt, CheckCircle2, Package,
-  Medal, MapPinned, Timer,
+  Medal, MapPinned, Timer, Sparkles, type LucideIcon,
 } from "lucide-react";
 import { KpiDetailDialog } from "@/components/ExpandableChartDialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+
+function SectionTile({
+  id,
+  title,
+  subtitle,
+  icon: Icon,
+  accent,
+  isOpen,
+  onToggle,
+  children,
+}: {
+  id: string;
+  title: string;
+  subtitle?: string;
+  icon: LucideIcon;
+  accent: string;
+  isOpen: boolean;
+  onToggle: () => void;
+  children: ReactNode;
+}) {
+  return (
+    <div
+      className="rounded-2xl border border-border bg-card overflow-hidden"
+      data-testid={`section-tile-${id}`}
+    >
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={isOpen}
+        className="w-full flex items-center gap-3 p-4 text-left transition-colors hover:bg-muted/40"
+        data-testid={`button-section-tile-${id}`}
+      >
+        <div
+          className="grid place-items-center h-10 w-10 rounded-xl shrink-0"
+          style={{ background: `hsl(${accent} / 0.14)`, boxShadow: `inset 0 0 0 1px hsl(${accent} / 0.3)` }}
+        >
+          <Icon className="h-5 w-5" style={{ color: `hsl(${accent})` }} />
+        </div>
+        <div className="flex-1 min-w-0">
+          <h2 className="text-base font-bold tracking-tight truncate">{title}</h2>
+          {subtitle && <p className="text-xs text-muted-foreground truncate mt-0.5">{subtitle}</p>}
+        </div>
+        <ChevronDown
+          className={`h-5 w-5 text-muted-foreground shrink-0 transition-transform duration-300 ${isOpen ? "rotate-180" : ""}`}
+        />
+      </button>
+      {isOpen && (
+        <div className="px-4 pb-4 pt-1 space-y-4" data-testid={`section-content-${id}`}>
+          {children}
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function Dashboard() {
   const { data: user, isLoading: userLoading } = useUser();
   const { data: sessions, isLoading: sessionsLoading } = useSessions();
   const { data: clubs, isLoading: clubsLoading } = useClubs();
   const [selectedClubId, setSelectedClubId] = useState<string>("");
+  const [openSection, setOpenSection] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedClubId) {
@@ -454,18 +509,17 @@ function DashboardContent({
       </div>
 
       {/* Discord Nitro–style sections: themes, memberships (news is now featured above) */}
-      <div className="space-y-10 pt-4">
+      <div className="space-y-3 pt-2">
+      <SectionTile id="themes" title="Themes" subtitle="Personalise your dashboard look" icon={Sparkles} accent="252 90% 68%" isOpen={openSection === "themes"} onToggle={() => setOpenSection(prev => prev === "themes" ? null : "themes")}>
         <DashboardThemesCard />
+      </SectionTile>
+      <SectionTile id="memberships" title="Memberships" subtitle="Your club memberships" icon={CreditCard} accent="160 84% 39%" isOpen={openSection === "memberships"} onToggle={() => setOpenSection(prev => prev === "memberships" ? null : "memberships")}>
         <DashboardMembershipsSection />
+      </SectionTile>
       </div>
 
       {((myTournaments && myTournaments.length > 0) || featuredJoinTournament || upcomingList.length > 0) && (
-        <div className="flex items-center gap-2 pt-2">
-          <Trophy className="h-4 w-4 text-amber-500" />
-          <h2 className="text-lg font-bold tracking-tight" data-testid="heading-tournaments">Tournaments</h2>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-      )}
+        <SectionTile id="tournaments" title="Tournaments" subtitle="Your competitions and sign-ups" icon={Trophy} accent="42 95% 55%" isOpen={openSection === "tournaments"} onToggle={() => setOpenSection(prev => prev === "tournaments" ? null : "tournaments")}>
 
       {myTournaments && myTournaments.length > 0 && myTournaments.map((tournament: any) => (
         <Link key={tournament.tournamentId} href={`/tournaments/${tournament.tournamentId}`}>
@@ -760,6 +814,8 @@ function DashboardContent({
           </CardContent>
         </Card>
       )}
+        </SectionTile>
+      )}
 
       {(user?.role === "ADMIN" || user?.role === "OWNER") && !isSuperAdmin && (
         <Card className={`border ${
@@ -821,12 +877,7 @@ function DashboardContent({
       </Card>
 
       {((myLeagueSelections && myLeagueSelections.length > 0) || nextLeagueMatch) && (
-        <div className="flex items-center gap-2 pt-2">
-          <Swords className="h-4 w-4 text-emerald-500" />
-          <h2 className="text-lg font-bold tracking-tight" data-testid="heading-league">Your League</h2>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-      )}
+        <SectionTile id="league" title="Your League" subtitle="Selections and your next match" icon={Swords} accent="160 84% 39%" isOpen={openSection === "league"} onToggle={() => setOpenSection(prev => prev === "league" ? null : "league")}>
 
       {myLeagueSelections && myLeagueSelections.length > 0 && (
         <div className="space-y-3" data-testid="league-selections-banner">
@@ -1082,14 +1133,11 @@ function DashboardContent({
           </div>
         </Link>
       )}
+        </SectionTile>
+      )}
 
       {nextBslFixture && (
-        <div className="flex items-center gap-2 pt-2">
-          <Trophy className="h-4 w-4 text-cyan-500" />
-          <h2 className="text-lg font-bold tracking-tight" data-testid="heading-bsl">Birmingham Super League</h2>
-          <div className="flex-1 h-px bg-border" />
-        </div>
-      )}
+        <SectionTile id="bsl" title="Birmingham Super League" subtitle="Your next BSL fixture" icon={Trophy} accent="195 100% 60%" isOpen={openSection === "bsl"} onToggle={() => setOpenSection(prev => prev === "bsl" ? null : "bsl")}>
 
       {nextBslFixture && (
         <Link href={`/bsl/match/${nextBslFixture.id}`} className="mt-4 block">
