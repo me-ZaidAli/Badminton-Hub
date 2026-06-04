@@ -1,0 +1,1 @@
+- [Dashboard wrapper/content split](dashboard-component-split.md) — Dashboard.tsx has Dashboard() wrapper + DashboardContent(); put UI state in DashboardContent, not the wrapper.

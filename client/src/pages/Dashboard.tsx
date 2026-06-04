@@ -84,7 +84,6 @@ export default function Dashboard() {
   const { data: sessions, isLoading: sessionsLoading } = useSessions();
   const { data: clubs, isLoading: clubsLoading } = useClubs();
   const [selectedClubId, setSelectedClubId] = useState<string>("");
-  const [openSection, setOpenSection] = useState<string | null>(null);
 
   useEffect(() => {
     if (!selectedClubId) {
@@ -159,6 +158,7 @@ function DashboardContent({
 }) {
   const [selectedSession, setSelectedSession] = useState<any | null>(null);
   const [kpiDetail, setKpiDetail] = useState<string | null>(null);
+  const [openSection, setOpenSection] = useState<string | null>(null);
   const [, navigate] = useLocation();
   const { toast } = useToast();
   const adminClubId = useAdminClubId();
@@ -1216,12 +1216,10 @@ function DashboardContent({
           </div>
         </Link>
       )}
+        </SectionTile>
+      )}
 
-      <div className="flex items-center gap-2 pt-2">
-        <Activity className="h-4 w-4 text-violet-500" />
-        <h2 className="text-lg font-bold tracking-tight" data-testid="heading-at-a-glance">At a Glance</h2>
-        <div className="flex-1 h-px bg-border" />
-      </div>
+      <SectionTile id="at-a-glance" title="At a Glance" subtitle="Your key numbers" icon={Activity} accent="252 90% 68%" isOpen={openSection === "at-a-glance"} onToggle={() => setOpenSection(prev => prev === "at-a-glance" ? null : "at-a-glance")}>
 
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4" data-testid="stats-grid">
         {[
@@ -1261,6 +1259,7 @@ function DashboardContent({
           );
         })}
       </div>
+      </SectionTile>
 
 
       <KpiDetailDialog open={kpiDetail === "club-sessions"} onOpenChange={(o) => !o && setKpiDetail(null)} title="Club Sessions" description={`${totalSessionsCount} sessions in this club`}>
