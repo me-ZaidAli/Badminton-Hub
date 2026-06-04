@@ -10,7 +10,10 @@ import { evaluateAllClubsGrades } from "./grading";
 import { autoCloseInactiveTickets } from "./ticket-autoclose";
 import { runNotificationScheduler } from "./notification-scheduler";
 import { runPostSessionUnpaidReminder } from "./pushScheduler";
-import { runProfileIncompleteReminder, runScheduledNotifications } from "./notificationCrons";
+import {
+  runProfileIncompleteReminder,
+  runScheduledNotifications,
+} from "./notificationCrons";
 import { ensureRuleSeeds } from "./notificationRules";
 import { syncParentChildLinks } from "./parentLinkSync";
 import { ensureHotIndexes } from "./dbIndexes";
@@ -42,11 +45,15 @@ declare module "http" {
 const jsonLargeRoutes = [/^\/api\/bsl\/clubs(?:\/|$)/];
 const jsonStandard = express.json({
   limit: "256kb",
-  verify: (req, _res, buf) => { req.rawBody = buf; },
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  },
 });
 const jsonLarge = express.json({
   limit: "8mb",
-  verify: (req, _res, buf) => { req.rawBody = buf; },
+  verify: (req, _res, buf) => {
+    req.rawBody = buf;
+  },
 });
 app.use((req, res, next) => {
   const useLarge = jsonLargeRoutes.some((re) => re.test(req.path));
@@ -59,7 +66,10 @@ app.use(express.urlencoded({ extended: false, limit: "256kb" }));
 // their own X-Request-Id (capped) or one is generated.
 app.use((req, res, next) => {
   const incoming = req.header("x-request-id");
-  const id = (incoming && /^[A-Za-z0-9._-]{1,64}$/.test(incoming)) ? incoming : randomUUID();
+  const id =
+    incoming && /^[A-Za-z0-9._-]{1,64}$/.test(incoming)
+      ? incoming
+      : randomUUID();
   (req as any).requestId = id;
   res.setHeader("X-Request-Id", id);
   next();
@@ -78,7 +88,9 @@ app.get("/api/health/ready", async (_req, res) => {
     await db.execute(sql`select 1`);
     res.status(200).json({ status: "ready" });
   } catch (err: any) {
-    res.status(503).json({ status: "not-ready", error: err?.message || "db unavailable" });
+    res
+      .status(503)
+      .json({ status: "not-ready", error: err?.message || "db unavailable" });
   }
 });
 
@@ -127,7 +139,10 @@ app.use((req, res, next) => {
     const message = err.message || "Internal Server Error";
     const requestId = (req as any).requestId;
 
-    console.error(`Internal Server Error [reqId=${requestId} path=${req.method} ${req.path}]:`, err);
+    console.error(
+      `Internal Server Error [reqId=${requestId} path=${req.method} ${req.path}]:`,
+      err,
+    );
 
     if (res.headersSent) {
       return next(err);
@@ -152,7 +167,9 @@ app.use((req, res, next) => {
     },
     async () => {
       log(`serving on port ${port}`);
-      console.log(`[APP BASE URL] ${process.env.APP_URL || process.env.REPLIT_DEPLOYMENT_URL || process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || 'none detected'}`);
+      console.log(
+        `[APP BASE URL] ${process.env.APP_URL || process.env.REPLIT_DEPLOYMENT_URL || process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "none detected"}`,
+      );
 
       // Defer all idempotent boot work (index creation + seed checks +
       // parent-link sync) by 3s so the HTTP listener can start serving
@@ -160,43 +177,66 @@ app.use((req, res, next) => {
       // for the connection pool on cold start. This dramatically
       // improves first-request latency on Replit cold starts.
       setTimeout(() => {
-        ensureHotIndexes().catch(err => console.error("Ensure hot indexes failed:", err));
-        ensureRuleSeeds().catch(err => console.error("Ensure rule seeds failed:", err));
-        seedJuniorSkills().catch(err => console.error("Seed junior skills failed:", err));
-        seedExercises().catch(err => console.error("Seed exercises failed:", err));
-        seedPlayerSkillCategories().catch(err => console.error("Seed player skills failed:", err));
-        seedRecognitionCards().catch(err => console.error("Seed recognition cards failed:", err));
-        syncParentChildLinks().catch(err => console.error("Sync parent links failed:", err));
+        ensureHotIndexes().catch((err) =>
+          console.error("Ensure hot indexes failed:", err),
+        );
+        ensureRuleSeeds().catch((err) =>
+          console.error("Ensure rule seeds failed:", err),
+        );
+        seedJuniorSkills().catch((err) =>
+          console.error("Seed junior skills failed:", err),
+        );
+        seedExercises().catch((err) =>
+          console.error("Seed exercises failed:", err),
+        );
+        seedPlayerSkillCategories().catch((err) =>
+          console.error("Seed player skills failed:", err),
+        );
+        seedRecognitionCards().catch((err) =>
+          console.error("Seed recognition cards failed:", err),
+        );
+        syncParentChildLinks().catch((err) =>
+          console.error("Sync parent links failed:", err),
+        );
       }, 3000);
 
-      setInterval(async () => {
-        try {
-          log("Running daily grading evaluation...", "grading");
-          await evaluateAllClubsGrades();
-          log("Daily grading evaluation complete", "grading");
-        } catch (err) {
-          console.error("Daily grading evaluation failed:", err);
-        }
-      }, 24 * 60 * 60 * 1000);
-
-      setInterval(async () => {
-        try {
-          const closed = await autoCloseInactiveTickets();
-          if (closed > 0) {
-            log(`Auto-closed ${closed} inactive ticket(s)`, "tickets");
+      setInterval(
+        async () => {
+          try {
+            log("Running daily grading evaluation...", "grading");
+            await evaluateAllClubsGrades();
+            log("Daily grading evaluation complete", "grading");
+          } catch (err) {
+            console.error("Daily grading evaluation failed:", err);
           }
-        } catch (err) {
-          console.error("Auto-close tickets failed:", err);
-        }
-      }, 6 * 60 * 60 * 1000);
+        },
+        24 * 60 * 60 * 1000,
+      );
 
-      setInterval(async () => {
-        try {
-          await runNotificationScheduler();
-        } catch (err) {
-          console.error("Notification scheduler failed:", err);
-        }
-      }, 60 * 60 * 1000);
+      setInterval(
+        async () => {
+          try {
+            const closed = await autoCloseInactiveTickets();
+            if (closed > 0) {
+              log(`Auto-closed ${closed} inactive ticket(s)`, "tickets");
+            }
+          } catch (err) {
+            console.error("Auto-close tickets failed:", err);
+          }
+        },
+        6 * 60 * 60 * 1000,
+      );
+
+      setInterval(
+        async () => {
+          try {
+            await runNotificationScheduler();
+          } catch (err) {
+            console.error("Notification scheduler failed:", err);
+          }
+        },
+        60 * 60 * 1000,
+      );
 
       setTimeout(async () => {
         try {
@@ -207,24 +247,50 @@ app.use((req, res, next) => {
       }, 30 * 1000);
 
       // Push: post-session unpaid reminder, runs hourly + once on boot
-      setInterval(async () => {
-        try { await runPostSessionUnpaidReminder(); } catch (e) { console.error("postSessionUnpaidReminder failed:", e); }
-      }, 60 * 60 * 1000);
+      setInterval(
+        async () => {
+          try {
+            await runPostSessionUnpaidReminder();
+          } catch (e) {
+            console.error("postSessionUnpaidReminder failed:", e);
+          }
+        },
+        60 * 60 * 1000,
+      );
       setTimeout(async () => {
-        try { await runPostSessionUnpaidReminder(); } catch (e) { console.error("Initial postSessionUnpaidReminder failed:", e); }
+        try {
+          await runPostSessionUnpaidReminder();
+        } catch (e) {
+          console.error("Initial postSessionUnpaidReminder failed:", e);
+        }
       }, 45 * 1000);
 
       // Phase 2: profile-incomplete reminder, weekly + once an hour after boot to pick up new signups
-      setInterval(async () => {
-        try { await runProfileIncompleteReminder(); } catch (e) { console.error("profileIncompleteReminder failed:", e); }
-      }, 7 * 24 * 60 * 60 * 1000);
+      setInterval(
+        async () => {
+          try {
+            await runProfileIncompleteReminder();
+          } catch (e) {
+            console.error("profileIncompleteReminder failed:", e);
+          }
+        },
+        7 * 24 * 60 * 60 * 1000,
+      );
       setTimeout(async () => {
-        try { await runProfileIncompleteReminder(); } catch (e) { console.error("Initial profileIncompleteReminder failed:", e); }
+        try {
+          await runProfileIncompleteReminder();
+        } catch (e) {
+          console.error("Initial profileIncompleteReminder failed:", e);
+        }
       }, 60 * 1000);
 
       // Phase 4: scheduled notifications cron — sweep due rows every minute
       setInterval(async () => {
-        try { await runScheduledNotifications(); } catch (e) { console.error("scheduledNotifications failed:", e); }
+        try {
+          await runScheduledNotifications();
+        } catch (e) {
+          console.error("scheduledNotifications failed:", e);
+        }
       }, 60 * 1000);
     },
   );

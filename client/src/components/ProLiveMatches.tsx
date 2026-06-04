@@ -1,15 +1,43 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import { type CourtMatch } from "@/components/BadmintonCourt";
 import { Input } from "@/components/ui/input";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Command, CommandInput, CommandList, CommandEmpty, CommandGroup, CommandItem } from "@/components/ui/command";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import {
+  Command,
+  CommandInput,
+  CommandList,
+  CommandEmpty,
+  CommandGroup,
+  CommandItem,
+} from "@/components/ui/command";
 import { cn } from "@/lib/utils";
 import {
-  Trophy, CheckCircle, XCircle, Pencil, Check, Minus, Plus,
-  CircleDot, X, Flame, Lightbulb, Pause, AlertCircle, Info,
+  Trophy,
+  CheckCircle,
+  XCircle,
+  Pencil,
+  Check,
+  Minus,
+  Plus,
+  CircleDot,
+  X,
+  Flame,
+  Lightbulb,
+  Pause,
+  AlertCircle,
+  Info,
 } from "lucide-react";
 import {
-  Tooltip, TooltipContent, TooltipProvider, TooltipTrigger,
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
 } from "@/components/ui/tooltip";
 
 type Player = {
@@ -19,16 +47,66 @@ type Player = {
 };
 
 const COURT_COLORS = [
-  { primary: "emerald", glow: "rgba(52,211,153,0.6)", ring: "rgb(52,211,153)", bg: "rgba(52,211,153,0.08)" },
-  { primary: "blue", glow: "rgba(96,165,250,0.6)", ring: "rgb(96,165,250)", bg: "rgba(96,165,250,0.08)" },
-  { primary: "violet", glow: "rgba(167,139,250,0.6)", ring: "rgb(167,139,250)", bg: "rgba(167,139,250,0.08)" },
-  { primary: "amber", glow: "rgba(251,191,36,0.6)", ring: "rgb(251,191,36)", bg: "rgba(251,191,36,0.08)" },
-  { primary: "rose", glow: "rgba(251,113,133,0.6)", ring: "rgb(251,113,133)", bg: "rgba(251,113,133,0.08)" },
-  { primary: "cyan", glow: "rgba(34,211,238,0.6)", ring: "rgb(34,211,238)", bg: "rgba(34,211,238,0.08)" },
-  { primary: "orange", glow: "rgba(251,146,60,0.6)", ring: "rgb(251,146,60)", bg: "rgba(251,146,60,0.08)" },
-  { primary: "teal", glow: "rgba(45,212,191,0.6)", ring: "rgb(45,212,191)", bg: "rgba(45,212,191,0.08)" },
-  { primary: "pink", glow: "rgba(244,114,182,0.6)", ring: "rgb(244,114,182)", bg: "rgba(244,114,182,0.08)" },
-  { primary: "lime", glow: "rgba(163,230,53,0.6)", ring: "rgb(163,230,53)", bg: "rgba(163,230,53,0.08)" },
+  {
+    primary: "emerald",
+    glow: "rgba(52,211,153,0.6)",
+    ring: "rgb(52,211,153)",
+    bg: "rgba(52,211,153,0.08)",
+  },
+  {
+    primary: "blue",
+    glow: "rgba(96,165,250,0.6)",
+    ring: "rgb(96,165,250)",
+    bg: "rgba(96,165,250,0.08)",
+  },
+  {
+    primary: "violet",
+    glow: "rgba(167,139,250,0.6)",
+    ring: "rgb(167,139,250)",
+    bg: "rgba(167,139,250,0.08)",
+  },
+  {
+    primary: "amber",
+    glow: "rgba(251,191,36,0.6)",
+    ring: "rgb(251,191,36)",
+    bg: "rgba(251,191,36,0.08)",
+  },
+  {
+    primary: "rose",
+    glow: "rgba(251,113,133,0.6)",
+    ring: "rgb(251,113,133)",
+    bg: "rgba(251,113,133,0.08)",
+  },
+  {
+    primary: "cyan",
+    glow: "rgba(34,211,238,0.6)",
+    ring: "rgb(34,211,238)",
+    bg: "rgba(34,211,238,0.08)",
+  },
+  {
+    primary: "orange",
+    glow: "rgba(251,146,60,0.6)",
+    ring: "rgb(251,146,60)",
+    bg: "rgba(251,146,60,0.08)",
+  },
+  {
+    primary: "teal",
+    glow: "rgba(45,212,191,0.6)",
+    ring: "rgb(45,212,191)",
+    bg: "rgba(45,212,191,0.08)",
+  },
+  {
+    primary: "pink",
+    glow: "rgba(244,114,182,0.6)",
+    ring: "rgb(244,114,182)",
+    bg: "rgba(244,114,182,0.08)",
+  },
+  {
+    primary: "lime",
+    glow: "rgba(163,230,53,0.6)",
+    ring: "rgb(163,230,53)",
+    bg: "rgba(163,230,53,0.08)",
+  },
 ];
 
 function getCourtColor(courtNumber: number) {
@@ -39,7 +117,8 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   const [elapsed, setElapsed] = useState(0);
   useEffect(() => {
     const startTime = new Date(startedAt).getTime();
-    const update = () => setElapsed(Math.floor((Date.now() - startTime) / 1000));
+    const update = () =>
+      setElapsed(Math.floor((Date.now() - startTime) / 1000));
     update();
     const interval = setInterval(update, 1000);
     return () => clearInterval(interval);
@@ -47,48 +126,92 @@ function LiveTimer({ startedAt }: { startedAt: string }) {
   const mins = Math.floor(elapsed / 60);
   const secs = elapsed % 60;
   return (
-    <span className="font-mono text-xs text-gray-400 dark:text-white/50 tabular-nums" data-testid="pro-live-timer">
+    <span
+      className="font-mono text-xs text-gray-400 dark:text-white/50 tabular-nums"
+      data-testid="pro-live-timer"
+    >
       {String(mins).padStart(2, "0")}:{String(secs).padStart(2, "0")}
     </span>
   );
 }
 
 function SwapPlayerDialog({
-  open, onOpenChange, currentPlayer, availablePlayers, onSwap, busyPlayerIds, sessionMatchCounts,
+  open,
+  onOpenChange,
+  currentPlayer,
+  availablePlayers,
+  onSwap,
+  busyPlayerIds,
+  sessionMatchCounts,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  currentPlayer: { id: number; fullName: string; category: string | null } | null;
+  currentPlayer: {
+    id: number;
+    fullName: string;
+    category: string | null;
+  } | null;
   availablePlayers: Player[];
   onSwap: (playerId: number) => void;
   busyPlayerIds?: Set<number>;
   sessionMatchCounts?: Record<number, number>;
 }) {
   const [search, setSearch] = useState("");
-  const freePlayersOnly = availablePlayers.filter(p => {
+  const freePlayersOnly = availablePlayers.filter((p) => {
     if (currentPlayer && p.id === currentPlayer.id) return true;
     return !busyPlayerIds?.has(p.id);
   });
   const filtered = freePlayersOnly
-    .filter(p => p.fullName.toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => (sessionMatchCounts?.[a.id] ?? 0) - (sessionMatchCounts?.[b.id] ?? 0));
+    .filter((p) => p.fullName.toLowerCase().includes(search.toLowerCase()))
+    .sort(
+      (a, b) =>
+        (sessionMatchCounts?.[a.id] ?? 0) - (sessionMatchCounts?.[b.id] ?? 0),
+    );
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
           <DialogTitle>Swap Player</DialogTitle>
-          <DialogDescription>Select an available player (players in active matches are hidden).</DialogDescription>
+          <DialogDescription>
+            Select an available player (players in active matches are hidden).
+          </DialogDescription>
         </DialogHeader>
         <Command className="rounded-lg border shadow-md">
-          <CommandInput placeholder="Search players..." value={search} onValueChange={setSearch} data-testid="input-pro-swap-search" />
+          <CommandInput
+            placeholder="Search players..."
+            value={search}
+            onValueChange={setSearch}
+            data-testid="input-pro-swap-search"
+          />
           <CommandList>
             <CommandEmpty>No available players found.</CommandEmpty>
             <CommandGroup>
               {filtered.map((p) => (
-                <CommandItem key={p.id} value={p.fullName} onSelect={() => { onSwap(p.id); onOpenChange(false); setSearch(""); }} data-testid={`pro-select-player-${p.id}`}>
-                  <Check className={cn("mr-2 h-4 w-4", currentPlayer?.id === p.id ? "opacity-100" : "opacity-0")} />
-                  <span className="flex-1">{p.fullName} ({p.category || "?"})</span>
-                  <span className="text-xs text-muted-foreground ml-2 tabular-nums" data-testid={`pro-swap-count-${p.id}`}>{sessionMatchCounts?.[p.id] ?? 0}g</span>
+                <CommandItem
+                  key={p.id}
+                  value={p.fullName}
+                  onSelect={() => {
+                    onSwap(p.id);
+                    onOpenChange(false);
+                    setSearch("");
+                  }}
+                  data-testid={`pro-select-player-${p.id}`}
+                >
+                  <Check
+                    className={cn(
+                      "mr-2 h-4 w-4",
+                      currentPlayer?.id === p.id ? "opacity-100" : "opacity-0",
+                    )}
+                  />
+                  <span className="flex-1">
+                    {p.fullName} ({p.category || "?"})
+                  </span>
+                  <span
+                    className="text-xs text-muted-foreground ml-2 tabular-nums"
+                    data-testid={`pro-swap-count-${p.id}`}
+                  >
+                    {sessionMatchCounts?.[p.id] ?? 0}g
+                  </span>
                 </CommandItem>
               ))}
             </CommandGroup>
@@ -99,9 +222,18 @@ function SwapPlayerDialog({
   );
 }
 
-export type PlayerAchievements = Record<number, { trophy?: boolean; fire?: boolean }>;
+export type PlayerAchievements = Record<
+  number,
+  { trophy?: boolean; fire?: boolean }
+>;
 
-function PlayerAchievementIcons({ playerId, achievements }: { playerId?: number; achievements?: PlayerAchievements }) {
+function PlayerAchievementIcons({
+  playerId,
+  achievements,
+}: {
+  playerId?: number;
+  achievements?: PlayerAchievements;
+}) {
   if (!playerId || !achievements) return null;
   const a = achievements[playerId];
   if (!a) return null;
@@ -109,16 +241,28 @@ function PlayerAchievementIcons({ playerId, achievements }: { playerId?: number;
     <span className="inline-flex items-center gap-0.5 ml-0.5 align-middle">
       {a.trophy && (
         <TooltipProvider>
-          <Tooltip><TooltipTrigger asChild>
-            <Trophy className="w-3 h-3 text-amber-400 inline-block" data-testid={`icon-trophy-${playerId}`} />
-          </TooltipTrigger><TooltipContent>Recent winner</TooltipContent></Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Trophy
+                className="w-3 h-3 text-amber-400 inline-block"
+                data-testid={`icon-trophy-${playerId}`}
+              />
+            </TooltipTrigger>
+            <TooltipContent>Recent winner</TooltipContent>
+          </Tooltip>
         </TooltipProvider>
       )}
       {a.fire && (
         <TooltipProvider>
-          <Tooltip><TooltipTrigger asChild>
-            <Flame className="w-3 h-3 text-orange-400 inline-block" data-testid={`icon-fire-${playerId}`} />
-          </TooltipTrigger><TooltipContent>On a hot streak</TooltipContent></Tooltip>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <Flame
+                className="w-3 h-3 text-orange-400 inline-block"
+                data-testid={`icon-fire-${playerId}`}
+              />
+            </TooltipTrigger>
+            <TooltipContent>On a hot streak</TooltipContent>
+          </Tooltip>
         </TooltipProvider>
       )}
     </span>
@@ -126,14 +270,38 @@ function PlayerAchievementIcons({ playerId, achievements }: { playerId?: number;
 }
 
 function ClickablePlayerName({
-  player, matchId, position, availablePlayers, canSwap, onSwapPlayer, sessionMatchCount, showMatchCount, className, isBusy, style, achievements, busyPlayerIds, sessionMatchCounts,
+  player,
+  matchId,
+  position,
+  availablePlayers,
+  canSwap,
+  onSwapPlayer,
+  sessionMatchCount,
+  showMatchCount,
+  className,
+  isBusy,
+  style,
+  achievements,
+  busyPlayerIds,
+  sessionMatchCounts,
 }: {
-  player: { id: number; user?: { fullName?: string } | null; category?: string | null; gender?: string | null; matchesPlayed?: number | null } | null;
+  player: {
+    id: number;
+    user?: { fullName?: string } | null;
+    category?: string | null;
+    grade?: string | null;
+    gender?: string | null;
+    matchesPlayed?: number | null;
+  } | null;
   matchId: number;
   position: string;
   availablePlayers: Player[];
   canSwap: boolean;
-  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  onSwapPlayer?: (
+    matchId: number,
+    position: string,
+    newPlayerId: number,
+  ) => void;
   sessionMatchCount?: number;
   showMatchCount?: boolean;
   className?: string;
@@ -144,52 +312,110 @@ function ClickablePlayerName({
   sessionMatchCounts?: Record<number, number>;
 }) {
   const [dialogOpen, setDialogOpen] = useState(false);
-  const name = player ? (player.user?.fullName || "Unknown") : "Empty";
+  const name = player ? player.user?.fullName || "Unknown" : "Empty";
   const isFemale = player?.gender === "FEMALE";
-  const femaleStyle: React.CSSProperties = isFemale ? { color: '#ec4899' } : {};
+  const femaleStyle: React.CSSProperties = isFemale ? { color: "#ec4899" } : {};
   const mergedStyle = { ...style, ...femaleStyle };
-  const countNode = showMatchCount && sessionMatchCount != null ? (
-    <TooltipProvider>
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <span className="inline-flex items-center gap-0.5 text-gray-400 dark:text-white/30 font-normal text-[10px] ml-0.5 cursor-help">
-            <Info className="w-2.5 h-2.5" />
-            ({sessionMatchCount})
-          </span>
-        </TooltipTrigger>
-        <TooltipContent>Games played this session</TooltipContent>
-      </Tooltip>
-    </TooltipProvider>
-  ) : null;
+  const countNode =
+    showMatchCount && sessionMatchCount != null ? (
+      <TooltipProvider>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <span className="inline-flex items-center gap-0.5 text-gray-400 dark:text-white/30 font-normal text-[10px] ml-0.5 cursor-help">
+              <Info className="w-2.5 h-2.5" />({sessionMatchCount})
+            </span>
+          </TooltipTrigger>
+          <TooltipContent>Games played this session</TooltipContent>
+        </Tooltip>
+      </TooltipProvider>
+    ) : null;
+  const gradeTag =
+    player?.grade || player?.category ? (
+      <span className="font-mono font-normal text-[10px] text-amber-600 dark:text-amber-400/80 ml-0.5">
+        ({player.grade || player.category})
+      </span>
+    ) : null;
   const nameWithCount = (
     <>
       {name}
-      {countNode}
-      {player && <PlayerAchievementIcons playerId={player.id} achievements={achievements} />}
+      {gradeTag}
+      {/* {countNode} */}
+      {player && (
+        <PlayerAchievementIcons
+          playerId={player.id}
+          achievements={achievements}
+        />
+      )}
     </>
   );
   const busyClass = isBusy ? "text-red-400 animate-pulse" : "";
   const emptyClass = !player ? "opacity-50 italic" : "";
-  if (!canSwap || !onSwapPlayer) return <span className={cn(className, busyClass, emptyClass, isFemale && "!text-pink-500")} style={mergedStyle}>{nameWithCount}</span>;
+  if (!canSwap || !onSwapPlayer)
+    return (
+      <span
+        className={cn(
+          className,
+          busyClass,
+          emptyClass,
+          isFemale && "!text-pink-500",
+        )}
+        style={mergedStyle}
+      >
+        {nameWithCount}
+      </span>
+    );
   return (
     <>
       <TooltipProvider>
         <Tooltip>
           <TooltipTrigger asChild>
-            <span role="button" tabIndex={0} className={cn(className, busyClass, isFemale && "!text-pink-500", "cursor-pointer hover:underline hover:text-amber-400 active:text-amber-300 transition-colors")}
+            <span
+              role="button"
+              tabIndex={0}
+              className={cn(
+                className,
+                busyClass,
+                isFemale && "!text-pink-500",
+                "cursor-pointer hover:underline hover:text-amber-400 active:text-amber-300 transition-colors",
+              )}
               style={mergedStyle}
-              onClick={(e) => { e.stopPropagation(); setDialogOpen(true); }}
-              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setDialogOpen(true); } }}
+              onClick={(e) => {
+                e.stopPropagation();
+                setDialogOpen(true);
+              }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setDialogOpen(true);
+                }
+              }}
               data-testid={`pro-swap-${position}-${matchId}`}
-            >{nameWithCount}<Pencil className="w-2 h-2 opacity-30 inline ml-0.5 align-middle shrink-0 hidden sm:inline" /></span>
+            >
+              {nameWithCount}
+              <Pencil className="w-2 h-2 opacity-30 inline ml-0.5 align-middle shrink-0 hidden sm:inline" />
+            </span>
           </TooltipTrigger>
           <TooltipContent>Click to swap this player</TooltipContent>
         </Tooltip>
       </TooltipProvider>
-      <SwapPlayerDialog open={dialogOpen} onOpenChange={setDialogOpen}
-        currentPlayer={player ? { id: player.id, fullName: name, category: player.category || null } : null}
-        availablePlayers={availablePlayers} onSwap={(newPlayerId) => onSwapPlayer(matchId, position, newPlayerId)}
-        busyPlayerIds={busyPlayerIds} sessionMatchCounts={sessionMatchCounts} />
+      <SwapPlayerDialog
+        open={dialogOpen}
+        onOpenChange={setDialogOpen}
+        currentPlayer={
+          player
+            ? {
+                id: player.id,
+                fullName: name,
+                category: player.category || null,
+              }
+            : null
+        }
+        availablePlayers={availablePlayers}
+        onSwap={(newPlayerId) => onSwapPlayer(matchId, position, newPlayerId)}
+        busyPlayerIds={busyPlayerIds}
+        sessionMatchCounts={sessionMatchCounts}
+      />
     </>
   );
 }
@@ -203,15 +429,26 @@ function scoreColorClass(value: number, target: number): string {
 }
 
 function ManagerPlayerSlot({
-  player, position, matchId, availablePlayers, isOrganiser, onSwapPlayer,
-  sessionMatchCounts, busyPlayerIds, achievements,
+  player,
+  position,
+  matchId,
+  availablePlayers,
+  isOrganiser,
+  onSwapPlayer,
+  sessionMatchCounts,
+  busyPlayerIds,
+  achievements,
 }: {
   player: any;
   position: string;
   matchId: number;
   availablePlayers: Player[];
   isOrganiser: boolean;
-  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  onSwapPlayer?: (
+    matchId: number,
+    position: string,
+    newPlayerId: number,
+  ) => void;
   sessionMatchCounts?: Record<number, number>;
   busyPlayerIds?: Set<number>;
   achievements?: PlayerAchievements;
@@ -220,7 +457,14 @@ function ManagerPlayerSlot({
   return (
     <div
       className="flex items-center px-2.5 py-1.5 rounded-md border transition-all border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.03]"
-      style={isFemale ? { borderColor: 'rgba(236,72,153,0.3)', backgroundColor: 'rgba(236,72,153,0.06)' } : undefined}
+      style={
+        isFemale
+          ? {
+              borderColor: "rgba(236,72,153,0.3)",
+              backgroundColor: "rgba(236,72,153,0.06)",
+            }
+          : undefined
+      }
       data-testid={`manager-slot-${position}-${matchId}`}
     >
       <ClickablePlayerName
@@ -231,9 +475,11 @@ function ManagerPlayerSlot({
         canSwap={isOrganiser && !!onSwapPlayer}
         onSwapPlayer={onSwapPlayer}
         showMatchCount
-        sessionMatchCount={player?.id ? sessionMatchCounts?.[player.id] : undefined}
+        sessionMatchCount={
+          player?.id ? sessionMatchCounts?.[player.id] : undefined
+        }
         className="text-sm font-bold truncate flex-1"
-        style={{ color: isFemale ? '#ec4899' : undefined }}
+        style={{ color: isFemale ? "#ec4899" : undefined }}
         isBusy={!!player?.id && busyPlayerIds?.has(player.id)}
         achievements={achievements}
         busyPlayerIds={busyPlayerIds}
@@ -244,26 +490,52 @@ function ManagerPlayerSlot({
 }
 
 function ManagerCourtCard({
-  match, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers, onSwapPlayer, busyPlayerIds,
-  sessionMatchCounts, courtNames, onCancelMatch, achievements,
-  onCompleteMatch, onEndSet, defaultPointsToPlayTo = 21,
+  match,
+  isOrganiser,
+  isSignedUp,
+  currentPlayerProfileId,
+  availablePlayers,
+  onSwapPlayer,
+  busyPlayerIds,
+  sessionMatchCounts,
+  courtNames,
+  onCancelMatch,
+  achievements,
+  onCompleteMatch,
+  onEndSet,
+  defaultPointsToPlayTo = 21,
 }: {
   match: CourtMatch;
   isOrganiser: boolean;
   isSignedUp?: boolean;
   currentPlayerProfileId?: number | null;
   availablePlayers: Player[];
-  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  onSwapPlayer?: (
+    matchId: number,
+    position: string,
+    newPlayerId: number,
+  ) => void;
   busyPlayerIds?: Set<number>;
   sessionMatchCounts?: Record<number, number>;
   courtNames?: string[];
   onCancelMatch?: (matchId: number) => void;
   achievements?: PlayerAchievements;
-  onCompleteMatch?: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
-  onEndSet?: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onCompleteMatch?: (
+    matchId: number,
+    scoreA: number,
+    scoreB: number,
+  ) => Promise<any> | void;
+  onEndSet?: (
+    matchId: number,
+    setNumber: number,
+    scoreA: number,
+    scoreB: number,
+  ) => Promise<any> | void;
   defaultPointsToPlayTo?: number;
 }) {
-  const courtLabel = match.courtNumber ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}` : "Court";
+  const courtLabel = match.courtNumber
+    ? courtNames?.[match.courtNumber - 1] || `Court ${match.courtNumber}`
+    : "Court";
   const isLive = !!match.startedAt;
   const pointsTarget = match.pointsToPlayTo || defaultPointsToPlayTo;
   const softCap = Math.ceil(pointsTarget * 1.5);
@@ -279,8 +551,18 @@ function ManagerCourtCard({
   const [submitting, setSubmitting] = useState(false);
   const successTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  useEffect(() => () => { if (successTimerRef.current) clearTimeout(successTimerRef.current); }, []);
-  useEffect(() => { setScoreA(""); setScoreB(""); setStep("input"); setSubmitting(false); }, [match.id]);
+  useEffect(
+    () => () => {
+      if (successTimerRef.current) clearTimeout(successTimerRef.current);
+    },
+    [],
+  );
+  useEffect(() => {
+    setScoreA("");
+    setScoreB("");
+    setStep("input");
+    setSubmitting(false);
+  }, [match.id]);
 
   const numA = parseInt(scoreA);
   const numB = parseInt(scoreB);
@@ -291,26 +573,53 @@ function ManagerCourtCard({
   const overSoftCap = (hasA && numA > softCap) || (hasB && numB > softCap);
   const canSubmit = hasA && hasB && !isTied && !submitting;
 
-  const isPlayerInMatch = currentPlayerProfileId && (
-    match.teamAPlayer1?.id === currentPlayerProfileId ||
-    match.teamAPlayer2?.id === currentPlayerProfileId ||
-    match.teamBPlayer1?.id === currentPlayerProfileId ||
-    match.teamBPlayer2?.id === currentPlayerProfileId
-  );
-  const canScore = !!onCompleteMatch && !!onEndSet && (isOrganiser || (!!isSignedUp && !!isPlayerInMatch));
+  const isPlayerInMatch =
+    currentPlayerProfileId &&
+    (match.teamAPlayer1?.id === currentPlayerProfileId ||
+      match.teamAPlayer2?.id === currentPlayerProfileId ||
+      match.teamBPlayer1?.id === currentPlayerProfileId ||
+      match.teamBPlayer2?.id === currentPlayerProfileId);
+  const canScore =
+    !!onCompleteMatch &&
+    !!onEndSet &&
+    (isOrganiser || (!!isSignedUp && !!isPlayerInMatch));
 
   const handleSubmit = useCallback(async () => {
     if (!canScore || !hasA || !hasB || isTied) return;
-    if (step === "input") { setStep("confirm"); return; }
+    if (step === "input") {
+      setStep("confirm");
+      return;
+    }
     setSubmitting(true);
     try {
       if (isMultiSet) await onEndSet!(match.id, currentSet, numA, numB);
       else await onCompleteMatch!(match.id, numA, numB);
       setStep("success");
       if (successTimerRef.current) clearTimeout(successTimerRef.current);
-      successTimerRef.current = setTimeout(() => { setStep("input"); setScoreA(""); setScoreB(""); }, 1500);
-    } catch { setStep("input"); } finally { setSubmitting(false); }
-  }, [canScore, hasA, hasB, isTied, step, isMultiSet, currentSet, numA, numB, match.id, onCompleteMatch, onEndSet]);
+      successTimerRef.current = setTimeout(() => {
+        setStep("input");
+        setScoreA("");
+        setScoreB("");
+      }, 1500);
+    } catch {
+      setStep("input");
+    } finally {
+      setSubmitting(false);
+    }
+  }, [
+    canScore,
+    hasA,
+    hasB,
+    isTied,
+    step,
+    isMultiSet,
+    currentSet,
+    numA,
+    numB,
+    match.id,
+    onCompleteMatch,
+    onEndSet,
+  ]);
 
   const renderPlayerSlot = (player: any, position: string) => (
     <ManagerPlayerSlot
@@ -331,15 +640,20 @@ function ManagerCourtCard({
     side: "A" | "B",
     value: string,
     setValue: (v: string) => void,
-    nVal: number
+    nVal: number,
   ) => {
     if (!canScore) return null;
     return (
-      <div className="flex items-center gap-1 mt-2" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex items-center gap-1 mt-2"
+        onClick={(e) => e.stopPropagation()}
+      >
         <button
           type="button"
           className="w-9 h-12 flex items-center justify-center rounded-md border border-gray-200 dark:border-white/10 bg-white dark:bg-white/[0.04] text-gray-500 dark:text-white/50 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/[0.08] active:scale-95 transition-all"
-          onClick={() => setValue(String(Math.max(0, (parseInt(value) || 0) - 1)))}
+          onClick={() =>
+            setValue(String(Math.max(0, (parseInt(value) || 0) - 1)))
+          }
           data-testid={`pro-inline-${side.toLowerCase()}-minus-${match.id}`}
         >
           <Minus className="w-4 h-4" />
@@ -352,7 +666,7 @@ function ManagerCourtCard({
           onChange={(e) => setValue(e.target.value)}
           className={cn(
             "bg-white dark:bg-slate-800/80 text-center text-3xl font-black h-12 tabular-nums border-gray-200 dark:border-white/10 focus:ring-2 focus:ring-emerald-400/30 [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none",
-            scoreColorClass(nVal || 0, pointsTarget)
+            scoreColorClass(nVal || 0, pointsTarget),
           )}
           placeholder="0"
           data-testid={`pro-inline-${side.toLowerCase()}-score-${match.id}`}
@@ -375,38 +689,67 @@ function ManagerCourtCard({
         "rounded-2xl border bg-white dark:bg-slate-900/80 overflow-hidden transition-all",
         isLive
           ? "border-emerald-400/40 dark:border-emerald-400/25 shadow-sm"
-          : "border-amber-300/50 dark:border-amber-400/25"
+          : "border-amber-300/50 dark:border-amber-400/25",
       )}
       data-testid={`manager-court-${match.id}`}
     >
       {/* Header */}
-      <div className={cn(
-        "flex items-center justify-between px-3 py-2 border-b",
-        isLive
-          ? "border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04]"
-          : "border-amber-200 dark:border-amber-400/15 bg-amber-50/60 dark:bg-amber-500/[0.05]"
-      )}>
+      <div
+        className={cn(
+          "flex items-center justify-between px-3 py-2 border-b",
+          isLive
+            ? "border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/[0.04]"
+            : "border-amber-200 dark:border-amber-400/15 bg-amber-50/60 dark:bg-amber-500/[0.05]",
+        )}
+      >
         <div className="flex items-center gap-2">
           {isLive ? (
             <>
-              <div className="w-2.5 h-2.5 rounded-full animate-pulse bg-emerald-500" style={{ boxShadow: '0 0 8px rgba(52,211,153,0.5)' }} />
-              <span className="text-sm font-bold text-gray-900 dark:text-white">{courtLabel}</span>
-              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30">Live</span>
+              <div
+                className="w-2.5 h-2.5 rounded-full animate-pulse bg-emerald-500"
+                style={{ boxShadow: "0 0 8px rgba(52,211,153,0.5)" }}
+              />
+              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                {courtLabel}
+              </span>
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border border-emerald-400/30">
+                Live
+              </span>
             </>
           ) : (
             <>
               <Pause className="w-3 h-3 text-amber-500 dark:text-amber-400" />
-              <span className="text-sm font-bold text-gray-900 dark:text-white">{courtLabel}</span>
-              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">Warmup</span>
+              <span className="text-sm font-bold text-gray-900 dark:text-white">
+                {courtLabel}
+              </span>
+              <span className="text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded-full bg-amber-500/15 text-amber-600 dark:text-amber-400 border border-amber-400/30">
+                Warmup
+              </span>
             </>
           )}
         </div>
         <div className="flex items-center gap-2">
           {isLive && <LiveTimer startedAt={match.startedAt!} />}
           <div className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-gray-100 dark:bg-black/30">
-            <span className={cn("text-base font-black tabular-nums", scoreColorClass(savedA, pointsTarget))}>{savedA}</span>
-            <span className="text-xs text-gray-400 dark:text-white/30 font-bold">-</span>
-            <span className={cn("text-base font-black tabular-nums", scoreColorClass(savedB, pointsTarget))}>{savedB}</span>
+            <span
+              className={cn(
+                "text-base font-black tabular-nums",
+                scoreColorClass(savedA, pointsTarget),
+              )}
+            >
+              {savedA}
+            </span>
+            <span className="text-xs text-gray-400 dark:text-white/30 font-bold">
+              -
+            </span>
+            <span
+              className={cn(
+                "text-base font-black tabular-nums",
+                scoreColorClass(savedB, pointsTarget),
+              )}
+            >
+              {savedB}
+            </span>
           </div>
           {isOrganiser && onCancelMatch && (
             <button
@@ -424,27 +767,52 @@ function ManagerCourtCard({
       {step === "success" ? (
         <div className="flex items-center justify-center gap-2 py-6 bg-emerald-50 dark:bg-emerald-500/5">
           <CheckCircle className="w-5 h-5 text-emerald-500 dark:text-emerald-400 drop-shadow-[0_0_8px_rgba(52,211,153,0.5)]" />
-          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">Score Saved</span>
+          <span className="text-sm font-bold text-emerald-700 dark:text-emerald-300">
+            Score Saved
+          </span>
         </div>
       ) : step === "confirm" ? (
-        <div className="px-4 py-4 space-y-3 bg-amber-50/40 dark:bg-amber-500/[0.03]" onClick={(e) => e.stopPropagation()}>
+        <div
+          className="px-4 py-4 space-y-3 bg-amber-50/40 dark:bg-amber-500/[0.03]"
+          onClick={(e) => e.stopPropagation()}
+        >
           <p className="text-[11px] text-gray-600 dark:text-white/60 text-center font-semibold uppercase tracking-wider">
             Confirm {isMultiSet ? `Set ${currentSet}` : "final"} result
           </p>
           <div className="grid grid-cols-2 gap-3">
-            {([
-              { side: "A", isWinner: numA > numB, score: scoreA },
-              { side: "B", isWinner: numB > numA, score: scoreB },
-            ] as const).map(({ side, isWinner, score }) => (
-              <div key={side} className={cn(
-                "rounded-lg border-2 p-3 text-center transition-all",
-                isWinner
-                  ? "border-emerald-400/60 bg-emerald-500/10"
-                  : "border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.02] opacity-60"
-              )}>
-                <p className="text-[9px] text-gray-500 dark:text-white/50 mb-1 truncate uppercase tracking-wider font-bold">Team {side}</p>
-                <div className={cn("text-4xl font-black tabular-nums", isWinner ? "text-emerald-600 dark:text-emerald-400" : "text-gray-400 dark:text-white/40")}>{score}</div>
-                {isWinner && <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">Winner</p>}
+            {(
+              [
+                { side: "A", isWinner: numA > numB, score: scoreA },
+                { side: "B", isWinner: numB > numA, score: scoreB },
+              ] as const
+            ).map(({ side, isWinner, score }) => (
+              <div
+                key={side}
+                className={cn(
+                  "rounded-lg border-2 p-3 text-center transition-all",
+                  isWinner
+                    ? "border-emerald-400/60 bg-emerald-500/10"
+                    : "border-gray-200 dark:border-white/10 bg-gray-50/60 dark:bg-white/[0.02] opacity-60",
+                )}
+              >
+                <p className="text-[9px] text-gray-500 dark:text-white/50 mb-1 truncate uppercase tracking-wider font-bold">
+                  Team {side}
+                </p>
+                <div
+                  className={cn(
+                    "text-4xl font-black tabular-nums",
+                    isWinner
+                      ? "text-emerald-600 dark:text-emerald-400"
+                      : "text-gray-400 dark:text-white/40",
+                  )}
+                >
+                  {score}
+                </div>
+                {isWinner && (
+                  <p className="text-[10px] text-emerald-600 dark:text-emerald-400 font-bold mt-1">
+                    Winner
+                  </p>
+                )}
               </div>
             ))}
           </div>
@@ -454,7 +822,9 @@ function ManagerCourtCard({
               className="flex-1 px-3 py-2.5 text-sm font-semibold rounded-lg border border-gray-200 dark:border-white/10 text-gray-600 dark:text-white/70 hover:text-gray-900 dark:hover:text-white hover:bg-gray-100 dark:hover:bg-white/5 active:scale-95 transition-all"
               onClick={() => setStep("input")}
               data-testid={`pro-inline-back-${match.id}`}
-            >Back</button>
+            >
+              Back
+            </button>
             <button
               type="button"
               className="flex-1 px-3 py-2.5 text-sm font-bold rounded-lg bg-emerald-500 text-white hover:bg-emerald-600 disabled:opacity-50 active:scale-95 transition-all shadow-sm"
@@ -469,14 +839,18 @@ function ManagerCourtCard({
       ) : (
         <>
           {/* Two-column body: each team gets its own column with players + score input */}
-          <div className={cn(
-            "grid grid-cols-2 gap-3 px-3 py-3 transition-colors",
-            isModified && "bg-amber-50/40 dark:bg-amber-500/[0.04]"
-          )}>
+          <div
+            className={cn(
+              "grid grid-cols-2 gap-3 px-3 py-3 transition-colors",
+              isModified && "bg-amber-50/40 dark:bg-amber-500/[0.04]",
+            )}
+          >
             {/* Team A column */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between px-0.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">Team A</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">
+                  Team A
+                </p>
               </div>
               <div className="space-y-1">
                 {renderPlayerSlot(match.teamAPlayer1, "teamAPlayer1Id")}
@@ -488,7 +862,9 @@ function ManagerCourtCard({
             {/* Team B column */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between px-0.5">
-                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">Team B</p>
+                <p className="text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-white/40">
+                  Team B
+                </p>
               </div>
               <div className="space-y-1">
                 {renderPlayerSlot(match.teamBPlayer1, "teamBPlayer1Id")}
@@ -500,12 +876,20 @@ function ManagerCourtCard({
 
           {/* Footer: status row + action buttons (only when scoring is available) */}
           {canScore && (
-            <div className="px-3 pb-3 space-y-2" onClick={(e) => e.stopPropagation()}>
+            <div
+              className="px-3 pb-3 space-y-2"
+              onClick={(e) => e.stopPropagation()}
+            >
               <div className="flex items-center justify-between text-[10px]">
-                <span className="font-mono text-gray-400 dark:text-white/40">Play to {pointsTarget}</span>
+                <span className="font-mono text-gray-400 dark:text-white/40">
+                  Play to {pointsTarget}
+                </span>
                 <div className="flex items-center gap-1.5">
                   {isTied && (
-                    <span className="inline-flex items-center gap-1 text-red-500 dark:text-red-400 font-semibold" data-testid={`pro-inline-tie-${match.id}`}>
+                    <span
+                      className="inline-flex items-center gap-1 text-red-500 dark:text-red-400 font-semibold"
+                      data-testid={`pro-inline-tie-${match.id}`}
+                    >
                       <AlertCircle className="w-3 h-3" /> Tied scores
                     </span>
                   )}
@@ -515,7 +899,10 @@ function ManagerCourtCard({
                     </span>
                   )}
                   {isModified && !isTied && (
-                    <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-600 dark:text-amber-300 text-[9px] font-bold uppercase tracking-wider" data-testid={`pro-inline-modified-${match.id}`}>
+                    <span
+                      className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full bg-amber-500/15 border border-amber-400/30 text-amber-600 dark:text-amber-300 text-[9px] font-bold uppercase tracking-wider"
+                      data-testid={`pro-inline-modified-${match.id}`}
+                    >
                       <AlertCircle className="w-2.5 h-2.5" /> Unsaved
                     </span>
                   )}
@@ -530,7 +917,8 @@ function ManagerCourtCard({
                     onClick={() => onCancelMatch(match.id)}
                     data-testid={`pro-inline-cancel-${match.id}`}
                   >
-                    <XCircle className="w-3.5 h-3.5" />Cancel
+                    <XCircle className="w-3.5 h-3.5" />
+                    Cancel
                   </button>
                 )}
                 <button
@@ -539,7 +927,7 @@ function ManagerCourtCard({
                     "flex-1 px-4 py-3.5 text-sm font-bold rounded-lg border-2 transition-all active:scale-95 inline-flex items-center justify-center gap-2",
                     canSubmit
                       ? "bg-gradient-to-b from-rose-500 to-red-600 border-red-700/40 text-white hover:from-rose-400 hover:to-red-500 shadow-md shadow-red-500/20"
-                      : "bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400 dark:text-white/30 cursor-not-allowed"
+                      : "bg-gray-100 dark:bg-white/5 border-gray-200 dark:border-white/10 text-gray-400 dark:text-white/30 cursor-not-allowed",
                   )}
                   onClick={handleSubmit}
                   disabled={!canSubmit}
@@ -557,19 +945,39 @@ function ManagerCourtCard({
   );
 }
 
-
-function EmptyCourtSlot({ courtNumber, courtName }: { courtNumber: number; courtName: string }) {
+function EmptyCourtSlot({
+  courtNumber,
+  courtName,
+}: {
+  courtNumber: number;
+  courtName: string;
+}) {
   const courtColor = getCourtColor(courtNumber);
   return (
     <div
       className="rounded-xl border border-dashed border-gray-200 dark:border-white/10 bg-gray-50/50 dark:bg-white/[0.015] shadow-inner flex flex-col items-center justify-center py-8 gap-2"
       data-testid={`empty-court-slot-${courtNumber}`}
     >
-      <div className="w-10 h-10 rounded-full border-2 border-dashed flex items-center justify-center" style={{ borderColor: `${courtColor.ring}30` }}>
-        <span className="text-sm font-black tabular-nums" style={{ color: `${courtColor.ring}50` }}>{courtNumber}</span>
+      <div
+        className="w-10 h-10 rounded-full border-2 border-dashed flex items-center justify-center"
+        style={{ borderColor: `${courtColor.ring}30` }}
+      >
+        <span
+          className="text-sm font-black tabular-nums"
+          style={{ color: `${courtColor.ring}50` }}
+        >
+          {courtNumber}
+        </span>
       </div>
-      <span className="text-xs font-bold uppercase tracking-wider" style={{ color: `${courtColor.ring}40` }}>{courtName}</span>
-      <span className="text-[10px] text-gray-400 dark:text-white/20">No active match</span>
+      <span
+        className="text-xs font-bold uppercase tracking-wider"
+        style={{ color: `${courtColor.ring}40` }}
+      >
+        {courtName}
+      </span>
+      <span className="text-[10px] text-gray-400 dark:text-white/20">
+        No active match
+      </span>
     </div>
   );
 }
@@ -585,10 +993,23 @@ type ProLiveMatchesProps = {
   defaultPointsToPlayTo?: number;
   sessionMatchCounts?: Record<number, number>;
   achievements?: PlayerAchievements;
-  onCompleteMatch: (matchId: number, scoreA: number, scoreB: number) => Promise<any> | void;
-  onEndSet: (matchId: number, setNumber: number, scoreA: number, scoreB: number) => Promise<any> | void;
+  onCompleteMatch: (
+    matchId: number,
+    scoreA: number,
+    scoreB: number,
+  ) => Promise<any> | void;
+  onEndSet: (
+    matchId: number,
+    setNumber: number,
+    scoreA: number,
+    scoreB: number,
+  ) => Promise<any> | void;
   onCancelMatch?: (matchId: number) => void;
-  onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void;
+  onSwapPlayer?: (
+    matchId: number,
+    position: string,
+    newPlayerId: number,
+  ) => void;
   onCourtNameChange?: (courtNumber: number, name: string) => void;
   onUpdatePointsTarget?: (matchId: number, pointsToPlayTo: number) => void;
   onUpdateSets?: (matchId: number, numberOfSets: number) => void;
@@ -596,17 +1017,37 @@ type ProLiveMatchesProps = {
 };
 
 export function ProLiveMatches({
-  liveMatches, isOrganiser, isSignedUp, currentPlayerProfileId, availablePlayers,
-  courtNames, totalCourts, defaultPointsToPlayTo = 21, sessionMatchCounts, achievements,
-  onCompleteMatch, onEndSet, onCancelMatch, onSwapPlayer,
+  liveMatches,
+  isOrganiser,
+  isSignedUp,
+  currentPlayerProfileId,
+  availablePlayers,
+  courtNames,
+  totalCourts,
+  defaultPointsToPlayTo = 21,
+  sessionMatchCounts,
+  achievements,
+  onCompleteMatch,
+  onEndSet,
+  onCancelMatch,
+  onSwapPlayer,
   busyPlayerIds,
 }: ProLiveMatchesProps) {
   const [sectionLight, setSectionLight] = useState(false);
 
-  const maxCourtFromMatches = liveMatches.reduce((max, m) => Math.max(max, m.courtNumber || 0), 0);
-  const numCourts = Math.max(totalCourts || 0, courtNames?.length || 0, maxCourtFromMatches);
+  const maxCourtFromMatches = liveMatches.reduce(
+    (max, m) => Math.max(max, m.courtNumber || 0),
+    0,
+  );
+  const numCourts = Math.max(
+    totalCourts || 0,
+    courtNames?.length || 0,
+    maxCourtFromMatches,
+  );
   const matchByCourtNumber = new Map<number, CourtMatch>();
-  liveMatches.forEach(m => { if (m.courtNumber) matchByCourtNumber.set(m.courtNumber, m); });
+  liveMatches.forEach((m) => {
+    if (m.courtNumber) matchByCourtNumber.set(m.courtNumber, m);
+  });
   const courtSlots = Array.from({ length: numCourts }, (_, i) => ({
     courtNumber: i + 1,
     match: matchByCourtNumber.get(i + 1) || null,
@@ -615,24 +1056,52 @@ export function ProLiveMatches({
 
   if (liveMatches.length === 0 && numCourts === 0) {
     return (
-      <div className="relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-8 overflow-hidden" data-testid="pro-live-matches-empty">
-        <div className="absolute inset-0 pointer-events-none hidden dark:block" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
+      <div
+        className="relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-8 overflow-hidden"
+        data-testid="pro-live-matches-empty"
+      >
+        <div
+          className="absolute inset-0 pointer-events-none hidden dark:block"
+          style={{
+            backgroundImage:
+              "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E\")",
+          }}
+        />
         <div className="relative z-10 flex flex-col items-center justify-center py-8 gap-3">
           <div className="relative">
-            <div className="w-16 h-16 rounded-full border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center animate-spin" style={{ animationDuration: '12s' }}>
+            <div
+              className="w-16 h-16 rounded-full border-2 border-dashed border-gray-200 dark:border-white/10 flex items-center justify-center animate-spin"
+              style={{ animationDuration: "12s" }}
+            >
               <CircleDot className="w-6 h-6 text-gray-300 dark:text-white/15" />
             </div>
           </div>
-          <p className="text-sm text-gray-500 dark:text-white/30 font-medium">No live matches</p>
-          <p className="text-xs text-gray-400 dark:text-white/15">Generate matches and assign them to courts</p>
+          <p className="text-sm text-gray-500 dark:text-white/30 font-medium">
+            No live matches
+          </p>
+          <p className="text-xs text-gray-400 dark:text-white/15">
+            Generate matches and assign them to courts
+          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className={cn("relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-4 sm:p-6 overflow-hidden", sectionLight && "force-light-section")} data-testid="pro-live-matches">
-      <div className="absolute inset-0 pointer-events-none hidden dark:block" style={{ backgroundImage: 'url("data:image/svg+xml,%3Csvg viewBox=\'0 0 256 256\' xmlns=\'http://www.w3.org/2000/svg\'%3E%3Cfilter id=\'n\'%3E%3CfeTurbulence type=\'fractalNoise\' baseFrequency=\'0.9\' numOctaves=\'4\' stitchTiles=\'stitch\'/%3E%3C/filter%3E%3Crect width=\'100%25\' height=\'100%25\' filter=\'url(%23n)\' opacity=\'0.03\'/%3E%3C/svg%3E")' }} />
+    <div
+      className={cn(
+        "relative rounded-[2rem] border border-gray-200 dark:border-white/[0.07] bg-white dark:bg-slate-950/90 backdrop-blur-2xl p-4 sm:p-6 overflow-hidden",
+        sectionLight && "force-light-section",
+      )}
+      data-testid="pro-live-matches"
+    >
+      <div
+        className="absolute inset-0 pointer-events-none hidden dark:block"
+        style={{
+          backgroundImage:
+            "url(\"data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E\")",
+        }}
+      />
 
       <div className="relative z-10 space-y-5">
         <div className="flex items-center justify-between flex-wrap gap-3">
@@ -641,17 +1110,22 @@ export function ProLiveMatches({
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
               <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-400 shadow-[0_0_8px_rgba(52,211,153,0.6)]" />
             </div>
-            <h3 className="text-base font-bold text-gray-900 dark:text-white tracking-tight" data-testid="pro-live-title">
+            <h3
+              className="text-base font-bold text-gray-900 dark:text-white tracking-tight"
+              data-testid="pro-live-title"
+            >
               Live Courts
             </h3>
-            <span className="text-xs font-mono text-gray-500 dark:text-white/30 bg-gray-100 dark:bg-white/[0.04] px-2 py-0.5 rounded-full">{liveMatches.length}</span>
+            <span className="text-xs font-mono text-gray-500 dark:text-white/30 bg-gray-100 dark:bg-white/[0.04] px-2 py-0.5 rounded-full">
+              {liveMatches.length}
+            </span>
             <button
-              onClick={() => setSectionLight(prev => !prev)}
+              onClick={() => setSectionLight((prev) => !prev)}
               className={cn(
                 "flex items-center justify-center w-7 h-7 rounded-full transition-all",
                 sectionLight
                   ? "bg-amber-100 text-amber-600 shadow-sm"
-                  : "bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-white/40 hover:bg-gray-200 dark:hover:bg-white/[0.12]"
+                  : "bg-gray-100 dark:bg-white/[0.06] text-gray-400 dark:text-white/40 hover:bg-gray-200 dark:hover:bg-white/[0.12]",
               )}
               title={sectionLight ? "Switch to dark" : "Switch to light"}
               data-testid="button-toggle-light-live"
@@ -662,27 +1136,33 @@ export function ProLiveMatches({
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {courtSlots.map(slot => slot.match ? (
-            <ManagerCourtCard
-              key={`court-${slot.courtNumber}`}
-              match={slot.match}
-              isOrganiser={isOrganiser}
-              isSignedUp={isSignedUp}
-              currentPlayerProfileId={currentPlayerProfileId}
-              availablePlayers={availablePlayers}
-              onSwapPlayer={onSwapPlayer}
-              busyPlayerIds={busyPlayerIds}
-              sessionMatchCounts={sessionMatchCounts}
-              courtNames={courtNames}
-              onCancelMatch={onCancelMatch}
-              achievements={achievements}
-              onCompleteMatch={onCompleteMatch}
-              onEndSet={onEndSet}
-              defaultPointsToPlayTo={defaultPointsToPlayTo}
-            />
-          ) : (
-            <EmptyCourtSlot key={`court-${slot.courtNumber}`} courtNumber={slot.courtNumber} courtName={slot.courtName} />
-          ))}
+          {courtSlots.map((slot) =>
+            slot.match ? (
+              <ManagerCourtCard
+                key={`court-${slot.courtNumber}`}
+                match={slot.match}
+                isOrganiser={isOrganiser}
+                isSignedUp={isSignedUp}
+                currentPlayerProfileId={currentPlayerProfileId}
+                availablePlayers={availablePlayers}
+                onSwapPlayer={onSwapPlayer}
+                busyPlayerIds={busyPlayerIds}
+                sessionMatchCounts={sessionMatchCounts}
+                courtNames={courtNames}
+                onCancelMatch={onCancelMatch}
+                achievements={achievements}
+                onCompleteMatch={onCompleteMatch}
+                onEndSet={onEndSet}
+                defaultPointsToPlayTo={defaultPointsToPlayTo}
+              />
+            ) : (
+              <EmptyCourtSlot
+                key={`court-${slot.courtNumber}`}
+                courtNumber={slot.courtNumber}
+                courtName={slot.courtName}
+              />
+            ),
+          )}
         </div>
       </div>
     </div>

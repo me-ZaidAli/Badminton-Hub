@@ -35,7 +35,7 @@ const PREVIEW_TABS = [
   { key: "finances", label: "Finances", icon: CreditCard },
 ] as const;
 
-type PreviewTab = typeof PREVIEW_TABS[number]["key"];
+type PreviewTab = (typeof PREVIEW_TABS)[number]["key"];
 
 const PREVIEW_IMAGES: Record<PreviewTab, { src: string; alt: string }> = {
   sessions: { src: sessionsPath, alt: "Session scheduling dashboard" },
@@ -58,36 +58,39 @@ export default function Home() {
   });
 
   const liveSessions = useMemo(() => {
-    return allSessions?.filter(s => s.liveMatchCount > 0) || [];
+    return allSessions?.filter((s) => s.liveMatchCount > 0) || [];
   }, [allSessions]);
 
-  const upcomingSessions = useMemo(() => {
-    if (!playSessions) return [];
-    const today = startOfToday();
-    return playSessions
-      .filter(s => {
-        const d = parseISO(s.date);
-        return isAfter(d, today) && s.status !== "COMPLETED" && s.status !== "CANCELLED";
-      })
-      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
-      .slice(0, 6);
-  }, [playSessions]);
+  // const upcomingSessions = useMemo(() => {
+  //   if (!playSessions) return [];
+  //   const today = startOfToday();
+  //   return playSessions
+  //     .filter(s => {
+  //       const d = parseISO(s.date);
+  //       return isAfter(d, today) && s.status !== "COMPLETED" && s.status !== "CANCELLED";
+  //     })
+  //     .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+  //     .slice(0, 6);
+  // }, [playSessions]);
 
   const recentSessions = useMemo(() => {
     if (!playSessions) return [];
     return playSessions
-      .filter(s => s.status === "COMPLETED")
+      .filter((s) => s.status === "COMPLETED")
       .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
       .slice(0, 6);
   }, [playSessions]);
 
-  const displaySessions = upcomingSessions.length > 0 ? upcomingSessions : recentSessions;
+  // const displaySessions = upcomingSessions.length > 0 ? upcomingSessions : recentSessions;
 
   useEffect(() => {
-    document.title = "BadmintonHub | Club Management Software by Dragon Badminton Club – BPG Ltd";
+    document.title =
+      "BadmintonHub | Club Management Software by Dragon Badminton Club – BPG Ltd";
     const setMeta = (name: string, content: string, property?: boolean) => {
       const attr = property ? "property" : "name";
-      let el = document.querySelector(`meta[${attr}="${name}"]`) as HTMLMetaElement | null;
+      let el = document.querySelector(
+        `meta[${attr}="${name}"]`,
+      ) as HTMLMetaElement | null;
       if (!el) {
         el = document.createElement("meta");
         el.setAttribute(attr, name);
@@ -95,17 +98,31 @@ export default function Home() {
       }
       el.content = content;
     };
-    setMeta("description", "BadmintonHub is the all-in-one platform to schedule sessions, manage players, organise matches, and track finances. Developed by Dragon Badminton Club – BPG Ltd.");
+    setMeta(
+      "description",
+      "BadmintonHub is the all-in-one platform to schedule sessions, manage players, organise matches, and track finances. Developed by Dragon Badminton Club – BPG Ltd.",
+    );
     setMeta("author", "Dragon Badminton Club – BPG Ltd");
-    setMeta("og:title", "BadmintonHub | Club Management Software by Dragon Badminton Club – BPG Ltd", true);
-    setMeta("og:description", "Schedule sessions, manage players, organise matches, and track club finances — all in one place. Built by Dragon Badminton Club – BPG Ltd.", true);
+    setMeta(
+      "og:title",
+      "BadmintonHub | Club Management Software by Dragon Badminton Club – BPG Ltd",
+      true,
+    );
+    setMeta(
+      "og:description",
+      "Schedule sessions, manage players, organise matches, and track club finances — all in one place. Built by Dragon Badminton Club – BPG Ltd.",
+      true,
+    );
     setMeta("og:type", "website", true);
   }, []);
 
   return (
     <PublicLayout>
       {/* ===== 1. HERO SECTION ===== */}
-      <section className="relative w-full overflow-hidden" data-testid="section-hero">
+      <section
+        className="relative w-full overflow-hidden"
+        data-testid="section-hero"
+      >
         <div className="absolute inset-0">
           <img
             src={heroPath}
@@ -121,8 +138,10 @@ export default function Home() {
               data-testid="text-hero-headline"
             >
               Schedule sessions, manage players,{" "}
-              <span className="text-primary">organise matches, and track club finances</span>
-              {" "}— all in one place.
+              <span className="text-primary">
+                organise matches, and track club finances
+              </span>{" "}
+              — all in one place.
             </h1>
             <p
               className="text-lg md:text-xl text-white/80 mb-10 leading-relaxed max-w-xl"
@@ -137,11 +156,16 @@ export default function Home() {
                 data-testid="link-dragon-hero"
               >
                 Dragon Badminton Club – BPG Ltd
-              </a>.
+              </a>
+              .
             </p>
             <div className="flex flex-col sm:flex-row flex-wrap items-start gap-3">
               <Link href="/register">
-                <Button size="lg" className="rounded-md text-base px-8" data-testid="button-hero-get-started">
+                <Button
+                  size="lg"
+                  className="rounded-md text-base px-8"
+                  data-testid="button-hero-get-started"
+                >
                   Create Your Free Club <ArrowRight className="ml-2 h-5 w-5" />
                 </Button>
               </Link>
@@ -166,27 +190,40 @@ export default function Home() {
                 </Button>
               </a>
             </div>
-            <p className="text-white/50 text-sm mt-4">No credit card required</p>
+            <p className="text-white/50 text-sm mt-4">
+              No credit card required
+            </p>
           </div>
         </div>
       </section>
 
       {/* ===== LIVE SESSIONS BANNER ===== */}
       {liveSessions.length > 0 && (
-        <section className="py-4 bg-green-500/5 border-b border-green-500/10" data-testid="section-live-preview">
+        <section
+          className="py-4 bg-green-500/5 border-b border-green-500/10"
+          data-testid="section-live-preview"
+        >
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex flex-col sm:flex-row flex-wrap items-center justify-between gap-3">
             <div className="flex items-center gap-3">
               <div className="h-9 w-9 bg-green-500/10 rounded-md flex items-center justify-center">
                 <Activity className="w-5 h-5 text-green-600 dark:text-green-400 animate-pulse" />
               </div>
               <div>
-                <p className="font-semibold text-sm" data-testid="text-live-count">
-                  {liveSessions.length} Live Session{liveSessions.length !== 1 ? "s" : ""} right now
+                <p
+                  className="font-semibold text-sm"
+                  data-testid="text-live-count"
+                >
+                  {liveSessions.length} Live Session
+                  {liveSessions.length !== 1 ? "s" : ""} right now
                 </p>
               </div>
             </div>
             <Link href="/explore/sessions">
-              <Button variant="outline" size="sm" data-testid="button-view-live">
+              <Button
+                variant="outline"
+                size="sm"
+                data-testid="button-view-live"
+              >
                 Watch Live <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </Link>
@@ -195,7 +232,7 @@ export default function Home() {
       )}
 
       {/* ===== UPCOMING SESSIONS SECTION ===== */}
-      {displaySessions.length > 0 && (
+      {/* {displaySessions.length > 0 && (
         <section className="py-16 lg:py-20 border-b border-border/40" data-testid="section-upcoming-sessions">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-10">
@@ -287,17 +324,29 @@ export default function Home() {
             </div>
           </div>
         </section>
-      )}
+      )} */}
 
       {/* ===== 2. FEATURE HIGHLIGHTS (4-card grid) ===== */}
-      <section className="py-20 lg:py-24" id="features" data-testid="section-feature-highlights">
+      <section
+        className="py-20 lg:py-24"
+        id="features"
+        data-testid="section-feature-highlights"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-features-title">
+            <h2
+              className="text-3xl md:text-4xl font-display font-bold mb-4"
+              data-testid="text-features-title"
+            >
               Everything You Need to Run a Club
             </h2>
-            <p className="text-muted-foreground text-lg" data-testid="text-features-subtitle">
-              Replace spreadsheets, group chats, and manual tracking with one purpose-built platform developed from real club experience by the team behind{" "}
+            <p
+              className="text-muted-foreground text-lg"
+              data-testid="text-features-subtitle"
+            >
+              Replace spreadsheets, group chats, and manual tracking with one
+              purpose-built platform developed from real club experience by the
+              team behind{" "}
               <a
                 href="https://dragon-bpgbadminton.com/"
                 target="_blank"
@@ -306,7 +355,8 @@ export default function Home() {
                 data-testid="link-dragon-intro"
               >
                 Dragon Badminton Club – BPG Ltd
-              </a>.
+              </a>
+              .
             </p>
           </div>
 
@@ -348,19 +398,29 @@ export default function Home() {
       </section>
 
       {/* ===== 3. PRODUCT PREVIEW / INTERACTIVE DASHBOARD ===== */}
-      <section className="py-20 lg:py-24 bg-muted/30" data-testid="section-product-preview">
+      <section
+        className="py-20 lg:py-24 bg-muted/30"
+        data-testid="section-product-preview"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-12">
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-preview-title">
+            <h2
+              className="text-3xl md:text-4xl font-display font-bold mb-4"
+              data-testid="text-preview-title"
+            >
               See BadmintonHub in Action
             </h2>
-            <p className="text-muted-foreground text-lg" data-testid="text-preview-subtitle">
-              Explore how your club can schedule sessions, organize matches, track players, and manage finances — all in one platform.
+            <p
+              className="text-muted-foreground text-lg"
+              data-testid="text-preview-subtitle"
+            >
+              Explore how your club can schedule sessions, organize matches,
+              track players, and manage finances — all in one platform.
             </p>
           </div>
 
           <div className="flex flex-wrap justify-center gap-2 mb-8">
-            {PREVIEW_TABS.map(tab => (
+            {PREVIEW_TABS.map((tab) => (
               <button
                 key={tab.key}
                 onClick={() => setActivePreview(tab.key)}
@@ -386,17 +446,20 @@ export default function Home() {
                   <div className="w-3 h-3 rounded-full bg-green-400/70" />
                 </div>
                 <span className="text-xs text-muted-foreground ml-2">
-                  BadmintonHub — {PREVIEW_TABS.find(t => t.key === activePreview)?.label}
+                  BadmintonHub —{" "}
+                  {PREVIEW_TABS.find((t) => t.key === activePreview)?.label}
                 </span>
               </div>
               <div className="relative overflow-hidden">
-                {PREVIEW_TABS.map(tab => (
+                {PREVIEW_TABS.map((tab) => (
                   <img
                     key={tab.key}
                     src={PREVIEW_IMAGES[tab.key].src}
                     alt={PREVIEW_IMAGES[tab.key].alt}
                     className={`w-full h-auto transition-opacity duration-300 ${
-                      activePreview === tab.key ? "opacity-100" : "opacity-0 absolute inset-0"
+                      activePreview === tab.key
+                        ? "opacity-100"
+                        : "opacity-0 absolute inset-0"
                     }`}
                     loading="lazy"
                   />
@@ -406,7 +469,10 @@ export default function Home() {
 
             <p className="text-center text-xs text-muted-foreground mt-3">
               Unlock full features with{" "}
-              <a href="#pricing" className="text-primary hover:underline font-medium">
+              <a
+                href="#pricing"
+                className="text-primary hover:underline font-medium"
+              >
                 Premium
               </a>
             </p>
@@ -414,20 +480,33 @@ export default function Home() {
 
           <div className="text-center mt-10">
             <Link href="/register">
-              <Button size="lg" className="rounded-md text-base px-8" data-testid="button-preview-cta">
+              <Button
+                size="lg"
+                className="rounded-md text-base px-8"
+                data-testid="button-preview-cta"
+              >
                 Create Your Free Club <ArrowRight className="ml-2 h-5 w-5" />
               </Button>
             </Link>
-            <p className="text-sm text-muted-foreground mt-3">No credit card required</p>
+            <p className="text-sm text-muted-foreground mt-3">
+              No credit card required
+            </p>
           </div>
         </div>
       </section>
 
       {/* ===== 4. HOW IT WORKS ===== */}
-      <section className="py-20 lg:py-24" id="how-it-works" data-testid="section-how-it-works">
+      <section
+        className="py-20 lg:py-24"
+        id="how-it-works"
+        data-testid="section-how-it-works"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-hiw-title">
+            <h2
+              className="text-3xl md:text-4xl font-display font-bold mb-4"
+              data-testid="text-hiw-title"
+            >
               Get Started in 3 Steps
             </h2>
             <p className="text-muted-foreground text-lg">
@@ -465,10 +544,17 @@ export default function Home() {
       </section>
 
       {/* ===== 5. PRICING SECTION ===== */}
-      <section className="py-20 lg:py-24 bg-muted/30" id="pricing" data-testid="section-pricing">
+      <section
+        className="py-20 lg:py-24 bg-muted/30"
+        id="pricing"
+        data-testid="section-pricing"
+      >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-pricing-title">
+            <h2
+              className="text-3xl md:text-4xl font-display font-bold mb-4"
+              data-testid="text-pricing-title"
+            >
               Simple, Transparent Pricing
             </h2>
             <p className="text-muted-foreground text-lg">
@@ -478,7 +564,10 @@ export default function Home() {
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-3xl mx-auto">
             {/* FREE tier */}
-            <Card className="p-8 border-border/60 relative" data-testid="card-pricing-free">
+            <Card
+              className="p-8 border-border/60 relative"
+              data-testid="card-pricing-free"
+            >
               <div className="mb-6">
                 <h3 className="text-xl font-bold mb-1">Free</h3>
                 <div className="flex items-baseline gap-1">
@@ -501,7 +590,12 @@ export default function Home() {
                 ))}
               </ul>
               <Link href="/register">
-                <Button variant="outline" className="w-full" size="lg" data-testid="button-pricing-free">
+                <Button
+                  variant="outline"
+                  className="w-full"
+                  size="lg"
+                  data-testid="button-pricing-free"
+                >
                   Start Free
                 </Button>
               </Link>
@@ -522,7 +616,10 @@ export default function Home() {
                   <span className="text-muted-foreground">/ month</span>
                 </div>
                 <p className="text-sm text-primary font-medium mt-1">
-                  or £180/year <span className="text-green-600 dark:text-green-400">(Save £48)</span>
+                  or £180/year{" "}
+                  <span className="text-green-600 dark:text-green-400">
+                    (Save £48)
+                  </span>
                 </p>
               </div>
               <ul className="space-y-3 mb-8">
@@ -543,14 +640,21 @@ export default function Home() {
                 ))}
               </ul>
               <Link href="/register">
-                <Button className="w-full" size="lg" data-testid="button-pricing-premium">
+                <Button
+                  className="w-full"
+                  size="lg"
+                  data-testid="button-pricing-premium"
+                >
                   Upgrade to Premium <Star className="ml-2 h-4 w-4" />
                 </Button>
               </Link>
             </Card>
           </div>
 
-          <p className="text-center text-sm text-muted-foreground mt-8" data-testid="text-pricing-note">
+          <p
+            className="text-center text-sm text-muted-foreground mt-8"
+            data-testid="text-pricing-note"
+          >
             Most badminton clubs upgrade once they exceed 20 members.
           </p>
         </div>
@@ -560,22 +664,50 @@ export default function Home() {
       <section className="py-20 lg:py-24" data-testid="section-screenshots">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center max-w-2xl mx-auto mb-14">
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-4" data-testid="text-screenshots-title">
+            <h2
+              className="text-3xl md:text-4xl font-display font-bold mb-4"
+              data-testid="text-screenshots-title"
+            >
               Everything Your Club Needs in One App
             </h2>
             <p className="text-muted-foreground text-lg">
-              From session scheduling to finance tracking, see the tools that power badminton clubs.
+              From session scheduling to finance tracking, see the tools that
+              power badminton clubs.
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
             {[
-              { src: sessionsPath, alt: "Session scheduling and management", label: "Session Management" },
-              { src: organisersPath, alt: "Organiser dashboard with live view", label: "Organiser Dashboard" },
-              { src: playersPath, alt: "Player profiles and attendance", label: "Player Profiles" },
-              { src: paymentsPath, alt: "Payment tracking per session", label: "Payment Tracking" },
-              { src: venuesPath, alt: "Venue and court setup", label: "Venue Management" },
-              { src: adminPath, alt: "Admin tools and governance", label: "Admin Tools" },
+              {
+                src: sessionsPath,
+                alt: "Session scheduling and management",
+                label: "Session Management",
+              },
+              {
+                src: organisersPath,
+                alt: "Organiser dashboard with live view",
+                label: "Organiser Dashboard",
+              },
+              {
+                src: playersPath,
+                alt: "Player profiles and attendance",
+                label: "Player Profiles",
+              },
+              {
+                src: paymentsPath,
+                alt: "Payment tracking per session",
+                label: "Payment Tracking",
+              },
+              {
+                src: venuesPath,
+                alt: "Venue and court setup",
+                label: "Venue Management",
+              },
+              {
+                src: adminPath,
+                alt: "Admin tools and governance",
+                label: "Admin Tools",
+              },
             ].map((screenshot, i) => (
               <div
                 key={i}
@@ -600,32 +732,55 @@ export default function Home() {
       </section>
 
       {/* ===== EXPLORE LINKS ===== */}
-      <section className="py-16 bg-muted/30 border-t border-border/40" data-testid="section-explore-links">
+      <section
+        className="py-16 bg-muted/30 border-t border-border/40"
+        data-testid="section-explore-links"
+      >
         <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center mb-10">
-            <h2 className="text-3xl md:text-4xl font-display font-bold mb-3" data-testid="text-explore-title">Explore</h2>
-            <p className="text-muted-foreground text-lg" data-testid="text-explore-description">Browse clubs and sessions without signing in</p>
+            <h2
+              className="text-3xl md:text-4xl font-display font-bold mb-3"
+              data-testid="text-explore-title"
+            >
+              Explore
+            </h2>
+            <p
+              className="text-muted-foreground text-lg"
+              data-testid="text-explore-description"
+            >
+              Browse clubs and sessions without signing in
+            </p>
           </div>
           <div className="grid md:grid-cols-2 gap-6">
             <Link href="/explore/clubs">
-              <Card className="p-6 hover-elevate cursor-pointer h-full" data-testid="card-explore-clubs">
+              <Card
+                className="p-6 hover-elevate cursor-pointer h-full"
+                data-testid="card-explore-clubs"
+              >
                 <div className="h-12 w-12 bg-primary/10 rounded-md flex items-center justify-center mb-4 text-primary">
                   <Search className="h-6 w-6" />
                 </div>
                 <h3 className="text-xl font-bold mb-2">Find Clubs</h3>
-                <p className="text-muted-foreground leading-relaxed mb-4">Search for clubs near you with map and list views.</p>
+                <p className="text-muted-foreground leading-relaxed mb-4">
+                  Search for clubs near you with map and list views.
+                </p>
                 <span className="inline-flex items-center text-sm font-medium text-primary">
                   Browse Clubs <ArrowRight className="ml-1 w-4 h-4" />
                 </span>
               </Card>
             </Link>
             <Link href="/play">
-              <Card className="p-6 hover-elevate cursor-pointer h-full" data-testid="card-explore-sessions">
+              <Card
+                className="p-6 hover-elevate cursor-pointer h-full"
+                data-testid="card-explore-sessions"
+              >
                 <div className="h-12 w-12 bg-primary/10 rounded-md flex items-center justify-center mb-4 text-primary">
                   <Calendar className="h-6 w-6" />
                 </div>
                 <h3 className="text-xl font-bold mb-2">Find Sessions</h3>
-                <p className="text-muted-foreground leading-relaxed mb-4">Discover upcoming sessions and find a game near you.</p>
+                <p className="text-muted-foreground leading-relaxed mb-4">
+                  Discover upcoming sessions and find a game near you.
+                </p>
                 <span className="inline-flex items-center text-sm font-medium text-primary">
                   Browse Sessions <ArrowRight className="ml-1 w-4 h-4" />
                 </span>
@@ -636,7 +791,10 @@ export default function Home() {
       </section>
 
       {/* ===== 7. FINAL CTA ===== */}
-      <section className="py-20 lg:py-28 relative overflow-hidden" data-testid="section-closing-cta">
+      <section
+        className="py-20 lg:py-28 relative overflow-hidden"
+        data-testid="section-closing-cta"
+      >
         <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-primary/5 -z-10" />
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
           <h2
@@ -649,21 +807,36 @@ export default function Home() {
             className="text-muted-foreground text-lg mb-10 leading-relaxed max-w-2xl mx-auto"
             data-testid="text-closing-description"
           >
-            Join badminton clubs already using BadmintonHub to schedule sessions, organize matches, and manage their finances without the hassle.
+            Join badminton clubs already using BadmintonHub to schedule
+            sessions, organize matches, and manage their finances without the
+            hassle.
           </p>
           <Link href="/register">
-            <Button size="lg" className="rounded-md text-base px-8" data-testid="button-closing-cta">
+            <Button
+              size="lg"
+              className="rounded-md text-base px-8"
+              data-testid="button-closing-cta"
+            >
               Create Your Free Club <ArrowRight className="ml-2 h-5 w-5" />
             </Button>
           </Link>
-          <p className="text-sm text-muted-foreground mt-4">No credit card required.</p>
+          <p className="text-sm text-muted-foreground mt-4">
+            No credit card required.
+          </p>
         </div>
       </section>
 
       {/* ===== ABOUT BADMINTONHUB ===== */}
-      <section className="py-16 lg:py-20 border-t border-border/40 bg-muted/20" id="about" data-testid="section-about">
+      <section
+        className="py-16 lg:py-20 border-t border-border/40 bg-muted/20"
+        id="about"
+        data-testid="section-about"
+      >
         <div className="max-w-3xl mx-auto px-4 sm:px-6 lg:px-8">
-          <h2 className="text-3xl md:text-4xl font-display font-bold mb-6 text-center" data-testid="text-about-title">
+          <h2
+            className="text-3xl md:text-4xl font-display font-bold mb-6 text-center"
+            data-testid="text-about-title"
+          >
             About BadmintonHub
           </h2>
           <div className="space-y-5 text-muted-foreground text-base md:text-lg leading-relaxed">
@@ -677,11 +850,15 @@ export default function Home() {
                 data-testid="link-dragon-about-1"
               >
                 Dragon Badminton Club – BPG Ltd
-              </a>
-              {" "}— the same team behind Birmingham&apos;s inclusive community club and performance pathway programmes. Every feature is shaped by real-world experience running sessions, leagues, and tournaments, so you get tools that actually work for badminton.
+              </a>{" "}
+              — the same team behind Birmingham&apos;s inclusive community club
+              and performance pathway programmes. Every feature is shaped by
+              real-world experience running sessions, leagues, and tournaments,
+              so you get tools that actually work for badminton.
             </p>
             <p data-testid="text-about-paragraph-2">
-              We created this platform to help clubs everywhere operate at the same professional standard we use at{" "}
+              We created this platform to help clubs everywhere operate at the
+              same professional standard we use at{" "}
               <a
                 href="https://dragon-bpgbadminton.com/"
                 target="_blank"
@@ -690,7 +867,9 @@ export default function Home() {
                 data-testid="link-dragon-about-2"
               >
                 Dragon Badminton Club
-              </a>, making administration easier so organisers can focus on growing the sport and building great communities.
+              </a>
+              , making administration easier so organisers can focus on growing
+              the sport and building great communities.
             </p>
           </div>
         </div>
@@ -734,7 +913,9 @@ function FeatureCard({
           </div>
           <h3 className="font-semibold text-base">{title}</h3>
         </div>
-        <p className="text-sm text-muted-foreground leading-relaxed">{description}</p>
+        <p className="text-sm text-muted-foreground leading-relaxed">
+          {description}
+        </p>
       </div>
     </Card>
   );
@@ -769,7 +950,9 @@ function HowItWorksStep({
         {step}
       </div>
       <h3 className="text-lg font-bold mb-2">{title}</h3>
-      <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">{description}</p>
+      <p className="text-sm text-muted-foreground leading-relaxed max-w-xs mx-auto">
+        {description}
+      </p>
     </div>
   );
 }
