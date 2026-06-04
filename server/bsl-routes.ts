@@ -1777,6 +1777,100 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
+  // Reorder the rubbers in a fixture so the same players don't play back-to-back
+  // (e.g. someone in Men's Doubles isn't pulled straight into the next Mixed
+  // Doubles rubber — they get a rest in between). A greedy spread with a random
+  // tie-break: at each step we pick the remaining rubber whose players have
+  // rested the longest, shuffling ties so clicking again gives a fresh order.
+  // Gated to SCHEDULED/WARMUP — we only shuffle the running order before play
+  // starts, never once scores are being entered.
+  app.post("/api/bsl/admin/fixtures/:id/reorder-rubbers", requireAdmin, async (req, res) => {
+    try {
+      const fixtureId = Number(req.params.id);
+      const [fixture] = await db.select().from(bslFixtures).where(eq(bslFixtures.id, fixtureId)).limit(1);
+      if (!fixture) return res.status(404).json({ message: "Fixture not found" });
+      if (!["SCHEDULED", "WARMUP"].includes(fixture.status)) {
+        return res.status(409).json({ message: `Fixture is ${fixture.status} — reordering is only allowed before play starts (SCHEDULED/WARMUP).` });
+      }
+      const block = await assertFixtureMutable(fixtureId, new Set(), "reorder");
+      if (block) return res.status(409).json({ message: block });
+
+      // A rubber's "participants" are computed PER SIDE: each side contributes
+      // its player ids, or its team id (negated to avoid colliding with player
+      // ids) when that side has no players mirrored yet. Doing it per side means
+      // a half-assigned rubber (players on one side, team-only on the other)
+      // still flags the team-only side as overlap.
+      const sideParts = (p1: any, p2: any, teamId: any): number[] => {
+        const players = [p1, p2].filter((x: any): x is number => x != null);
+        if (players.length > 0) return players;
+        return teamId != null ? [-teamId] : [];
+      };
+      const participantsOf = (r: any): number[] => [
+        ...sideParts(r.homePlayer1Id, r.homePlayer2Id, r.homeTeamId),
+        ...sideParts(r.awayPlayer1Id, r.awayPlayer2Id, r.awayTeamId),
+      ];
+      const shuffle = <T,>(arr: T[]): T[] => {
+        const a = [...arr];
+        for (let i = a.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [a[i], a[j]] = [a[j], a[i]];
+        }
+        return a;
+      };
+
+      let reordered = 0;
+      await db.transaction(async (tx) => {
+        // Lock the fixture first, THEN read its rubbers, so a concurrent
+        // add/delete can't make our computed order stale.
+        await tx.execute(dsql`SELECT id FROM bsl_fixtures WHERE id = ${fixtureId} FOR UPDATE`);
+        const rubbers = await tx.select().from(bslRubbers)
+          .where(eq(bslRubbers.bslFixtureId, fixtureId)).orderBy(bslRubbers.rubberNumber);
+        if (rubbers.length < 2) return;
+
+        // Greedy spread: repeatedly take the remaining rubber whose participants
+        // have rested the longest (largest minimum gap since they last played).
+        // The pool is pre-shuffled so equal scores break randomly — clicking
+        // again gives a fresh, still-spread order. This is a best-effort spread,
+        // not a hard guarantee of zero adjacency in every pathological line-up.
+        const remaining = shuffle(rubbers);
+        const ordered: typeof rubbers = [];
+        const lastSeen = new Map<number, number>(); // participant → position in `ordered`
+        while (remaining.length) {
+          let bestIdx = 0;
+          let bestScore = -Infinity;
+          const pos = ordered.length;
+          for (let i = 0; i < remaining.length; i++) {
+            const parts = participantsOf(remaining[i]);
+            // Smallest rest gap across this rubber's participants. Never-played = big rest.
+            let minGap = Infinity;
+            for (const p of parts) {
+              const seen = lastSeen.get(p);
+              const gap = seen == null ? pos + 1 : pos - seen;
+              if (gap < minGap) minGap = gap;
+            }
+            if (parts.length === 0) minGap = pos + 1; // empty slot: freely placeable
+            if (minGap > bestScore) { bestScore = minGap; bestIdx = i; }
+          }
+          const [picked] = remaining.splice(bestIdx, 1);
+          for (const p of participantsOf(picked)) lastSeen.set(p, ordered.length);
+          ordered.push(picked);
+        }
+
+        // Two-phase renumber to dodge any transient duplicate rubberNumber: park
+        // everything in the negatives first, then lay down the final 1..N order.
+        for (let i = 0; i < ordered.length; i++) {
+          await tx.update(bslRubbers).set({ rubberNumber: -(i + 1) }).where(eq(bslRubbers.id, ordered[i].id));
+        }
+        for (let i = 0; i < ordered.length; i++) {
+          await tx.update(bslRubbers).set({ rubberNumber: i + 1 }).where(eq(bslRubbers.id, ordered[i].id));
+        }
+        reordered = ordered.length;
+      });
+      if (reordered) await audit(req, "REORDER_RUBBERS", "bsl_fixture", fixtureId, { count: reordered });
+      res.json({ reordered });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
   // Admin delete a fixture (and cascade its rubbers). Lifecycle-guarded: CLOSED
   // and LIVE league-days block the delete (use the lifecycle to reopen first).
   // Without `?force=true`, FINISHED fixtures or ones with any rubber scores are

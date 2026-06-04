@@ -3,7 +3,7 @@ import { Link, useRoute } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  ArrowLeft, Users, Trophy, X, GripVertical, AlertTriangle, Check, Plus, Wand2, Trash2,
+  ArrowLeft, Users, Trophy, X, GripVertical, AlertTriangle, Check, Plus, Wand2, Trash2, Shuffle,
 } from "lucide-react";
 import { AdminLayout } from "./AdminLayout";
 import { GlowPanel } from "../components/GlowPanel";
@@ -92,6 +92,18 @@ export default function FixtureSetup() {
     onError: errToast("Couldn't auto-generate"),
   });
 
+  // Shuffle the running order so the same players don't play back-to-back
+  // (they get a rest between, e.g. Men's Doubles then a break before Mixed).
+  const reorder = useMutation({
+    mutationFn: async () =>
+      (await apiRequest("POST", `/api/bsl/admin/fixtures/${fixtureId}/reorder-rubbers`, {})).json(),
+    onSuccess: (r: any) => {
+      toast({ title: r.reordered > 1 ? "Order shuffled" : "Nothing to shuffle", description: r.reordered > 1 ? `${r.reordered} matches spread out so players get a rest between their games.` : "Add at least two matches first." });
+      invalidate();
+    },
+    onError: errToast("Couldn't shuffle the order"),
+  });
+
   // Build a quick lookup so each pair card can show whether it's already
   // slotted into a rubber and admins don't have to scroll back to check.
   const placement = useMemo(() => {
@@ -175,6 +187,15 @@ export default function FixtureSetup() {
               data-testid="button-auto-parallel"
             >
               <Wand2 className="h-3.5 w-3.5 mr-1" /> Pair-by-pair
+            </ActionButton>
+            <ActionButton
+              variant="gold"
+              onClick={() => reorder.mutate()}
+              disabled={reorder.isPending || rubbers.length < 2}
+              data-testid="button-shuffle-order"
+              title="Spread matches out so players get a rest between their games"
+            >
+              <Shuffle className="h-3.5 w-3.5 mr-1" /> Shuffle order (rest between games)
             </ActionButton>
             <Link href={`/bsl/match/${fixture.id}`}><ActionButton variant="cyan" data-testid="link-open-match">Open match view</ActionButton></Link>
           </div>
