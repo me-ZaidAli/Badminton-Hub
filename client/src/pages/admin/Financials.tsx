@@ -1233,7 +1233,12 @@ export default function Financials() {
   const collectionRate = totalRevenue > 0 ? ((paidTotal / totalRevenue) * 100).toFixed(1) : "0.0";
 
   const outstandingByPlayer = useMemo(() => {
-    const unpaidEntries = filteredData.filter((e) => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING");
+    const today = startOfDay(new Date());
+    const unpaidEntries = filteredData.filter((e) => {
+      if (e.paymentStatus !== "UNPAID" && e.paymentStatus !== "PENDING") return false;
+      const d = e.sessionDate ? startOfDay(new Date(e.sessionDate)) : null;
+      return d !== null && d < today;
+    });
     const groups: Record<string, { playerName: string; playerEmail: string; playerUserId: number | null; totalOwed: number; sessions: { signupId: number; sessionId: number; sessionTitle: string; sessionDate: string; clubName: string; fee: number; paymentStatus: string }[] }> = {};
     unpaidEntries.forEach((entry) => {
       const key = `${entry.playerUserId}`;
@@ -1245,7 +1250,7 @@ export default function Financials() {
     });
     return Object.values(groups).sort((a, b) => b.totalOwed - a.totalOwed);
   }, [filteredData]);
-  const outstandingTotal = useMemo(() => unpaidTotal + pendingTotal, [unpaidTotal, pendingTotal]);
+  const outstandingTotal = useMemo(() => outstandingByPlayer.reduce((sum, p) => sum + p.totalOwed, 0), [outstandingByPlayer]);
 
   const sessionGroups = useMemo(() => {
     const groups: Record<number, FinancialEntry[]> = {};
@@ -3740,7 +3745,7 @@ export default function Financials() {
             </div>
             <div className="flex items-center justify-between gap-1 mt-0.5 flex-wrap">
               <p className="text-[9px] sm:text-[11px] text-muted-foreground">
-                {filteredData.filter((e) => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING").length} unpaid
+                {outstandingByPlayer.reduce((sum, p) => sum + p.sessions.length, 0)} unpaid
               </p>
               {outstandingTotal > 0 && (
                 <Button
