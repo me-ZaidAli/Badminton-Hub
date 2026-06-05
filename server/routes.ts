@@ -34186,8 +34186,13 @@ PLAYER NAME RULES:
 ORDERING:
 - Return matches in the EXACT order they appear in the image, top-to-bottom.
 - Match #1 in output = first row in the image. Do NOT reorder.
-- Extract EVERY SINGLE ROW. If there are 30+ matches visible, return ALL of them. Do NOT stop early.
-- Count the rows first before extracting. If you count 31 rows, your output must have exactly 31 matches.
+- Extract every row that is ACTUALLY visible, in order. Do NOT stop early, but do NOT pad the list either.
+
+NEVER INVENT OR DUPLICATE ROWS — THIS IS CRITICAL:
+- Only extract rows you can actually SEE in the image. Do NOT guess, invent, or fabricate matches to reach a round number or a target count.
+- Do NOT output the same row twice. Each visible row must appear EXACTLY once in your output.
+- If you are unsure whether a faint, cut-off, or partial row exists, leave it OUT. It is far better to omit one uncertain row than to invent a match that never happened.
+- Your match count must equal the number of rows actually visible in the image — no more, no less. Never add filler rows to hit a number.
 
 SCORE VALIDATION (badminton rules):
 - Normal win: winner has 21, loser has 0-19 (e.g. 21-15, 21-0, 21-19)
@@ -34258,21 +34263,11 @@ Return ONLY valid JSON in this exact format:
 
           console.log(`[AI Match Extract] Processing image ${imgIdx + 1} of ${files.length}`);
 
-          let extracted = await extractFromImage(imageContent,
-            "Extract EVERY match result from this score sheet image. Count the total number of match rows first, then extract ALL of them. Do NOT skip any rows. Do NOT stop early. If you see 30 rows, output 30 matches. If you see 19 rows, output 19 matches. Preserve exact top-to-bottom order."
+          const extracted = await extractFromImage(imageContent,
+            "Extract every match result row that is ACTUALLY visible in this score sheet image, in exact top-to-bottom order. Do NOT skip rows, but do NOT invent, guess, or duplicate rows to pad the list — your match count must equal the number of rows actually visible in the image."
           );
 
-          console.log(`[AI Match Extract] Image ${imgIdx + 1} first pass: ${extracted.length} matches`);
-
-          if (extracted.length > 0 && extracted.length <= 20) {
-            const retryMatches = await extractFromImage(imageContent,
-              `CRITICAL: On a previous attempt only ${extracted.length} matches were found from this image, but there are likely MORE rows. Please count EVERY row in the image very carefully. Scroll your attention from the VERY FIRST row at the top to the VERY LAST row at the bottom. Extract ALL of them. Do NOT stop after ${extracted.length}. Output every single match row visible in the image.`
-            );
-            if (retryMatches.length > extracted.length) {
-              console.log(`[AI Match Extract] Image ${imgIdx + 1} retry found more: ${retryMatches.length} vs ${extracted.length}`);
-              extracted = retryMatches;
-            }
-          }
+          console.log(`[AI Match Extract] Image ${imgIdx + 1}: ${extracted.length} matches`);
 
           return extracted;
         } catch (imgErr: any) {
