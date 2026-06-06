@@ -16,7 +16,10 @@ type PlayerRow = {
   playerId: number; fullName: string; clubId: number | null;
   matchesPlayed: number; won: number; lost: number; winRate: number; points: number; position: number;
 };
-type TeamMember = { playerId: number; name: string };
+type TeamMember = {
+  playerId: number; name: string;
+  points?: number; matchesPlayed?: number; won?: number; winRate?: number;
+};
 type TeamRow = { id: number; name: string; category?: string | null; division?: string | null; playerNames?: string[]; members?: TeamMember[] };
 type SquadPlayer = {
   playerId: number; name: string; divisions: string[];
@@ -203,17 +206,19 @@ export function ClubStatsDialog({
       playerLeaderboard.filter(p => p.clubId === clubId).map(p => [p.playerId, p]),
     );
     const players = new Map<number, SquadPlayer>();
-    const upsert = (playerId: number, name: string): SquadPlayer => {
+    // Stats source priority: real stats carried on the team member (computed
+    // server-side from finished matches) → leaderboard fallback → zeros.
+    const upsert = (playerId: number, name: string, stat?: Partial<SquadPlayer>): SquadPlayer => {
       let e = players.get(playerId);
       if (!e) {
-        const st = statById.get(playerId);
+        const lb = statById.get(playerId);
         e = {
           playerId, name,
           divisions: [],
-          points: st?.points ?? 0,
-          won: st?.won ?? 0,
-          matchesPlayed: st?.matchesPlayed ?? 0,
-          winRate: st?.winRate ?? 0,
+          points: stat?.points ?? lb?.points ?? 0,
+          won: stat?.won ?? lb?.won ?? 0,
+          matchesPlayed: stat?.matchesPlayed ?? lb?.matchesPlayed ?? 0,
+          winRate: stat?.winRate ?? lb?.winRate ?? 0,
         };
         players.set(playerId, e);
       }
@@ -223,7 +228,9 @@ export function ClubStatsDialog({
     for (const t of teams) {
       const div = (t.division || "").trim();
       for (const m of t.members || []) {
-        const e = upsert(m.playerId, m.name);
+        const e = upsert(m.playerId, m.name, {
+          points: m.points, won: m.won, matchesPlayed: m.matchesPlayed, winRate: m.winRate,
+        });
         if (div && !e.divisions.includes(div)) e.divisions.push(div);
       }
     }

@@ -831,75 +831,96 @@ export function registerBslRoutes(app: Express) {
     }));
   }
 
+  // Shared player-leaderboard computation (rally points per player across all
+  // FINISHED rubbers). Used by the leaderboard list AND the single-player stats
+  // endpoint so the player card never depends on the full-list fetch.
+  type PlayerLbRow = {
+    playerId: number; fullName: string; clubId: number | null; clubName: string;
+    clubLogo: string | null; division: string;
+    matchesPlayed: number; won: number; lost: number;
+    setsFor: number; setsAgainst: number; winRate: number; points: number; position: number;
+  };
+  async function computePlayerLeaderboard(division?: string): Promise<PlayerLbRow[]> {
+    const finished = await db
+      .select()
+      .from(bslRubbers)
+      .where(eq(bslRubbers.status, "FINISHED" as any));
+    const players = await loadResolvedPlayers();
+    const clubs = await db.select().from(bslClubs);
+    const cMap = new Map(clubs.map(c => [c.id, c]));
+    const byPlayer = new Map<number, Omit<PlayerLbRow, "position">>();
+    const ensure = (p: any) => {
+      if (!p) return null;
+      let row = byPlayer.get(p.id);
+      if (!row) {
+        const club = p.bslClubId != null ? cMap.get(p.bslClubId) : null;
+        row = {
+          playerId: p.id, fullName: p.resolvedName,
+          clubId: p.bslClubId ?? null, clubName: club?.name || "—",
+          clubLogo: club?.logoUrl || null,
+          division: (club?.division as string) || "—",
+          matchesPlayed: 0, won: 0, lost: 0,
+          setsFor: 0, setsAgainst: 0, winRate: 0, points: 0,
+        };
+        byPlayer.set(p.id, row);
+      }
+      return row;
+    };
+    const pMap = new Map(players.map(p => [p.id, p]));
+    for (const r of finished) {
+      const rp = rubberRallyPoints(r);
+      const homeWon = rp.homeSetsWon > rp.awaySetsWon;
+      const awayWon = rp.awaySetsWon > rp.homeSetsWon;
+      const homePlayers = [r.homePlayer1Id, r.homePlayer2Id].filter((x): x is number => x != null);
+      const awayPlayers = [r.awayPlayer1Id, r.awayPlayer2Id].filter((x): x is number => x != null);
+      for (const pid of homePlayers) {
+        const row = ensure(pMap.get(pid));
+        if (!row) continue;
+        row.matchesPlayed++;
+        row.setsFor += rp.homeSetsWon; row.setsAgainst += rp.awaySetsWon;
+        row.points += rp.home;
+        if (homeWon) row.won++; else if (awayWon) row.lost++;
+      }
+      for (const pid of awayPlayers) {
+        const row = ensure(pMap.get(pid));
+        if (!row) continue;
+        row.matchesPlayed++;
+        row.setsFor += rp.awaySetsWon; row.setsAgainst += rp.homeSetsWon;
+        row.points += rp.away;
+        if (awayWon) row.won++; else if (homeWon) row.lost++;
+      }
+    }
+    let rows = Array.from(byPlayer.values()).map(r => ({
+      ...r,
+      winRate: r.matchesPlayed > 0 ? Math.round((r.won / r.matchesPlayed) * 100) : 0,
+    }));
+    if (division) rows = rows.filter(r => r.division === division);
+    rows.sort((a, b) =>
+      b.points - a.points ||
+      (b.setsFor - b.setsAgainst) - (a.setsFor - a.setsAgainst) ||
+      b.matchesPlayed - a.matchesPlayed ||
+      a.fullName.localeCompare(b.fullName));
+    return rows.map((r, i) => ({ ...r, position: i + 1 }));
+  }
+
   app.get("/api/bsl/player-leaderboard", async (req, res) => {
     try {
       const division = req.query.division as string | undefined;
-      const finished = await db
-        .select()
-        .from(bslRubbers)
-        .where(eq(bslRubbers.status, "FINISHED" as any));
-      const players = await loadResolvedPlayers();
-      const clubs = await db.select().from(bslClubs);
-      const cMap = new Map(clubs.map(c => [c.id, c]));
-      type Row = {
-        playerId: number; fullName: string; clubId: number | null; clubName: string;
-        clubLogo: string | null; division: string;
-        matchesPlayed: number; won: number; lost: number;
-        setsFor: number; setsAgainst: number; winRate: number; points: number;
-      };
-      const byPlayer = new Map<number, Row>();
-      const ensure = (p: any): Row | null => {
-        if (!p) return null;
-        let row = byPlayer.get(p.id);
-        if (!row) {
-          const club = p.bslClubId != null ? cMap.get(p.bslClubId) : null;
-          row = {
-            playerId: p.id, fullName: p.resolvedName,
-            clubId: p.bslClubId ?? null, clubName: club?.name || "—",
-            clubLogo: club?.logoUrl || null,
-            division: (club?.division as string) || "—",
-            matchesPlayed: 0, won: 0, lost: 0,
-            setsFor: 0, setsAgainst: 0, winRate: 0, points: 0,
-          };
-          byPlayer.set(p.id, row);
-        }
-        return row;
-      };
-      const pMap = new Map(players.map(p => [p.id, p]));
-      for (const r of finished) {
-        const rp = rubberRallyPoints(r);
-        const homeWon = rp.homeSetsWon > rp.awaySetsWon;
-        const awayWon = rp.awaySetsWon > rp.homeSetsWon;
-        const homePlayers = [r.homePlayer1Id, r.homePlayer2Id].filter((x): x is number => x != null);
-        const awayPlayers = [r.awayPlayer1Id, r.awayPlayer2Id].filter((x): x is number => x != null);
-        for (const pid of homePlayers) {
-          const row = ensure(pMap.get(pid));
-          if (!row) continue;
-          row.matchesPlayed++;
-          row.setsFor += rp.homeSetsWon; row.setsAgainst += rp.awaySetsWon;
-          row.points += rp.home;
-          if (homeWon) row.won++; else if (awayWon) row.lost++;
-        }
-        for (const pid of awayPlayers) {
-          const row = ensure(pMap.get(pid));
-          if (!row) continue;
-          row.matchesPlayed++;
-          row.setsFor += rp.awaySetsWon; row.setsAgainst += rp.homeSetsWon;
-          row.points += rp.away;
-          if (awayWon) row.won++; else if (homeWon) row.lost++;
-        }
-      }
-      let rows = Array.from(byPlayer.values()).map(r => ({
-        ...r,
-        winRate: r.matchesPlayed > 0 ? Math.round((r.won / r.matchesPlayed) * 100) : 0,
-      }));
-      if (division) rows = rows.filter(r => r.division === division);
-      rows.sort((a, b) =>
-        b.points - a.points ||
-        (b.setsFor - b.setsAgainst) - (a.setsFor - a.setsAgainst) ||
-        b.matchesPlayed - a.matchesPlayed ||
-        a.fullName.localeCompare(b.fullName));
-      res.json(rows.map((r, i) => ({ ...r, position: i + 1 })));
+      res.json(await computePlayerLeaderboard(division));
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Single-player stats card. Self-sufficient — computes the full leaderboard
+  // and returns just this player's row (with global rank), so the battlecard
+  // shows real points even if the full-list query isn't loaded.
+  app.get("/api/bsl/players/:id/stats", async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      if (!Number.isFinite(id)) return res.status(400).json({ message: "Bad id" });
+      const rows = await computePlayerLeaderboard();
+      const found = rows.find(r => r.playerId === id);
+      if (!found) return res.status(404).json({ message: "No stats for this player yet" });
+      res.json(found);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
@@ -2704,15 +2725,45 @@ export function registerBslRoutes(app: Express) {
         p.id,
         p.displayName || userMap.get(p.userId)?.fullName || userMap.get(p.userId)?.email || `Player #${p.id}`,
       ]));
+      // Real per-player stats from FINISHED rubbers (same rally-point maths as
+      // the player leaderboard). Computed here so the club dashboard squad shows
+      // real points without depending on a second client-side fetch/merge.
+      const finishedRubbers = await db.select().from(bslRubbers).where(eq(bslRubbers.status, "FINISHED" as any));
+      const statByPlayer = new Map<number, { points: number; matchesPlayed: number; won: number }>();
+      const ensureStat = (pid: number) => {
+        let s = statByPlayer.get(pid);
+        if (!s) { s = { points: 0, matchesPlayed: 0, won: 0 }; statByPlayer.set(pid, s); }
+        return s;
+      };
+      for (const r of finishedRubbers) {
+        const rp = rubberRallyPoints(r);
+        const homeWon = rp.homeSetsWon > rp.awaySetsWon;
+        const awayWon = rp.awaySetsWon > rp.homeSetsWon;
+        for (const pid of [r.homePlayer1Id, r.homePlayer2Id].filter((x): x is number => x != null)) {
+          const s = ensureStat(pid); s.matchesPlayed++; s.points += rp.home; if (homeWon) s.won++;
+        }
+        for (const pid of [r.awayPlayer1Id, r.awayPlayer2Id].filter((x): x is number => x != null)) {
+          const s = ensureStat(pid); s.matchesPlayed++; s.points += rp.away; if (awayWon) s.won++;
+        }
+      }
+      const statsFor = (pid: number) => {
+        const s = statByPlayer.get(pid);
+        return {
+          points: s?.points ?? 0,
+          matchesPlayed: s?.matchesPlayed ?? 0,
+          won: s?.won ?? 0,
+          winRate: s && s.matchesPlayed > 0 ? Math.round((s.won / s.matchesPlayed) * 100) : 0,
+        };
+      };
       const membersByTeam = new Map<number, string[]>();
-      const memberObjsByTeam = new Map<number, Array<{ playerId: number; name: string }>>();
+      const memberObjsByTeam = new Map<number, Array<{ playerId: number; name: string; points: number; matchesPlayed: number; won: number; winRate: number }>>();
       for (const m of members) {
         const arr = membersByTeam.get(m.bslTeamId) || [];
         const objs = memberObjsByTeam.get(m.bslTeamId) || [];
         const name = playerNameById.get(m.bslPlayerId);
         if (name) {
           arr.push(name);
-          objs.push({ playerId: m.bslPlayerId, name });
+          objs.push({ playerId: m.bslPlayerId, name, ...statsFor(m.bslPlayerId) });
         }
         membersByTeam.set(m.bslTeamId, arr);
         memberObjsByTeam.set(m.bslTeamId, objs);

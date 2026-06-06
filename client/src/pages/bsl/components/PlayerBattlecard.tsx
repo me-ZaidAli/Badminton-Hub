@@ -46,14 +46,28 @@ export function PlayerBattlecard({
   playerId: number | null;
   fallbackName?: string;
 }) {
-  const { data: leaderboard = [], isLoading } = useQuery<PlayerRow[]>({
-    queryKey: ["/api/bsl/player-leaderboard"],
+  // Primary: self-sufficient single-player endpoint (real points even when the
+  // full leaderboard list isn't loaded). 404 = player hasn't played yet.
+  const { data: single, isLoading: singleLoading, isError: singleError } = useQuery<PlayerRow>({
+    queryKey: ["/api/bsl/players", playerId, "stats"],
     enabled: open && playerId != null,
+    retry: false,
+    queryFn: async () => {
+      const r = await fetch(`/api/bsl/players/${playerId}/stats`, { credentials: "include" });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    },
+  });
+  // Fallback: the full leaderboard list (only fetched if the single fetch failed).
+  const { data: leaderboard = [], isLoading: lbLoading } = useQuery<PlayerRow[]>({
+    queryKey: ["/api/bsl/player-leaderboard"],
+    enabled: open && playerId != null && singleError,
   });
 
+  const isLoading = singleLoading || (singleError && lbLoading);
   const player = useMemo(
-    () => leaderboard.find(p => p.playerId === playerId) || null,
-    [leaderboard, playerId],
+    () => single || leaderboard.find(p => p.playerId === playerId) || null,
+    [single, leaderboard, playerId],
   );
 
   const name = player?.fullName || fallbackName || "Player";
