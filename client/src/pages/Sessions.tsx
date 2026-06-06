@@ -1827,6 +1827,10 @@ function JoinSessionModal({
       queryClient.invalidateQueries({ queryKey: ["/api/my-sessions"] });
       queryClient.invalidateQueries({ queryKey: ["/api/credits/balance", session.clubId] });
       queryClient.invalidateQueries({ queryKey: ["/api/my-credits"] });
+      // Keep debt/outstanding surfaces in sync so a player's "you owe" panel and
+      // the admin financial dashboard update the moment payment status changes.
+      queryClient.invalidateQueries({ queryKey: ["/api/my-outstanding-payments"] });
+      queryClient.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && ((q.queryKey[0] as string).startsWith("/api/admin/financial") || (q.queryKey[0] as string).startsWith("/api/debts")) });
       const signedUp = data.signups?.length || 0;
       const errs = data.errors?.length || 0;
       if (signedUp > 0) {

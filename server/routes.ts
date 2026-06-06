@@ -12461,10 +12461,12 @@ export async function registerRoutes(
             // Players on the waiting list (or removed from the session) must not be
             // billed even after the session has ended.
             eq(sessionSignups.signupStatus, "CONFIRMED"),
-            // For past sessions, exclude players who didn't actually play
-            // (no-shows, sickness, emergency, justified cancellations). Future
-            // sessions still owe regardless of attendance.
-            sql`(${sessions.date} > NOW() OR ${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY'))`,
+            // A session fee only becomes a debt once the session has actually
+            // happened — future sessions are never billed in advance. Past
+            // players who didn't play (no-show, sickness, emergency, justified
+            // cancellation) are also excluded.
+            sql`${sessions.date} <= NOW()`,
+            sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY')`,
           )
         )
         .orderBy(desc(sessions.date));
@@ -12987,7 +12989,10 @@ export async function registerRoutes(
             eq(sessionSignups.paymentStatus, "UNPAID"),
             // Only CONFIRMED players owe — never WAITING/INVITED/NOT_ATTENDING/CANCELLED.
             eq(sessionSignups.signupStatus, "CONFIRMED"),
-            sql`(${sessions.date} > NOW() OR ${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY'))`,
+            // Future sessions are never billed in advance; only past sessions the
+            // player actually attended count as outstanding.
+            sql`${sessions.date} <= NOW()`,
+            sql`${sessionSignups.attendanceStatus} NOT IN ('NO_SHOW','JUSTIFIED_CANCELLATION','SICKNESS','EMERGENCY')`,
           )
         )
         .orderBy(desc(sessions.date));

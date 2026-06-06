@@ -1,3 +1,4 @@
 - [Dashboard wrapper/content split](dashboard-component-split.md) — Dashboard.tsx has Dashboard() wrapper + DashboardContent(); put UI state in DashboardContent, not the wrapper.
 - [Route guard redirects](bsl-route-guard-redirects.md) — App.tsx guards must return wouter <Redirect>, never setLocation-in-render, or you get the "suspended on synchronous input" dev overlay.
+- [Session fee / debt rule](session-fee-debt-rule.md) — fee owed only when CONFIRMED + past + non-excused; PAID always counts; every money surface must mirror server/debtRoutes.ts.
 - [BSL points-as-metric](bsl-points-metric.md) — BSL ranks/displays rally POINTS everywhere; win/loss is points-based (not sets), so badges match the points score shown.

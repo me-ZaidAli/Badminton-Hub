@@ -82,7 +82,7 @@ interface FinancialEntry {
   fee: number;
   paymentStatus: "PAID" | "UNPAID" | "PENDING";
   paymentMethod?: "CARD" | "BANK_TRANSFER" | "CASH" | "ONLINE" | "MEMBERSHIP_CREDIT" | "NONE" | null;
-  signupStatus?: "CONFIRMED" | "WAITING" | "CANCELLED" | null;
+  signupStatus?: "CONFIRMED" | "INVITED" | "WAITING" | "CANCELLED" | null;
   verifiedByAdmin?: boolean | null;
   attendanceStatus: string;
   attendanceNote: string | null;
@@ -1226,19 +1226,35 @@ export default function Financials() {
     return allCreditBalances[`${userId}-${clubId}`] || 0;
   };
 
-  const totalRevenue = useMemo(() => filteredData.reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
-  const paidTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "PAID").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
-  const pendingTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "PENDING").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
-  const unpaidTotal = useMemo(() => filteredData.filter((e) => e.paymentStatus === "UNPAID").reduce((sum, e) => sum + (e.fee || 0), 0), [filteredData]);
+  // Mirrors the canonical server debt rule (server/debtRoutes.ts getSessionCharges):
+  //  - Anything already marked PAID is real collected money, so it always counts
+  //    (regardless of status/attendance/date — the cash is in the bank).
+  //  - Otherwise a fee is only owed when the player actually committed (CONFIRMED),
+  //    wasn't excused, AND the session has already happened. Invited/waitlisted
+  //    players and future sessions must never be billed as outstanding or counted
+  //    as collectible revenue.
+  const EXCUSED_ATTENDANCE = ["NO_SHOW", "JUSTIFIED_CANCELLATION", "SICKNESS", "EMERGENCY"];
+  const countsAsFee = (e: FinancialEntry) => {
+    if ((e.fee || 0) <= 0) return false;
+    if (e.paymentStatus === "PAID") return true;
+    if (e.signupStatus !== "CONFIRMED") return false;
+    if (EXCUSED_ATTENDANCE.includes(e.attendanceStatus)) return false;
+    if (!e.sessionDate) return false;
+    return new Date(e.sessionDate) <= new Date();
+  };
+  const chargeableData = useMemo(() => filteredData.filter(countsAsFee), [filteredData]);
+  const totalRevenue = useMemo(() => chargeableData.reduce((sum, e) => sum + (e.fee || 0), 0), [chargeableData]);
+  const paidTotal = useMemo(() => chargeableData.filter((e) => e.paymentStatus === "PAID").reduce((sum, e) => sum + (e.fee || 0), 0), [chargeableData]);
+  const pendingTotal = useMemo(() => chargeableData.filter((e) => e.paymentStatus === "PENDING").reduce((sum, e) => sum + (e.fee || 0), 0), [chargeableData]);
+  const unpaidTotal = useMemo(() => chargeableData.filter((e) => e.paymentStatus === "UNPAID").reduce((sum, e) => sum + (e.fee || 0), 0), [chargeableData]);
   const collectionRate = totalRevenue > 0 ? ((paidTotal / totalRevenue) * 100).toFixed(1) : "0.0";
 
   const outstandingByPlayer = useMemo(() => {
-    const today = startOfDay(new Date());
-    const unpaidEntries = filteredData.filter((e) => {
-      if (e.paymentStatus !== "UNPAID" && e.paymentStatus !== "PENDING") return false;
-      const d = e.sessionDate ? startOfDay(new Date(e.sessionDate)) : null;
-      return d !== null && d < today;
-    });
+    // chargeableData already restricts unpaid/pending rows to CONFIRMED,
+    // non-excused, past sessions, so we only need the payment-status filter here.
+    const unpaidEntries = chargeableData.filter(
+      (e) => e.paymentStatus === "UNPAID" || e.paymentStatus === "PENDING",
+    );
     const groups: Record<string, { playerName: string; playerEmail: string; playerUserId: number | null; totalOwed: number; sessions: { signupId: number; sessionId: number; sessionTitle: string; sessionDate: string; clubName: string; fee: number; paymentStatus: string }[] }> = {};
     unpaidEntries.forEach((entry) => {
       const key = `${entry.playerUserId}`;
@@ -1249,7 +1265,7 @@ export default function Financials() {
       groups[key].sessions.push({ signupId: entry.signupId, sessionId: entry.sessionId, sessionTitle: entry.sessionTitle, sessionDate: entry.sessionDate, clubName: entry.clubName, fee: entry.fee, paymentStatus: entry.paymentStatus });
     });
     return Object.values(groups).sort((a, b) => b.totalOwed - a.totalOwed);
-  }, [filteredData]);
+  }, [chargeableData]);
   const outstandingTotal = useMemo(() => outstandingByPlayer.reduce((sum, p) => sum + p.totalOwed, 0), [outstandingByPlayer]);
 
   const sessionGroups = useMemo(() => {
@@ -1326,7 +1342,7 @@ export default function Financials() {
 
   const clubRevenueData = useMemo(() => {
     const clubs: Record<number, { clubId: number; clubName: string; totalRevenue: number; totalPaid: number; memberCount: number; members: Record<string, { userId: number | null; name: string; email: string; totalFee: number; paidFee: number; sessions: number }> }> = {};
-    filteredData.forEach(entry => {
+    chargeableData.forEach(entry => {
       if (!clubs[entry.clubId]) {
         clubs[entry.clubId] = { clubId: entry.clubId, clubName: entry.clubName, totalRevenue: 0, totalPaid: 0, memberCount: 0, members: {} };
       }
@@ -1343,11 +1359,12 @@ export default function Financials() {
       club.members[memberKey].sessions++;
     });
     return Object.values(clubs).sort((a, b) => b.totalRevenue - a.totalRevenue);
-  }, [filteredData]);
+  }, [chargeableData]);
 
   const revenueSummary = useMemo(() => {
     const periods: Record<string, { label: string; revenue: number; paid: number; sessions: number; sortKey: string }> = {};
     financialData.forEach(entry => {
+      if (!countsAsFee(entry)) return;
       const date = new Date(entry.sessionDate);
       let key = "";
       let label = "";
@@ -2615,7 +2632,7 @@ export default function Financials() {
       </Card>
 
       {dashboardView !== "classic" && dashboardView !== "sessions" && dashboardView !== "credits" && (
-        <SmartInsights filteredData={filteredData} dashboardData={dashboardData} />
+        <SmartInsights filteredData={chargeableData} dashboardData={dashboardData} />
       )}
 
       {dashboardView === "credits" ? (
@@ -3651,15 +3668,15 @@ export default function Financials() {
         </div>
       ) : dashboardView === "analytics" ? (
         <FinancialAnalyticsView
-          filteredData={filteredData}
+          filteredData={chargeableData}
           dashboardData={dashboardData}
         />
       ) : dashboardView === "profitability" ? (
-        <ProfitabilityView filteredData={filteredData} dashboardData={dashboardData} />
+        <ProfitabilityView filteredData={chargeableData} dashboardData={dashboardData} />
       ) : dashboardView === "cashflow" ? (
-        <CashflowView filteredData={filteredData} dashboardData={dashboardData} />
+        <CashflowView filteredData={chargeableData} dashboardData={dashboardData} />
       ) : dashboardView === "reports" ? (
-        <ReportsView filteredData={filteredData} dashboardData={dashboardData} />
+        <ReportsView filteredData={chargeableData} dashboardData={dashboardData} />
       ) : dashboardView === "sessions" ? (
       <>
       {clubRevenueData.length > 0 && (
@@ -3700,7 +3717,7 @@ export default function Financials() {
             <div className="text-sm sm:text-xl font-bold" data-testid="text-total-revenue">
               £{formatPounds(totalRevenue)}
             </div>
-            <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{filteredData.length} signups</p>
+            <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">{chargeableData.length} chargeable signups</p>
           </CardContent>
         </Card>
 
@@ -3714,7 +3731,7 @@ export default function Financials() {
               £{formatPounds(paidTotal)}
             </div>
             <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">
-              {filteredData.filter((e) => e.paymentStatus === "PAID").length} paid
+              {chargeableData.filter((e) => e.paymentStatus === "PAID").length} paid
             </p>
           </CardContent>
         </Card>
@@ -3729,7 +3746,7 @@ export default function Financials() {
               £{formatPounds(pendingTotal)}
             </div>
             <p className="text-[9px] sm:text-[11px] text-muted-foreground mt-0.5">
-              {filteredData.filter((e) => e.paymentStatus === "PENDING").length} awaiting
+              {chargeableData.filter((e) => e.paymentStatus === "PENDING").length} awaiting
             </p>
           </CardContent>
         </Card>
@@ -7283,19 +7300,19 @@ export default function Financials() {
           <div className="grid grid-cols-3 gap-3">
             <div className="text-center p-3 bg-green-50 dark:bg-green-900/20 rounded-lg">
               <div className="text-lg font-bold text-green-600">{"\u00A3"}{formatPounds(paidTotal)}</div>
-              <div className="text-xs text-muted-foreground">Collected ({filteredData.filter(e => e.paymentStatus === "PAID").length})</div>
+              <div className="text-xs text-muted-foreground">Collected ({chargeableData.filter(e => e.paymentStatus === "PAID").length})</div>
             </div>
             <div className="text-center p-3 bg-yellow-50 dark:bg-yellow-900/20 rounded-lg">
               <div className="text-lg font-bold text-yellow-600">{"\u00A3"}{formatPounds(pendingTotal)}</div>
-              <div className="text-xs text-muted-foreground">Pending ({filteredData.filter(e => e.paymentStatus === "PENDING").length})</div>
+              <div className="text-xs text-muted-foreground">Pending ({chargeableData.filter(e => e.paymentStatus === "PENDING").length})</div>
             </div>
             <div className="text-center p-3 bg-orange-50 dark:bg-orange-900/20 rounded-lg">
               <div className="text-lg font-bold text-orange-600">{"\u00A3"}{formatPounds(unpaidTotal)}</div>
-              <div className="text-xs text-muted-foreground">Unpaid ({filteredData.filter(e => e.paymentStatus === "UNPAID").length})</div>
+              <div className="text-xs text-muted-foreground">Unpaid ({chargeableData.filter(e => e.paymentStatus === "UNPAID").length})</div>
             </div>
           </div>
           <div className="text-sm text-muted-foreground">
-            Total from {filteredData.length} signups across all sessions
+            Total from {chargeableData.length} chargeable signups (past confirmed sessions plus any paid)
           </div>
         </div>
       </KpiDetailDialog>
@@ -7304,14 +7321,14 @@ export default function Financials() {
         open={finKpiDetail === "collected"}
         onOpenChange={(open) => !open && setFinKpiDetail(null)}
         title="Collected Payments"
-        description={`${filteredData.filter(e => e.paymentStatus === "PAID").length} paid entries totalling £${formatPounds(paidTotal)}`}
+        description={`${chargeableData.filter(e => e.paymentStatus === "PAID").length} paid entries totalling £${formatPounds(paidTotal)}`}
       >
         <Table>
           <TableHeader><TableRow>
             <TableHead>Player</TableHead><TableHead>Session</TableHead><TableHead className="text-right">Fee</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {filteredData.filter(e => e.paymentStatus === "PAID").slice(0, 15).map(e => (
+            {chargeableData.filter(e => e.paymentStatus === "PAID").slice(0, 15).map(e => (
               <TableRow key={e.signupId}>
                 <TableCell className="font-medium">{e.playerName}</TableCell>
                 <TableCell>{e.sessionTitle}</TableCell>
@@ -7326,14 +7343,14 @@ export default function Financials() {
         open={finKpiDetail === "pending"}
         onOpenChange={(open) => !open && setFinKpiDetail(null)}
         title="Pending Payments"
-        description={`${filteredData.filter(e => e.paymentStatus === "PENDING").length} pending entries totalling £${formatPounds(pendingTotal)}`}
+        description={`${chargeableData.filter(e => e.paymentStatus === "PENDING").length} pending entries totalling £${formatPounds(pendingTotal)}`}
       >
         <Table>
           <TableHeader><TableRow>
             <TableHead>Player</TableHead><TableHead>Session</TableHead><TableHead className="text-right">Fee</TableHead>
           </TableRow></TableHeader>
           <TableBody>
-            {filteredData.filter(e => e.paymentStatus === "PENDING").slice(0, 15).map(e => (
+            {chargeableData.filter(e => e.paymentStatus === "PENDING").slice(0, 15).map(e => (
               <TableRow key={e.signupId}>
                 <TableCell className="font-medium">{e.playerName}</TableCell>
                 <TableCell>{e.sessionTitle}</TableCell>
