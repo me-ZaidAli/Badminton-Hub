@@ -356,9 +356,12 @@ export default function BslAdminQuickResults() {
                 </div>
               </div>
               <div className="text-right">
-                <div className="text-[10px] uppercase tracking-wider text-white/50 font-bold">Sets won</div>
-                <div className="text-lg font-extrabold tabular-nums" style={{ color: BSL.gold }} data-testid="text-fixture-sets-won">
-                  {summary.homeSets} <span className="text-white/40 font-medium">–</span> {summary.awaySets}
+                <div className="text-[10px] uppercase tracking-wider text-white/50 font-bold">Total points</div>
+                <div className="text-lg font-extrabold tabular-nums" style={{ color: BSL.gold }} data-testid="text-fixture-points">
+                  {summary.homePts} <span className="text-white/40 font-medium">–</span> {summary.awayPts}
+                </div>
+                <div className="text-[10px] text-white/40 tabular-nums" data-testid="text-fixture-sets-won">
+                  {summary.homeSets}–{summary.awaySets} sets · {summary.h}–{summary.a} rubbers
                 </div>
               </div>
             </div>
@@ -557,9 +560,11 @@ export default function BslAdminQuickResults() {
             {detail.rubbers.length > 0 && (() => {
               const homeClubName = (detail as any)?.homeClub?.name || detail.homeTeamName || "Home";
               const awayClubName = (detail as any)?.awayClub?.name || detail.awayTeamName || "Away";
-              const homeWonMatch = summary.h > summary.a;
-              const awayWonMatch = summary.a > summary.h;
-              const tied = summary.h === summary.a;
+              // Winner is decided by TOTAL POINTS (sum of every set score),
+              // not rubbers or sets won — BSL is a points-based competition.
+              const homeWonMatch = summary.homePts > summary.awayPts;
+              const awayWonMatch = summary.awayPts > summary.homePts;
+              const tied = summary.homePts === summary.awayPts;
               const homePairs = Array.from(summary.pairs.values()).filter(p => p.side === "home").sort((a, b) => b.points - a.points);
               const awayPairs = Array.from(summary.pairs.values()).filter(p => p.side === "away").sort((a, b) => b.points - a.points);
               const ClubBlock = ({ side, name, rubbersWon, sets, pts, isWinner, pairs }: any) => (
@@ -612,7 +617,7 @@ export default function BslAdminQuickResults() {
                 <div className="px-4 py-4 border-t space-y-3" style={{ borderColor: `${BSL.cyan}22` }} data-testid="match-summary">
                   <div className="flex items-center justify-between">
                     <div className="text-xs font-bold uppercase tracking-wider text-white/60">Match summary</div>
-                    <div className="text-[10px] text-white/40">Club with more points wins the tie</div>
+                    <div className="text-[10px] text-white/40">Winner = club with more total points</div>
                   </div>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                     <ClubBlock side="home" name={homeClubName}

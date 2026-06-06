@@ -1,9 +1,9 @@
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Activity, Award, ChevronRight, Crown, Shield, Target, TrendingUp, Trophy, Users } from "lucide-react";
+import { Activity, Award, ChevronDown, ChevronRight, Crown, Loader2, Shield, Target, TrendingUp, Trophy, Users } from "lucide-react";
 import { DASH } from "./StatsPalette";
 
 type ClubRow = {
@@ -27,9 +27,77 @@ type Fixture = {
 };
 type MatchRow = {
   id: number; date: string | null; opponent: string; opponentLogo: string | null;
+  home: boolean;
   myPoints: number; oppPoints: number; mySets: number; oppSets: number;
   result: "W" | "L" | "D"; status: string; category: string | null;
 };
+type RubberDetail = {
+  id: number; rubberNumber: number; rubberType: string;
+  homeScore: number; awayScore: number;
+  setScores?: Array<{ h: number; a: number }> | null;
+};
+type FixtureDetail = { id: number; rubbers: RubberDetail[] };
+
+// Expandable per-match set breakdown. Lazy-fetches the fixture detail (which
+// carries every rubber's setScores) only when a match row is opened. Scores
+// are oriented to the viewing club's perspective (mine-opp) using `home`.
+function MatchSetBreakdown({ fixtureId, home }: { fixtureId: number; home: boolean }) {
+  const { data, isLoading, isError } = useQuery<FixtureDetail>({
+    queryKey: ["/api/bsl/fixtures", fixtureId],
+    queryFn: async () => {
+      const r = await fetch(`/api/bsl/fixtures/${fixtureId}`, { credentials: "include" });
+      if (!r.ok) throw new Error(await r.text());
+      return r.json();
+    },
+  });
+  if (isLoading) {
+    return (
+      <div className="px-3 py-2 text-[11px] flex items-center gap-1.5" style={{ color: DASH.muted }}>
+        <Loader2 className="h-3 w-3 animate-spin" /> Loading set scores…
+      </div>
+    );
+  }
+  if (isError) {
+    return <div className="px-3 py-2 text-[11px]" style={{ color: DASH.loss }}>Couldn't load set scores — try again.</div>;
+  }
+  const rubbers = data?.rubbers || [];
+  if (!rubbers.length) {
+    return <div className="px-3 py-2 text-[11px]" style={{ color: DASH.muted }}>No set-by-set detail recorded for this match.</div>;
+  }
+  return (
+    <div className="mt-1 mb-1 mx-2 rounded-lg p-2 space-y-1" style={{ background: DASH.bgAlt, border: `1px solid ${DASH.border}` }}>
+      {rubbers.map(rb => {
+        const sets = Array.isArray(rb.setScores) && rb.setScores.length
+          ? rb.setScores
+          : ((rb.homeScore || 0) > 0 || (rb.awayScore || 0) > 0)
+            ? [{ h: rb.homeScore, a: rb.awayScore }]
+            : [];
+        let myPts = 0, oppPts = 0;
+        sets.forEach(s => { myPts += home ? s.h : s.a; oppPts += home ? s.a : s.h; });
+        return (
+          <div key={rb.id} className="flex items-center gap-2 text-[11px]" data-testid={`clubstats-rubber-${rb.id}`}>
+            <span className="font-semibold w-16 shrink-0" style={{ color: DASH.textDim }}>R{rb.rubberNumber} · {rb.rubberType}</span>
+            <div className="flex-1 flex items-center gap-1.5 flex-wrap">
+              {sets.length ? sets.map((s, i) => {
+                const mine = home ? s.h : s.a;
+                const opp = home ? s.a : s.h;
+                const won = mine > opp;
+                return (
+                  <span key={i} className="tabular-nums px-1.5 py-0.5 rounded font-semibold"
+                    style={{ background: DASH.card, color: won ? DASH.win : DASH.neutral, border: `1px solid ${won ? DASH.win : DASH.border}55` }}
+                    data-testid={`clubstats-set-${rb.id}-${i}`}>
+                    {mine}-{opp}
+                  </span>
+                );
+              }) : <span style={{ color: DASH.muted }}>not played</span>}
+            </div>
+            <span className="tabular-nums font-bold shrink-0" style={{ color: DASH.accent }}>{myPts}-{oppPts}</span>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 function StatChip({ label, value, sub, icon, tone = "accent" }: {
   label: string; value: React.ReactNode; sub?: string; icon?: React.ReactNode; tone?: "accent" | "win" | "loss" | "neutral";
@@ -56,6 +124,7 @@ export function ClubStatsDialog({
   onPlayerClick?: (playerId: number, name: string) => void;
 }) {
   const clubId = club?.id ?? null;
+  const [expandedMatch, setExpandedMatch] = useState<number | null>(null);
 
   const { data: clubLeaderboard = [], isLoading: lbLoading } = useQuery<ClubRow[]>({ queryKey: ["/api/bsl/club-leaderboard"], enabled: open && clubId != null });
   const { data: playerLeaderboard = [] } = useQuery<PlayerRow[]>({ queryKey: ["/api/bsl/player-leaderboard"], enabled: open && clubId != null });
@@ -88,7 +157,7 @@ export function ClubStatsDialog({
         const oppSets = home ? f.awaySets : f.homeSets;
         const result: "W" | "L" | "D" = myPoints > oppPoints ? "W" : myPoints < oppPoints ? "L" : "D";
         return {
-          id: f.id, date: f.startTime,
+          id: f.id, date: f.startTime, home,
           opponent: (home ? f.awayClubName : f.homeClubName) || "TBC",
           opponentLogo: home ? f.awayClubLogo : f.homeClubLogo,
           myPoints, oppPoints, mySets, oppSets, result, status: f.status, category: f.category || null,
@@ -231,26 +300,42 @@ export function ClubStatsDialog({
                   {matches.slice().reverse().slice(0, 8).map(m => {
                     const played = m.status === "FINISHED";
                     const c = m.result === "W" ? DASH.win : m.result === "L" ? DASH.loss : DASH.neutral;
+                    const isOpen = expandedMatch === m.id;
                     return (
-                      <div key={m.id} className="flex items-center gap-3 px-3 py-2 rounded-lg" style={{ background: DASH.card, border: `1px solid ${DASH.border}` }} data-testid={`clubstats-match-${m.id}`}>
-                        <div className="h-7 w-7 rounded-md overflow-hidden flex items-center justify-center text-[10px] font-bold shrink-0" style={{ background: DASH.cardAlt, color: DASH.textDim }}>
-                          {m.opponentLogo ? <img src={m.opponentLogo} alt="" className="h-full w-full object-cover" /> : m.opponent.slice(0, 2).toUpperCase()}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="text-sm font-medium truncate" style={{ color: DASH.text }}>vs {m.opponent}</div>
-                          <div className="text-[10px]" style={{ color: DASH.muted }}>
-                            {m.date ? new Date(m.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "TBC"}
-                            {m.category ? ` · ${m.category}` : ""}
+                      <div key={m.id} className="rounded-lg overflow-hidden" style={{ background: DASH.card, border: `1px solid ${isOpen ? DASH.borderStrong : DASH.border}` }} data-testid={`clubstats-match-${m.id}`}>
+                        <button
+                          type="button"
+                          onClick={() => played && setExpandedMatch(isOpen ? null : m.id)}
+                          className={`w-full flex items-center gap-3 px-3 py-2 text-left ${played ? "cursor-pointer hover:brightness-125" : "cursor-default"}`}
+                          data-testid={`clubstats-match-toggle-${m.id}`}
+                        >
+                          <div className="h-7 w-7 rounded-md overflow-hidden flex items-center justify-center text-[10px] font-bold shrink-0" style={{ background: DASH.cardAlt, color: DASH.textDim }}>
+                            {m.opponentLogo ? <img src={m.opponentLogo} alt="" className="h-full w-full object-cover" /> : m.opponent.slice(0, 2).toUpperCase()}
                           </div>
-                        </div>
-                        {played ? (
-                          <>
-                            <span className="text-sm font-bold tabular-nums" style={{ color: DASH.text }}>{m.myPoints}-{m.oppPoints}</span>
-                            <span className="h-6 w-6 rounded-md flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: `${c}22`, color: c, border: `1px solid ${c}55` }}>{m.result}</span>
-                          </>
-                        ) : (
-                          <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: DASH.accent }}>{m.status === "LIVE" ? "Live" : "Upcoming"}</span>
-                        )}
+                          <div className="flex-1 min-w-0">
+                            <div className="text-sm font-medium truncate" style={{ color: DASH.text }}>vs {m.opponent}</div>
+                            <div className="text-[10px]" style={{ color: DASH.muted }}>
+                              {m.date ? new Date(m.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "TBC"}
+                              {m.category ? ` · ${m.category}` : ""}
+                              {played ? ` · ${m.mySets}-${m.oppSets} sets` : ""}
+                            </div>
+                          </div>
+                          {played ? (
+                            <>
+                              <div className="text-right shrink-0">
+                                <div className="text-sm font-bold tabular-nums leading-none" style={{ color: DASH.text }}>{m.myPoints}-{m.oppPoints}</div>
+                                <div className="text-[9px] uppercase tracking-wider" style={{ color: DASH.muted }}>points</div>
+                              </div>
+                              <span className="h-6 w-6 rounded-md flex items-center justify-center text-[11px] font-bold shrink-0" style={{ background: `${c}22`, color: c, border: `1px solid ${c}55` }}>{m.result}</span>
+                              {isOpen
+                                ? <ChevronDown className="h-3.5 w-3.5 shrink-0" style={{ color: DASH.muted }} />
+                                : <ChevronRight className="h-3.5 w-3.5 shrink-0" style={{ color: DASH.muted }} />}
+                            </>
+                          ) : (
+                            <span className="text-[10px] uppercase tracking-widest font-semibold" style={{ color: DASH.accent }}>{m.status === "LIVE" ? "Live" : "Upcoming"}</span>
+                          )}
+                        </button>
+                        {isOpen && played && <MatchSetBreakdown fixtureId={m.id} home={m.home} />}
                       </div>
                     );
                   })}
