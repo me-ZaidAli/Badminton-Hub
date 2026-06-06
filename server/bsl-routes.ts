@@ -10,6 +10,7 @@ import {
   bslTeamMembers, bslCategorySettings, bslFixtureVersions, bslPrizes,
 } from "@shared/schema";
 import { sendRulePush } from "./notificationRules";
+import { getBslSummary, invalidateBslSummary } from "./bslSummary";
 import { hashPassword } from "./auth";
 import { storage } from "./storage";
 import { randomBytes } from "crypto";
@@ -202,6 +203,10 @@ async function recomputeStandings(_leagueId = 1) {
       rubbersFor: s.rf, rubbersAgainst: s.ra, points: s.pts,
     }).where(eq(bslTeams.id, t.id));
   }
+  // Standings just changed (a match finished, a score was edited, a league day
+  // closed, etc.) — mark the AI league summary stale so the next dashboard
+  // fetch rebuilds it. Cheap flag flip; regeneration happens lazily/off-thread.
+  invalidateBslSummary();
 }
 
 export function registerBslRoutes(app: Express) {
@@ -1136,6 +1141,163 @@ export function registerBslRoutes(app: Express) {
       }
       out.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
       res.json(out);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // === AI LEAGUE SUMMARY ===
+  // A short AI-written "state of the league" used on the BSL dashboard. The
+  // cache is invalidated by recomputeStandings() every time a match finishes,
+  // so this regenerates after each result. Built from the same points-based
+  // numbers the public leaderboards show.
+  app.get("/api/bsl/ai-summary", async (_req, res) => {
+    try {
+      const summary = await getBslSummary(async () => {
+        const clubs = await db.select().from(bslClubs);
+        const teams = await db.select().from(bslTeams);
+        const fixtures = await db.select().from(bslFixtures);
+        const finished = await db.select().from(bslRubbers).where(eq(bslRubbers.status, "FINISHED" as any));
+        const players = await loadResolvedPlayers();
+        const tMap = new Map(teams.map(t => [t.id, t]));
+        const cMap = new Map(clubs.map(c => [c.id, c]));
+        const fMap = new Map(fixtures.map(f => [f.id, f]));
+        const pMap = new Map(players.map(p => [p.id, p]));
+        const sideClub = (teamId: number | null, fixtureClubId: number | null | undefined): number | null => {
+          if (teamId != null) { const t = tMap.get(teamId); if (t) return t.bslClubId; }
+          return fixtureClubId ?? null;
+        };
+        const clubAgg = new Map<number, { name: string; points: number; played: number; won: number; lost: number }>();
+        const ensureClub = (id: number) => {
+          const c = cMap.get(id); if (!c) return null;
+          let r = clubAgg.get(id);
+          if (!r) { r = { name: c.name, points: 0, played: 0, won: 0, lost: 0 }; clubAgg.set(id, r); }
+          return r;
+        };
+        const playerAgg = new Map<number, { name: string; club: string; points: number }>();
+        const ensurePlayer = (pid: number) => {
+          const p = pMap.get(pid); if (!p) return null;
+          let r = playerAgg.get(pid);
+          if (!r) { const club = p.bslClubId != null ? cMap.get(p.bslClubId) : null; r = { name: p.resolvedName, club: club?.name || "—", points: 0 }; playerAgg.set(pid, r); }
+          return r;
+        };
+        for (const rb of finished) {
+          const rp = rubberRallyPoints(rb);
+          const homeWon = rp.homeSetsWon > rp.awaySetsWon;
+          const awayWon = rp.awaySetsWon > rp.homeSetsWon;
+          const fx = fMap.get(rb.bslFixtureId);
+          const hc = sideClub(rb.homeTeamId ?? null, fx?.homeClubId);
+          const ac = sideClub(rb.awayTeamId ?? null, fx?.awayClubId);
+          if (hc != null) { const r = ensureClub(hc); if (r) { r.played++; r.points += rp.home; if (homeWon) r.won++; else if (awayWon) r.lost++; } }
+          if (ac != null) { const r = ensureClub(ac); if (r) { r.played++; r.points += rp.away; if (awayWon) r.won++; else if (homeWon) r.lost++; } }
+          for (const pid of [rb.homePlayer1Id, rb.homePlayer2Id].filter((x): x is number => x != null)) { const r = ensurePlayer(pid); if (r) r.points += rp.home; }
+          for (const pid of [rb.awayPlayer1Id, rb.awayPlayer2Id].filter((x): x is number => x != null)) { const r = ensurePlayer(pid); if (r) r.points += rp.away; }
+        }
+        const standings = Array.from(clubAgg.values()).sort((a, b) => b.points - a.points || b.played - a.played).slice(0, 8);
+        const topPlayers = Array.from(playerAgg.values()).sort((a, b) => b.points - a.points).slice(0, 5);
+        const rubbersByFixture = new Map<number, any[]>();
+        for (const rb of finished) { const arr = rubbersByFixture.get(rb.bslFixtureId) || []; arr.push(rb); rubbersByFixture.set(rb.bslFixtureId, arr); }
+        const clubNameForFixtureSide = (clubId: number | null | undefined, teamId: number | null | undefined): string => {
+          const cid = clubId ?? (teamId != null ? tMap.get(teamId)?.bslClubId : null);
+          return cid != null ? (cMap.get(cid)?.name || "TBD") : "TBD";
+        };
+        const recentResults = fixtures
+          .filter(f => f.status === "FINISHED")
+          .sort((a, b) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime())
+          .slice(0, 6)
+          .map(f => {
+            const sc = computeFixtureScore(rubbersByFixture.get(f.id) || []);
+            return {
+              home: clubNameForFixtureSide(f.homeClubId, f.homeTeamId),
+              away: clubNameForFixtureSide(f.awayClubId, f.awayTeamId),
+              homePoints: sc.homePoints, awayPoints: sc.awayPoints,
+              homeSets: sc.homeSets, awaySets: sc.awaySets,
+            };
+          });
+        return { standings, recentResults, topPlayers, totalFinished: finished.length };
+      });
+      res.json(summary);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // === HEAD-TO-HEAD (club vs club) ===
+  // Every FINISHED fixture between two clubs, framed from clubA's perspective.
+  // Fixture winner is decided on total rally POINTS (matches QuickResults), and
+  // each rubber carries its per-set point scores so the UI can show "sets based
+  // on points".
+  app.get("/api/bsl/head-to-head", async (req, res) => {
+    try {
+      const a = Number(req.query.clubA);
+      const b = Number(req.query.clubB);
+      if (!a || !b || a === b) return res.status(400).json({ message: "clubA and clubB required and must differ" });
+      const clubs = await db.select().from(bslClubs);
+      const cMap = new Map(clubs.map(c => [c.id, c]));
+      const ca = cMap.get(a); const cb = cMap.get(b);
+      if (!ca || !cb) return res.status(404).json({ message: "Club not found" });
+      const teams = await db.select().from(bslTeams);
+      const tMap = new Map(teams.map(t => [t.id, t]));
+      const players = await loadResolvedPlayers();
+      const pMap = new Map(players.map(p => [p.id, p]));
+      const nameOf = (pid: number | null) => (pid != null ? (pMap.get(pid)?.resolvedName ?? `Player #${pid}`) : "");
+      const allFixtures = await db.select().from(bslFixtures);
+      const fixtureClub = (clubId: number | null | undefined, teamId: number | null | undefined): number | null => {
+        if (clubId != null) return clubId;
+        if (teamId != null) return tMap.get(teamId)?.bslClubId ?? null;
+        return null;
+      };
+      const between = allFixtures.filter(f => {
+        if (f.status !== "FINISHED") return false;
+        const hc = fixtureClub(f.homeClubId, f.homeTeamId);
+        const ac = fixtureClub(f.awayClubId, f.awayTeamId);
+        return (hc === a && ac === b) || (hc === b && ac === a);
+      });
+      const fixtureIds = between.map(f => f.id);
+      const rubbers = fixtureIds.length
+        ? await db.select().from(bslRubbers).where(inArray(bslRubbers.bslFixtureId, fixtureIds))
+        : [];
+      const rubbersByFixture = new Map<number, any[]>();
+      for (const rb of rubbers) { const arr = rubbersByFixture.get(rb.bslFixtureId) || []; arr.push(rb); rubbersByFixture.set(rb.bslFixtureId, arr); }
+      const summary = { fixtures: 0, aWins: 0, bWins: 0, draws: 0, aSets: 0, bSets: 0, aPoints: 0, bPoints: 0 };
+      const fixturesOut = between
+        .sort((x, y) => new Date(y.startTime || 0).getTime() - new Date(x.startTime || 0).getTime())
+        .map(f => {
+          const aIsHome = fixtureClub(f.homeClubId, f.homeTeamId) === a;
+          const rbs = (rubbersByFixture.get(f.id) || []).filter(r => r.status === "FINISHED");
+          let aPoints = 0, bPoints = 0, aSets = 0, bSets = 0;
+          const rubberOut = rbs
+            .sort((m, n) => (m.rubberNumber || 0) - (n.rubberNumber || 0))
+            .map(r => {
+              const rp = rubberRallyPoints(r);
+              const home = { points: rp.home, sets: rp.homeSetsWon, players: [r.homePlayer1Id, r.homePlayer2Id].filter((x): x is number => x != null).map(nameOf) };
+              const away = { points: rp.away, sets: rp.awaySetsWon, players: [r.awayPlayer1Id, r.awayPlayer2Id].filter((x): x is number => x != null).map(nameOf) };
+              const aSide = aIsHome ? home : away;
+              const bSide = aIsHome ? away : home;
+              aPoints += aSide.points; bPoints += bSide.points; aSets += aSide.sets; bSets += bSide.sets;
+              const rawSets = Array.isArray(r.setScores) && r.setScores.length
+                ? r.setScores.map((s: any) => ({ h: Number(s?.h) || 0, a: Number(s?.a) || 0 }))
+                : ((r.homeScore || 0) > 0 || (r.awayScore || 0) > 0) ? [{ h: r.homeScore || 0, a: r.awayScore || 0 }] : [];
+              return {
+                type: r.rubberType || "—",
+                aPlayers: aSide.players, bPlayers: bSide.players,
+                aPoints: aSide.points, bPoints: bSide.points,
+                aSets: aSide.sets, bSets: bSide.sets,
+                sets: aIsHome ? rawSets.map(s => ({ a: s.h, b: s.a })) : rawSets.map(s => ({ a: s.a, b: s.h })),
+              };
+            });
+          summary.fixtures++;
+          summary.aPoints += aPoints; summary.bPoints += bPoints; summary.aSets += aSets; summary.bSets += bSets;
+          if (aPoints > bPoints) summary.aWins++; else if (bPoints > aPoints) summary.bWins++; else summary.draws++;
+          return {
+            fixtureId: f.id,
+            date: f.startTime ? new Date(f.startTime as any).toISOString() : null,
+            aPoints, bPoints, aSets, bSets,
+            result: aPoints > bPoints ? "A" : bPoints > aPoints ? "B" : "DRAW",
+            rubbers: rubberOut,
+          };
+        });
+      res.json({
+        clubA: { id: a, name: ca.name, logo: ca.logoUrl || null },
+        clubB: { id: b, name: cb.name, logo: cb.logoUrl || null },
+        summary, fixtures: fixturesOut,
+      });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { motion } from "framer-motion";
-import { Trophy, Users, Wallet as WalletIcon, Calendar, Zap, Crown, Shield, MapPin, Sparkles, ChevronRight, Activity, Share2 } from "lucide-react";
+import { Trophy, Users, Wallet as WalletIcon, Calendar, Zap, Crown, Shield, MapPin, Sparkles, ChevronRight, Activity, Share2, Brain, Swords, History } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { GlowPanel } from "./components/GlowPanel";
 import { CountdownTimer } from "./components/CountdownTimer";
@@ -10,6 +10,7 @@ import { ActionButton } from "./components/ActionButton";
 import { ShareInviteDialog } from "./components/ShareInviteDialog";
 import { ClubStatsDialog } from "./components/ClubStatsDialog";
 import { PlayerBattlecard } from "./components/PlayerBattlecard";
+import { HeadToHeadDialog } from "./components/HeadToHeadDialog";
 import { BslSubNav } from "@/components/SubNav";
 import { StatTile } from "./components/StatTile";
 import { MatchCard } from "./components/MatchCard";
@@ -26,9 +27,20 @@ export default function LeagueMode() {
   const [shareOpen, setShareOpen] = useState(false);
   const [statsClub, setStatsClub] = useState<any | null>(null);
   const [battlecardPlayer, setBattlecardPlayer] = useState<{ id: number; name: string } | null>(null);
+  const [h2h, setH2h] = useState<{ a: number; b: number } | null>(null);
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: standings = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/standings"] });
+  // AI "state of the league" — regenerates server-side whenever a match
+  // finishes. Poll every 30s so the board picks up a fresh write on its own.
+  const { data: aiSummary } = useQuery<any>({ queryKey: ["/api/bsl/ai-summary"], refetchInterval: 30000 });
+  // Gaming-style all-clubs leaderboard (points-first) for the Power Rankings panel.
+  const { data: clubLeaderboard = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/club-leaderboard"] });
+  // Recently finished fixtures with scores, polled so results land live.
+  const { data: finishedFixtures = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures", { status: "FINISHED" }], refetchInterval: 30000, queryFn: async () => {
+    const r = await fetch("/api/bsl/fixtures?status=FINISHED", { credentials: "include" });
+    return r.json();
+  }});
   // Poll live/showcase fixtures every 10s so the board updates scores by itself
   // as the admin enters them — no refresh needed.
   const { data: liveFixtures = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/fixtures", { status: "LIVE" }], refetchInterval: 10000, queryFn: async () => {
@@ -75,6 +87,12 @@ export default function LeagueMode() {
         onOpenChange={(v) => { if (!v) setBattlecardPlayer(null); }}
         playerId={battlecardPlayer?.id ?? null}
         fallbackName={battlecardPlayer?.name}
+      />
+      <HeadToHeadDialog
+        open={!!h2h}
+        onOpenChange={(v) => { if (!v) setH2h(null); }}
+        clubA={h2h?.a ?? null}
+        clubB={h2h?.b ?? null}
       />
       {/* HERO BANNER */}
       <div className="relative">
@@ -223,6 +241,154 @@ export default function LeagueMode() {
           </div>
         </div>
       )}
+
+      {/* AI LEAGUE UPDATE */}
+      {aiSummary?.text && (
+        <div className="max-w-[1600px] mx-auto px-4 md:px-8 mt-10">
+          <GlowPanel
+            title="State of the League"
+            subtitle="AI match-day briefing"
+            tone="cyan"
+            icon={<Brain className="h-4 w-4" />}
+            action={
+              <span className="text-[10px] uppercase tracking-widest font-bold inline-flex items-center gap-1.5" style={{ color: aiSummary.ai ? BSL.cyan : BSL.muted }}>
+                <Sparkles className="h-3 w-3" /> {aiSummary.ai ? "AI generated" : "Auto summary"}
+              </span>
+            }
+          >
+            <div className="py-1">
+              {aiSummary.headline && (
+                <h3 className="text-xl md:text-2xl font-black tracking-tight mb-2" style={{ color: BSL.gold, textShadow: `0 0 18px ${BSL.gold}44` }} data-testid="ai-summary-headline">
+                  {aiSummary.headline}
+                </h3>
+              )}
+              <p className="text-sm md:text-base leading-relaxed" style={{ color: "hsla(0,0%,100%,0.82)" }} data-testid="ai-summary-text">
+                {aiSummary.text}
+              </p>
+              <div className="mt-3 text-[10px] uppercase tracking-widest" style={{ color: BSL.faint }}>
+                Updated after {aiSummary.basedOnFinished} finished {aiSummary.basedOnFinished === 1 ? "match" : "matches"}
+              </div>
+            </div>
+          </GlowPanel>
+        </div>
+      )}
+
+      {/* CLUB POWER RANKINGS + LATEST RESULTS */}
+      <div className="max-w-[1600px] mx-auto px-4 md:px-8 mt-10 grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <GlowPanel
+          title="Club Power Rankings"
+          subtitle="Every club, ranked by points"
+          tone="gold"
+          icon={<Trophy className="h-4 w-4" />}
+        >
+          {clubLeaderboard.length === 0 ? (
+            <div className="py-10 text-center text-sm" style={{ color: BSL.muted }}>
+              Rankings appear once clubs start playing.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {clubLeaderboard.map((c: any) => {
+                const top3 = c.position <= 3;
+                const medal = c.position === 1 ? BSL.gold : c.position === 2 ? "hsl(0,0%,75%)" : c.position === 3 ? BSL.bronze : BSL.muted;
+                return (
+                  <button
+                    type="button"
+                    key={c.clubId}
+                    onClick={() => setStatsClub({ id: c.clubId, name: c.clubName, division: c.division, logoUrl: c.clubLogo })}
+                    className="w-full text-left flex items-center gap-3 px-3 py-2.5 rounded-xl cursor-pointer transition hover:scale-[1.01]"
+                    style={{ background: top3 ? `${medal}12` : "hsla(0,0%,100%,0.03)", border: `1px solid ${top3 ? `${medal}44` : BSL.border}` }}
+                    data-testid={`power-rank-${c.clubId}`}
+                  >
+                    <div className="w-7 text-center text-lg font-black tabular-nums shrink-0" style={{ color: medal }}>{c.position}</div>
+                    <div className="h-9 w-9 rounded-lg overflow-hidden flex items-center justify-center text-xs font-black shrink-0" style={{ background: `${BSL.gold}1a`, color: BSL.gold }}>
+                      {c.clubLogo ? <img src={c.clubLogo} alt="" className="h-full w-full object-cover" /> : c.clubName.slice(0, 2).toUpperCase()}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-bold truncate">{c.clubName}</div>
+                      <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.faint }}>
+                        {c.played}P · {c.won}W · {c.lost}L
+                      </div>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <div className="text-xl font-black tabular-nums" style={{ color: BSL.gold }}>{c.points}</div>
+                      <div className="text-[9px] uppercase tracking-widest" style={{ color: BSL.faint }}>pts</div>
+                    </div>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </GlowPanel>
+
+        <GlowPanel
+          title="Latest Results"
+          subtitle="Recently finished matches"
+          tone="cyan"
+          icon={<History className="h-4 w-4" />}
+        >
+          {finishedFixtures.length === 0 ? (
+            <div className="py-10 text-center text-sm" style={{ color: BSL.muted }}>
+              No finished matches yet — results land here as soon as scores are confirmed.
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {finishedFixtures
+                .slice()
+                .sort((a: any, b: any) => new Date(b.startTime || 0).getTime() - new Date(a.startTime || 0).getTime())
+                .slice(0, 8)
+                .map((f: any) => {
+                  const homeWon = f.homePoints > f.awayPoints;
+                  const awayWon = f.awayPoints > f.homePoints;
+                  const canH2H = f.homeClubId != null && f.awayClubId != null && f.homeClubId !== f.awayClubId;
+                  return (
+                    <div
+                      key={f.id}
+                      className="rounded-xl px-3 py-2.5"
+                      style={{ background: "hsla(0,0%,100%,0.03)", border: `1px solid ${BSL.border}` }}
+                      data-testid={`latest-result-${f.id}`}
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="flex-1 min-w-0 flex items-center gap-2">
+                          <div className="h-7 w-7 rounded-md overflow-hidden flex items-center justify-center text-[10px] font-black shrink-0" style={{ background: `${BSL.gold}1a`, color: BSL.gold }}>
+                            {f.homeClubLogo ? <img src={f.homeClubLogo} alt="" className="h-full w-full object-cover" /> : (f.homeClubName || f.homeTeamName || "?").slice(0, 2).toUpperCase()}
+                          </div>
+                          <span className="text-sm font-semibold truncate" style={{ color: homeWon ? BSL.text : BSL.muted }}>{f.homeClubName || f.homeTeamName || "TBD"}</span>
+                        </div>
+                        <div className="flex items-center gap-1.5 tabular-nums shrink-0">
+                          <span className="text-base font-black" style={{ color: homeWon ? BSL.gold : BSL.muted }}>{f.homePoints}</span>
+                          <span className="text-xs" style={{ color: BSL.faint }}>–</span>
+                          <span className="text-base font-black" style={{ color: awayWon ? BSL.gold : BSL.muted }}>{f.awayPoints}</span>
+                        </div>
+                        <div className="flex-1 min-w-0 flex items-center gap-2 justify-end">
+                          <span className="text-sm font-semibold truncate text-right" style={{ color: awayWon ? BSL.text : BSL.muted }}>{f.awayClubName || f.awayTeamName || "TBD"}</span>
+                          <div className="h-7 w-7 rounded-md overflow-hidden flex items-center justify-center text-[10px] font-black shrink-0" style={{ background: `${BSL.cyan}1a`, color: BSL.cyan }}>
+                            {f.awayClubLogo ? <img src={f.awayClubLogo} alt="" className="h-full w-full object-cover" /> : (f.awayClubName || f.awayTeamName || "?").slice(0, 2).toUpperCase()}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="mt-1.5 flex items-center justify-between gap-2">
+                        <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.faint }}>
+                          {f.startTime ? new Date(f.startTime).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""} · {f.homeSets}-{f.awaySets} sets
+                        </span>
+                        {canH2H && (
+                          <button
+                            type="button"
+                            onClick={() => setH2h({ a: f.homeClubId, b: f.awayClubId })}
+                            className="inline-flex items-center gap-1 text-[10px] uppercase tracking-widest font-bold cursor-pointer transition hover:brightness-125"
+                            style={{ color: BSL.cyan }}
+                            data-testid={`button-h2h-${f.id}`}
+                          >
+                            <Swords className="h-3 w-3" /> Head to Head
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })}
+            </div>
+          )}
+        </GlowPanel>
+      </div>
 
       {/* MAIN GRID */}
       <div className="max-w-[1600px] mx-auto px-4 md:px-8 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-5">

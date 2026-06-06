@@ -245,10 +245,6 @@ function MatchModal({ sel, onClose }: { sel: Selected | null; onClose: () => voi
   );
 }
 
-function diffColor(d: number) {
-  return d > 0 ? "text-emerald-400" : d < 0 ? "text-rose-400" : "text-white/60";
-}
-
 export default function BslPlayerLeaderboard() {
   const [tab, setTab] = useState<Tab>("players");
   const [division, setDivision] = useState<string>("");
@@ -439,15 +435,12 @@ export default function BslPlayerLeaderboard() {
                       <th className="px-3 py-2 text-left w-12">#</th>
                       <th className="px-3 py-2 text-left">Player</th>
                       <th className="px-3 py-2 text-left">Club</th>
-                      <th className="px-3 py-2 text-center">P</th>
-                      <th className="px-3 py-2 text-center">+/−</th>
-                      <th className="px-3 py-2 text-center">Win %</th>
-                      <th className="px-3 py-2 text-right">PTS</th>
+                      <th className="px-3 py-2 text-center">Played</th>
+                      <th className="px-3 py-2 text-right">Points</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredPlayers.map(r => {
-                      const d = r.setsFor - r.setsAgainst;
                       const open = () => setSelected({ kind: "player", id: r.playerId, title: r.fullName, subtitle: `${r.clubName}${r.division !== "—" ? ` · ${r.division}` : ""}` });
                       return (
                         <tr
@@ -469,10 +462,8 @@ export default function BslPlayerLeaderboard() {
                               {r.division && r.division !== "—" ? <span className="text-[10px] font-bold opacity-60">· {r.division}</span> : null}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center tabular-nums">{r.matchesPlayed}</td>
-                          <td className={`px-3 py-2 text-center tabular-nums font-bold ${diffColor(d)}`}>{d > 0 ? `+${d}` : d}</td>
-                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.winRate}%</td>
-                          <td className="px-3 py-2 text-right tabular-nums font-black" style={{ color: BSL.cyan }} data-testid={`text-points-${r.playerId}`}>{r.points}</td>
+                          <td className="px-3 py-2 text-center tabular-nums text-white/50">{r.matchesPlayed}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black text-lg" style={{ color: BSL.gold }} data-testid={`text-points-${r.playerId}`}>{r.points}</td>
                         </tr>
                       );
                     })}
@@ -493,15 +484,12 @@ export default function BslPlayerLeaderboard() {
                       <th className="px-3 py-2 text-left w-12">#</th>
                       <th className="px-3 py-2 text-left">Club</th>
                       <th className="px-3 py-2 text-center">Players</th>
-                      <th className="px-3 py-2 text-center">P</th>
-                      <th className="px-3 py-2 text-center">+/−</th>
-                      <th className="px-3 py-2 text-center">Win %</th>
-                      <th className="px-3 py-2 text-right">PTS</th>
+                      <th className="px-3 py-2 text-center">Played</th>
+                      <th className="px-3 py-2 text-right">Points</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredClubs.map(r => {
-                      const d = r.setsFor - r.setsAgainst;
                       const open = () => setSelected({ kind: "club", id: r.clubId, title: r.clubName, subtitle: r.division !== "—" ? r.division : undefined });
                       return (
                         <tr
@@ -522,11 +510,9 @@ export default function BslPlayerLeaderboard() {
                               {r.division && r.division !== "—" ? <span className="text-[10px] font-bold opacity-60">· {r.division}</span> : null}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.playerCount}</td>
-                          <td className="px-3 py-2 text-center tabular-nums">{r.played}</td>
-                          <td className={`px-3 py-2 text-center tabular-nums font-bold ${diffColor(d)}`}>{d > 0 ? `+${d}` : d}</td>
-                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.winRate}%</td>
-                          <td className="px-3 py-2 text-right tabular-nums font-black" style={{ color: BSL.cyan }} data-testid={`text-club-points-${r.clubId}`}>{r.points}</td>
+                          <td className="px-3 py-2 text-center tabular-nums text-white/50">{r.playerCount}</td>
+                          <td className="px-3 py-2 text-center tabular-nums text-white/50">{r.played}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black text-lg" style={{ color: BSL.gold }} data-testid={`text-club-points-${r.clubId}`}>{r.points}</td>
                         </tr>
                       );
                     })}
@@ -547,15 +533,12 @@ export default function BslPlayerLeaderboard() {
                       <th className="px-3 py-2 text-left w-12">#</th>
                       <th className="px-3 py-2 text-left">Pair</th>
                       <th className="px-3 py-2 text-left">Club</th>
-                      <th className="px-3 py-2 text-center">P</th>
-                      <th className="px-3 py-2 text-center">+/−</th>
-                      <th className="px-3 py-2 text-center">Win %</th>
-                      <th className="px-3 py-2 text-right">PTS</th>
+                      <th className="px-3 py-2 text-center">Played</th>
+                      <th className="px-3 py-2 text-right">Points</th>
                     </tr>
                   </thead>
                   <tbody>
                     {filteredPairs.map(r => {
-                      const d = r.setsFor - r.setsAgainst;
                       const title = `${r.player1Name} / ${r.player2Name}`;
                       const open = () => setSelected({ kind: "pair", id: r.player1Id, id2: r.player2Id, title, subtitle: r.clubName !== "—" ? r.clubName : undefined });
                       return (
@@ -578,10 +561,8 @@ export default function BslPlayerLeaderboard() {
                               {r.division && r.division !== "—" ? <span className="text-[10px] font-bold opacity-60">· {r.division}</span> : null}
                             </span>
                           </td>
-                          <td className="px-3 py-2 text-center tabular-nums">{r.matchesPlayed}</td>
-                          <td className={`px-3 py-2 text-center tabular-nums font-bold ${diffColor(d)}`}>{d > 0 ? `+${d}` : d}</td>
-                          <td className="px-3 py-2 text-center tabular-nums text-white/70">{r.winRate}%</td>
-                          <td className="px-3 py-2 text-right tabular-nums font-black" style={{ color: BSL.cyan }} data-testid={`text-pair-points-${r.pairKey}`}>{r.points}</td>
+                          <td className="px-3 py-2 text-center tabular-nums text-white/50">{r.matchesPlayed}</td>
+                          <td className="px-3 py-2 text-right tabular-nums font-black text-lg" style={{ color: BSL.gold }} data-testid={`text-pair-points-${r.pairKey}`}>{r.points}</td>
                         </tr>
                       );
                     })}
