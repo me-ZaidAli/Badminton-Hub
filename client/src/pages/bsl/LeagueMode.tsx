@@ -8,6 +8,8 @@ import { GlowPanel } from "./components/GlowPanel";
 import { CountdownTimer } from "./components/CountdownTimer";
 import { ActionButton } from "./components/ActionButton";
 import { ShareInviteDialog } from "./components/ShareInviteDialog";
+import { ClubStatsDialog } from "./components/ClubStatsDialog";
+import { PlayerBattlecard } from "./components/PlayerBattlecard";
 import { BslSubNav } from "@/components/SubNav";
 import { StatTile } from "./components/StatTile";
 import { MatchCard } from "./components/MatchCard";
@@ -22,6 +24,8 @@ export default function LeagueMode() {
   const { data: user } = useUser();
   const isAdmin = (user as any)?.role === "OWNER" || (user as any)?.role === "ADMIN";
   const [shareOpen, setShareOpen] = useState(false);
+  const [statsClub, setStatsClub] = useState<any | null>(null);
+  const [battlecardPlayer, setBattlecardPlayer] = useState<{ id: number; name: string } | null>(null);
 
   const { data: league } = useQuery<any>({ queryKey: ["/api/bsl/league"] });
   const { data: standings = [] } = useQuery<any[]>({ queryKey: ["/api/bsl/standings"] });
@@ -59,6 +63,18 @@ export default function LeagueMode() {
         subtitle="Send this link or QR to anyone who wants to sign up and join the BSL."
         shareUrl={`${window.location.origin}/bsl`}
         filenameSlug="bsl-league"
+      />
+      <ClubStatsDialog
+        open={!!statsClub}
+        onOpenChange={(v) => { if (!v) setStatsClub(null); }}
+        club={statsClub}
+        onPlayerClick={(id, name) => setBattlecardPlayer({ id, name })}
+      />
+      <PlayerBattlecard
+        open={!!battlecardPlayer}
+        onOpenChange={(v) => { if (!v) setBattlecardPlayer(null); }}
+        playerId={battlecardPlayer?.id ?? null}
+        fallbackName={battlecardPlayer?.name}
       />
       {/* HERO BANNER */}
       <div className="relative">
@@ -265,10 +281,12 @@ export default function LeagueMode() {
             ) : (
               <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                 {clubs.filter(c => c.status === "ACTIVE").map(c => (
-                  <motion.div
+                  <motion.button
+                    type="button"
                     key={c.id}
                     whileHover={{ y: -2, scale: 1.02 }}
-                    className="rounded-xl p-3 flex items-center gap-3"
+                    onClick={() => setStatsClub(c)}
+                    className="rounded-xl p-3 flex items-center gap-3 text-left w-full cursor-pointer"
                     style={{ background: "hsla(0,0%,100%,0.04)", border: `1px solid hsla(0,0%,100%,0.08)` }}
                     data-testid={`club-tile-${c.id}`}
                   >
@@ -287,7 +305,7 @@ export default function LeagueMode() {
                       </div>
                       <div className="text-[10px] uppercase tracking-widest" style={{ color: BSL.cyan }}>{c.division}</div>
                     </div>
-                  </motion.div>
+                  </motion.button>
                 ))}
               </div>
             )}
@@ -340,7 +358,14 @@ export default function LeagueMode() {
             ) : (
               <div className="space-y-2">
                 {mvp.map((p: any, i: number) => (
-                  <div key={p.id} className="flex items-center gap-3 px-2 py-2 rounded-lg" style={{ background: i === 0 ? `${BSL.cyan}10` : "transparent" }} data-testid={`mvp-row-${p.id}`}>
+                  <button
+                    type="button"
+                    key={p.id}
+                    onClick={() => setBattlecardPlayer({ id: p.id, name: p.displayName || `Player #${p.id}` })}
+                    className="w-full text-left flex items-center gap-3 px-2 py-2 rounded-lg cursor-pointer transition hover:scale-[1.01]"
+                    style={{ background: i === 0 ? `${BSL.cyan}10` : "transparent" }}
+                    data-testid={`mvp-row-${p.id}`}
+                  >
                     <div className="text-sm font-black w-6 text-center" style={{ color: i === 0 ? BSL.cyan : BSL.muted }}>#{i + 1}</div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-semibold truncate" data-testid={`mvp-name-${p.id}`}>{p.displayName || `Player #${p.id}`}</div>
@@ -349,7 +374,7 @@ export default function LeagueMode() {
                       </div>
                     </div>
                     <div className="text-base font-black tabular-nums" style={{ color: BSL.gold }}>{p.pointsScored}</div>
-                  </div>
+                  </button>
                 ))}
               </div>
             )}
