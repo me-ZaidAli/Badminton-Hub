@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
-import { Link, useLocation, useSearch } from "wouter";
+import { Link, useSearch } from "wouter";
 import { Eye, EyeOff, AlertCircle, RotateCcw } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -27,7 +27,6 @@ function safeNext(raw: string | null | undefined): string {
 }
 
 export default function Login() {
-  const [, setLocation] = useLocation();
   const search = useSearch();
   const nextUrl = safeNext(new URLSearchParams(search).get("next"));
   const { mutate: login, isPending } = useLogin();
@@ -48,7 +47,7 @@ export default function Login() {
     setErrorCode(null);
     setClosedCredentials(null);
     login(values, {
-      onSuccess: () => setLocation(nextUrl),
+      onSuccess: () => window.location.assign(nextUrl),
       onError: (error: any) => {
         const code: string | undefined = error instanceof LoginError ? error.code : error?.code;
         if (code === "ACCOUNT_CLOSED") {
@@ -77,7 +76,7 @@ export default function Login() {
           title: "Welcome back!",
           description: "Your account has been reopened.",
         });
-        setLocation(nextUrl);
+        window.location.assign(nextUrl);
       },
       onError: (error: any) => {
         setLoginError(error?.message || "Failed to reopen account. Please try again or contact your club administrator.");

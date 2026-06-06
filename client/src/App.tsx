@@ -21,6 +21,18 @@ import { OneSignalBootstrap } from "@/components/OneSignalBootstrap";
 import { GlobalRouteProgress } from "@/components/ui/premium-loader";
 import { useBackground } from "@/hooks/use-background";
 import { useTypography } from "@/hooks/use-typography";
+// Auth pages are eagerly imported (NOT lazy). Navigating to a lazy route via
+// wouter goes through useSyncExternalStore, which React forces to be a
+// synchronous/urgent update — so suspending on the lazy chunk throws the
+// "component suspended while responding to synchronous input" overlay instead
+// of showing a fallback. Auth is the critical entry path; keeping these eager
+// means going to /login, /register, /forgot-password, /reset-password never
+// suspends. Their form deps are already shared across the app, so this adds
+// almost no weight to the initial bundle.
+import Login from "@/pages/auth/Login";
+import Register from "@/pages/auth/Register";
+import ForgotPassword from "@/pages/auth/ForgotPassword";
+import ResetPassword from "@/pages/auth/ResetPassword";
 
 const LazyFallback = () => <div className="h-64 flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
 
@@ -35,10 +47,6 @@ export function useTrialPlayer() { return useContext(TrialPlayerContext); }
 // dialogs and hero tiles even when the user was sitting on /login.
 const Home = lazy(() => import("@/pages/Home"));
 const Pricing = lazy(() => import("@/pages/Pricing"));
-const Login = lazy(() => import("@/pages/auth/Login"));
-const Register = lazy(() => import("@/pages/auth/Register"));
-const ForgotPassword = lazy(() => import("@/pages/auth/ForgotPassword"));
-const ResetPassword = lazy(() => import("@/pages/auth/ResetPassword"));
 const Dashboard = lazy(() => import("@/pages/Dashboard"));
 const Sessions = lazy(() => import("@/pages/Sessions"));
 const MySessions = lazy(() => import("@/pages/MySessions"));
