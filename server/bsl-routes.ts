@@ -1169,6 +1169,11 @@ export function registerBslRoutes(app: Express) {
         return {
           ...f,
           ...computeFixtureScore(rubbersByFixture.get(f.id) || []),
+          // Resolve the club id even when the fixture only carries team ids
+          // (legacy/team-only fixtures), so consumers can attribute a fixture
+          // to a club without re-deriving it from the team mapping.
+          homeClubId: hc?.id ?? f.homeClubId ?? null,
+          awayClubId: ac?.id ?? f.awayClubId ?? null,
           // For club-vs-club fixtures (no team set yet) show the club name as
           // the headline. Pair-vs-pair fixtures keep the original team name.
           homeTeamName: ht?.name || hc?.name || "TBD",

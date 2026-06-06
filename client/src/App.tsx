@@ -1,4 +1,4 @@
-import { Switch, Route, useLocation } from "wouter";
+import { Switch, Route, useLocation, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -251,14 +251,12 @@ function PrivateRoute({ component: Component, allowTrial }: { component: React.C
 
   if (!user) {
     const here = location + (typeof window !== "undefined" ? window.location.search : "");
-    setLocation(`/login?next=${encodeURIComponent(here)}`);
-    return null;
+    return <Redirect to={`/login?next=${encodeURIComponent(here)}`} />;
   }
 
   const isActiveTrial = trialData && trialData.status !== "APPROVED" && trialData.status !== "REJECTED" && trialData.status !== "REDIRECTED";
   if (isActiveTrial && !allowTrial && location !== "/trial-dashboard") {
-    setLocation("/trial-dashboard");
-    return null;
+    return <Redirect to="/trial-dashboard" />;
   }
 
   return (
@@ -282,8 +280,7 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   }
 
   if (!user) {
-    setLocation("/login");
-    return null;
+    return <Redirect to="/login" />;
   }
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
@@ -291,8 +288,7 @@ function AdminRoute({ component: Component }: { component: React.ComponentType }
   const isPlatformAdmin = isSuperUser || user?.role === "ADMIN";
   
   if (!isPlatformAdmin && !hasClubAdminAccess) {
-    setLocation("/dashboard");
-    return null;
+    return <Redirect to="/dashboard" />;
   }
 
   return (
@@ -310,8 +306,8 @@ function BslAdminRoute({ component: Component }: { component: React.ComponentTyp
   const { data: user, isLoading } = useUser();
   const [, setLocation] = useLocation();
   if (isLoading) return <div className="h-screen flex items-center justify-center"><Loader2 className="animate-spin text-primary" /></div>;
-  if (!user) { setLocation("/login"); return null; }
-  if (user.role !== "OWNER") { setLocation("/dashboard"); return null; }
+  if (!user) { return <Redirect to="/login" />; }
+  if (user.role !== "OWNER") { return <Redirect to="/dashboard" />; }
   return <ErrorBoundary><Suspense fallback={<LazyFallback />}><Component /></Suspense></ErrorBoundary>;
 }
 
@@ -326,8 +322,7 @@ function NonOrganiserAdminRoute({ component: Component }: { component: React.Com
   }
 
   if (!user) {
-    setLocation("/login");
-    return null;
+    return <Redirect to="/login" />;
   }
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
@@ -335,13 +330,11 @@ function NonOrganiserAdminRoute({ component: Component }: { component: React.Com
   const isPlatformAdmin = isSuperUser || user?.role === "ADMIN";
   
   if (!isPlatformAdmin && !hasClubAdminAccess) {
-    setLocation("/dashboard");
-    return null;
+    return <Redirect to="/dashboard" />;
   }
   
   if (!isSuperUser && !isPlatformAdmin && isOrganiserOnly) {
-    setLocation("/dashboard");
-    return null;
+    return <Redirect to="/dashboard" />;
   }
 
   return (
@@ -364,13 +357,11 @@ function StrictAdminRoute({ component: Component }: { component: React.Component
   }
 
   if (!user) {
-    setLocation("/login");
-    return null;
+    return <Redirect to="/login" />;
   }
 
   if (user.role !== "ADMIN" && user.role !== "OWNER") {
-    setLocation("/dashboard");
-    return null;
+    return <Redirect to="/dashboard" />;
   }
 
   return (
@@ -393,13 +384,11 @@ function OwnerRoute({ component: Component }: { component: React.ComponentType }
   }
 
   if (!user) {
-    setLocation("/login");
-    return null;
+    return <Redirect to="/login" />;
   }
 
   if (user.role !== "OWNER") {
-    setLocation("/dashboard");
-    return null;
+    return <Redirect to="/dashboard" />;
   }
 
   return (
@@ -431,15 +420,13 @@ function PremiumRoute({ component: Component }: { component: React.ComponentType
   }
 
   if (!user) {
-    setLocation("/login");
-    return null;
+    return <Redirect to="/login" />;
   }
 
   const hasClubAdminAccess = (myAdminClubs?.length ?? 0) > 0;
 
   if (!isPlatformAdmin && !hasClubAdminAccess) {
-    setLocation("/dashboard");
-    return null;
+    return <Redirect to="/dashboard" />;
   }
 
   if (!isPremium && !isSuperAdmin && !isPlatformAdmin && !hasClubAdminAccess) {
