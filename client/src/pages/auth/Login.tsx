@@ -47,6 +47,11 @@ export default function Login() {
     setErrorCode(null);
     setClosedCredentials(null);
     login(values, {
+      // Full-page nav (not wouter setLocation): the destination is usually a
+      // lazy route, and a client-side wouter navigation goes through
+      // useSyncExternalStore which React can't defer — suspending there throws
+      // the "suspended on synchronous input" overlay. A hard load mounts the
+      // destination fresh and guarantees a freshly-fetched session.
       onSuccess: () => window.location.assign(nextUrl),
       onError: (error: any) => {
         const code: string | undefined = error instanceof LoginError ? error.code : error?.code;

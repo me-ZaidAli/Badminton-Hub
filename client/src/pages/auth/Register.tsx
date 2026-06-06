@@ -131,7 +131,6 @@ const formSchema = z.object({
 );
 
 export default function Register() {
-  const [, setLocation] = useLocation();
   const searchString = useSearch();
   const nextUrl = safeNext(new URLSearchParams(searchString).get("next"));
   const { mutate: register, isPending } = useRegister();
@@ -321,9 +320,9 @@ export default function Register() {
               : "Welcome! Complete your profile and browse clubs to get started.";
         toast({ title: "Account created", description: toastDesc });
         if (nextUrl) {
-          setLocation(nextUrl);
+          window.location.assign(nextUrl);
         } else {
-          setLocation(values.isTrialPlayer ? "/trial-dashboard" : "/clubs");
+          window.location.assign(values.isTrialPlayer ? "/trial-dashboard" : "/clubs");
         }
       })
       .catch(err => {
@@ -355,7 +354,7 @@ export default function Register() {
         }
         toast({ title: "Account claimed", description: "Your password has been set. You can now log in." });
         setShowClaimDialog(false);
-        setLocation("/login");
+        window.location.assign("/login");
       })
       .catch(err => {
         toast({ title: "Claim failed", description: err.message, variant: "destructive" });
