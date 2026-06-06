@@ -163,7 +163,7 @@ export default function MatchDetail() {
                 {match.homePoints ?? 0}
               </div>
               <div className="text-[10px] uppercase tracking-widest mt-2" style={{ color: BSL.muted }} data-testid="home-rubbers-sets">
-                {match.homeRubbers} rubbers · {match.homeSets ?? 0} sets
+                {match.homeRubbers} rubbers
               </div>
             </div>
             <div className="text-center">
@@ -177,7 +177,7 @@ export default function MatchDetail() {
                 {match.awayPoints ?? 0}
               </div>
               <div className="text-[10px] uppercase tracking-widest mt-2" style={{ color: BSL.muted }} data-testid="away-rubbers-sets">
-                {match.awayRubbers} rubbers · {match.awaySets ?? 0} sets
+                {match.awayRubbers} rubbers
               </div>
             </div>
           </div>

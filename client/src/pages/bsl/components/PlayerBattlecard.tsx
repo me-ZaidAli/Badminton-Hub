@@ -72,7 +72,7 @@ export function PlayerBattlecard({
 
   const name = player?.fullName || fallbackName || "Player";
   const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(s => s[0]).join("").toUpperCase() || "P";
-  const setDiff = player ? player.setsFor - player.setsAgainst : 0;
+  const avgPts = player && player.matchesPlayed > 0 ? Math.round(player.points / player.matchesPlayed) : 0;
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -152,7 +152,7 @@ export function PlayerBattlecard({
               <StatChip label="Played" value={player.matchesPlayed} icon={<Activity className="h-3.5 w-3.5" />} tone="neutral" />
               <StatChip label="Won" value={player.won} icon={<Trophy className="h-3.5 w-3.5" />} tone="win" />
               <StatChip label="Lost" value={player.lost} icon={<Shield className="h-3.5 w-3.5" />} tone="loss" />
-              <StatChip label="Sets" value={`${player.setsFor}-${player.setsAgainst}`} sub={`${setDiff >= 0 ? "+" : ""}${setDiff} diff`} icon={<TrendingUp className="h-3.5 w-3.5" />} tone={setDiff >= 0 ? "win" : "loss"} />
+              <StatChip label="Avg Pts" value={avgPts} sub="per match" icon={<TrendingUp className="h-3.5 w-3.5" />} tone="accent" />
               <StatChip label="Rank" value={`#${player.position}`} icon={<Award className="h-3.5 w-3.5" />} tone="accent" />
             </div>
           </div>

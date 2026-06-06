@@ -867,10 +867,16 @@ export function registerBslRoutes(app: Express) {
       return row;
     };
     const pMap = new Map(players.map(p => [p.id, p]));
+    // Seed EVERY registered player so the leaderboard lists all players (those
+    // with no finished matches simply show 0 points), not only those who happen
+    // to appear in a finished rubber.
+    for (const p of players) ensure(p);
     for (const r of finished) {
       const rp = rubberRallyPoints(r);
-      const homeWon = rp.homeSetsWon > rp.awaySetsWon;
-      const awayWon = rp.awaySetsWon > rp.homeSetsWon;
+      // Win/loss follows RALLY POINTS (the gold metric shown everywhere), not
+      // sets — so the WIN/LOSS badge always agrees with the points score on screen.
+      const homeWon = rp.home > rp.away;
+      const awayWon = rp.away > rp.home;
       const homePlayers = [r.homePlayer1Id, r.homePlayer2Id].filter((x): x is number => x != null);
       const awayPlayers = [r.awayPlayer1Id, r.awayPlayer2Id].filter((x): x is number => x != null);
       for (const pid of homePlayers) {
@@ -1121,7 +1127,10 @@ export function registerBslRoutes(app: Express) {
         homeClubId: number | null; awayClubId: number | null;
         homeClubName: string; awayClubName: string;
         homeScore: number; awayScore: number;
-        weFor: number; weAgainst: number; result: "WIN" | "LOSS" | "DRAW";
+        homePoints: number; awayPoints: number;
+        weFor: number; weAgainst: number;
+        wePointsFor: number; wePointsAgainst: number;
+        result: "WIN" | "LOSS" | "DRAW";
       };
       const out: Match[] = [];
       for (const r of finished) {
@@ -1146,6 +1155,12 @@ export function registerBslRoutes(app: Express) {
         const hs = r.homeScore || 0, as = r.awayScore || 0;
         const weFor = isHome ? hs : as;
         const weAgainst = isHome ? as : hs;
+        // Rally points (sum of every set's score) — the gold metric the
+        // leaderboard shows. Win/loss outcome follows POINTS so the badge
+        // always matches the points score displayed in the row.
+        const rp = rubberRallyPoints(r);
+        const wePointsFor = isHome ? rp.home : rp.away;
+        const wePointsAgainst = isHome ? rp.away : rp.home;
         out.push({
           rubberId: r.id, fixtureId: r.bslFixtureId,
           date: fx?.startTime ? new Date(fx.startTime as any).toISOString() : null,
@@ -1156,8 +1171,10 @@ export function registerBslRoutes(app: Express) {
           homeClubName: homeClubId != null ? cMap.get(homeClubId)?.name || "—" : "—",
           awayClubName: awayClubId != null ? cMap.get(awayClubId)?.name || "—" : "—",
           homeScore: hs, awayScore: as,
+          homePoints: rp.home, awayPoints: rp.away,
           weFor, weAgainst,
-          result: weFor > weAgainst ? "WIN" : weFor < weAgainst ? "LOSS" : "DRAW",
+          wePointsFor, wePointsAgainst,
+          result: wePointsFor > wePointsAgainst ? "WIN" : wePointsFor < wePointsAgainst ? "LOSS" : "DRAW",
         });
       }
       out.sort((a, b) => (a.date || "").localeCompare(b.date || ""));
@@ -2176,19 +2193,19 @@ export function registerBslRoutes(app: Express) {
   // bslPlayers.displayName, falling back to the linked user's full name.
   app.get("/api/bsl/mvp", async (_req, res) => {
     try {
-      const players = await db.select().from(bslPlayers).where(eq(bslPlayers.status, "ACTIVE"));
-      const active = players.filter(p => (p.matchesPlayed || 0) > 0);
-      const top = active
-        .sort((a, b) => b.matchesWon - a.matchesWon || b.pointsScored - a.pointsScored)
+      // Top performers ranked by REAL computed rally points (same numbers the
+      // public leaderboard shows) — not the unmaintained bsl_players columns.
+      const rows = await computePlayerLeaderboard();
+      const top = rows
+        .filter(r => r.matchesPlayed > 0)
+        .sort((a, b) => b.points - a.points || b.won - a.won || b.matchesPlayed - a.matchesPlayed)
         .slice(0, 5);
-      const userIds = Array.from(new Set(top.map(p => p.userId)));
-      const userRows = userIds.length
-        ? await db.select({ id: users.id, name: users.fullName }).from(users).where(inArray(users.id, userIds))
-        : [];
-      const userMap = new Map(userRows.map(u => [u.id, u]));
-      res.json(top.map(p => ({
-        ...p,
-        displayName: p.displayName || userMap.get(p.userId)?.name || `Player #${p.id}`,
+      res.json(top.map(r => ({
+        id: r.playerId,
+        displayName: r.fullName,
+        matchesPlayed: r.matchesPlayed,
+        matchesWon: r.won,
+        pointsScored: r.points,
       })));
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

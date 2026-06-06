@@ -112,11 +112,11 @@ export function HeadToHeadDialog({
                 </div>
               </div>
               <div className="rounded-xl py-2" style={{ background: "hsla(0,0%,100%,0.04)", border: `1px solid ${BSL.border}` }}>
-                <div className="text-[9px] uppercase tracking-widest" style={{ color: BSL.faint }}>Total Sets</div>
+                <div className="text-[9px] uppercase tracking-widest" style={{ color: BSL.faint }}>Avg Points / Meeting</div>
                 <div className="tabular-nums font-bold mt-0.5">
-                  <span style={{ color: BSL.gold }}>{s.aSets}</span>
+                  <span style={{ color: BSL.gold }}>{s.fixtures > 0 ? Math.round(s.aPoints / s.fixtures) : 0}</span>
                   <span style={{ color: BSL.muted }} className="mx-1.5">–</span>
-                  <span style={{ color: BSL.cyan }}>{s.bSets}</span>
+                  <span style={{ color: BSL.cyan }}>{s.fixtures > 0 ? Math.round(s.bPoints / s.fixtures) : 0}</span>
                 </div>
               </div>
             </div>
@@ -157,13 +157,13 @@ export function HeadToHeadDialog({
                       <span className="text-lg font-black" style={{ color: aWon ? BSL.gold : BSL.text, opacity: aWon ? 1 : 0.7 }}>{f.aPoints}</span>
                       <span className="text-xs" style={{ color: BSL.muted }}>–</span>
                       <span className="text-lg font-black" style={{ color: bWon ? BSL.cyan : BSL.text, opacity: bWon ? 1 : 0.7 }}>{f.bPoints}</span>
-                      <span className="text-[9px] uppercase tracking-widest ml-1" style={{ color: BSL.faint }}>pts · {f.aSets}-{f.bSets} sets</span>
+                      <span className="text-[9px] uppercase tracking-widest ml-1" style={{ color: BSL.faint }}>pts</span>
                     </div>
                   </div>
                   {/* Rubbers */}
                   <div className="px-4 py-2 space-y-1.5">
                     {f.rubbers.length === 0 ? (
-                      <div className="text-[11px] py-1" style={{ color: BSL.muted }}>No rubber detail recorded.</div>
+                      <div className="text-[11px] py-1" style={{ color: BSL.muted }}>No game detail recorded.</div>
                     ) : f.rubbers.map((rb, i) => {
                       const rbAWon = rb.aPoints > rb.bPoints;
                       const rbBWon = rb.bPoints > rb.aPoints;
@@ -173,16 +173,10 @@ export function HeadToHeadDialog({
                           <span className="flex-1 min-w-0 truncate" style={{ color: rbAWon ? BSL.gold : BSL.muted }}>
                             {rb.aPlayers.join(" / ") || "—"}
                           </span>
-                          <div className="flex items-center gap-1 shrink-0">
-                            {rb.sets.length ? rb.sets.map((st, j) => {
-                              const won = st.a > st.b;
-                              return (
-                                <span key={j} className="tabular-nums px-1.5 py-0.5 rounded font-semibold"
-                                  style={{ background: "hsla(0,0%,100%,0.05)", color: won ? BSL.gold : BSL.muted, border: `1px solid ${BSL.border}` }}>
-                                  {st.a}-{st.b}
-                                </span>
-                              );
-                            }) : <span style={{ color: BSL.faint }}>—</span>}
+                          <div className="flex items-center gap-1 shrink-0 tabular-nums font-bold">
+                            <span style={{ color: rbAWon ? BSL.gold : BSL.muted }}>{rb.aPoints}</span>
+                            <span style={{ color: BSL.muted }}>–</span>
+                            <span style={{ color: rbBWon ? BSL.cyan : BSL.muted }}>{rb.bPoints}</span>
                           </div>
                           <span className="flex-1 min-w-0 truncate text-right" style={{ color: rbBWon ? BSL.cyan : BSL.muted }}>
                             {rb.bPlayers.join(" / ") || "—"}

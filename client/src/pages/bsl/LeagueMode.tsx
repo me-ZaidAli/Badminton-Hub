@@ -227,7 +227,7 @@ export default function LeagueMode() {
                 Battle <span style={{ color: BSL.gold, textShadow: `0 0 18px ${BSL.gold}66` }}>Card</span>
               </h2>
               <p className="text-xs md:text-sm mt-1" style={{ color: BSL.muted }}>
-                Confirmed pairs, every rubber, every player — heads up before you step on court.
+                Confirmed pairs, every match, every player — heads up before you step on court.
               </p>
             </div>
             <div className="text-[11px] uppercase tracking-widest font-bold" style={{ color: BSL.gold }}>
@@ -368,7 +368,7 @@ export default function LeagueMode() {
                       </div>
                       <div className="mt-1.5 flex items-center justify-between gap-2">
                         <span className="text-[10px] uppercase tracking-widest" style={{ color: BSL.faint }}>
-                          {f.startTime ? new Date(f.startTime).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""} · {f.homeSets}-{f.awaySets} sets
+                          {f.startTime ? new Date(f.startTime).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : ""} · {f.homePoints}-{f.awayPoints} pts
                         </span>
                         {canH2H && (
                           <button
@@ -554,7 +554,7 @@ export default function LeagueMode() {
           >
             <div className="space-y-3 text-sm" style={{ color: BSL.muted }}>
               <div className="flex justify-between"><span>Venue</span><span style={{ color: BSL.text }} className="font-semibold">{league?.venueName?.split(",")[0] || "TBD"}</span></div>
-              <div className="flex justify-between"><span>Format</span><span style={{ color: BSL.text }} className="font-semibold">6 Rubbers / Tie</span></div>
+              <div className="flex justify-between"><span>Format</span><span style={{ color: BSL.text }} className="font-semibold">6 Matches / Tie</span></div>
               <div className="flex justify-between"><span>Schedule</span><span style={{ color: BSL.text }} className="font-semibold">1 Saturday / Month</span></div>
               <div className="flex justify-between"><span>Season</span><span style={{ color: BSL.text }} className="font-semibold">12 League Days</span></div>
               <div className="flex justify-between"><span>Club Fee</span><span style={{ color: BSL.gold }} className="font-bold">£{((league?.clubFee || 0) / 100).toFixed(0)}</span></div>

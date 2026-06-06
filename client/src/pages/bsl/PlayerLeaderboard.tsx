@@ -36,7 +36,10 @@ type Match = {
   homeClubId: number | null; awayClubId: number | null;
   homeClubName: string; awayClubName: string;
   homeScore: number; awayScore: number;
-  weFor: number; weAgainst: number; result: "WIN" | "LOSS" | "DRAW";
+  homePoints: number; awayPoints: number;
+  weFor: number; weAgainst: number;
+  wePointsFor: number; wePointsAgainst: number;
+  result: "WIN" | "LOSS" | "DRAW";
 };
 type Tab = "players" | "clubs" | "pairs";
 type Selected =
@@ -69,18 +72,18 @@ function MatchModal({ sel, onClose }: { sel: Selected | null; onClose: () => voi
       if (m.result === "WIN") a.won++;
       else if (m.result === "LOSS") a.lost++;
       else a.drawn++;
-      a.setsFor += m.weFor;
-      a.setsAgainst += m.weAgainst;
+      a.pointsFor += m.wePointsFor;
+      a.pointsAgainst += m.wePointsAgainst;
       return a;
     },
-    { played: 0, won: 0, lost: 0, drawn: 0, setsFor: 0, setsAgainst: 0 },
+    { played: 0, won: 0, lost: 0, drawn: 0, pointsFor: 0, pointsAgainst: 0 },
   );
   const winRate = totals.played > 0 ? Math.round((totals.won / totals.played) * 100) : 0;
 
-  // Running form (wins minus losses cumulative)
+  // Points margin per match (points scored minus points conceded).
   const trend = matches.map((m, i) => ({
     name: `#${i + 1}`,
-    diff: m.weFor - m.weAgainst,
+    diff: m.wePointsFor - m.wePointsAgainst,
     result: m.result,
   }));
   const pie = [
@@ -127,7 +130,7 @@ function MatchModal({ sel, onClose }: { sel: Selected | null; onClose: () => voi
               { l: "Played", v: totals.played, c: "white" },
               { l: "Won", v: totals.won, c: "#10b981" },
               { l: "Lost", v: totals.lost, c: "#f43f5e" },
-              { l: "Win %", v: `${winRate}%`, c: BSL.gold },
+              { l: "Points", v: totals.pointsFor, c: BSL.gold },
             ].map(s => (
               <div key={s.l} className="rounded-xl px-3 py-2" style={{ background: "rgba(255,255,255,0.04)", border: `1px solid ${BSL.border}` }}>
                 <div className="text-[10px] uppercase tracking-widest text-white/50 font-bold">{s.l}</div>
@@ -140,7 +143,7 @@ function MatchModal({ sel, onClose }: { sel: Selected | null; onClose: () => voi
           {totals.played > 0 ? (
             <div className="grid md:grid-cols-2 gap-4 px-5 py-4" style={{ borderBottom: `1px solid ${BSL.border}` }}>
               <div>
-                <div className="text-[10px] uppercase tracking-widest text-white/50 font-bold mb-2">Sets margin per match</div>
+                <div className="text-[10px] uppercase tracking-widest text-white/50 font-bold mb-2">Points margin per match</div>
                 <div className="h-40">
                   <ResponsiveContainer width="100%" height="100%">
                     <BarChart data={trend}>
@@ -214,7 +217,7 @@ function MatchModal({ sel, onClose }: { sel: Selected | null; onClose: () => voi
                         <div className="text-[10px] text-white/50">{m.homeClubName}</div>
                       </td>
                       <td className="px-2 py-2 text-center font-black tabular-nums" style={{ color: BSL.gold }}>
-                        {m.homeScore}–{m.awayScore}
+                        {m.homePoints}–{m.awayPoints}
                       </td>
                       <td className="px-2 py-2">
                         <div className="font-bold">{m.awayPlayers.map(p => p.name).join(" / ") || "—"}</div>

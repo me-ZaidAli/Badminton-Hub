@@ -61,16 +61,16 @@ function MatchSetBreakdown({ fixtureId, home }: { fixtureId: number; home: boole
   if (isLoading) {
     return (
       <div className="px-3 py-2 text-[11px] flex items-center gap-1.5" style={{ color: DASH.muted }}>
-        <Loader2 className="h-3 w-3 animate-spin" /> Loading set scores…
+        <Loader2 className="h-3 w-3 animate-spin" /> Loading scores…
       </div>
     );
   }
   if (isError) {
-    return <div className="px-3 py-2 text-[11px]" style={{ color: DASH.loss }}>Couldn't load set scores — try again.</div>;
+    return <div className="px-3 py-2 text-[11px]" style={{ color: DASH.loss }}>Couldn't load scores — try again.</div>;
   }
   const rubbers = data?.rubbers || [];
   if (!rubbers.length) {
-    return <div className="px-3 py-2 text-[11px]" style={{ color: DASH.muted }}>No set-by-set detail recorded for this match.</div>;
+    return <div className="px-3 py-2 text-[11px]" style={{ color: DASH.muted }}>No game-by-game detail recorded for this match.</div>;
   }
   return (
     <div className="mt-1 mb-1 mx-2 rounded-lg p-2 space-y-1" style={{ background: DASH.bgAlt, border: `1px solid ${DASH.border}` }}>
@@ -298,7 +298,7 @@ export function ClubStatsDialog({
   const initials = name.slice(0, 2).toUpperCase();
   const division = club?.division || row?.division;
   const logo = club?.logoUrl || row?.clubLogo || null;
-  const setRatio = row && row.setsAgainst > 0 ? (row.setsFor / row.setsAgainst).toFixed(2) : row && row.setsFor > 0 ? "∞" : "—";
+  const avgPts = row && row.played > 0 ? Math.round(row.points / row.played) : 0;
   const pointDiff = row ? row.points - row.pointsAgainst : 0;
 
   return (
@@ -360,7 +360,7 @@ export function ClubStatsDialog({
                 <StatChip label="Won" value={row.won} icon={<Trophy className="h-3.5 w-3.5" />} tone="win" />
                 <StatChip label="Lost" value={row.lost} icon={<Shield className="h-3.5 w-3.5" />} tone="loss" />
                 <StatChip label="Win %" value={`${row.winRate}%`} icon={<Target className="h-3.5 w-3.5" />} tone="accent" />
-                <StatChip label="Set Ratio" value={setRatio} sub={`${row.setsFor}-${row.setsAgainst}`} icon={<TrendingUp className="h-3.5 w-3.5" />} tone="neutral" />
+                <StatChip label="Avg Pts" value={avgPts} sub="per match" icon={<TrendingUp className="h-3.5 w-3.5" />} tone="neutral" />
                 <StatChip label="Pts Diff" value={`${pointDiff >= 0 ? "+" : ""}${pointDiff}`} icon={<Award className="h-3.5 w-3.5" />} tone={pointDiff >= 0 ? "win" : "loss"} />
               </div>
             </section>
@@ -435,7 +435,6 @@ export function ClubStatsDialog({
                             <div className="text-[10px]" style={{ color: DASH.muted }}>
                               {m.date ? new Date(m.date).toLocaleDateString("en-GB", { day: "numeric", month: "short" }) : "TBC"}
                               {m.category ? ` · ${m.category}` : ""}
-                              {played ? ` · ${m.mySets}-${m.oppSets} sets` : ""}
                             </div>
                           </div>
                           {played ? (
