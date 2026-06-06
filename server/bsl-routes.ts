@@ -2705,13 +2705,25 @@ export function registerBslRoutes(app: Express) {
         p.displayName || userMap.get(p.userId)?.fullName || userMap.get(p.userId)?.email || `Player #${p.id}`,
       ]));
       const membersByTeam = new Map<number, string[]>();
+      const memberObjsByTeam = new Map<number, Array<{ playerId: number; name: string }>>();
       for (const m of members) {
         const arr = membersByTeam.get(m.bslTeamId) || [];
+        const objs = memberObjsByTeam.get(m.bslTeamId) || [];
         const name = playerNameById.get(m.bslPlayerId);
-        if (name) arr.push(name);
+        if (name) {
+          arr.push(name);
+          objs.push({ playerId: m.bslPlayerId, name });
+        }
         membersByTeam.set(m.bslTeamId, arr);
+        memberObjsByTeam.set(m.bslTeamId, objs);
       }
-      const hydrated = teams.map(t => ({ ...t, playerNames: membersByTeam.get(t.id) || [] }));
+      // playerNames kept for back-compat (admin pair pickers); members carries
+      // ids so the club dashboard can link a player row to their stats card.
+      const hydrated = teams.map(t => ({
+        ...t,
+        playerNames: membersByTeam.get(t.id) || [],
+        members: memberObjsByTeam.get(t.id) || [],
+      }));
       res.json(hydrated);
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });

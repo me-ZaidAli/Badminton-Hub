@@ -3,7 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { motion } from "framer-motion";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
-import { Activity, Award, ChevronDown, ChevronRight, Crown, Loader2, Shield, Target, TrendingUp, Trophy, Users } from "lucide-react";
+import { Activity, Award, ChevronDown, ChevronRight, Crown, Layers, Loader2, Shield, Target, TrendingUp, Trophy, Users } from "lucide-react";
 import { DASH } from "./StatsPalette";
 
 type ClubRow = {
@@ -16,7 +16,12 @@ type PlayerRow = {
   playerId: number; fullName: string; clubId: number | null;
   matchesPlayed: number; won: number; lost: number; winRate: number; points: number; position: number;
 };
-type TeamRow = { id: number; name: string; category?: string | null; division?: string | null; playerNames?: string[] };
+type TeamMember = { playerId: number; name: string };
+type TeamRow = { id: number; name: string; category?: string | null; division?: string | null; playerNames?: string[]; members?: TeamMember[] };
+type SquadPlayer = {
+  playerId: number; name: string; divisions: string[];
+  points: number; won: number; matchesPlayed: number; winRate: number;
+};
 type Fixture = {
   id: number; status: string; startTime: string | null;
   homeClubId: number | null; awayClubId: number | null;
@@ -115,6 +120,55 @@ function StatChip({ label, value, sub, icon, tone = "accent" }: {
   );
 }
 
+// Circular initials badge. `ring` colours the gradient edge (gold/silver/bronze
+// for podium + division-leader rows, accent otherwise).
+function PlayerBadge({ name, size = 36, ring = DASH.accent }: { name: string; size?: number; ring?: string }) {
+  const initials = name.split(/\s+/).filter(Boolean).slice(0, 2).map(w => w[0]?.toUpperCase() || "").join("") || "?";
+  return (
+    <div
+      className="shrink-0 rounded-full p-[2px]"
+      style={{ width: size, height: size, background: `linear-gradient(135deg, ${ring}, ${ring}33)` }}
+    >
+      <div
+        className="h-full w-full rounded-full flex items-center justify-center font-bold"
+        style={{ background: DASH.card, color: DASH.textDim, fontSize: size * 0.34 }}
+      >
+        {initials}
+      </div>
+    </div>
+  );
+}
+
+const PODIUM = [DASH.gold, DASH.silver, DASH.bronze] as const;
+
+// A single ranked player row inside a division group. Clickable → stats card.
+function SquadRow({ player, rank, onClick }: { player: SquadPlayer; rank: number; onClick: () => void }) {
+  const ring = rank <= 3 ? PODIUM[rank - 1] : DASH.accent;
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className="group w-full flex items-center gap-3 px-2.5 py-2 rounded-xl text-left transition-all hover:-translate-y-px"
+      style={{ background: DASH.card, border: `1px solid ${DASH.border}` }}
+      data-testid={`clubstats-squad-player-${player.playerId}`}
+    >
+      <span className="w-5 text-center text-sm font-black tabular-nums" style={{ color: rank <= 3 ? ring : DASH.muted }}>{rank}</span>
+      <PlayerBadge name={player.name} size={34} ring={ring} />
+      <div className="flex-1 min-w-0">
+        <div className="text-sm font-semibold truncate" style={{ color: DASH.text }}>{player.name}</div>
+        <div className="text-[10px]" style={{ color: DASH.muted }}>
+          {player.matchesPlayed > 0 ? `${player.won}W · ${player.matchesPlayed}P · ${player.winRate}%` : "No matches yet"}
+        </div>
+      </div>
+      <div className="text-right shrink-0">
+        <div className="text-base font-black tabular-nums leading-none" style={{ color: DASH.gold }}>{player.points}</div>
+        <div className="text-[8px] uppercase tracking-[0.15em]" style={{ color: DASH.muted }}>pts</div>
+      </div>
+      <ChevronRight className="h-4 w-4 shrink-0 transition-transform group-hover:translate-x-0.5" style={{ color: DASH.muted }} />
+    </button>
+  );
+}
+
 export function ClubStatsDialog({
   open, onOpenChange, club, onPlayerClick,
 }: {
@@ -140,10 +194,67 @@ export function ClubStatsDialog({
   });
 
   const row = useMemo(() => clubLeaderboard.find(c => c.clubId === clubId) || null, [clubLeaderboard, clubId]);
-  const clubPlayers = useMemo(
-    () => playerLeaderboard.filter(p => p.clubId === clubId).sort((a, b) => b.points - a.points).slice(0, 6),
-    [playerLeaderboard, clubId],
-  );
+  // Build the squad: every player on the club's roster, with the division(s)
+  // they actually play in (sourced from team rows, not the club's single
+  // division), merged with their leaderboard points. Players are then ranked
+  // by points overall (for the podium) and within each division.
+  const squad = useMemo(() => {
+    const statById = new Map(
+      playerLeaderboard.filter(p => p.clubId === clubId).map(p => [p.playerId, p]),
+    );
+    const players = new Map<number, SquadPlayer>();
+    const upsert = (playerId: number, name: string): SquadPlayer => {
+      let e = players.get(playerId);
+      if (!e) {
+        const st = statById.get(playerId);
+        e = {
+          playerId, name,
+          divisions: [],
+          points: st?.points ?? 0,
+          won: st?.won ?? 0,
+          matchesPlayed: st?.matchesPlayed ?? 0,
+          winRate: st?.winRate ?? 0,
+        };
+        players.set(playerId, e);
+      }
+      return e;
+    };
+    // Roster + per-team divisions are authoritative.
+    for (const t of teams) {
+      const div = (t.division || "").trim();
+      for (const m of t.members || []) {
+        const e = upsert(m.playerId, m.name);
+        if (div && !e.divisions.includes(div)) e.divisions.push(div);
+      }
+    }
+    // Catch players who have leaderboard stats but aren't attached to a team.
+    for (const p of statById.values()) upsert(p.playerId, p.fullName);
+
+    const all = Array.from(players.values());
+    const top = all.slice().sort((a, b) => b.points - a.points).slice(0, 3);
+
+    const byDiv = new Map<string, SquadPlayer[]>();
+    for (const pl of all) {
+      const divs = pl.divisions.length ? pl.divisions : ["Unassigned"];
+      for (const d of divs) {
+        const arr = byDiv.get(d) || [];
+        arr.push(pl);
+        byDiv.set(d, arr);
+      }
+    }
+    const groups = Array.from(byDiv.entries())
+      .map(([division, ps]) => ({
+        division,
+        players: ps.slice().sort((a, b) => b.points - a.points),
+      }))
+      .sort((a, b) => {
+        if (a.division === "Unassigned") return 1;
+        if (b.division === "Unassigned") return -1;
+        return (b.players[0]?.points ?? 0) - (a.players[0]?.points ?? 0);
+      });
+
+    return { top, groups, total: all.length };
+  }, [teams, playerLeaderboard, clubId]);
 
   const matches = useMemo<MatchRow[]>(() => {
     if (clubId == null) return [];
@@ -343,42 +454,96 @@ export function ClubStatsDialog({
               </section>
             )}
 
-            {/* TOP PLAYERS */}
-            {clubPlayers.length > 0 && (
+            {/* SQUAD — TOP PLAYERS PODIUM + PLAYERS BY DIVISION */}
+            {squad.total > 0 && (
               <section>
-                <div className="text-[10px] uppercase tracking-[0.2em] font-semibold mb-2" style={{ color: DASH.muted }}>Top Players</div>
-                <div className="space-y-1.5">
-                  {clubPlayers.map((p, i) => (
-                    <button key={p.playerId} type="button" onClick={() => onPlayerClick?.(p.playerId, p.fullName)} className="w-full flex items-center gap-3 px-3 py-2 rounded-lg text-left transition hover:brightness-125" style={{ background: DASH.card, border: `1px solid ${DASH.border}` }} data-testid={`clubstats-player-${p.playerId}`}>
-                      <span className="text-sm font-bold w-5 text-center" style={{ color: i === 0 ? DASH.accent : DASH.muted }}>{i + 1}</span>
-                      <div className="flex-1 min-w-0">
-                        <div className="text-sm font-medium truncate" style={{ color: DASH.text }}>{p.fullName}</div>
-                        <div className="text-[10px]" style={{ color: DASH.muted }}>{p.won}W · {p.matchesPlayed}P · {p.winRate}%</div>
-                      </div>
-                      <span className="text-sm font-bold tabular-nums" style={{ color: DASH.accent }}>{p.points}</span>
-                      <ChevronRight className="h-3.5 w-3.5" style={{ color: DASH.muted }} />
-                    </button>
-                  ))}
+                <div className="flex items-center justify-between mb-3">
+                  <div className="text-[10px] uppercase tracking-[0.2em] font-semibold" style={{ color: DASH.muted }}>Squad — Players by Division</div>
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: DASH.card, color: DASH.textDim, border: `1px solid ${DASH.border}` }}>
+                    <Users className="h-3 w-3" /> {squad.total}
+                  </span>
                 </div>
-              </section>
-            )}
 
-            {/* TEAMS / DIVISIONS */}
-            {teams.length > 0 && (
-              <section>
-                <div className="text-[10px] uppercase tracking-[0.2em] font-semibold mb-2" style={{ color: DASH.muted }}>Teams &amp; Divisions</div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-1.5">
-                  {teams.map(t => (
-                    <div key={t.id} className="px-3 py-2 rounded-lg" style={{ background: DASH.card, border: `1px solid ${DASH.border}` }} data-testid={`clubstats-team-${t.id}`}>
-                      <div className="text-sm font-medium truncate" style={{ color: DASH.text }}>{t.name}</div>
-                      <div className="flex items-center gap-1.5 flex-wrap mt-0.5">
-                        {(t.division || t.category) && (
-                          <span className="text-[9px] uppercase tracking-widest" style={{ color: DASH.accent }}>{[t.division, t.category].filter(Boolean).join(" · ")}</span>
-                        )}
+                {/* PODIUM — top 3 by points */}
+                {squad.top.length > 0 && (
+                  <div className="grid grid-cols-3 gap-2 items-end mb-4">
+                    {(() => {
+                      // Display order [2nd, 1st, 3rd] for a true podium feel.
+                      const order = [squad.top[1], squad.top[0], squad.top[2]];
+                      const ranks = [2, 1, 3];
+                      return order.map((p, idx) => {
+                        if (!p) return <div key={`empty-${idx}`} />;
+                        const rank = ranks[idx];
+                        const color = PODIUM[rank - 1];
+                        const isFirst = rank === 1;
+                        return (
+                          <motion.button
+                            key={p.playerId}
+                            type="button"
+                            initial={{ opacity: 0, y: 12 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            transition={{ duration: 0.3, delay: idx * 0.06 }}
+                            onClick={() => onPlayerClick?.(p.playerId, p.name)}
+                            className="relative flex flex-col items-center text-center rounded-2xl px-2 transition-transform hover:-translate-y-1"
+                            style={{
+                              paddingTop: isFirst ? 18 : 12,
+                              paddingBottom: isFirst ? 14 : 10,
+                              background: isFirst
+                                ? `linear-gradient(160deg, ${color}26, ${DASH.panel})`
+                                : DASH.card,
+                              border: `1px solid ${isFirst ? `${color}66` : DASH.border}`,
+                              boxShadow: isFirst ? `0 10px 30px ${color}22` : "none",
+                            }}
+                            data-testid={`clubstats-podium-${p.playerId}`}
+                          >
+                            {isFirst && <Crown className="absolute -top-2.5 h-5 w-5" style={{ color }} fill={color} />}
+                            <div className="relative">
+                              <PlayerBadge name={p.name} size={isFirst ? 52 : 42} ring={color} />
+                              <span
+                                className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full flex items-center justify-center text-[10px] font-black"
+                                style={{ background: color, color: DASH.bg, border: `2px solid ${DASH.panel}` }}
+                              >
+                                {rank}
+                              </span>
+                            </div>
+                            <div className="mt-2 w-full truncate text-xs font-semibold" style={{ color: DASH.text }}>{p.name}</div>
+                            <div className="mt-0.5 flex items-baseline gap-1 justify-center">
+                              <span className={`tabular-nums font-black ${isFirst ? "text-xl" : "text-base"}`} style={{ color }}>{p.points}</span>
+                              <span className="text-[8px] uppercase tracking-widest" style={{ color: DASH.muted }}>pts</span>
+                            </div>
+                          </motion.button>
+                        );
+                      });
+                    })()}
+                  </div>
+                )}
+
+                {/* DIVISION GROUPS */}
+                <div className="space-y-3">
+                  {squad.groups.map(g => (
+                    <div key={g.division} className="rounded-2xl overflow-hidden" style={{ background: DASH.panel, border: `1px solid ${DASH.border}` }} data-testid={`clubstats-division-${g.division}`}>
+                      <div className="flex items-center justify-between px-3 py-2" style={{ borderBottom: `1px solid ${DASH.border}` }}>
+                        <div className="flex items-center gap-2 min-w-0">
+                          <span className="h-6 w-1.5 rounded-full shrink-0" style={{ background: DASH.accent }} />
+                          <Layers className="h-3.5 w-3.5 shrink-0" style={{ color: DASH.accent }} />
+                          <span className="text-xs font-bold uppercase tracking-wider truncate" style={{ color: DASH.text }}>
+                            {g.division === "Unassigned" ? "Other Players" : g.division}
+                          </span>
+                        </div>
+                        <span className="text-[10px] font-semibold px-2 py-0.5 rounded-full shrink-0" style={{ background: DASH.card, color: DASH.textDim, border: `1px solid ${DASH.border}` }}>
+                          {g.players.length} {g.players.length === 1 ? "player" : "players"}
+                        </span>
                       </div>
-                      {t.playerNames && t.playerNames.length > 0 && (
-                        <div className="text-[11px] mt-0.5 truncate" style={{ color: DASH.muted }}>{t.playerNames.join(", ")}</div>
-                      )}
+                      <div className="p-2 space-y-1.5">
+                        {g.players.map((p, i) => (
+                          <SquadRow
+                            key={p.playerId}
+                            player={p}
+                            rank={i + 1}
+                            onClick={() => onPlayerClick?.(p.playerId, p.name)}
+                          />
+                        ))}
+                      </div>
                     </div>
                   ))}
                 </div>

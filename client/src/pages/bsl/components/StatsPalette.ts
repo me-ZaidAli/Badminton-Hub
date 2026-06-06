@@ -18,4 +18,7 @@ export const DASH = {
   text: "#f1f5f9",
   textDim: "#cbd5e1",
   muted: "#94a3b8",
+  gold: "#fbbf24",
+  silver: "#cbd5e1",
+  bronze: "#d97706",
 } as const;
