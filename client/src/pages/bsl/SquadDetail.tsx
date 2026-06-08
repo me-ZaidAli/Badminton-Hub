@@ -1,8 +1,8 @@
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Link, useRoute } from "wouter";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
-import { ArrowLeft, Plus, Pencil, Trash2, X, Upload, LinkIcon, Image as ImageIcon, ExternalLink, Save, Camera } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, X, Upload, LinkIcon, Image as ImageIcon, ExternalLink, Save, Camera, ChevronLeft, ChevronRight } from "lucide-react";
 import { BSLBackground } from "./components/BSLBackground";
 import { BslSubNav } from "@/components/SubNav";
 import { ActionButton } from "./components/ActionButton";
@@ -71,6 +71,61 @@ function ImagePicker({ clubId, value, onChange, label }: { clubId: number; value
         </div>
       </div>
       <input ref={fileRef} type="file" accept="image/*" className="hidden" onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); e.target.value = ""; }} />
+    </div>
+  );
+}
+
+// A horizontal scroller of player cards with left/right arrows. The arrows
+// appear only when the row overflows and disable at each end.
+function DivisionRow({ items, canManage, accent, onEdit, onDelete }: { items: SquadCard[]; canManage: boolean; accent: string; onEdit: (m: SquadCard) => void; onDelete: (m: SquadCard) => void }) {
+  const scrollRef = useRef<HTMLDivElement>(null);
+  const [canLeft, setCanLeft] = useState(false);
+  const [canRight, setCanRight] = useState(false);
+
+  const update = () => {
+    const el = scrollRef.current;
+    if (!el) return;
+    setCanLeft(el.scrollLeft > 4);
+    setCanRight(el.scrollLeft + el.clientWidth < el.scrollWidth - 4);
+  };
+  useEffect(() => {
+    update();
+    const el = scrollRef.current;
+    if (!el) return;
+    el.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
+    return () => { el.removeEventListener("scroll", update); window.removeEventListener("resize", update); };
+  }, [items.length]);
+
+  const scrollBy = (dir: number) => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollBy({ left: dir * Math.max(el.clientWidth * 0.8, 220), behavior: "smooth" });
+  };
+
+  const arrowStyle: React.CSSProperties = {
+    background: "hsla(222,60%,6%,0.92)", color: accent, border: `1px solid ${accent}66`,
+    boxShadow: `0 8px 24px -8px hsla(222,80%,2%,0.9)`,
+  };
+  return (
+    <div className="relative">
+      {canLeft && (
+        <button onClick={() => scrollBy(-1)} aria-label="Scroll left" className="hidden sm:flex items-center justify-center absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2 z-10 h-10 w-10 rounded-full" style={arrowStyle} data-testid="button-scroll-left">
+          <ChevronLeft className="h-5 w-5" />
+        </button>
+      )}
+      <div ref={scrollRef} className="bsl-hscroll flex gap-5 sm:gap-6 overflow-x-auto pb-2 snap-x" style={{ scrollPaddingLeft: 8 }}>
+        {items.map((m) => (
+          <div key={m.key} className="snap-start shrink-0 w-[44vw] sm:w-44 md:w-48 max-w-[220px]">
+            <PlayerCard card={m} canManage={canManage} accent={accent} onEdit={() => onEdit(m)} onDelete={() => onDelete(m)} />
+          </div>
+        ))}
+      </div>
+      {canRight && (
+        <button onClick={() => scrollBy(1)} aria-label="Scroll right" className="hidden sm:flex items-center justify-center absolute right-0 top-1/2 -translate-y-1/2 translate-x-1/2 z-10 h-10 w-10 rounded-full" style={arrowStyle} data-testid="button-scroll-right">
+          <ChevronRight className="h-5 w-5" />
+        </button>
+      )}
     </div>
   );
 }
@@ -267,11 +322,13 @@ export default function SquadDetail() {
                         <span className="text-sm" style={{ color: BSL.muted }}>No players added yet{canManage ? " — use Add Player." : "."}</span>
                       </div>
                     ) : (
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 sm:gap-6">
-                        {group.items.map((m) => (
-                          <PlayerCard key={m.key} card={m} canManage={canManage} accent={accent} onEdit={() => setEditing({ card: m, division: m.division })} onDelete={() => { if (m.squadMemberId && confirm(`Remove ${m.name}?`)) del.mutate(m.squadMemberId); }} />
-                        ))}
-                      </div>
+                      <DivisionRow
+                        items={group.items}
+                        canManage={canManage}
+                        accent={accent}
+                        onEdit={(m) => setEditing({ card: m, division: m.division })}
+                        onDelete={(m) => { if (m.squadMemberId && confirm(`Remove ${m.name}?`)) del.mutate(m.squadMemberId); }}
+                      />
                     )}
                   </section>
                 );

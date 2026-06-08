@@ -3915,7 +3915,10 @@ export function registerBslRoutes(app: Express) {
           playerId: p.id,
           squadMemberId: o?.id ?? null,
           name,
-          division: (o?.division ?? p.division) || null,
+          // Fall back to the club's primary division when a player has no
+          // division set, mirroring the manager roster grouping so every
+          // registered player lands in a real division row (not "Squad").
+          division: (o?.division ?? p.division ?? club.division) || null,
           photoUrl: o?.photoUrl ?? null,
           linkUrl: o?.linkUrl ?? null,
         };

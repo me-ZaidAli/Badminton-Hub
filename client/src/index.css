@@ -336,6 +336,14 @@
   border-color: hsl(43 72% 52% / 0.4);
 }
 
+.bsl-hscroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.bsl-hscroll::-webkit-scrollbar {
+  display: none;
+}
+
 .premium-gold * {
   scrollbar-color: hsl(43 30% 22%) hsl(240 10% 8%);
 }
