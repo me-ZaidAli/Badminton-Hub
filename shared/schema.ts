@@ -3296,6 +3296,26 @@ export const bslTeamMembers = pgTable("bsl_team_members", {
 });
 export type BslTeamMember = typeof bslTeamMembers.$inferSelect;
 
+// Curated "Meet the Squads" showcase roster — admin / club-admin maintained.
+// Independent of bslPlayers (which is tied to user accounts, wallets, grading).
+// Each row is one player card on a club's squad page; `division` decides which
+// division row the card appears under (NULL/"" = ungrouped "Squad" row).
+// `photoUrl` is an uploaded /files/ URL or a pasted external URL; `linkUrl` (when
+// set) makes the photo a clickable link.
+export const bslSquadMembers = pgTable("bsl_squad_members", {
+  id: serial("id").primaryKey(),
+  bslClubId: integer("bsl_club_id").notNull().references(() => bslClubs.id, { onDelete: "cascade" }),
+  division: text("division"),
+  name: text("name").notNull(),
+  photoUrl: text("photo_url"),
+  linkUrl: text("link_url"),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+export const insertBslSquadMemberSchema = createInsertSchema(bslSquadMembers).omit({ id: true, createdAt: true });
+export type BslSquadMember = typeof bslSquadMembers.$inferSelect;
+export type InsertBslSquadMember = z.infer<typeof insertBslSquadMemberSchema>;
+
 export const bslLeagueDays = pgTable("bsl_league_days", {
   id: serial("id").primaryKey(),
   bslLeagueId: integer("bsl_league_id").notNull().references(() => bslLeagues.id, { onDelete: "cascade" }),

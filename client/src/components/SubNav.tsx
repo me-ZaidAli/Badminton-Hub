@@ -80,6 +80,7 @@ export function BslSubNav() {
     { href: "/bsl", label: "League", icon: Trophy, match: (p) => p === "/bsl" },
     { href: "/bsl/challenge-zone", label: "Challenge Zone", icon: Swords, match: (p) => p === "/bsl/challenge-zone" },
     { href: "/bsl/player-leaderboard", label: "Player Leaderboard", icon: Medal, match: (p) => p === "/bsl/player-leaderboard" },
+    { href: "/bsl/squads", label: "Squads", icon: Users, match: (p) => p === "/bsl/squads" || p.startsWith("/bsl/squads/") },
     { href: "/bsl/results", label: "Results", icon: Award, match: (p) => p === "/bsl/results" },
     { href: "/bsl/prizes", label: "Prize Vault", icon: Award },
     { href: "/bsl/wallet", label: "Wallet", icon: WalletIcon, show: !!u },

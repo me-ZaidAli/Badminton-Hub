@@ -8,6 +8,7 @@ import {
   bslLeagues, bslClubs, bslTeams, bslPlayers, bslLeagueDays, bslChallenges,
   bslFixtures, bslRubbers, bslWalletTransactions, bslAuditLog, bslMedia, users,
   bslTeamMembers, bslCategorySettings, bslFixtureVersions, bslPrizes,
+  bslSquadMembers,
 } from "@shared/schema";
 import { sendRulePush } from "./notificationRules";
 import { getBslSummary, invalidateBslSummary } from "./bslSummary";
@@ -53,6 +54,22 @@ function genRef(prefix: string) {
 }
 function genInvite() {
   return Math.random().toString(36).slice(2, 8).toUpperCase() + Math.random().toString(36).slice(2, 6).toUpperCase();
+}
+
+// Sanitise a user-pasted URL before it gets stored and later rendered into an
+// <img src> or <a href>. Returns the cleaned string, or null if empty/unsafe.
+// `mode` "image" also permits our own stored relative paths (/files, /uploads);
+// "link" requires an absolute http(s) URL. Blocks javascript:/data:/file: etc.
+function sanitiseUrl(value: any, mode: "image" | "link"): string | null {
+  const s = String(value ?? "").trim();
+  if (!s) return null;
+  const capped = s.slice(0, 1000);
+  if (mode === "image" && /^\/(files|uploads)\//i.test(capped)) return capped;
+  try {
+    const u = new URL(capped);
+    if (u.protocol === "http:" || u.protocol === "https:") return capped;
+  } catch { /* not a parseable absolute URL */ }
+  return null;
 }
 
 // ========== UPLOADS ==========
@@ -2900,6 +2917,7 @@ export function registerBslRoutes(app: Express) {
           )).slice(0, 8);
           v = cleaned;
         }
+        if (k === "logoUrl") v = sanitiseUrl(v, "image");
         patch[k] = v;
       }
       if (Object.keys(patch).length === 0) return res.status(400).json({ message: "Nothing to update" });
@@ -3832,10 +3850,140 @@ export function registerBslRoutes(app: Express) {
       const allow = ["name", "logoUrl", "division", "adminNotes"];
       const patch: any = {};
       for (const k of allow) if (k in req.body) patch[k] = req.body[k];
+      if ("logoUrl" in patch) patch.logoUrl = sanitiseUrl(patch.logoUrl, "image");
       if (!Object.keys(patch).length) return res.status(400).json({ message: "Nothing to update" });
       const [updated] = await db.update(bslClubs).set(patch).where(eq(bslClubs.id, id)).returning();
       await audit(req, "MANAGER_UPDATE_CLUB", "bsl_clubs", id, patch);
       res.json(updated);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // ---------------------------------------------------------------------------
+  // MEET THE SQUADS — curated showcase rosters (bsl_squad_members)
+  // ---------------------------------------------------------------------------
+
+  // Public: grid of clubs for the "Meet the Squads" page. Visible = ACTIVE
+  // (the same visibility gate used everywhere else for public club listings),
+  // newest-relevant first. No auth required.
+  app.get("/api/bsl/squads", async (_req, res) => {
+    try {
+      const clubs = await db.select({
+        id: bslClubs.id, name: bslClubs.name, logoUrl: bslClubs.logoUrl,
+        division: bslClubs.division, additionalDivisions: bslClubs.additionalDivisions,
+        sleepingAt: bslClubs.sleepingAt,
+      }).from(bslClubs).where(eq(bslClubs.status, "ACTIVE")).orderBy(asc(bslClubs.name));
+      res.json(clubs);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Public: one club's squad — club header + curated members. `canManage` lets
+  // the frontend show inline admin controls only to OWNER/ADMIN or the club's
+  // manager / additional admins. Auth optional.
+  app.get("/api/bsl/squads/:clubId", async (req, res) => {
+    try {
+      const clubId = Number(req.params.clubId);
+      if (!Number.isFinite(clubId)) return res.status(400).json({ message: "Bad club id" });
+      const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, clubId)).limit(1);
+      if (!club) return res.status(404).json({ message: "Club not found" });
+      const members = await db.select().from(bslSquadMembers)
+        .where(eq(bslSquadMembers.bslClubId, clubId))
+        .orderBy(asc(bslSquadMembers.sortOrder), asc(bslSquadMembers.id));
+      let canManage = false;
+      if (authed(req)) {
+        const u = (req as any).user;
+        canManage = isAdminish(u)
+          || club.managerUserId === u.id
+          || (Array.isArray((club as any).adminUserIds) && (club as any).adminUserIds.includes(u.id));
+      }
+      // Public visibility mirrors the grid: only ACTIVE clubs are exposed.
+      // Managers/admins of the club may still view it before it goes active so
+      // they can set up the squad.
+      if (club.status !== "ACTIVE" && !canManage) return res.status(404).json({ message: "Club not found" });
+      // Divisions this club spans, primary first, for the per-division row UI.
+      const divisions = [club.division, ...(Array.isArray(club.additionalDivisions) ? club.additionalDivisions : [])]
+        .filter((d, i, arr) => d && arr.indexOf(d) === i);
+      res.json({
+        club: {
+          id: club.id, name: club.name, logoUrl: club.logoUrl,
+          division: club.division, additionalDivisions: club.additionalDivisions,
+          sleepingAt: club.sleepingAt,
+        },
+        divisions, members, canManage,
+      });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Upload a squad/logo image for a club (manager or admin). Returns { url }.
+  app.post("/api/bsl/clubs/:id/squad-image", requireAuth, bslUpload.single("file"), async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      if (!req.file) return res.status(400).json({ message: "file required" });
+      const url = await saveBufferToBucket(req.file.buffer, "bsl/squads", req.file.originalname);
+      res.json({ url });
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Create a squad member (manager or admin).
+  app.post("/api/bsl/clubs/:id/squad-members", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const { club, reason } = await loadClubForManager(req, id);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const name = String(req.body.name || "").trim();
+      if (!name) return res.status(400).json({ message: "Player name required" });
+      const clean = (v: any) => { const s = String(v ?? "").trim(); return s.length ? s.slice(0, 1000) : null; };
+      const [row] = await db.insert(bslSquadMembers).values({
+        bslClubId: id,
+        name: name.slice(0, 120),
+        division: clean(req.body.division),
+        photoUrl: sanitiseUrl(req.body.photoUrl, "image"),
+        linkUrl: sanitiseUrl(req.body.linkUrl, "link"),
+        sortOrder: Number.isFinite(Number(req.body.sortOrder)) ? Number(req.body.sortOrder) : 0,
+      }).returning();
+      await audit(req, "BSL_SQUAD_MEMBER_CREATE", "bsl_squad_members", row.id, { clubId: id });
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Update a squad member (manager of its club or admin).
+  app.patch("/api/bsl/squad-members/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [member] = await db.select().from(bslSquadMembers).where(eq(bslSquadMembers.id, id)).limit(1);
+      if (!member) return res.status(404).json({ message: "Member not found" });
+      const { club, reason } = await loadClubForManager(req, member.bslClubId);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const clean = (v: any) => { const s = String(v ?? "").trim(); return s.length ? s.slice(0, 1000) : null; };
+      const patch: any = {};
+      if ("name" in req.body) {
+        const n = String(req.body.name || "").trim();
+        if (!n) return res.status(400).json({ message: "Player name required" });
+        patch.name = n.slice(0, 120);
+      }
+      if ("division" in req.body) patch.division = clean(req.body.division);
+      if ("photoUrl" in req.body) patch.photoUrl = sanitiseUrl(req.body.photoUrl, "image");
+      if ("linkUrl" in req.body) patch.linkUrl = sanitiseUrl(req.body.linkUrl, "link");
+      if ("sortOrder" in req.body && Number.isFinite(Number(req.body.sortOrder))) patch.sortOrder = Number(req.body.sortOrder);
+      if (!Object.keys(patch).length) return res.status(400).json({ message: "Nothing to update" });
+      const [row] = await db.update(bslSquadMembers).set(patch).where(eq(bslSquadMembers.id, id)).returning();
+      await audit(req, "BSL_SQUAD_MEMBER_UPDATE", "bsl_squad_members", id, patch);
+      res.json(row);
+    } catch (err: any) { res.status(500).json({ message: err.message }); }
+  });
+
+  // Delete a squad member (manager of its club or admin).
+  app.delete("/api/bsl/squad-members/:id", requireAuth, async (req, res) => {
+    try {
+      const id = Number(req.params.id);
+      const [member] = await db.select().from(bslSquadMembers).where(eq(bslSquadMembers.id, id)).limit(1);
+      if (!member) return res.status(404).json({ message: "Member not found" });
+      const { club, reason } = await loadClubForManager(req, member.bslClubId);
+      if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      await db.delete(bslSquadMembers).where(eq(bslSquadMembers.id, id));
+      await audit(req, "BSL_SQUAD_MEMBER_DELETE", "bsl_squad_members", id, { clubId: member.bslClubId });
+      res.json({ ok: true });
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 

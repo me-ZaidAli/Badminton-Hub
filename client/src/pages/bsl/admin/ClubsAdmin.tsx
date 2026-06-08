@@ -377,7 +377,7 @@ function ClubEditor({ club, divisions, onClose, onSave }: any) {
   const qc = useQueryClient();
   const { toast } = useToast();
   const [form, setForm] = useState({
-    name: club.name, division: club.division, teamCount: club.teamCount,
+    name: club.name, division: club.division, teamCount: club.teamCount, logoUrl: club.logoUrl || "",
     additionalDivisions: Array.isArray(club.additionalDivisions) ? [...club.additionalDivisions] : [],
     isFlagged: club.isFlagged, isSuspended: club.isSuspended, adminNotes: club.adminNotes || "",
   });
@@ -422,6 +422,16 @@ function ClubEditor({ club, divisions, onClose, onSave }: any) {
         </div>
         <div className="space-y-3">
           <Field label="Name"><input value={form.name} onChange={e => setForm({ ...form, name: e.target.value })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-name" /></Field>
+          <Field label="Logo / profile picture URL (optional)">
+            <div className="flex items-center gap-3">
+              <div className="h-12 w-12 rounded-lg overflow-hidden flex items-center justify-center shrink-0" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}` }}>
+                {form.logoUrl && /^(https?:\/\/|\/uploads\/|\/files\/)/i.test(form.logoUrl)
+                  ? <img src={form.logoUrl} className="h-full w-full object-contain" alt="" />
+                  : <span className="text-[10px] font-black" style={{ color: BSL.faint }}>{(form.name || "?").slice(0, 2).toUpperCase()}</span>}
+              </div>
+              <input value={form.logoUrl} onChange={e => setForm({ ...form, logoUrl: e.target.value })} placeholder="https://…" className="flex-1 px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="input-logo-url" />
+            </div>
+          </Field>
           <Field label="Division">
             <select value={form.division} onChange={e => setForm({ ...form, division: e.target.value })} className="w-full px-3 py-2 rounded-lg text-sm" style={{ background: BSL.cardSoft, border: `1px solid ${BSL.border}`, color: "white" }} data-testid="select-division">
               {divisions.map((d: string) => <option key={d} value={d}>{d}</option>)}

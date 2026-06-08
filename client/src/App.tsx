@@ -207,6 +207,8 @@ const BslAdminMedia = lazy(() => import("@/pages/bsl/admin/MediaAdmin"));
 const BslAdminSettings = lazy(() => import("@/pages/bsl/admin/SettingsAdmin"));
 const BslResults = lazy(() => import("@/pages/bsl/Results"));
 const BslPlayerLeaderboard = lazy(() => import("@/pages/bsl/PlayerLeaderboard"));
+const BslSquads = lazy(() => import("@/pages/bsl/Squads"));
+const BslSquadDetail = lazy(() => import("@/pages/bsl/SquadDetail"));
 const BslAdminQuickResults = lazy(() => import("@/pages/bsl/admin/QuickResults"));
 
 function AuthenticatedShell({ children }: { children: React.ReactNode }) {
@@ -615,6 +617,12 @@ function Router() {
       </Route>
       <Route path="/bsl/player-leaderboard">
         <Suspense fallback={<LazyFallback />}><BslPlayerLeaderboard /></Suspense>
+      </Route>
+      <Route path="/bsl/squads">
+        <Suspense fallback={<LazyFallback />}><BslSquads /></Suspense>
+      </Route>
+      <Route path="/bsl/squads/:id">
+        <Suspense fallback={<LazyFallback />}><BslSquadDetail /></Suspense>
       </Route>
       <Route path="/bsl/admin">
         <BslAdminRoute component={() => <BslAdminDashboard />} />
