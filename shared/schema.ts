@@ -3305,13 +3305,23 @@ export type BslTeamMember = typeof bslTeamMembers.$inferSelect;
 export const bslSquadMembers = pgTable("bsl_squad_members", {
   id: serial("id").primaryKey(),
   bslClubId: integer("bsl_club_id").notNull().references(() => bslClubs.id, { onDelete: "cascade" }),
+  // When set, this row is a photo/link OVERLAY for a real registered player
+  // (bsl_players). When NULL, it's a standalone manual card (e.g. a guest not
+  // yet in the system). The squad page auto-lists every active club player and
+  // merges any matching overlay on top, so names appear without manual entry.
+  bslPlayerId: integer("bsl_player_id").references(() => bslPlayers.id, { onDelete: "cascade" }),
   division: text("division"),
   name: text("name").notNull(),
   photoUrl: text("photo_url"),
   linkUrl: text("link_url"),
   sortOrder: integer("sort_order").notNull().default(0),
   createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+}, (t) => ({
+  // At most one overlay row per (club, player) so the auto-roster merge stays
+  // 1:1. Partial — manual cards (bslPlayerId NULL) are unconstrained.
+  uniquePlayerOverlay: uniqueIndex("bsl_squad_members_club_player_uq")
+    .on(t.bslClubId, t.bslPlayerId).where(sql`bsl_player_id IS NOT NULL`),
+}));
 export const insertBslSquadMemberSchema = createInsertSchema(bslSquadMembers).omit({ id: true, createdAt: true });
 export type BslSquadMember = typeof bslSquadMembers.$inferSelect;
 export type InsertBslSquadMember = z.infer<typeof insertBslSquadMemberSchema>;

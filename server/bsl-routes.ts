@@ -3885,9 +3885,53 @@ export function registerBslRoutes(app: Express) {
       if (!Number.isFinite(clubId)) return res.status(400).json({ message: "Bad club id" });
       const [club] = await db.select().from(bslClubs).where(eq(bslClubs.id, clubId)).limit(1);
       if (!club) return res.status(404).json({ message: "Club not found" });
-      const members = await db.select().from(bslSquadMembers)
+      const squadRows = await db.select().from(bslSquadMembers)
         .where(eq(bslSquadMembers.bslClubId, clubId))
         .orderBy(asc(bslSquadMembers.sortOrder), asc(bslSquadMembers.id));
+      // Auto-roster: every active registered player of this club becomes a card,
+      // even with no curated row, so names appear without manual data entry. A
+      // squad row with a matching bslPlayerId is merged on top as a photo/link
+      // overlay. Squad rows with NULL bslPlayerId are standalone manual cards.
+      const roster = await db.select({
+        id: bslPlayers.id,
+        displayName: bslPlayers.displayName,
+        division: bslPlayers.division,
+        fullName: users.fullName,
+      }).from(bslPlayers)
+        .leftJoin(users, eq(users.id, bslPlayers.userId))
+        .where(and(eq(bslPlayers.bslClubId, clubId), eq(bslPlayers.status, "ACTIVE")));
+      const overlayByPlayer = new Map<number, typeof squadRows[number]>();
+      const manualRows: typeof squadRows = [];
+      for (const r of squadRows) {
+        if (r.bslPlayerId) overlayByPlayer.set(r.bslPlayerId, r);
+        else manualRows.push(r);
+      }
+      const playerCards = roster.map((p) => {
+        const o = overlayByPlayer.get(p.id);
+        const name = (o?.name?.trim() || (p.displayName || "").trim() || (p.fullName || "").trim() || `Player #${p.id}`);
+        return {
+          key: `p${p.id}`,
+          kind: "player" as const,
+          playerId: p.id,
+          squadMemberId: o?.id ?? null,
+          name,
+          division: (o?.division ?? p.division) || null,
+          photoUrl: o?.photoUrl ?? null,
+          linkUrl: o?.linkUrl ?? null,
+        };
+      });
+      const manualCards = manualRows.map((r) => ({
+        key: `m${r.id}`,
+        kind: "manual" as const,
+        playerId: null,
+        squadMemberId: r.id,
+        name: r.name,
+        division: r.division || null,
+        photoUrl: r.photoUrl,
+        linkUrl: r.linkUrl,
+      }));
+      const members = [...playerCards, ...manualCards]
+        .sort((a, b) => a.name.localeCompare(b.name));
       let canManage = false;
       if (authed(req)) {
         const u = (req as any).user;
@@ -3925,21 +3969,49 @@ export function registerBslRoutes(app: Express) {
     } catch (err: any) { res.status(500).json({ message: err.message }); }
   });
 
-  // Create a squad member (manager or admin).
+  // Create a squad member (manager or admin). Two modes:
+  //  • Manual card  — no bslPlayerId; a free-text guest card (name required).
+  //  • Player overlay — bslPlayerId set; attaches photo/link (and optional name
+  //    override) to a real registered player. Upserts so there's at most one
+  //    overlay row per player.
   app.post("/api/bsl/clubs/:id/squad-members", requireAuth, async (req, res) => {
     try {
       const id = Number(req.params.id);
       const { club, reason } = await loadClubForManager(req, id);
       if (!club) return res.status(reason === "Not your club" ? 403 : 404).json({ message: reason || "Not found" });
+      const clean = (v: any) => { const s = String(v ?? "").trim(); return s.length ? s.slice(0, 1000) : null; };
+      const photoUrl = sanitiseUrl(req.body.photoUrl, "image");
+      const linkUrl = sanitiseUrl(req.body.linkUrl, "link");
+      const rawPlayerId = Number(req.body.bslPlayerId);
+      const bslPlayerId = Number.isFinite(rawPlayerId) && rawPlayerId > 0 ? rawPlayerId : null;
+
+      if (bslPlayerId) {
+        // Overlay path — player must belong to this club.
+        const [pl] = await db.select().from(bslPlayers)
+          .where(and(eq(bslPlayers.id, bslPlayerId), eq(bslPlayers.bslClubId, id))).limit(1);
+        if (!pl) return res.status(400).json({ message: "Player not in this club" });
+        const nameOverride = String(req.body.name || "").trim().slice(0, 120);
+        // Atomic upsert keyed to the partial unique index on (club, player) —
+        // safe under concurrency, guarantees one overlay row per player.
+        const [row] = await db.insert(bslSquadMembers).values({
+          bslClubId: id, bslPlayerId, name: nameOverride,
+          division: clean(req.body.division), photoUrl, linkUrl, sortOrder: 0,
+        }).onConflictDoUpdate({
+          target: [bslSquadMembers.bslClubId, bslSquadMembers.bslPlayerId],
+          targetWhere: dsql`bsl_player_id IS NOT NULL`,
+          set: { name: nameOverride, division: clean(req.body.division), photoUrl, linkUrl },
+        }).returning();
+        await audit(req, "BSL_SQUAD_MEMBER_UPSERT", "bsl_squad_members", row.id, { clubId: id, bslPlayerId });
+        return res.json(row);
+      }
+
       const name = String(req.body.name || "").trim();
       if (!name) return res.status(400).json({ message: "Player name required" });
-      const clean = (v: any) => { const s = String(v ?? "").trim(); return s.length ? s.slice(0, 1000) : null; };
       const [row] = await db.insert(bslSquadMembers).values({
         bslClubId: id,
         name: name.slice(0, 120),
         division: clean(req.body.division),
-        photoUrl: sanitiseUrl(req.body.photoUrl, "image"),
-        linkUrl: sanitiseUrl(req.body.linkUrl, "link"),
+        photoUrl, linkUrl,
         sortOrder: Number.isFinite(Number(req.body.sortOrder)) ? Number(req.body.sortOrder) : 0,
       }).returning();
       await audit(req, "BSL_SQUAD_MEMBER_CREATE", "bsl_squad_members", row.id, { clubId: id });

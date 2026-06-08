@@ -10,19 +10,23 @@ import { BSL } from "./components/BSLPalette";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
-interface SquadMember {
-  id: number;
-  bslClubId: number;
+// A unified squad card. `kind: "player"` = auto-listed from the club's real
+// registered roster (a curated overlay may add a photo/link). `kind: "manual"`
+// = a free-text guest card not tied to a user account.
+interface SquadCard {
+  key: string;
+  kind: "player" | "manual";
+  playerId: number | null;
+  squadMemberId: number | null;
   division: string | null;
   name: string;
   photoUrl: string | null;
   linkUrl: string | null;
-  sortOrder: number;
 }
 interface SquadData {
   club: { id: number; name: string; logoUrl: string | null; division: string; additionalDivisions: string[]; sleepingAt: string | null };
   divisions: string[];
-  members: SquadMember[];
+  members: SquadCard[];
   canManage: boolean;
 }
 
@@ -71,22 +75,29 @@ function ImagePicker({ clubId, value, onChange, label }: { clubId: number; value
   );
 }
 
-function MemberEditor({ clubId, divisions, member, defaultDivision, onClose }: { clubId: number; divisions: string[]; member: SquadMember | null; defaultDivision: string | null; onClose: () => void }) {
+function MemberEditor({ clubId, divisions, card, defaultDivision, onClose }: { clubId: number; divisions: string[]; card: SquadCard | null; defaultDivision: string | null; onClose: () => void }) {
   const { toast } = useToast();
-  const [name, setName] = useState(member?.name || "");
-  const [division, setDivision] = useState<string>(member?.division ?? defaultDivision ?? (divisions[0] || ""));
-  const [photoUrl, setPhotoUrl] = useState(member?.photoUrl || "");
-  const [linkUrl, setLinkUrl] = useState(member?.linkUrl || "");
+  const isPlayer = card?.kind === "player";
+  const [name, setName] = useState(card?.name || "");
+  const [division, setDivision] = useState<string>(card?.division ?? defaultDivision ?? (divisions[0] || ""));
+  const [photoUrl, setPhotoUrl] = useState(card?.photoUrl || "");
+  const [linkUrl, setLinkUrl] = useState(card?.linkUrl || "");
 
   const save = useMutation({
     mutationFn: async () => {
-      const body = { name: name.trim(), division: division || null, photoUrl: photoUrl || null, linkUrl: linkUrl || null };
-      if (member) return (await apiRequest("PATCH", `/api/bsl/squad-members/${member.id}`, body)).json();
+      const body: any = { name: name.trim(), division: division || null, photoUrl: photoUrl || null, linkUrl: linkUrl || null };
+      // Player card → upsert a photo/link overlay keyed to the real player.
+      if (isPlayer && card?.playerId) {
+        body.bslPlayerId = card.playerId;
+        return (await apiRequest("POST", `/api/bsl/clubs/${clubId}/squad-members`, body)).json();
+      }
+      // Existing manual card → patch it; new manual card → create it.
+      if (card?.squadMemberId) return (await apiRequest("PATCH", `/api/bsl/squad-members/${card.squadMemberId}`, body)).json();
       return (await apiRequest("POST", `/api/bsl/clubs/${clubId}/squad-members`, body)).json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/bsl/squads", clubId] });
-      toast({ title: member ? "Player updated" : "Player added" });
+      toast({ title: card ? "Player updated" : "Player added" });
       onClose();
     },
     onError: (e: any) => toast({ title: "Failed", description: e.message?.replace(/^\d+:\s*/, ""), variant: "destructive" }),
@@ -96,13 +107,14 @@ function MemberEditor({ clubId, divisions, member, defaultDivision, onClose }: {
     <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={onClose}>
       <motion.div initial={{ scale: 0.95, y: 20 }} animate={{ scale: 1, y: 0 }} className="w-full max-w-md rounded-2xl p-6" style={{ background: BSL.card, border: `1px solid ${BSL.gold}55` }} onClick={(e) => e.stopPropagation()} data-testid="dialog-member-editor">
         <div className="flex items-center justify-between mb-4">
-          <h3 className="text-lg font-black uppercase tracking-tight">{member ? "Edit Player" : "Add Player"}</h3>
+          <h3 className="text-lg font-black uppercase tracking-tight">{card ? "Edit Player" : "Add Player"}</h3>
           <button onClick={onClose} className="p-1.5 rounded" style={{ background: BSL.cardSoft }} data-testid="button-close-editor"><X className="h-4 w-4" /></button>
         </div>
         <div className="space-y-4">
           <div>
             <label className="text-[10px] uppercase tracking-widest font-bold block mb-1" style={{ color: BSL.muted }}>Player name</label>
             <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex Carter" className="w-full px-3 py-2 rounded-lg text-sm" style={inputStyle} data-testid="input-member-name" />
+            {isPlayer && <p className="text-[10px] mt-1" style={{ color: BSL.faint }}>This player is from your registered roster. Editing the name here only changes how it shows on the squad page.</p>}
           </div>
           <div>
             <label className="text-[10px] uppercase tracking-widest font-bold block mb-1" style={{ color: BSL.muted }}>Division</label>
@@ -126,12 +138,12 @@ function MemberEditor({ clubId, divisions, member, defaultDivision, onClose }: {
   );
 }
 
-function PlayerCard({ member, canManage, accent, onEdit, onDelete }: { member: SquadMember; canManage: boolean; accent: string; onEdit: () => void; onDelete: () => void }) {
-  const photo = member.photoUrl ? (
-    <img src={member.photoUrl} alt={member.name} className="h-full w-full object-cover" data-testid={`img-player-${member.id}`} />
+function PlayerCard({ card, canManage, accent, onEdit, onDelete }: { card: SquadCard; canManage: boolean; accent: string; onEdit: () => void; onDelete: () => void }) {
+  const photo = card.photoUrl ? (
+    <img src={card.photoUrl} alt={card.name} className="h-full w-full object-cover" data-testid={`img-player-${card.key}`} />
   ) : (
     <div className="h-full w-full flex items-center justify-center" style={{ background: "hsla(0,0%,100%,0.04)" }}>
-      <span className="text-2xl font-black" style={{ color: accent }}>{member.name.slice(0, 2).toUpperCase()}</span>
+      <span className="text-2xl font-black" style={{ color: accent }}>{card.name.slice(0, 2).toUpperCase()}</span>
     </div>
   );
   return (
@@ -140,19 +152,21 @@ function PlayerCard({ member, canManage, accent, onEdit, onDelete }: { member: S
         className="relative rounded-2xl overflow-hidden"
         style={{ aspectRatio: "3 / 4", background: "hsla(222,40%,14%,0.8)", border: `1px solid ${accent}44`, boxShadow: `0 16px 40px -20px hsla(222,80%,2%,0.9)` }}
       >
-        {member.linkUrl ? (
-          <a href={member.linkUrl} target="_blank" rel="noopener noreferrer" className="block h-full w-full" data-testid={`link-player-${member.id}`}>
+        {card.linkUrl ? (
+          <a href={card.linkUrl} target="_blank" rel="noopener noreferrer" className="block h-full w-full" data-testid={`link-player-${card.key}`}>
             {photo}
             <span className="absolute top-2 right-2 p-1 rounded-md" style={{ background: "hsla(222,60%,4%,0.7)", color: accent }}><ExternalLink className="h-3 w-3" /></span>
           </a>
         ) : photo}
         <div className="absolute inset-x-0 bottom-0 p-2.5 pt-6" style={{ background: "linear-gradient(180deg, transparent, hsla(222,70%,3%,0.92))" }}>
-          <div className="text-sm font-black text-white leading-tight truncate" data-testid={`text-player-name-${member.id}`}>{member.name}</div>
+          <div className="text-sm font-black text-white leading-tight truncate" data-testid={`text-player-name-${card.key}`}>{card.name}</div>
         </div>
         {canManage && (
           <div className="absolute top-2 left-2 flex gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={onEdit} className="p-1.5 rounded-md" style={{ background: "hsla(222,60%,4%,0.8)", color: BSL.cyan }} data-testid={`button-edit-player-${member.id}`}><Pencil className="h-3 w-3" /></button>
-            <button onClick={onDelete} className="p-1.5 rounded-md" style={{ background: "hsla(222,60%,4%,0.8)", color: BSL.danger }} data-testid={`button-delete-player-${member.id}`}><Trash2 className="h-3 w-3" /></button>
+            <button onClick={onEdit} className="p-1.5 rounded-md" style={{ background: "hsla(222,60%,4%,0.8)", color: BSL.cyan }} data-testid={`button-edit-player-${card.key}`}><Pencil className="h-3 w-3" /></button>
+            {card.kind === "manual" && (
+              <button onClick={onDelete} className="p-1.5 rounded-md" style={{ background: "hsla(222,60%,4%,0.8)", color: BSL.danger }} data-testid={`button-delete-player-${card.key}`}><Trash2 className="h-3 w-3" /></button>
+            )}
           </div>
         )}
       </div>
@@ -166,7 +180,7 @@ export default function SquadDetail() {
   const { toast } = useToast();
   const { data, isLoading } = useQuery<SquadData>({ queryKey: ["/api/bsl/squads", clubId], enabled: Number.isFinite(clubId) });
 
-  const [editing, setEditing] = useState<{ member: SquadMember | null; division: string | null } | null>(null);
+  const [editing, setEditing] = useState<{ card: SquadCard | null; division: string | null } | null>(null);
   const [editLogo, setEditLogo] = useState(false);
   const [logoUrl, setLogoUrl] = useState("");
 
@@ -186,13 +200,13 @@ export default function SquadDetail() {
   const divisions = data?.divisions || [];
   // Group members by division; collect any ungrouped ones into their own row.
   const members = data?.members || [];
-  const byDivision: { key: string; label: string; items: SquadMember[] }[] = [];
+  const byDivision: { key: string; label: string; items: SquadCard[] }[] = [];
   for (const d of divisions) byDivision.push({ key: d, label: d, items: members.filter((m) => m.division === d) });
   const ungrouped = members.filter((m) => !m.division || !divisions.includes(m.division));
   if (ungrouped.length || (canManage && divisions.length === 0)) byDivision.push({ key: UNGROUPED, label: divisions.length ? "Squad" : "Squad", items: ungrouped });
 
   return (
-    <div className="min-h-screen" style={{ color: BSL.text }}>
+    <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
       <BslSubNav />
       <div className="max-w-6xl mx-auto px-4 py-8 sm:py-10">
@@ -243,7 +257,7 @@ export default function SquadDetail() {
                         <h2 className="text-xl sm:text-2xl font-black uppercase tracking-tight">{group.label} <span style={{ color: accent }}>Team</span></h2>
                       </div>
                       {canManage && (
-                        <button onClick={() => setEditing({ member: null, division: group.key === UNGROUPED ? "" : group.label })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: `${accent}1f`, color: accent, border: `1px solid ${accent}55` }} data-testid={`button-add-player-${group.key}`}>
+                        <button onClick={() => setEditing({ card: null, division: group.key === UNGROUPED ? "" : group.label })} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold" style={{ background: `${accent}1f`, color: accent, border: `1px solid ${accent}55` }} data-testid={`button-add-player-${group.key}`}>
                           <Plus className="h-3.5 w-3.5" /> Add Player
                         </button>
                       )}
@@ -255,7 +269,7 @@ export default function SquadDetail() {
                     ) : (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-5 sm:gap-6">
                         {group.items.map((m) => (
-                          <PlayerCard key={m.id} member={m} canManage={canManage} accent={accent} onEdit={() => setEditing({ member: m, division: m.division })} onDelete={() => { if (confirm(`Remove ${m.name}?`)) del.mutate(m.id); }} />
+                          <PlayerCard key={m.key} card={m} canManage={canManage} accent={accent} onEdit={() => setEditing({ card: m, division: m.division })} onDelete={() => { if (m.squadMemberId && confirm(`Remove ${m.name}?`)) del.mutate(m.squadMemberId); }} />
                         ))}
                       </div>
                     )}
@@ -269,7 +283,7 @@ export default function SquadDetail() {
 
       <AnimatePresence>
         {editing && club && (
-          <MemberEditor clubId={clubId} divisions={divisions} member={editing.member} defaultDivision={editing.division} onClose={() => setEditing(null)} />
+          <MemberEditor clubId={clubId} divisions={divisions} card={editing.card} defaultDivision={editing.division} onClose={() => setEditing(null)} />
         )}
         {editLogo && club && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "hsla(222,60%,2%,0.85)", backdropFilter: "blur(8px)" }} onClick={() => setEditLogo(false)}>

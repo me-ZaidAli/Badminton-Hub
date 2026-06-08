@@ -79,7 +79,7 @@ export default function Squads() {
   const { data: clubs, isLoading } = useQuery<SquadClub[]>({ queryKey: ["/api/bsl/squads"] });
 
   return (
-    <div className="min-h-screen" style={{ color: BSL.text }}>
+    <div className="min-h-screen text-white pb-24" style={{ background: BSL.bgDeep }}>
       <BSLBackground />
       <BslSubNav />
       <div className="max-w-6xl mx-auto px-4 py-8 sm:py-12">
