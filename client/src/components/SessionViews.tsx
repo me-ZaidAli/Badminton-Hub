@@ -1188,12 +1188,20 @@ function TimelineSessionCard({
       onClick={handleCardClick}
       data-testid={`timeline-session-${session.id}`}
     >
-      {/* Cinematic badminton background image (subtle, behind everything) */}
-      <div
-        className="tl-quest-bg"
-        style={{ backgroundImage: `url(${sessionCardBgImage})` }}
-        aria-hidden
-      />
+      {/* Card background — per-session customisable (image / colour / none). */}
+      {(() => {
+        const mode = (session as any).cardBgMode || "DEFAULT";
+        if (mode === "NONE") return null;
+        if (mode === "COLOR") {
+          const c = (session as any).cardBgColor;
+          if (!c) return null;
+          const bg = /^#/.test(c) ? c : `hsl(${c})`;
+          return <div className="tl-quest-bg" style={{ backgroundImage: "none", backgroundColor: bg }} aria-hidden />;
+        }
+        const customUrl = (session as any).cardBgImageUrl;
+        const url = mode === "IMAGE" && customUrl ? customUrl : sessionCardBgImage;
+        return <div className="tl-quest-bg" style={{ backgroundImage: `url(${url})` }} aria-hidden />;
+      })()}
 
       {/* Shine sweep overlay (hover only) */}
       <div className="tl-quest-shine" aria-hidden />

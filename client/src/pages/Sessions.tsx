@@ -3434,6 +3434,10 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editBannerMessage, setEditBannerMessage] = useState("");
   const [editBannerColor, setEditBannerColor] = useState("");
   const [editBannerEnabled, setEditBannerEnabled] = useState(false);
+  const [editCardBgMode, setEditCardBgMode] = useState("DEFAULT");
+  const [editCardBgImageUrl, setEditCardBgImageUrl] = useState("");
+  const [editCardBgColor, setEditCardBgColor] = useState("");
+  const [cardBgUploading, setCardBgUploading] = useState(false);
   const [editCustomLinks, setEditCustomLinks] = useState<{ title: string; url: string }[]>([]);
   const [editHallName, setEditHallName] = useState("");
   const [editCourtNames, setEditCourtNames] = useState("");
@@ -3508,6 +3512,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditBannerMessage(session.bannerMessage || "");
     setEditBannerColor(session.bannerColor || "");
     setEditBannerEnabled(!!session.bannerMessage);
+    setEditCardBgMode((session as any).cardBgMode || "DEFAULT");
+    setEditCardBgImageUrl((session as any).cardBgImageUrl || "");
+    setEditCardBgColor((session as any).cardBgColor || "");
     setEditCustomLinks(Array.isArray(session.customLinks) ? session.customLinks : []);
     setEditHallName(session.hallName || "");
     setEditCourtNames(session.courtNames?.join(", ") || "");
@@ -3584,6 +3591,9 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       sessionDetails: editSessionDetails || null,
       bannerMessage: editBannerEnabled ? (editBannerMessage || null) : null,
       bannerColor: editBannerEnabled ? (editBannerColor || null) : null,
+      cardBgMode: editCardBgMode || "DEFAULT",
+      cardBgImageUrl: editCardBgMode === "IMAGE" ? (editCardBgImageUrl || null) : null,
+      cardBgColor: editCardBgMode === "COLOR" ? (editCardBgColor || null) : null,
       customLinks: editCustomLinks.filter(l => l.title.trim() && l.url.trim()),
       hallName: editHallName || null,
       courtNames: editCourtNames ? editCourtNames.split(",").map(s => s.trim()).filter(Boolean) : null,
@@ -3785,6 +3795,89 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                   )}
                 </div>
               </>
+            )}
+          </div>
+          <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
+            <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Card Background</div>
+            <p className="text-[11px] text-muted-foreground -mt-1">Controls the picture behind this session's card. Choose the default image, upload your own, pick a colour, or remove it.</p>
+            <div>
+              <Label>Background</Label>
+              <Select value={editCardBgMode || "DEFAULT"} onValueChange={setEditCardBgMode}>
+                <SelectTrigger className="mt-2" data-testid="select-edit-card-bg-mode">
+                  <SelectValue placeholder="Choose a background" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="DEFAULT">Default image (badminton)</SelectItem>
+                  <SelectItem value="IMAGE">Custom image</SelectItem>
+                  <SelectItem value="COLOR">Solid colour</SelectItem>
+                  <SelectItem value="NONE">No background</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {editCardBgMode === "IMAGE" && (
+              <div className="space-y-2">
+                {editCardBgImageUrl && (
+                  <div
+                    className="h-20 w-full rounded-md bg-cover bg-center border border-border"
+                    style={{ backgroundImage: `url(${editCardBgImageUrl})` }}
+                    data-testid="preview-card-bg-image"
+                  />
+                )}
+                <div className="flex items-center gap-2">
+                  <Input
+                    type="file"
+                    accept="image/*"
+                    disabled={cardBgUploading}
+                    onChange={async (e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      setCardBgUploading(true);
+                      try {
+                        const fd = new FormData();
+                        fd.append("image", file);
+                        const res = await fetch(`/api/sessions/${session.id}/card-image`, { method: "POST", body: fd, credentials: "include" });
+                        if (!res.ok) throw new Error("Upload failed");
+                        const data = await res.json();
+                        setEditCardBgImageUrl(data.url);
+                        toast({ title: "Image uploaded", description: "Save the session to apply it." });
+                      } catch (err: any) {
+                        toast({ title: "Upload failed", description: err.message || "Could not upload image", variant: "destructive" });
+                      } finally {
+                        setCardBgUploading(false);
+                        e.target.value = "";
+                      }
+                    }}
+                    className="text-xs"
+                    data-testid="input-card-bg-upload"
+                  />
+                  {cardBgUploading && <span className="text-[11px] text-muted-foreground">Uploading…</span>}
+                </div>
+                {editCardBgImageUrl && (
+                  <button
+                    type="button"
+                    onClick={() => setEditCardBgImageUrl("")}
+                    className="text-[11px] text-muted-foreground hover:text-foreground underline"
+                    data-testid="button-clear-card-bg-image"
+                  >
+                    Remove image
+                  </button>
+                )}
+              </div>
+            )}
+            {editCardBgMode === "COLOR" && (
+              <div>
+                <Label>Colour</Label>
+                <div className="flex items-center gap-2 mt-2">
+                  <input
+                    type="color"
+                    value={/^#/.test(editCardBgColor) ? editCardBgColor : "#1e293b"}
+                    onChange={(e) => setEditCardBgColor(e.target.value)}
+                    className="h-9 w-12 rounded border border-border bg-transparent cursor-pointer"
+                    data-testid="input-card-bg-color"
+                  />
+                  <span className="text-xs text-muted-foreground">{editCardBgColor || "Pick a colour"}</span>
+                </div>
+              </div>
             )}
           </div>
           <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">

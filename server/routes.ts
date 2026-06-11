@@ -142,6 +142,15 @@ const uploadProfilePhoto = multer({
   },
 });
 
+const uploadSessionCardImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype.startsWith("image/")) cb(null, true);
+    else cb(new Error("Only image files allowed"));
+  },
+});
+
 async function hashPassword(password: string) {
   const salt = randomBytes(16).toString("hex");
   const buf = (await scryptAsync(password, salt, 64)) as Buffer;
@@ -5102,6 +5111,31 @@ export async function registerRoutes(
   });
 
   // Update session settings (courts, max players, etc.)
+  app.post("/api/sessions/:id/card-image", (req: any, res, next) => {
+    uploadSessionCardImage.single("image")(req, res, (err: any) => {
+      if (err) {
+        const tooBig = err?.code === "LIMIT_FILE_SIZE";
+        return res.status(tooBig ? 413 : 400).json({ message: tooBig ? "Image must be 5MB or smaller" : (err.message || "Invalid image upload") });
+      }
+      next();
+    });
+  }, async (req: any, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const canEdit = await canPerform({ id: req.user!.id, role: req.user!.role }, "EDIT_SESSIONS", session.clubId);
+      if (!canEdit) return res.sendStatus(403);
+      if (!req.file) return res.status(400).json({ message: "No image provided" });
+      const url = await saveBufferToBucket(req.file.buffer, "sessions", req.file.originalname);
+      res.json({ url });
+    } catch (err) {
+      console.error("[SESSION CARD IMAGE] upload failed:", err);
+      res.status(500).json({ message: "Failed to upload image" });
+    }
+  });
+
   app.patch("/api/sessions/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
@@ -5116,7 +5150,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, customLinks, hallName, guestClubIds, coachUserId, organiserUserId, coordinatorUserId, coachUserIds, organiserUserIds, coordinatorUserIds, supportCoachUserIds } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, cardBgMode, cardBgImageUrl, cardBgColor, customLinks, hallName, guestClubIds, coachUserId, organiserUserId, coordinatorUserId, coachUserIds, organiserUserIds, coordinatorUserIds, supportCoachUserIds } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -5180,6 +5214,29 @@ export async function registerRoutes(
       if (bannerColor !== undefined) {
         const allowedColors = ["red", "amber", "blue", "green", "purple", "pink"];
         updates.bannerColor = bannerColor && allowedColors.includes(bannerColor) ? bannerColor : null;
+      }
+      if (cardBgMode !== undefined) {
+        const allowedModes = ["DEFAULT", "IMAGE", "COLOR", "NONE"];
+        updates.cardBgMode = cardBgMode && allowedModes.includes(cardBgMode) ? cardBgMode : null;
+      }
+      if (cardBgImageUrl !== undefined) {
+        const raw = typeof cardBgImageUrl === "string" ? cardBgImageUrl.trim() : "";
+        // Only accept our own object-storage paths (matches uploadStorage convention) — no external URLs.
+        const isSafe = raw.startsWith("/files/") || raw.startsWith("/uploads/");
+        updates.cardBgImageUrl = raw && isSafe ? raw.slice(0, 1000) : null;
+      }
+      if (cardBgColor !== undefined) {
+        const raw = typeof cardBgColor === "string" ? cardBgColor.trim() : "";
+        // Allow hex (#rgb / #rrggbb) or "h s% l%" HSL token (no functions/url to avoid CSS injection)
+        const isSafe = /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw) || /^\d{1,3}\s+\d{1,3}%\s+\d{1,3}%$/.test(raw);
+        updates.cardBgColor = raw && isSafe ? raw : null;
+      }
+      // Enforce mode/value coherence: a mode that lacks its value falls back to DEFAULT.
+      if (updates.cardBgMode === "IMAGE" && !(updates.cardBgImageUrl ?? session.cardBgImageUrl)) {
+        updates.cardBgMode = "DEFAULT";
+      }
+      if (updates.cardBgMode === "COLOR" && !(updates.cardBgColor ?? session.cardBgColor)) {
+        updates.cardBgMode = "DEFAULT";
       }
       if (customLinks !== undefined) {
         if (customLinks === null || !Array.isArray(customLinks)) {

@@ -396,6 +396,12 @@ export const sessions = pgTable("sessions", {
   sessionDetails: text("session_details"),
   bannerMessage: text("banner_message"),
   bannerColor: text("banner_color"),
+  // Per-session card background. cardBgMode: DEFAULT (shared image) | IMAGE
+  // (custom cardBgImageUrl) | COLOR (solid cardBgColor) | NONE (no background).
+  // null = DEFAULT for back-compat.
+  cardBgMode: text("card_bg_mode"),
+  cardBgImageUrl: text("card_bg_image_url"),
+  cardBgColor: text("card_bg_color"),
   customLinks: jsonb("custom_links").$type<{ title: string; url: string }[]>().default([]),
   guestClubIds: jsonb("guest_club_ids").$type<number[]>(),
   // Team member assignments (references users.id; null when unassigned).
@@ -1128,6 +1134,18 @@ export const insertSessionSchema = createInsertSchema(sessions).omit({ id: true,
   bannerColor: z.preprocess(
     (v) => (v === "" || v === undefined ? null : v),
     z.enum(["red", "amber", "blue", "green", "purple", "pink"]).optional().nullable()
+  ),
+  cardBgMode: z.preprocess(
+    (v) => (v === "" || v === undefined ? null : v),
+    z.enum(["DEFAULT", "IMAGE", "COLOR", "NONE"]).optional().nullable()
+  ),
+  cardBgImageUrl: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(1000).optional().nullable()
+  ),
+  cardBgColor: z.preprocess(
+    (v) => (typeof v === "string" && v.trim() === "" ? null : v),
+    z.string().trim().max(40).optional().nullable()
   ),
   customLinks: z.array(z.object({
     title: z.string().trim().min(1, "Title is required").max(60, "Title must be 60 characters or fewer"),
