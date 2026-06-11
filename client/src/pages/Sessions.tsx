@@ -3438,6 +3438,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editCardBgImageUrl, setEditCardBgImageUrl] = useState("");
   const [editCardBgColor, setEditCardBgColor] = useState("");
   const [cardBgUploading, setCardBgUploading] = useState(false);
+  const [cardBgApplyingAll, setCardBgApplyingAll] = useState(false);
   const [editCustomLinks, setEditCustomLinks] = useState<{ title: string; url: string }[]>([]);
   const [editHallName, setEditHallName] = useState("");
   const [editCourtNames, setEditCourtNames] = useState("");
@@ -3879,6 +3880,36 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
                 </div>
               </div>
             )}
+            <div className="pt-1 border-t border-border/50">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                disabled={cardBgApplyingAll}
+                onClick={async () => {
+                  if (!window.confirm("Apply this background to every session in your club? This overwrites their current backgrounds.")) return;
+                  setCardBgApplyingAll(true);
+                  try {
+                    const res = await apiRequest("POST", `/api/sessions/${session.id}/card-background/apply-all`, {
+                      cardBgMode: editCardBgMode || "DEFAULT",
+                      cardBgImageUrl: editCardBgMode === "IMAGE" ? (editCardBgImageUrl || null) : null,
+                      cardBgColor: editCardBgMode === "COLOR" ? (editCardBgColor || null) : null,
+                    });
+                    const data = await res.json();
+                    queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
+                    toast({ title: "Applied to all sessions", description: `Updated ${data.updated} session${data.updated === 1 ? "" : "s"}.` });
+                  } catch (err: any) {
+                    toast({ title: "Could not apply", description: err.message || "Failed to apply to all sessions", variant: "destructive" });
+                  } finally {
+                    setCardBgApplyingAll(false);
+                  }
+                }}
+                data-testid="button-card-bg-apply-all"
+              >
+                {cardBgApplyingAll ? "Applying…" : "Apply to all sessions"}
+              </Button>
+              <p className="text-[11px] text-muted-foreground mt-1">Sets this exact background on every session in your club.</p>
+            </div>
           </div>
           <div className="rounded-lg border border-dashed border-border p-3 space-y-3 bg-muted/20">
             <div className="flex items-center justify-between gap-3">

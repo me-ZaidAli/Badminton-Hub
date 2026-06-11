@@ -5136,6 +5136,50 @@ export async function registerRoutes(
     }
   });
 
+  // Apply one card-background setting to every session in the same club.
+  app.post("/api/sessions/:id/card-background/apply-all", async (req: any, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const canEdit = await canPerform({ id: req.user!.id, role: req.user!.role }, "EDIT_SESSIONS", session.clubId);
+      if (!canEdit) return res.sendStatus(403);
+
+      const { cardBgMode, cardBgImageUrl, cardBgColor } = req.body;
+      const allowedModes = ["DEFAULT", "IMAGE", "COLOR", "NONE"];
+      let mode = cardBgMode && allowedModes.includes(cardBgMode) ? cardBgMode : "DEFAULT";
+
+      let imageUrl: string | null = null;
+      if (typeof cardBgImageUrl === "string") {
+        const raw = cardBgImageUrl.trim();
+        if (raw && (raw.startsWith("/files/") || raw.startsWith("/uploads/"))) imageUrl = raw.slice(0, 1000);
+      }
+      let color: string | null = null;
+      if (typeof cardBgColor === "string") {
+        const raw = cardBgColor.trim();
+        if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(raw) || /^\d{1,3}\s+\d{1,3}%\s+\d{1,3}%$/.test(raw)) color = raw;
+      }
+      if (mode === "IMAGE" && !imageUrl) mode = "DEFAULT";
+      if (mode === "COLOR" && !color) mode = "DEFAULT";
+
+      const sessions = await storage.getSessionsByClub(session.clubId);
+      await Promise.all(
+        sessions.map((s) =>
+          storage.updateSession(s.id, {
+            cardBgMode: mode,
+            cardBgImageUrl: mode === "IMAGE" ? imageUrl : null,
+            cardBgColor: mode === "COLOR" ? color : null,
+          }),
+        ),
+      );
+      res.json({ updated: sessions.length });
+    } catch (err) {
+      console.error("[SESSION CARD BG APPLY-ALL] failed:", err);
+      res.status(500).json({ message: "Failed to apply to all sessions" });
+    }
+  });
+
   app.patch("/api/sessions/:id", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
 
