@@ -15,7 +15,6 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
-import { useDetailedPlayerStats } from "@/hooks/use-clubs";
 import AvatarPicker, { getAvatarUrl } from "@/components/AvatarPicker";
 import {
   LogOut, User, Settings, Shield, Loader2, XCircle, MapPin, Phone, Calendar,
@@ -2169,10 +2168,22 @@ export default function Profile() {
 
   const activeMembershipCount = activeMembershipClubIds.size;
   const primaryProfile = profiles?.[0];
-  // Pull the grade from the SAME source the leaderboard / player-stats popup uses,
-  // so the profile badge always matches what the leaderboard shows.
-  const { data: leaderboardStats } = useDetailedPlayerStats(primaryProfile?.id ?? null);
-  const leaderboardGrade = leaderboardStats?.grade || leaderboardStats?.category || primaryProfile?.grade;
+  // Show the player's best grade across all their club profiles, so the profile
+  // badge matches the grade shown on the rankings/leaderboard (e.g. their A1 club).
+  const leaderboardGrade = useMemo(() => {
+    const GRADE_ORDER = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+    if (!profiles || profiles.length === 0) return undefined;
+    let best: string | undefined;
+    let bestIdx = -1;
+    for (const p of profiles as any[]) {
+      const g: string | undefined = p?.grade || p?.category;
+      if (!g) continue;
+      const idx = GRADE_ORDER.indexOf(g);
+      if (idx > bestIdx) { bestIdx = idx; best = g; }
+      else if (idx === -1 && best === undefined) { best = g; }
+    }
+    return best;
+  }, [profiles]);
 
   const addJuniorMutation = useMutation({
     mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/juniors", data); if (!res.ok) { const error = await res.json(); throw new Error(error.message); } return res.json(); },
