@@ -15,6 +15,7 @@ import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useUploadProfilePicture } from "@/hooks/use-sessions";
+import { useDetailedPlayerStats } from "@/hooks/use-clubs";
 import AvatarPicker, { getAvatarUrl } from "@/components/AvatarPicker";
 import {
   LogOut, User, Settings, Shield, Loader2, XCircle, MapPin, Phone, Calendar,
@@ -2168,6 +2169,10 @@ export default function Profile() {
 
   const activeMembershipCount = activeMembershipClubIds.size;
   const primaryProfile = profiles?.[0];
+  // Pull the grade from the SAME source the leaderboard / player-stats popup uses,
+  // so the profile badge always matches what the leaderboard shows.
+  const { data: leaderboardStats } = useDetailedPlayerStats(primaryProfile?.id ?? null);
+  const leaderboardGrade = leaderboardStats?.grade || leaderboardStats?.category || primaryProfile?.grade;
 
   const addJuniorMutation = useMutation({
     mutationFn: async (data: any) => { const res = await apiRequest("POST", "/api/juniors", data); if (!res.ok) { const error = await res.json(); throw new Error(error.message); } return res.json(); },
@@ -2358,10 +2363,10 @@ export default function Profile() {
                       <Shield className="h-3 w-3 mr-1" />
                       {user.role === "OWNER" ? "Platform Owner" : user.role.charAt(0) + user.role.slice(1).toLowerCase()}
                     </Badge>
-                    {primaryProfile?.grade && (
+                    {leaderboardGrade && (
                       <Badge className="bg-amber-500/20 text-amber-200 border border-amber-400/30 backdrop-blur-sm hover:bg-amber-500/30" data-testid="badge-grade">
                         <Award className="h-3 w-3 mr-1" />
-                        Grade {primaryProfile.grade}
+                        Grade {leaderboardGrade}
                       </Badge>
                     )}
                     {mySquadStatus && mySquadStatus.length > 0 && (
