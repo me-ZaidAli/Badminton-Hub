@@ -8,8 +8,29 @@ import {
   tournamentCourts, tournamentPlayerStats,
   tournamentGroups, tournamentGroupPairs, tournamentStages,
   users, clubs, venues, playerProfiles, matches,
-  notifications, clubMemberships, internalMessages
+  notifications, clubMemberships, internalMessages,
+  GRADE_ORDER,
 } from "@shared/schema";
+
+// A player can have one playerProfiles row per club. Their displayed grade should
+// be their BEST grade across all clubs (matching the Rankings + Profile pages), not
+// whichever club-scoped profile happens to be attached to a tournament team. Returns
+// a Map of userId -> best grade string.
+async function bestGradeByUserId(userIds: number[]): Promise<Map<number, string>> {
+  const out = new Map<number, string>();
+  const ids = Array.from(new Set(userIds.filter((x): x is number => !!x)));
+  if (ids.length === 0) return out;
+  const rows = await db.select({ userId: playerProfiles.userId, grade: playerProfiles.grade })
+    .from(playerProfiles).where(inArray(playerProfiles.userId, ids));
+  for (const r of rows) {
+    if (!r.grade) continue;
+    const prev = out.get(r.userId);
+    if (!prev || GRADE_ORDER.indexOf(r.grade as any) > GRADE_ORDER.indexOf(prev as any)) {
+      out.set(r.userId, r.grade);
+    }
+  }
+  return out;
+}
 
 function generateRoundRobinSchedule(teamIds: number[]): [number, number][] {
   const n = teamIds.length;
@@ -3108,20 +3129,42 @@ export function registerTournamentRoutes(app: Express) {
         if (u) profileToUser.set(p.id, u);
         profileById.set(p.id, p);
       }
+      // Best grade across all clubs per user (matches Rankings/Profile display).
+      const bestGrade = await bestGradeByUserId(profs.map(p => p.userId));
+      const withBestGrade = (prof: any) => prof ? { ...prof, grade: bestGrade.get(prof.userId) || prof.grade } : null;
       const result = cats.map(cat => {
-        const catTeams = teams.filter(t => t.categoryId === cat.id).map(t => ({
-          id: t.id,
-          player1: t.player1Id ? profileToUser.get(t.player1Id) || null : null,
-          player2: t.player2Id ? profileToUser.get(t.player2Id) || null : null,
-          profile1: t.player1Id ? profileById.get(t.player1Id) || null : null,
-          profile2: t.player2Id ? profileById.get(t.player2Id) || null : null,
-          createdAt: t.createdAt,
-          isPaired: !!t.player2Id,
-        }));
+        const catTeams = teams.filter(t => t.categoryId === cat.id).map(t => {
+          const prof1 = t.player1Id ? profileById.get(t.player1Id) || null : null;
+          const prof2 = t.player2Id ? profileById.get(t.player2Id) || null : null;
+          return {
+            id: t.id,
+            player1: t.player1Id ? profileToUser.get(t.player1Id) || null : null,
+            player2: t.player2Id ? profileToUser.get(t.player2Id) || null : null,
+            profile1: withBestGrade(prof1),
+            profile2: withBestGrade(prof2),
+            _p1UserId: prof1?.userId ?? null,
+            _p2UserId: prof2?.userId ?? null,
+            createdAt: t.createdAt,
+            isPaired: !!t.player2Id,
+          };
+        });
+        const confirmedPairs = catTeams.filter(t => t.isPaired);
+        // A player already in a confirmed pair in this category must NOT also show
+        // as a "looking for partner" solo entry. Stale solo rows can be left behind
+        // by additive pairing paths (admin create-pair, group auto-distribute), so
+        // we suppress any solo whose player is already paired here — keyed by userId
+        // to catch cross-club profile duplicates.
+        const pairedUserIds = new Set<number>();
+        for (const cp of confirmedPairs) {
+          if (cp._p1UserId) pairedUserIds.add(cp._p1UserId);
+          if (cp._p2UserId) pairedUserIds.add(cp._p2UserId);
+        }
+        const soloEntries = catTeams.filter(t => !t.isPaired && !(t._p1UserId && pairedUserIds.has(t._p1UserId)));
+        const strip = ({ _p1UserId, _p2UserId, ...rest }: any) => rest;
         return {
           category: cat,
-          confirmedPairs: catTeams.filter(t => t.isPaired),
-          soloEntries: catTeams.filter(t => !t.isPaired),
+          confirmedPairs: confirmedPairs.map(strip),
+          soloEntries: soloEntries.map(strip),
         };
       });
       res.json(result);
@@ -3159,6 +3202,14 @@ export function registerTournamentRoutes(app: Express) {
           (pr.fromUserId === reg.partnerId && pr.toUserId === reg.userId)
         );
         uniquePairs.push({ id: reg.id, pairRequestId: matchingPR?.id || null, categoryId: matchingPR?.categoryId ?? null, user1, user2, profile1: p1, profile2: p2, pairName: matchingPR?.pairName || null, createdAt: reg.createdAt });
+      }
+      // Override each profile's grade with the player's best grade across all clubs
+      // (matches Rankings/Profile), since the club-scoped profile picked above may be
+      // a lower-graded club than the one the player is ranked by.
+      const bg = await bestGradeByUserId(uniquePairs.flatMap(p => [p.profile1?.userId, p.profile2?.userId]).filter((x): x is number => !!x));
+      for (const p of uniquePairs) {
+        if (p.profile1?.userId && bg.get(p.profile1.userId)) p.profile1 = { ...p.profile1, grade: bg.get(p.profile1.userId) };
+        if (p.profile2?.userId && bg.get(p.profile2.userId)) p.profile2 = { ...p.profile2, grade: bg.get(p.profile2.userId) };
       }
       res.json(uniquePairs);
     } catch (e: any) {
