@@ -181,9 +181,9 @@ export default function Login() {
             </form>
           </Form>
           <div className="mt-2 text-right">
-            <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground transition-colors" data-testid="link-forgot-password">
-              Forgot password?
-            </Link>
+            <span className="text-xs text-muted-foreground" data-testid="text-forgot-password-note">
+              Forgot your password? Please contact your club admin for a reset link.
+            </span>
           </div>
           <div className="mt-4 text-center text-sm">
             <span className="text-muted-foreground">Don't have an account? </span>
