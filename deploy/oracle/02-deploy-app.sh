@@ -19,7 +19,12 @@ if [[ -z "${REPO_URL}" ]]; then
   exit 1
 fi
 
-mkdir -p "${RELEASES_DIR}" /var/log/badminton-hub
+if [[ ! -d "${APP_ROOT}" ]]; then
+  echo "Missing ${APP_ROOT}. Run deploy/oracle/00-bootstrap-vm.sh first."
+  exit 1
+fi
+
+sudo mkdir -p "${RELEASES_DIR}" /var/log/badminton-hub
 
 # Clone fresh release
 GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone --depth 1 --branch "${BRANCH}" "${REPO_URL}" "${RELEASE_DIR}"
@@ -27,9 +32,25 @@ GIT_SSH_COMMAND="ssh -o StrictHostKeyChecking=accept-new" git clone --depth 1 --
 cd "${RELEASE_DIR}"
 npm ci
 npm run build
+
+# Load runtime env so db:push can read DATABASE_URL on the VM.
+if [[ -f "/etc/badminton-hub.env" ]]; then
+  set -a
+  # shellcheck disable=SC1091
+  source /etc/badminton-hub.env
+  set +a
+fi
+
+if [[ -z "${DATABASE_URL:-}" ]]; then
+  echo "DATABASE_URL is not set. Create /etc/badminton-hub.env first."
+  echo "Then run: bash /srv/badminton-hub/current/deploy/oracle/02-deploy-app.sh <repo_url> ${BRANCH}"
+  exit 1
+fi
+
 npm run db:push
 
 ln -sfn "${RELEASE_DIR}" "${CURRENT_LINK}"
+echo "Linked ${CURRENT_LINK} -> ${RELEASE_DIR}"
 
 # Keep latest 5 releases
 cd "${RELEASES_DIR}"
