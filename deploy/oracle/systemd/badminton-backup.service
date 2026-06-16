@@ -1,0 +1,10 @@
+[Unit]
+Description=Badminton Hub PostgreSQL Backup
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+Group=root
+ExecStart=/bin/bash /srv/badminton-hub/current/deploy/oracle/04-backup-db.sh

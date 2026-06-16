@@ -1,0 +1,98 @@
+name: Deploy to Oracle VM
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npm run check
+
+      - name: Build app
+        run: npm run build
+
+      - name: Set up SSH
+        run: |
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          echo "${{ secrets.ORACLE_VM_SSH_KEY }}" > ~/.ssh/deploy_key
+          chmod 600 ~/.ssh/deploy_key
+          ssh-keyscan -H ${{ secrets.ORACLE_VM_HOST }} >> ~/.ssh/known_hosts 2>/dev/null || true
+
+      - name: Get current release before deploy
+        id: current_release
+        run: |
+          CURRENT=$(ssh -i ~/.ssh/deploy_key ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} \
+            "readlink /srv/badminton-hub/current" 2>/dev/null || echo "none")
+          echo "release=${CURRENT}" >> $GITHUB_OUTPUT
+
+      - name: Deploy to Oracle VM
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} \
+            "bash /srv/badminton-hub/current/deploy/oracle/02-deploy-app.sh ${{ secrets.ORACLE_VM_REPO_URL }} main"
+
+      - name: Restart PM2 with env
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} \
+            "bash /srv/badminton-hub/current/deploy/oracle/pm2-start.sh"
+
+      - name: Wait for app to stabilize
+        run: sleep 5
+
+      - name: Health check (internal)
+        run: |
+          ssh -i ~/.ssh/deploy_key ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} \
+            "curl -f http://127.0.0.1:5000/api/health/ready || exit 1"
+
+      - name: Health check (public domain)
+        run: |
+          # Try up to 10 times with 3s delay between attempts
+          for i in {1..10}; do
+            if curl -f -s https://${{ secrets.ORACLE_VM_DOMAIN }}/api/health >/dev/null 2>&1; then
+              echo "✓ Public health check passed"
+              exit 0
+            fi
+            if [ $i -lt 10 ]; then
+              echo "  Health check attempt $i failed, retrying..."
+              sleep 3
+            fi
+          done
+          echo "✗ Public health check failed"
+          exit 1
+
+      - name: Rollback on failure
+        if: failure() && steps.current_release.outputs.release != 'none'
+        run: |
+          echo "Deployment failed, rolling back to: ${{ steps.current_release.outputs.release }}"
+          ssh -i ~/.ssh/deploy_key ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} \
+            "ln -sfn ${{ steps.current_release.outputs.release }} /srv/badminton-hub/current && \
+             bash /srv/badminton-hub/current/deploy/oracle/pm2-start.sh"
+          sleep 3
+          ssh -i ~/.ssh/deploy_key ${{ secrets.ORACLE_VM_USER }}@${{ secrets.ORACLE_VM_HOST }} \
+            "curl -f http://127.0.0.1:5000/api/health/ready"
+
+      - name: Notify deployment status
+        if: always()
+        run: |
+          if [ "${{ job.status }}" == "success" ]; then
+            echo "✓ Deployment to Oracle VM successful"
+          else
+            echo "✗ Deployment to Oracle VM failed"
+          fi
