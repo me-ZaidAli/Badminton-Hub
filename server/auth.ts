@@ -38,7 +38,9 @@ async function comparePasswords(supplied: string, stored: string | null | undefi
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
-  const isProduction = app.get("env") === "production" || !!process.env.REPL_SLUG;
+  const forceSecureCookie = true;
+  const cookieSecure = forceSecureCookie;
+  const cookieSameSite: "none" | "lax" = cookieSecure ? "none" : "lax";
 
   const sessionSettings: session.SessionOptions = {
     secret: process.env.SESSION_SECRET || "secret",
@@ -48,8 +50,8 @@ export function setupAuth(app: Express) {
     cookie: {
       maxAge: 30 * 24 * 60 * 60 * 1000,
       httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
+      secure: cookieSecure,
+      sameSite: cookieSameSite,
     },
   };
 
