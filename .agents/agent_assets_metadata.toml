@@ -173,3 +173,9 @@ id = "G47knb1PdnM3zyZbgJAKU"
 uri = "file://dist/club-master-source.tar.gz"
 type = "unspecified"
 title = "Club Master — source code (.tar.gz)"
+
+[[outputs]]
+id = "2mVFlq3a7uQ_sOn8eiLFe"
+uri = "file://prod_backup.sql.gz"
+type = "unspecified"
+title = "Production database dump (prod_backup.sql.gz)"
