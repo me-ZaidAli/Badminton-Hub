@@ -391,6 +391,7 @@ export const sessions = pgTable("sessions", {
   queueTargetSize: integer("queue_target_size").default(3),
   matchmakingMode: text("matchmaking_mode"),
   recurringEventId: integer("recurring_event_id").references(() => recurringEvents.id),
+  tournamentId: integer("tournament_id"),
   publishAt: timestamp("publish_at"),
   invoiceNumber: text("invoice_number"),
   sessionDetails: text("session_details"),
@@ -416,7 +417,10 @@ export const sessions = pgTable("sessions", {
   organiserUserIds: integer("organiser_user_ids").array().default([]).notNull(),
   coordinatorUserIds: integer("coordinator_user_ids").array().default([]).notNull(),
   supportCoachUserIds: integer("support_coach_user_ids").array().default([]).notNull(),
-});
+}, (table) => ({
+  // At most one mirrored session per tournament (auto-created tournament session).
+  uniqueTournamentId: uniqueIndex("sessions_tournament_id_unique").on(table.tournamentId).where(sql`tournament_id IS NOT NULL`),
+}));
 
 // === SESSION SIGNUPS ===
 export const sessionSignups = pgTable("session_signups", {

@@ -743,6 +743,30 @@ function OverviewTab({ tournament, categories, tournamentId }: { tournament: any
   );
 }
 
+function PartnerTags({ tags, hasPartner }: { tags?: string[]; hasPartner?: boolean }) {
+  const tagStyles: Record<string, string> = {
+    MX: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+    MD: "bg-sky-500/20 text-sky-300 border-sky-500/30",
+    XD: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+  };
+  if (hasPartner && tags && tags.length > 0) {
+    return (
+      <>
+        {tags.map((t) => (
+          <Badge key={t} className={cn("text-[9px] px-1.5 border font-bold", tagStyles[t] || "bg-muted text-muted-foreground border-border")} data-testid={`tag-partner-${t}`}>
+            {t}
+          </Badge>
+        ))}
+      </>
+    );
+  }
+  return (
+    <Badge className="text-[9px] px-1.5 border font-bold bg-gray-500/15 text-gray-400 border-gray-500/30" data-testid="tag-no-partner">
+      NO PARTNER
+    </Badge>
+  );
+}
+
 function PlayersTab({ tournamentId }: { tournamentId: number }) {
   const { data: players, isLoading } = useTournamentAllPlayers(tournamentId);
   const [searchQuery, setSearchQuery] = useState("");
@@ -821,7 +845,10 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
                   <div className="flex items-center gap-3 min-w-0">
                     <PlayerAvatar name={p.user?.fullName || "?"} />
                     <div className="min-w-0">
-                      <h4 className="font-bold text-sm text-foreground truncate">{p.user?.fullName}</h4>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-sm text-foreground truncate">{p.user?.fullName}</h4>
+                        <PartnerTags tags={p.partnerTags} hasPartner={p.hasPartner} />
+                      </div>
                       <div className="sm:hidden flex items-center gap-2 mt-0.5">
                         <GradeTierBadge grade={p.profile?.currentGrade || "—"} />
                         <span className="text-[10px] text-muted-foreground">{p.matchesPlayed || 0}P • {p.winRate || 0}%</span>
@@ -1196,28 +1223,6 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
     },
   });
 
-  // Pairs that were formed without a specific category (tournament-wide). These
-  // have no per-category team row, so we surface them as their own section below
-  // instead of hiding them. We trust whatever pairs exist in the system.
-  const tournamentWidePairs = (pairs || [])
-    .filter((p: any) => p.categoryId == null)
-    .map((p: any) => ({
-      id: p.id,
-      player1: p.user1,
-      player2: p.user2,
-      profile1: p.profile1,
-      profile2: p.profile2,
-      createdAt: p.createdAt,
-      isPaired: true,
-    }));
-  const tournamentWideRows = tournamentWidePairs.length > 0
-    ? [{
-        category: { id: -1, name: "Tournament-wide", playersPerSide: 2, format: "Pairs", genderRestriction: "ALL" },
-        confirmedPairs: tournamentWidePairs,
-        soloEntries: [] as any[],
-      }]
-    : [];
-  const allTeamRows = [...(teamsByCategory || []), ...tournamentWideRows];
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
   const myIncomingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
@@ -1393,477 +1398,7 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
         </div>
       )}
 
-      {allTeamRows.length > 0 && allTeamRows.some((r: any) => r.confirmedPairs.length > 0 || r.soloEntries.length > 0) && (
-        <div className="space-y-8" data-testid="pairs-by-category">
-          {allTeamRows.map((row: any, catIdx: number) => {
-            if (row.confirmedPairs.length === 0 && row.soloEntries.length === 0) return null;
-            const catKey = `cat-${row.category.id}`;
-            const genderBadge = (() => {
-              const r = (row.category.genderRestriction || "").toUpperCase();
-              if (r === "FEMALE_ONLY" || r === "FEMALE") return <Badge className="text-[10px] font-bold bg-pink-500/15 text-pink-500 border-pink-500/30">Female only</Badge>;
-              if (r === "MALE_ONLY" || r === "MALE") return <Badge className="text-[10px] font-bold bg-blue-500/15 text-blue-500 border-blue-500/30">Male only</Badge>;
-              return null;
-            })();
-            return (
-              <div key={row.category.id} className="space-y-4" data-testid={`pairs-cat-section-${row.category.id}`}>
-                <motion.div
-                  initial={{ opacity: 0, y: 16 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  transition={{ duration: 0.4, ease: "easeOut", delay: catIdx * 0.05 }}
-                  className="relative overflow-hidden rounded-2xl p-5"
-                  style={{ background: "linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)" }}
-                >
-                  <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)", backgroundSize: "20px 20px" }} />
-                  <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent" />
-                  <div className="relative flex items-center justify-between flex-wrap gap-3">
-                    <div className="min-w-0">
-                      <div className="flex items-center gap-2 mb-1 flex-wrap">
-                        <div className="h-1.5 w-1.5 rounded-full bg-violet-400 esports-status-dot" />
-                        <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-violet-400/80">{row.category.name}</span>
-                        <Badge variant="outline" className="text-[9px] font-bold uppercase tracking-wider border-white/10 text-slate-300">{(row.category.playersPerSide || 1) > 1 ? "Doubles" : "Singles"}</Badge>
-                        <Badge variant="outline" className="text-[9px] font-bold uppercase tracking-wider border-white/10 text-slate-300">{row.category.format}</Badge>
-                        {genderBadge}
-                      </div>
-                      <h2 className="text-xl font-black text-white uppercase tracking-wider">Confirmed Pairs</h2>
-                      <p className="text-[11px] text-slate-400 mt-0.5 font-medium">
-                        {row.confirmedPairs.length === 0 ? "No pairs confirmed yet for this category" : "Elite duos locked in for competition"}
-                        {row.soloEntries.length > 0 && ` · ${row.soloEntries.length} solo waiting`}
-                      </p>
-                    </div>
-                    <div className="flex items-center gap-3">
-                      <div className="relative">
-                        <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-violet-500/20 to-cyan-500/20 blur-md" />
-                        <div className="relative h-12 px-4 rounded-xl border border-violet-500/20 flex items-center gap-2" style={{ background: "rgba(139, 92, 246, 0.08)" }}>
-                          <Swords className="h-4 w-4 text-violet-400" />
-                          <span className="text-xl font-black text-white" data-testid={`pairs-cat-count-${row.category.id}`}>{row.confirmedPairs.length}</span>
-                          <span className="text-[9px] uppercase tracking-wider text-violet-300/70 font-bold">Teams</span>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
 
-                {row.confirmedPairs.length > 0 && (
-                  <div className="grid gap-4 sm:grid-cols-2">
-                    {row.confirmedPairs.map((pair: any, idx: number) => {
-                      const p1Name = pair.player1?.fullName || "Player 1";
-                      const p2Name = pair.player2?.fullName || "Player 2";
-                      const accentIdx = idx % esportsAccents.length;
-                      const accent = esportsAccents[accentIdx];
-                      const pairedDate = pair.createdAt ? formatLondon(pair.createdAt, "d MMM yyyy") : null;
-                      const p1Level = getPlayerPowerLevel(pair.profile1?.grade || "C3", pair.profile1?.matchesPlayed || 0, pair.profile1?.matchesWon || 0);
-                      const p2Level = getPlayerPowerLevel(pair.profile2?.grade || "C3", pair.profile2?.matchesPlayed || 0, pair.profile2?.matchesWon || 0);
-                      const quality = getPairQuality(p1Level.power, p2Level.power);
-                      const synergy = getTeamSynergy(p1Level.power, p2Level.power);
-                      const isFeatured = synergy.synergy >= 75;
-                      return (
-                        <motion.div
-                          key={`${catKey}-pair-${pair.id}`}
-                          initial={{ opacity: 0, y: 20, scale: 0.97 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          transition={{ duration: 0.4, delay: idx * 0.06, ease: [0.25, 0.46, 0.45, 0.94] }}
-                          whileHover={{ scale: 1.015, y: -2 }}
-                          whileTap={{ scale: 0.98 }}
-                          role="button"
-                          tabIndex={0}
-                          className={cn("group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50 rounded-2xl", isFeatured && "esports-card")}
-                          data-testid={`pair-card-${row.category.id}-${idx}`}
-                          onClick={() => {
-                            setComparisonPairId(pair.id);
-                            setComparisonPairNames({ p1: p1Name, p2: p2Name });
-                            setAiAnalysis(null);
-                          }}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter" || e.key === " ") {
-                              e.preventDefault();
-                              setComparisonPairId(pair.id);
-                              setComparisonPairNames({ p1: p1Name, p2: p2Name });
-                              setAiAnalysis(null);
-                            }
-                          }}
-                        >
-                          <div className={cn("relative rounded-2xl overflow-hidden transition-all duration-300 shadow-lg group-hover:shadow-2xl", accent.glow)} style={{ background: "linear-gradient(145deg, #1a1a2e 0%, #16213e 60%, #0f0f1a 100%)" }}>
-                            <div className={cn("absolute top-0 left-0 right-0 h-px bg-gradient-to-r opacity-60 group-hover:opacity-100 transition-opacity esports-border-glow", accent.neon)} />
-                            <div className={cn("absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r opacity-20 group-hover:opacity-40 transition-opacity", accent.neon)} />
-                            <div className={cn("absolute top-0 left-0 w-px h-full bg-gradient-to-b opacity-30 group-hover:opacity-60 transition-opacity", accent.neon)} />
-                            <div className={cn("absolute top-0 right-0 w-px h-full bg-gradient-to-b opacity-15 group-hover:opacity-30 transition-opacity", accent.neon)} />
-                            {isFeatured && (
-                              <div className="absolute top-2 right-2 z-10">
-                                <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
-                                  <Flame className="h-2.5 w-2.5 text-amber-400" />
-                                  <span className="text-[8px] font-black uppercase tracking-wider text-amber-400">Featured</span>
-                                </div>
-                              </div>
-                            )}
-                            <div className="relative p-4">
-                              <div className="flex items-center justify-between mb-1.5">
-                                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">#{idx + 1}</span>
-                                <div className={cn("relative overflow-hidden px-2.5 py-1 rounded-full", quality.glow)} style={{ background: "rgba(255,255,255,0.04)" }}>
-                                  <div className={cn("absolute inset-0 bg-gradient-to-r opacity-15", quality.gradient)} />
-                                  <span className={cn("relative text-[9px] font-black uppercase tracking-wider", quality.text)}>{quality.label}</span>
-                                </div>
-                              </div>
-                              <h3 className="text-lg font-black tracking-wide truncate mb-4" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${row.category.id}-${idx}`}>
-                                {p1Name} & {p2Name}
-                              </h3>
-                              <div className="flex items-center" data-testid={`pair-players-${row.category.id}-${idx}`}>
-                                {[{ name: p1Name, level: p1Level, grade: pair.profile1?.grade }, { name: p2Name, level: p2Level, grade: pair.profile2?.grade }].map((player, pi) => (
-                                  <div key={pi} className="flex-1 flex flex-col items-center text-center px-1">
-                                    <div className="relative mb-2">
-                                      <div className={cn("absolute -inset-1.5 rounded-full bg-gradient-to-br opacity-30 group-hover:opacity-50 transition-opacity blur-sm", accent.neon)} />
-                                      <div className={cn("relative ring-2 rounded-full", accent.ring)}>
-                                        <PlayerAvatar name={player.name} size="xl" />
-                                      </div>
-                                      <div className={cn("absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-6 rounded-full blur-sm opacity-50", accent.dot)} />
-                                    </div>
-                                    <p className="text-sm font-bold text-white truncate max-w-[90px] leading-tight">{player.name}</p>
-                                    <div className="mt-1.5 flex items-center gap-1.5">
-                                      <GradeTierBadge grade={player.grade || "—"} />
-                                    </div>
-                                    <div className="mt-2 w-full max-w-[80px]">
-                                      <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                                        <motion.div initial={{ width: 0 }} animate={{ width: `${player.level.power}%` }} transition={{ duration: 0.8, delay: 0.3 + idx * 0.06, ease: "easeOut" }} className={cn("h-full rounded-full", player.level.bgColor)} style={{ opacity: 0.85 }} />
-                                      </div>
-                                      <span className={cn("text-[8px] font-bold uppercase tracking-wider mt-0.5 block", player.level.color)}>{player.level.label}</span>
-                                    </div>
-                                  </div>
-                                )).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, (
-                                  <div key="vs" className="flex flex-col items-center mx-1 flex-shrink-0">
-                                    <div className="relative">
-                                      <div className="absolute -inset-2 bg-gradient-to-b from-violet-500/10 to-transparent rounded-full blur-md" />
-                                      <div className="relative h-8 w-8 rounded-full border border-white/[0.08] flex items-center justify-center" style={{ background: "rgba(139, 92, 246, 0.1)" }}>
-                                        <span className="text-[10px] font-black text-violet-300/80 tracking-wider">VS</span>
-                                      </div>
-                                    </div>
-                                  </div>
-                                ), curr], [] as any[])}
-                              </div>
-                              <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                                <div className="flex items-center justify-between mb-2">
-                                  <div className="flex items-center gap-1.5">
-                                    <Zap className="h-3 w-3 text-violet-400" />
-                                    <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Team Synergy</span>
-                                  </div>
-                                  <span className="text-[10px] font-black text-white/80">{synergy.synergy}%</span>
-                                </div>
-                                <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                                  <motion.div initial={{ width: 0 }} animate={{ width: `${synergy.synergy}%` }} transition={{ duration: 1, delay: 0.5 + idx * 0.06, ease: "easeOut" }} className={cn("h-full rounded-full bg-gradient-to-r esports-synergy-bar", synergy.color)} style={{ opacity: 0.9 }} />
-                                </div>
-                                <div className="flex items-center justify-between mt-3">
-                                  <div className="flex items-center gap-1.5">
-                                    <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 esports-status-dot" />
-                                    <span className="text-[9px] font-semibold text-emerald-400/80 uppercase tracking-wider">Ready</span>
-                                  </div>
-                                  {pairedDate && (
-                                    <div className="flex items-center gap-1 text-[9px] text-slate-500">
-                                      <Calendar className="h-2.5 w-2.5" />
-                                      <span>{pairedDate}</span>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                          </div>
-                        </motion.div>
-                      );
-                    })}
-                  </div>
-                )}
-
-                {row.soloEntries.length > 0 && (
-                  <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.03] p-3 space-y-1.5" data-testid={`pairs-cat-solo-${row.category.id}`}>
-                    <div className="flex items-center gap-2 mb-1">
-                      <Clock className="h-3 w-3 text-amber-500" />
-                      <span className="text-[10px] font-black uppercase tracking-wider text-amber-500">Looking for partner</span>
-                    </div>
-                    {row.soloEntries.map((t: any) => (
-                      <div key={t.id} className="flex items-center gap-2 text-xs text-foreground/80 pl-5">
-                        <span className="font-bold">{t.player1?.fullName || "?"}</span>
-                        <span className="italic text-[10px] text-muted-foreground">(solo)</span>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
-      )}
-
-      {false && pairs && pairs.length > 0 && (
-        <>
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5, ease: "easeOut" }}
-            className="relative overflow-hidden rounded-2xl p-5"
-            style={{ background: "linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)" }}
-          >
-            <div className="absolute inset-0 opacity-[0.03]" style={{ backgroundImage: "radial-gradient(circle at 1px 1px, rgba(255,255,255,0.3) 1px, transparent 0)", backgroundSize: "20px 20px" }} />
-            <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-violet-500/40 to-transparent" />
-            <div className="relative flex items-center justify-between">
-              <div>
-                <div className="flex items-center gap-2 mb-1">
-                  <div className="h-1.5 w-1.5 rounded-full bg-violet-400 esports-status-dot" />
-                  <span className="text-[9px] font-bold uppercase tracking-[0.25em] text-violet-400/80">Tournament Arena</span>
-                </div>
-                <h2 className="text-xl font-black text-white uppercase tracking-wider">Confirmed Pairs</h2>
-                <p className="text-[11px] text-slate-400 mt-0.5 font-medium">Elite duos locked in for competition</p>
-              </div>
-              <div className="flex items-center gap-3">
-                <div className="relative">
-                  <div className="absolute -inset-1 rounded-xl bg-gradient-to-r from-violet-500/20 to-cyan-500/20 blur-md" />
-                  <div className="relative h-12 px-4 rounded-xl border border-violet-500/20 flex items-center gap-2" style={{ background: "rgba(139, 92, 246, 0.08)" }}>
-                    <Swords className="h-4 w-4 text-violet-400" />
-                    <span className="text-xl font-black text-white">{pairs.length}</span>
-                    <span className="text-[9px] uppercase tracking-wider text-violet-300/70 font-bold">Teams</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </motion.div>
-
-          <div className="grid gap-4 sm:grid-cols-2">
-            {pairs.map((pair: any, idx: number) => {
-              const p1Name = pair.user1?.fullName || "Player 1";
-              const p2Name = pair.user2?.fullName || "Player 2";
-              const accentIdx = idx % esportsAccents.length;
-              const accent = esportsAccents[accentIdx];
-              const pairedDate = pair.createdAt ? formatLondon(pair.createdAt, "d MMM yyyy") : null;
-              const isMyPair = user && (pair.user1?.id === user.id || pair.user2?.id === user.id);
-              const partnerInPair = isMyPair
-                ? (pair.user1?.id === user.id ? pair.user2?.fullName : pair.user1?.fullName)
-                : null;
-
-              const p1Level = getPlayerPowerLevel(
-                pair.profile1?.grade || pair.profile1?.currentGrade || "C3",
-                pair.profile1?.matchesPlayed || 0,
-                pair.profile1?.matchesWon || 0
-              );
-              const p2Level = getPlayerPowerLevel(
-                pair.profile2?.grade || pair.profile2?.currentGrade || "C3",
-                pair.profile2?.matchesPlayed || 0,
-                pair.profile2?.matchesWon || 0
-              );
-              const quality = getPairQuality(p1Level.power, p2Level.power);
-              const synergy = getTeamSynergy(p1Level.power, p2Level.power);
-              const teamName = pair.pairName || `${p1Name.split(" ")[0]} & ${p2Name.split(" ")[0]}`;
-              const isFeatured = synergy.synergy >= 75;
-
-              return (
-                <motion.div
-                  key={pair.id}
-                  initial={{ opacity: 0, y: 20, scale: 0.97 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  transition={{ duration: 0.4, delay: idx * 0.07, ease: [0.25, 0.46, 0.45, 0.94] }}
-                  whileHover={{ scale: 1.025, y: -4 }}
-                  whileTap={{ scale: 0.98 }}
-                  role="button"
-                  tabIndex={0}
-                  className={cn("group cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-violet-400/50 rounded-2xl", isFeatured && "esports-card")}
-                  data-testid={`pair-card-${idx}`}
-                  onClick={() => {
-                    setComparisonPairId(pair.id);
-                    setComparisonPairNames({ p1: p1Name, p2: p2Name });
-                    setAiAnalysis(null);
-                  }}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter" || e.key === " ") {
-                      e.preventDefault();
-                      setComparisonPairId(pair.id);
-                      setComparisonPairNames({ p1: p1Name, p2: p2Name });
-                      setAiAnalysis(null);
-                    }
-                  }}
-                >
-                  <div className={cn(
-                    "relative rounded-2xl overflow-hidden transition-all duration-300",
-                    "shadow-lg group-hover:shadow-2xl",
-                    accent.glow
-                  )} style={{ background: "linear-gradient(145deg, #1a1a2e 0%, #16213e 60%, #0f0f1a 100%)" }}>
-                    <div className={cn("absolute top-0 left-0 right-0 h-px bg-gradient-to-r opacity-60 group-hover:opacity-100 transition-opacity esports-border-glow", accent.neon)} />
-                    <div className={cn("absolute bottom-0 left-0 right-0 h-px bg-gradient-to-r opacity-20 group-hover:opacity-40 transition-opacity", accent.neon)} />
-                    <div className={cn("absolute top-0 left-0 w-px h-full bg-gradient-to-b opacity-30 group-hover:opacity-60 transition-opacity", accent.neon)} />
-                    <div className={cn("absolute top-0 right-0 w-px h-full bg-gradient-to-b opacity-15 group-hover:opacity-30 transition-opacity", accent.neon)} />
-
-                    {isFeatured && (
-                      <div className="absolute top-2 right-2 z-10">
-                        <div className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-amber-500/15 border border-amber-500/25">
-                          <Flame className="h-2.5 w-2.5 text-amber-400" />
-                          <span className="text-[8px] font-black uppercase tracking-wider text-amber-400">Featured</span>
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="absolute inset-0 esports-shimmer-line opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none" />
-
-                    <div className="relative p-4">
-                      <div className="flex items-center justify-between mb-1.5">
-                        <div className="flex items-center gap-2">
-                          <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">#{idx + 1}</span>
-                          <div className="flex items-center gap-1.5">
-                            {isMyPair && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setUnpairConfirm({ pairId: pair.id, partnerName: partnerInPair || "your partner" }); }}
-                                className="flex items-center gap-1 px-2 py-1 rounded-lg text-red-400 text-[9px] font-medium hover:bg-red-500/15 transition-colors"
-                                aria-label={`Unpair from ${partnerInPair || "your partner"}`}
-                                data-testid={`button-unpair-${idx}`}
-                              >
-                                <UserMinus className="h-3 w-3" />
-                              </button>
-                            )}
-                          </div>
-                        </div>
-                        <div className={cn("relative overflow-hidden px-2.5 py-1 rounded-full", quality.glow)} style={{ background: "rgba(255,255,255,0.04)" }}>
-                          <div className={cn("absolute inset-0 bg-gradient-to-r opacity-15", quality.gradient)} />
-                          <span className={cn("relative text-[9px] font-black uppercase tracking-wider", quality.text)}>{quality.label}</span>
-                        </div>
-                      </div>
-                      <div className="flex items-center gap-2 mb-4">
-                        {editingPairId === pair.id ? (
-                          <div className="flex items-center gap-2 flex-1" onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
-                            <input
-                              autoFocus
-                              type="text"
-                              value={editPairName}
-                              onChange={(e) => setEditPairName(e.target.value)}
-                              maxLength={50}
-                              placeholder="Enter team name..."
-                              className="flex-1 h-8 px-2 rounded-lg bg-white/[0.06] border border-white/[0.12] text-sm font-bold text-white placeholder:text-slate-500 outline-none focus:border-amber-500/50"
-                              onKeyDown={(e) => {
-                                e.stopPropagation();
-                                if (e.key === "Enter") {
-                                  updatePairNameMutation.mutate({ tournamentId, pairId: pair.id, pairName: editPairName }, {
-                                    onSuccess: () => { toast({ title: "Team name updated" }); setEditingPairId(null); },
-                                    onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
-                                  });
-                                }
-                                if (e.key === "Escape") setEditingPairId(null);
-                              }}
-                              data-testid={`input-pair-name-${idx}`}
-                            />
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                updatePairNameMutation.mutate({ tournamentId, pairId: pair.id, pairName: editPairName }, {
-                                  onSuccess: () => { toast({ title: "Team name updated" }); setEditingPairId(null); },
-                                  onError: (err: any) => { toast({ title: "Error", description: err.message, variant: "destructive" }); },
-                                });
-                              }}
-                              disabled={updatePairNameMutation.isPending}
-                              className="h-8 w-8 rounded-lg bg-emerald-500/20 text-emerald-400 hover:bg-emerald-500/30 flex items-center justify-center transition-colors"
-                              data-testid={`button-save-pair-name-${idx}`}
-                            >
-                              {updatePairNameMutation.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Check className="h-3.5 w-3.5" />}
-                            </button>
-                            <button
-                              onClick={(e) => { e.stopPropagation(); setEditingPairId(null); }}
-                              className="h-8 w-8 rounded-lg bg-white/[0.04] text-slate-400 hover:bg-white/[0.08] flex items-center justify-center transition-colors"
-                              data-testid={`button-cancel-pair-name-${idx}`}
-                            >
-                              <X className="h-3.5 w-3.5" />
-                            </button>
-                          </div>
-                        ) : (
-                          <>
-                            <h3 className="text-lg font-black tracking-wide truncate flex-1" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${idx}`}>
-                              {p1Name} & {p2Name}
-                            </h3>
-                            {(isMyPair || isAdmin) && (
-                              <button
-                                onClick={(e) => { e.stopPropagation(); setEditingPairId(pair.id); setEditPairName(pair.pairName || ""); }}
-                                className="flex-shrink-0 h-7 w-7 rounded-lg bg-white/[0.04] text-slate-400 hover:text-amber-400 hover:bg-white/[0.08] flex items-center justify-center transition-colors"
-                                aria-label="Edit team name"
-                                data-testid={`button-edit-pair-name-${idx}`}
-                              >
-                                <Edit3 className="h-3 w-3" />
-                              </button>
-                            )}
-                          </>
-                        )}
-                      </div>
-
-                      <div
-                        className="flex items-center"
-                        data-testid={`pair-compare-trigger-${idx}`}
-                      >
-                        {[{ name: p1Name, profile: pair.profile1, level: p1Level }, { name: p2Name, profile: pair.profile2, level: p2Level }].map((player, pi) => (
-                          <div key={pi} className="flex-1 flex flex-col items-center text-center px-1">
-                            <div className="relative mb-2">
-                              <div className={cn("absolute -inset-1.5 rounded-full bg-gradient-to-br opacity-30 group-hover:opacity-50 transition-opacity blur-sm", accent.neon)} />
-                              <div className={cn("relative ring-2 rounded-full", accent.ring)}>
-                                <PlayerAvatar name={player.name} size="xl" />
-                              </div>
-                              <div className={cn("absolute -bottom-0.5 left-1/2 -translate-x-1/2 h-1.5 w-6 rounded-full blur-sm opacity-50", accent.dot)} />
-                            </div>
-                            <p className="text-sm font-bold text-white truncate max-w-[90px] leading-tight">{player.name}</p>
-                            <div className="mt-1.5 flex items-center gap-1.5">
-                              <GradeTierBadge grade={player.profile?.currentGrade || "—"} />
-                            </div>
-                            <div className="mt-2 w-full max-w-[80px]">
-                              <div className="h-1 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                                <motion.div
-                                  initial={{ width: 0 }}
-                                  animate={{ width: `${player.level.power}%` }}
-                                  transition={{ duration: 0.8, delay: 0.3 + idx * 0.07, ease: "easeOut" }}
-                                  className={cn("h-full rounded-full", player.level.bgColor)}
-                                  style={{ opacity: 0.85 }}
-                                />
-                              </div>
-                              <span className={cn("text-[8px] font-bold uppercase tracking-wider mt-0.5 block", player.level.color)}>{player.level.label}</span>
-                            </div>
-                          </div>
-                        )).reduce((prev: any, curr: any, i: number) => i === 0 ? [curr] : [...prev, (
-                          <div key="vs" className="flex flex-col items-center mx-1 flex-shrink-0">
-                            <div className="relative">
-                              <div className="absolute -inset-2 bg-gradient-to-b from-violet-500/10 to-transparent rounded-full blur-md" />
-                              <div className="relative h-8 w-8 rounded-full border border-white/[0.08] flex items-center justify-center" style={{ background: "rgba(139, 92, 246, 0.1)" }}>
-                                <span className="text-[10px] font-black text-violet-300/80 tracking-wider">VS</span>
-                              </div>
-                            </div>
-                          </div>
-                        ), curr], [] as any[])}
-                      </div>
-
-                      <div className="mt-4 pt-3" style={{ borderTop: "1px solid rgba(255,255,255,0.06)" }}>
-                        <div className="flex items-center justify-between mb-2">
-                          <div className="flex items-center gap-1.5">
-                            <Zap className="h-3 w-3 text-violet-400" />
-                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-400">Team Synergy</span>
-                          </div>
-                          <span className="text-[10px] font-black text-white/80">{synergy.synergy}%</span>
-                        </div>
-                        <div className="h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.06)" }}>
-                          <motion.div
-                            initial={{ width: 0 }}
-                            animate={{ width: `${synergy.synergy}%` }}
-                            transition={{ duration: 1, delay: 0.5 + idx * 0.07, ease: "easeOut" }}
-                            className={cn("h-full rounded-full bg-gradient-to-r esports-synergy-bar", synergy.color)}
-                            style={{ opacity: 0.9 }}
-                          />
-                        </div>
-
-                        <div className="flex items-center justify-between mt-3">
-                          <div className="flex items-center gap-1.5">
-                            <div className="h-1.5 w-1.5 rounded-full bg-emerald-400 esports-status-dot" />
-                            <span className="text-[9px] font-semibold text-emerald-400/80 uppercase tracking-wider">Ready</span>
-                          </div>
-                          {pairedDate && (
-                            <div className="flex items-center gap-1 text-[9px] text-slate-500">
-                              <Calendar className="h-2.5 w-2.5" />
-                              <span>{pairedDate}</span>
-                            </div>
-                          )}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </motion.div>
-              );
-            })}
-          </div>
-        </>
-      )}
 
       {(!pairs || pairs.length === 0) && (!teamsByCategory || !teamsByCategory.some((r: any) => r.confirmedPairs.length > 0 || r.soloEntries.length > 0)) && myIncomingRequests.length === 0 && mySentRequests.length === 0 && (!isIndividual || !playerPool || playerPool.length === 0) && (
         <EmptyState icon={UserPlus} title="No Pairs Yet" description={myRegistration ? "No confirmed pairs yet. Other players will appear here once they register." : "No confirmed pairs yet. Register as an individual in the Sign-Up tab to find a partner."} />

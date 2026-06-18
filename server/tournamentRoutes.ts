@@ -1,5 +1,6 @@
 import { Express } from "express";
 import { db } from "./db";
+import { storage } from "./storage";
 import { eq, and, or, desc, asc, sql, inArray, ne, isNull, gte } from "drizzle-orm";
 import {
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches,
@@ -9,8 +10,82 @@ import {
   tournamentGroups, tournamentGroupPairs, tournamentStages,
   users, clubs, venues, playerProfiles, matches,
   notifications, clubMemberships, internalMessages,
+  sessions,
   GRADE_ORDER,
 } from "@shared/schema";
+
+// Maps a tournament category's gender restriction to a short doubles tag.
+// MIXED/ALL -> MX, MALE_ONLY/MALE -> MD, FEMALE_ONLY/FEMALE -> XD.
+function categoryDoublesTag(genderRestriction: string | null | undefined): string {
+  const g = (genderRestriction || "MIXED").toUpperCase();
+  if (g === "MALE_ONLY" || g === "MALE") return "MD";
+  if (g === "FEMALE_ONLY" || g === "FEMALE") return "XD";
+  return "MX";
+}
+
+// Ensures a normal club session exists for a tournament and that current
+// (non-rejected) registrations are mirrored as session signups. Idempotent —
+// safe to call on every register/withdraw and self-heals legacy tournaments.
+// Uses storage.* directly so no invite/notification side-effects fire.
+async function ensureTournamentSession(tournamentId: number) {
+  const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+  if (!tournament) return null;
+
+  let [session] = await db.select().from(sessions)
+    .where(eq(sessions.tournamentId, tournamentId)).limit(1);
+
+  if (!session) {
+    try {
+      session = await storage.createSession({
+        clubId: tournament.clubId,
+        venueId: tournament.venueId ?? null,
+        title: tournament.name,
+        date: tournament.startDate,
+        startTime: "09:00",
+        maxPlayers: tournament.maxPlayers || 100,
+        courtsAvailable: tournament.courtsAvailable || 4,
+        allowedCategories: [],
+        tournamentId: tournament.id,
+        createdBy: tournament.createdBy ?? null,
+      } as any);
+    } catch (err) {
+      // A concurrent call may have created it first — the partial unique index
+      // on sessions.tournament_id guarantees only one wins; re-read it.
+      [session] = await db.select().from(sessions)
+        .where(eq(sessions.tournamentId, tournamentId)).limit(1);
+      if (!session) throw err;
+    }
+  }
+
+  // Backfill current registrations as signups (idempotent).
+  const regs = await db.select().from(tournamentRegistrations)
+    .where(and(
+      eq(tournamentRegistrations.tournamentId, tournamentId),
+      ne(tournamentRegistrations.status, "REJECTED"),
+    ));
+  for (const reg of regs) {
+    const [profile] = await db.select().from(playerProfiles)
+      .where(and(eq(playerProfiles.userId, reg.userId), eq(playerProfiles.clubId, tournament.clubId)));
+    if (profile) {
+      await storage.createSessionSignup(session.id, profile.id, 0);
+    }
+  }
+  return session;
+}
+
+// Removes a single player's signup from a tournament's mirrored session.
+async function removeTournamentSessionSignup(tournamentId: number, userId: number) {
+  const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+  if (!tournament) return;
+  const [session] = await db.select().from(sessions)
+    .where(eq(sessions.tournamentId, tournamentId)).limit(1);
+  if (!session) return;
+  const [profile] = await db.select().from(playerProfiles)
+    .where(and(eq(playerProfiles.userId, userId), eq(playerProfiles.clubId, tournament.clubId)));
+  if (profile) {
+    await storage.deleteSessionSignup(session.id, profile.id);
+  }
+}
 
 // A player can have one playerProfiles row per club. Their displayed grade should
 // be their BEST grade across all clubs (matching the Rankings + Profile pages), not
@@ -214,6 +289,7 @@ export function registerTournamentRoutes(app: Express) {
         registrationDeadline: registrationDeadline ? new Date(registrationDeadline) : null,
         location, socialLinks, entryFee, externalEntryFee, prizeInfo, rules, groupsPerSide, pairsPerGroup,
       }).returning();
+      try { await ensureTournamentSession(t.id); } catch (err) { console.error("ensureTournamentSession (create) failed:", err); }
       res.json(t);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1708,6 +1784,8 @@ export function registerTournamentRoutes(app: Express) {
         status, categoryId: null,
       }).returning();
 
+      try { await ensureTournamentSession(tournamentId); } catch (err) { console.error("ensureTournamentSession (register) failed:", err); }
+
       res.json(reg);
     } catch (e: any) {
       res.status(500).json({ message: e.message });
@@ -1767,6 +1845,8 @@ export function registerTournamentRoutes(app: Express) {
         tournamentId, userId: targetUserId, registrationType: "INDIVIDUAL",
         partnerId: null, partnerName: null, status: "APPROVED", categoryId: null,
       }).returning();
+
+      try { await ensureTournamentSession(tournamentId); } catch (err) { console.error("ensureTournamentSession (admin-add) failed:", err); }
 
       res.json(reg);
     } catch (e: any) {
@@ -1920,6 +2000,11 @@ export function registerTournamentRoutes(app: Express) {
           )
         ));
       }
+
+      try {
+        await removeTournamentSessionSignup(reg.tournamentId, removedUserId);
+        if (partnerUserId) await removeTournamentSessionSignup(reg.tournamentId, partnerUserId);
+      } catch (err) { console.error("removeTournamentSessionSignup (withdraw) failed:", err); }
 
       res.json({ success: true });
     } catch (e: any) {
@@ -3514,24 +3599,37 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
   app.get("/api/tournaments/:id/all-players", async (req, res) => {
     try {
       const tournamentId = Number(req.params.id);
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
       const regs = await db.select().from(tournamentRegistrations)
         .where(and(eq(tournamentRegistrations.tournamentId, tournamentId), ne(tournamentRegistrations.status, "REJECTED")));
 
       const cats = await db.select().from(tournamentCategories)
         .where(eq(tournamentCategories.tournamentId, tournamentId));
       const catIds = cats.map(c => c.id);
+      const catById = new Map(cats.map(c => [c.id, c]));
 
       const enriched = await Promise.all(regs.map(async (reg) => {
         const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
           .from(users).where(eq(users.id, reg.userId));
-        const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+        // Prefer the profile scoped to the tournament's club (tournament_teams
+        // reference these club-scoped profiles), fall back to any profile.
+        const userProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+        const profile = userProfiles.find(p => tournament && p.clubId === tournament.clubId) || userProfiles[0];
         let matchesPlayed = 0, matchesWon = 0, gamesWon = 0, gamesLost = 0, pointsScored = 0, pointsConceded = 0;
+        const partnerTagSet = new Set<string>();
         if (profile && catIds.length > 0) {
           const playerTeams = await db.select().from(tournamentTeams)
             .where(and(
               inArray(tournamentTeams.categoryId, catIds),
               or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id))
             ));
+          // A team with both players set means this player is partnered in that
+          // doubles category — tag it by the category's gender restriction.
+          for (const team of playerTeams) {
+            if (team.player2Id == null) continue;
+            const cat = catById.get(team.categoryId);
+            partnerTagSet.add(categoryDoublesTag(cat?.genderRestriction));
+          }
           const teamIds = playerTeams.map(t => t.id);
           if (teamIds.length > 0) {
             const tMatches = await db.select().from(tournamentMatches)
@@ -3562,10 +3660,12 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
             }
           }
         }
+        const partnerTags = Array.from(partnerTagSet);
         return {
           ...reg, user, profile, matchesPlayed, matchesWon, gamesWon, gamesLost, pointsScored, pointsConceded,
           matchesLost: matchesPlayed - matchesWon,
           winRate: matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0,
+          partnerTags, hasPartner: partnerTags.length > 0,
         };
       }));
       res.json(enriched);
