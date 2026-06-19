@@ -14,12 +14,20 @@ import {
   GRADE_ORDER,
 } from "@shared/schema";
 
-// Maps a tournament category's gender restriction to a short doubles tag.
-// MIXED/ALL -> MX, MALE_ONLY/MALE -> MD, FEMALE_ONLY/FEMALE -> XD.
-function categoryDoublesTag(genderRestriction: string | null | undefined): string {
-  const g = (genderRestriction || "MIXED").toUpperCase();
+// Maps a tournament category to a short doubles tag: MD (men's), XD (women's),
+// MX (mixed). The gender restriction is the strongest signal, but many clubs
+// leave every category as MIXED/ALL and encode the type in the NAME instead
+// ("Men's doubles", "Females doubles", "Mixed doubles") — so when the restriction
+// is ambiguous we fall back to parsing the category name. Women/female is checked
+// before men/male because "women" contains "men" and "female" contains "male".
+function categoryDoublesTag(genderRestriction: string | null | undefined, name?: string | null): string {
+  const g = (genderRestriction || "").toUpperCase();
   if (g === "MALE_ONLY" || g === "MALE") return "MD";
   if (g === "FEMALE_ONLY" || g === "FEMALE") return "XD";
+  const n = (name || "").toLowerCase();
+  if (n.includes("mixed")) return "MX";
+  if (n.includes("women") || n.includes("woman") || n.includes("female") || n.includes("ladies") || n.includes("girl")) return "XD";
+  if (n.includes("men") || n.includes("male") || n.includes("gents") || n.includes("boys")) return "MD";
   return "MX";
 }
 
@@ -1900,7 +1908,7 @@ export function registerTournamentRoutes(app: Express) {
           for (const team of playerTeams) {
             if (team.player2Id == null) continue;
             const cat = catById.get(team.categoryId);
-            const tag = categoryDoublesTag(cat?.genderRestriction);
+            const tag = categoryDoublesTag(cat?.genderRestriction, cat?.name);
             partnerTagSet.add(tag);
             const partnerProfileId = userProfileIds.includes(team.player1Id!) ? team.player2Id : team.player1Id;
             const [partnerProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, partnerProfileId));
@@ -3679,7 +3687,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
           for (const team of playerTeams) {
             if (team.player2Id == null) continue;
             const cat = catById.get(team.categoryId);
-            partnerTagSet.add(categoryDoublesTag(cat?.genderRestriction));
+            partnerTagSet.add(categoryDoublesTag(cat?.genderRestriction, cat?.name));
           }
           const teamIds = playerTeams.map(t => t.id);
           if (teamIds.length > 0) {

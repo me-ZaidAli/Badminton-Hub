@@ -6031,14 +6031,18 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                       <span className="font-medium">{reg.registrationType}</span>
                     )}
                     {reg.partner && !reg.hasPartner && <span>+ {reg.partner.fullName}</span>}
-                    {Array.isArray(reg.categoryPartners) && reg.categoryPartners.map((cp: any, i: number) => (
-                      <span key={i} className="inline-flex items-center gap-1" data-testid={`reg-partner-${reg.id}-${i}`}>
-                        <Badge className="bg-violet-500/20 text-violet-300 border border-violet-500/30 text-[9px] px-1 font-bold">{cp.tag}</Badge>
-                        <span>{cp.name}</span>
-                      </span>
-                    ))}
                     {reg.paymentConfirmed && <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1 font-bold">PAID</Badge>}
                   </div>
+                  {Array.isArray(reg.categoryPartners) && reg.categoryPartners.length > 0 && (
+                    <div className="mt-1 flex flex-col gap-0.5">
+                      {reg.categoryPartners.map((cp: any, i: number) => (
+                        <div key={i} className="flex items-center gap-1.5 text-[10px] text-muted-foreground" data-testid={`reg-partner-${reg.id}-${i}`}>
+                          <Badge className={cn("text-[9px] px-1 border font-bold", DOUBLES_TAG_STYLES[cp.tag] || "bg-violet-500/20 text-violet-300 border-violet-500/30")}>{cp.tag}</Badge>
+                          <span className="truncate">with <span className="text-foreground font-medium">{cp.name}</span></span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               </div>
               <div className="flex items-center gap-1.5 flex-wrap">
