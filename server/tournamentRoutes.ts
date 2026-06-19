@@ -3978,6 +3978,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       // Per-category fees: each category overrides the tournament-level fee.
       // Players who join a category owe the category's fee (member vs external rate).
       const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
+      const hasCategories = cats.length > 0;
       const catFeeMap = new Map<number, { name: string; internalFee: number; externalFee: number; usesTournamentFee: boolean }>();
       for (const c of cats) {
         const hasOwnInternal = c.entryFee != null && c.entryFee !== "";
@@ -4061,9 +4062,13 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         const catEntries = userCategories.get(reg.userId) || [];
         // Fallback: a registered player not yet in any category still owes the
         // tournament-level fee (back-compat with legacy single-category flow).
+        // In the modern multi-category model a player owes per-category fees only.
+        // An approved registrant who hasn't joined any category yet owes nothing
+        // (it would otherwise inflate the cards above the category breakdown).
+        // Legacy simple tournaments (no categories at all) still charge the flat fee.
         const playerFee = catEntries.length > 0
           ? catEntries.reduce((s, e) => s + e.fee, 0)
-          : tournamentLevelFee;
+          : (hasCategories ? 0 : tournamentLevelFee);
         // Aggregate per-team-slot statuses into a single label for the row.
         // PAID only if every category entry is PAID; PENDING if any is PENDING
         // (or mixed paid/unpaid); UNPAID if all are unpaid. When the player
@@ -4124,8 +4129,11 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
             const fee = snapshot != null
               ? snapshot / 100
               : (clubMemberIds.has(uid) ? info.internalFee : info.externalFee);
+            // Only approved players count toward the cards, so the per-category
+            // rows must be scoped the same way or the totals won't reconcile.
+            if (!approvedUserIds.has(uid)) continue;
             playerCount++;
-            if (approvedUserIds.has(uid)) expected += fee;
+            expected += fee;
             if (status === "PAID") collected += fee;
             if (status === "PENDING") pending += fee;
           }

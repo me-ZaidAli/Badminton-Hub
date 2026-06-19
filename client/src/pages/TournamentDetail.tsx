@@ -1,5 +1,5 @@
 import { useRoute } from "wouter";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo, useEffect, useRef } from "react";
 import { motion } from "framer-motion";
 import {
   useTournament, useTournamentCategories, useTournamentTeams,
@@ -48,7 +48,7 @@ import {
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, UserMinus, UserX, Clock, Shield, ChevronRight, ChevronDown, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
-  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, ArrowRight,
+  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, ArrowRight, Download, Image as ImageIcon,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -6706,6 +6706,199 @@ function CategoryFeeRow({ category, tournament, tournamentId, onDelete }: { cate
   );
 }
 
+function TournamentSummaryExport({ tournamentId, tournament, finances }: { tournamentId: number; tournament: any; finances?: any }) {
+  const { data: teamsByCategory } = useTournamentTeamsByCategory(tournamentId);
+  const reportRef = useRef<HTMLDivElement>(null);
+  const [busy, setBusy] = useState<null | "png" | "pdf">(null);
+  const { toast } = useToast();
+
+  const fmtDate = (d?: string | null) => d ? format(new Date(d), "d MMM yyyy") : "";
+  const fileBase = `${(tournament?.name || "tournament").replace(/[^a-z0-9]+/gi, "-").toLowerCase()}-summary`;
+
+  async function renderCanvas() {
+    const node = reportRef.current;
+    if (!node) throw new Error("Report not ready");
+    const html2canvas = (await import("html2canvas")).default;
+    return html2canvas(node, { backgroundColor: "#ffffff", scale: 2, useCORS: true, logging: false });
+  }
+
+  async function downloadPng() {
+    setBusy("png");
+    try {
+      const canvas = await renderCanvas();
+      const link = document.createElement("a");
+      link.download = `${fileBase}.png`;
+      link.href = canvas.toDataURL("image/png");
+      link.click();
+      toast({ title: "Summary downloaded", description: "PNG saved." });
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e.message, variant: "destructive" });
+    } finally { setBusy(null); }
+  }
+
+  async function downloadPdf() {
+    setBusy("pdf");
+    try {
+      const canvas = await renderCanvas();
+      const { jsPDF } = await import("jspdf");
+      const pdf = new jsPDF({ orientation: "portrait", unit: "mm", format: "a4" });
+      const pageW = pdf.internal.pageSize.getWidth();
+      const pageH = pdf.internal.pageSize.getHeight();
+      const imgW = pageW;
+      const imgH = (canvas.height * imgW) / canvas.width;
+      let heightLeft = imgH;
+      let position = 0;
+      const imgData = canvas.toDataURL("image/png");
+      pdf.addImage(imgData, "PNG", 0, position, imgW, imgH);
+      heightLeft -= pageH;
+      while (heightLeft > 0) {
+        position -= pageH;
+        pdf.addPage();
+        pdf.addImage(imgData, "PNG", 0, position, imgW, imgH);
+        heightLeft -= pageH;
+      }
+      pdf.save(`${fileBase}.pdf`);
+      toast({ title: "Summary downloaded", description: "PDF saved." });
+    } catch (e: any) {
+      toast({ title: "Export failed", description: e.message, variant: "destructive" });
+    } finally { setBusy(null); }
+  }
+
+  const cats: any[] = Array.isArray(teamsByCategory) ? teamsByCategory : [];
+  const totalPairs = cats.reduce((s, c) => s + (c.confirmedPairs?.length || 0), 0);
+  const totalSolos = cats.reduce((s, c) => s + (c.soloEntries?.length || 0), 0);
+  const gradeOf = (p: any) => p?.grade ? String(p.grade).toUpperCase() : "";
+
+  return (
+    <div className="rounded-xl border border-border/50 bg-card p-4 flex items-center justify-between gap-3 flex-wrap" data-testid="tournament-summary-export">
+      <div className="min-w-0">
+        <h4 className="text-xs font-black text-foreground uppercase tracking-wider flex items-center gap-2">
+          <FileText className="h-4 w-4 text-amber-500" /> Tournament Summary
+        </h4>
+        <p className="text-[11px] text-muted-foreground mt-0.5">
+          Download all pairings per category plus finance totals — nicely formatted for printing or sharing.
+        </p>
+      </div>
+      <div className="flex items-center gap-2 flex-shrink-0">
+        <Button size="sm" variant="outline" className="h-9 text-xs font-bold" onClick={downloadPng} disabled={busy !== null} data-testid="button-download-summary-png">
+          {busy === "png" ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <ImageIcon className="h-3.5 w-3.5 mr-1.5" />} PNG
+        </Button>
+        <Button size="sm" className="h-9 text-xs font-bold bg-amber-600 hover:bg-amber-700 text-white" onClick={downloadPdf} disabled={busy !== null} data-testid="button-download-summary-pdf">
+          {busy === "pdf" ? <Loader2 className="h-3.5 w-3.5 animate-spin mr-1.5" /> : <Download className="h-3.5 w-3.5 mr-1.5" />} PDF
+        </Button>
+      </div>
+
+      {/* Off-screen printable report — html2canvas captures THIS node. Inline hex
+          colors only (html2canvas can't parse the app's CSS-variable/oklch tokens). */}
+      <div style={{ position: "fixed", left: "-10000px", top: 0, pointerEvents: "none", opacity: 0 }} aria-hidden>
+        <div ref={reportRef} style={{ width: "794px", background: "#ffffff", color: "#0f172a", fontFamily: "Arial, Helvetica, sans-serif", padding: "40px" }}>
+          {/* Header */}
+          <div style={{ borderBottom: "3px solid #f59e0b", paddingBottom: "18px", marginBottom: "24px" }}>
+            <div style={{ fontSize: "11px", letterSpacing: "2px", color: "#b45309", fontWeight: 700, textTransform: "uppercase" }}>Tournament Summary</div>
+            <div style={{ fontSize: "28px", fontWeight: 800, marginTop: "6px", color: "#0f172a" }}>{tournament?.name || "Tournament"}</div>
+            <div style={{ fontSize: "13px", color: "#475569", marginTop: "8px" }}>
+              {[fmtDate(tournament?.startDate), fmtDate(tournament?.endDate)].filter(Boolean).join(" – ")}
+              {tournament?.venue ? `   •   ${tournament.venue}` : ""}
+            </div>
+            <div style={{ fontSize: "11px", color: "#94a3b8", marginTop: "4px" }}>Generated {format(new Date(), "d MMM yyyy, HH:mm")}</div>
+          </div>
+
+          {/* Finance summary */}
+          {finances && (
+            <div style={{ marginBottom: "28px" }}>
+              <div style={{ fontSize: "13px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", color: "#0f172a", marginBottom: "12px" }}>Finance Overview</div>
+              <div style={{ display: "flex", gap: "12px" }}>
+                {[
+                  { label: "Expected", value: `£${(finances.totalExpected ?? 0).toFixed(2)}`, color: "#0f172a" },
+                  { label: "Collected", value: `£${(finances.totalCollected ?? 0).toFixed(2)}`, color: "#059669" },
+                  { label: "Pending", value: `£${(finances.totalPending ?? 0).toFixed(2)}`, color: "#d97706" },
+                  { label: "Collection Rate", value: `${finances.collectionRate ?? 0}%`, color: "#2563eb" },
+                ].map((c, i) => (
+                  <div key={i} style={{ flex: 1, border: "1px solid #e2e8f0", borderRadius: "10px", padding: "14px 16px", background: "#f8fafc" }}>
+                    <div style={{ fontSize: "10px", textTransform: "uppercase", letterSpacing: "1px", color: "#64748b", fontWeight: 700 }}>{c.label}</div>
+                    <div style={{ fontSize: "20px", fontWeight: 800, marginTop: "6px", color: c.color }}>{c.value}</div>
+                  </div>
+                ))}
+              </div>
+              {Array.isArray(finances.byCategory) && finances.byCategory.length > 0 && (
+                <table style={{ width: "100%", borderCollapse: "collapse", marginTop: "16px", fontSize: "12px" }}>
+                  <thead>
+                    <tr style={{ background: "#f1f5f9" }}>
+                      <th style={{ textAlign: "left", padding: "8px 10px", color: "#475569", fontWeight: 700 }}>Category</th>
+                      <th style={{ textAlign: "center", padding: "8px 10px", color: "#475569", fontWeight: 700 }}>Entries</th>
+                      <th style={{ textAlign: "right", padding: "8px 10px", color: "#475569", fontWeight: 700 }}>Expected</th>
+                      <th style={{ textAlign: "right", padding: "8px 10px", color: "#475569", fontWeight: 700 }}>Collected</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {finances.byCategory.map((c: any) => (
+                      <tr key={c.categoryId} style={{ borderBottom: "1px solid #e2e8f0" }}>
+                        <td style={{ padding: "8px 10px", fontWeight: 600 }}>{c.categoryName}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "center" }}>{c.playerCount}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "right" }}>£{(c.expected ?? 0).toFixed(2)}</td>
+                        <td style={{ padding: "8px 10px", textAlign: "right", color: "#059669", fontWeight: 700 }}>£{(c.collected ?? 0).toFixed(2)}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
+          )}
+
+          {/* Pairings per category */}
+          <div>
+            <div style={{ fontSize: "13px", fontWeight: 800, textTransform: "uppercase", letterSpacing: "1px", color: "#0f172a", marginBottom: "4px" }}>Pairings by Category</div>
+            <div style={{ fontSize: "11px", color: "#64748b", marginBottom: "16px" }}>{totalPairs} confirmed pair{totalPairs !== 1 ? "s" : ""} · {totalSolos} looking for partner</div>
+            {cats.length === 0 && (
+              <div style={{ fontSize: "12px", color: "#94a3b8" }}>No categories yet.</div>
+            )}
+            {cats.map((c: any) => {
+              const pairs: any[] = c.confirmedPairs || [];
+              const solos: any[] = c.soloEntries || [];
+              return (
+                <div key={c.category?.id} style={{ marginBottom: "22px", border: "1px solid #e2e8f0", borderRadius: "10px", overflow: "hidden" }}>
+                  <div style={{ background: "#0f172a", color: "#ffffff", padding: "10px 16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+                    <span style={{ fontSize: "14px", fontWeight: 800 }}>{c.category?.name || "Category"}</span>
+                    <span style={{ fontSize: "11px", color: "#cbd5e1" }}>{pairs.length} pair{pairs.length !== 1 ? "s" : ""}{solos.length > 0 ? ` · ${solos.length} solo` : ""}</span>
+                  </div>
+                  <div style={{ padding: "6px 0" }}>
+                    {pairs.length === 0 && solos.length === 0 && (
+                      <div style={{ fontSize: "12px", color: "#94a3b8", padding: "10px 16px" }}>No entries yet.</div>
+                    )}
+                    {pairs.map((p: any, i: number) => (
+                      <div key={p.id} style={{ display: "flex", alignItems: "center", padding: "9px 16px", borderTop: i === 0 ? "none" : "1px solid #f1f5f9" }}>
+                        <span style={{ width: "28px", fontSize: "11px", color: "#94a3b8", fontWeight: 700 }}>{i + 1}</span>
+                        <span style={{ flex: 1, fontSize: "13px", fontWeight: 600, color: "#0f172a" }}>
+                          {p.player1?.fullName || "?"}{gradeOf(p.profile1) ? ` (${gradeOf(p.profile1)})` : ""}
+                          <span style={{ color: "#94a3b8", fontWeight: 400 }}>  &amp;  </span>
+                          {p.player2?.fullName || "?"}{gradeOf(p.profile2) ? ` (${gradeOf(p.profile2)})` : ""}
+                        </span>
+                      </div>
+                    ))}
+                    {solos.map((s: any, i: number) => (
+                      <div key={`solo-${s.id}`} style={{ display: "flex", alignItems: "center", padding: "9px 16px", borderTop: "1px solid #f1f5f9" }}>
+                        <span style={{ width: "28px", fontSize: "11px", color: "#94a3b8", fontWeight: 700 }}>{pairs.length + i + 1}</span>
+                        <span style={{ flex: 1, fontSize: "13px", color: "#475569" }}>
+                          {s.player1?.fullName || "?"}{gradeOf(s.profile1) ? ` (${gradeOf(s.profile1)})` : ""}
+                          <span style={{ color: "#d97706", fontWeight: 700, fontSize: "11px" }}>   — looking for partner</span>
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          <div style={{ marginTop: "24px", paddingTop: "14px", borderTop: "1px solid #e2e8f0", fontSize: "10px", color: "#94a3b8", textAlign: "center" }}>
+            Club Master · Tournament Summary
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; tournament: any }) {
   const { data: finances, isLoading } = useTournamentFinances(tournamentId);
   const updatePaymentMutation = useUpdateTournamentPayment();
@@ -6803,6 +6996,7 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
 
   return (
     <div className="space-y-4">
+      <TournamentSummaryExport tournamentId={tournamentId} tournament={tournament} finances={finances} />
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
         {[
           { icon: PoundSterling, label: hasDualFees ? "Member / External" : "Entry Fee", value: hasDualFees ? `£${internalFee.toFixed(2)} / £${externalFee.toFixed(2)}` : `£${internalFee.toFixed(2)}`, accent: "from-amber-500 to-orange-500" },
