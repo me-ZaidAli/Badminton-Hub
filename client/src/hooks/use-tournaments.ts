@@ -478,6 +478,8 @@ export function useAdminAddPlayer() {
     onSuccess: (_data: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "registrations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "player-pool"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "all-players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "finances"] });
     },
   });
 }
