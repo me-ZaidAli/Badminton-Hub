@@ -318,6 +318,7 @@ export function useWithdrawRegistration() {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "player-pool"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "pair-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "all-players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
     },
   });
 }
@@ -406,6 +407,7 @@ export function useRegisterForTournament() {
     onSuccess: (_data: any, variables: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "registrations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "all-players"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "finances"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId] });
     },
   });
@@ -459,6 +461,7 @@ export function useAdminCreatePair() {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "player-pool"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "registrations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "teams-by-category"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "finances"] });
       if (variables.categoryId) {
         queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", variables.categoryId, "teams"] });
       }
@@ -555,6 +558,7 @@ export function useSelfUnpair() {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "pair-requests"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "teams-by-category"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "player-pool"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "finances"] });
     },
   });
 }
@@ -630,6 +634,7 @@ export function useJoinCategorySolo() {
     },
     onSuccess: (_d, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", vars.categoryId, "teams"] });
     },
   });
@@ -644,6 +649,7 @@ export function useLeaveCategory() {
     onSuccess: (_d, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "pair-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournament-categories", vars.categoryId, "teams"] });
     },
   });

@@ -1270,6 +1270,8 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "pairs"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "registrations"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "player-pool"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "teams-by-category"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", tournamentId, "finances"] });
       toast({ title: "Pair dissolved", description: data.message });
       setUnpairConfirm(null);
     },
@@ -1569,9 +1571,15 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
                                   <span className={cn("relative text-[9px] font-black uppercase tracking-wider", quality.text)}>{quality.label}</span>
                                 </div>
                               </div>
-                              <h3 className="text-lg font-black tracking-wide truncate mb-4" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${row.category.id}-${idx}`}>
+                              <h3 className="text-lg font-black tracking-wide truncate mb-2" style={{ background: "linear-gradient(135deg, #fbbf24, #f59e0b, #d97706)", WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }} data-testid={`pair-name-${row.category.id}-${idx}`}>
                                 {p1Name} & {p2Name}
                               </h3>
+                              {pair.isLocked && (
+                                <div className="flex items-center justify-center gap-1.5 mb-3 px-2.5 py-1 rounded-full bg-emerald-500/15 border border-emerald-500/30" data-testid={`pair-locked-${row.category.id}-${idx}`}>
+                                  <Lock className="h-3 w-3 text-emerald-400" />
+                                  <span className="text-[9px] font-black uppercase tracking-[0.2em] text-emerald-400">Pair Locked!</span>
+                                </div>
+                              )}
                               <div className="flex items-center" data-testid={`pair-players-${row.category.id}-${idx}`}>
                                 {[{ name: p1Name, level: p1Level, grade: pair.profile1?.grade }, { name: p2Name, level: p2Level, grade: pair.profile2?.grade }].map((player, pi) => (
                                   <div key={pi} className="flex-1 flex flex-col items-center text-center px-1">

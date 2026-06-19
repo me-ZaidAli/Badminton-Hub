@@ -3309,6 +3309,12 @@ export function registerTournamentRoutes(app: Express) {
             _p2UserId: prof2?.userId ?? null,
             createdAt: t.createdAt,
             isPaired: !!t.player2Id,
+            player1PaymentStatus: (t as any).player1PaymentStatus || "UNPAID",
+            player2PaymentStatus: (t as any).player2PaymentStatus || "UNPAID",
+            // A pair is "locked" once both players have PAID — the entry is settled.
+            isLocked: !!t.player2Id
+              && (t as any).player1PaymentStatus === "PAID"
+              && (t as any).player2PaymentStatus === "PAID",
           };
         });
         const confirmedPairs = catTeams.filter(t => t.isPaired);
