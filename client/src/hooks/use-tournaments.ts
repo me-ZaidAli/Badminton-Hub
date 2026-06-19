@@ -1141,8 +1141,8 @@ export function useTournamentStages(tournamentId: number) {
 
 export function useCreateTournamentStage() {
   return useMutation({
-    mutationFn: async ({ tournamentId, name, displayOrder }: { tournamentId: number; name: string; displayOrder?: number }) => {
-      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/stages`, { name, displayOrder });
+    mutationFn: async ({ tournamentId, name, displayOrder, categoryId }: { tournamentId: number; name: string; displayOrder?: number; categoryId?: number | null }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/stages`, { name, displayOrder, categoryId });
       return res.json();
     },
     onSuccess: (_, vars) => {

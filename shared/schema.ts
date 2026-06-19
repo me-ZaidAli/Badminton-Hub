@@ -706,6 +706,10 @@ export const tournamentPrizes = pgTable("tournament_prizes", {
 export const tournamentStages = pgTable("tournament_stages", {
   id: serial("id").primaryKey(),
   tournamentId: integer("tournament_id").references(() => tournaments.id, { onDelete: "cascade" }).notNull(),
+  // Category-scoped stages: each category owns its own stages so copying a
+  // structure clones independent stages and deleting a stage only affects that
+  // category. NULL = legacy tournament-wide stage (shown across all categories).
+  categoryId: integer("category_id").references(() => tournamentCategories.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   displayOrder: integer("display_order").default(1).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),

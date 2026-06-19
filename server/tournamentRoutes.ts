@@ -1347,7 +1347,7 @@ export function registerTournamentRoutes(app: Express) {
       const maxOrder = existingMatches.reduce((max, m) => Math.max(max, m.matchOrder), -1);
 
       // Validate stageId belongs to this tournament before persisting (shared helper).
-      const stageCheck = await validateStageBelongsToTournament(rawStageId, cat.tournamentId);
+      const stageCheck = await validateStageBelongsToTournament(rawStageId, cat.tournamentId, catId);
       if (!stageCheck.ok) return res.status(stageCheck.status).json({ message: stageCheck.message });
 
       const [match] = await db.insert(tournamentMatches).values({
@@ -5361,16 +5361,30 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const name = (req.body?.name || "").toString().trim();
       if (!name) return res.status(400).json({ message: "Stage name is required" });
 
-      // Auto-assign next display order if not provided.
+      // Category-scoped stages: when a categoryId is supplied the stage belongs
+      // to that single category (validate it lives in this tournament). NULL =
+      // legacy tournament-wide stage.
+      let categoryId: number | null = null;
+      if (req.body?.categoryId !== undefined && req.body?.categoryId !== null && req.body?.categoryId !== "") {
+        const cid = Number(req.body.categoryId);
+        if (!Number.isFinite(cid) || cid <= 0) return res.status(400).json({ message: "Invalid categoryId" });
+        const [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, cid));
+        if (!cat || cat.tournamentId !== tournamentId) return res.status(400).json({ message: "Category does not belong to this tournament" });
+        categoryId = cid;
+      }
+
+      // Auto-assign next display order if not provided (scoped per category so
+      // each category numbers its own stages from 1).
       let displayOrder = Number(req.body?.displayOrder);
       if (!Number.isFinite(displayOrder) || displayOrder <= 0) {
         const existing = await db.select().from(tournamentStages)
           .where(eq(tournamentStages.tournamentId, tournamentId));
-        displayOrder = existing.reduce((m, s) => Math.max(m, s.displayOrder), 0) + 1;
+        const scoped = existing.filter(s => (s.categoryId ?? null) === categoryId);
+        displayOrder = scoped.reduce((m, s) => Math.max(m, s.displayOrder), 0) + 1;
       }
 
       const [stage] = await db.insert(tournamentStages).values({
-        tournamentId, name, displayOrder,
+        tournamentId, categoryId, name, displayOrder,
       }).returning();
       res.json(stage);
     } catch (e: any) {
@@ -5429,14 +5443,22 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
     }
   });
 
-  // Helper: ensure a stageId exists and belongs to the given tournament.
-  async function validateStageBelongsToTournament(stageId: any, tournamentId: number): Promise<{ ok: true; value: number | null } | { ok: false; status: number; message: string }> {
+  // Helper: ensure a stageId exists, belongs to the given tournament, and is in
+  // scope for the group's category. A stage is in scope when it is either a
+  // legacy tournament-wide stage (categoryId IS NULL) or scoped to the SAME
+  // category as the group. This prevents a group in Category B being linked to a
+  // stage that belongs to Category A (which would re-share stages across
+  // categories — the exact coupling this feature removes).
+  async function validateStageBelongsToTournament(stageId: any, tournamentId: number, groupCategoryId?: number | null): Promise<{ ok: true; value: number | null } | { ok: false; status: number; message: string }> {
     if (stageId === undefined || stageId === null || stageId === "") return { ok: true, value: null };
     const n = Number(stageId);
     if (!Number.isFinite(n) || n <= 0) return { ok: false, status: 400, message: "Invalid stageId" };
     const [s] = await db.select().from(tournamentStages).where(eq(tournamentStages.id, n));
     if (!s) return { ok: false, status: 400, message: "Stage not found" };
     if (s.tournamentId !== tournamentId) return { ok: false, status: 400, message: "Stage does not belong to this tournament" };
+    if (groupCategoryId !== undefined && s.categoryId != null && s.categoryId !== groupCategoryId) {
+      return { ok: false, status: 400, message: "Stage belongs to a different category" };
+    }
     return { ok: true, value: n };
   }
 
@@ -5450,7 +5472,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const { name, categoryId, maxPairs, startTime, venueId, hallName, courtName, groupOrder, stageId } = req.body;
       if (!name) return res.status(400).json({ message: "Group name is required" });
 
-      const stageCheck = await validateStageBelongsToTournament(stageId, tournamentId);
+      const stageCheck = await validateStageBelongsToTournament(stageId, tournamentId, categoryId || null);
       if (!stageCheck.ok) return res.status(stageCheck.status).json({ message: stageCheck.message });
 
       const [group] = await db.insert(tournamentGroups).values({
@@ -5511,6 +5533,14 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         return res.status(400).json({ message: "The source category has no groups to copy" });
       }
 
+      // Stages referenced by the source groups. We CLONE these into each target
+      // category (new rows) so every category owns independent stages — editing
+      // or deleting a stage in one category never touches another.
+      const sourceStageIds = Array.from(new Set(sourceGroups.map(g => g.stageId).filter((x): x is number => x != null)));
+      const sourceStages = sourceStageIds.length > 0
+        ? await db.select().from(tournamentStages).where(inArray(tournamentStages.id, sourceStageIds))
+        : [];
+
       const perCategory: Array<{ categoryId: number; created: number; removed: number }> = [];
       await db.transaction(async (tx) => {
         for (const targetId of targetCategoryIds) {
@@ -5524,11 +5554,29 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
               await tx.delete(tournamentGroups).where(inArray(tournamentGroups.id, existingIds));
               removed = existingIds.length;
             }
+            // Drop the target's own category-scoped stages so a replace starts
+            // clean (legacy NULL-category stages are left untouched).
+            await tx.delete(tournamentStages)
+              .where(and(eq(tournamentStages.tournamentId, tournamentId), eq(tournamentStages.categoryId, targetId)));
           }
+
+          // Clone the source stages into this target category, mapping each
+          // old stage id to its freshly-created independent copy.
+          const stageIdMap = new Map<number, number>();
+          for (const s of sourceStages) {
+            const [cloned] = await tx.insert(tournamentStages).values({
+              tournamentId,
+              categoryId: targetId,
+              name: s.name,
+              displayOrder: s.displayOrder,
+            }).returning();
+            stageIdMap.set(s.id, cloned.id);
+          }
+
           const rows = sourceGroups.map(g => ({
             tournamentId,
             categoryId: targetId,
-            stageId: g.stageId,
+            stageId: g.stageId != null ? (stageIdMap.get(g.stageId) ?? null) : null,
             name: g.name,
             groupOrder: g.groupOrder,
             maxPairs: g.maxPairs,
@@ -5569,7 +5617,8 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       if (req.body.groupOrder !== undefined) updates.groupOrder = req.body.groupOrder;
       if (req.body.categoryId !== undefined) updates.categoryId = req.body.categoryId || null;
       if (req.body.stageId !== undefined) {
-        const stageCheck = await validateStageBelongsToTournament(req.body.stageId, group.tournamentId);
+        const effectiveCategoryId = updates.categoryId !== undefined ? updates.categoryId : group.categoryId;
+        const stageCheck = await validateStageBelongsToTournament(req.body.stageId, group.tournamentId, effectiveCategoryId);
         if (!stageCheck.ok) return res.status(stageCheck.status).json({ message: stageCheck.message });
         updates.stageId = stageCheck.value;
       }

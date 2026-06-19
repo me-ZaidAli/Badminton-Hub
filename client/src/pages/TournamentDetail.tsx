@@ -4324,6 +4324,10 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const [copySourceId, setCopySourceId] = useState<string>("");
   const [copyTargets, setCopyTargets] = useState<Set<number>>(new Set());
   const [copyReplace, setCopyReplace] = useState(false);
+  // Which category's groups + stages this tab is currently showing/managing.
+  // "" until set; falls back to the first category. "0" = legacy groups with
+  // no category assigned.
+  const [viewCatIdRaw, setViewCatIdRaw] = useState<string>("");
 
   const [formName, setFormName] = useState("");
   const [formMaxPairs, setFormMaxPairs] = useState("4");
@@ -4340,6 +4344,32 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const { data: allPairs = [] } = useTournamentPairs(tournamentId);
   const { data: catMatches = [] } = useTournamentMatches(activeCatId);
   const acceptedPairs = allPairs.filter((p: any) => !!p.pairRequestId);
+
+  // Per-category view: the tab shows one category at a time so each category's
+  // groups + stages stay independent. Effective view falls back to the first
+  // category. "0" = legacy groups with no category. When there are no
+  // categories at all, show everything (legacy behaviour).
+  const hasCategories = (categories || []).length > 0;
+  const hasUncategorisedGroups = (groups as any[]).some(g => g.categoryId == null);
+  const effViewCatId: number | null = !hasCategories
+    ? null
+    : (viewCatIdRaw !== "" ? Number(viewCatIdRaw) : Number(categories[0].id));
+  // Groups visible in the current view.
+  const visibleGroups = !hasCategories
+    ? (groups as any[])
+    : (effViewCatId === 0
+        ? (groups as any[]).filter(g => g.categoryId == null)
+        : (groups as any[]).filter(g => g.categoryId === effViewCatId));
+  // Stages visible in the current view: this category's own stages plus any
+  // legacy NULL-category (tournament-wide) stages for back-compat.
+  const stagesForCat = (catId: number | null) => (stages as any[]).filter(s =>
+    s.categoryId == null || (catId != null && catId !== 0 && s.categoryId === catId)
+  );
+  const visibleStages = !hasCategories ? (stages as any[]) : stagesForCat(effViewCatId);
+  // Stages offered in the group form's Stage dropdown, scoped to the group's
+  // chosen category (empty category = uncategorised → legacy stages only).
+  const formCatNum = formCategoryId !== "" ? Number(formCategoryId) : 0;
+  const formStages = stagesForCat(formCatNum === 0 ? null : formCatNum);
 
   // Map: "minProfileId-maxProfileId" -> teamId, so we can cross-check pairs against team assignments
   const teamIdByPlayerKey = new Map<string, number>();
@@ -4493,7 +4523,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     const name = newStageName.trim();
     if (!name) { toast({ title: "Error", description: "Stage name required", variant: "destructive" }); return; }
     try {
-      await createStageMutation.mutateAsync({ tournamentId, name });
+      await createStageMutation.mutateAsync({ tournamentId, name, categoryId: (hasCategories && effViewCatId && effViewCatId !== 0) ? effViewCatId : null });
       setNewStageName("");
       toast({ title: "Stage Created" });
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
@@ -4515,7 +4545,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   }
 
   async function moveStage(stageId: number, direction: "up" | "down") {
-    const sorted = [...stages].sort((a, b) => a.displayOrder - b.displayOrder);
+    const sorted = [...visibleStages].sort((a, b) => a.displayOrder - b.displayOrder);
     const idx = sorted.findIndex(s => s.id === stageId);
     if (idx < 0) return;
     const swapWith = direction === "up" ? idx - 1 : idx + 1;
@@ -4581,7 +4611,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
           {categories.length > 0 && (
             <div>
               <label className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Category</label>
-              <Select value={formCategoryId} onValueChange={setFormCategoryId}>
+              <Select value={formCategoryId} onValueChange={(v) => { setFormCategoryId(v); setFormStageId("none"); }}>
                 <SelectTrigger data-testid="select-group-category"><SelectValue placeholder="All categories" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="0">All Categories</SelectItem>
@@ -4596,13 +4626,13 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               <SelectTrigger data-testid="select-group-stage"><SelectValue placeholder="No stage" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No stage (use legacy bucket)</SelectItem>
-                {[...stages].sort((a, b) => b.displayOrder - a.displayOrder).map(s => (
+                {[...formStages].sort((a, b) => b.displayOrder - a.displayOrder).map(s => (
                   <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
             </Select>
-            {stages.length === 0 && (
-              <p className="text-[10px] text-muted-foreground mt-1">No stages yet. Use Manage Stages to create one.</p>
+            {formStages.length === 0 && (
+              <p className="text-[10px] text-muted-foreground mt-1">No stages yet for this category. Use Manage Stages to create one.</p>
             )}
           </div>
           <div className="grid grid-cols-2 gap-3">
@@ -4642,21 +4672,21 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     const iso = new Date(bulkGroupTime).toISOString();
     try {
       await Promise.all(
-        groups.map((g: any) => updateGroupMutation.mutateAsync({
+        visibleGroups.map((g: any) => updateGroupMutation.mutateAsync({
           groupId: g.id, tournamentId,
           name: g.name, maxPairs: g.maxPairs,
           startTime: iso, hallName: g.hallName ?? null, courtName: g.courtName ?? null,
           categoryId: g.categoryId ?? null,
         }))
       );
-      toast({ title: `Updated ${groups.length} groups` });
+      toast({ title: `Updated ${visibleGroups.length} groups` });
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
   async function clearAllGroupTimes() {
     try {
       await Promise.all(
-        groups.map((g: any) => updateGroupMutation.mutateAsync({
+        visibleGroups.map((g: any) => updateGroupMutation.mutateAsync({
           groupId: g.id, tournamentId,
           name: g.name, maxPairs: g.maxPairs,
           startTime: null, hallName: g.hallName ?? null, courtName: g.courtName ?? null,
@@ -4738,8 +4768,8 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               data-testid="button-manage-stages"
               onClick={() => setStagesDialogOpen(true)}>
               <Settings className="h-3.5 w-3.5 mr-1" /> Manage Stages
-              {stages.length > 0 && (
-                <Badge className="ml-1.5 h-4 px-1.5 text-[9px] bg-violet-600/20 text-violet-400 border-0">{stages.length}</Badge>
+              {visibleStages.length > 0 && (
+                <Badge className="ml-1.5 h-4 px-1.5 text-[9px] bg-violet-600/20 text-violet-400 border-0">{visibleStages.length}</Badge>
               )}
             </Button>
             {catsWithGroups.length > 0 && (categories || []).length > 1 && (
@@ -4751,14 +4781,42 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
             )}
             <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
               data-testid="button-create-group"
-              onClick={() => { resetForm(); setCreateOpen(true); }}>
+              onClick={() => { resetForm(); setFormCategoryId(hasCategories && effViewCatId && effViewCatId !== 0 ? String(effViewCatId) : ""); setCreateOpen(true); }}>
               <Plus className="h-3.5 w-3.5 mr-1" /> Add Group
             </Button>
           </div>
         )}
       </div>
 
-      {canManage && groups.length > 0 && (
+      {hasCategories && (categories.length > 1 || hasUncategorisedGroups) && (
+        <div className="flex items-center gap-2 flex-wrap" data-testid="groups-category-filter">
+          <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1">
+            <LayoutGrid className="h-3.5 w-3.5" /> Category:
+          </span>
+          {categories.map((c: any) => {
+            const active = effViewCatId === c.id;
+            return (
+              <Button key={c.id} size="sm" variant={active ? "default" : "outline"}
+                className={cn("h-7 text-[11px] font-bold", active ? "bg-violet-600 hover:bg-violet-700 text-white" : "")}
+                data-testid={`button-view-category-${c.id}`}
+                onClick={() => setViewCatIdRaw(String(c.id))}>
+                {c.name}
+                <Badge className="ml-1.5 h-4 px-1.5 text-[9px] bg-black/10 dark:bg-white/10 border-0">{groupCountByCat.get(c.id) || 0}</Badge>
+              </Button>
+            );
+          })}
+          {hasUncategorisedGroups && (
+            <Button size="sm" variant={effViewCatId === 0 ? "default" : "outline"}
+              className={cn("h-7 text-[11px] font-bold", effViewCatId === 0 ? "bg-violet-600 hover:bg-violet-700 text-white" : "")}
+              data-testid="button-view-category-none"
+              onClick={() => setViewCatIdRaw("0")}>
+              No category
+            </Button>
+          )}
+        </div>
+      )}
+
+      {canManage && visibleGroups.length > 0 && (
         <div className="flex items-center gap-2 px-3 py-2 rounded-lg border border-border/50 bg-muted/30 flex-wrap">
           <Clock className="h-3.5 w-3.5 text-muted-foreground flex-shrink-0" />
           <span className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Bulk set start time:</span>
@@ -4784,7 +4842,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         </div>
       )}
 
-      {groups.length === 0 ? (
+      {visibleGroups.length === 0 ? (
         <EmptyState icon={LayoutGrid} title="No Groups" description="Create round robin groups and assign pairs to get started." />
       ) : (() => {
         // Legacy stage thresholds (used when no admin-defined stages exist):
@@ -4806,8 +4864,8 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         };
         const customColors = ["from-violet-600 to-purple-600", "from-cyan-500 to-sky-500", "from-amber-500 to-orange-500", "from-rose-500 to-pink-500", "from-emerald-500 to-teal-500", "from-indigo-500 to-blue-500"];
         const stageMap = new Map<number, any>();
-        for (const s of stages) stageMap.set(s.id, s);
-        const useCustom = stages.length > 0;
+        for (const s of visibleStages) stageMap.set(s.id, s);
+        const useCustom = visibleStages.length > 0;
         const now = Date.now();
 
         // Build buckets keyed by either `s-{stageId}` (custom), `legacy-{key}` (legacy fallback),
@@ -4818,12 +4876,12 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
         const isAllPast = (gs: any[]) => gs.length > 0 && gs.every(g => g.startTime && new Date(g.startTime).getTime() < now);
 
         if (useCustom) {
-          for (const g of groups as any[]) {
+          for (const g of visibleGroups as any[]) {
             if (g.stageId && stageMap.has(g.stageId)) {
               const stage = stageMap.get(g.stageId);
               const key = `s-${stage.id}`;
               if (!bucketMap.has(key)) {
-                const colorIdx = [...stages].sort((a, b) => b.displayOrder - a.displayOrder).findIndex(s => s.id === stage.id);
+                const colorIdx = [...visibleStages].sort((a, b) => b.displayOrder - a.displayOrder).findIndex(s => s.id === stage.id);
                 bucketMap.set(key, {
                   key, label: stage.name, color: customColors[colorIdx % customColors.length], icon: LayoutGrid,
                   // Higher displayOrder = newer stage = lower sortOrder so it renders on top.
@@ -4843,7 +4901,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
             }
           }
         } else {
-          for (const g of groups as any[]) {
+          for (const g of visibleGroups as any[]) {
             const sKey = stageOf(g.groupOrder);
             const meta = legacyMeta[sKey];
             const key = `legacy-${sKey}`;
@@ -5073,9 +5131,14 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
       <Dialog open={stagesDialogOpen} onOpenChange={setStagesDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Manage Stages</DialogTitle>
+            <DialogTitle>
+              Manage Stages
+              {hasCategories && effViewCatId && effViewCatId !== 0 && (
+                <span className="text-violet-500"> · {(categories.find((c: any) => c.id === effViewCatId)?.name) || ""}</span>
+              )}
+            </DialogTitle>
             <DialogDescription>
-              Create named stages (for example "Group Stage", "Quarter-Finals", "Final"). Assign groups and matches to a stage so they render together.
+              Create named stages (for example "Group Stage", "Quarter-Finals", "Final"). New stages you add here are scoped to {hasCategories && effViewCatId && effViewCatId !== 0 ? "this category only" : "uncategorised groups"}. Older shared stages (no category) appear in every category — deleting one of those removes it everywhere.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
@@ -5096,11 +5159,11 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                 {createStageMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Plus className="h-4 w-4" />}
               </Button>
             </div>
-            {stages.length === 0 ? (
+            {visibleStages.length === 0 ? (
               <p className="text-xs text-muted-foreground italic text-center py-4">No stages yet.</p>
             ) : (
               <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
-                {[...stages].sort((a, b) => b.displayOrder - a.displayOrder).map((s, idx, arr) => (
+                {[...visibleStages].sort((a, b) => b.displayOrder - a.displayOrder).map((s, idx, arr) => (
                   <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/30">
                     <span className="text-[10px] font-black text-muted-foreground w-8">#{s.displayOrder}</span>
                     <Input
