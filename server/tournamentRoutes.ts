@@ -5466,6 +5466,83 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
     }
   });
 
+  // Copy the group structure of one category onto other categories. Clones the
+  // groups (name, stage link, order, capacity, schedule, venue/hall/court) but
+  // NOT their team/pair assignments — every category fields different teams. The
+  // admin can then edit all details on the copies. Stages are tournament-wide,
+  // so the cloned groups simply reuse the same stageId.
+  app.post("/api/tournaments/:id/groups/copy-structure", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const sourceCategoryId = Number(req.body?.sourceCategoryId);
+      const replaceExisting = !!req.body?.replaceExisting;
+      const rawTargets = Array.isArray(req.body?.targetCategoryIds) ? req.body.targetCategoryIds : [];
+      const targetCategoryIds = Array.from(new Set(
+        rawTargets.map((x: any) => Number(x)).filter((n: number) => Number.isFinite(n) && n > 0 && n !== sourceCategoryId)
+      )) as number[];
+
+      if (!Number.isFinite(sourceCategoryId) || sourceCategoryId <= 0) {
+        return res.status(400).json({ message: "A source category is required" });
+      }
+      if (targetCategoryIds.length === 0) {
+        return res.status(400).json({ message: "Pick at least one target category" });
+      }
+
+      // All referenced categories must belong to this tournament.
+      const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
+      const catIds = new Set(cats.map(c => c.id));
+      if (!catIds.has(sourceCategoryId)) return res.status(400).json({ message: "Source category not in this tournament" });
+      const invalidTarget = targetCategoryIds.find(id => !catIds.has(id));
+      if (invalidTarget) return res.status(400).json({ message: "A target category is not in this tournament" });
+
+      const sourceGroups = await db.select().from(tournamentGroups)
+        .where(and(eq(tournamentGroups.tournamentId, tournamentId), eq(tournamentGroups.categoryId, sourceCategoryId)));
+      if (sourceGroups.length === 0) {
+        return res.status(400).json({ message: "The source category has no groups to copy" });
+      }
+
+      const perCategory: Array<{ categoryId: number; created: number; removed: number }> = [];
+      await db.transaction(async (tx) => {
+        for (const targetId of targetCategoryIds) {
+          let removed = 0;
+          if (replaceExisting) {
+            const existing = await tx.select({ id: tournamentGroups.id }).from(tournamentGroups)
+              .where(and(eq(tournamentGroups.tournamentId, tournamentId), eq(tournamentGroups.categoryId, targetId)));
+            const existingIds = existing.map(g => g.id);
+            if (existingIds.length > 0) {
+              await tx.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, existingIds));
+              await tx.delete(tournamentGroups).where(inArray(tournamentGroups.id, existingIds));
+              removed = existingIds.length;
+            }
+          }
+          const rows = sourceGroups.map(g => ({
+            tournamentId,
+            categoryId: targetId,
+            stageId: g.stageId,
+            name: g.name,
+            groupOrder: g.groupOrder,
+            maxPairs: g.maxPairs,
+            startTime: g.startTime,
+            venueId: g.venueId,
+            hallName: g.hallName,
+            courtName: g.courtName,
+          }));
+          if (rows.length > 0) await tx.insert(tournamentGroups).values(rows);
+          perCategory.push({ categoryId: targetId, created: rows.length, removed });
+        }
+      });
+
+      const totalCreated = perCategory.reduce((s, p) => s + p.created, 0);
+      res.json({ message: `Copied ${sourceGroups.length} group${sourceGroups.length !== 1 ? "s" : ""} to ${targetCategoryIds.length} categor${targetCategoryIds.length !== 1 ? "ies" : "y"}`, totalCreated, perCategory });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.patch("/api/tournament-groups/:groupId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

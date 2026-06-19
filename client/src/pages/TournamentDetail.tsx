@@ -13,7 +13,7 @@ import {
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
-  useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup,
+  useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup, useCopyGroupStructure,
   useAddPairToGroup, useRemovePairFromGroup,
   useTournamentStages, useCreateTournamentStage, useUpdateTournamentStage, useDeleteTournamentStage,
   useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
@@ -4298,6 +4298,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const createGroupMutation = useCreateTournamentGroup();
   const updateGroupMutation = useUpdateTournamentGroup();
   const deleteGroupMutation = useDeleteTournamentGroup();
+  const copyStructureMutation = useCopyGroupStructure();
   const createStageMutation = useCreateTournamentStage();
   const updateStageMutation = useUpdateTournamentStage();
   const deleteStageMutation = useDeleteTournamentStage();
@@ -4311,6 +4312,10 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [stagesDialogOpen, setStagesDialogOpen] = useState(false);
   const [newStageName, setNewStageName] = useState("");
+  const [copyOpen, setCopyOpen] = useState(false);
+  const [copySourceId, setCopySourceId] = useState<string>("");
+  const [copyTargets, setCopyTargets] = useState<Set<number>>(new Set());
+  const [copyReplace, setCopyReplace] = useState(false);
 
   const [formName, setFormName] = useState("");
   const [formMaxPairs, setFormMaxPairs] = useState("4");
@@ -4670,6 +4675,48 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
+  // How many groups each category currently has — drives the copy dialog
+  // (source must have groups; targets show their existing count for the
+  // "replace existing" warning).
+  const groupCountByCat = new Map<number, number>();
+  for (const g of groups as any[]) {
+    if (g.categoryId == null) continue;
+    groupCountByCat.set(g.categoryId, (groupCountByCat.get(g.categoryId) || 0) + 1);
+  }
+  const catsWithGroups = (categories || []).filter((c: any) => (groupCountByCat.get(c.id) || 0) > 0);
+  const copySourceNum = copySourceId ? Number(copySourceId) : 0;
+  const copyTargetCandidates = (categories || []).filter((c: any) => c.id !== copySourceNum);
+  const catName = (id: number) => (categories || []).find((c: any) => c.id === id)?.name || `Category ${id}`;
+
+  function openCopyDialog() {
+    const firstSource = catsWithGroups[0]?.id ? String(catsWithGroups[0].id) : "";
+    setCopySourceId(firstSource);
+    setCopyTargets(new Set());
+    setCopyReplace(false);
+    setCopyOpen(true);
+  }
+  function toggleCopyTarget(id: number) {
+    setCopyTargets(prev => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id); else n.add(id);
+      return n;
+    });
+  }
+  async function handleCopyStructure() {
+    if (!copySourceNum) { toast({ title: "Pick a source category", variant: "destructive" }); return; }
+    const targets = Array.from(copyTargets).filter(id => id !== copySourceNum);
+    if (targets.length === 0) { toast({ title: "Pick at least one target category", variant: "destructive" }); return; }
+    try {
+      const result = await copyStructureMutation.mutateAsync({
+        tournamentId, sourceCategoryId: copySourceNum, targetCategoryIds: targets, replaceExisting: copyReplace,
+      });
+      toast({ title: "Structure copied", description: result?.message || `Copied to ${targets.length} categor${targets.length !== 1 ? "ies" : "y"}` });
+      setCopyOpen(false);
+    } catch (err: any) {
+      toast({ title: "Copy failed", description: err.message, variant: "destructive" });
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
@@ -4687,6 +4734,13 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                 <Badge className="ml-1.5 h-4 px-1.5 text-[9px] bg-violet-600/20 text-violet-400 border-0">{stages.length}</Badge>
               )}
             </Button>
+            {catsWithGroups.length > 0 && (categories || []).length > 1 && (
+              <Button size="sm" variant="outline" className="font-bold text-xs border-cyan-500/30 text-cyan-500 hover:bg-cyan-500/10"
+                data-testid="button-copy-structure"
+                onClick={openCopyDialog}>
+                <LayoutGrid className="h-3.5 w-3.5 mr-1" /> Copy to categories
+              </Button>
+            )}
             <Button size="sm" className="bg-violet-600 hover:bg-violet-700 text-white font-bold text-xs"
               data-testid="button-create-group"
               onClick={() => { resetForm(); setCreateOpen(true); }}>
@@ -5077,6 +5131,104 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setStagesDialogOpen(false)}>Done</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={copyOpen} onOpenChange={setCopyOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Copy group structure</DialogTitle>
+            <DialogDescription>
+              Copy the groups (and their stage, capacity, time and venue) from one category to others. Team assignments are not copied — you can fill in the teams and edit any details afterwards.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Copy from</label>
+              <Select value={copySourceId} onValueChange={(v) => { setCopySourceId(v); setCopyTargets(prev => { const n = new Set(prev); n.delete(Number(v)); return n; }); }}>
+                <SelectTrigger data-testid="select-copy-source"><SelectValue placeholder="Select a category" /></SelectTrigger>
+                <SelectContent>
+                  {catsWithGroups.map((c: any) => (
+                    <SelectItem key={c.id} value={String(c.id)} data-testid={`option-copy-source-${c.id}`}>
+                      {c.name} · {groupCountByCat.get(c.id) || 0} group{(groupCountByCat.get(c.id) || 0) !== 1 ? "s" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <label className="text-[11px] font-bold text-muted-foreground uppercase tracking-wider">Copy to</label>
+              {copyTargetCandidates.length === 0 ? (
+                <p className="text-xs text-muted-foreground italic">No other categories available.</p>
+              ) : (
+                <div className="space-y-1.5 max-h-[240px] overflow-y-auto">
+                  {copyTargetCandidates.map((c: any) => {
+                    const existing = groupCountByCat.get(c.id) || 0;
+                    const checked = copyTargets.has(c.id);
+                    return (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => toggleCopyTarget(c.id)}
+                        data-testid={`toggle-copy-target-${c.id}`}
+                        className={cn(
+                          "w-full flex items-center justify-between gap-2 px-3 py-2 rounded-lg border text-left transition-colors",
+                          checked ? "border-cyan-500/60 bg-cyan-500/10" : "border-border/50 bg-muted/30 hover:bg-muted/50"
+                        )}
+                      >
+                        <span className="flex items-center gap-2 min-w-0">
+                          <span className={cn("h-4 w-4 rounded border flex items-center justify-center flex-shrink-0", checked ? "bg-cyan-500 border-cyan-500" : "border-muted-foreground/40")}>
+                            {checked && <Check className="h-3 w-3 text-white" />}
+                          </span>
+                          <span className="text-sm font-bold text-foreground truncate">{c.name}</span>
+                        </span>
+                        {existing > 0 && (
+                          <span className="text-[10px] font-bold text-amber-500 flex-shrink-0">{existing} existing</span>
+                        )}
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setCopyReplace(v => !v)}
+              data-testid="toggle-copy-replace"
+              className="w-full flex items-center justify-between gap-3 px-3 py-2.5 rounded-lg border border-border/50 bg-muted/30 text-left"
+            >
+              <span className="min-w-0">
+                <span className="text-sm font-bold text-foreground">Replace existing groups</span>
+                <span className="block text-[11px] text-muted-foreground">Delete the target's current groups first. Off = add alongside them.</span>
+              </span>
+              <span className={cn("h-5 w-9 rounded-full flex items-center transition-colors flex-shrink-0", copyReplace ? "bg-cyan-500 justify-end" : "bg-muted-foreground/30 justify-start")}>
+                <span className="h-4 w-4 rounded-full bg-white mx-0.5" />
+              </span>
+            </button>
+
+            {copyReplace && Array.from(copyTargets).some(id => (groupCountByCat.get(id) || 0) > 0) && (
+              <div className="flex items-start gap-2 px-3 py-2 rounded-lg border border-amber-500/30 bg-amber-500/10">
+                <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                <p className="text-[11px] text-amber-600 dark:text-amber-400">
+                  This will permanently delete existing groups in: {Array.from(copyTargets).filter(id => (groupCountByCat.get(id) || 0) > 0).map(id => catName(id)).join(", ")}.
+                </p>
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setCopyOpen(false)} data-testid="button-copy-cancel">Cancel</Button>
+            <Button
+              className="bg-cyan-600 hover:bg-cyan-700 text-white font-bold"
+              onClick={handleCopyStructure}
+              disabled={copyStructureMutation.isPending || !copySourceNum || copyTargets.size === 0}
+              data-testid="button-copy-confirm"
+            >
+              {copyStructureMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1.5" /> : <LayoutGrid className="h-4 w-4 mr-1.5" />}
+              Copy structure
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
