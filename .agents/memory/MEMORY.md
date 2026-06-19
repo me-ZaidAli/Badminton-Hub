@@ -3,3 +3,4 @@
 - [BSL page root background](bsl-page-root-background.md) — every BSL page root must set explicit dark bg; BSLBackground (fixed -z-10) alone bleeds white under light themes.
 - [Session fee / debt rule](session-fee-debt-rule.md) — fee owed only when CONFIRMED + past + non-excused; PAID always counts; every money surface must mirror server/debtRoutes.ts.
 - [BSL points-as-metric](bsl-points-metric.md) — BSL ranks/displays rally POINTS everywhere; win/loss is points-based (not sets), so badges match the points score shown.
+- [Tournament pairing is two-level](tournament-pairing-two-levels.md) — "is this player paired?" must read tournament_teams, not registrationType (which stays INDIVIDUAL); legacy PAIR regs also count.

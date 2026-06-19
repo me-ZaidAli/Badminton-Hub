@@ -1857,9 +1857,15 @@ export function registerTournamentRoutes(app: Express) {
   app.get("/api/tournaments/:id/registrations", async (req, res) => {
     try {
       const tournamentId = Number(req.params.id);
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
       const regs = await db.select().from(tournamentRegistrations)
         .where(eq(tournamentRegistrations.tournamentId, tournamentId))
         .orderBy(desc(tournamentRegistrations.createdAt));
+
+      const cats = await db.select().from(tournamentCategories)
+        .where(eq(tournamentCategories.tournamentId, tournamentId));
+      const catIds = cats.map(c => c.id);
+      const catById = new Map(cats.map(c => [c.id, c]));
 
       const enriched = await Promise.all(regs.map(async (reg) => {
         const [user] = await db.select({ id: users.id, fullName: users.fullName, email: users.email })
@@ -1870,8 +1876,43 @@ export function registerTournamentRoutes(app: Express) {
             .from(users).where(eq(users.id, reg.partnerId));
           partner = p;
         }
-        const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
-        return { ...reg, user, partner, profile };
+        // Prefer the club-scoped profile (tournament_teams reference these),
+        // fall back to any profile for this user.
+        const userProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
+        const profile = userProfiles.find(p => tournament && p.clubId === tournament.clubId) || userProfiles[0];
+
+        // Category-level pairing: a player registers once (often INDIVIDUAL) and
+        // then pairs per-category via tournament_teams. Surface those pairings so
+        // the admin list reflects who is actually partnered.
+        const partnerTagSet = new Set<string>();
+        const categoryPartners: Array<{ name: string; tag: string; categoryName: string }> = [];
+        if (profile && catIds.length > 0) {
+          const playerTeams = await db.select().from(tournamentTeams)
+            .where(and(
+              inArray(tournamentTeams.categoryId, catIds),
+              or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id))
+            ));
+          for (const team of playerTeams) {
+            if (team.player2Id == null) continue;
+            const cat = catById.get(team.categoryId);
+            const tag = categoryDoublesTag(cat?.genderRestriction);
+            partnerTagSet.add(tag);
+            const partnerProfileId = team.player1Id === profile.id ? team.player2Id : team.player1Id;
+            const [partnerProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, partnerProfileId));
+            let partnerName = "Partner";
+            if (partnerProfile) {
+              const [pu] = await db.select({ fullName: users.fullName, email: users.email })
+                .from(users).where(eq(users.id, partnerProfile.userId));
+              partnerName = pu?.fullName || pu?.email || partnerName;
+            }
+            categoryPartners.push({ name: partnerName, tag, categoryName: cat?.name || "" });
+          }
+        }
+        const partnerTags = Array.from(partnerTagSet);
+        return {
+          ...reg, user, partner, profile,
+          categoryPartners, partnerTags, hasPartner: categoryPartners.length > 0,
+        };
       }));
       res.json(enriched);
     } catch (e: any) {

@@ -6024,9 +6024,19 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                 <PlayerAvatar name={reg.user?.fullName || "?"} size="sm" />
                 <div className="min-w-0">
                   <p className="text-sm font-bold text-foreground truncate">{reg.user?.fullName}</p>
-                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                    <span className="font-medium">{reg.registrationType}</span>
-                    {reg.partner && <span>+ {reg.partner.fullName}</span>}
+                  <div className="flex items-center gap-2 text-[10px] text-muted-foreground flex-wrap">
+                    {reg.hasPartner || reg.partner ? (
+                      <span className="font-bold text-emerald-400">PAIR</span>
+                    ) : (
+                      <span className="font-medium">{reg.registrationType}</span>
+                    )}
+                    {reg.partner && !reg.hasPartner && <span>+ {reg.partner.fullName}</span>}
+                    {Array.isArray(reg.categoryPartners) && reg.categoryPartners.map((cp: any, i: number) => (
+                      <span key={i} className="inline-flex items-center gap-1" data-testid={`reg-partner-${reg.id}-${i}`}>
+                        <Badge className="bg-violet-500/20 text-violet-300 border border-violet-500/30 text-[9px] px-1 font-bold">{cp.tag}</Badge>
+                        <span>{cp.name}</span>
+                      </span>
+                    ))}
                     {reg.paymentConfirmed && <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1 font-bold">PAID</Badge>}
                   </div>
                 </div>
