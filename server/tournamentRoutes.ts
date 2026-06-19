@@ -2797,10 +2797,12 @@ export function registerTournamentRoutes(app: Express) {
     return Math.round((Number.isFinite(fee) ? fee : 0) * 100);
   }
 
-  // Multi-category discount (May 2026): a player pays the full fee for their
-  // FIRST category in a tournament, then every additional category is
-  // discounted 50%. The discount is applied at join time and snapshotted onto
-  // the team row, so later leaves/joins do not retroactively re-price.
+  // Multi-category discount (May 2026, capped June 2026): a player pays the full
+  // fee for their FIRST category in a tournament, 50% off their SECOND category,
+  // and every category beyond that is FREE — so the per-player total is capped at
+  // fee + 50% (e.g. £20 first + £10 second = £30 max). The discount is applied at
+  // join time and snapshotted onto the team row, so later leaves/joins do not
+  // retroactively re-price.
   // Returns the number of existing team rows the player already has across the
   // tournament (excluding the category they're about to join, since we're
   // about to insert/replace it).
@@ -2824,8 +2826,9 @@ export function registerTournamentRoutes(app: Express) {
   }
 
   function applyMultiCategoryDiscount(feePence: number, existingCount: number): number {
-    if (existingCount <= 0) return feePence;
-    return Math.round(feePence * 0.5);
+    if (existingCount <= 0) return feePence;            // 1st category: full fee
+    if (existingCount === 1) return Math.round(feePence * 0.5); // 2nd category: 50% off
+    return 0;                                            // 3rd category onwards: free (total capped)
   }
 
   async function ensureProfileForUser(userId: number, tournamentId: number): Promise<number | null> {
@@ -3986,6 +3989,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
         : [];
       const profileToUserId = new Map<number, number>(profiles.map(p => [p.id, p.userId]));
+
       // userId -> Array<{ catId, fee }>
       // For each player on a team we prefer the per-player fee snapshot
       // (captured at join/accept time, stored in pence on tournament_teams).
@@ -4130,6 +4134,124 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         players: enriched,
         byCategory,
       });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Admin-triggered one-off correction: re-price UNPAID category fees to the
+  // capped multi-category rule (1st category full, 2nd 50% off, 3rd+ free) so
+  // entries snapshotted under the old uncapped rule are brought in line. Grouped
+  // by USER (across all their profile ids) and ordered by join order (team id).
+  // PAID slots are guarded out of the UPDATE, so money already collected is never
+  // altered. Idempotent — re-running only changes rows that are still wrong.
+  app.post("/api/tournaments/:id/recalculate-fees", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      if (!tournament) return res.status(404).json({ message: "Not found" });
+
+      const tournamentInternalFee = parseFloat(tournament.entryFee || "0");
+      const tournamentExternalFee = parseFloat(tournament.externalEntryFee || tournament.entryFee || "0");
+
+      const cats = await db.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
+      const catFeeMap = new Map<number, { internalFee: number; externalFee: number }>();
+      for (const c of cats) {
+        const hasOwnInternal = c.entryFee != null && c.entryFee !== "";
+        const hasOwnExternal = c.externalEntryFee != null && c.externalEntryFee !== "";
+        const internal = hasOwnInternal ? parseFloat(c.entryFee as string) : tournamentInternalFee;
+        const external = hasOwnExternal ? parseFloat(c.externalEntryFee as string) : (hasOwnInternal ? parseFloat(c.entryFee as string) : tournamentExternalFee);
+        catFeeMap.set(c.id, {
+          internalFee: Number.isFinite(internal) ? internal : 0,
+          externalFee: Number.isFinite(external) ? external : 0,
+        });
+      }
+
+      const clubMemberIds = new Set<number>();
+      if (tournament.clubId) {
+        const members = await db.select({ userId: playerProfiles.userId }).from(playerProfiles)
+          .where(eq(playerProfiles.clubId, tournament.clubId));
+        members.forEach(m => clubMemberIds.add(m.userId));
+      }
+
+      const catIds = Array.from(catFeeMap.keys());
+      const allTeams = catIds.length
+        ? await db.select().from(tournamentTeams).where(inArray(tournamentTeams.categoryId, catIds))
+        : [];
+      const profileIds = Array.from(new Set(allTeams.flatMap(t => [t.player1Id, t.player2Id]).filter((x): x is number => x != null)));
+      const profiles = profileIds.length
+        ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId }).from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
+        : [];
+      const profileToUserId = new Map<number, number>(profiles.map(p => [p.id, p.userId]));
+
+      type RepriceSlot = { teamId: number; slot: 1 | 2; catId: number; status: string; current: number | null };
+      const slotsByUser = new Map<number, RepriceSlot[]>();
+      for (const t of allTeams) {
+        const pairs: Array<[number | null, 1 | 2, number | null, any]> = [
+          [t.player1Id, 1, (t as any).player1EntryFeePence ?? null, (t as any).player1PaymentStatus],
+          [t.player2Id, 2, (t as any).player2EntryFeePence ?? null, (t as any).player2PaymentStatus],
+        ];
+        for (const [pid, slot, snap, status] of pairs) {
+          if (pid == null) continue;
+          const uid = profileToUserId.get(pid);
+          if (uid == null) continue;
+          const arr = slotsByUser.get(uid) || [];
+          arr.push({ teamId: t.id, slot, catId: t.categoryId, status: (status as any) || "UNPAID", current: snap });
+          slotsByUser.set(uid, arr);
+        }
+      }
+
+      const updates: Array<{ teamId: number; slot: 1 | 2; pence: number }> = [];
+      for (const [uid, raw] of slotsByUser.entries()) {
+        const isMember = clubMemberIds.has(uid);
+        const seenCats = new Set<number>();
+        const ordered = raw
+          .slice()
+          .sort((a, b) => a.teamId - b.teamId)
+          .filter(s => { if (seenCats.has(s.catId)) return false; seenCats.add(s.catId); return true; });
+        ordered.forEach((s, idx) => {
+          if (s.status === "PAID") return; // never alter collected money
+          const cFees = catFeeMap.get(s.catId);
+          if (!cFees) return;
+          const base = (isMember ? cFees.internalFee : cFees.externalFee) || 0;
+          const factor = idx === 0 ? 1 : idx === 1 ? 0.5 : 0;
+          const desired = Math.round(base * 100 * factor);
+          if (s.current !== desired) updates.push({ teamId: s.teamId, slot: s.slot, pence: desired });
+        });
+      }
+
+      let applied = 0;
+      if (updates.length) {
+        await db.transaction(async (tx) => {
+          for (const u of updates) {
+            // Guard on payment status so a slot that became PAID between the read
+            // and the write is never overwritten. player2PaymentStatus is nullable
+            // (legacy/solo rows), so treat NULL as "not paid" explicitly.
+            if (u.slot === 1) {
+              const rows = await tx.update(tournamentTeams)
+                .set({ player1EntryFeePence: u.pence })
+                .where(and(eq(tournamentTeams.id, u.teamId), ne(tournamentTeams.player1PaymentStatus, "PAID")))
+                .returning({ id: tournamentTeams.id });
+              applied += rows.length;
+            } else {
+              const rows = await tx.update(tournamentTeams)
+                .set({ player2EntryFeePence: u.pence })
+                .where(and(
+                  eq(tournamentTeams.id, u.teamId),
+                  or(isNull(tournamentTeams.player2PaymentStatus), ne(tournamentTeams.player2PaymentStatus, "PAID")),
+                ))
+                .returning({ id: tournamentTeams.id });
+              applied += rows.length;
+            }
+          }
+        });
+      }
+
+      res.json({ message: `Recalculated fees — ${applied} entr${applied === 1 ? "y" : "ies"} updated`, updated: applied });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

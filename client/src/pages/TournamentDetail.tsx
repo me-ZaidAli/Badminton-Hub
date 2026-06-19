@@ -20,7 +20,7 @@ import {
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
   useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
   useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames, useUpdateMatchScheduledTime, useBulkUpdateMatchScheduledTime,
-  useTournamentPlayerStats, useRecalculateStats,
+  useTournamentPlayerStats, useRecalculateStats, useRecalculateFees,
   useMyTournamentCategories, useJoinCategorySolo, useLeaveCategory, useSelfUnpair,
   useConfirmCategoryPayment, useUpdateTeamPayment,
   usePlayerTournamentStats,
@@ -6605,7 +6605,15 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
   const { data: finances, isLoading } = useTournamentFinances(tournamentId);
   const updatePaymentMutation = useUpdateTournamentPayment();
   const updateTeamPayment = useUpdateTeamPayment();
+  const recalcFees = useRecalculateFees();
   const { toast } = useToast();
+
+  async function handleRecalcFees() {
+    try {
+      const result = await recalcFees.mutateAsync({ tournamentId });
+      toast({ title: result?.message || "Fees recalculated" });
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
 
@@ -6688,11 +6696,24 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
       </div>
 
       <div className="rounded-xl bg-card border border-border/50 p-4 space-y-3">
-        <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between gap-3">
           <h4 className="font-black text-foreground text-sm uppercase tracking-wider">Collection Rate</h4>
-          <span className={cn("text-xl font-black", finances.collectionRate >= 80 ? "text-emerald-500" : finances.collectionRate >= 50 ? "text-amber-500" : "text-red-500")}>
-            {finances.collectionRate}%
-          </span>
+          <div className="flex items-center gap-3">
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={handleRecalcFees}
+              disabled={recalcFees.isPending}
+              className="h-7 text-[10px] font-bold uppercase tracking-wider"
+              data-testid="button-recalculate-fees"
+            >
+              {recalcFees.isPending ? <Loader2 className="h-3 w-3 animate-spin" /> : <RotateCcw className="h-3 w-3" />}
+              <span className="ml-1.5">Recalculate fees</span>
+            </Button>
+            <span className={cn("text-xl font-black", finances.collectionRate >= 80 ? "text-emerald-500" : finances.collectionRate >= 50 ? "text-amber-500" : "text-red-500")}>
+              {finances.collectionRate}%
+            </span>
+          </div>
         </div>
         <div className="h-3 rounded-full bg-muted/50 dark:bg-muted/30 overflow-hidden">
           <div className="h-full rounded-full transition-all duration-700 shadow-lg"

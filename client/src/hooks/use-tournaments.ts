@@ -1032,6 +1032,18 @@ export function useRecalculateStats() {
   });
 }
 
+export function useRecalculateFees() {
+  return useMutation({
+    mutationFn: async ({ tournamentId }: { tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/recalculate-fees`);
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
+    },
+  });
+}
+
 export function useRestartTournament() {
   return useMutation({
     mutationFn: async ({ tournamentId }: { tournamentId: number }) => {
