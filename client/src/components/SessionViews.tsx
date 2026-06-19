@@ -1284,9 +1284,17 @@ function TimelineSessionCard({
             >
               <ArrowRight className="h-3.5 w-3.5 text-muted-foreground/60 group-hover/card:text-primary transition-colors" />
             </button>
-            <div className={`transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`}>
-              <ChevronDown className="h-3.5 w-3.5 text-muted-foreground/50" />
-            </div>
+            <button
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleExpand(); }}
+              onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") e.stopPropagation(); }}
+              aria-label={isExpanded ? "Collapse details" : "Expand details"}
+              className="flex items-center gap-0.5 pl-1.5 pr-1 py-0.5 rounded-full bg-primary/10 hover:bg-primary/20 transition-colors"
+              data-testid={`button-expand-session-${session.id}`}
+            >
+              <span className="text-[9px] font-bold uppercase tracking-wide text-primary/80">{isExpanded ? "Less" : "Details"}</span>
+              <ChevronDown className={`h-3 w-3 text-primary/80 transition-transform duration-300 ${isExpanded ? "rotate-180" : ""}`} />
+            </button>
           </div>
         </div>
 
@@ -2594,25 +2602,16 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
         }
         /* === Hover-reveal action bar (Discord Quest "Launch" footer) === */
         .tl-quest-actions {
-          position: absolute;
-          left: 0; right: 0; bottom: 0;
-          padding: 8px 10px 10px;
-          background: linear-gradient(to top, hsl(var(--card) / 0.96) 30%, hsl(var(--card) / 0.0) 100%);
-          backdrop-filter: blur(8px);
-          -webkit-backdrop-filter: blur(8px);
-          opacity: 0;
-          transform: translateY(10px);
-          transition: opacity 220ms ease, transform 260ms cubic-bezier(0.22, 1, 0.36, 1);
-          pointer-events: none;
+          position: relative;
+          padding: 2px 10px 10px;
+          margin-top: auto;
+          background: transparent;
+          opacity: 1;
+          transform: none;
+          pointer-events: auto;
           border-bottom-left-radius: inherit;
           border-bottom-right-radius: inherit;
           z-index: 4;
-        }
-        .group\\/card:hover .tl-quest-actions,
-        .group\\/card:focus-within .tl-quest-actions {
-          opacity: 1;
-          transform: translateY(0);
-          pointer-events: auto;
         }
         .tl-quest-actions-inner {
           display: flex;
@@ -2668,19 +2667,6 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
           color: white;
           box-shadow: 0 6px 16px -8px rgb(245 158 11 / 0.7);
         }
-        /* Touch devices: always show action bar, no hover required */
-        @media (hover: none), (pointer: coarse) {
-          .tl-quest-actions {
-            position: relative;
-            opacity: 1;
-            transform: none;
-            pointer-events: auto;
-            background: transparent;
-            backdrop-filter: none;
-            -webkit-backdrop-filter: none;
-            padding: 6px 10px 10px;
-          }
-        }
         @media (prefers-reduced-motion: reduce) {
           .tl-quest-card,
           .tl-quest-card::before,
@@ -2689,7 +2675,6 @@ export function TimelineView({ sessions, clubs, onSessionClick, mySignupsBySessi
           .tl-quest-actions,
           .tl-quest-btn { transition: none !important; animation: none !important; }
           .group\\/card:hover .tl-quest-card { transform: none; }
-          .group\\/card:hover .tl-quest-actions { transform: none; }
         }
         .tl-date-anim {
           animation: tl-dateFadeIn 0.4s cubic-bezier(0.22, 1, 0.36, 1) both;
