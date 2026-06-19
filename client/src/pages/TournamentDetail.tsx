@@ -46,7 +46,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
-  UserPlus, UserMinus, Clock, Shield, ChevronRight, ChevronDown, Zap, Award, Star, Target, Lock, CheckCircle,
+  UserPlus, UserMinus, UserX, Clock, Shield, ChevronRight, ChevronDown, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
   Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, ArrowRight,
 } from "lucide-react";
@@ -5934,6 +5934,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   const deleteRegMutation = useDeleteRegistration();
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  const [showUnpairedOnly, setShowUnpairedOnly] = useState(false);
 
   if (regsLoading) return <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />;
   if (!registrations?.length) return <EmptyState icon={Users} title="No Registrations" description="No one has registered yet." />;
@@ -5942,6 +5943,22 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   const reconciledRegIds = new Set([...selectedIds].filter(id => validRegIds.has(id)));
   if (reconciledRegIds.size !== selectedIds.size && selectedIds.size > 0) {
     setTimeout(() => setSelectedIds(reconciledRegIds), 0);
+  }
+
+  // A player counts as "without a partner" when no category pairing exists and no
+  // legacy tournament-wide partner is set (mirrors the PAIR display logic below).
+  const isUnpaired = (r: any) => !r.hasPartner && !r.partner;
+  const unpairedCount = registrations.filter(isUnpaired).length;
+  const visibleRegistrations = showUnpairedOnly ? registrations.filter(isUnpaired) : registrations;
+  const visibleIdSet = new Set(visibleRegistrations.map((r: any) => r.id));
+  const allVisibleSelected = visibleRegistrations.length > 0 && visibleRegistrations.every((r: any) => selectedIds.has(r.id));
+  // Only act on selections that are currently visible, so toggling the filter can
+  // never approve/reject/pay a hidden (partnered) registration.
+  const effectiveSelectedIds = [...selectedIds].filter(id => visibleIdSet.has(id));
+
+  function setFilter(next: boolean) {
+    setShowUnpairedOnly(next);
+    setSelectedIds(new Set());
   }
 
   function toggleSelect(id: number) {
@@ -5953,14 +5970,14 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === registrations.length) setSelectedIds(new Set());
-    else setSelectedIds(new Set(registrations.map((r: any) => r.id)));
+    if (allVisibleSelected) setSelectedIds(new Set());
+    else setSelectedIds(new Set(visibleRegistrations.map((r: any) => r.id)));
   }
 
   async function handleBulkAction(action: "APPROVED" | "REJECTED") {
-    if (selectedIds.size === 0) return;
+    if (effectiveSelectedIds.length === 0) return;
     let success = 0;
-    for (const id of selectedIds) {
+    for (const id of effectiveSelectedIds) {
       try { await updateRegMutation.mutateAsync({ id, status: action }); success++; } catch {}
     }
     toast({ title: `${success} player${success !== 1 ? "s" : ""} ${action.toLowerCase()}` });
@@ -5968,9 +5985,9 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   }
 
   async function handleBulkPayment(confirmed: boolean) {
-    if (selectedIds.size === 0) return;
+    if (effectiveSelectedIds.length === 0) return;
     let success = 0;
-    for (const id of selectedIds) {
+    for (const id of effectiveSelectedIds) {
       try { await updateRegMutation.mutateAsync({ id, paymentConfirmed: confirmed }); success++; } catch {}
     }
     toast({ title: `${success} payment${success !== 1 ? "s" : ""} ${confirmed ? "confirmed" : "unconfirmed"}` });
@@ -5982,7 +5999,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
       <div className="rounded-xl border border-border/50 overflow-hidden">
         <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <input type="checkbox" checked={registrations.length > 0 && selectedIds.size === registrations.length}
+            <input type="checkbox" checked={allVisibleSelected}
               onChange={toggleSelectAll}
               className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer"
               data-testid="checkbox-select-all-regs" />
@@ -5990,6 +6007,14 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
             {selectedIds.size > 0 && (
               <Badge variant="outline" className="text-[10px] font-bold">{selectedIds.size} selected</Badge>
             )}
+            <Button size="sm" variant={showUnpairedOnly ? "default" : "outline"}
+              className={cn("h-7 text-xs font-bold", showUnpairedOnly ? "bg-amber-600 hover:bg-amber-700 text-white" : "")}
+              onClick={() => setFilter(!showUnpairedOnly)}
+              data-testid="button-filter-no-partner">
+              <UserX className="h-3 w-3 mr-1" />
+              {showUnpairedOnly ? "Showing no-partner" : "No partner"}
+              <Badge variant="outline" className="ml-1.5 text-[9px] px-1 font-bold bg-background/50">{unpairedCount}</Badge>
+            </Button>
           </div>
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -5997,7 +6022,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                 disabled={updateRegMutation.isPending}
                 data-testid="button-bulk-approve"
                 onClick={() => handleBulkAction("APPROVED")}>
-                <Check className="h-3 w-3 mr-1" />Approve ({selectedIds.size})
+                <Check className="h-3 w-3 mr-1" />Approve ({effectiveSelectedIds.length})
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive font-bold"
                 disabled={updateRegMutation.isPending}
@@ -6015,7 +6040,12 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
           )}
         </div>
         <div className="divide-y divide-border/20">
-          {registrations.map((reg: any) => (
+          {visibleRegistrations.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground" data-testid="text-no-unpaired">
+              Everyone has a partner.
+            </div>
+          )}
+          {visibleRegistrations.map((reg: any) => (
             <div key={reg.id} className={cn("flex items-center justify-between gap-3 px-4 py-3 hover:bg-muted/30 dark:hover:bg-muted/10 transition-colors flex-wrap", selectedIds.has(reg.id) && "bg-amber-500/5")} data-testid={`admin-reg-${reg.id}`}>
               <div className="flex items-center gap-3 min-w-0">
                 <input type="checkbox" checked={selectedIds.has(reg.id)}
