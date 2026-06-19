@@ -1899,12 +1899,32 @@ export function registerTournamentRoutes(app: Express) {
         const userProfileIds = userProfiles.map(p => p.id);
         const partnerTagSet = new Set<string>();
         const categoryPartners: Array<{ name: string; tag: string; categoryName: string }> = [];
+        // Aggregated payment status derived from the player's per-category team
+        // slots (same rule the Finance tab uses). Null until we find any slot;
+        // we fall back to the legacy registration flag below when there are none.
+        let aggPaymentStatus: "UNPAID" | "PENDING" | "PAID" | null = null;
         if (userProfileIds.length > 0 && catIds.length > 0) {
           const playerTeams = await db.select().from(tournamentTeams)
             .where(and(
               inArray(tournamentTeams.categoryId, catIds),
               or(inArray(tournamentTeams.player1Id, userProfileIds), inArray(tournamentTeams.player2Id, userProfileIds))
             ));
+          // Collect this player's own slot status across every team (singles
+          // included) so the Registrations badge mirrors per-category Finance.
+          const slotStatuses: string[] = [];
+          for (const team of playerTeams) {
+            if (team.player1Id != null && userProfileIds.includes(team.player1Id)) {
+              slotStatuses.push((team as any).player1PaymentStatus || "UNPAID");
+            }
+            if (team.player2Id != null && userProfileIds.includes(team.player2Id)) {
+              slotStatuses.push((team as any).player2PaymentStatus || "UNPAID");
+            }
+          }
+          if (slotStatuses.length > 0) {
+            const allPaid = slotStatuses.every(s => s === "PAID");
+            const anyPaidOrPending = slotStatuses.some(s => s === "PAID" || s === "PENDING");
+            aggPaymentStatus = allPaid ? "PAID" : anyPaidOrPending ? "PENDING" : "UNPAID";
+          }
           for (const team of playerTeams) {
             if (team.player2Id == null) continue;
             const cat = catById.get(team.categoryId);
@@ -1922,8 +1942,9 @@ export function registerTournamentRoutes(app: Express) {
           }
         }
         const partnerTags = Array.from(partnerTagSet);
+        const paymentStatus = aggPaymentStatus ?? (reg.paymentConfirmed ? "PAID" : (reg.paymentStatus || "UNPAID"));
         return {
-          ...reg, user, partner, profile,
+          ...reg, user, partner, profile, paymentStatus,
           categoryPartners, partnerTags, hasPartner: categoryPartners.length > 0,
         };
       }));
@@ -4338,6 +4359,37 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const [updated] = await db.update(tournamentRegistrations)
         .set(updateData).where(and(eq(tournamentRegistrations.id, regId), eq(tournamentRegistrations.tournamentId, tournamentId))).returning();
       if (!updated) return res.status(404).json({ message: "Registration not found" });
+
+      // Cascade the same status onto every team slot this player occupies in the
+      // tournament. The Finance tab derives a player's status from their
+      // per-category team slots, so without this cascade a registration-level
+      // PAID/UNPAID would not show up there (and vice-versa stays in sync because
+      // both surfaces now read the same team-slot source of truth).
+      if (["PAID", "PENDING", "UNPAID"].includes(paymentStatus)) {
+        const catRows = await db.select({ id: tournamentCategories.id }).from(tournamentCategories)
+          .where(eq(tournamentCategories.tournamentId, tournamentId));
+        const catIdList = catRows.map(c => c.id);
+        if (catIdList.length > 0) {
+          const profs = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+            .where(eq(playerProfiles.userId, updated.userId));
+          const profIds = profs.map(p => p.id);
+          if (profIds.length > 0) {
+            const cascadeAt = paymentStatus === "PAID" ? new Date() : null;
+            const teamsToUpdate = await db.select().from(tournamentTeams).where(and(
+              inArray(tournamentTeams.categoryId, catIdList),
+              or(inArray(tournamentTeams.player1Id, profIds), inArray(tournamentTeams.player2Id, profIds)),
+            ));
+            for (const t of teamsToUpdate) {
+              const patch: any = {};
+              if (t.player1Id != null && profIds.includes(t.player1Id)) { patch.player1PaymentStatus = paymentStatus; patch.player1PaidAt = cascadeAt; }
+              if (t.player2Id != null && profIds.includes(t.player2Id)) { patch.player2PaymentStatus = paymentStatus; patch.player2PaidAt = cascadeAt; }
+              if (Object.keys(patch).length > 0) {
+                await db.update(tournamentTeams).set(patch).where(eq(tournamentTeams.id, t.id));
+              }
+            }
+          }
+        }
+      }
 
       if (paymentStatus === "PAID" && updated) {
         const [tournament] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));

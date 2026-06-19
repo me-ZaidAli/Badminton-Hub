@@ -768,9 +768,33 @@ function PartnerTags({ tags, hasPartner }: { tags?: string[]; hasPartner?: boole
   );
 }
 
+function FilterSelect({ value, onValueChange, placeholder, options, testId, width }: {
+  value: string;
+  onValueChange: (v: string) => void;
+  placeholder: string;
+  options: { value: string; label: string }[];
+  testId?: string;
+  width?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger className={cn("h-9 text-xs font-bold", width || "w-[150px]")} data-testid={testId}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(o => (
+          <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
 function PlayersTab({ tournamentId }: { tournamentId: number }) {
   const { data: players, isLoading } = useTournamentAllPlayers(tournamentId);
   const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [partnerFilter, setPartnerFilter] = useState("ALL");
   const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
 
   const filtered = useMemo(() => {
@@ -784,10 +808,18 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
       if (bPlayed === 0) return -1;
       return (b.winRate || 0) - (a.winRate || 0) || bPlayed - aPlayed;
     });
-    if (!searchQuery) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter((p: any) => p.user?.fullName?.toLowerCase().includes(q));
-  }, [players, searchQuery]);
+    const q = searchQuery.trim().toLowerCase();
+    return list.filter((p: any) => {
+      if (q && !(p.user?.fullName || "").toLowerCase().includes(q) && !(p.user?.email || "").toLowerCase().includes(q)) return false;
+      if (statusFilter !== "ALL" && p.status !== statusFilter) return false;
+      const hasPartner = !!p.hasPartner;
+      if (partnerFilter === "PAIRED" && !hasPartner) return false;
+      if (partnerFilter === "UNPAIRED" && hasPartner) return false;
+      return true;
+    });
+  }, [players, searchQuery, statusFilter, partnerFilter]);
+
+  const playersFiltersActive = statusFilter !== "ALL" || partnerFilter !== "ALL" || searchQuery.trim() !== "";
 
   const selectedRank = selectedPlayer ? filtered.findIndex((p: any) => p.id === selectedPlayer.id) + 1 : 0;
 
@@ -803,15 +835,37 @@ function PlayersTab({ tournamentId }: { tournamentId: number }) {
         <Badge variant="outline" className="font-bold">{filtered.length} players</Badge>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-        <input type="text" placeholder="Search players..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
-          className="w-full h-10 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors"
-          data-testid="input-search-players" />
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input type="text" placeholder="Search players by name or email..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            className="w-full h-10 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors"
+            data-testid="input-search-players" />
+        </div>
+        <FilterSelect value={statusFilter} onValueChange={setStatusFilter} placeholder="Status" testId="filter-players-status"
+          options={[
+            { value: "ALL", label: "All statuses" },
+            { value: "APPROVED", label: "Approved" },
+            { value: "PENDING", label: "Pending" },
+            { value: "WAITLISTED", label: "Waitlisted" },
+          ]} />
+        <FilterSelect value={partnerFilter} onValueChange={setPartnerFilter} placeholder="Partner" testId="filter-players-partner"
+          options={[
+            { value: "ALL", label: "All players" },
+            { value: "PAIRED", label: "Has partner" },
+            { value: "UNPAIRED", label: "No partner" },
+          ]} />
+        {playersFiltersActive && (
+          <Button size="sm" variant="ghost" className="h-9 text-xs font-bold text-muted-foreground"
+            onClick={() => { setSearchQuery(""); setStatusFilter("ALL"); setPartnerFilter("ALL"); }}
+            data-testid="button-clear-players-filters">
+            <X className="h-3 w-3 mr-1" />Clear
+          </Button>
+        )}
       </div>
 
       {filtered.length === 0 ? (
-        <EmptyState icon={Users} title="No Players" description="No players registered yet." />
+        <EmptyState icon={Users} title="No Players" description={playersFiltersActive ? "No players match your filters." : "No players registered yet."} />
       ) : (
         <div className="rounded-xl border border-border/50 overflow-hidden">
           <div className="hidden sm:grid grid-cols-[50px_1fr_100px_60px_60px_60px_70px_70px] items-center px-4 py-2.5 bg-muted/30 dark:bg-muted/10 border-b border-border/30">
@@ -5036,6 +5090,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const { data: tournamentAdminsList } = useTournamentAdmins(tournamentId);
   const { data: eligibleAdmins } = useTournamentEligibleAdmins(tournamentId);
   const updateRegMutation = useUpdateRegistration();
+  const updateTournamentPaymentMutation = useUpdateTournamentPayment();
   const updateTournamentMutation = useUpdateTournament();
   const registerTeamMutation = useRegisterTeam();
   const deleteCatMutation = useDeleteCategory();
@@ -5099,7 +5154,7 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
     try { await updateRegMutation.mutateAsync({ id, status: "REJECTED" }); toast({ title: "Rejected" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
   async function handlePayment(id: number, confirmed: boolean) {
-    try { await updateRegMutation.mutateAsync({ id, paymentConfirmed: confirmed }); toast({ title: confirmed ? "Payment Confirmed" : "Payment Unconfirmed" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+    try { await updateTournamentPaymentMutation.mutateAsync({ tournamentId, regId: id, paymentStatus: confirmed ? "PAID" : "UNPAID" }); toast({ title: confirmed ? "Payment Confirmed" : "Payment Unconfirmed" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
   async function handleLock() {
     try { await updateTournamentMutation.mutateAsync({ id: tournamentId, isLocked: !tournament.isLocked }); toast({ title: tournament.isLocked ? "Tournament Unlocked" : "Tournament Locked" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
@@ -5931,10 +5986,14 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   onApprove: (id: number) => void; onReject: (id: number) => void; onPayment: (id: number, confirmed: boolean) => void;
 }) {
   const updateRegMutation = useUpdateRegistration();
+  const updatePaymentMutation = useUpdateTournamentPayment();
   const deleteRegMutation = useDeleteRegistration();
   const { toast } = useToast();
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
-  const [showUnpairedOnly, setShowUnpairedOnly] = useState(false);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [paymentFilter, setPaymentFilter] = useState("ALL");
+  const [partnerFilter, setPartnerFilter] = useState("ALL");
 
   if (regsLoading) return <Loader2 className="h-6 w-6 animate-spin text-amber-500 mx-auto" />;
   if (!registrations?.length) return <EmptyState icon={Users} title="No Registrations" description="No one has registered yet." />;
@@ -5949,15 +6008,25 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
   // legacy tournament-wide partner is set (mirrors the PAIR display logic below).
   const isUnpaired = (r: any) => !r.hasPartner && !r.partner;
   const unpairedCount = registrations.filter(isUnpaired).length;
-  const visibleRegistrations = showUnpairedOnly ? registrations.filter(isUnpaired) : registrations;
+  const regPaymentStatus = (r: any): string => r.paymentStatus || (r.paymentConfirmed ? "PAID" : "UNPAID");
+  const q = searchQuery.trim().toLowerCase();
+  const filtersActive = statusFilter !== "ALL" || paymentFilter !== "ALL" || partnerFilter !== "ALL" || q !== "";
+  const visibleRegistrations = registrations.filter((r: any) => {
+    if (q && !(r.user?.fullName || "").toLowerCase().includes(q) && !(r.user?.email || "").toLowerCase().includes(q)) return false;
+    if (statusFilter !== "ALL" && r.status !== statusFilter) return false;
+    if (paymentFilter !== "ALL" && regPaymentStatus(r) !== paymentFilter) return false;
+    if (partnerFilter === "PAIRED" && isUnpaired(r)) return false;
+    if (partnerFilter === "UNPAIRED" && !isUnpaired(r)) return false;
+    return true;
+  });
   const visibleIdSet = new Set(visibleRegistrations.map((r: any) => r.id));
   const allVisibleSelected = visibleRegistrations.length > 0 && visibleRegistrations.every((r: any) => selectedIds.has(r.id));
-  // Only act on selections that are currently visible, so toggling the filter can
-  // never approve/reject/pay a hidden (partnered) registration.
+  // Only act on selections that are currently visible, so changing a filter can
+  // never approve/reject/pay a hidden registration.
   const effectiveSelectedIds = [...selectedIds].filter(id => visibleIdSet.has(id));
 
-  function setFilter(next: boolean) {
-    setShowUnpairedOnly(next);
+  function clearFilters() {
+    setSearchQuery(""); setStatusFilter("ALL"); setPaymentFilter("ALL"); setPartnerFilter("ALL");
     setSelectedIds(new Set());
   }
 
@@ -5988,7 +6057,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
     if (effectiveSelectedIds.length === 0) return;
     let success = 0;
     for (const id of effectiveSelectedIds) {
-      try { await updateRegMutation.mutateAsync({ id, paymentConfirmed: confirmed }); success++; } catch {}
+      try { await updatePaymentMutation.mutateAsync({ tournamentId, regId: id, paymentStatus: confirmed ? "PAID" : "UNPAID" }); success++; } catch {}
     }
     toast({ title: `${success} payment${success !== 1 ? "s" : ""} ${confirmed ? "confirmed" : "unconfirmed"}` });
     setSelectedIds(new Set());
@@ -5996,6 +6065,41 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
 
   return (
     <div className="space-y-2">
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input type="text" placeholder="Search by name or email..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            className="w-full h-9 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors"
+            data-testid="input-search-regs" />
+        </div>
+        <FilterSelect value={statusFilter} onValueChange={setStatusFilter} placeholder="Status" testId="filter-regs-status"
+          options={[
+            { value: "ALL", label: "All statuses" },
+            { value: "PENDING", label: "Pending" },
+            { value: "APPROVED", label: "Approved" },
+            { value: "WAITLISTED", label: "Waitlisted" },
+            { value: "REJECTED", label: "Rejected" },
+          ]} />
+        <FilterSelect value={paymentFilter} onValueChange={setPaymentFilter} placeholder="Payment" testId="filter-regs-payment"
+          options={[
+            { value: "ALL", label: "All payments" },
+            { value: "PAID", label: "Paid" },
+            { value: "PENDING", label: "Part paid" },
+            { value: "UNPAID", label: "Unpaid" },
+          ]} />
+        <FilterSelect value={partnerFilter} onValueChange={setPartnerFilter} placeholder="Partner" testId="filter-regs-partner"
+          options={[
+            { value: "ALL", label: `All (${registrations.length})` },
+            { value: "PAIRED", label: "Has partner" },
+            { value: "UNPAIRED", label: `No partner (${unpairedCount})` },
+          ]} />
+        {filtersActive && (
+          <Button size="sm" variant="ghost" className="h-9 text-xs font-bold text-muted-foreground"
+            onClick={clearFilters} data-testid="button-clear-regs-filters">
+            <X className="h-3 w-3 mr-1" />Clear
+          </Button>
+        )}
+      </div>
       <div className="rounded-xl border border-border/50 overflow-hidden">
         <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
@@ -6004,17 +6108,10 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
               className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer"
               data-testid="checkbox-select-all-regs" />
             <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Registrations</h4>
+            <Badge variant="outline" className="text-[10px] font-bold">{visibleRegistrations.length} shown</Badge>
             {selectedIds.size > 0 && (
               <Badge variant="outline" className="text-[10px] font-bold">{selectedIds.size} selected</Badge>
             )}
-            <Button size="sm" variant={showUnpairedOnly ? "default" : "outline"}
-              className={cn("h-7 text-xs font-bold", showUnpairedOnly ? "bg-amber-600 hover:bg-amber-700 text-white" : "")}
-              onClick={() => setFilter(!showUnpairedOnly)}
-              data-testid="button-filter-no-partner">
-              <UserX className="h-3 w-3 mr-1" />
-              {showUnpairedOnly ? "Showing no-partner" : "No partner"}
-              <Badge variant="outline" className="ml-1.5 text-[9px] px-1 font-bold bg-background/50">{unpairedCount}</Badge>
-            </Button>
           </div>
           {selectedIds.size > 0 && (
             <div className="flex items-center gap-1.5 flex-wrap">
@@ -6031,10 +6128,16 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                 <X className="h-3 w-3 mr-1" />Reject
               </Button>
               <Button size="sm" variant="outline" className="h-7 text-xs border-amber-500/30 text-amber-500 font-bold"
-                disabled={updateRegMutation.isPending}
+                disabled={updatePaymentMutation.isPending}
                 data-testid="button-bulk-confirm-payment"
                 onClick={() => handleBulkPayment(true)}>
                 <PoundSterling className="h-3 w-3 mr-1" />Confirm Pay
+              </Button>
+              <Button size="sm" variant="outline" className="h-7 text-xs border-border text-muted-foreground font-bold"
+                disabled={updatePaymentMutation.isPending}
+                data-testid="button-bulk-unpay"
+                onClick={() => handleBulkPayment(false)}>
+                <X className="h-3 w-3 mr-1" />Mark Unpaid
               </Button>
             </div>
           )}
@@ -6042,7 +6145,7 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
         <div className="divide-y divide-border/20">
           {visibleRegistrations.length === 0 && (
             <div className="px-4 py-8 text-center text-sm text-muted-foreground" data-testid="text-no-unpaired">
-              Everyone has a partner.
+              No registrations match your filters.
             </div>
           )}
           {visibleRegistrations.map((reg: any) => (
@@ -6062,7 +6165,9 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                       <span className="font-medium">{reg.registrationType}</span>
                     )}
                     {reg.partner && !reg.hasPartner && <span>+ {reg.partner.fullName}</span>}
-                    {reg.paymentConfirmed && <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1 font-bold">PAID</Badge>}
+                    {regPaymentStatus(reg) === "PAID" && <Badge className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 text-[9px] px-1 font-bold">PAID</Badge>}
+                    {regPaymentStatus(reg) === "PENDING" && <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 text-[9px] px-1 font-bold">PART PAID</Badge>}
+                    {regPaymentStatus(reg) === "UNPAID" && <Badge className="bg-rose-500/20 text-rose-400 border border-rose-500/30 text-[9px] px-1 font-bold">UNPAID</Badge>}
                   </div>
                   {Array.isArray(reg.categoryPartners) && reg.categoryPartners.length > 0 && (
                     <div className="mt-1 flex flex-col gap-0.5">
@@ -6087,8 +6192,8 @@ function AdminRegistrationsView({ registrations, regsLoading, tournamentId, onAp
                     </Button>
                   </>
                 )}
-                <Button size="sm" variant="outline" className="h-7 text-xs font-medium" onClick={() => onPayment(reg.id, !reg.paymentConfirmed)}>
-                  {reg.paymentConfirmed ? "Unpay" : "💰 Confirm"}
+                <Button size="sm" variant="outline" className="h-7 text-xs font-medium" onClick={() => onPayment(reg.id, regPaymentStatus(reg) !== "PAID")} data-testid={`button-toggle-payment-${reg.id}`}>
+                  {regPaymentStatus(reg) === "PAID" ? "Mark Unpaid" : "Confirm Pay"}
                 </Button>
                 <Button size="sm" variant="outline" className="h-7 text-xs border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
                   data-testid={`button-remove-player-${reg.id}`}
@@ -6616,6 +6721,9 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
   }
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [searchQuery, setSearchQuery] = useState("");
+  const [paymentFilter, setPaymentFilter] = useState("ALL");
+  const [memberFilter, setMemberFilter] = useState("ALL");
 
   function toggleExpand(id: number) {
     setExpandedIds(prev => {
@@ -6645,6 +6753,21 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
   if (reconciledIds.size !== selectedIds.size && selectedIds.size > 0) {
     setTimeout(() => setSelectedIds(reconciledIds), 0);
   }
+  const fq = searchQuery.trim().toLowerCase();
+  const financeFiltersActive = paymentFilter !== "ALL" || memberFilter !== "ALL" || fq !== "";
+  const visiblePlayers = players.filter((p: any) => {
+    if (fq && !(p.user?.fullName || "").toLowerCase().includes(fq) && !(p.user?.email || "").toLowerCase().includes(fq)) return false;
+    if (paymentFilter !== "ALL" && p.paymentStatus !== paymentFilter) return false;
+    if (memberFilter === "MEMBER" && !p.isInternal) return false;
+    if (memberFilter === "EXTERNAL" && p.isInternal) return false;
+    return true;
+  });
+  const visibleFinanceIds = new Set(visiblePlayers.map((p: any) => p.id));
+
+  function clearFinanceFilters() {
+    setSearchQuery(""); setPaymentFilter("ALL"); setMemberFilter("ALL");
+    setSelectedIds(new Set());
+  }
 
   function toggleSelect(id: number) {
     setSelectedIds(prev => {
@@ -6656,17 +6779,19 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
   }
 
   function toggleSelectAll() {
-    if (selectedIds.size === players.length) {
+    const allVisibleSelected = visiblePlayers.length > 0 && visiblePlayers.every((p: any) => selectedIds.has(p.id));
+    if (allVisibleSelected) {
       setSelectedIds(new Set());
     } else {
-      setSelectedIds(new Set(players.map((p: any) => p.id)));
+      setSelectedIds(new Set(visiblePlayers.map((p: any) => p.id)));
     }
   }
 
   async function handleBulkPayment(status: string) {
-    if (selectedIds.size === 0) return;
+    const ids = [...selectedIds].filter(id => visibleFinanceIds.has(id));
+    if (ids.length === 0) return;
     let success = 0;
-    for (const regId of selectedIds) {
+    for (const regId of ids) {
       try {
         await updatePaymentMutation.mutateAsync({ tournamentId, regId, paymentStatus: status });
         success++;
@@ -6766,14 +6891,45 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
         </div>
       )}
 
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input type="text" placeholder="Search players by name or email..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            className="w-full h-9 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors"
+            data-testid="input-search-finance" />
+        </div>
+        <FilterSelect value={paymentFilter} onValueChange={setPaymentFilter} placeholder="Payment" testId="filter-finance-payment"
+          options={[
+            { value: "ALL", label: "All payments" },
+            { value: "PAID", label: "Paid" },
+            { value: "PENDING", label: "Pending" },
+            { value: "UNPAID", label: "Unpaid" },
+          ]} />
+        {hasDualFees && (
+          <FilterSelect value={memberFilter} onValueChange={setMemberFilter} placeholder="Type" testId="filter-finance-member"
+            options={[
+              { value: "ALL", label: "All players" },
+              { value: "MEMBER", label: "Members" },
+              { value: "EXTERNAL", label: "External" },
+            ]} />
+        )}
+        {financeFiltersActive && (
+          <Button size="sm" variant="ghost" className="h-9 text-xs font-bold text-muted-foreground"
+            onClick={clearFinanceFilters} data-testid="button-clear-finance-filters">
+            <X className="h-3 w-3 mr-1" />Clear
+          </Button>
+        )}
+      </div>
+
       <div className="rounded-xl border border-border/50 overflow-hidden">
         <div className="px-4 py-3 bg-muted/20 dark:bg-muted/10 border-b border-border/30 flex items-center justify-between gap-3 flex-wrap">
           <div className="flex items-center gap-3">
-            <input type="checkbox" checked={players.length > 0 && selectedIds.size === players.length}
+            <input type="checkbox" checked={visiblePlayers.length > 0 && visiblePlayers.every((p: any) => selectedIds.has(p.id))}
               onChange={toggleSelectAll}
               className="h-4 w-4 rounded border-border accent-amber-500 cursor-pointer"
               data-testid="checkbox-select-all-finance" />
             <h4 className="text-xs font-black text-foreground uppercase tracking-wider">Player Payments</h4>
+            <Badge variant="outline" className="text-[10px] font-bold">{visiblePlayers.length} shown</Badge>
             {selectedIds.size > 0 && (
               <Badge variant="outline" className="text-[10px] font-bold">{selectedIds.size} selected</Badge>
             )}
@@ -6802,7 +6958,12 @@ function AdminFinanceView({ tournamentId, tournament }: { tournamentId: number; 
           )}
         </div>
         <div className="divide-y divide-border/20">
-          {players.map((player: any) => {
+          {visiblePlayers.length === 0 && (
+            <div className="px-4 py-8 text-center text-sm text-muted-foreground" data-testid="text-no-finance-players">
+              No players match your filters.
+            </div>
+          )}
+          {visiblePlayers.map((player: any) => {
             const cats: any[] = player.categoryFees || [];
             const isExpanded = expandedIds.has(player.id);
             const hasCats = cats.length > 0;

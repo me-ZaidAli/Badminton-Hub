@@ -790,6 +790,7 @@ export function useConfirmCategoryPayment() {
     onSuccess: (_d, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "registrations"] });
     },
   });
 }
@@ -803,6 +804,7 @@ export function useUpdateTeamPayment() {
     onSuccess: (_d, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "finances"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "my-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "registrations"] });
     },
   });
 }
