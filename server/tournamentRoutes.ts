@@ -1883,21 +1883,26 @@ export function registerTournamentRoutes(app: Express) {
 
         // Category-level pairing: a player registers once (often INDIVIDUAL) and
         // then pairs per-category via tournament_teams. Surface those pairings so
-        // the admin list reflects who is actually partnered.
+        // the admin list reflects who is actually partnered. Match against ALL of
+        // the user's profile ids (not just the club-scoped one): the two pair
+        // creation routes — player invite and admin create-pair — can store the
+        // team against different profiles of the same multi-club user, so a single
+        // profile lookup silently misses real pairs.
+        const userProfileIds = userProfiles.map(p => p.id);
         const partnerTagSet = new Set<string>();
         const categoryPartners: Array<{ name: string; tag: string; categoryName: string }> = [];
-        if (profile && catIds.length > 0) {
+        if (userProfileIds.length > 0 && catIds.length > 0) {
           const playerTeams = await db.select().from(tournamentTeams)
             .where(and(
               inArray(tournamentTeams.categoryId, catIds),
-              or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id))
+              or(inArray(tournamentTeams.player1Id, userProfileIds), inArray(tournamentTeams.player2Id, userProfileIds))
             ));
           for (const team of playerTeams) {
             if (team.player2Id == null) continue;
             const cat = catById.get(team.categoryId);
             const tag = categoryDoublesTag(cat?.genderRestriction);
             partnerTagSet.add(tag);
-            const partnerProfileId = team.player1Id === profile.id ? team.player2Id : team.player1Id;
+            const partnerProfileId = userProfileIds.includes(team.player1Id!) ? team.player2Id : team.player1Id;
             const [partnerProfile] = await db.select().from(playerProfiles).where(eq(playerProfiles.id, partnerProfileId));
             let partnerName = "Partner";
             if (partnerProfile) {
@@ -3656,13 +3661,18 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         // reference these club-scoped profiles), fall back to any profile.
         const userProfiles = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
         const profile = userProfiles.find(p => tournament && p.clubId === tournament.clubId) || userProfiles[0];
+        // Match against ALL of the user's profile ids — pairs created via the two
+        // routes (player invite / admin create-pair) can be stored against a
+        // different club-scoped profile of the same multi-club user, so a single
+        // profile lookup silently misses real pairs (showing them as unpartnered).
+        const userProfileIds = userProfiles.map(p => p.id);
         let matchesPlayed = 0, matchesWon = 0, gamesWon = 0, gamesLost = 0, pointsScored = 0, pointsConceded = 0;
         const partnerTagSet = new Set<string>();
-        if (profile && catIds.length > 0) {
+        if (userProfileIds.length > 0 && catIds.length > 0) {
           const playerTeams = await db.select().from(tournamentTeams)
             .where(and(
               inArray(tournamentTeams.categoryId, catIds),
-              or(eq(tournamentTeams.player1Id, profile.id), eq(tournamentTeams.player2Id, profile.id))
+              or(inArray(tournamentTeams.player1Id, userProfileIds), inArray(tournamentTeams.player2Id, userProfileIds))
             ));
           // A team with both players set means this player is partnered in that
           // doubles category — tag it by the category's gender restriction.
