@@ -743,17 +743,18 @@ function OverviewTab({ tournament, categories, tournamentId }: { tournament: any
   );
 }
 
+const DOUBLES_TAG_STYLES: Record<string, string> = {
+  MX: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  MD: "bg-sky-500/20 text-sky-300 border-sky-500/30",
+  XD: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+};
+
 function PartnerTags({ tags, hasPartner }: { tags?: string[]; hasPartner?: boolean }) {
-  const tagStyles: Record<string, string> = {
-    MX: "bg-violet-500/20 text-violet-300 border-violet-500/30",
-    MD: "bg-sky-500/20 text-sky-300 border-sky-500/30",
-    XD: "bg-pink-500/20 text-pink-300 border-pink-500/30",
-  };
   if (hasPartner && tags && tags.length > 0) {
     return (
       <>
         {tags.map((t) => (
-          <Badge key={t} className={cn("text-[9px] px-1.5 border font-bold", tagStyles[t] || "bg-muted text-muted-foreground border-border")} data-testid={`tag-partner-${t}`}>
+          <Badge key={t} className={cn("text-[9px] px-1.5 border font-bold", DOUBLES_TAG_STYLES[t] || "bg-muted text-muted-foreground border-border")} data-testid={`tag-partner-${t}`}>
             {t}
           </Badge>
         ))}
