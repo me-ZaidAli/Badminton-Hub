@@ -1224,28 +1224,9 @@ function PairsTab({ tournamentId, onNavigate }: { tournamentId: number; onNaviga
   });
 
 
-  // Pairs that were formed without a specific category (tournament-wide). These
-  // have no per-category team row, so we surface them as their own section below
-  // instead of hiding them. We trust whatever pairs exist in the system.
-  const tournamentWidePairs = (pairs || [])
-    .filter((p: any) => p.categoryId == null)
-    .map((p: any) => ({
-      id: p.id,
-      player1: p.user1,
-      player2: p.user2,
-      profile1: p.profile1,
-      profile2: p.profile2,
-      createdAt: p.createdAt,
-      isPaired: true,
-    }));
-  const tournamentWideRows = tournamentWidePairs.length > 0
-    ? [{
-        category: { id: -1, name: "Tournament-wide", playersPerSide: 2, format: "Pairs", genderRestriction: "ALL" },
-        confirmedPairs: tournamentWidePairs,
-        soloEntries: [] as any[],
-      }]
-    : [];
-  const allTeamRows = [...(teamsByCategory || []), ...tournamentWideRows];
+  // Only show pairs that belong to a specific category. Tournament-wide pairs
+  // (categoryId == null) are intentionally NOT surfaced as their own section.
+  const allTeamRows = [...(teamsByCategory || [])];
 
   const myRegistration = registrations?.find((r: any) => r.userId === user?.id);
   const myIncomingRequests = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
