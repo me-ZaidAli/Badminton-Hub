@@ -5497,8 +5497,10 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
   // Copy the group structure of one category onto other categories. Clones the
   // groups (name, stage link, order, capacity, schedule, venue/hall/court) but
   // NOT their team/pair assignments — every category fields different teams. The
-  // admin can then edit all details on the copies. Stages are tournament-wide,
-  // so the cloned groups simply reuse the same stageId.
+  // admin can then edit all details on the copies. Stages are category-scoped,
+  // so the source category's stages are CLONED into each target category (new
+  // rows) and the cloned groups point at those independent copies — editing or
+  // deleting a stage in one category never affects another.
   app.post("/api/tournaments/:id/groups/copy-structure", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

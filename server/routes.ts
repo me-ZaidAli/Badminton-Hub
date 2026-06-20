@@ -7,7 +7,7 @@ import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coache
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { matchModeEnum } from "@shared/schema";
+import { matchModeEnum, GRADE_ORDER } from "@shared/schema";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
@@ -4329,6 +4329,20 @@ export async function registerRoutes(
       baseFee = club?.sessionFee ?? 1000;
     }
 
+    // Grade (level) criteria. Sessions store their allowed grades in
+    // `allowedCategories` (values from GRADE_ORDER, e.g. "B2"). A player's grade
+    // is the same one shown on the leaderboard (playerProfiles.grade). A self-
+    // joining player must hold one of the allowed grades. Admins/owners/
+    // organisers who can manage the session bypass this check (so they can add
+    // any player regardless of grade). If every grade is allowed (or none of the
+    // allowed values are grades — legacy category-only sessions), there is no
+    // grade restriction.
+    const requesterCanManageSession = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    const allowedGrades = Array.isArray(session.allowedCategories)
+      ? (session.allowedCategories as string[]).filter(c => (GRADE_ORDER as readonly string[]).includes(c))
+      : [];
+    const gradeRestricted = allowedGrades.length > 0 && allowedGrades.length < GRADE_ORDER.length;
+
     const results: any[] = [];
     const errors: string[] = [];
 
@@ -4394,6 +4408,14 @@ export async function registerRoutes(
       if (session.genderRestriction === "FEMALE_ONLY" && profile.gender !== "FEMALE") {
         errors.push(`${targetUser.fullName}: This session is for female players only`);
         continue;
+      }
+
+      if (gradeRestricted && !requesterCanManageSession) {
+        const playerGrade = (profile as any).grade as string | null | undefined;
+        if (!playerGrade || !allowedGrades.includes(playerGrade)) {
+          errors.push(`${targetUser.fullName}: Grade ${playerGrade || "unset"} does not meet this session's level requirement (allowed grades: ${allowedGrades.join(", ")})`);
+          continue;
+        }
       }
 
       const currentConfirmed = confirmedCount + results.filter(r => r.signupStatus === "CONFIRMED").length;
