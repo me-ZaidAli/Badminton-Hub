@@ -1122,6 +1122,7 @@ export function useUpdateTournamentGroup() {
 export interface TournamentStage {
   id: number;
   tournamentId: number;
+  categoryId: number | null;
   name: string;
   displayOrder: number;
   createdAt: string;

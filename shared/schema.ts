@@ -366,6 +366,10 @@ export const sessions = pgTable("sessions", {
   maxPlayers: integer("max_players").notNull(),
   courtsAvailable: integer("courts_available").notNull(),
   allowedCategories: jsonb("allowed_categories").$type<string[]>().notNull(),
+  // When true, only players whose grade is in `allowedCategories` may self-join
+  // (admins/owners/organisers always bypass). When false, the grades are merely
+  // suggested categories shown on the session card and anyone may join.
+  categoryRestricted: boolean("category_restricted").default(false).notNull(),
   matchMode: matchModeEnum("match_mode").default("SOCIAL").notNull(),
   isPrivate: boolean("is_private").default(false).notNull(),
   genderRestriction: genderRestrictionEnum("gender_restriction").default("ALL").notNull(),

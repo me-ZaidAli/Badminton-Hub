@@ -1365,6 +1365,12 @@ function TimelineSessionCard({
             {session.sessionType === "JUNIORS_ONLY" && (
               <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
             )}
+            {(() => {
+              const ALL_GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+              const grades = (session.allowedCategories || []).filter((g: string) => !["A", "B", "C", "D"].includes(g));
+              if (grades.length === 0 || ALL_GRADES.every(g => (session.allowedCategories || []).includes(g))) return null;
+              return <span className="inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">{(session as any).categoryRestricted ? "Required" : "Suggested"}</span>;
+            })()}
             {session.allowedCategories && session.allowedCategories.length > 0 && (
               (() => {
                 const grades = session.allowedCategories.filter((g: string) => !["A", "B", "C", "D"].includes(g));
@@ -2029,6 +2035,12 @@ function SessionPreviewDialog({
             {session.sessionType === "JUNIORS_ONLY" && (
               <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300">Juniors</span>
             )}
+            {(() => {
+              const ALL_GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+              const grades = (session.allowedCategories || []).filter((g: string) => !["A", "B", "C", "D"].includes(g));
+              if (grades.length === 0 || ALL_GRADES.every(g => (session.allowedCategories || []).includes(g))) return null;
+              return <span className="inline-flex items-center rounded-full px-2.5 py-1 text-[11px] font-semibold bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200">{(session as any).categoryRestricted ? "Required" : "Suggested"}</span>;
+            })()}
             {session.allowedCategories && session.allowedCategories.length > 0 && (
               (() => {
                 const ALL_GRADES = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];

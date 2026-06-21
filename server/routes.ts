@@ -4334,14 +4334,14 @@ export async function registerRoutes(
     // is the same one shown on the leaderboard (playerProfiles.grade). A self-
     // joining player must hold one of the allowed grades. Admins/owners/
     // organisers who can manage the session bypass this check (so they can add
-    // any player regardless of grade). If every grade is allowed (or none of the
-    // allowed values are grades — legacy category-only sessions), there is no
-    // grade restriction.
+    // any player regardless of grade). Enforcement only applies when the session
+    // is explicitly category-restricted (session.categoryRestricted). Otherwise
+    // the selected grades are merely suggested categories and anyone may join.
     const requesterCanManageSession = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
     const allowedGrades = Array.isArray(session.allowedCategories)
       ? (session.allowedCategories as string[]).filter(c => (GRADE_ORDER as readonly string[]).includes(c))
       : [];
-    const gradeRestricted = allowedGrades.length > 0 && allowedGrades.length < GRADE_ORDER.length;
+    const gradeRestricted = !!(session as any).categoryRestricted && allowedGrades.length > 0;
 
     const results: any[] = [];
     const errors: string[] = [];

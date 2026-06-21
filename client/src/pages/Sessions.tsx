@@ -2526,6 +2526,7 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
       matchGenderType: prefillData?.matchGenderType ?? "MIXED",
       durationMinutes: prefillData?.durationMinutes ?? 120,
       allowedCategories: prefillData?.allowedCategories ?? ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"],
+      categoryRestricted: prefillData?.categoryRestricted ?? false,
       sessionFee: prefillData?.sessionFee ?? undefined,
       premiumFee: prefillData?.premiumFee ?? undefined,
       superPremiumFee: prefillData?.superPremiumFee ?? undefined,
@@ -3161,11 +3162,28 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
             )}
             <FormField
               control={form.control}
+              name="categoryRestricted"
+              render={({ field }) => (
+                <FormItem className="flex items-center justify-between rounded-lg border p-3">
+                  <div className="space-y-0.5">
+                    <FormLabel>Category Restricted</FormLabel>
+                    <FormDescription className="text-xs">
+                      {field.value ? "Strict — only selected grades can join." : "Off — grades are suggestions; anyone can join."}
+                    </FormDescription>
+                  </div>
+                  <FormControl>
+                    <Switch checked={!!field.value} onCheckedChange={field.onChange} data-testid="switch-category-restricted" />
+                  </FormControl>
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
               name="allowedCategories"
               render={() => (
                 <FormItem>
                   <div className="flex items-center justify-between">
-                    <FormLabel>Allowed Categories</FormLabel>
+                    <FormLabel>{form.watch("categoryRestricted") ? "Required Grades" : "Suggested Categories"}</FormLabel>
                     <Button
                       type="button"
                       variant="ghost"
@@ -3186,7 +3204,9 @@ function CreateSessionDialog({ sessionClubs, initialOpen, onClose, prefillData }
                     </Button>
                   </div>
                   <FormDescription>
-                    Select which player categories can join this session.
+                    {form.watch("categoryRestricted")
+                      ? "Strict: only players in these grades can join."
+                      : "Suggested grades shown on the card — anyone can still join."}
                   </FormDescription>
                   <div className="grid grid-cols-2 gap-3 mt-2">
                     {CATEGORIES.map((category) => (
@@ -3418,6 +3438,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
   const [editSessionType, setEditSessionType] = useState("OPEN");
   const [editJuniorAgeGroups, setEditJuniorAgeGroups] = useState<string[]>([]);
   const [editCategories, setEditCategories] = useState<string[]>([]);
+  const [editCategoryRestricted, setEditCategoryRestricted] = useState(false);
   const [editSessionFee, setEditSessionFee] = useState("");
   const [editPremiumFee, setEditPremiumFee] = useState("");
   const [editSuperPremiumFee, setEditSuperPremiumFee] = useState("");
@@ -3499,6 +3520,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
     setEditSessionType(session.sessionType || "OPEN");
     setEditJuniorAgeGroups(session.juniorAgeGroups || []);
     setEditCategories(session.allowedCategories || ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"]);
+    setEditCategoryRestricted(!!session.categoryRestricted);
     setEditSessionFee(session.sessionFee != null ? (session.sessionFee / 100).toFixed(2) : "");
     setEditPremiumFee(session.premiumFee != null ? (session.premiumFee / 100).toFixed(2) : "");
     setEditSuperPremiumFee(session.superPremiumFee != null ? (session.superPremiumFee / 100).toFixed(2) : "");
@@ -3579,6 +3601,7 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
       sessionType: editSessionType,
       juniorAgeGroups: editJuniorAgeGroups,
       allowedCategories: editCategories,
+      categoryRestricted: editCategoryRestricted,
       sessionFee: editSessionFee ? Math.round(parseFloat(editSessionFee) * 100) : null,
       premiumFee: editPremiumFee ? Math.round(parseFloat(editPremiumFee) * 100) : null,
       superPremiumFee: editSuperPremiumFee ? Math.round(parseFloat(editSuperPremiumFee) * 100) : null,
@@ -4235,9 +4258,16 @@ function EditSessionDialog({ session, venues: propVenues, adminClubs, externalOp
               </div>
             </div>
           )}
+          <div className="flex items-center justify-between rounded-lg border p-3">
+            <div className="space-y-0.5">
+              <Label>Category Restricted</Label>
+              <p className="text-xs text-muted-foreground">{editCategoryRestricted ? "Strict — only selected grades can join." : "Off — grades are suggestions; anyone can join."}</p>
+            </div>
+            <Switch checked={editCategoryRestricted} onCheckedChange={setEditCategoryRestricted} data-testid="switch-edit-category-restricted" />
+          </div>
           <div>
             <div className="flex items-center justify-between">
-              <Label>Allowed Categories</Label>
+              <Label>{editCategoryRestricted ? "Required Grades" : "Suggested Categories"}</Label>
               <Button
                 type="button"
                 variant="ghost"
