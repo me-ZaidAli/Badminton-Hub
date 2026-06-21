@@ -93,6 +93,7 @@ export function useUpdateSession() {
       sessionType?: string;
       juniorAgeGroups?: string[];
       allowedCategories?: string[];
+      categoryRestricted?: boolean;
       sessionFee?: number | null;
       shuttlecockType?: string | null;
       defaultPointsToPlayTo?: number;

@@ -3543,6 +3543,29 @@ export async function registerRoutes(
       return res.status(403).json({ message: statusMsg });
     }
 
+    // Grade (category) restriction. When a session is explicitly category-restricted
+    // (session.categoryRestricted), only players whose grade is one of the session's
+    // allowedCategories may self-join. Any grade not in that list (whether a lower
+    // grade or simply unselected) is blocked. Admins/owners/organisers who can manage
+    // the session bypass this check. When categoryRestricted is false, allowedCategories
+    // is advisory only (shown on the card as suggested grades) and anyone may join.
+    // This runs BEFORE the existing-signup reactivation path below so reactivating a
+    // cancelled signup is also gated.
+    {
+      const allowedGrades = Array.isArray(session.allowedCategories)
+        ? (session.allowedCategories as string[]).filter(c => (GRADE_ORDER as readonly string[]).includes(c))
+        : [];
+      if ((session as any).categoryRestricted && allowedGrades.length > 0) {
+        const canManage = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+        if (!canManage) {
+          const playerGrade = (profile as any).grade as string | null | undefined;
+          if (!playerGrade || !allowedGrades.includes(playerGrade)) {
+            return res.status(403).json({ message: `This session is restricted to grades: ${allowedGrades.join(", ")}. Your grade (${playerGrade || "unset"}) is not eligible.` });
+          }
+        }
+      }
+    }
+
     const signups = await storage.getSessionSignups(sessionId);
 
     const existingSignup = signups.find((s: any) => s.playerId === profile.id);
@@ -3622,8 +3645,6 @@ export async function registerRoutes(
         }
       }
     }
-
-    // Grade restriction removed — allowedCategories is now advisory only (shown on card as recommended grades)
 
     // Determine fee: check active membership first, then session fee, then club default
     let fee = session.sessionFee;
@@ -5216,7 +5237,7 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, cardBgMode, cardBgImageUrl, cardBgColor, customLinks, hallName, guestClubIds, coachUserId, organiserUserId, coordinatorUserId, coachUserIds, organiserUserIds, coordinatorUserIds, supportCoachUserIds } = req.body;
+      const { courtsAvailable, maxPlayers, matchMode, status, allowedCategories, categoryRestricted, courtNames, liveStreamUrl, clubId, autoGenerateActive, isPrivate, shuttleTubesUsed, title, date, startTime, durationMinutes, genderRestriction, sessionType, juniorAgeGroups, playersPerSide, matchGenderType, sessionFee, premiumFee, superPremiumFee, clubMemberFee, shuttlecockType, defaultPointsToPlayTo, venueId, queueTargetSize, publishAt, numberOfSets, sessionDetails, bannerMessage, bannerColor, cardBgMode, cardBgImageUrl, cardBgColor, customLinks, hallName, guestClubIds, coachUserId, organiserUserId, coordinatorUserId, coachUserIds, organiserUserIds, coordinatorUserIds, supportCoachUserIds } = req.body;
 
       const updates: any = {};
       if (autoGenerateActive !== undefined) updates.autoGenerateActive = !!autoGenerateActive;
@@ -5274,6 +5295,7 @@ export async function registerRoutes(
         }
         updates.allowedCategories = filtered;
       }
+      if (categoryRestricted !== undefined) updates.categoryRestricted = !!categoryRestricted;
       if (publishAt !== undefined) updates.publishAt = publishAt ? new Date(publishAt) : null;
       if (sessionDetails !== undefined) updates.sessionDetails = sessionDetails || null;
       if (bannerMessage !== undefined) updates.bannerMessage = bannerMessage ? String(bannerMessage).slice(0, 2000) : null;
