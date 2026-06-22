@@ -23,16 +23,33 @@ if ! command -v brew >/dev/null 2>&1; then
   fi
 fi
 
-# ── Core packages ─────────────────────────────────────────────────────────────
-brew install node@20 postgresql@16 nginx
+# ── Core packages (no Node.js via Homebrew — avoids source compilation) ───────
+brew install postgresql@16 nginx
 
-# Ensure node@20 is on PATH (Homebrew keg-only formula)
-BREW_PREFIX="$(brew --prefix)"
-NODE_BIN="${BREW_PREFIX}/opt/node@20/bin"
-if [[ ":$PATH:" != *":${NODE_BIN}:"* ]]; then
-  echo "Add the following to your shell profile (~/.zshrc or ~/.bash_profile):"
-  echo "  export PATH=\"${NODE_BIN}:\$PATH\""
-  export PATH="${NODE_BIN}:$PATH"
+# ── Node.js 20 via nvm (downloads pre-built binary, works on Intel Macs) ─────
+export NVM_DIR="${HOME}/.nvm"
+if [[ ! -d "${NVM_DIR}" ]]; then
+  echo "Installing nvm..."
+  curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.1/install.sh | bash
+fi
+# Load nvm for the rest of this session
+[ -s "${NVM_DIR}/nvm.sh" ] && source "${NVM_DIR}/nvm.sh"
+
+nvm install 20
+nvm use 20
+nvm alias default 20
+
+# Persist nvm in shell profile if not already there
+SHELL_RC="${HOME}/.zshrc"
+[[ -f "${HOME}/.bash_profile" && ! -f "${HOME}/.zshrc" ]] && SHELL_RC="${HOME}/.bash_profile"
+if ! grep -q 'NVM_DIR' "${SHELL_RC}" 2>/dev/null; then
+  cat >> "${SHELL_RC}" <<'EOF'
+
+# nvm
+export NVM_DIR="$HOME/.nvm"
+[ -s "$NVM_DIR/nvm.sh" ] && source "$NVM_DIR/nvm.sh"
+EOF
+  echo "Added nvm to ${SHELL_RC}"
 fi
 
 # ── PostgreSQL ────────────────────────────────────────────────────────────────
