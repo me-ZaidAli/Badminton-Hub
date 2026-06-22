@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Launchd user agent for daily database backups.
+  Installed to ~/Library/LaunchAgents/ by 05-enable-backups.sh.
+  __BACKUP_SCRIPT__ and __HOME__ are substituted at install time.
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.badminton-hub.backup</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__BACKUP_SCRIPT__</string>
+    </array>
+
+    <!-- Run daily at 02:00 -->
+    <key>StartCalendarInterval</key>
+    <dict>
+        <key>Hour</key>
+        <integer>2</integer>
+        <key>Minute</key>
+        <integer>0</integer>
+    </dict>
+
+    <key>StandardOutPath</key>
+    <string>__HOME__/Library/Logs/badminton-hub/backup.log</string>
+    <key>StandardErrorPath</key>
+    <string>__HOME__/Library/Logs/badminton-hub/backup-error.log</string>
+
+    <!-- Run missed jobs when the Mac was asleep at schedule time -->
+    <key>RunAtLoad</key>
+    <false/>
+</dict>
+</plist>
