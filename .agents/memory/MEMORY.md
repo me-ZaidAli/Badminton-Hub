@@ -7,3 +7,4 @@
 - [Tournament fee snapshots](tournament-fee-snapshots.md) — fees snapshotted at join; changing the rule won't fix old finances. Backfill via explicit admin endpoint (not GET), skip PAID, NULL-tolerant guard.
 - [Tournament pairing is two-level](tournament-pairing-two-levels.md) — "is this player paired?" must read tournament_teams, not registrationType (which stays INDIVIDUAL); legacy PAIR regs also count.
 - [Tournament stages are category-scoped](tournament-category-stages.md) — stage.categoryId NULL=legacy shared; a group/match may only link a NULL or same-category stage; copy-structure clones stages per target category.
+- [Tournament group/stage picker scoping](tournament-group-picker-scoping.md) — dialog group/stage dropdowns must filter by category + dedupe display, but resolve picks against the full category list.

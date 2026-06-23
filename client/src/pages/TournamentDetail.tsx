@@ -2287,6 +2287,25 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
   const { data: stages = [] } = useTournamentStages(tournamentId);
   // Show every group from the Groups tab (groups without a category are also included).
   const categoryGroups = (allGroups as any[]).filter((g: any) => !g.categoryId || g.categoryId === category.id);
+  // De-duplicated list for the Add-Match Group dropdown: repeated copy-structure
+  // runs can leave several rows with the same name, which floods the dropdown.
+  // Collapse by name, keeping the copy with the most assigned pairs (then the
+  // lowest group order), and sort by group order.
+  const categoryGroupsForPicker = (() => {
+    const byName = new Map<string, any>();
+    const pairCount = (g: any) => (g?.pairs?.length ?? 0);
+    for (const g of categoryGroups) {
+      const key = (g.name || `Group ${String.fromCharCode(64 + (g.groupOrder ?? 1))}`).trim().toLowerCase();
+      const existing = byName.get(key);
+      if (!existing) { byName.set(key, g); continue; }
+      const better = pairCount(g) > pairCount(existing)
+        || (pairCount(g) === pairCount(existing) && (g.groupOrder ?? 0) < (existing.groupOrder ?? 0));
+      if (better) byName.set(key, g);
+    }
+    return Array.from(byName.values()).sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0));
+  })();
+  // Stages are category-scoped (legacy rows have a NULL categoryId and are shared).
+  const categoryStages = (stages as any[]).filter((s: any) => !s.categoryId || s.categoryId === category.id);
   const assignCourtMutation = useAssignMatchCourt();
   const updateStatusMutation = useUpdateMatchStatus();
   const updateTimeMutation = useUpdateMatchScheduledTime();
@@ -3038,7 +3057,10 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 const allCategoryTeams = (teams || []) as any[];
                 const teamMap = new Map<number, any>(allCategoryTeams.map((t: any) => [t.id, t]));
                 // Resolve selected group from the Groups tab — display every pair it contains, exactly as set up there.
-                const selectedGroup = (allGroups as any[])
+                // Resolve against the FULL category list (not the de-duped picker) so a
+                // preset launch from a group section, or any picked group order, always
+                // resolves even if its name twin was collapsed out of the dropdown.
+                const selectedGroup = (categoryGroups as any[])
                   .slice()
                   .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0))
                   .find((g: any) => g.groupOrder === effectiveGroupNumber);
@@ -3081,14 +3103,14 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                         </SelectContent>
                       </Select>
                     </div>
-                    {stages.length > 0 && (
+                    {categoryStages.length > 0 && (
                       <div>
                         <label className="text-xs font-semibold text-muted-foreground mb-1 block">Custom Stage (optional)</label>
                         <Select value={addMatchCustomStageId} onValueChange={setAddMatchCustomStageId}>
                           <SelectTrigger data-testid="select-add-match-custom-stage"><SelectValue /></SelectTrigger>
                           <SelectContent>
                             <SelectItem value="none">No custom stage</SelectItem>
-                            {[...stages].sort((a, b) => b.displayOrder - a.displayOrder).map(s => (
+                            {[...categoryStages].sort((a, b) => b.displayOrder - a.displayOrder).map(s => (
                               <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                             ))}
                           </SelectContent>
@@ -3103,16 +3125,13 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                         disabled={!!presetGroup}
                       >
                         <SelectTrigger data-testid="select-add-match-group">
-                          <SelectValue placeholder={(allGroups as any[]).length === 0 ? "No groups — create one first" : "Select group"} />
+                          <SelectValue placeholder={categoryGroupsForPicker.length === 0 ? "No groups — create one first" : "Select group"} />
                         </SelectTrigger>
                         <SelectContent>
-                          {(allGroups as any[]).length === 0 ? (
+                          {categoryGroupsForPicker.length === 0 ? (
                             <SelectItem value="1">Group A</SelectItem>
                           ) : (
-                            (allGroups as any[])
-                              .slice()
-                              .sort((a, b) => (a.groupOrder ?? 0) - (b.groupOrder ?? 0))
-                              .map((g: any) => (
+                            categoryGroupsForPicker.map((g: any) => (
                                 <SelectItem key={g.id} value={String(g.groupOrder)}>
                                   {g.name || `Group ${String.fromCharCode(64 + (g.groupOrder ?? 1))}`}
                                 </SelectItem>

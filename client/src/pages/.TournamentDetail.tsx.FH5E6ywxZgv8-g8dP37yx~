@@ -1,0 +1,1154 @@
+import { useRoute } from "wouter";
+import { useState, useMemo, useEffect, useRef } from "react";
+import { motion } from "framer-motion";
+import {
+  useTournament, useTournamentCategories, useTournamentTeams,
+  useTournamentMatches, useTournamentStandings,
+  useCreateCategory, useDeleteCategory, useUpdateCategory, useRegisterTeam, useDeleteTeam, useUpdateTeam,
+  useGenerateMatches, useScoreMatch, useAdvanceWinners, useAddGroupMatch, useUpdateTournament, useDeleteTournamentMatch,
+  useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs, useTournamentTeamsByCategory,
+  useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
+  useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
+  useWithdrawRegistration, useAdminCreatePair, useAdminAddPlayer, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
+  useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
+  useAddTournamentAdmin, useRemoveTournamentAdmin,
+  useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
+  useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup, useCopyGroupStructure, useDedupeGroups,
+  useAddPairToGroup, useRemovePairFromGroup,
+  useTournamentStages, useCreateTournamentStage, useUpdateTournamentStage, useDeleteTournamentStage,
+  useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
+  useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
+  useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
+  useAssignMatchCourt, useUpdateMatchStatus, useUpdateMatchTeamNames, useUpdateMatchScheduledTime, useBulkUpdateMatchScheduledTime,
+  useTournamentPlayerStats, useRecalculateStats, useRecalculateFees,
+  useMyTournamentCategories, useJoinCategorySolo, useLeaveCategory, useSelfUnpair,
+  useConfirmCategoryPayment, useUpdateTeamPayment,
+  usePlayerTournamentStats,
+} from "@/hooks/use-tournaments";
+import { useUser } from "@/hooks/use-auth";
+import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMyTournamentClubs, useDetailedPlayerStats, useClubs } from "@/hooks/use-clubs";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
+import { Input } from "@/components/ui/input";
+import { Card, CardContent } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from "@/components/ui/accordion";
+import { format } from "date-fns";
+import { UkDateTimePicker } from "@/components/UkDateTimePicker";
+import { utcToLondonInputs, londonInputsToUtcISO, formatLondon } from "@/lib/uk-time";
+import { useForm } from "react-hook-form";
+import { z } from "zod";
+import { zodResolver } from "@hookform/resolvers/zod";
+import {
+  Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
+  Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
+  UserPlus, UserMinus, UserX, Clock, Shield, ChevronRight, ChevronDown, Zap, Award, Star, Target, Lock, CheckCircle,
+  Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
+  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, ArrowRight, Download, Image as ImageIcon,
+} from "lucide-react";
+import { Link } from "wouter";
+import { useToast } from "@/hooks/use-toast";
+import { cn } from "@/lib/utils";
+import tournamentHeroImg from "@assets/tournament-hero.png";
+
+type SubPage = "overview" | "players" | "pairs" | "signup" | "categories" | "matches" | "groups" | "courts" | "stats" | "prizes" | "admin";
+
+const categorySchema = z.object({
+  name: z.string().min(1, "Name required"),
+  format: z.enum(["ROUND_ROBIN", "KNOCKOUT", "GROUP_KNOCKOUT"]),
+  playersPerSide: z.coerce.number().min(1).max(2),
+  genderRestriction: z.enum(["MIXED", "MALE", "FEMALE"]).default("MIXED"),
+  scoringFormat: z.enum(["BEST_OF_3", "BEST_OF_5", "SINGLE_GAME"]).default("BEST_OF_3"),
+  groupCount: z.coerce.number().min(1).default(2),
+  advancePerGroup: z.coerce.number().min(1).default(2),
+  pointsPerWin: z.coerce.number().min(0).default(2),
+  pointsPerLoss: z.coerce.number().min(0).default(0),
+});
+
+const statusColors: Record<string, string> = {
+  DRAFT: "bg-gray-500/20 text-gray-400 border-gray-500/30",
+  PUBLISHED: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+  ONGOING: "bg-red-500/20 text-red-400 border-red-500/30",
+  COMPLETED: "bg-gray-500/20 text-gray-500 border-gray-500/20",
+};
+
+function getTeamName(team: any): string {
+  const p1 = team?.player1?.user?.fullName || `Player #${team?.player1Id}`;
+  if (team?.player2) {
+    const p2 = team.player2?.user?.fullName || `Player #${team.player2Id}`;
+    return `${p1} & ${p2}`;
+  }
+  return p1;
+}
+
+function getInitials(name: string) {
+  return name.split(" ").map(n => n[0]).join("").toUpperCase().substring(0, 2);
+}
+
+const avatarGradients = [
+  "from-violet-600 to-purple-600",
+  "from-rose-600 to-pink-600",
+  "from-amber-600 to-orange-600",
+  "from-emerald-600 to-teal-600",
+  "from-blue-600 to-indigo-600",
+  "from-pink-600 to-fuchsia-600",
+  "from-teal-600 to-cyan-600",
+  "from-indigo-600 to-violet-600",
+  "from-orange-600 to-red-600",
+  "from-cyan-600 to-blue-600",
+];
+
+function getAvatarGradient(name: string) {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = name.charCodeAt(i) + ((h << 5) - h);
+  return avatarGradients[Math.abs(h) % avatarGradients.length];
+}
+
+function PlayerAvatar({ name, size = "md" }: { name: string; size?: "sm" | "md" | "lg" | "xl" }) {
+  const sizeClasses = { sm: "h-8 w-8 text-[10px]", md: "h-10 w-10 text-xs", lg: "h-12 w-12 text-sm", xl: "h-14 w-14 text-base" };
+  return (
+    <div className={cn("rounded-full flex items-center justify-center text-white font-bold bg-gradient-to-br shadow-lg", getAvatarGradient(name), sizeClasses[size])}>
+      {getInitials(name)}
+    </div>
+  );
+}
+
+function GradeTierBadge({ grade }: { grade: string }) {
+  if (!grade || grade === "—") return <span className="text-xs text-muted-foreground">—</span>;
+  const tier = grade.charAt(0);
+  const colorMap: Record<string, string> = {
+    A: "bg-amber-500/20 text-amber-400 border-amber-500/30",
+    B: "bg-sky-500/20 text-sky-400 border-sky-500/30",
+    C: "bg-emerald-500/20 text-emerald-400 border-emerald-500/30",
+  };
+  const tierLabelMap: Record<string, string> = { A: "GOLD", B: "SILVER", C: "BRONZE" };
+  return (
+    <Badge className={cn("text-[9px] px-1.5 py-0 font-black border tracking-wider", colorMap[tier] || "bg-gray-500/20 text-gray-400 border-gray-500/30")}>
+      {tierLabelMap[tier] || tier} {grade}
+    </Badge>
+  );
+}
+
+export default function TournamentDetail() {
+  const [, params] = useRoute("/tournaments/:id");
+  const tournamentId = Number(params?.id);
+  const { data: tournament, isLoading } = useTournament(tournamentId);
+  const { data: user } = useUser();
+  const { data: tournamentClubs } = useMyTournamentClubs(!!user);
+  const { toast } = useToast();
+
+  const initialSubPage = ((): SubPage => {
+    try {
+      const tab = new URLSearchParams(window.location.search).get("tab");
+      const allowed: SubPage[] = ["overview", "players", "pairs", "signup", "categories", "matches", "groups", "courts", "stats", "prizes", "admin"];
+      if (tab && (allowed as string[]).includes(tab)) return tab as SubPage;
+    } catch {}
+    return "players";
+  })();
+  const [subPage, setSubPage] = useState<SubPage>(initialSubPage);
+  const [selectedCategoryId, setSelectedCategoryId] = useState<number | null>(null);
+  const [addCategoryOpen, setAddCategoryOpen] = useState(false);
+
+  const { data: adminCheck } = useTournamentIsAdmin(tournamentId);
+  const { data: pairRequests } = useTournamentPairRequests(tournamentId);
+  const respondPairMutation = useRespondPairRequest();
+  const isSuperAdmin = user?.role === "OWNER";
+  const managedClubIds = new Set(tournamentClubs?.map(c => c.id) || []);
+  const canManage = tournament ? (isSuperAdmin || managedClubIds.has(tournament.clubId) || adminCheck?.isAdmin === true) : false;
+  const myPendingProposals = pairRequests?.filter((pr: any) => pr.toUserId === user?.id && pr.status === "PENDING") || [];
+
+  const createCatMutation = useCreateCategory();
+  const generateMatchesMutation = useGenerateMatches();
+  const autoPopulateMutation = useAutoPopulateTeams();
+  const advanceWinnersMutation = useAdvanceWinners();
+
+  const categories = tournament?.categories || [];
+  const activeCategory = selectedCategoryId ? categories.find(c => c.id === selectedCategoryId) : categories[0];
+
+  const catForm = useForm<z.infer<typeof categorySchema>>({
+    resolver: zodResolver(categorySchema),
+    defaultValues: { name: "", format: "GROUP_KNOCKOUT", playersPerSide: 2, genderRestriction: "MIXED", scoringFormat: "BEST_OF_3", groupCount: 4, advancePerGroup: 2, pointsPerWin: 2, pointsPerLoss: 0 },
+  });
+  const watchFormat = catForm.watch("format");
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <div className="text-center">
+          <Loader2 className="h-10 w-10 animate-spin text-amber-500 mx-auto mb-3" />
+          <p className="text-sm text-muted-foreground">Loading tournament...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!tournament) {
+    return <div className="text-center py-16 text-muted-foreground">Tournament not found</div>;
+  }
+
+  async function handleCreateCategory(values: z.infer<typeof categorySchema>) {
+    try {
+      await createCatMutation.mutateAsync({ tournamentId, ...values });
+      toast({ title: "Category Created" });
+      setAddCategoryOpen(false);
+      catForm.reset();
+    } catch (err: any) {
+      toast({ title: "Error", description: err.message, variant: "destructive" });
+    }
+  }
+
+  const tabs: { key: SubPage; label: string; icon: any }[] = [
+    { key: "players", label: "Players", icon: Users },
+    { key: "pairs", label: "Pairs", icon: Users },
+    { key: "signup", label: "Sign Up", icon: Zap },
+    { key: "categories", label: "My Categories", icon: LayoutGrid },
+    { key: "matches", label: "Matches", icon: Swords },
+    { key: "groups", label: "Groups", icon: LayoutGrid },
+    { key: "courts", label: "Courts", icon: Monitor },
+    ...(canManage ? [{ key: "admin" as SubPage, label: "Admin", icon: Settings }] : []),
+  ];
+
+  return (
+    <div className="space-y-4 pb-8">
+      <div className="relative overflow-hidden rounded-2xl min-h-[200px]">
+        <img src={tournamentHeroImg} alt="Tournament" className="absolute inset-0 w-full h-full object-cover" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/60 to-black/30" />
+        <div className="absolute bottom-0 left-0 right-0 h-1 bg-gradient-to-r from-violet-500 via-amber-500 to-rose-500" />
+        <div className="relative p-5 sm:p-6 flex flex-col justify-end h-full min-h-[200px]">
+          <div className="flex items-start gap-3">
+            <Link href="/tournaments">
+              <Button variant="ghost" size="icon" className="rounded-xl bg-black/30 hover:bg-black/50 text-white border border-white/10" data-testid="button-back">
+                <ArrowLeft className="h-5 w-5" />
+              </Button>
+            </Link>
+            <div className="flex-1 min-w-0">
+              <div className="flex items-center gap-2 flex-wrap mb-1">
+                <Badge className={cn("text-[10px] px-2 py-0.5 border font-bold", statusColors[tournament.status])} data-testid="badge-tournament-status">
+                  {tournament.status === "ONGOING" && <span className="inline-block h-1.5 w-1.5 rounded-full bg-red-400 mr-1 animate-pulse" />}
+                  {tournament.status}
+                </Badge>
+              </div>
+              <h1 className="text-xl sm:text-2xl font-black text-white truncate drop-shadow-lg" data-testid="text-tournament-title">{tournament.name}</h1>
+              <div className="flex items-center gap-3 mt-1 text-xs text-gray-300 flex-wrap">
+                <span className="flex items-center gap-1"><Calendar className="h-3 w-3" />{formatLondon(tournament.startDate, "d MMM")} – {formatLondon(tournament.endDate, "d MMM")}</span>
+                <span className="flex items-center gap-1"><Swords className="h-3 w-3" />{tournament.courtsAvailable} courts</span>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {myPendingProposals.length > 0 && (
+        <div className="space-y-2" data-testid="pair-proposal-banner">
+          {myPendingProposals.map((pr: any) => (
+            <div key={pr.id} className="relative overflow-hidden rounded-xl border border-amber-500/40 bg-gradient-to-r from-amber-500/10 via-orange-500/5 to-amber-500/10 dark:from-amber-500/15 dark:via-orange-500/10 dark:to-amber-500/15 p-4"
+              data-testid={`pair-proposal-${pr.id}`}>
+              <div className="absolute top-0 left-0 right-0 h-0.5 bg-gradient-to-r from-amber-500 via-orange-500 to-amber-500" />
+              <div className="flex items-center justify-between gap-3 flex-wrap">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-500 flex items-center justify-center flex-shrink-0 shadow-lg shadow-amber-500/20">
+                    <UserPlus className="h-5 w-5 text-white" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-black text-foreground">
+                      {pr.fromUser?.fullName || "Someone"} wants to pair up with you!
+                    </p>
+                    {pr.pairName && (
+                      <p className="text-xs text-amber-500 font-bold mt-0.5">Team: "{pr.pairName}"</p>
+                    )}
+                    {pr.message && (
+                      <p className="text-xs text-muted-foreground mt-0.5 italic truncate max-w-xs">"{pr.message}"</p>
+                    )}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button size="sm" className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-400 hover:to-emerald-500 text-white h-9 font-bold shadow-lg shadow-emerald-500/20 border-0"
+                    disabled={respondPairMutation.isPending}
+                    data-testid={`button-accept-pair-${pr.id}`}
+                    onClick={async () => {
+                      try {
+                        await respondPairMutation.mutateAsync({ id: pr.id, status: "ACCEPTED" });
+                        toast({ title: "Pair Confirmed!", description: `You're now paired with ${pr.fromUser?.fullName}.` });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <Check className="h-4 w-4 mr-1" />Accept
+                  </Button>
+                  <Button size="sm" variant="outline" className="h-9 border-destructive/30 text-destructive hover:bg-destructive/10 font-bold"
+                    disabled={respondPairMutation.isPending}
+                    data-testid={`button-decline-pair-${pr.id}`}
+                    onClick={async () => {
+                      try {
+                        await respondPairMutation.mutateAsync({ id: pr.id, status: "DECLINED" });
+                        toast({ title: "Request Declined" });
+                      } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+                    }}>
+                    <X className="h-4 w-4 mr-1" />Decline
+                  </Button>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        {tabs.map(tab => {
+          const Icon = tab.icon;
+          return (
+            <button
+              key={tab.key}
+              onClick={() => setSubPage(tab.key)}
+              className={cn(
+                "flex items-center gap-1.5 px-4 py-2.5 rounded-xl text-sm font-bold whitespace-nowrap transition-all",
+                subPage === tab.key
+                  ? "bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/25"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+              )}
+              data-testid={`tab-${tab.key}`}
+            >
+              <Icon className="h-4 w-4" />
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
+
+      {subPage !== "overview" && subPage !== "signup" && subPage !== "admin" && (
+        <div className="flex items-center gap-2 flex-wrap">
+          {categories.length > 0 && (
+            <span className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Category:</span>
+          )}
+          {categories.map(cat => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategoryId(cat.id)}
+              className={cn(
+                "px-3 py-1.5 rounded-lg text-xs font-bold transition-all border",
+                activeCategory?.id === cat.id
+                  ? "bg-amber-500/20 text-amber-500 dark:text-amber-400 border-amber-500/30"
+                  : "bg-muted/50 text-muted-foreground border-border/50 hover:border-amber-500/30"
+              )}
+              data-testid={`button-category-${cat.id}`}
+            >
+              {cat.name}
+            </button>
+          ))}
+          {canManage && (
+            <button onClick={() => setAddCategoryOpen(true)} className="px-3 py-1.5 rounded-lg text-xs font-bold border border-dashed border-border text-muted-foreground hover:border-amber-500/30 hover:text-amber-500 transition-all" data-testid="button-add-category">
+              <Plus className="h-3 w-3 inline mr-1" />Add
+            </button>
+          )}
+        </div>
+      )}
+
+      {subPage === "overview" && <OverviewTab tournament={tournament} categories={categories} tournamentId={tournamentId} />}
+      {subPage === "players" && <PlayersTab tournamentId={tournamentId} />}
+      {subPage === "pairs" && <PairsTab tournamentId={tournamentId} onNavigate={setSubPage} />}
+      {subPage === "signup" && <SignUpTab tournamentId={tournamentId} tournament={tournament} />}
+      {subPage === "categories" && <MyCategoriesTab tournamentId={tournamentId} />}
+      {subPage === "matches" && activeCategory && <MatchesTab category={activeCategory} canManage={canManage} tournamentId={tournamentId} onGenerateMatches={async () => {
+        try {
+          await autoPopulateMutation.mutateAsync(activeCategory.id);
+          await generateMatchesMutation.mutateAsync(activeCategory.id);
+          toast({ title: "Tournament Started", description: "Teams populated and fixtures generated!" });
+        } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+      }} onAdvanceWinners={async () => {
+        try { const r = await advanceWinnersMutation.mutateAsync(activeCategory.id); toast({ title: r.message === "Tournament complete" ? "Tournament Complete" : "Next Round Created" }); } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+      }} isGenerating={generateMatchesMutation.isPending || autoPopulateMutation.isPending} isAdvancing={advanceWinnersMutation.isPending} />}
+      {subPage === "matches" && !activeCategory && (
+        <EmptyState icon={Swords} title="No Categories" description="Add a category to create matches." />
+      )}
+      {subPage === "groups" && <GroupsTab tournamentId={tournamentId} tournament={tournament} categories={categories} canManage={canManage} />}
+      {subPage === "courts" && <CourtsTab tournamentId={tournamentId} canManage={canManage} />}
+      {subPage === "stats" && <PlayerStatsTab tournamentId={tournamentId} categories={categories} canManage={canManage} />}
+      {subPage === "prizes" && <PrizesTab tournamentId={tournamentId} tournament={tournament} categories={categories} />}
+      {subPage === "admin" && canManage && <AdminTab tournamentId={tournamentId} tournament={tournament} categories={categories} canManage={canManage} />}
+
+      <Dialog open={addCategoryOpen} onOpenChange={setAddCategoryOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Add Category</DialogTitle>
+            <DialogDescription>Create event category (e.g., Men's Doubles)</DialogDescription>
+          </DialogHeader>
+          <Form {...catForm}>
+            <form onSubmit={catForm.handleSubmit(handleCreateCategory)} className="space-y-4">
+              <FormField control={catForm.control} name="name" render={({ field }) => (
+                <FormItem><FormLabel>Category Name</FormLabel><FormControl><Input data-testid="input-category-name" placeholder="Men's Doubles" {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <div className="grid grid-cols-2 gap-4">
+                <FormField control={catForm.control} name="format" render={({ field }) => (
+                  <FormItem><FormLabel>Format</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent>
+                        <SelectItem value="GROUP_KNOCKOUT">Group + Knockout</SelectItem>
+                        <SelectItem value="KNOCKOUT">Knockout</SelectItem>
+                        <SelectItem value="ROUND_ROBIN">Round Robin</SelectItem>
+                      </SelectContent>
+                    </Select><FormMessage />
+                  </FormItem>
+                )} />
+                <FormField control={catForm.control} name="playersPerSide" render={({ field }) => (
+                  <FormItem><FormLabel>Players/Side</FormLabel>
+                    <Select onValueChange={field.onChange} value={field.value.toString()}>
+                      <FormControl><SelectTrigger><SelectValue /></SelectTrigger></FormControl>
+                      <SelectContent><SelectItem value="1">Singles</SelectItem><SelectItem value="2">Doubles</SelectItem></SelectContent>
+                    </Select><FormMessage />
+                  </FormItem>
+                )} />
+              </div>
+              {(watchFormat === "GROUP_KNOCKOUT") && (
+                <div className="grid grid-cols-2 gap-4">
+                  <FormField control={catForm.control} name="groupCount" render={({ field }) => (
+                    <FormItem><FormLabel>Groups</FormLabel><FormControl><Input type="number" min={2} {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                  <FormField control={catForm.control} name="advancePerGroup" render={({ field }) => (
+                    <FormItem><FormLabel>Advance/Group</FormLabel><FormControl><Input type="number" min={1} {...field} /></FormControl><FormMessage /></FormItem>
+                  )} />
+                </div>
+              )}
+              <DialogFooter>
+                <Button type="submit" disabled={createCatMutation.isPending} className="bg-gradient-to-r from-amber-500 to-orange-600 text-white">
+                  {createCatMutation.isPending && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}Add Category
+                </Button>
+              </DialogFooter>
+            </form>
+          </Form>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function EmptyState({ icon: Icon, title, description }: { icon: any; title: string; description: string }) {
+  return (
+    <div className="rounded-2xl border border-dashed border-border/50 p-12 text-center">
+      <div className="h-14 w-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+        <Icon className="h-7 w-7 text-amber-500" />
+      </div>
+      <h3 className="text-base font-bold text-foreground mb-1">{title}</h3>
+      <p className="text-sm text-muted-foreground">{description}</p>
+    </div>
+  );
+}
+
+function CountdownUnit({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="flex flex-col items-center">
+      <div className="relative">
+        <div className="h-12 w-12 sm:h-14 sm:w-14 rounded-xl bg-black/60 border border-white/10 flex items-center justify-center backdrop-blur-sm">
+          <span className="text-xl sm:text-2xl font-black text-white tabular-nums">{String(value).padStart(2, "0")}</span>
+        </div>
+        <div className="absolute inset-x-0 top-1/2 h-px bg-white/5" />
+      </div>
+      <span className="text-[9px] font-bold text-gray-400 uppercase tracking-widest mt-1.5">{label}</span>
+    </div>
+  );
+}
+
+function useCountdown(targetDate: string) {
+  const [timeLeft, setTimeLeft] = useState({ days: 0, hours: 0, mins: 0, secs: 0, expired: false });
+  
+  useEffect(() => {
+    const update = () => {
+      const diff = new Date(targetDate).getTime() - Date.now();
+      if (diff <= 0) {
+        setTimeLeft({ days: 0, hours: 0, mins: 0, secs: 0, expired: true });
+        return;
+      }
+      setTimeLeft({
+        days: Math.floor(diff / 86400000),
+        hours: Math.floor((diff % 86400000) / 3600000),
+        mins: Math.floor((diff % 3600000) / 60000),
+        secs: Math.floor((diff % 60000) / 1000),
+        expired: false,
+      });
+    };
+    update();
+    const interval = setInterval(update, 1000);
+    return () => clearInterval(interval);
+  }, [targetDate]);
+  
+  return timeLeft;
+}
+
+function OverviewTab({ tournament, categories, tournamentId }: { tournament: any; categories: any[]; tournamentId: number }) {
+  const regCount = tournament.registrationCount || 0;
+  const maxPlayers = tournament.maxPlayers;
+  const fillPercent = maxPlayers ? Math.min((regCount / maxPlayers) * 100, 100) : 0;
+  const spotsLeft = maxPlayers ? Math.max(maxPlayers - regCount, 0) : null;
+  const { data: prizes } = useTournamentPrizesQuery(tournamentId);
+  const { data: allPlayers } = useTournamentAllPlayers(tournamentId);
+  const countdown = useCountdown(tournament.startDate);
+  const isUpcoming = !countdown.expired && tournament.status !== "COMPLETED" && tournament.status !== "ONGOING";
+  const isLive = tournament.status === "ONGOING";
+
+  const placementIcons: Record<string, { icon: any; gradient: string; ring: string }> = {
+    "1st": { icon: Crown, gradient: "from-amber-400 via-yellow-500 to-amber-600", ring: "ring-amber-500/30" },
+    "2nd": { icon: Medal, gradient: "from-gray-300 via-slate-400 to-gray-500", ring: "ring-slate-400/30" },
+    "3rd": { icon: Award, gradient: "from-amber-600 via-orange-700 to-amber-800", ring: "ring-orange-600/30" },
+  };
+
+  const recentPlayers = (allPlayers || []).slice(0, 8);
+  const extraPlayerCount = Math.max(regCount - 8, 0);
+
+  return (
+    <div className="space-y-5" data-testid="overview-tab">
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 border border-white/5">
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top_right,rgba(251,146,60,0.08),transparent_50%)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_bottom_left,rgba(139,92,246,0.06),transparent_50%)]" />
+        <div className="absolute top-0 left-0 right-0 h-px bg-gradient-to-r from-transparent via-amber-500/40 to-transparent" />
+
+        <div className="relative p-5 sm:p-6 space-y-5">
+          {(isUpcoming || isLive) && (
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                {isLive ? (
+                  <Badge className="bg-red-500/20 text-red-400 border border-red-500/30 font-black text-xs px-3 py-1 animate-pulse" data-testid="badge-live">
+                    <span className="inline-block h-2 w-2 rounded-full bg-red-400 mr-1.5" />LIVE NOW
+                  </Badge>
+                ) : (
+                  <Badge className="bg-amber-500/20 text-amber-400 border border-amber-500/30 font-black text-xs px-3 py-1" data-testid="badge-starts-in">
+                    <Clock className="h-3 w-3 mr-1" />STARTS IN
+                  </Badge>
+                )}
+              </div>
+              {isUpcoming && (
+                <div className="flex items-center gap-2">
+                  <CountdownUnit value={countdown.days} label="Days" />
+                  <span className="text-white/30 text-xl font-bold mb-4">:</span>
+                  <CountdownUnit value={countdown.hours} label="Hrs" />
+                  <span className="text-white/30 text-xl font-bold mb-4">:</span>
+                  <CountdownUnit value={countdown.mins} label="Min" />
+                  <span className="text-white/30 text-xl font-bold mb-4">:</span>
+                  <CountdownUnit value={countdown.secs} label="Sec" />
+                </div>
+              )}
+            </div>
+          )}
+
+          {maxPlayers && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex -space-x-2">
+                    {recentPlayers.map((p: any, i: number) => (
+                      <div key={i} className="relative" style={{ zIndex: recentPlayers.length - i }}>
+                        <PlayerAvatar name={p.user?.fullName || `P${i}`} size="sm" />
+                      </div>
+                    ))}
+                    {extraPlayerCount > 0 && (
+                      <div className="h-8 w-8 rounded-full bg-gray-700 border-2 border-gray-800 flex items-center justify-center text-[10px] font-bold text-gray-300 relative" style={{ zIndex: 0 }}>
+                        +{extraPlayerCount}
+                      </div>
+                    )}
+                  </div>
+                  <span className="text-sm text-gray-300">
+                    <span className="font-black text-white">{regCount}</span> / {maxPlayers} joined
+                  </span>
+                </div>
+                <span className={cn("text-sm font-black", fillPercent >= 100 ? "text-red-400" : fillPercent >= 75 ? "text-amber-400" : "text-emerald-400")}>
+                  {fillPercent >= 100 ? "FULL" : `${Math.round(fillPercent)}%`}
+                </span>
+              </div>
+              <div className="relative h-3 rounded-full bg-gray-700/50 overflow-hidden">
+                <div className="absolute inset-0 rounded-full overflow-hidden">
+                  <div
+                    className={cn(
+                      "h-full rounded-full transition-all duration-1000 ease-out relative",
+                      fillPercent >= 100 ? "bg-gradient-to-r from-red-500 to-rose-500" :
+                      fillPercent >= 75 ? "bg-gradient-to-r from-amber-500 to-orange-500" :
+                      "bg-gradient-to-r from-emerald-500 to-teal-500"
+                    )}
+                    style={{ width: `${fillPercent}%` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-t from-transparent to-white/20 rounded-full" />
+                    <div className="absolute right-0 top-0 bottom-0 w-3 bg-gradient-to-l from-white/30 to-transparent rounded-full animate-pulse" />
+                  </div>
+                </div>
+              </div>
+              <p className="text-xs text-gray-400">
+                {fillPercent >= 100 ? (
+                  <span className="text-red-400 font-bold">🔥 Tournament is full! Join the waitlist.</span>
+                ) : (
+                  <>{spotsLeft} spot{spotsLeft !== 1 ? "s" : ""} remaining — <span className="text-amber-400 font-bold">sign up now!</span></>
+                )}
+              </p>
+            </div>
+          )}
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <Calendar className="h-4 w-4 text-amber-400" />
+              <span>{formatLondon(tournament.startDate, "d MMM yyyy")} – {formatLondon(tournament.endDate, "d MMM yyyy")}</span>
+            </div>
+            <div className="h-4 w-px bg-gray-600" />
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <MapPin className="h-4 w-4 text-emerald-400" />
+              <span>{tournament.location || tournament.venue?.name || "TBD"}</span>
+            </div>
+            <div className="h-4 w-px bg-gray-600" />
+            <div className="flex items-center gap-2 text-sm text-gray-300">
+              <Swords className="h-4 w-4 text-violet-400" />
+              <span>{tournament.courtsAvailable} courts</span>
+            </div>
+          </div>
+
+          {tournament.entryFee && parseFloat(tournament.entryFee) > 0 && (
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/20">
+                <Banknote className="h-5 w-5 text-white" />
+              </div>
+              <div>
+                <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider">Entry Fee</p>
+                {tournament.externalEntryFee && parseFloat(tournament.externalEntryFee) > 0 && parseFloat(tournament.externalEntryFee) !== parseFloat(tournament.entryFee) ? (
+                  <div className="flex items-center gap-3">
+                    <div>
+                      <p className="text-lg font-black text-white">£{parseFloat(tournament.entryFee).toFixed(2)}</p>
+                      <p className="text-[9px] font-bold text-gray-500 uppercase">Members</p>
+                    </div>
+                    <span className="text-gray-600">/</span>
+                    <div>
+                      <p className="text-lg font-black text-white">£{parseFloat(tournament.externalEntryFee).toFixed(2)}</p>
+                      <p className="text-[9px] font-bold text-gray-500 uppercase">External</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-lg font-black text-white">£{parseFloat(tournament.entryFee).toFixed(2)}</p>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {tournament.description && (
+        <div className="rounded-xl bg-card border border-border/50 p-5">
+          <h3 className="text-sm font-black text-foreground mb-2 flex items-center gap-2">
+            <BarChart3 className="h-4 w-4 text-amber-500" />
+            About the Tournament
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed">{tournament.description}</p>
+          {categories.length > 0 && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {categories.map(cat => (
+                <Badge key={cat.id} variant="outline" className="text-xs font-bold bg-muted/30" data-testid={`badge-category-${cat.id}`}>
+                  {cat.name}
+                </Badge>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {tournament.rules && (
+        <div className="rounded-xl bg-card border border-border/50 p-5">
+          <h3 className="text-sm font-black text-foreground mb-2 flex items-center gap-2">
+            <Shield className="h-4 w-4 text-violet-500" />
+            Rules
+          </h3>
+          <p className="text-sm text-muted-foreground leading-relaxed whitespace-pre-wrap">{tournament.rules}</p>
+        </div>
+      )}
+
+      {prizes && prizes.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-black text-foreground flex items-center gap-2 px-1">
+            <Trophy className="h-4 w-4 text-amber-500" />
+            Prize Pool
+          </h3>
+          <div className="space-y-2">
+            {prizes.sort((a: any, b: any) => {
+              const order: Record<string, number> = { "1st": 1, "2nd": 2, "3rd": 3 };
+              return (order[a.placement] || 99) - (order[b.placement] || 99);
+            }).map((prize: any) => {
+              const meta = placementIcons[prize.placement];
+              const PrizeIcon = meta?.icon || Gift;
+              return (
+                <div key={prize.id} className="relative overflow-hidden rounded-xl border border-border/50 bg-card group hover:border-amber-500/20 transition-all" data-testid={`prize-card-${prize.id}`}>
+                  {meta && <div className={cn("absolute left-0 top-0 bottom-0 w-1 bg-gradient-to-b", meta.gradient)} />}
+                  <div className="flex items-center gap-4 p-4 pl-5">
+                    <div className={cn("h-10 w-10 rounded-xl flex items-center justify-center ring-2 flex-shrink-0", meta ? `bg-gradient-to-br ${meta.gradient} ${meta.ring}` : "bg-gray-500/20 ring-gray-500/20")}>
+                      <PrizeIcon className="h-5 w-5 text-white" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-foreground">{prize.placement} Place</p>
+                      {prize.title && <p className="text-xs text-muted-foreground truncate">{prize.title}</p>}
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                      {prize.prizeValue && !isNaN(parseFloat(prize.prizeValue)) && (
+                        <>
+                          <p className="text-base font-black text-foreground">£{parseFloat(prize.prizeValue).toFixed(0)}</p>
+                          <p className="text-[10px] font-bold text-muted-foreground uppercase">Total Amount</p>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {categories.length > 0 && (
+        <div className="space-y-3">
+          <h3 className="text-sm font-black text-foreground flex items-center gap-2 px-1">
+            <LayoutGrid className="h-4 w-4 text-violet-500" />
+            Event Categories
+          </h3>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {categories.map(cat => (
+              <div key={cat.id} className="rounded-xl border border-border/50 bg-card p-4 flex items-center justify-between hover:border-amber-500/20 transition-colors group">
+                <div>
+                  <h4 className="font-bold text-foreground text-sm">{cat.name}</h4>
+                  <div className="flex items-center gap-2 mt-1">
+                    <Badge variant="outline" className="text-[10px]">{cat.format?.replace(/_/g, " + ")}</Badge>
+                    <Badge variant="outline" className="text-[10px]">{cat.playersPerSide === 1 ? "Singles" : "Doubles"}</Badge>
+                  </div>
+                </div>
+                <ChevronRight className="h-4 w-4 text-muted-foreground/40 group-hover:text-amber-500/60 transition-colors" />
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {tournament.socialLinks && typeof tournament.socialLinks === "object" && Object.keys(tournament.socialLinks).length > 0 && (
+        <div className="rounded-xl overflow-hidden">
+          <div className="bg-gradient-to-r from-violet-600 via-purple-600 to-indigo-600 p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3 text-white">
+              <ExternalLink className="h-5 w-5" />
+              <div>
+                <p className="text-sm font-black uppercase tracking-wide">For More Info</p>
+                <p className="text-xs text-white/70">Follow us on social media</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {Object.entries(tournament.socialLinks as Record<string, string>).map(([platform, url]) => (
+                <a key={platform} href={url as string} target="_blank" rel="noopener noreferrer"
+                  className="h-8 w-8 rounded-lg bg-white/20 hover:bg-white/30 flex items-center justify-center text-white text-xs font-bold transition-colors">
+                  {platform.charAt(0).toUpperCase()}
+                </a>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const DOUBLES_TAG_STYLES: Record<string, string> = {
+  MX: "bg-violet-500/20 text-violet-300 border-violet-500/30",
+  MD: "bg-sky-500/20 text-sky-300 border-sky-500/30",
+  XD: "bg-pink-500/20 text-pink-300 border-pink-500/30",
+};
+
+function PartnerTags({ tags, hasPartner }: { tags?: string[]; hasPartner?: boolean }) {
+  if (hasPartner && tags && tags.length > 0) {
+    return (
+      <>
+        {tags.map((t) => (
+          <Badge key={t} className={cn("text-[9px] px-1.5 border font-bold", DOUBLES_TAG_STYLES[t] || "bg-muted text-muted-foreground border-border")} data-testid={`tag-partner-${t}`}>
+            {t}
+          </Badge>
+        ))}
+      </>
+    );
+  }
+  return (
+    <Badge className="text-[9px] px-1.5 border font-bold bg-gray-500/15 text-gray-400 border-gray-500/30" data-testid="tag-no-partner">
+      NO PARTNER
+    </Badge>
+  );
+}
+
+function FilterSelect({ value, onValueChange, placeholder, options, testId, width }: {
+  value: string;
+  onValueChange: (v: string) => void;
+  placeholder: string;
+  options: { value: string; label: string }[];
+  testId?: string;
+  width?: string;
+}) {
+  return (
+    <Select value={value} onValueChange={onValueChange}>
+      <SelectTrigger className={cn("h-9 text-xs font-bold", width || "w-[150px]")} data-testid={testId}>
+        <SelectValue placeholder={placeholder} />
+      </SelectTrigger>
+      <SelectContent>
+        {options.map(o => (
+          <SelectItem key={o.value} value={o.value} className="text-xs">{o.label}</SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function PlayersTab({ tournamentId }: { tournamentId: number }) {
+  const { data: players, isLoading } = useTournamentAllPlayers(tournamentId);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [statusFilter, setStatusFilter] = useState("ALL");
+  const [partnerFilter, setPartnerFilter] = useState("ALL");
+  const [selectedPlayer, setSelectedPlayer] = useState<any>(null);
+
+  const filtered = useMemo(() => {
+    if (!players) return [];
+    const list = [...players];
+    list.sort((a: any, b: any) => {
+      const aPlayed = a.matchesPlayed || 0;
+      const bPlayed = b.matchesPlayed || 0;
+      if (aPlayed === 0 && bPlayed === 0) return (a.user?.fullName || "").localeCompare(b.user?.fullName || "");
+      if (aPlayed === 0) return 1;
+      if (bPlayed === 0) return -1;
+      return (b.winRate || 0) - (a.winRate || 0) || bPlayed - aPlayed;
+    });
+    const q = searchQuery.trim().toLowerCase();
+    return list.filter((p: any) => {
+      if (q && !(p.user?.fullName || "").toLowerCase().includes(q) && !(p.user?.email || "").toLowerCase().includes(q)) return false;
+      if (statusFilter !== "ALL" && p.status !== statusFilter) return false;
+      const hasPartner = !!p.hasPartner;
+      if (partnerFilter === "PAIRED" && !hasPartner) return false;
+      if (partnerFilter === "UNPAIRED" && hasPartner) return false;
+      return true;
+    });
+  }, [players, searchQuery, statusFilter, partnerFilter]);
+
+  const playersFiltersActive = statusFilter !== "ALL" || partnerFilter !== "ALL" || searchQuery.trim() !== "";
+
+  const selectedRank = selectedPlayer ? filtered.findIndex((p: any) => p.id === selectedPlayer.id) + 1 : 0;
+
+  if (isLoading) return <div className="flex justify-center py-12"><Loader2 className="h-8 w-8 animate-spin text-amber-500" /></div>;
+
+  return (
+    <div className="space-y-4">
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <h2 className="text-base font-black text-foreground uppercase tracking-wide">List of Players with their standings</h2>
+          <p className="text-xs text-muted-foreground">All registered tournament players ranked by performance</p>
+        </div>
+        <Badge variant="outline" className="font-bold">{filtered.length} players</Badge>
+      </div>
+
+      <div className="flex items-center gap-2 flex-wrap">
+        <div className="relative flex-1 min-w-[200px]">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <input type="text" placeholder="Search players by name or email..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
+            className="w-full h-10 pl-10 pr-4 rounded-xl bg-card border border-border text-sm text-foreground placeholder:text-muted-foreground outline-none focus:border-amber-500/40 transition-colors"
+            data-testid="input-search-players" />
+        </div>
+        <FilterSelect value={statusFilter} onValueChange={setStatusFilter} placeholder="Status" testId="filter-players-status"
+          options={[
+            { value: "ALL", label: "All statuses" },
+            { value: "APPROVED", label: "Approved" },
+            { value: "PENDING", label: "Pending" },
+            { value: "WAITLISTED", label: "Waitlisted" },
+          ]} />
+        <FilterSelect value={partnerFilter} onValueChange={setPartnerFilter} placeholder="Partner" testId="filter-players-partner"
+          options={[
+            { value: "ALL", label: "All players" },
+            { value: "PAIRED", label: "Has partner" },
+            { value: "UNPAIRED", label: "No partner" },
+          ]} />
+        {playersFiltersActive && (
+          <Button size="sm" variant="ghost" className="h-9 text-xs font-bold text-muted-foreground"
+            onClick={() => { setSearchQuery(""); setStatusFilter("ALL"); setPartnerFilter("ALL"); }}
+            data-testid="button-clear-players-filters">
+            <X className="h-3 w-3 mr-1" />Clear
+          </Button>
+        )}
+      </div>
+
+      {filtered.length === 0 ? (
+        <EmptyState icon={Users} title="No Players" description={playersFiltersActive ? "No players match your filters." : "No players registered yet."} />
+      ) : (
+        <div className="rounded-xl border border-border/50 overflow-hidden">
+          <div className="hidden sm:grid grid-cols-[50px_1fr_100px_60px_60px_60px_70px_70px] items-center px-4 py-2.5 bg-muted/30 dark:bg-muted/10 border-b border-border/30">
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Rank</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider">Player</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Tier</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Win</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Loss</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Played</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Ratio</span>
+            <span className="text-[10px] font-black text-muted-foreground uppercase tracking-wider text-center">Status</span>
+          </div>
+          <div className="divide-y divide-border/20">
+            {filtered.map((p: any, idx: number) => {
+              const isTop3 = idx < 3;
+              const rankColors = ["text-amber-400", "text-gray-400", "text-orange-400"];
+              return (
+                <div
+                  key={p.id}
+                  onClick={() => setSelectedPlayer({ ...p, rank: idx + 1 })}
+                  className={cn(
+                    "group grid grid-cols-[auto_1fr_auto] sm:grid-cols-[50px_1fr_100px_60px_60px_60px_70px_70px] items-center px-4 py-3 transition-all hover:bg-muted/30 dark:hover:bg-muted/10 cursor-pointer",
+                    isTop3 && "bg-amber-500/[0.03] dark:bg-amber-500/[0.05]"
+                  )}
+                  data-testid={`player-row-${p.userId}`}
+                >
+                  <div className="flex items-center gap-2 sm:gap-0">
+                    <span className={cn("text-sm font-black w-7 text-center", isTop3 && (p.matchesPlayed || 0) > 0 ? rankColors[idx] : "text-muted-foreground")}>
+                      {(p.matchesPlayed || 0) === 0 ? "—" : isTop3 ? <Medal className={cn("h-5 w-5 inline", rankColors[idx])} /> : `${idx + 1}`}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-3 min-w-0">
+                    <PlayerAvatar name={p.user?.fullName || "?"} />
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <h4 className="font-bold text-sm text-foreground truncate">{p.user?.fullName}</h4>
+                        <PartnerTags tags={p.partnerTags} hasPartner={p.hasPartner} />
+                      </div>
+                      <div className="sm:hidden flex items-center gap-2 mt-0.5">
+                        <GradeTierBadge grade={p.profile?.currentGrade || "—"} />
+                        <span className="text-[10px] text-muted-foreground">{p.matchesPlayed || 0}P • {p.winRate || 0}%</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div className="hidden sm:flex justify-center"><GradeTierBadge grade={p.profile?.currentGrade || "—"} /></div>
+                  <div className="hidden sm:block text-center text-sm font-bold text-emerald-500">{p.matchesWon || 0}</div>
+                  <div className="hidden sm:block text-center text-sm font-medium text-red-400">{p.matchesLost || 0}</div>
+                  <div className="hidden sm:block text-center text-sm text-muted-foreground">{p.matchesPlayed || 0}</div>
+                  <div className="hidden sm:block text-center text-sm font-bold text-foreground">{p.winRate || 0}%</div>
+                  <div className="flex justify-end sm:justify-center">
+                    <Badge className={cn("text-[9px] px-1.5 border font-bold",
+                      p.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                      p.status === "PENDING" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+                      "bg-gray-500/20 text-gray-400 border-gray-500/30"
+                    )}>{p.status}</Badge>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {selectedPlayer && (
+        <PlayerStatsDialog
+          player={selectedPlayer}
+          rank={selectedPlayer.rank}
+          totalPlayers={filtered.length}
+          onClose={() => setSelectedPlayer(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function PlayerStatsDialog({ player, rank, totalPlayers, onClose }: { player: any; rank: number; totalPlayers: number; onClose: () => void }) {
+  const [statsTab, setStatsTab] = useState<"tournament" | "club">("club");
+  const name = player.user?.fullName || "Unknown Player";
+  const grade = player.profile?.currentGrade || "—";
+  const profileId = player.profile?.id || null;
+  const { data: clubStats, isLoading: clubLoading } = useDetailedPlayerStats(statsTab === "club" ? profileId : null);
+  const { data: allTimeT, isLoading: allTimeLoading } = usePlayerTournamentStats(statsTab === "tournament" ? profileId : null);
+
+  const wins = player.matchesWon || 0;
+  const losses = player.matchesLost || 0;
+  const played = player.matchesPlayed || 0;
+  const winRate = player.winRate || 0;
+  const gamesWon = player.gamesWon || 0;
+  const gamesLost = player.gamesLost || 0;
+  const pointsScored = player.pointsScored || 0;
+  const dominanceRatio = gamesLost > 0 ? (gamesWon / gamesLost).toFixed(1) : gamesWon > 0 ? "MAX" : "0";
+  const avgPointsPerMatch = played > 0 ? (pointsScored / played).toFixed(1) : "0";
+
+  return (
+    <Dialog open onOpenChange={() => onClose()}>
+      <DialogContent className="max-w-lg p-0 gap-0 overflow-hidden border-violet-500/30 bg-slate-950 max-h-[90vh] overflow-y-auto">
+        <div className="relative overflow-hidden">
+          <div className="absolute inset-0 bg-gradient-to-br from-violet-600/20 via-purple-900/40 to-slate-950" />
+          <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-bl from-amber-500/10 to-transparent rounded-bl-full" />
+          <div className="absolute bottom-0 left-0 w-32 h-32 bg-gradient-to-tr from-violet-500/10 to-transparent rounded-tr-full" />
+          <div className="relative p-6">
+            <div className="flex items-start gap-4">
+              <div className="relative">
+                <div className="absolute -inset-1.5 rounded-full bg-gradient-to-br from-violet-500 to-purple-600 opacity-60 blur-sm" />
+                <PlayerAvatar name={name} size="lg" />
+                {rank <= 3 && (
+                  <div className="absolute -top-1 -right-1 h-6 w-6 rounded-full bg-gradient-to-br from-amber-400 to-orange-500 flex items-center justify-center shadow-lg">
+                    <Crown className="h-3.5 w-3.5 text-white" />
+                  </div>
+                )}
+              </div>
+              <div className="flex-1 min-w-0">
+                <h3 className="text-lg font-black text-white truncate">{name}</h3>
+                <div className="flex items-center gap-2 mt-1">
+                  <GradeTierBadge grade={grade} />
+                  <Badge className={cn("text-[9px] px-1.5 border font-bold",
+                    player.status === "APPROVED" ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30" :
+                    "bg-amber-500/20 text-amber-400 border-amber-500/30"
+                  )}>{player.status}</Badge>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div className="px-4 pt-2">
+          <div className="flex gap-1 bg-slate-900/80 rounded-xl p-1">
+            {[
+              { key: "club" as const, label: "Club Ranking", icon: Building2 },
+              { key: "tournament" as const, label: "Tournament Stats", icon: Trophy },
+            ].map(t => (
+              <button key={t.key} onClick={() => setStatsTab(t.key)}
+                className={cn("flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-bold transition-all",
+                  statsTab === t.key ? "bg-violet-600/30 text-violet-300 shadow-sm border border-violet-500/30" : "text-slate-500 hover:text-slate-300")}
+                data-testid={`tab-stats-${t.key}`}>
+                <t.icon className="h-3.5 w-3.5" />
+                {t.label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {statsTab === "club" && (
+          <div className="p-4 space-y-4">
+            {clubLoading ? (
+              <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-violet-500" /></div>
+            ) : clubStats ? (
+              <>
+                <div className="flex items-center gap-2 text-xs text-slate-400">
+                  <Building2 className="h-3.5 w-3.5" />
+                  <span className="font-bold">{clubStats.clubName}</span>
+                  <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-400">{clubStats.grade || clubStats.category || "C3"}</Badge>
+                  {clubStats.gender && <Badge variant="outline" className="text-[9px] border-slate-700 text-slate-400">{clubStats.gender}</Badge>}
+                </div>
+
+                <div className="grid grid-cols-2 gap-2">
+                  {[
+                    { label: "Club Matches", value: `${clubStats.matchesPlayed}`, sub: "Total played", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
+                    { label: "Win Rate", value: `${clubStats.winRatio}%`, sub: `${clubStats.matchesWon}W / ${clubStats.matchesLost}L`, icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
+                    { label: "Wins", value: `${clubStats.matchesWon}`, sub: "Club sessions", icon: TrendingUp, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
+                    { label: "Losses", value: `${clubStats.matchesLost}`, sub: "Club sessions", icon: TrendingDown, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
+                  ].map((kpi, i) => (
+                    <div key={i} className="relative rounded-xl overflow-hidden">
+                      <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
+                      <div className="relative p-3 border border-slate-800/60 rounded-xl">
+                        <div className="flex items-center gap-2 mb-1">
+                          <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
+                            <kpi.icon className="h-3 w-3 text-white" />
+                          </div>
+                          <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                        </div>
+                        <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
+                        <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {clubStats.recentForm.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2">Recent Club Form</h4>
+                    <div className="flex items-center gap-1">
+                      {clubStats.recentForm.map((won, i) => (
+                        <div key={i} className={cn("h-6 w-6 rounded text-[9px] font-black flex items-center justify-center",
+                          won ? "bg-emerald-500/20 text-emerald-400 border border-emerald-500/30" : "bg-red-500/20 text-red-400 border border-red-500/30"
+                        )}>{won ? "W" : "L"}</div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {clubStats.matchHistory.length > 0 && (
+                  <div>
+                    <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                      <Calendar className="h-3.5 w-3.5" />
+                      Club Match History ({clubStats.matchHistory.length})
+                    </h4>
+                    <div className="space-y-1 max-h-[250px] overflow-y-auto">
+                      {clubStats.matchHistory.map((match) => (
+                        <div key={match.id} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-900/50 border border-slate-800/40" data-testid={`club-match-${match.id}`}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className={cn("w-6 h-6 rounded-full flex items-center justify-center text-[9px] font-black shrink-0",
+                              match.won ? "bg-emerald-500/20 text-emerald-400" : "bg-red-500/20 text-red-400"
+                            )}>{match.won ? "W" : "L"}</div>
+                            <div className="min-w-0">
+                              <div className="text-xs font-mono font-bold text-slate-300">
+                                {match.isTeamA ? `${match.scoreA} - ${match.scoreB}` : `${match.scoreB} - ${match.scoreA}`}
+                              </div>
+                              <div className="text-[10px] text-slate-500 truncate">
+                                vs {match.opponent1}{match.opponent2 ? ` & ${match.opponent2}` : ""}
+                                {match.partner && <span className="opacity-60"> (w/ {match.partner})</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-[10px] text-slate-500 shrink-0 text-right">
+                            <div className="truncate max-w-[100px]">{match.sessionTitle}</div>
+                            {match.completedAt && <div>{formatLondon(match.completedAt, "MMM d, yy")}</div>}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </>
+            ) : (
+              <div className="text-center py-8">
+                <Building2 className="h-8 w-8 text-slate-700 mx-auto mb-2" />
+                <p className="text-xs text-slate-500">No club ranking data available for this player.</p>
+              </div>
+            )}
+          </div>
+        )}
+
+        {statsTab === "tournament" && (
+          <div className="p-4 space-y-4">
+            {played === 0 ? (
+              allTimeLoading ? (
+                <div className="flex justify-center py-8"><Loader2 className="h-6 w-6 animate-spin text-violet-500" /></div>
+              ) : allTimeT && allTimeT.tournamentsPlayed > 0 ? (
+                <>
+                  <div className="flex items-center gap-2 text-xs text-slate-400">
+                    <Trophy className="h-3.5 w-3.5 text-amber-400" />
+                    <span className="font-bold">All-Time Tournament Record</span>
+                    <span className="text-slate-600">· No matches in this tournament yet</span>
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    {[
+                      { label: "Tournaments", value: `${allTimeT.tournamentsPlayed}`, sub: "Played", icon: Trophy, color: "from-amber-500 to-orange-600", textColor: "text-amber-400" },
+                      { label: "Win Rate", value: `${allTimeT.winRate}%`, sub: `${allTimeT.matchesWon}W / ${allTimeT.matchesLost}L`, icon: Target, color: "from-emerald-500 to-teal-600", textColor: "text-emerald-400" },
+                      { label: "Matches Played", value: `${allTimeT.matchesPlayed}`, sub: "All tournaments", icon: Swords, color: "from-violet-500 to-purple-600", textColor: "text-violet-400" },
+                      { label: "Point Diff", value: `${allTimeT.pointDifference > 0 ? "+" : ""}${allTimeT.pointDifference}`, sub: `${allTimeT.pointsScored} / ${allTimeT.pointsConceded}`, icon: Flame, color: "from-rose-500 to-pink-600", textColor: "text-rose-400" },
+                    ].map((kpi, i) => (
+                      <div key={i} className="relative rounded-xl overflow-hidden">
+                        <div className={cn("absolute inset-0 bg-gradient-to-br opacity-[0.08]", kpi.color)} />
+                        <div className="relative p-3 border border-slate-800/60 rounded-xl">
+                          <div className="flex items-center gap-2 mb-1">
+                            <div className={cn("h-5 w-5 rounded flex items-center justify-center bg-gradient-to-br", kpi.color)}>
+                              <kpi.icon className="h-3 w-3 text-white" />
+                            </div>
+                            <span className="text-[9px] font-bold uppercase tracking-wider text-slate-500">{kpi.label}</span>
+                          </div>
+                          <div className={cn("text-xl font-black", kpi.textColor)}>{kpi.value}</div>
+                          <div className="text-[10px] text-slate-500 font-medium">{kpi.sub}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {allTimeT.tournaments.length > 0 && (
+                    <div>
+                      <h4 className="text-[10px] font-black uppercase tracking-wider text-slate-500 mb-2 flex items-center gap-1.5">
+                        <Calendar className="h-3.5 w-3.5" />
+                        Previous Tournaments ({allTimeT.tournaments.length})
+                      </h4>
+                      <div className="space-y-1 max-h-[250px] overflow-y-auto">
+                        {allTimeT.tournaments.map((t) => (
+                          <div key={t.tournamentId} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-slate-900/50 border border-slate-800/40" data-testid={`alltime-tournament-${t.tournamentId}`}>
+                            <div className="min-w-0">
+                              <div className="text-xs font-bold text-slate-300 truncate">{t.tournamentName}</div>
+                              <div className="text-[10px] text-slate-500">
+                                {t.endDate ? formatLondon(t.endDate, "MMM yyyy") : "—"}
+                                {t.categories > 1 && ` · ${t.categories} categories`}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-3 shrink-0">
+                              <div className="text-center">
+              
