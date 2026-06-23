@@ -161,7 +161,17 @@ function DashboardContent({
 
   const clubName = useMemo(() => clubs.find((c) => c.id === effectiveClubId)?.name || "Your Club", [clubs, effectiveClubId]);
 
-  const profile = user?.playerProfile;
+  // Use the profile for the club currently selected on the dashboard so the
+  // grade / win-rate match that club's leaderboard and profile page.
+  const profile = useMemo(() => {
+    const profiles = user?.playerProfiles || [];
+    return (
+      profiles.find((p: any) => p.clubId === effectiveClubId) ||
+      user?.playerProfile ||
+      profiles[0] ||
+      null
+    );
+  }, [user, effectiveClubId]);
   const grade = profile?.grade || profile?.category || "—";
   const matchesPlayed = profile?.matchesPlayed ?? 0;
   const matchesWon = profile?.matchesWon ?? 0;
@@ -306,7 +316,7 @@ function DashboardContent({
           <SectionHeading
             icon={Tag}
             title="Deals & Offers"
-            subtitle="AI-curated badminton gear deals, updated daily"
+            subtitle="AI-curated badminton gear deals, refreshed through the day"
             action={
               <div className="hidden sm:flex gap-2">
                 <Button size="icon" variant="outline" className="h-9 w-9 bg-white/5 border-white/15 text-white hover:bg-white/10" onClick={() => scrollDeals(-1)} data-testid="button-deals-prev"><ChevronLeft className="w-4 h-4" /></Button>
@@ -329,23 +339,23 @@ function DashboardContent({
                     className="group min-w-[260px] max-w-[280px] sm:min-w-[280px] snap-start"
                     data-testid={`deal-card-${i}`}
                   >
-                    <GlassCard className="overflow-hidden h-full transition-all duration-300 group-hover:-translate-y-1.5 group-hover:border-white/25 group-hover:shadow-[0_20px_60px_rgba(234,179,8,0.12)]">
-                      <div className="relative h-40 overflow-hidden bg-gradient-to-br from-white/[0.06] to-white/[0.02]">
-                        {deal.imageUrl ? (
-                          <img src={deal.imageUrl} alt={deal.offer} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-110" loading="lazy" onError={(e) => { (e.currentTarget.style.display = "none"); }} />
-                        ) : (
-                          <div className="w-full h-full grid place-items-center"><Tag className="w-12 h-12 text-white/15" /></div>
-                        )}
-                        <div className="absolute top-3 left-3 flex gap-1.5">
-                          {pct && <Badge className="border-0 text-black font-bold text-[11px]" style={{ background: GOLD }}>{pct}</Badge>}
-                          {deal.sponsored && <Badge className="border text-[10px] font-semibold gap-1" style={{ background: "rgba(234,179,8,0.2)", color: GOLD, borderColor: "rgba(234,179,8,0.4)" }}><Star className="w-3 h-3" /> Sponsor</Badge>}
+                    <GlassCard className="overflow-hidden h-full flex flex-col transition-all duration-300 group-hover:-translate-y-1.5 group-hover:border-white/25 group-hover:shadow-[0_20px_60px_rgba(234,179,8,0.12)]">
+                      <div className="relative p-5 pb-4 border-b border-white/10 bg-gradient-to-br from-white/[0.07] to-transparent">
+                        <div className="flex items-start justify-between gap-2">
+                          <span className="grid place-items-center h-11 w-11 rounded-xl shrink-0" style={{ background: "rgba(234,179,8,0.12)", boxShadow: "inset 0 0 0 1px rgba(234,179,8,0.3)" }}>
+                            <Tag className="w-5 h-5" style={{ color: GOLD }} />
+                          </span>
+                          <div className="flex flex-col items-end gap-1.5">
+                            {pct && <Badge className="border-0 text-black font-bold text-[11px]" style={{ background: GOLD }}>{pct}</Badge>}
+                            {deal.sponsored && <Badge className="border text-[10px] font-semibold gap-1" style={{ background: "rgba(234,179,8,0.2)", color: GOLD, borderColor: "rgba(234,179,8,0.4)" }}><Star className="w-3 h-3" /> Sponsor</Badge>}
+                          </div>
                         </div>
                       </div>
-                      <div className="p-4">
-                        <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1">{deal.category}</div>
-                        <div className="font-semibold leading-snug line-clamp-2 min-h-[2.5rem]">{deal.offer}</div>
-                        <div className="text-sm text-white/50 mt-1">by {deal.brand}</div>
-                        <div className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: GOLD }}>
+                      <div className="p-5 flex flex-col flex-1">
+                        <div className="text-[10px] uppercase tracking-wider text-white/40 mb-1.5">{deal.category}</div>
+                        <div className="font-semibold text-base leading-snug line-clamp-3 min-h-[3.5rem]">{deal.offer}</div>
+                        <div className="text-sm text-white/50 mt-1.5">by {deal.brand}</div>
+                        <div className="mt-auto pt-4 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: GOLD }}>
                           View Deal <ExternalLink className="w-3.5 h-3.5" />
                         </div>
                       </div>
@@ -414,38 +424,28 @@ function DashboardContent({
           ) : featuredNews ? (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
               <a href={featuredNews.url} target="_blank" rel="noopener noreferrer" className="group" data-testid="news-featured">
-                <GlassCard className="overflow-hidden h-full transition-all duration-300 group-hover:-translate-y-1 group-hover:border-white/25">
-                  <div className="relative h-56 sm:h-64 overflow-hidden bg-white/[0.04]">
-                    {featuredNews.imageUrl ? (
-                      <img src={featuredNews.imageUrl} alt={featuredNews.title} className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" loading="lazy" onError={(e) => { (e.currentTarget.style.display = "none"); }} />
-                    ) : (
-                      <div className="w-full h-full grid place-items-center"><Newspaper className="w-16 h-16 text-white/10" /></div>
-                    )}
-                    <div className="absolute inset-0" style={{ background: "linear-gradient(0deg, rgba(11,15,23,0.9) 0%, rgba(11,15,23,0) 60%)" }} />
-                    <Badge className="absolute top-3 left-3 border-0 text-black font-bold text-[10px]" style={{ background: GOLD }}>FEATURED</Badge>
+                <GlassCard className="h-full p-6 flex flex-col transition-all duration-300 group-hover:-translate-y-1 group-hover:border-white/25">
+                  <div className="flex items-center gap-2 mb-3">
+                    <Badge className="border-0 text-black font-bold text-[10px]" style={{ background: GOLD }}>FEATURED</Badge>
+                    <span className="text-xs font-semibold text-white/60">{featuredNews.source}</span>
+                    {featuredNews.publishedAt && <><span className="text-white/30">·</span><span className="text-xs text-white/40">{featuredNews.publishedAt}</span></>}
                   </div>
-                  <div className="p-5">
-                    <div className="flex items-center gap-2 text-xs text-white/40 mb-2">
-                      <span className="font-semibold text-white/60">{featuredNews.source}</span>
-                      {featuredNews.publishedAt && <><span>·</span><span>{featuredNews.publishedAt}</span></>}
-                    </div>
-                    <h3 className="text-lg sm:text-xl font-bold leading-snug line-clamp-2">{featuredNews.title}</h3>
-                    <p className="text-sm text-white/50 mt-2 line-clamp-2">{featuredNews.summary}</p>
-                    <div className="mt-3 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: GOLD }}>Read More <ArrowUpRight className="w-4 h-4" /></div>
-                  </div>
+                  <h3 className="text-xl sm:text-2xl font-bold leading-snug line-clamp-3">{featuredNews.title}</h3>
+                  <p className="text-sm text-white/50 mt-3 line-clamp-4 flex-1">{featuredNews.summary}</p>
+                  <div className="mt-4 inline-flex items-center gap-1.5 text-sm font-semibold" style={{ color: GOLD }}>Read More <ArrowUpRight className="w-4 h-4" /></div>
                 </GlassCard>
               </a>
               <div className="flex flex-col gap-3">
                 {trendingNews.length > 0 ? trendingNews.map((n, i) => (
                   <a key={i} href={n.url} target="_blank" rel="noopener noreferrer" className="group flex-1" data-testid={`news-trending-${i}`}>
-                    <GlassCard className="p-3 h-full flex gap-3 items-center transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-white/25">
-                      <div className="h-20 w-24 rounded-xl overflow-hidden shrink-0 bg-white/[0.04]">
-                        {n.imageUrl ? <img src={n.imageUrl} alt={n.title} className="w-full h-full object-cover" loading="lazy" onError={(e) => { (e.currentTarget.style.display = "none"); }} /> : <div className="w-full h-full grid place-items-center"><Newspaper className="w-7 h-7 text-white/10" /></div>}
+                    <GlassCard className="p-4 h-full flex flex-col justify-center transition-all duration-300 group-hover:-translate-y-0.5 group-hover:border-white/25">
+                      <div className="flex items-center gap-1.5 text-[11px] text-white/40 mb-1.5">
+                        <TrendingUp className="w-3 h-3 shrink-0" style={{ color: GOLD }} />
+                        <span className="font-medium text-white/60">{n.source}</span>
+                        {n.publishedAt && <><span>·</span><span>{n.publishedAt}</span></>}
                       </div>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-1.5 text-[11px] text-white/40 mb-1"><TrendingUp className="w-3 h-3" style={{ color: GOLD }} /><span className="font-medium text-white/60">{n.source}</span></div>
-                        <div className="font-semibold text-sm leading-snug line-clamp-2">{n.title}</div>
-                      </div>
+                      <div className="font-semibold text-sm leading-snug line-clamp-2 group-hover:text-white transition-colors">{n.title}</div>
+                      {n.summary && <p className="text-xs text-white/45 mt-1 line-clamp-2">{n.summary}</p>}
                     </GlassCard>
                   </a>
                 )) : <GlassCard className="p-6 text-center text-sm text-white/50 flex-1 grid place-items-center">More stories coming soon.</GlassCard>}

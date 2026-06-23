@@ -40,7 +40,8 @@ const FALLBACK_POLLS = [
 type CachedQuote = { date: string; text: string; author: string };
 type CachedPoll = { date: string; question: string; options: string[] };
 type Deal = { brand: string; offer: string; url: string; category: string; imageUrl?: string; sponsored?: boolean };
-type CachedDeals = { date: string; deals: Deal[] };
+type GeneratedDeals = { date: string; deals: Deal[] };
+type CachedDeals = GeneratedDeals & { fetchedAt: number };
 type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string; imageUrl?: string };
 type CachedNews = { fetchedAt: number; items: NewsItem[] };
 type BeTournament = { name: string; startDate: string; endDate?: string; location?: string; audience: "ADULT" | "JUNIOR"; level?: string; url: string };
@@ -61,7 +62,8 @@ let dealsCache: CachedDeals | null = null;
 let newsCache: CachedNews | null = null;
 let beTournamentsCache: CachedBeTournaments | null = null;
 let beCoachCoursesCache: CachedBeCoachCourses | null = null;
-const NEWS_TTL_MS = 6 * 60 * 60 * 1000; // 6 hours
+const NEWS_TTL_MS = 3 * 60 * 60 * 1000; // 3 hours
+const DEALS_TTL_MS = 3 * 60 * 60 * 1000; // 3 hours
 
 const FALLBACK_BE_TOURNAMENTS_ADULTS: BeTournament[] = [
   { name: "Browse all Badminton England senior tournaments", startDate: "", audience: "ADULT", url: "https://be.tournamentsoftware.com/tournaments" },
@@ -139,7 +141,7 @@ async function generatePoll(dateStr: string): Promise<CachedPoll> {
   return { date: dateStr, question: f.question, options: f.options };
 }
 
-async function generateDeals(dateStr: string): Promise<CachedDeals> {
+async function generateDeals(dateStr: string): Promise<GeneratedDeals> {
   if (!process.env.AI_INTEGRATIONS_OPENAI_API_KEY) {
     return { date: dateStr, deals: FALLBACK_DEALS.slice(0, 6) };
   }
@@ -386,9 +388,9 @@ export function registerDailyContentRoutes(app: Express): void {
 
   // GET /api/daily-content/deals
   app.get("/api/daily-content/deals", async (_req: Request, res: Response) => {
-    const day = todayKey();
-    if (!dealsCache || dealsCache.date !== day) {
-      dealsCache = await generateDeals(day);
+    const now = Date.now();
+    if (!dealsCache || now - dealsCache.fetchedAt > DEALS_TTL_MS) {
+      dealsCache = { ...(await generateDeals(todayKey())), fetchedAt: now };
     }
     res.json(dealsCache);
   });
