@@ -12,7 +12,8 @@ if (!process.env.DATABASE_URL) {
 
 export const pool = new Pool({
   connectionString: process.env.DATABASE_URL,
-  // Railway (and most managed PG providers) require SSL in production
-  ssl: process.env.NODE_ENV === "production" ? { rejectUnauthorized: false } : false,
+  // Set DATABASE_SSL=true for managed providers (Railway, Supabase, etc.)
+  // Leave unset or false for local Docker / Homebrew PostgreSQL
+  ssl: process.env.DATABASE_SSL === "true" ? { rejectUnauthorized: false } : false,
 });
 export const db = drizzle(pool, { schema });
