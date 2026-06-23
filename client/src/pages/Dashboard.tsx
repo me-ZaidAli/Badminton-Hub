@@ -17,13 +17,13 @@ import {
   MapPin, Swords, Crown, Medal, ArrowUpRight, ArrowDownRight, Sparkles, Target, MessageSquare,
   Newspaper, Tag, ExternalLink, Heart, MessageCircle, Flame, Star, TrendingUp, type LucideIcon,
 } from "lucide-react";
-import heroSmash from "@assets/generated_images/hero_smash.png";
-import heroCourt from "@assets/generated_images/hero_court.png";
-import heroTraining from "@assets/generated_images/hero_training.png";
-import heroShuttle from "@assets/generated_images/hero_shuttle.png";
+import heroAction from "@assets/stock_images/badminton_hero_3.jpg";
+import heroCourt from "@assets/stock_images/badminton_hero_1.jpg";
+import heroFeathers from "@assets/stock_images/badminton_hero_5.jpg";
+import heroRacket from "@assets/stock_images/badminton_hero_2.jpg";
 
 const GOLD = "#EAB308";
-const HERO_IMAGES = [heroSmash, heroCourt, heroTraining, heroShuttle];
+const HERO_IMAGES = [heroAction, heroCourt, heroFeathers, heroRacket];
 
 type Deal = { brand: string; offer: string; url: string; category: string; imageUrl?: string; sponsored?: boolean };
 type NewsItem = { title: string; source: string; url: string; summary: string; publishedAt?: string; imageUrl?: string };
@@ -231,8 +231,6 @@ function DashboardContent({
   return (
     <div className="rounded-3xl text-white overflow-hidden -mx-1 sm:mx-0" style={{ background: "#0B0F17" }} data-testid="dashboard-premium">
       <style>{`
-        @keyframes kenburns { 0% { transform: scale(1) translate(0,0); } 100% { transform: scale(1.12) translate(-1.5%, -1.5%); } }
-        .hero-kb { animation: kenburns 12s ease-out forwards; }
         .no-scrollbar::-webkit-scrollbar { display: none; }
         .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
       `}</style>
@@ -260,7 +258,7 @@ function DashboardContent({
               className={`absolute inset-0 transition-opacity ${i === heroIdx ? "opacity-100" : "opacity-0"}`}
               style={{ transitionDuration: "1200ms" }}
             >
-              <img src={src} alt="" className={`w-full h-full object-cover ${i === heroIdx ? "hero-kb" : ""}`} />
+              <img src={src} alt="" loading={i === 0 ? "eager" : "lazy"} className="w-full h-full object-cover" />
             </div>
           ))}
           <div className="absolute inset-0" style={{ background: "linear-gradient(105deg, rgba(11,15,23,0.95) 0%, rgba(11,15,23,0.78) 38%, rgba(11,15,23,0.35) 75%, rgba(11,15,23,0.2) 100%)" }} />
@@ -328,7 +326,7 @@ function DashboardContent({
                     href={deal.url}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="group min-w-[280px] max-w-[280px] snap-start"
+                    className="group min-w-[260px] max-w-[280px] sm:min-w-[280px] snap-start"
                     data-testid={`deal-card-${i}`}
                   >
                     <GlassCard className="overflow-hidden h-full transition-all duration-300 group-hover:-translate-y-1.5 group-hover:border-white/25 group-hover:shadow-[0_20px_60px_rgba(234,179,8,0.12)]">

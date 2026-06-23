@@ -203,3 +203,33 @@ id = "2mVFlq3a7uQ_sOn8eiLFe"
 uri = "file://prod_backup.sql.gz"
 type = "unspecified"
 title = "Production database dump (prod_backup.sql.gz)"
+
+[[outputs]]
+id = "R226sSiB0Wy1MANaC0-uV"
+uri = "file://attached_assets/stock_images/badminton_hero_1.jpg"
+type = "image"
+title = "professional badminton player smashing shuttlecock in action on indoor court"
+
+[[outputs]]
+id = "ynv5eEXo8_2k8S_ajFaHe"
+uri = "file://attached_assets/stock_images/badminton_hero_2.jpg"
+type = "image"
+title = "professional badminton player smashing shuttlecock in action on indoor court"
+
+[[outputs]]
+id = "WWp0ta25nlxcP_BI5VZpN"
+uri = "file://attached_assets/stock_images/badminton_hero_3.jpg"
+type = "image"
+title = "professional badminton player smashing shuttlecock in action on indoor court"
+
+[[outputs]]
+id = "EvWN9IuhF6vAuK6s_6MjX"
+uri = "file://attached_assets/stock_images/badminton_hero_4.jpg"
+type = "image"
+title = "professional badminton player smashing shuttlecock in action on indoor court"
+
+[[outputs]]
+id = "IAUQbXpBiGe9PMcSe1Pue"
+uri = "file://attached_assets/stock_images/badminton_hero_5.jpg"
+type = "image"
+title = "professional badminton player smashing shuttlecock in action on indoor court"
