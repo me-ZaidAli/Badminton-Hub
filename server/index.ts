@@ -17,6 +17,7 @@ import {
 import { ensureRuleSeeds } from "./notificationRules";
 import { syncParentChildLinks } from "./parentLinkSync";
 import { ensureHotIndexes } from "./dbIndexes";
+import { dedupeTournamentGroups } from "./tournamentGroupDedupe";
 import { randomUUID } from "crypto";
 import { sql } from "drizzle-orm";
 import { db } from "./db";
@@ -197,6 +198,9 @@ app.use((req, res, next) => {
         );
         syncParentChildLinks().catch((err) =>
           console.error("Sync parent links failed:", err),
+        );
+        dedupeTournamentGroups().catch((err) =>
+          console.error("Dedupe tournament groups failed:", err),
         );
       }, 3000);
 
