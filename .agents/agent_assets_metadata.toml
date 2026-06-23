@@ -126,6 +126,30 @@ uri = "file://attached_assets/generated_images/profile_banner_badminton.png"
 type = "image"
 title = "badminton court banner"
 
+[[generated]]
+id = "Eb1MXMCKLoOdwMjPxT5Lr"
+uri = "file://attached_assets/generated_images/hero_smash.png"
+type = "image"
+title = "badminton smash action"
+
+[[generated]]
+id = "umbXKiDefbkrSbnvoKup0"
+uri = "file://attached_assets/generated_images/hero_court.png"
+type = "image"
+title = "empty stadium court"
+
+[[generated]]
+id = "y7gUm4ObK7tUiDJRn9tri"
+uri = "file://attached_assets/generated_images/hero_training.png"
+type = "image"
+title = "club training session"
+
+[[generated]]
+id = "Iol9ekbkDTTPQmAULZtf0"
+uri = "file://attached_assets/generated_images/hero_shuttle.png"
+type = "image"
+title = "shuttlecock impact closeup"
+
 [[outputs]]
 id = "_DTq5o-onEE6_4AMQp_uJ"
 uri = "file://Smart-Match-Engine-Algorithm.md"

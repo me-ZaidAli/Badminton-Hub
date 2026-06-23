@@ -13303,6 +13303,16 @@ export async function registerRoutes(
         : [];
       const venueMap = Object.fromEntries(venuesData.map(v => [v.id, v]));
 
+      const sessionIds = [...new Set(signups.map(s => s.sessionId))];
+      const confirmedRows = sessionIds.length > 0
+        ? await db
+            .select({ sessionId: sessionSignups.sessionId, count: sql<number>`count(*)::int` })
+            .from(sessionSignups)
+            .where(and(inArray(sessionSignups.sessionId, sessionIds), eq(sessionSignups.signupStatus, "CONFIRMED")))
+            .groupBy(sessionSignups.sessionId)
+        : [];
+      const confirmedMap = Object.fromEntries(confirmedRows.map(r => [r.sessionId, Number(r.count)]));
+
       const result = signups.map(s => ({
         signupId: s.signupId,
         sessionId: s.sessionId,
@@ -13317,6 +13327,7 @@ export async function registerRoutes(
         sessionStatus: s.sessionStatus,
         maxPlayers: s.maxPlayers,
         courtsAvailable: s.courtsAvailable,
+        confirmedCount: confirmedMap[s.sessionId] || 0,
         clubId: s.clubId,
         clubName: clubMap[s.clubId] || `Club ${s.clubId}`,
         venueName: s.venueId ? venueMap[s.venueId]?.name || null : null,
