@@ -1,0 +1,268 @@
+Your current dashboard has **too much going on at once**. It feels like 8 different dashboards stacked together:
+
+* Weather
+* Location
+* News
+* Deals
+* Badminton England
+* Announcements
+* Challenges
+* Wellness
+* Polls
+* Sessions
+* Club activity
+
+The problem isn't the design quality—it's **cognitive overload**. When a member logs in, they should instantly know:
+
+1. What am I doing next?
+2. What do I need to act on?
+3. What's happening in my club?
+
+Everything else should be secondary.
+
+---
+
+# Replit Prompt
+
+Paste this into Replit AI:
+
+---
+
+Create a modern premium badminton club dashboard inspired by Linear, Stripe, Notion Calendar and Apple Fitness.
+
+The current dashboard is too busy and information-heavy.
+
+Goal:
+Create a cleaner, simpler, premium experience that immediately answers:
+
+* What is my next session?
+* What actions require attention?
+* What is happening in my club?
+
+Use a dark luxury theme:
+
+* Background #0B0F17
+* Glassmorphism cards
+* Subtle gradients
+* Gold accent (#EAB308)
+* Smooth hover animations
+* Large spacing
+* Minimal borders
+
+Layout:
+
+---
+
+## TOP HERO SECTION
+
+Single large welcome card.
+
+Display:
+
+"Good Evening, Patric"
+
+Underneath:
+
+* Membership Status (Premium)
+* Current Club
+* Upcoming Session Count
+* Ranking Position
+
+Right side:
+
+Primary CTA:
+[ Join Session ]
+
+Secondary CTA:
+[ View Schedule ]
+
+Do NOT include:
+
+* Weather
+* Location
+* Time
+* Random stats
+
+---
+
+## QUICK ACTIONS
+
+4 clean action cards in a row:
+
+Join Session
+View Rankings
+Enter Tournament
+Track Progress
+
+Large icons.
+Hover lift effect.
+
+---
+
+## YOUR NEXT SESSION
+
+Most important section.
+
+Large card showing:
+
+Session Name
+Date
+Time
+Venue
+Courts
+Players Registered
+
+Buttons:
+
+[ View Session ]
+[ Withdraw ]
+
+If no upcoming session:
+Display attractive empty state.
+
+---
+
+## MY PERFORMANCE
+
+3 KPI cards only:
+
+Sessions This Month
+Win Rate
+Current Ranking
+
+Display trend arrows.
+
+No more than 3 metrics.
+
+---
+
+## CLUB NEWS
+
+Show only latest 3 announcements.
+
+Each announcement:
+
+Title
+Short description
+Date
+
+View All button.
+
+No massive news section.
+
+---
+
+## BADMINTON HUB
+
+Tabbed component:
+
+[ Tournaments ]
+[ Coaching ]
+[ Rankings ]
+
+Only load content after tab click.
+
+---
+
+## CHALLENGE OF THE WEEK
+
+Single card only.
+
+Example:
+
+Hydration Challenge
+5 / 8 cups completed
+
+Progress bar.
+
+Button:
+Update Progress
+
+Remove all wellness widgets.
+
+---
+
+## BOTTOM SECTION
+
+Two equal cards:
+
+Recent Activity
+Community Feed
+
+Show concise information only.
+
+---
+
+## SIDEBAR
+
+Simplify navigation.
+
+Dashboard
+Sessions
+Tournaments
+Rankings
+Coaching
+Community
+Rewards
+Admin
+
+Use collapsible groups.
+
+---
+
+## DESIGN RULES
+
+Maximum 8 sections on entire page.
+
+Every section must have a purpose.
+
+Remove:
+
+* Weather
+* Location
+* Polls
+* Motivational quotes
+* Live courts
+* Bananas eaten
+* Shuttle counters
+* Hydration widgets
+* Multiple challenge cards
+* Large announcement walls
+
+Focus on:
+
+Action > Information
+
+Use generous whitespace.
+
+Use large typography.
+
+Use premium card animations.
+
+Dashboard should feel like a £100/year premium sports platform, not an admin system.
+
+Create the layout using React, Tailwind and shadcn/ui components.
+
+Make it responsive for desktop, tablet and mobile.
+
+Use modern UX patterns from Linear, Stripe and Notion.
+
+---
+
+### My recommendation
+
+For a badminton club app, the dashboard should really be:
+
+**Hero**
+↓
+**Next Session**
+↓
+**Quick Actions**
+↓
+**Performance**
+↓
+**Announcements**
+↓
+**Community**
+
+Everything else belongs inside its own page. The moment you remove 60-70% of those widgets, the platform will instantly feel more premium.

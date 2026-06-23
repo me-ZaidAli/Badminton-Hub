@@ -1,0 +1,297 @@
+REDESIGN THE DASHBOARD FROM SCRATCH.
+
+The current redesign has removed too much content and now feels like a generic SaaS dashboard. The platform is not just a booking system — it is a badminton ecosystem powered by AI.
+
+The goal is to create a premium, engaging, content-rich dashboard that feels like a mix of:
+
+* Strava Premium
+* Spotify Home
+* ESPN
+* Formula 1
+* Apple Fitness
+* EA FC Ultimate Team
+
+The dashboard should immediately make members feel connected to the badminton world when they log in.
+
+DO NOT REMOVE:
+
+* AI-powered Badminton News
+* AI-powered Deals & Offers
+* Club Announcements
+* Upcoming Sessions
+* Community Activity
+
+REMOVE OR MOVE TO OTHER PAGES:
+
+* Weather
+* Location
+* Polls
+* Bananas Eaten
+* Shuttle Counters
+* Multiple Wellness Widgets
+* Live Courts
+* Motivational Quotes
+* Any filler widgets
+
+==================================================
+TOP HERO SECTION
+================
+
+Create a large immersive hero banner.
+
+Height: 400-500px
+
+Background:
+Auto-rotating high-quality badminton images with slow zoom animation.
+
+Examples:
+
+* Professional badminton matches
+* Tournament photography
+* Club training sessions
+* Junior development sessions
+* Stadium courts
+* Action shots
+
+Add a dark overlay for readability.
+
+Content:
+
+Good Afternoon, Patric
+
+Dragon Badminton Club
+
+Premium Member
+
+1 Upcoming Session
+3 New Deals
+12 News Stories Today
+
+Primary Button:
+[ Join Session ]
+
+Secondary Button:
+[ View Schedule ]
+
+This section should feel alive and premium.
+
+==================================================
+DEALS & OFFERS
+==============
+
+This section is CRITICAL.
+
+Do not hide it.
+
+Place directly below the hero section.
+
+Use a horizontal carousel.
+
+Each deal card should include:
+
+* Product image
+* Product name
+* Original price
+* Discounted price
+* Percentage discount badge
+* Store logo
+* CTA button
+
+Example:
+
+YONEX Nanoflare 700 Tour
+
+£179.99
+Now £129.99
+
+35% OFF
+
+[ View Deal ]
+
+Cards should look like premium ecommerce cards.
+
+The AI automatically finds deals across badminton retailers.
+
+This is a core feature of the platform.
+
+==================================================
+UPCOMING SESSION
+================
+
+Large premium card.
+
+Include:
+
+* Session Name
+* Venue
+* Date
+* Time
+* Number of Courts
+* Registered Players
+
+Buttons:
+
+[ View Session ]
+[ Withdraw ]
+
+Add subtle court imagery in the background.
+
+==================================================
+BADMINTON NEWS
+==============
+
+This is another core platform feature.
+
+The AI automatically aggregates badminton news from multiple sources.
+
+Do NOT hide this.
+
+Layout:
+
+Featured News Story (Large)
+
+With:
+
+* Thumbnail image
+* Headline
+* Summary
+* Read More button
+
+Alongside:
+
+3 smaller trending stories.
+
+Design inspiration:
+
+ESPN
+BBC Sport
+The Athletic
+
+News cards must contain images.
+
+==================================================
+QUICK ACTIONS
+=============
+
+Four action cards only:
+
+Join Session
+View Rankings
+Enter Tournament
+Community Hub
+
+Cards should be visually rich.
+
+Use premium icons.
+
+Hover animations.
+
+Gradient lighting effects.
+
+==================================================
+CLUB ANNOUNCEMENTS
+==================
+
+Show the latest 3 announcements.
+
+Use a clean timeline style.
+
+Display:
+
+* Title
+* Preview text
+* Date
+* Author
+
+View All button.
+
+==================================================
+PERFORMANCE SNAPSHOT
+====================
+
+Display only:
+
+Sessions This Month
+Current Ranking
+Win Rate
+
+Use premium statistic cards.
+
+Add trend indicators.
+
+==================================================
+COMMUNITY ACTIVITY
+==================
+
+Show recent activity.
+
+Examples:
+
+Sarah entered Summer Tournament
+
+John achieved Grade B
+
+15 players joined sessions this week
+
+Emily won Singles Ladder Match
+
+This helps create engagement.
+
+==================================================
+VISUAL DESIGN REQUIREMENTS
+==========================
+
+The current cards feel like basic Tailwind boxes.
+
+Completely redesign them.
+
+Requirements:
+
+* Premium sports platform aesthetic
+* Glassmorphism
+* Gradient overlays
+* Layered backgrounds
+* Image-rich design
+* Premium typography
+* Hover glow effects
+* Smooth animations
+* Micro-interactions
+* Better spacing
+* More visual hierarchy
+
+Different card types should look different.
+
+News cards should not look the same as deal cards.
+
+Deal cards should not look the same as session cards.
+
+Every section should have its own visual identity.
+
+==================================================
+LAYOUT PHILOSOPHY
+=================
+
+The issue is NOT too much content.
+
+The issue is that all content currently has the same visual weight.
+
+Keep the important content:
+
+* Hero
+* Deals
+* News
+* Sessions
+* Announcements
+* Community
+* Performance
+
+Make the dashboard feel like a premium badminton home screen that users want to browse every day.
+
+When users log in, they should immediately discover:
+
+* New deals
+* Latest badminton news
+* Upcoming sessions
+* Club activity
+
+The dashboard should feel like a living badminton platform, not an admin panel.
