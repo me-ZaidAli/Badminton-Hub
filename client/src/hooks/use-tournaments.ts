@@ -1106,6 +1106,18 @@ export function useCopyGroupStructure() {
   });
 }
 
+export function useDedupeGroups() {
+  return useMutation({
+    mutationFn: async ({ tournamentId }: { tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/groups/dedupe`, {});
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
+    },
+  });
+}
+
 export function useUpdateTournamentGroup() {
   return useMutation({
     mutationFn: async ({ groupId, tournamentId, ...data }: { groupId: number; tournamentId: number; name?: string; maxPairs?: number; startTime?: string | null; venueId?: number | null; hallName?: string | null; courtName?: string | null; groupOrder?: number; categoryId?: number | null; stageId?: number | null }) => {

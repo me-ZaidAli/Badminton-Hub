@@ -5562,10 +5562,39 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
               .where(and(eq(tournamentStages.tournamentId, tournamentId), eq(tournamentStages.categoryId, targetId)));
           }
 
-          // Clone the source stages into this target category, mapping each
-          // old stage id to its freshly-created independent copy.
+          // When NOT replacing, never re-create a group that already exists in
+          // the target. A group is "the same" when it shares a stage name and a
+          // group name, so repeating a copy is idempotent and can't pile up
+          // duplicates (the bug this guards against).
+          const sourceStageNameById = new Map<number, string>(sourceStages.map(s => [s.id, s.name]));
+          const dupKey = (stageName: string | null, groupName: string | null) =>
+            `${(stageName || "").trim().toLowerCase()}|${(groupName || "").trim().toLowerCase()}`;
+          const existingKeys = new Set<string>();
+          if (!replaceExisting) {
+            const existingGroups = await tx.select({ name: tournamentGroups.name, stageId: tournamentGroups.stageId })
+              .from(tournamentGroups)
+              .where(and(eq(tournamentGroups.tournamentId, tournamentId), eq(tournamentGroups.categoryId, targetId)));
+            const targetStageIds = Array.from(new Set(existingGroups.map(g => g.stageId).filter((x): x is number => x != null)));
+            const targetStages = targetStageIds.length > 0
+              ? await tx.select({ id: tournamentStages.id, name: tournamentStages.name }).from(tournamentStages).where(inArray(tournamentStages.id, targetStageIds))
+              : [];
+            const targetStageNameById = new Map<number, string>(targetStages.map(s => [s.id, s.name]));
+            for (const g of existingGroups) {
+              existingKeys.add(dupKey(g.stageId != null ? (targetStageNameById.get(g.stageId) ?? null) : null, g.name));
+            }
+          }
+
+          const groupsToCopy = sourceGroups.filter(g =>
+            !existingKeys.has(dupKey(g.stageId != null ? (sourceStageNameById.get(g.stageId) ?? null) : null, g.name))
+          );
+
+          // Clone only the source stages still needed by the groups we will
+          // insert, mapping each old stage id to its freshly-created copy so
+          // every category owns independent stages.
+          const neededStageIds = new Set(groupsToCopy.map(g => g.stageId).filter((x): x is number => x != null));
           const stageIdMap = new Map<number, number>();
           for (const s of sourceStages) {
+            if (!neededStageIds.has(s.id)) continue;
             const [cloned] = await tx.insert(tournamentStages).values({
               tournamentId,
               categoryId: targetId,
@@ -5575,7 +5604,7 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
             stageIdMap.set(s.id, cloned.id);
           }
 
-          const rows = sourceGroups.map(g => ({
+          const rows = groupsToCopy.map(g => ({
             tournamentId,
             categoryId: targetId,
             stageId: g.stageId != null ? (stageIdMap.get(g.stageId) ?? null) : null,
@@ -5594,6 +5623,73 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
 
       const totalCreated = perCategory.reduce((s, p) => s + p.created, 0);
       res.json({ message: `Copied ${sourceGroups.length} group${sourceGroups.length !== 1 ? "s" : ""} to ${targetCategoryIds.length} categor${targetCategoryIds.length !== 1 ? "ies" : "y"}`, totalCreated, perCategory });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Remove duplicate groups across a tournament. Two groups are duplicates when
+  // they share the same category, the same stage, and the same (case-insensitive)
+  // name. Per duplicate set we KEEP the one with the most team-pairs (then the
+  // lowest id) and delete the rest, along with any pair assignments they held.
+  // Admin-triggered cleanup for tournaments that piled up copies before the
+  // copy-structure idempotency guard existed.
+  app.post("/api/tournaments/:id/groups/dedupe", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const groups = await db.select({
+        id: tournamentGroups.id,
+        categoryId: tournamentGroups.categoryId,
+        stageId: tournamentGroups.stageId,
+        name: tournamentGroups.name,
+      }).from(tournamentGroups).where(eq(tournamentGroups.tournamentId, tournamentId));
+
+      const groupIds = groups.map(g => g.id);
+      const pairCounts = new Map<number, number>();
+      if (groupIds.length > 0) {
+        const counts = await db.select({ groupId: tournamentGroupPairs.groupId, c: sql<number>`count(*)::int` })
+          .from(tournamentGroupPairs)
+          .where(inArray(tournamentGroupPairs.groupId, groupIds))
+          .groupBy(tournamentGroupPairs.groupId);
+        for (const row of counts) pairCounts.set(row.groupId, Number(row.c));
+      }
+
+      const buckets = new Map<string, typeof groups>();
+      for (const g of groups) {
+        const key = `${g.categoryId ?? 0}|${g.stageId ?? 0}|${(g.name || "").trim().toLowerCase()}`;
+        const arr = buckets.get(key);
+        if (arr) arr.push(g); else buckets.set(key, [g]);
+      }
+
+      const deleteIds: number[] = [];
+      for (const arr of Array.from(buckets.values())) {
+        if (arr.length < 2) continue;
+        // Keep the richest (most pairs), tie-break by lowest id; delete the rest.
+        const sorted = [...arr].sort((a, b) => {
+          const pa = pairCounts.get(a.id) ?? 0, pb = pairCounts.get(b.id) ?? 0;
+          if (pb !== pa) return pb - pa;
+          return a.id - b.id;
+        });
+        for (const g of sorted.slice(1)) deleteIds.push(g.id);
+      }
+
+      if (deleteIds.length > 0) {
+        await db.transaction(async (tx) => {
+          await tx.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, deleteIds));
+          await tx.delete(tournamentGroups).where(inArray(tournamentGroups.id, deleteIds));
+        });
+      }
+
+      res.json({
+        removed: deleteIds.length,
+        message: deleteIds.length === 0
+          ? "No duplicate groups found"
+          : `Removed ${deleteIds.length} duplicate group${deleteIds.length !== 1 ? "s" : ""}`,
+      });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

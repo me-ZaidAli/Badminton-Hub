@@ -13,7 +13,7 @@ import {
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
-  useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup, useCopyGroupStructure,
+  useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup, useCopyGroupStructure, useDedupeGroups,
   useAddPairToGroup, useRemovePairFromGroup,
   useTournamentStages, useCreateTournamentStage, useUpdateTournamentStage, useDeleteTournamentStage,
   useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
@@ -4307,6 +4307,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const updateGroupMutation = useUpdateTournamentGroup();
   const deleteGroupMutation = useDeleteTournamentGroup();
   const copyStructureMutation = useCopyGroupStructure();
+  const dedupeGroupsMutation = useDedupeGroups();
   const createStageMutation = useCreateTournamentStage();
   const updateStageMutation = useUpdateTournamentStage();
   const deleteStageMutation = useDeleteTournamentStage();
@@ -4754,6 +4755,15 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
       toast({ title: "Copy failed", description: err.message, variant: "destructive" });
     }
   }
+  async function handleDedupeGroups() {
+    if (!window.confirm("Remove duplicate groups? This keeps one of each group (the one with teams assigned) per stage and category, and deletes the extra copies. This cannot be undone.")) return;
+    try {
+      const result = await dedupeGroupsMutation.mutateAsync({ tournamentId });
+      toast({ title: result?.removed ? "Duplicates removed" : "No duplicates found", description: result?.message });
+    } catch (err: any) {
+      toast({ title: "Clean up failed", description: err.message, variant: "destructive" });
+    }
+  }
 
   return (
     <div className="space-y-4">
@@ -4772,6 +4782,14 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                 <Badge className="ml-1.5 h-4 px-1.5 text-[9px] bg-violet-600/20 text-violet-400 border-0">{visibleStages.length}</Badge>
               )}
             </Button>
+            {catsWithGroups.length > 0 && (
+              <Button size="sm" variant="outline" className="font-bold text-xs border-amber-500/30 text-amber-500 hover:bg-amber-500/10"
+                data-testid="button-dedupe-groups"
+                disabled={dedupeGroupsMutation.isPending}
+                onClick={handleDedupeGroups}>
+                {dedupeGroupsMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Trash2 className="h-3.5 w-3.5 mr-1" />} Remove duplicates
+              </Button>
+            )}
             {catsWithGroups.length > 0 && (categories || []).length > 1 && (
               <Button size="sm" variant="outline" className="font-bold text-xs border-cyan-500/30 text-cyan-500 hover:bg-cyan-500/10"
                 data-testid="button-copy-structure"

@@ -33,3 +33,14 @@ for the selected category). Everything in the tab (buckets, Manage Stages dialog
 badges, bulk time ops, create-stage categoryId) must use the scoped lists, not the
 raw `stages`/`groups`. The group form clears its stage selection when its category
 changes, so a stale out-of-scope stageId can't be submitted.
+
+## Copy-structure must stay idempotent
+Copying a category's groups with `replaceExisting=false` APPENDS — running it
+twice piles up duplicate groups (same name under the same stage). The endpoint
+now skips source groups whose `(stageName, groupName)` already exists in the
+target, and only clones stages actually used by inserted groups. Duplicate
+cleanup lives at `POST /api/tournaments/:id/groups/dedupe` (key = category +
+stageId + lower(name); keep the copy with most team-pairs, tie-break lowest id).
+**Why:** real tournaments accumulated 4-9 copies of each group from repeated
+copies before the guard existed; the 5 stages that appear under every category
+are legacy NULL-category shared stages, NOT duplicates — don't "clean" those.
