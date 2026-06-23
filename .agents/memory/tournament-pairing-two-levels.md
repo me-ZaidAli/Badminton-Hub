@@ -42,3 +42,15 @@ contains "men" and "female" contains "male" — and treat "mixed" explicitly.
 the registration row (`registrationType = PAIR` + `partnerId`) with no
 `tournament_teams` row, and the `/pairs` endpoint reads those. So a "paired"
 check should treat EITHER signal as paired (category team OR legacy PAIR reg).
+
+**Picking pairs to place into a category group must come from
+`tournament_teams` for that category (the `/teams-by-category` confirmedPairs),
+NOT from the tournament-wide `/pairs` endpoint.** The Groups-tab Add-Pair
+dropdown once listed `/pairs` (legacy PAIR regs, no category filter) so a Men's
+group showed Mixed pairs and no Men's pairs at all. Source candidates per
+`group.categoryId`, submit via `teamId` (server validates teamId against
+`group.categoryId`), and only fall back to category-filtered `/pairs` when a
+category has no `tournament_teams` yet.
+**Why:** modern per-category pairs never appear in `/pairs` (registrationType
+stays INDIVIDUAL), so the legacy source is both wrong-category AND missing the
+real pairs.

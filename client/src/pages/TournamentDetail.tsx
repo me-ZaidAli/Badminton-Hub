@@ -4340,12 +4340,6 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const [bulkGroupTime, setBulkGroupTime] = useState("");
   const [perGroupTime, setPerGroupTime] = useState<Record<number, string>>({});
 
-  const activeCatId = formCategoryId ? Number(formCategoryId) : (categories.length > 0 ? categories[0].id : 0);
-  const { data: allTeams = [] } = useTournamentTeams(activeCatId);
-  const { data: allPairs = [] } = useTournamentPairs(tournamentId);
-  const { data: catMatches = [] } = useTournamentMatches(activeCatId);
-  const acceptedPairs = allPairs.filter((p: any) => !!p.pairRequestId);
-
   // Per-category view: the tab shows one category at a time so each category's
   // groups + stages stay independent. Effective view falls back to the first
   // category. "0" = legacy groups with no category. When there are no
@@ -4355,6 +4349,19 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const effViewCatId: number | null = !hasCategories
     ? null
     : (viewCatIdRaw !== "" ? Number(viewCatIdRaw) : Number(categories[0].id));
+
+  // Teams/matches/qualifiers load for the category currently being managed: the
+  // form's chosen category when creating/editing, otherwise the category being
+  // viewed. This keeps the Add-Pair candidate list scoped to the correct
+  // category instead of always defaulting to the first one.
+  const activeCatId = formCategoryId
+    ? Number(formCategoryId)
+    : (effViewCatId && effViewCatId !== 0 ? effViewCatId : (categories.length > 0 ? categories[0].id : 0));
+  const { data: allTeams = [] } = useTournamentTeams(activeCatId);
+  const { data: allPairs = [] } = useTournamentPairs(tournamentId);
+  const { data: catMatches = [] } = useTournamentMatches(activeCatId);
+  const { data: teamsByCat = [] } = useTournamentTeamsByCategory(tournamentId);
+  const acceptedPairs = allPairs.filter((p: any) => !!p.pairRequestId);
   // Groups visible in the current view.
   const visibleGroups = !hasCategories
     ? (groups as any[])
@@ -4430,36 +4437,66 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   // Knockout groups (QF / SF / Final) can therefore reuse pairs already assigned to round-robin groups.
   function availablePairsForGroup(groupId: number) {
     const inThisGroup = groups.find((g: any) => g.id === groupId);
+    const groupCatId: number | null = inThisGroup?.categoryId ?? null;
     const blockedPrIds = new Set<number>(
       (inThisGroup?.pairs || []).map((p: any) => p.pairRequestId).filter(Boolean)
     );
     const blockedTeamIds = new Set<number>(
       (inThisGroup?.pairs || []).map((p: any) => p.teamId).filter(Boolean)
     );
-    const seenPrIds = new Set<number>();
-    const list = acceptedPairs.filter((p: any) => {
-      if (!p.pairRequestId) return false;
-      if (seenPrIds.has(p.pairRequestId)) return false;
-      seenPrIds.add(p.pairRequestId);
-      if (blockedPrIds.has(p.pairRequestId)) return false;
-      if (p.profile1?.id && p.profile2?.id) {
-        const key = [Math.min(p.profile1.id, p.profile2.id), Math.max(p.profile1.id, p.profile2.id)].join("-");
-        const tid = teamIdByPlayerKey.get(key);
-        if (tid && blockedTeamIds.has(tid)) return false;
+
+    type Option = { value: string; label: string; qualifier?: { groupNumber: number; rank: number; points: number } };
+    const decorated: Option[] = [];
+
+    // Modern multi-category flow: real pairs live in tournament_teams, scoped per
+    // category. For a category group, list ONLY that category's confirmed pairs so
+    // (e.g.) a Men's Doubles group never shows Mixed Doubles pairs.
+    const catEntry = groupCatId != null
+      ? (teamsByCat as any[]).find((e: any) => e.category?.id === groupCatId)
+      : null;
+    const catPairs: any[] = catEntry?.confirmedPairs || [];
+
+    if (catPairs.length > 0) {
+      const seenTeamIds = new Set<number>();
+      for (const t of catPairs) {
+        if (!t.id || seenTeamIds.has(t.id)) continue;
+        seenTeamIds.add(t.id);
+        if (blockedTeamIds.has(t.id)) continue;
+        const uKey = userKey(t.player1?.id, t.player2?.id);
+        const q = uKey ? qualifierByUserKey.get(uKey) : undefined;
+        decorated.push({
+          value: String(t.id),
+          label: `${t.player1?.fullName || "?"} & ${t.player2?.fullName || "?"}`,
+          qualifier: q,
+        });
       }
-      return true;
-    });
-    // Decorate with qualifier info, then sort by points DESC so top finishers appear first.
-    const decorated = list.map((p: any) => {
-      const uKey = userKey(p.user1?.id ?? p.fromUserId, p.user2?.id ?? p.toUserId);
-      const q = uKey ? qualifierByUserKey.get(uKey) : undefined;
-      return { pair: p, qualifier: q };
-    });
-    decorated.sort((a, b) => {
-      const pa = a.qualifier?.points ?? -1;
-      const pb = b.qualifier?.points ?? -1;
-      return pb - pa;
-    });
+    } else {
+      // Legacy fallback: tournament-wide pairRequest pairs. Filter to this group's
+      // category (a NULL-category pair is tournament-wide and shows in any group).
+      const seenPrIds = new Set<number>();
+      for (const p of acceptedPairs) {
+        if (!p.pairRequestId) continue;
+        if (seenPrIds.has(p.pairRequestId)) continue;
+        seenPrIds.add(p.pairRequestId);
+        if (blockedPrIds.has(p.pairRequestId)) continue;
+        if (groupCatId != null && p.categoryId != null && p.categoryId !== groupCatId) continue;
+        if (groupCatId == null && p.categoryId != null) continue;
+        if (p.profile1?.id && p.profile2?.id) {
+          const key = [Math.min(p.profile1.id, p.profile2.id), Math.max(p.profile1.id, p.profile2.id)].join("-");
+          const tid = teamIdByPlayerKey.get(key);
+          if (tid && blockedTeamIds.has(tid)) continue;
+        }
+        const uKey = userKey(p.user1?.id ?? p.fromUserId, p.user2?.id ?? p.toUserId);
+        const q = uKey ? qualifierByUserKey.get(uKey) : undefined;
+        decorated.push({
+          value: `pr-${p.pairRequestId}`,
+          label: `${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`,
+          qualifier: q,
+        });
+      }
+    }
+    // Sort by points DESC so top finishers appear first.
+    decorated.sort((a, b) => (b.qualifier?.points ?? -1) - (a.qualifier?.points ?? -1));
     return decorated;
   }
 
@@ -5106,8 +5143,8 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                             {options.length === 0 ? (
                               <div className="px-3 py-2 text-xs text-muted-foreground italic">No more pairs available</div>
                             ) : (
-                              options.map(({ pair: p, qualifier: q }: any) => (
-                                <SelectItem key={`pr-${p.pairRequestId}`} value={`pr-${p.pairRequestId}`}>
+                              options.map(({ value, label, qualifier: q }: any) => (
+                                <SelectItem key={value} value={value}>
                                   <div className="flex items-center gap-2">
                                     {q ? (
                                       <span className={cn("text-[10px] font-black uppercase tracking-wide tabular-nums px-1.5 py-0.5 rounded", rankColor(q.rank), "bg-muted/60")}>
@@ -5116,7 +5153,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                                     ) : (
                                       <span className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground/60 px-1.5 py-0.5 rounded bg-muted/40">No matches yet</span>
                                     )}
-                                    <span>{`${p.user1?.fullName || "?"} & ${p.user2?.fullName || "?"}`}</span>
+                                    <span>{label}</span>
                                   </div>
                                 </SelectItem>
                               ))
