@@ -161,8 +161,7 @@ function DashboardContent({
 
   const clubName = useMemo(() => clubs.find((c) => c.id === effectiveClubId)?.name || "Your Club", [clubs, effectiveClubId]);
 
-  // Use the profile for the club currently selected on the dashboard so the
-  // grade / win-rate match that club's leaderboard and profile page.
+  // Match stats to the club currently selected on the dashboard.
   const profile = useMemo(() => {
     const profiles = user?.playerProfiles || [];
     return (
@@ -172,7 +171,27 @@ function DashboardContent({
       null
     );
   }, [user, effectiveClubId]);
-  const grade = profile?.grade || profile?.category || "—";
+  // Show the player's BEST grade across all their club profiles so the dashboard
+  // badge matches the grade shown on the rankings/leaderboard and profile page
+  // (a player graded A1 in one club should not read as a default C3 here).
+  const grade = useMemo(() => {
+    const profiles = (user?.playerProfiles || []) as any[];
+    const GRADE_ORDER = ["C3", "C2", "C1", "B3", "B2", "B1", "A3", "A2", "A1"];
+    let best: string | undefined;
+    let bestIdx = -1;
+    for (const p of profiles) {
+      const g: string | undefined = p?.grade || p?.category;
+      if (!g) continue;
+      const idx = GRADE_ORDER.indexOf(g);
+      if (idx > bestIdx) {
+        bestIdx = idx;
+        best = g;
+      } else if (idx === -1 && best === undefined) {
+        best = g;
+      }
+    }
+    return best || "—";
+  }, [user]);
   const matchesPlayed = profile?.matchesPlayed ?? 0;
   const matchesWon = profile?.matchesWon ?? 0;
   const winRate = matchesPlayed > 0 ? Math.round((matchesWon / matchesPlayed) * 100) : 0;
