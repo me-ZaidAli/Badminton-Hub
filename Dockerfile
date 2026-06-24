@@ -2,7 +2,7 @@
 FROM node:20-alpine AS builder
 WORKDIR /app
 
-# Install ALL deps (dev included) so the build tools (esbuild, vite, tsx) work
+# Install ALL deps (dev included) so vite and esbuild are available for the build
 COPY package*.json ./
 RUN npm ci
 
