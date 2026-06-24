@@ -6,12 +6,11 @@ dist
 
 # Dev/deploy tooling not needed in the image
 deploy/
-artifacts/
-attached_assets/
+# artifacts/
 docs/
 exports/
 scripts/
-public/
+# public/
 
 # Git
 .git
