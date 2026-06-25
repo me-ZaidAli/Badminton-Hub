@@ -469,6 +469,23 @@ export function useAdminCreatePair() {
   });
 }
 
+export function useAdminRebuildTeams() {
+  return useMutation({
+    mutationFn: async ({ tournamentId, categoryId }: { tournamentId: number; categoryId?: number | null }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/admin-rebuild-teams`, { categoryId: categoryId ?? null });
+      return res.json();
+    },
+    onSuccess: (_data: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "pairs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "pair-requests"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "teams-by-category"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "finances"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "registrations"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", variables.tournamentId, "player-pool"] });
+    },
+  });
+}
+
 export function useAdminAddPlayer() {
   return useMutation({
     mutationFn: async ({ tournamentId, userId }: { tournamentId: number; userId: number }) => {

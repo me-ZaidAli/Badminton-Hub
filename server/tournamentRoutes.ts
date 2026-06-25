@@ -2157,6 +2157,182 @@ export function registerTournamentRoutes(app: Express) {
 
 
 
+  // Repair tool: rebuild missing `tournament_teams` rows from ACCEPTED, category-scoped
+  // pair-requests. Idempotent and non-destructive — it only INSERTs pairs that have no
+  // existing team row for either player in that category; everything already present is
+  // skipped (the per-category unique indexes are the final guard). Fees are snapshotted
+  // with the same multi-category discount logic used on accept. Admin-gated.
+  app.post("/api/tournaments/:id/admin-rebuild-teams", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+      const { categoryId: rawCategoryId } = req.body || {};
+      let onlyCategoryId: number | null = null;
+      if (rawCategoryId !== undefined && rawCategoryId !== null && rawCategoryId !== "") {
+        const n = Number(rawCategoryId);
+        if (!Number.isInteger(n) || n <= 0) return res.status(400).json({ message: "Invalid categoryId" });
+        onlyCategoryId = n;
+      }
+
+      const reqs = await db.select().from(tournamentPairRequests).where(and(
+        eq(tournamentPairRequests.tournamentId, tournamentId),
+        eq(tournamentPairRequests.status, "ACCEPTED"),
+      ));
+
+      // De-duplicate by (categoryId, unordered user pair). Skip legacy NULL-category pairs.
+      const seen = new Set<string>();
+      const pairs: { categoryId: number; aUser: number; bUser: number }[] = [];
+      for (const r of reqs) {
+        const catId = (r as any).categoryId as number | null;
+        if (catId == null) continue;
+        if (onlyCategoryId && catId !== onlyCategoryId) continue;
+        if (r.fromUserId == null || r.toUserId == null) continue;
+        const lo = Math.min(r.fromUserId, r.toUserId);
+        const hi = Math.max(r.fromUserId, r.toUserId);
+        const key = `${catId}:${lo}:${hi}`;
+        if (seen.has(key)) continue;
+        seen.add(key);
+        pairs.push({ categoryId: catId, aUser: lo, bUser: hi });
+      }
+
+      // Resolve the tournament's club once — new team rows must use the player's
+      // profile IN THIS CLUB (a user can have a profile per club; the accept path
+      // historically picked an arbitrary one, so existing rows may reference other
+      // clubs' profiles — which is exactly why duplicate detection below is by USER
+      // id, not profile id).
+      const [tour] = await db.select().from(tournaments).where(eq(tournaments.id, tournamentId));
+      const clubId = (tour as any)?.clubId ?? null;
+
+      // Every profile id a user owns (across all clubs) — for user-level dedup so we
+      // recognise an existing pair even when it was materialised with a different
+      // club's profile.
+      async function profileIdsForUser(userId: number, tx: any): Promise<number[]> {
+        const rows = await tx.select({ id: playerProfiles.id }).from(playerProfiles).where(eq(playerProfiles.userId, userId));
+        return rows.map((r: any) => r.id);
+      }
+      // Distinct OTHER categories in this tournament the user already occupies (via
+      // ANY of their profiles) — drives the multi-category discount at user level.
+      async function userOtherCategoryCount(userProfileIds: number[], excludeCategoryId: number, tx: any): Promise<number> {
+        if (!userProfileIds.length) return 0;
+        const rows = await tx.select({ catId: tournamentTeams.categoryId })
+          .from(tournamentTeams)
+          .innerJoin(tournamentCategories, eq(tournamentCategories.id, tournamentTeams.categoryId))
+          .where(and(
+            eq(tournamentCategories.tournamentId, tournamentId),
+            sql`${tournamentTeams.categoryId} <> ${excludeCategoryId}`,
+            or(inArray(tournamentTeams.player1Id, userProfileIds), inArray(tournamentTeams.player2Id, userProfileIds)),
+          ));
+        return new Set(rows.map((r: any) => r.catId)).size;
+      }
+
+      let created = 0;
+      let skipped = 0;
+      const errors: { categoryId: number; reason: string }[] = [];
+      const catCache = new Map<number, any>();
+
+      for (const p of pairs) {
+        try {
+          let cat = catCache.get(p.categoryId);
+          if (!cat) {
+            [cat] = await db.select().from(tournamentCategories).where(eq(tournamentCategories.id, p.categoryId));
+            if (cat) catCache.set(p.categoryId, cat);
+          }
+          if (!cat || cat.tournamentId !== tournamentId) { errors.push({ categoryId: p.categoryId, reason: "Category not in tournament" }); continue; }
+          if ((cat as any).playersPerSide < 2) { skipped++; continue; }
+
+          await db.transaction(async (tx: any) => {
+            // New rows use the tournament-club profile (deterministic). Fall back to
+            // the user's first profile only when the tournament has no club.
+            const profCond1 = clubId != null
+              ? and(eq(playerProfiles.userId, p.aUser), eq(playerProfiles.clubId, clubId))
+              : eq(playerProfiles.userId, p.aUser);
+            const profCond2 = clubId != null
+              ? and(eq(playerProfiles.userId, p.bUser), eq(playerProfiles.clubId, clubId))
+              : eq(playerProfiles.userId, p.bUser);
+            const [prof1] = await tx.select().from(playerProfiles).where(profCond1);
+            const [prof2] = await tx.select().from(playerProfiles).where(profCond2);
+            if (!prof1 || !prof2) { throw new Error("A player has no profile in this club"); }
+
+            // User-level existence check: every profile id either user owns.
+            const aIds = await profileIdsForUser(p.aUser, tx);
+            const bIds = await profileIdsForUser(p.bUser, tx);
+            const allIds = Array.from(new Set([...aIds, ...bIds]));
+            const aSet = new Set(aIds), bSet = new Set(bIds);
+
+            const existing = allIds.length === 0 ? [] : await tx.select().from(tournamentTeams).where(and(
+              eq(tournamentTeams.categoryId, p.categoryId),
+              or(inArray(tournamentTeams.player1Id, allIds), inArray(tournamentTeams.player2Id, allIds)),
+            ));
+
+            // Already a FULL pair for either user here → already restored, leave it.
+            for (const t of existing) {
+              if (t.player2Id !== null) { throw Object.assign(new Error("A player is already paired in this category"), { rebuildSkip: true }); }
+            }
+
+            // Collapse SOLO placeholders, preserving any fee/payment snapshot, but
+            // never destroy match history — if a solo somehow has matches, skip.
+            let p1Fee: number | null = null, p2Fee: number | null = null;
+            let p1Pay: "UNPAID" | "PENDING" | "PAID" = "UNPAID", p2Pay: "UNPAID" | "PENDING" | "PAID" = "UNPAID";
+            let p1PaidAt: Date | null = null, p2PaidAt: Date | null = null;
+            for (const t of existing) {
+              const matchRows = await tx.select({ id: tournamentMatches.id }).from(tournamentMatches)
+                .where(or(eq(tournamentMatches.teamAId, t.id), eq(tournamentMatches.teamBId, t.id)));
+              if (matchRows.length > 0) { throw Object.assign(new Error("A player's existing entry already has matches"), { rebuildSkip: true }); }
+              if (aSet.has(t.player1Id)) {
+                if (t.player1EntryFeePence != null) p1Fee = t.player1EntryFeePence;
+                if (t.player1PaymentStatus) p1Pay = t.player1PaymentStatus;
+                if (t.player1PaidAt) p1PaidAt = t.player1PaidAt;
+              } else if (bSet.has(t.player1Id)) {
+                if (t.player1EntryFeePence != null) p2Fee = t.player1EntryFeePence;
+                if (t.player1PaymentStatus) p2Pay = t.player1PaymentStatus;
+                if (t.player1PaidAt) p2PaidAt = t.player1PaidAt;
+              }
+              await tx.delete(tournamentStandings).where(eq(tournamentStandings.teamId, t.id));
+              await tx.delete(tournamentGroupPairs).where(eq(tournamentGroupPairs.teamId, t.id));
+              await tx.delete(tournamentTeams).where(eq(tournamentTeams.id, t.id));
+            }
+
+            if (p1Fee == null) {
+              const base1 = await resolveCategoryFeePence(p.categoryId, p.aUser, tx);
+              p1Fee = applyMultiCategoryDiscount(base1, await userOtherCategoryCount(aIds, p.categoryId, tx));
+            }
+            if (p2Fee == null) {
+              const base2 = await resolveCategoryFeePence(p.categoryId, p.bUser, tx);
+              p2Fee = applyMultiCategoryDiscount(base2, await userOtherCategoryCount(bIds, p.categoryId, tx));
+            }
+
+            try {
+              await tx.insert(tournamentTeams).values({
+                categoryId: p.categoryId,
+                player1Id: prof1.id,
+                player2Id: prof2.id,
+                player1EntryFeePence: p1Fee,
+                player2EntryFeePence: p2Fee,
+                player1PaymentStatus: p1Pay,
+                player2PaymentStatus: p2Pay,
+                player1PaidAt: p1PaidAt,
+                player2PaidAt: p2PaidAt,
+              });
+            } catch (e: any) {
+              if (/unique|duplicate/i.test(e?.message || "")) { throw Object.assign(new Error("Already paired in this category"), { rebuildSkip: true }); }
+              throw e;
+            }
+            created++;
+          });
+        } catch (e: any) {
+          if (e?.rebuildSkip) { skipped++; }
+          else errors.push({ categoryId: p.categoryId, reason: e?.message || "error" });
+        }
+      }
+
+      res.json({ created, skipped, totalPairs: pairs.length, errors });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
   app.post("/api/tournaments/:id/admin-create-pair", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {

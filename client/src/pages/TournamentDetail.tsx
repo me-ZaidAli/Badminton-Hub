@@ -9,7 +9,7 @@ import {
   useTournamentRegistrations, useTournamentAllPlayers, useTournamentPairs, useTournamentTeamsByCategory,
   useTournamentPlayerPool, useTournamentPairRequests, useTournamentWaitlist,
   useRegisterForTournament, useUpdateRegistration, useDeleteRegistration, useSendPairRequest, useRespondPairRequest, useUpdatePairName,
-  useWithdrawRegistration, useAdminCreatePair, useAdminAddPlayer, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
+  useWithdrawRegistration, useAdminCreatePair, useAdminRebuildTeams, useAdminAddPlayer, useAutoPopulateTeams, useBulkAssignGroups, useAssignTeamGroup,
   useTournamentIsAdmin, useTournamentAdmins, useTournamentEligibleAdmins,
   useAddTournamentAdmin, useRemoveTournamentAdmin,
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
@@ -48,7 +48,7 @@ import {
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, UserMinus, UserX, Clock, Shield, ChevronRight, ChevronDown, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
-  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, ArrowRight, Download, Image as ImageIcon,
+  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, RefreshCw, ArrowRight, Download, Image as ImageIcon,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -5404,7 +5404,25 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
   const updateTeamMutation = useUpdateTeam();
   const deleteTeamMutation = useDeleteTeam();
   const adminCreatePairMutation = useAdminCreatePair();
+  const rebuildTeamsMutation = useAdminRebuildTeams();
   const addPlayerMutation = useAdminAddPlayer();
+  const handleRebuildTeams = () => {
+    rebuildTeamsMutation.mutate({ tournamentId }, {
+      onSuccess: (data: any) => {
+        const created = data?.created ?? 0;
+        const skipped = data?.skipped ?? 0;
+        toast({
+          title: created > 0 ? `Restored ${created} pair${created === 1 ? "" : "s"}` : "Nothing to restore",
+          description: created > 0
+            ? `${created} missing pair${created === 1 ? "" : "s"} rebuilt from accepted requests (${skipped} already present).`
+            : `All accepted pairs already have teams (${skipped} checked).`,
+        });
+      },
+      onError: (err: any) => {
+        toast({ title: "Restore failed", description: err?.message || "Could not rebuild pairs", variant: "destructive" });
+      },
+    });
+  };
   const [addPlayerOpen, setAddPlayerOpen] = useState(false);
   const [addPlayerSearch, setAddPlayerSearch] = useState("");
   const { data: systemUsers } = useQuery<any[]>({ queryKey: ["/api/tournaments", tournamentId, "addable-players"], enabled: addPlayerOpen });
@@ -5591,6 +5609,23 @@ function AdminTab({ tournamentId, tournament, categories, canManage }: { tournam
 
       {adminView === "pairs" && (
         <div className="space-y-3">
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-4">
+            <div className="flex items-start justify-between gap-3 flex-wrap">
+              <div className="space-y-0.5">
+                <h4 className="text-sm font-black text-foreground">Restore missing pairs</h4>
+                <p className="text-xs text-muted-foreground max-w-md">
+                  Rebuilds any accepted pairs that are missing from a category. Safe to run anytime — it only adds what's missing and never removes existing pairs.
+                </p>
+              </div>
+              <Button size="sm" variant="outline" className="border-amber-500/40 text-amber-600 hover:bg-amber-500/10 font-bold text-xs whitespace-nowrap"
+                data-testid="button-rebuild-teams"
+                disabled={rebuildTeamsMutation.isPending}
+                onClick={handleRebuildTeams}>
+                {rebuildTeamsMutation.isPending ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5 mr-1" />}
+                Restore missing pairs
+              </Button>
+            </div>
+          </div>
           <div className="rounded-xl border border-emerald-500/30 bg-emerald-500/5 p-4">
             {!showCreatePair ? (
               <Button size="sm" className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs"
