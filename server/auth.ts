@@ -38,7 +38,9 @@ async function comparePasswords(supplied: string, stored: string | null | undefi
 export function setupAuth(app: Express) {
   app.set("trust proxy", 1);
 
-  const forceSecureCookie = true;
+  // Set COOKIE_SECURE=true in .env when serving over HTTPS.
+  // Leave unset (or false) for plain HTTP (local / no-TLS deployments).
+  const forceSecureCookie = process.env.COOKIE_SECURE === "true";
   const cookieSecure = forceSecureCookie;
   const cookieSameSite: "none" | "lax" = cookieSecure ? "none" : "lax";
 
