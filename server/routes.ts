@@ -6005,13 +6005,31 @@ export async function registerRoutes(
       // Guarantee at least one stage and backfill legacy tournament rows so the
       // planner always has a stage to work with.
       await storage.ensureDefaultStage(sessionId);
-      const [stages, groups, entries, plannedMatches, signups] = await Promise.all([
+      const [stages, groups, entries, plannedMatches, signups, allStageMatches] = await Promise.all([
         storage.getSessionStages(sessionId),
         storage.getSessionGroups(sessionId),
         storage.getSessionGroupEntries(sessionId),
         storage.getSessionPlannedMatches(sessionId),
         storage.getSessionSignups(sessionId),
+        db.select({ stageId: matches.stageId, status: matches.status }).from(matches).where(and(
+          eq(matches.sessionId, sessionId),
+          isNull(matches.deletedAt),
+        )),
       ]);
+      // A stage is "ready to advance" once it has at least one match and every
+      // match has finished (no PLANNED/QUEUED/LIVE left). Mirrors the hard guard
+      // on POST /stages/:stageId/advance.
+      const stageReady: Record<number, boolean> = {};
+      const stageHasMatch: Record<number, boolean> = {};
+      const stageHasUnfinished: Record<number, boolean> = {};
+      for (const m of allStageMatches) {
+        if (m.stageId == null) continue;
+        stageHasMatch[m.stageId] = true;
+        if (m.status !== "COMPLETED") stageHasUnfinished[m.stageId] = true;
+      }
+      for (const s of stages) {
+        stageReady[s.id] = !!stageHasMatch[s.id] && !stageHasUnfinished[s.id];
+      }
       const attendees = signups
         .filter(s => s.signupStatus === "CONFIRMED")
         .map(s => ({
@@ -6030,6 +6048,7 @@ export async function registerRoutes(
         entries,
         plannedMatches,
         attendees,
+        stageReady,
       });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to load tournament plan" });
@@ -6511,6 +6530,19 @@ export async function registerRoutes(
 
       const ALLOWED_MODES = ["RANDOMISE", "HIERARCHICAL", "DESTRUCTION", "MANUAL"];
       const mode = ALLOWED_MODES.includes(req.body?.mode) ? req.body.mode : "MANUAL";
+
+      // Completion gate: a stage may only be advanced once every one of its
+      // matches has finished. Block if any PLANNED/QUEUED/LIVE match remains.
+      const unfinished = await db.select({ id: matches.id }).from(matches).where(and(
+        eq(matches.sessionId, sessionId),
+        eq(matches.stageId, stageId),
+        isNull(matches.deletedAt),
+        ne(matches.status, "COMPLETED"),
+      )).limit(1);
+      if (unfinished.length > 0) {
+        return res.status(409).json({ message: "Finish all matches in this stage before advancing." });
+      }
+
       const standings = await storage.getStageStandings(sessionId, stageId);
       type AdvTeam = { player1Id: number; player2Id: number | null; rank: number; matchesWon: number; setsWon: number; pointsWon: number };
       const advancing: AdvTeam[] = [];

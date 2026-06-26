@@ -638,6 +638,7 @@ export interface TournamentPlanState {
   entries: Array<{ id: number; sessionId: number; stageId: number | null; groupId: number | null; player1Id: number; player2Id: number | null; displayOrder: number }>;
   plannedMatches: Array<{ id: number; sessionId: number; stageId: number | null; groupId: number | null; plannedOrder: number | null; teamAPlayer1Id: number | null; teamAPlayer2Id: number | null; teamBPlayer1Id: number | null; teamBPlayer2Id: number | null; courtNumber: number | null }>;
   attendees: Array<{ profileId: number; fullName: string; gender: string | null; grade: string | null; attendanceStatus: string | null }>;
+  stageReady?: Record<number, boolean>;
 }
 
 export function useTournamentPlan(sessionId: number, enabled = true) {
