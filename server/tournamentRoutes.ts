@@ -143,43 +143,75 @@ function generateRoundRobinSchedule(teamIds: number[]): [number, number][] {
 // with their group slots, matches, and standings rows.
 async function purgeOrphanTeamsForCategory(cat: any) {
   const isDoublesCat = (cat.playersPerSide || 1) >= 2;
+  const teamsInCat = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, cat.id));
+  if (teamsInCat.length === 0) return;
+
+  // A team references club-scoped player_profiles ids, but pairing/registration
+  // lives in USER space — and a multi-club user can have several profiles. So we
+  // validate every team in USER space: map each referenced profile id -> userId.
+  const profileIds = Array.from(new Set(
+    teamsInCat.flatMap(t => [t.player1Id, t.player2Id]).filter((x): x is number => !!x),
+  ));
+  const profs = profileIds.length
+    ? await db.select({ id: playerProfiles.id, userId: playerProfiles.userId })
+        .from(playerProfiles).where(inArray(playerProfiles.id, profileIds))
+    : [];
+  const userIdByProfileId = new Map<number, number>();
+  for (const p of profs) userIdByProfileId.set(p.id, p.userId);
+  const pairKey = (a: number, b: number) => {
+    const [x, y] = [a, b].sort((m, n) => m - n);
+    return `${x}-${y}`;
+  };
+
+  // Who is legitimately registered (any approved registration) — used to keep
+  // singles entries and doubles "looking for partner" placeholders alive.
   const allRegs = await db.select().from(tournamentRegistrations)
     .where(and(eq(tournamentRegistrations.tournamentId, cat.tournamentId), eq(tournamentRegistrations.status, "APPROVED")));
-  const validProfilePairKeys = new Set<string>();
-  const validSoloProfileIds = new Set<number>();
+  const approvedUserIds = new Set<number>(allRegs.map(r => r.userId));
+
+  const orphanIds: number[] = [];
   if (isDoublesCat) {
-    const pairRegsByUser = new Map<number, number>();
+    const validUserPairKeys = new Set<string>();
+    // SOURCE OF TRUTH (modern multi-category flow): an ACCEPTED pair_request for
+    // THIS category (plus legacy tournament-wide NULL-category accepted pairs).
+    // This is what was missing before — teams created from per-category pair
+    // requests were wrongly treated as orphans and deleted on every regenerate,
+    // taking their group assignments with them.
+    const accepted = await db.select().from(tournamentPairRequests)
+      .where(and(
+        eq(tournamentPairRequests.tournamentId, cat.tournamentId),
+        eq(tournamentPairRequests.status, "ACCEPTED"),
+        or(eq(tournamentPairRequests.categoryId, cat.id), isNull(tournamentPairRequests.categoryId)),
+      ));
+    for (const pr of accepted) validUserPairKeys.add(pairKey(pr.fromUserId, pr.toUserId));
+    // LEGACY source: mutual APPROVED PAIR registrations.
+    const partnerByUser = new Map<number, number>();
     for (const reg of allRegs) {
-      if (reg.registrationType === "PAIR" && reg.partnerId) pairRegsByUser.set(reg.userId, reg.partnerId);
+      if (reg.registrationType === "PAIR" && reg.partnerId) partnerByUser.set(reg.userId, reg.partnerId);
     }
-    for (const [uid, pid] of pairRegsByUser.entries()) {
-      if (pairRegsByUser.get(pid) !== uid) continue;
-      const [p1] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, uid));
-      const [p2] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pid));
-      if (!p1 || !p2) continue;
-      const [a, b] = [p1.id, p2.id].sort((x, y) => x - y);
-      validProfilePairKeys.add(`${a}-${b}`);
+    for (const [uid, pid] of partnerByUser.entries()) {
+      if (partnerByUser.get(pid) === uid) validUserPairKeys.add(pairKey(uid, pid));
+    }
+    for (const t of teamsInCat) {
+      let keep = false;
+      if (t.player1Id && t.player2Id) {
+        const u1 = userIdByProfileId.get(t.player1Id);
+        const u2 = userIdByProfileId.get(t.player2Id);
+        if (u1 && u2) keep = validUserPairKeys.has(pairKey(u1, u2));
+      } else if (t.player1Id) {
+        // "Looking for partner" placeholder — keep while the player is registered.
+        const u1 = userIdByProfileId.get(t.player1Id);
+        keep = !!(u1 && approvedUserIds.has(u1));
+      }
+      if (!keep) orphanIds.push(t.id);
     }
   } else {
-    for (const reg of allRegs) {
-      const [profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, reg.userId));
-      if (profile) validSoloProfileIds.add(profile.id);
+    for (const t of teamsInCat) {
+      const u1 = t.player1Id ? userIdByProfileId.get(t.player1Id) : undefined;
+      if (!(u1 && approvedUserIds.has(u1))) orphanIds.push(t.id);
     }
   }
-  const teamsInCat = await db.select().from(tournamentTeams).where(eq(tournamentTeams.categoryId, cat.id));
-  const orphanIds: number[] = [];
-  for (const t of teamsInCat) {
-    let keep = false;
-    if (isDoublesCat) {
-      if (t.player1Id && t.player2Id) {
-        const [a, b] = [t.player1Id, t.player2Id].sort((x, y) => x - y);
-        keep = validProfilePairKeys.has(`${a}-${b}`);
-      }
-    } else {
-      keep = !!(t.player1Id && validSoloProfileIds.has(t.player1Id));
-    }
-    if (!keep) orphanIds.push(t.id);
-  }
+
   if (orphanIds.length > 0) {
     await db.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.teamId, orphanIds));
     await db.delete(tournamentMatches).where(or(
@@ -1048,16 +1080,63 @@ export function registerTournamentRoutes(app: Express) {
       await db.delete(tournamentStandings).where(eq(tournamentStandings.categoryId, catId));
 
       if (cat.format === "ROUND_ROBIN") {
-        let order = 0;
-        const rrSchedule = generateRoundRobinSchedule(teams.map(t => t.id));
-        for (const [aId, bId] of rrSchedule) {
-          await db.insert(tournamentMatches).values({
-            categoryId: catId, teamAId: aId, teamBId: bId,
-            round: 1, matchOrder: order++, groupNumber: 1,
-          });
+        // If the admin has organised pairs into groups, RESPECT those groups:
+        // generate an all-vs-all WITHIN each group and NEVER across groups. This
+        // is non-destructive — we never delete, reshuffle, or auto-fill the
+        // admin's group assignments (empty groups, e.g. knockout stages, are left
+        // untouched). Fall back to one flat round-robin across the whole category
+        // only when no group has at least 2 pairs assigned.
+        const rrGroups = await db.select().from(tournamentGroups)
+          .where(and(
+            eq(tournamentGroups.tournamentId, cat.tournamentId),
+            eq(tournamentGroups.categoryId, catId),
+          ))
+          .orderBy(asc(tournamentGroups.groupOrder));
+        const rrGroupIds = rrGroups.map(g => g.id);
+        const rrGroupPairs = rrGroupIds.length
+          ? await db.select().from(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, rrGroupIds))
+          : [];
+        const teamIdSet = new Set(teams.map(t => t.id));
+        const groupTeamIds = new Map<number, number[]>();
+        for (const grp of rrGroups) {
+          const ids = rrGroupPairs
+            .filter(gp => gp.groupId === grp.id && gp.teamId && teamIdSet.has(gp.teamId))
+            .map(gp => gp.teamId as number);
+          groupTeamIds.set(grp.id, ids);
         }
-        for (const team of teams) {
-          await db.insert(tournamentStandings).values({ categoryId: catId, teamId: team.id, groupNumber: 1 });
+        const groupsWithPairs = rrGroups.filter(g => (groupTeamIds.get(g.id) || []).length >= 2);
+
+        let order = 0;
+        if (groupsWithPairs.length > 0) {
+          for (const grp of groupsWithPairs) {
+            // The Matches/Standings views resolve a match's group label AND its
+            // stage by treating groupNumber as the group's groupOrder (see
+            // groupStageByNumber/groupLabelByNumber in TournamentDetail.tsx), so
+            // matches MUST carry the real groupOrder — never a compressed counter.
+            const gNum = grp.groupOrder ?? 0;
+            const ids = groupTeamIds.get(grp.id)!;
+            const sched = generateRoundRobinSchedule(ids);
+            for (const [aId, bId] of sched) {
+              await db.insert(tournamentMatches).values({
+                categoryId: catId, teamAId: aId, teamBId: bId,
+                round: 1, matchOrder: order++, groupNumber: gNum, subGroupNumber: 1,
+              });
+            }
+            for (const tid of ids) {
+              await db.insert(tournamentStandings).values({ categoryId: catId, teamId: tid, groupNumber: gNum, subGroupNumber: 1 });
+            }
+          }
+        } else {
+          const rrSchedule = generateRoundRobinSchedule(teams.map(t => t.id));
+          for (const [aId, bId] of rrSchedule) {
+            await db.insert(tournamentMatches).values({
+              categoryId: catId, teamAId: aId, teamBId: bId,
+              round: 1, matchOrder: order++, groupNumber: 1,
+            });
+          }
+          for (const team of teams) {
+            await db.insert(tournamentStandings).values({ categoryId: catId, teamId: team.id, groupNumber: 1 });
+          }
         }
       } else if (cat.format === "GROUP_KNOCKOUT") {
         // Scope strictly to this category to avoid pulling in phantom groups from other categories/tournaments

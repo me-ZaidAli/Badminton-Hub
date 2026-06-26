@@ -67,3 +67,27 @@ any unscoped builder re-introduces the leak. Bonus bug: `reset-and-rebuild`'s
 pair in this category just because they're paired in a DIFFERENT category.
 Round-robin `generateRoundRobinSchedule` is correct all-vs-all already — mixed
 rounds were always an input-contamination symptom, not a scheduler bug.
+
+**Orphan-team purge must honour ACCEPTED pair-requests, not just PAIR
+registrations.** The pre-fixture purge (`purgeOrphanTeamsForCategory`) once built
+its "valid pair" set ONLY from mutual PAIR registrations, so every modern
+per-category team (whose registrations are INDIVIDUAL) looked like an orphan and
+was DELETED on every generate-matches run — taking its `tournament_group_pairs`
+with it. That is why admins' group assignments "kept disappearing on every
+deploy/regenerate" and the Add-Pair dropdown only ever showed the few legacy
+PAIR-reg survivors. Fix: a doubles team is valid if its USER-pair matches an
+ACCEPTED `tournament_pair_requests` for that category (or a legacy NULL-category
+accepted pair) OR a mutual PAIR registration; validate in USER space (map
+profile→userId) because multi-club users have several profiles.
+**Why:** the modern source of truth for "who is paired in this category" is
+ACCEPTED pair-requests / `tournament_teams`, never registrationType.
+
+**A match's `groupNumber` IS the group's `groupOrder`, never a compressed
+counter.** The Matches/Standings views resolve a match's stage and group label by
+`groupOrder` (`groupStageByNumber`/`groupLabelByNumber` in TournamentDetail.tsx
+key by `groupOrder === groupNumber`). When generating per-group round-robin
+fixtures, write `groupNumber = group.groupOrder` so sparse/non-contiguous group
+orders (common once empty knockout groups exist) still map to the right
+group/stage. ROUND_ROBIN fixture generation should do per-group all-vs-all
+whenever groups have ≥2 assigned teams (non-destructively — never delete/auto-fill
+empty groups), falling back to one flat round-robin only when no group is filled.
