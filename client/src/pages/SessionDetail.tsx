@@ -6563,9 +6563,39 @@ function EndSessionLeaderboardModal({ sessionId, open, onClose, onEndSession }: 
   onClose: () => void;
   onEndSession: () => void;
 }) {
-  const { data: leaderboard } = useSessionLeaderboard(sessionId);
+  const [selectedStageId, setSelectedStageId] = useState<number | null>(null);
+  const { data: stages = [] } = useSessionStages(sessionId);
+  const showStageTabs = stages.length > 1;
+  const activeStageId = showStageTabs ? selectedStageId : null;
+  const { data: leaderboard } = useSessionLeaderboard(sessionId, activeStageId);
 
   if (!open) return null;
+
+  const stageTabs = showStageTabs ? (
+    <div className="flex flex-wrap gap-1.5 mb-1" data-testid="end-session-stage-tabs">
+      <button
+        onClick={() => setSelectedStageId(null)}
+        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+          selectedStageId === null ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"
+        }`}
+        data-testid="end-session-stage-tab-overall"
+      >
+        Overall
+      </button>
+      {stages.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => setSelectedStageId(s.id)}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            selectedStageId === s.id ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"
+          }`}
+          data-testid={`end-session-stage-tab-${s.id}`}
+        >
+          {s.name}
+        </button>
+      ))}
+    </div>
+  ) : null;
 
   return (
     <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) onClose(); }}>
@@ -6579,6 +6609,7 @@ function EndSessionLeaderboardModal({ sessionId, open, onClose, onEndSession }: 
             Final rankings based on match results
           </DialogDescription>
         </DialogHeader>
+        {stageTabs}
         <div className="space-y-3 py-4">
           {(!leaderboard || leaderboard.length === 0) ? (
             <p className="text-center text-muted-foreground py-8">No completed matches yet</p>
