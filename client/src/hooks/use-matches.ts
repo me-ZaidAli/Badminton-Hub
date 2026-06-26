@@ -737,7 +737,7 @@ export const useDeleteStage = () =>
   useTournamentMutation<{ stageId: number }>((sid, a) => jsonReq("DELETE", `/api/sessions/${sid}/stages/${a.stageId}`), { success: "Stage removed", error: "Failed to delete stage" });
 
 export const useAdvanceStage = () =>
-  useTournamentMutation<{ stageId: number; mode: "RANDOMISE" | "MANUAL"; name?: string; advanceCount?: number; groupCount?: number }>(
+  useTournamentMutation<{ stageId: number; mode: "RANDOMISE" | "HIERARCHICAL" | "DESTRUCTION" | "MANUAL"; name?: string; advanceCount?: number; groupCount?: number }>(
     (sid, a) => jsonReq("POST", `/api/sessions/${sid}/stages/${a.stageId}/advance`, a),
     { success: "Teams advanced to the next stage", error: "Failed to advance stage" },
   );

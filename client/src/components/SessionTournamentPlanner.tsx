@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Plus, Trophy, Users, Trash2, Wand2, ChevronUp, ChevronDown,
   GripVertical, Swords, Loader2, Play, Undo2, ListOrdered, ArrowRightCircle,
-  Shuffle, Hand,
+  Shuffle, Hand, Layers, Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -605,10 +605,18 @@ function AdvanceDialog({
   onAdvanced: (newStageId: number) => void;
 }) {
   const advance = useAdvanceStage();
-  const [mode, setMode] = useState<"RANDOMISE" | "MANUAL">("RANDOMISE");
+  const [mode, setMode] = useState<"RANDOMISE" | "HIERARCHICAL" | "DESTRUCTION" | "MANUAL">("RANDOMISE");
   const [name, setName] = useState("");
   const [groupCount, setGroupCount] = useState(defaultGroupCount);
   const [advanceCount, setAdvanceCount] = useState(2);
+
+  const showGroupCount = mode === "RANDOMISE" || mode === "DESTRUCTION";
+  const modeBlurb: Record<typeof mode, string> = {
+    RANDOMISE: "Shuffle advancing teams across new court groups.",
+    HIERARCHICAL: "Group by finishing position — all 1st places together, all 2nd places together, and so on (strong vs strong).",
+    DESTRUCTION: "Balanced snake seeding — the strongest meet the weakest in each group (1 vs 4, 2 vs 3).",
+    MANUAL: "Drop advancing teams into the new stage's tray to place by hand.",
+  };
 
   const submit = () => {
     advance.mutate(
@@ -618,7 +626,7 @@ function AdvanceDialog({
         mode,
         name: name.trim() || undefined,
         advanceCount,
-        groupCount: mode === "RANDOMISE" ? groupCount : undefined,
+        groupCount: showGroupCount ? groupCount : undefined,
       },
       {
         onSuccess: (data: any) => {
@@ -663,6 +671,24 @@ function AdvanceDialog({
               <Shuffle className="w-4 h-4" /> Randomise
             </button>
             <button
+              onClick={() => setMode("HIERARCHICAL")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition ${
+                mode === "HIERARCHICAL" ? "bg-cyan-500/20 border-cyan-400 text-white" : "bg-white/5 border-white/10 text-white/70"
+              }`}
+              data-testid="button-mode-hierarchical"
+            >
+              <Layers className="w-4 h-4" /> Hierarchical
+            </button>
+            <button
+              onClick={() => setMode("DESTRUCTION")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition ${
+                mode === "DESTRUCTION" ? "bg-cyan-500/20 border-cyan-400 text-white" : "bg-white/5 border-white/10 text-white/70"
+              }`}
+              data-testid="button-mode-destruction"
+            >
+              <Zap className="w-4 h-4" /> Destruction
+            </button>
+            <button
               onClick={() => setMode("MANUAL")}
               className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition ${
                 mode === "MANUAL" ? "bg-cyan-500/20 border-cyan-400 text-white" : "bg-white/5 border-white/10 text-white/70"
@@ -673,13 +699,11 @@ function AdvanceDialog({
             </button>
           </div>
           <p className="text-[11px] text-white/40 mt-1.5">
-            {mode === "RANDOMISE"
-              ? "Shuffle advancing teams across new court groups."
-              : "Drop advancing teams into the new stage's tray to place by hand."}
+            {modeBlurb[mode]}
           </p>
         </div>
 
-        {mode === "RANDOMISE" && (
+        {showGroupCount && (
           <div className="flex items-center gap-2">
             <label className="text-xs text-white/60">Number of groups</label>
             <Input

@@ -22,3 +22,10 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
   **How to apply:** fetch `useSessionStages(sessionId)` once high up (e.g. MatchesView / CompletedSessionView) and pass the array down as a `stages` prop rather than each leaf re-fetching.
 - **Stage-filtered leaderboard:** `useSessionLeaderboard(sessionId, stageId?)` appends `?stageId=` only when set; queryKey gains a `stageId ?? "all"` segment. Existing prefix invalidations (`["/api/sessions", id, "leaderboard"]`) still match via TanStack v5 prefix matching — don't "fix" them.
 - **Finalised-by-stage grouping** is derived on the frontend (no dedicated endpoint): sort COMPLETED matches by stage `displayOrder` then `completedAt`, emit a header row when `stageId` changes (NULL bucket sorts last at 9999). Both `CompletedMatches` (live) and `CompletedSessionView` (ended) do this.
+
+## Advance-to-next-stage seeding modes
+
+- Four placement modes for advancing teams (server allowlists them; invalid input silently falls back to MANUAL): **RANDOMISE** (shuffle + round-robin deal across `groupCount`), **HIERARCHICAL** (one group per finishing position — all rank-1 teams together, etc.; strong-with-strong), **DESTRUCTION** (snake-seed a global order so strongest meet weakest, e.g. 1v4/2v3), **MANUAL** (tray, `groupId:null`).
+- **The advance collector must capture each team's `rank` (and form tiebreakers)**, not just player ids — HIERARCHICAL buckets by `rank` and DESTRUCTION needs a global seed order (rank asc, then matchesWon/setsWon/pointsWon desc). `getStageStandings` already exposes these per standing.
+  **Why:** the original advance only read `{player1Id,player2Id}`; the new modes are impossible without rank/form.
+- `groupCount` only applies to RANDOMISE + DESTRUCTION (clamped `[1, advancing.length]`); HIERARCHICAL derives group count from distinct ranks; MANUAL ignores it. Frontend mirrors this: `showGroupCount = RANDOMISE||DESTRUCTION` gates the input and the payload field.

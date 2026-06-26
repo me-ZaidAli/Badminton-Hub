@@ -6493,9 +6493,13 @@ export async function registerRoutes(
     }
   });
 
-  // Advance the top teams of a stage into a brand-new next stage. Two modes:
-  //   RANDOMISE - shuffle advancing teams across `groupCount` new groups.
-  //   MANUAL    - drop advancing teams into the next stage's unassigned tray.
+  // Advance the top teams of a stage into a brand-new next stage. Four modes:
+  //   RANDOMISE    - shuffle advancing teams across `groupCount` new groups.
+  //   HIERARCHICAL - group by finishing position: all 1st-places together, all
+  //                  2nd-places together, etc. (strong vs strong).
+  //   DESTRUCTION  - seeded snake distribution across `groupCount` groups so the
+  //                  best face the weakest (1 vs 4, 2 vs 3) in balanced groups.
+  //   MANUAL       - drop advancing teams into the next stage's unassigned tray.
   app.post("/api/sessions/:id/stages/:stageId/advance", async (req, res) => {
     const ctx = await requireSessionManager(req, res);
     if (!ctx) return;
@@ -6505,17 +6509,27 @@ export async function registerRoutes(
       const stage = await storage.getSessionStage(stageId);
       if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
 
-      const mode = req.body?.mode === "RANDOMISE" ? "RANDOMISE" : "MANUAL";
+      const ALLOWED_MODES = ["RANDOMISE", "HIERARCHICAL", "DESTRUCTION", "MANUAL"];
+      const mode = ALLOWED_MODES.includes(req.body?.mode) ? req.body.mode : "MANUAL";
       const standings = await storage.getStageStandings(sessionId, stageId);
-      const advancing: { player1Id: number; player2Id: number | null }[] = [];
+      type AdvTeam = { player1Id: number; player2Id: number | null; rank: number; matchesWon: number; setsWon: number; pointsWon: number };
+      const advancing: AdvTeam[] = [];
       for (const g of standings) {
         for (const s of g.standings) {
-          if (s.advancing) advancing.push({ player1Id: s.player1Id, player2Id: s.player2Id });
+          if (s.advancing) advancing.push({ player1Id: s.player1Id, player2Id: s.player2Id, rank: s.rank, matchesWon: s.matchesWon, setsWon: s.setsWon, pointsWon: s.pointsWon });
         }
       }
       if (advancing.length < 2) {
         return res.status(400).json({ message: "Need at least two advancing teams. Finish more matches or raise the teams-to-advance count." });
       }
+
+      // Global seed order: best teams first (by finishing rank, then form).
+      const seeded = [...advancing].sort((a, b) =>
+        a.rank - b.rank ||
+        b.matchesWon - a.matchesWon ||
+        b.setsWon - a.setsWon ||
+        b.pointsWon - a.pointsWon
+      );
 
       // Create the next stage.
       const stages = await storage.getSessionStages(sessionId);
@@ -6532,38 +6546,41 @@ export async function registerRoutes(
       // Mark the source stage complete.
       await storage.updateSessionStage(stageId, { status: "COMPLETED" });
 
+      // Build the buckets (one per new group) according to the chosen mode.
+      // MANUAL produces no buckets — teams land in the unassigned tray instead.
+      const requestedGroups = req.body?.groupCount != null ? Number(req.body.groupCount) : (standings.length || 1);
+      let buckets: AdvTeam[][] = [];
+
       if (mode === "RANDOMISE") {
-        const requested = req.body?.groupCount != null ? Number(req.body.groupCount) : standings.length || 1;
-        const groupCount = Math.max(1, Math.min(advancing.length, requested || 1));
-        const newGroups = [];
-        for (let i = 0; i < groupCount; i++) {
-          newGroups.push(await storage.createSessionGroup({
-            sessionId,
-            stageId: nextStage.id,
-            name: `Group ${i + 1}`,
-            courtNumber: i + 1,
-            displayOrder: i,
-          }));
-        }
-        // Shuffle then deal round-robin across the new groups.
+        const groupCount = Math.max(1, Math.min(advancing.length, requestedGroups || 1));
+        buckets = Array.from({ length: groupCount }, () => [] as AdvTeam[]);
         const shuffled = [...advancing];
         for (let i = shuffled.length - 1; i > 0; i--) {
           const j = Math.floor(Math.random() * (i + 1));
           [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
         }
-        const perGroupCount = new Array(groupCount).fill(0);
-        for (let i = 0; i < shuffled.length; i++) {
-          const gi = i % groupCount;
-          await storage.createSessionGroupEntry({
-            sessionId,
-            stageId: nextStage.id,
-            groupId: newGroups[gi].id,
-            player1Id: shuffled[i].player1Id,
-            player2Id: shuffled[i].player2Id,
-            displayOrder: perGroupCount[gi]++,
-          });
+        shuffled.forEach((t, i) => buckets[i % groupCount].push(t));
+      } else if (mode === "HIERARCHICAL") {
+        // One group per finishing position; all teams sharing a rank go together.
+        const byRank = new Map<number, AdvTeam[]>();
+        for (const t of seeded) {
+          if (!byRank.has(t.rank)) byRank.set(t.rank, []);
+          byRank.get(t.rank)!.push(t);
         }
-      } else {
+        buckets = [...byRank.keys()].sort((a, b) => a - b).map(r => byRank.get(r)!);
+      } else if (mode === "DESTRUCTION") {
+        // Snake-seed the global order so strongest meet weakest in each group.
+        const groupCount = Math.max(1, Math.min(advancing.length, requestedGroups || 1));
+        buckets = Array.from({ length: groupCount }, () => [] as AdvTeam[]);
+        let gi = 0, dir = 1;
+        for (const t of seeded) {
+          buckets[gi].push(t);
+          if (dir === 1) { if (gi === groupCount - 1) dir = -1; else gi++; }
+          else { if (gi === 0) dir = 1; else gi--; }
+        }
+      }
+
+      if (mode === "MANUAL") {
         // MANUAL: into the new stage's tray (groupId null).
         let order = 0;
         for (const t of advancing) {
@@ -6575,6 +6592,27 @@ export async function registerRoutes(
             player2Id: t.player2Id,
             displayOrder: order++,
           });
+        }
+      } else {
+        for (let gi = 0; gi < buckets.length; gi++) {
+          const group = await storage.createSessionGroup({
+            sessionId,
+            stageId: nextStage.id,
+            name: mode === "HIERARCHICAL" ? `Position ${gi + 1}` : `Group ${gi + 1}`,
+            courtNumber: gi + 1,
+            displayOrder: gi,
+          });
+          let order = 0;
+          for (const t of buckets[gi]) {
+            await storage.createSessionGroupEntry({
+              sessionId,
+              stageId: nextStage.id,
+              groupId: group.id,
+              player1Id: t.player1Id,
+              player2Id: t.player2Id,
+              displayOrder: order++,
+            });
+          }
         }
       }
 
