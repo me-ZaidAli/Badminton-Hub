@@ -54,3 +54,16 @@ category has no `tournament_teams` yet.
 **Why:** modern per-category pairs never appear in `/pairs` (registrationType
 stays INDIVIDUAL), so the legacy source is both wrong-category AND missing the
 real pairs.
+
+**Server-side team builders must filter accepted pair-requests by `categoryId`,
+not just `tournamentId`.** The endpoints that materialise teams before generating
+fixtures (`auto-populate-teams`, and the initial-build branch of
+`reset-and-rebuild`) selected ACCEPTED `tournament_pair_requests` tournament-wide
+and dumped them into the current category — Mixed pairs surfaced in Men's
+fixtures. Add `eq(tournamentPairRequests.categoryId, catId)`.
+**Why:** the "Regenerate Fixtures" button calls auto-populate before generate, so
+any unscoped builder re-introduces the leak. Bonus bug: `reset-and-rebuild`'s
+"player already in an ACCEPTED pair" dedup, when unscoped, DISSOLVES a player's
+pair in this category just because they're paired in a DIFFERENT category.
+Round-robin `generateRoundRobinSchedule` is correct all-vs-all already — mixed
+rounds were always an input-contamination symptom, not a scheduler bug.

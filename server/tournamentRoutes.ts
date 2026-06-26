@@ -647,8 +647,16 @@ export function registerTournamentRoutes(app: Express) {
       let added = 0;
 
       if (isDoubles) {
+        // Category isolation: only pull pairs that were accepted FOR THIS CATEGORY.
+        // Tournament-wide pairs (categoryId IS NULL) are deliberately excluded — auto-
+        // adding them into a specific category is exactly what mixed e.g. Mixed-doubles
+        // pairs into Men's-doubles fixtures.
         const pairs = await db.select().from(tournamentPairRequests)
-          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")));
+          .where(and(
+            eq(tournamentPairRequests.tournamentId, cat.tournamentId),
+            eq(tournamentPairRequests.status, "ACCEPTED"),
+            eq(tournamentPairRequests.categoryId, catId),
+          ));
 
         for (const pair of pairs) {
           const [p1Profile] = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, pair.fromUserId));
@@ -824,8 +832,16 @@ export function registerTournamentRoutes(app: Express) {
       const seenPlayerIds = new Set<number>();
 
       if (isDoubles) {
+        // Category isolation: only this category's accepted pairs. Without the categoryId
+        // filter, (a) pairs from other categories (e.g. Mixed) leak into this category's
+        // teams, and (b) the dedup below would DISSOLVE a player's pair here just because
+        // that player is paired with someone else in a DIFFERENT category.
         const pairsRaw = await db.select().from(tournamentPairRequests)
-          .where(and(eq(tournamentPairRequests.tournamentId, cat.tournamentId), eq(tournamentPairRequests.status, "ACCEPTED")))
+          .where(and(
+            eq(tournamentPairRequests.tournamentId, cat.tournamentId),
+            eq(tournamentPairRequests.status, "ACCEPTED"),
+            eq(tournamentPairRequests.categoryId, catId),
+          ))
           .orderBy(desc(tournamentPairRequests.createdAt));
         // Defensive dedup: if a player appears in multiple ACCEPTED pair_requests (legacy bad data),
         // keep only the MOST RECENT pair and dissolve the older ones so they never resurface.

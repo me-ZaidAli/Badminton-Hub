@@ -2554,7 +2554,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
               type SectionStage = "rr" | "qf" | "sf" | "final" | "other" | "custom";
               type Section = { key: string; label: string; color: string; matches: typeof displayMatches; groupNumber?: number; subGroupNumber?: number; stage: SectionStage; customStageId?: number; customStageOrder?: number; isPast?: boolean };
               // Build all stage buckets independently first, then concatenate them in
-              // "latest stage on top" order: Custom stages (newest first) → Final → Semi-Finals → Quarter-Finals → other KO → Round Robin.
+              // chronological order (matching the Groups tab): Custom stages (defined order) → Round Robin → other KO → Quarter-Finals → Semi-Finals → Final.
               const sections: Section[] = [];
               const finalSections: Section[] = [];
               const semiSections: Section[] = [];
@@ -2697,17 +2697,20 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 });
               }
 
-              // Custom stages render newest-first at the top (past at bottom), then legacy stages.
+              // Stages render in the SAME chronological order the admin defined in the
+              // Groups tab (earlier stage first), so Matches reflects that ordering.
+              // Custom stages sort by ascending displayOrder; past custom stages sink to the bottom.
               const sortedCustom = [...customSections].sort((a, b) => {
                 const aPast = a.isPast ? 1 : 0;
                 const bPast = b.isPast ? 1 : 0;
                 if (aPast !== bPast) return aPast - bPast;
-                return (b.customStageOrder ?? 0) - (a.customStageOrder ?? 0);
+                return (a.customStageOrder ?? 0) - (b.customStageOrder ?? 0);
               });
               const activeCustom = sortedCustom.filter(s => !s.isPast);
               const pastCustom = sortedCustom.filter(s => s.isPast);
-              // Latest stage on top: custom (active) → Final → Semi-Finals → Quarter-Finals → other KO → Round Robin → custom (past).
-              sections.push(...activeCustom, ...finalSections, ...semiSections, ...qfSections, ...otherKoSections, ...rrSections, ...pastCustom);
+              // Chronological top-to-bottom: custom (active, in defined order) → Round Robin →
+              // other KO → Quarter-Finals → Semi-Finals → Final → custom (past).
+              sections.push(...activeCustom, ...rrSections, ...otherKoSections, ...qfSections, ...semiSections, ...finalSections, ...pastCustom);
 
               const stageCounts = {
                 qf: sections.filter(s => s.stage === "qf").reduce((n, s) => n + s.matches.length, 0),
@@ -2741,7 +2744,7 @@ function MatchesTab({ category, canManage, tournamentId, onGenerateMatches, onAd
                 rr:    { label: "Round Robin",    color: "from-violet-600 to-purple-600", icon: LayoutGrid },
               };
               type LegacyStage = Exclude<SectionStage, "custom">;
-              const stageOrder: LegacyStage[] = ["final", "sf", "qf", "other", "rr"];
+              const stageOrder: LegacyStage[] = ["rr", "other", "qf", "sf", "final"];
               type Bucket =
                 | { kind: "legacy"; stage: LegacyStage; sections: typeof sections }
                 | { kind: "custom"; customStageId: number; stageName: string; isPast: boolean; sections: typeof sections };
