@@ -46,7 +46,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import {
   Loader2, Trophy, Calendar, MapPin, Users, Swords, BarChart3, Plus, Trash2, Edit3,
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
-  UserPlus, UserMinus, UserX, Clock, Shield, ChevronRight, ChevronDown, Zap, Award, Star, Target, Lock, CheckCircle,
+  UserPlus, UserMinus, UserX, Clock, Shield, ChevronRight, ChevronDown, ChevronUp, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
   Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, RefreshCw, ArrowRight, Download, Image as ImageIcon,
 } from "lucide-react";
@@ -4683,7 +4683,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               <SelectTrigger data-testid="select-group-stage"><SelectValue placeholder="No stage" /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="none">No stage (use legacy bucket)</SelectItem>
-                {[...formStages].sort((a, b) => b.displayOrder - a.displayOrder).map(s => (
+                {[...formStages].sort((a, b) => a.displayOrder - b.displayOrder).map(s => (
                   <SelectItem key={s.id} value={String(s.id)}>{s.name}</SelectItem>
                 ))}
               </SelectContent>
@@ -4930,11 +4930,12 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
           return "rr" as const;
         };
         const legacyMeta: Record<string, { label: string; color: string; icon: any; order: number }> = {
-          final:  { label: "Final",            color: "from-yellow-500 to-amber-500",  icon: Trophy,     order: 1 },
-          sf:     { label: "Semi-Finals",      color: "from-amber-500 to-orange-500",  icon: Medal,      order: 2 },
+          // Chronological play order: round robin first, the final last.
+          rr:     { label: "Round Robin",      color: "from-violet-600 to-purple-600", icon: LayoutGrid, order: 1 },
+          other:  { label: "Other Knockouts",  color: "from-fuchsia-500 to-pink-500",  icon: Swords,     order: 2 },
           qf:     { label: "Quarter-Finals",   color: "from-cyan-500 to-sky-500",      icon: GitBranch,  order: 3 },
-          other:  { label: "Other Knockouts",  color: "from-fuchsia-500 to-pink-500",  icon: Swords,     order: 4 },
-          rr:     { label: "Round Robin",      color: "from-violet-600 to-purple-600", icon: LayoutGrid, order: 5 },
+          sf:     { label: "Semi-Finals",      color: "from-amber-500 to-orange-500",  icon: Medal,      order: 4 },
+          final:  { label: "Final",            color: "from-yellow-500 to-amber-500",  icon: Trophy,     order: 5 },
         };
         const customColors = ["from-violet-600 to-purple-600", "from-cyan-500 to-sky-500", "from-amber-500 to-orange-500", "from-rose-500 to-pink-500", "from-emerald-500 to-teal-500", "from-indigo-500 to-blue-500"];
         const stageMap = new Map<number, any>();
@@ -4955,11 +4956,12 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               const stage = stageMap.get(g.stageId);
               const key = `s-${stage.id}`;
               if (!bucketMap.has(key)) {
-                const colorIdx = [...visibleStages].sort((a, b) => b.displayOrder - a.displayOrder).findIndex(s => s.id === stage.id);
+                const colorIdx = [...visibleStages].sort((a, b) => a.displayOrder - b.displayOrder).findIndex(s => s.id === stage.id);
                 bucketMap.set(key, {
                   key, label: stage.name, color: customColors[colorIdx % customColors.length], icon: LayoutGrid,
-                  // Higher displayOrder = newer stage = lower sortOrder so it renders on top.
-                  sortOrder: -stage.displayOrder, isPast: false, groups: [],
+                  // Lower displayOrder = earlier stage = lower sortOrder, so stages render
+                  // chronologically: the first stage at the top, the final at the bottom.
+                  sortOrder: stage.displayOrder, isPast: false, groups: [],
                 });
               }
               bucketMap.get(key)!.groups.push(g);
@@ -5237,9 +5239,9 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               <p className="text-xs text-muted-foreground italic text-center py-4">No stages yet.</p>
             ) : (
               <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
-                {[...visibleStages].sort((a, b) => b.displayOrder - a.displayOrder).map((s, idx, arr) => (
+                {[...visibleStages].sort((a, b) => a.displayOrder - b.displayOrder).map((s, idx, arr) => (
                   <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/30">
-                    <span className="text-[10px] font-black text-muted-foreground w-8">#{s.displayOrder}</span>
+                    <span className="text-[10px] font-black text-muted-foreground w-8">#{idx + 1}</span>
                     <Input
                       defaultValue={s.name}
                       onBlur={(e) => { if (e.target.value.trim() && e.target.value !== s.name) handleRenameStage(s.id, e.target.value); }}
@@ -5248,17 +5250,17 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                     />
                     <Button size="icon" variant="ghost" className="h-7 w-7"
                       disabled={idx === 0 || updateStageMutation.isPending}
-                      onClick={() => moveStage(s.id, "down")}
-                      title="Move later (down in list)"
-                      data-testid={`button-stage-down-${s.id}`}>
-                      <ChevronDown className="h-3.5 w-3.5" />
+                      onClick={() => moveStage(s.id, "up")}
+                      title="Move up (earlier)"
+                      data-testid={`button-stage-up-${s.id}`}>
+                      <ChevronUp className="h-3.5 w-3.5" />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7"
                       disabled={idx === arr.length - 1 || updateStageMutation.isPending}
-                      onClick={() => moveStage(s.id, "up")}
-                      title="Move earlier (up in list)"
-                      data-testid={`button-stage-up-${s.id}`}>
-                      <ChevronRight className="h-3.5 w-3.5 rotate-[-90deg]" />
+                      onClick={() => moveStage(s.id, "down")}
+                      title="Move down (later)"
+                      data-testid={`button-stage-down-${s.id}`}>
+                      <ChevronDown className="h-3.5 w-3.5" />
                     </Button>
                     <Button size="icon" variant="ghost" className="h-7 w-7 text-red-500 hover:text-red-600"
                       disabled={deleteStageMutation.isPending}
@@ -5271,7 +5273,7 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               </div>
             )}
             <p className="text-[10px] text-muted-foreground">
-              Latest stage (highest position) shows on top. Past stages collapse to the bottom automatically based on group start times. Deleting a stage detaches its groups and matches; it does not delete them.
+              Stages show in play order — the first stage (e.g. Calibration) at the top and the final at the bottom. Use the up/down arrows to move a stage earlier or later. Past stages collapse to the bottom automatically based on group start times. Deleting a stage detaches its groups and matches; it does not delete them.
             </p>
           </div>
           <DialogFooter>
