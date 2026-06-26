@@ -15,7 +15,7 @@ import {
   useSeedDemoPlayers, useClearDemoPlayers, useRestartTournament,
   useTournamentGroups, useCreateTournamentGroup, useUpdateTournamentGroup, useDeleteTournamentGroup, useCopyGroupStructure, useDedupeGroups,
   useAddPairToGroup, useRemovePairFromGroup,
-  useTournamentStages, useCreateTournamentStage, useUpdateTournamentStage, useDeleteTournamentStage,
+  useTournamentStages, useCreateTournamentStage, useUpdateTournamentStage, useDeleteTournamentStage, useSeparateTournamentStages,
   useTournamentFinances, useConfirmTournamentPayment, useUpdateTournamentPayment,
   useTournamentPrizesQuery, useCreatePrize, useDeletePrize,
   useTournamentCourts, useCreateCourt, useUpdateCourt, useDeleteCourt,
@@ -4330,6 +4330,8 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const createStageMutation = useCreateTournamentStage();
   const updateStageMutation = useUpdateTournamentStage();
   const deleteStageMutation = useDeleteTournamentStage();
+  const separateStagesMutation = useSeparateTournamentStages();
+  const separatedRef = useRef(false);
   const addPairMutation = useAddPairToGroup();
   const removePairMutation = useRemovePairFromGroup();
   const { toast } = useToast();
@@ -4390,16 +4392,50 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     : (effViewCatId === 0
         ? (groups as any[]).filter(g => g.categoryId == null)
         : (groups as any[]).filter(g => g.categoryId === effViewCatId));
-  // Stages visible in the current view: this category's own stages plus any
-  // legacy NULL-category (tournament-wide) stages for back-compat.
-  const stagesForCat = (catId: number | null) => (stages as any[]).filter(s =>
-    s.categoryId == null || (catId != null && catId !== 0 && s.categoryId === catId)
-  );
+  // Stages visible in the current view. Each category owns its own stages, so a
+  // real category shows ONLY its own stages (never the legacy NULL-category
+  // "shared" rows) — that is what keeps renaming/deleting a stage in one
+  // category from affecting another. The uncategorised view (catId 0/null) shows
+  // the NULL-category stages. As a transitional fallback (before the one-time
+  // per-category separation has run), a real category that has no stages of its
+  // own yet still shows the legacy shared stages so nothing disappears.
+  const stagesForCat = (catId: number | null) => {
+    const all = stages as any[];
+    if (catId == null || catId === 0) return all.filter(s => s.categoryId == null);
+    const own = all.filter(s => s.categoryId === catId);
+    return own.length > 0 ? own : all.filter(s => s.categoryId == null);
+  };
   const visibleStages = !hasCategories ? (stages as any[]) : stagesForCat(effViewCatId);
   // Stages offered in the group form's Stage dropdown, scoped to the group's
   // chosen category (empty category = uncategorised → legacy stages only).
   const formCatNum = formCategoryId !== "" ? Number(formCategoryId) : 0;
   const formStages = stagesForCat(formCatNum === 0 ? null : formCatNum);
+
+  // Self-heal old data: if a categorised group still points at a legacy
+  // NULL-category ("shared") stage, run the one-time per-category separation so
+  // each category gets its own independent stage rows. Idempotent + admin-only.
+  const needsStageSeparation = hasCategories && (() => {
+    const norm = (n: any) => String(n).trim().toLowerCase();
+    const nullNames = new Set((stages as any[]).filter(s => s.categoryId == null).map(s => norm(s.name)));
+    if (nullNames.size === 0) return false;
+    // Work remains while ANY category lacks its own copy of a shared stage —
+    // even a category with no groups yet — so every category ends up fully
+    // isolated, not just ones that already reference a shared stage.
+    return (categories as any[]).some((cat: any) => {
+      const ownNames = new Set((stages as any[]).filter(s => s.categoryId === cat.id).map(s => norm(s.name)));
+      for (const n of nullNames) if (!ownNames.has(n)) return true;
+      return false;
+    });
+  })();
+  useEffect(() => {
+    if (canManage && needsStageSeparation && !separatedRef.current) {
+      separatedRef.current = true;
+      separateStagesMutation.mutate(
+        { tournamentId },
+        { onError: () => { separatedRef.current = false; } },
+      );
+    }
+  }, [canManage, needsStageSeparation, tournamentId]);
 
   // Map: "minProfileId-maxProfileId" -> teamId, so we can cross-check pairs against team assignments
   const teamIdByPlayerKey = new Map<string, number>();
@@ -4589,17 +4625,24 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
+  // The category the current view edits from. Passed to stage rename/delete/
+  // reorder so the server isolates edits to a legacy shared stage to this
+  // category only (null = uncategorised view or a tournament with no categories).
+  const stageCatCtx: number | null = (effViewCatId && effViewCatId !== 0) ? effViewCatId : null;
+
   async function handleRenameStage(stageId: number, name: string) {
     const trimmed = name.trim();
     if (!trimmed) return;
+    if (separateStagesMutation.isPending) { toast({ title: "Separating stages by category…", description: "One moment, then try again." }); return; }
     try {
-      await updateStageMutation.mutateAsync({ stageId, tournamentId, name: trimmed });
+      await updateStageMutation.mutateAsync({ stageId, tournamentId, name: trimmed, categoryId: stageCatCtx });
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
   async function handleDeleteStage(stageId: number) {
+    if (separateStagesMutation.isPending) { toast({ title: "Separating stages by category…", description: "One moment, then try again." }); return; }
     try {
-      await deleteStageMutation.mutateAsync({ stageId, tournamentId });
+      await deleteStageMutation.mutateAsync({ stageId, tournamentId, categoryId: stageCatCtx });
       toast({ title: "Stage Deleted" });
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
@@ -4609,10 +4652,11 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   // displayOrder values that would otherwise make a swap appear to "do nothing".
   // Server requires displayOrder to be a positive integer, so we use 1-based.
   async function persistStageOrder(arr: any[]) {
+    if (separateStagesMutation.isPending) { toast({ title: "Separating stages by category…", description: "One moment, then try again." }); return; }
     try {
       const updates = arr
         .map((s, i) => (s.displayOrder !== i + 1
-          ? updateStageMutation.mutateAsync({ stageId: s.id, tournamentId, displayOrder: i + 1 })
+          ? updateStageMutation.mutateAsync({ stageId: s.id, tournamentId, displayOrder: i + 1, categoryId: stageCatCtx })
           : null))
         .filter(Boolean) as Promise<any>[];
       if (updates.length) await Promise.all(updates);

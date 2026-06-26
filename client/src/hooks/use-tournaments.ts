@@ -1183,26 +1183,46 @@ export function useCreateTournamentStage() {
 
 export function useUpdateTournamentStage() {
   return useMutation({
-    mutationFn: async ({ stageId, tournamentId, ...data }: { stageId: number; tournamentId: number; name?: string; displayOrder?: number }) => {
-      const res = await apiRequest("PATCH", `/api/tournament-stages/${stageId}`, data);
+    // categoryId is the category the edit is made from. The server uses it to
+    // isolate edits to a legacy shared stage so they never leak across categories.
+    mutationFn: async ({ stageId, tournamentId, categoryId, ...data }: { stageId: number; tournamentId: number; categoryId?: number | null; name?: string; displayOrder?: number }) => {
+      const res = await apiRequest("PATCH", `/api/tournament-stages/${stageId}`, { ...data, categoryId: categoryId ?? null });
       return res.json();
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "stages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
     },
   });
 }
 
 export function useDeleteTournamentStage() {
   return useMutation({
-    mutationFn: async ({ stageId }: { stageId: number; tournamentId: number }) => {
-      const res = await apiRequest("DELETE", `/api/tournament-stages/${stageId}`);
+    mutationFn: async ({ stageId, categoryId }: { stageId: number; tournamentId: number; categoryId?: number | null }) => {
+      const qs = categoryId != null && categoryId > 0 ? `?categoryId=${categoryId}` : "";
+      const res = await apiRequest("DELETE", `/api/tournament-stages/${stageId}${qs}`);
       return res.json();
     },
     onSuccess: (_, vars) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "stages"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
       queryClient.invalidateQueries({ queryKey: ["/api/tournaments"] });
+    },
+  });
+}
+
+// One-time, idempotent migration: converts legacy NULL-category ("shared")
+// stages into per-category stages so each category owns its own stages and
+// editing one category never affects another.
+export function useSeparateTournamentStages() {
+  return useMutation({
+    mutationFn: async ({ tournamentId }: { tournamentId: number }) => {
+      const res = await apiRequest("POST", `/api/tournaments/${tournamentId}/stages/separate-by-category`, {});
+      return res.json();
+    },
+    onSuccess: (_, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "stages"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tournaments", vars.tournamentId, "groups"] });
     },
   });
 }

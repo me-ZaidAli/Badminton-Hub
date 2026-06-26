@@ -5568,6 +5568,94 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
     }
   });
 
+  // Convert legacy NULL-category ("shared") stages into per-category stages.
+  // Clones each shared stage into every category (deduping ONLY against stages
+  // that existed before this run, so two distinct shared stages that share a name
+  // are never merged), re-points each category's groups + matches to its own
+  // clone, and removes any shared stage no longer referenced by uncategorised
+  // groups/matches. Idempotent. Caller MUST already hold the per-tournament
+  // advisory lock inside the same transaction.
+  async function separateSharedStagesTx(tx: any, tournamentId: number) {
+    let createdCount = 0, deletedCount = 0, repointedGroups = 0, repointedMatches = 0;
+    const cats = await tx.select().from(tournamentCategories).where(eq(tournamentCategories.tournamentId, tournamentId));
+    const mapping = new Map<number, Map<number, number>>();
+    if (cats.length === 0) return { createdCount, deletedCount, repointedGroups, repointedMatches, mapping };
+    const allStages = await tx.select().from(tournamentStages).where(eq(tournamentStages.tournamentId, tournamentId));
+    const nullStages = allStages.filter((s: any) => s.categoryId == null);
+    if (nullStages.length === 0) return { createdCount, deletedCount, repointedGroups, repointedMatches, mapping };
+    const preExistingScoped = allStages.filter((s: any) => s.categoryId != null);
+    const norm = (n: string) => n.trim().toLowerCase();
+    for (const ns of nullStages) {
+      // sourceNullStageId → (categoryId → that category's clone id). Callers
+      // resolve a shared stage to the exact per-category clone by id (not name),
+      // so same-name stages are never ambiguous.
+      const perCat = new Map<number, number>();
+      mapping.set(ns.id, perCat);
+      for (const cat of cats) {
+        let target = preExistingScoped.find((s: any) => s.categoryId === cat.id && norm(s.name) === norm(ns.name));
+        if (!target) {
+          const [created] = await tx.insert(tournamentStages).values({
+            tournamentId, categoryId: cat.id, name: ns.name, displayOrder: ns.displayOrder,
+          }).returning();
+          target = created;
+          createdCount++;
+        }
+        perCat.set(cat.id, target.id);
+        const gUpd = await tx.update(tournamentGroups).set({ stageId: target.id })
+          .where(and(eq(tournamentGroups.stageId, ns.id), eq(tournamentGroups.categoryId, cat.id)))
+          .returning({ id: tournamentGroups.id });
+        repointedGroups += gUpd.length;
+        const mUpd = await tx.update(tournamentMatches).set({ stageId: target.id })
+          .where(and(eq(tournamentMatches.stageId, ns.id), eq(tournamentMatches.categoryId, cat.id)))
+          .returning({ id: tournamentMatches.id });
+        repointedMatches += mUpd.length;
+      }
+      const remGroups = await tx.select({ id: tournamentGroups.id }).from(tournamentGroups).where(eq(tournamentGroups.stageId, ns.id));
+      const remMatches = await tx.select({ id: tournamentMatches.id }).from(tournamentMatches).where(eq(tournamentMatches.stageId, ns.id));
+      if (remGroups.length === 0 && remMatches.length === 0) {
+        await tx.delete(tournamentStages).where(eq(tournamentStages.id, ns.id));
+        deletedCount++;
+      }
+    }
+    return { createdCount, deletedCount, repointedGroups, repointedMatches, mapping };
+  }
+
+  // Resolve a (possibly legacy shared) stage to the stage that the edit should
+  // actually touch for a given category. For a shared stage edited from inside a
+  // real category, separate shared stages first then return that category's own
+  // clone — so the change is isolated to that category. Returns the original id
+  // when there is no category context or the stage is already scoped.
+  async function resolveStageForCategoryTx(tx: any, stage: any, categoryId: number | null): Promise<number | null> {
+    // Caller guarantees stage.categoryId == null. Separate shared stages first so
+    // every real category owns its own copy, then pick the target:
+    //  - real category → that category's clone (by source id; name as race fallback)
+    //  - uncategorised  → the remaining shared row, if it still exists
+    const { mapping } = await separateSharedStagesTx(tx, stage.tournamentId);
+    if (categoryId != null && categoryId > 0) {
+      const [cat] = await tx.select().from(tournamentCategories)
+        .where(and(eq(tournamentCategories.tournamentId, stage.tournamentId), eq(tournamentCategories.id, categoryId)));
+      if (!cat) return null; // unknown category for this tournament
+      const mapped = mapping.get(stage.id)?.get(categoryId);
+      if (mapped) return mapped;
+      // Race fallback: a sibling request already separated this shared stage, so
+      // it is no longer in this run's mapping. Match this category's clone by name.
+      const norm = (n: string) => n.trim().toLowerCase();
+      const scoped = await tx.select().from(tournamentStages)
+        .where(and(eq(tournamentStages.tournamentId, stage.tournamentId), eq(tournamentStages.categoryId, categoryId)));
+      const clone = scoped.find((s: any) => norm(s.name) === norm(stage.name));
+      return clone ? clone.id : null;
+    }
+    // Uncategorised context: mutate the shared row only if it survived separation.
+    const [still] = await tx.select().from(tournamentStages).where(eq(tournamentStages.id, stage.id));
+    return still && still.categoryId == null ? still.id : null;
+  }
+
+  function parseCategoryCtx(raw: any): number | null {
+    if (raw === undefined || raw === null || raw === "") return null;
+    const n = Number(raw);
+    return Number.isFinite(n) && n > 0 ? n : null;
+  }
+
   app.patch("/api/tournament-stages/:stageId", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     try {
@@ -5591,6 +5679,24 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
         }
         updates.displayOrder = n;
       }
+      if (Object.keys(updates).length === 0) return res.json(stage);
+
+      const categoryCtx = parseCategoryCtx(req.body?.categoryId);
+
+      // Any legacy shared (NULL-category) stage is routed through separation so
+      // the edit is isolated: a real category edits its own clone; uncategorised
+      // edits the remaining shared row. Already-scoped stages edit directly.
+      if (stage.categoryId == null) {
+        const updated = await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(${stage.tournamentId}, 778899)`);
+          const targetId = await resolveStageForCategoryTx(tx, stage, categoryCtx);
+          if (targetId == null) return null;
+          const [u] = await tx.update(tournamentStages).set(updates).where(eq(tournamentStages.id, targetId)).returning();
+          return u;
+        });
+        if (!updated) return res.status(404).json({ message: "Stage not found for this context" });
+        return res.json(updated);
+      }
 
       const [updated] = await db.update(tournamentStages).set(updates).where(eq(tournamentStages.id, stageId)).returning();
       res.json(updated);
@@ -5609,11 +5715,55 @@ Provide a brief analysis covering: 1) Overall pair compatibility, 2) Strengths o
       const isAdmin = await isTournamentAdmin(req.user!.id, stage.tournamentId);
       if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
 
+      const categoryCtx = parseCategoryCtx(req.query?.categoryId ?? req.body?.categoryId);
+
+      // Any legacy shared (NULL-category) stage is routed through separation so
+      // deletion is isolated: every OTHER category keeps its own copy and only
+      // this context's stage (the real category's clone, or the remaining shared
+      // row for uncategorised) is removed.
+      if (stage.categoryId == null) {
+        await db.transaction(async (tx) => {
+          await tx.execute(sql`SELECT pg_advisory_xact_lock(${stage.tournamentId}, 778899)`);
+          const targetId = await resolveStageForCategoryTx(tx, stage, categoryCtx);
+          if (targetId == null) return; // nothing left to delete in this context
+          await tx.update(tournamentGroups).set({ stageId: null }).where(eq(tournamentGroups.stageId, targetId));
+          await tx.update(tournamentMatches).set({ stageId: null }).where(eq(tournamentMatches.stageId, targetId));
+          await tx.delete(tournamentStages).where(eq(tournamentStages.id, targetId));
+        });
+        return res.json({ message: "Stage deleted" });
+      }
+
       // Detach groups and matches still linked to this stage so deletion is non-destructive.
       await db.update(tournamentGroups).set({ stageId: null }).where(eq(tournamentGroups.stageId, stageId));
       await db.update(tournamentMatches).set({ stageId: null }).where(eq(tournamentMatches.stageId, stageId));
       await db.delete(tournamentStages).where(eq(tournamentStages.id, stageId));
       res.json({ message: "Stage deleted" });
+    } catch (e: any) {
+      res.status(500).json({ message: e.message });
+    }
+  });
+
+  // Separate legacy NULL-category ("shared") stages into per-category stages so
+  // each category owns its own independent stages. A shared stage shows in every
+  // category, so renaming/deleting it leaks across categories. This clones each
+  // shared stage into every category (deduping by name), re-points each
+  // category's groups + matches to its own clone, then removes any shared stage
+  // that no longer has uncategorised groups/matches referencing it. Idempotent.
+  app.post("/api/tournaments/:id/stages/separate-by-category", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    try {
+      const tournamentId = Number(req.params.id);
+      if (!Number.isFinite(tournamentId) || tournamentId <= 0) return res.status(400).json({ message: "Invalid tournament id" });
+      const isAdmin = await isTournamentAdmin(req.user!.id, tournamentId);
+      if (!isAdmin) return res.status(403).json({ message: "Not authorized" });
+
+      const result = await db.transaction(async (tx) => {
+        // Serialise per tournament so two concurrent runs cannot create dup clones.
+        await tx.execute(sql`SELECT pg_advisory_xact_lock(${tournamentId}, 778899)`);
+        return await separateSharedStagesTx(tx, tournamentId);
+      });
+      const { createdCount, deletedCount, repointedGroups, repointedMatches } = result;
+      res.json({ message: "Stages separated by category", createdCount, deletedCount, repointedGroups, repointedMatches });
     } catch (e: any) {
       res.status(500).json({ message: e.message });
     }

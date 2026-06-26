@@ -52,3 +52,20 @@ stageId + lower(name); keep the copy with most team-pairs, tie-break lowest id).
 **Why:** real tournaments accumulated 4-9 copies of each group from repeated
 copies before the guard existed; the 5 stages that appear under every category
 are legacy NULL-category shared stages, NOT duplicates — don't "clean" those.
+
+## Editing a legacy shared stage must isolate to one category — server-side
+A NULL-category ("shared") stage is visible in every category, so a naive
+rename/delete/reorder of that row leaks across ALL categories. The rule: never
+mutate a shared stage row in place when categories exist. Instead, on ANY edit of
+a `categoryId IS NULL` stage, first materialise per-category copies (clone the
+shared stage into every category, repoint each category's groups+matches to its
+own copy, drop the shared row if nothing uncategorised still references it), then
+apply the edit to the *resolved target* for the caller's context.
+**Why:** isolation must be a server guarantee, not a frontend-timing accident —
+the client can edit before any cleanup migration has run, and two clients race.
+**How to apply:** the edit's category context travels in the request (PATCH body /
+DELETE query `categoryId`; absent/0 = uncategorised). Resolve the target inside
+ONE transaction holding `pg_advisory_xact_lock(tournamentId, <constant>)`. Resolve
+the per-category copy by the SOURCE stage id (a sourceId→categoryId→cloneId map),
+never by name — two stages can share a name. Dedupe clones only against rows that
+existed before this run so distinct same-name shared stages are never merged.
