@@ -48,7 +48,7 @@ import {
   Play, ArrowLeft, GitBranch, LayoutGrid, Settings, Search, Check, X, Crown,
   UserPlus, UserMinus, UserX, Clock, Shield, ChevronRight, ChevronDown, ChevronUp, Zap, Award, Star, Target, Lock, CheckCircle,
   Building2, ExternalLink, Flame, Medal, PoundSterling, Gift, Wallet, TrendingUp, TrendingDown, CreditCard, Banknote, Eye, AlertTriangle, Globe, Sparkles, FileText,
-  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, RefreshCw, ArrowRight, Download, Image as ImageIcon,
+  Monitor, Square, CircleDot, ArrowUpDown, BarChart, RotateCcw, RefreshCw, ArrowRight, Download, Image as ImageIcon, GripVertical,
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
@@ -4340,6 +4340,9 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
   const [selectedTeamId, setSelectedTeamId] = useState<string>("");
   const [stagesDialogOpen, setStagesDialogOpen] = useState(false);
   const [newStageName, setNewStageName] = useState("");
+  // Inline drag-to-reorder of stage cards on the Groups tab.
+  const [dragStageId, setDragStageId] = useState<number | null>(null);
+  const [dragOverStageId, setDragOverStageId] = useState<number | null>(null);
   const [copyOpen, setCopyOpen] = useState(false);
   const [copySourceId, setCopySourceId] = useState<string>("");
   const [copyTargets, setCopyTargets] = useState<Set<number>>(new Set());
@@ -4601,19 +4604,44 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
     } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
   }
 
+  // Persist a fully-ordered stage array by writing each stage a fresh sequential
+  // displayOrder (1,2,3…). Normalising every time avoids stale/colliding
+  // displayOrder values that would otherwise make a swap appear to "do nothing".
+  // Server requires displayOrder to be a positive integer, so we use 1-based.
+  async function persistStageOrder(arr: any[]) {
+    try {
+      const updates = arr
+        .map((s, i) => (s.displayOrder !== i + 1
+          ? updateStageMutation.mutateAsync({ stageId: s.id, tournamentId, displayOrder: i + 1 })
+          : null))
+        .filter(Boolean) as Promise<any>[];
+      if (updates.length) await Promise.all(updates);
+    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+  }
+
   async function moveStage(stageId: number, direction: "up" | "down") {
     const sorted = [...visibleStages].sort((a, b) => a.displayOrder - b.displayOrder);
     const idx = sorted.findIndex(s => s.id === stageId);
     if (idx < 0) return;
     const swapWith = direction === "up" ? idx - 1 : idx + 1;
     if (swapWith < 0 || swapWith >= sorted.length) return;
-    const a = sorted[idx], b = sorted[swapWith];
-    try {
-      await Promise.all([
-        updateStageMutation.mutateAsync({ stageId: a.id, tournamentId, displayOrder: b.displayOrder }),
-        updateStageMutation.mutateAsync({ stageId: b.id, tournamentId, displayOrder: a.displayOrder }),
-      ]);
-    } catch (err: any) { toast({ title: "Error", description: err.message, variant: "destructive" }); }
+    const arr = [...sorted];
+    const [moved] = arr.splice(idx, 1);
+    arr.splice(swapWith, 0, moved);
+    await persistStageOrder(arr);
+  }
+
+  // Drag a stage card and drop it onto another to reorder (Groups tab).
+  async function handleReorderStages(sourceId: number | null, targetId: number) {
+    if (sourceId == null || sourceId === targetId) return;
+    const sorted = [...visibleStages].sort((a, b) => a.displayOrder - b.displayOrder);
+    const from = sorted.findIndex(s => s.id === sourceId);
+    const to = sorted.findIndex(s => s.id === targetId);
+    if (from < 0 || to < 0 || from === to) return;
+    const arr = [...sorted];
+    const [moved] = arr.splice(from, 1);
+    arr.splice(to, 0, moved);
+    await persistStageOrder(arr);
   }
 
   async function handleDelete(groupId: number) {
@@ -5008,14 +5036,38 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               const stageGroups = bucket.groups;
               const meta = { label: bucket.label, color: bucket.color };
               const stageKey = bucket.key;
+              // Only admin-defined stage buckets (key `s-<id>`) can be dragged / deleted here.
+              const stageId = stageKey.startsWith("s-") ? Number(stageKey.slice(2)) : null;
+              const canReorderStage = canManage && stageId !== null;
+              const isDragTarget = canReorderStage && dragStageId !== null && dragStageId !== stageId && dragOverStageId === stageId;
               return (
                 <AccordionItem key={stageKey} value={`gstage-${stageKey}`}
+                  onDragOver={canReorderStage ? (e) => { e.preventDefault(); if (dragOverStageId !== stageId) setDragOverStageId(stageId); } : undefined}
+                  onDragLeave={canReorderStage ? () => { setDragOverStageId(prev => (prev === stageId ? null : prev)); } : undefined}
+                  onDrop={canReorderStage ? (e) => { e.preventDefault(); handleReorderStages(dragStageId, stageId!); setDragStageId(null); setDragOverStageId(null); } : undefined}
                   className={cn(
-                    "border rounded-2xl overflow-hidden",
+                    "border rounded-2xl overflow-hidden transition-shadow",
                     bucket.isPast ? "border-border/30 bg-muted/20 opacity-80" : "border-border/40 bg-card data-[state=open]:bg-card",
+                    dragStageId === stageId && "opacity-50",
+                    isDragTarget && "ring-2 ring-violet-500 ring-offset-2 ring-offset-background",
                   )}>
+                  <div className="flex items-center">
+                    {canReorderStage && (
+                      <div
+                        draggable
+                        onDragStart={(e) => { setDragStageId(stageId); e.dataTransfer.effectAllowed = "move"; }}
+                        onDragEnd={() => { setDragStageId(null); setDragOverStageId(null); }}
+                        onClick={(e) => e.stopPropagation()}
+                        className="pl-3 pr-1 self-stretch flex items-center cursor-grab active:cursor-grabbing text-muted-foreground hover:text-foreground touch-none"
+                        title="Drag to reorder stages"
+                        data-testid={`drag-stage-${stageId}`}
+                      >
+                        <GripVertical className="h-4 w-4" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
                   <AccordionTrigger
-                    className="px-4 py-3 hover:no-underline hover:bg-muted/30"
+                    className={cn("px-4 py-3 hover:no-underline hover:bg-muted/30 w-full", canReorderStage && "pl-2")}
                     data-testid={`accordion-groups-stage-${stageKey}`}
                   >
                     <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -5031,6 +5083,21 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                       </Badge>
                     </div>
                   </AccordionTrigger>
+                    </div>
+                    {canReorderStage && (
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-7 w-7 mr-2 flex-shrink-0 text-red-500 hover:text-red-600 hover:bg-red-500/10"
+                        disabled={deleteStageMutation.isPending}
+                        onClick={(e) => { e.stopPropagation(); handleDeleteStage(stageId!); }}
+                        title="Delete stage"
+                        data-testid={`button-delete-stage-${stageId}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    )}
+                  </div>
                   <AccordionContent className="px-3 pb-3 pt-1">
                     <div className="grid gap-4">
                       {stageGroups.map((group: any) => {

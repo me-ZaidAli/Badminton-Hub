@@ -34,6 +34,14 @@ badges, bulk time ops, create-stage categoryId) must use the scoped lists, not t
 raw `stages`/`groups`. The group form clears its stage selection when its category
 changes, so a stale out-of-scope stageId can't be submitted.
 
+## Stage displayOrder is 1-based and positive-only
+`PATCH /api/tournament-stages/:stageId` rejects `displayOrder <= 0` ("must be a
+positive integer"). When normalising/reordering a whole stage list, write 1-based
+sequential values (1,2,3…), never 0-based. **Why:** a 0-based reorder 400s on the
+first stage, so the reorder silently fails. **How to apply:** GroupsTab reorders
+(drag-drop + Manage Stages arrows) normalise the full list each time (avoids
+stale/colliding orders that make a pure swap look like a no-op) — keep them 1-based.
+
 ## Copy-structure must stay idempotent
 Copying a category's groups with `replaceExisting=false` APPENDS — running it
 twice piles up duplicate groups (same name under the same stage). The endpoint
