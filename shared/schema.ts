@@ -480,6 +480,8 @@ export const matches = pgTable("matches", {
   // play order within that group/court.
   groupId: integer("group_id"),
   plannedOrder: integer("planned_order"),
+  // Tournament Mode multi-stage link (null = first/legacy stage).
+  stageId: integer("stage_id"),
   teamAPlayer1Id: integer("team_a_player_1_id").references(() => playerProfiles.id),
   teamAPlayer2Id: integer("team_a_player_2_id").references(() => playerProfiles.id),
   teamBPlayer1Id: integer("team_b_player_1_id").references(() => playerProfiles.id),
@@ -513,6 +515,24 @@ export const sessionGroups = pgTable("session_groups", {
   name: text("name").notNull(),
   courtNumber: integer("court_number"),
   displayOrder: integer("display_order").default(0).notNull(),
+  // Tournament Mode multi-stage link (null = first/legacy stage).
+  stageId: integer("stage_id"),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// A "stage" is one round of a multi-stage tournament (e.g. Round Robin, Quarter
+// Finals, Semis, Final). Teams advance from one stage to the next. A session with
+// Tournament Mode always has at least one stage; legacy data with NULL stageId is
+// treated as belonging to the first stage.
+export const sessionStages = pgTable("session_stages", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => sessions.id).notNull(),
+  name: text("name").notNull(),
+  displayOrder: integer("display_order").default(0).notNull(),
+  // How many teams advance from EACH group of this stage to the next.
+  advanceCount: integer("advance_count").default(2).notNull(),
+  // PLANNING | ACTIVE | COMPLETED (plain text to keep DDL simple).
+  status: text("status").default("PLANNING").notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
@@ -522,6 +542,9 @@ export const sessionGroupEntries = pgTable("session_group_entries", {
   id: serial("id").primaryKey(),
   sessionId: integer("session_id").references(() => sessions.id).notNull(),
   groupId: integer("group_id"),
+  // Tournament Mode multi-stage link (null = first/legacy stage). An entry with a
+  // groupId null but a stageId set sits in that stage's unassigned tray.
+  stageId: integer("stage_id"),
   player1Id: integer("player1_id").references(() => playerProfiles.id).notNull(),
   player2Id: integer("player2_id").references(() => playerProfiles.id),
   displayOrder: integer("display_order").default(0).notNull(),
@@ -1207,6 +1230,7 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
 export const insertSessionGroupSchema = createInsertSchema(sessionGroups).omit({ id: true, createdAt: true });
 export const insertSessionGroupEntrySchema = createInsertSchema(sessionGroupEntries).omit({ id: true, createdAt: true });
+export const insertSessionStageSchema = createInsertSchema(sessionStages).omit({ id: true, createdAt: true });
 export const insertCoachSchema = createInsertSchema(coaches).omit({ id: true, createdAt: true, status: true });
 export const insertCoachSeekerMembershipSchema = createInsertSchema(coachSeekerMemberships).omit({ id: true, createdAt: true, joinedAt: true });
 export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
@@ -1305,6 +1329,8 @@ export type SessionGroup = typeof sessionGroups.$inferSelect;
 export type InsertSessionGroup = z.infer<typeof insertSessionGroupSchema>;
 export type SessionGroupEntry = typeof sessionGroupEntries.$inferSelect;
 export type InsertSessionGroupEntry = z.infer<typeof insertSessionGroupEntrySchema>;
+export type SessionStage = typeof sessionStages.$inferSelect;
+export type InsertSessionStage = z.infer<typeof insertSessionStageSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;
 export type InsertPlayerProfile = z.infer<typeof insertPlayerProfileSchema>;

@@ -1,6 +1,6 @@
 import { db, pool } from "./db";
 import { 
-  users, playerProfiles, sessions, sessionSignups, matches, sessionGroups, sessionGroupEntries, announcements, announcementArchives, announcementReactions, announcementComments, memberships, clubs, venues,
+  users, playerProfiles, sessions, sessionSignups, matches, sessionGroups, sessionGroupEntries, sessionStages, announcements, announcementArchives, announcementReactions, announcementComments, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
   creditLedger, inventoryMovements, chats, incidentReports,
@@ -20,7 +20,8 @@ import {
   type TrialPlayer, type InsertTrialPlayer,
   type TrialEvaluation, type InsertTrialEvaluation,
   type SessionGroup, type InsertSessionGroup,
-  type SessionGroupEntry, type InsertSessionGroupEntry
+  type SessionGroupEntry, type InsertSessionGroupEntry,
+  type SessionStage, type InsertSessionStage
 } from "@shared/schema";
 import { eq, and, or, desc, asc, sql, inArray, isNull, gte, lte, ne } from "drizzle-orm";
 import session from "express-session";
@@ -100,6 +101,28 @@ export interface IStorage {
   deleteSessionGroupEntry(id: number): Promise<void>;
   getSessionPlannedMatches(sessionId: number): Promise<Match[]>;
   deletePlannedMatchesForGroup(groupId: number): Promise<void>;
+  getSessionStages(sessionId: number): Promise<SessionStage[]>;
+  getSessionStage(id: number): Promise<SessionStage | undefined>;
+  createSessionStage(stage: InsertSessionStage): Promise<SessionStage>;
+  updateSessionStage(id: number, updates: Partial<SessionStage>): Promise<SessionStage>;
+  deleteSessionStage(id: number): Promise<void>;
+  ensureDefaultStage(sessionId: number): Promise<SessionStage>;
+  getStageStandings(sessionId: number, stageId: number): Promise<{
+    groupId: number;
+    groupName: string;
+    advanceCount: number;
+    standings: {
+      entryId: number;
+      player1Id: number;
+      player2Id: number | null;
+      matchesPlayed: number;
+      matchesWon: number;
+      setsWon: number;
+      pointsWon: number;
+      rank: number;
+      advancing: boolean;
+    }[];
+  }[]>;
   isUserSignedUpToSession(userId: number, sessionId: number): Promise<boolean>;
 
   // Announcements
@@ -934,6 +957,134 @@ export class DatabaseStorage implements IStorage {
     await db.delete(matches).where(and(eq(matches.groupId, groupId), eq(matches.status, "PLANNED")));
   }
 
+  async getSessionStages(sessionId: number): Promise<SessionStage[]> {
+    return db.select().from(sessionStages)
+      .where(eq(sessionStages.sessionId, sessionId))
+      .orderBy(asc(sessionStages.displayOrder), asc(sessionStages.id));
+  }
+
+  async getSessionStage(id: number): Promise<SessionStage | undefined> {
+    const [row] = await db.select().from(sessionStages).where(eq(sessionStages.id, id));
+    return row;
+  }
+
+  async createSessionStage(stage: InsertSessionStage): Promise<SessionStage> {
+    const [row] = await db.insert(sessionStages).values(stage).returning();
+    return row;
+  }
+
+  async updateSessionStage(id: number, updates: Partial<SessionStage>): Promise<SessionStage> {
+    const [row] = await db.update(sessionStages).set(updates).where(eq(sessionStages.id, id)).returning();
+    return row;
+  }
+
+  async deleteSessionStage(id: number): Promise<void> {
+    // Remove this stage's groups (each cascades its planned matches + unassigns
+    // entries), then its tray entries, its planned matches, and the stage itself.
+    const groups = await db.select().from(sessionGroups).where(eq(sessionGroups.stageId, id));
+    for (const g of groups) {
+      await this.deleteSessionGroup(g.id);
+    }
+    await db.delete(sessionGroupEntries).where(eq(sessionGroupEntries.stageId, id));
+    await db.delete(matches).where(and(eq(matches.stageId, id), eq(matches.status, "PLANNED")));
+    await db.delete(sessionStages).where(eq(sessionStages.id, id));
+  }
+
+  // Guarantees a session has at least one stage and backfills legacy
+  // tournament rows (NULL stageId) onto that first stage.
+  async ensureDefaultStage(sessionId: number): Promise<SessionStage> {
+    const existing = await this.getSessionStages(sessionId);
+    if (existing.length > 0) return existing[0];
+    const [stage] = await db.insert(sessionStages).values({
+      sessionId,
+      name: "Round Robin",
+      displayOrder: 0,
+      advanceCount: 2,
+      status: "ACTIVE",
+    }).returning();
+    await db.update(sessionGroups)
+      .set({ stageId: stage.id })
+      .where(and(eq(sessionGroups.sessionId, sessionId), isNull(sessionGroups.stageId)));
+    await db.update(sessionGroupEntries)
+      .set({ stageId: stage.id })
+      .where(and(eq(sessionGroupEntries.sessionId, sessionId), isNull(sessionGroupEntries.stageId)));
+    // Only tournament matches carry a groupId; backfill those so per-stage
+    // leaderboards see legacy results. Normal matches (groupId null) stay null.
+    await db.update(matches)
+      .set({ stageId: stage.id })
+      .where(and(eq(matches.sessionId, sessionId), isNull(matches.stageId), sql`${matches.groupId} is not null`));
+    return stage;
+  }
+
+  async getStageStandings(sessionId: number, stageId: number) {
+    const teamKey = (a: number | null, b: number | null) =>
+      [a, b].filter((x): x is number => x != null).sort((x, y) => x - y).join("-");
+
+    const stage = await this.getSessionStage(stageId);
+    const advanceCount = stage?.advanceCount ?? 2;
+    const groups = (await this.getSessionGroups(sessionId)).filter(g => g.stageId === stageId);
+    const allEntries = (await this.getSessionGroupEntries(sessionId)).filter(e => e.stageId === stageId);
+    const completed = await db.select().from(matches).where(and(
+      eq(matches.sessionId, sessionId),
+      eq(matches.stageId, stageId),
+      eq(matches.status, "COMPLETED"),
+      eq(matches.isCompleted, true),
+      isNull(matches.deletedAt),
+    ));
+
+    return groups.map(group => {
+      const entries = allEntries
+        .filter(e => e.groupId === group.id)
+        .sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id);
+
+      const stats = new Map<string, {
+        entryId: number; player1Id: number; player2Id: number | null;
+        matchesPlayed: number; matchesWon: number; setsWon: number; pointsWon: number;
+      }>();
+      for (const e of entries) {
+        stats.set(teamKey(e.player1Id, e.player2Id), {
+          entryId: e.id, player1Id: e.player1Id, player2Id: e.player2Id,
+          matchesPlayed: 0, matchesWon: 0, setsWon: 0, pointsWon: 0,
+        });
+      }
+
+      for (const m of completed.filter(m => m.groupId === group.id)) {
+        const keyA = teamKey(m.teamAPlayer1Id, m.teamAPlayer2Id);
+        const keyB = teamKey(m.teamBPlayer1Id, m.teamBPlayer2Id);
+        const sA = stats.get(keyA);
+        const sB = stats.get(keyB);
+        if (!sA || !sB) continue;
+        const setScoresArr = (m.setScores as { scoreA: number; scoreB: number }[] | null) || [];
+        const hasMultiSets = (m.numberOfSets || 1) > 1 && (m.setsWonA || 0) + (m.setsWonB || 0) > 0;
+        const teamAWon = hasMultiSets
+          ? (m.setsWonA || 0) > (m.setsWonB || 0)
+          : (m.scoreA ?? 0) > (m.scoreB ?? 0);
+        sA.matchesPlayed++; sB.matchesPlayed++;
+        if (teamAWon) sA.matchesWon++; else sB.matchesWon++;
+        if (setScoresArr.length > 0) {
+          for (const s of setScoresArr) {
+            sA.pointsWon += s.scoreA; sB.pointsWon += s.scoreB;
+            if (s.scoreA > s.scoreB) sA.setsWon++; else if (s.scoreB > s.scoreA) sB.setsWon++;
+          }
+        } else {
+          sA.pointsWon += m.scoreA ?? 0; sB.pointsWon += m.scoreB ?? 0;
+          if (teamAWon) sA.setsWon++; else sB.setsWon++;
+        }
+      }
+
+      const standings = [...stats.values()].sort((a, b) => {
+        if (b.matchesWon !== a.matchesWon) return b.matchesWon - a.matchesWon;
+        const aPct = a.matchesPlayed ? a.matchesWon / a.matchesPlayed : 0;
+        const bPct = b.matchesPlayed ? b.matchesWon / b.matchesPlayed : 0;
+        if (bPct !== aPct) return bPct - aPct;
+        if (b.setsWon !== a.setsWon) return b.setsWon - a.setsWon;
+        return b.pointsWon - a.pointsWon;
+      }).map((s, i) => ({ ...s, rank: i + 1, advancing: i < advanceCount }));
+
+      return { groupId: group.id, groupName: group.name, advanceCount, standings };
+    });
+  }
+
   async isUserSignedUpToSession(userId: number, sessionId: number): Promise<boolean> {
     const profile = await db.select().from(playerProfiles).where(eq(playerProfiles.userId, userId));
     if (profile.length === 0) return false;
@@ -1556,7 +1707,7 @@ export class DatabaseStorage implements IStorage {
     return this.computeLeaderboardFromMatches(completedMatches, playerMap);
   }
 
-  async getDynamicSessionLeaderboard(sessionId: number) {
+  async getDynamicSessionLeaderboard(sessionId: number, stageId?: number) {
     const completedMatches = await db.select()
       .from(matches)
       .where(
@@ -1564,7 +1715,8 @@ export class DatabaseStorage implements IStorage {
           eq(matches.sessionId, sessionId),
           eq(matches.isCompleted, true),
           eq(matches.status, "COMPLETED"),
-          isNull(matches.deletedAt)
+          isNull(matches.deletedAt),
+          ...(stageId != null ? [eq(matches.stageId, stageId)] : [])
         )
       );
 

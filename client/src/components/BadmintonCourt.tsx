@@ -43,6 +43,7 @@ export type CourtMatch = {
   startedAt: string | null;
   completedAt: string | null;
   queuePosition: number | null;
+  stageId?: number | null;
   pointsToPlayTo?: number | null;
   scoreEnteredByUserId?: number | null;
   scoreEnteredAt?: string | null;

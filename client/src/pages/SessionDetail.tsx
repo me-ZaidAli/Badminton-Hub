@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useState, useEffect, useRef, useCallback, useMemo, Fragment } from "react";
 import { useParams, useLocation, Link } from "wouter";
 import { useSession, useSessionSignups, useJoinSession, useWithdrawSession, useAdminAddPlayer, useAdminRemovePlayer, useUpdateSession, useDeleteSession, useToggleGender, useTogglePause, useBulkPause, useSetPairGroup, useAddGuestPlayer, useRestartSession, useRecoverMatches, useAdminInlineEditPlayer, useUploadProfilePicture } from "@/hooks/use-sessions";
 import { usePlayers } from "@/hooks/use-players";
@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue, useSetTournamentMode } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue, useSetTournamentMode, useSessionStages, type SessionStage } from "@/hooks/use-matches";
 import { SessionTournamentPlanner } from "@/components/SessionTournamentPlanner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -4404,6 +4404,7 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     startedAt: m.startedAt ? (m.startedAt instanceof Date ? m.startedAt.toISOString() : m.startedAt) : null,
     completedAt: m.completedAt ? (m.completedAt instanceof Date ? m.completedAt.toISOString() : m.completedAt) : null,
     queuePosition: m.queuePosition,
+    stageId: (m as any).stageId ?? null,
     pointsToPlayTo: (m as any).pointsToPlayTo,
     numberOfSets: (m as any).numberOfSets,
     currentSet: (m as any).currentSet,
@@ -4417,6 +4418,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     scoreUpdatedAt: (m as any).scoreUpdatedAt,
     scoreUpdatedByUser: (m as any).scoreUpdatedByUser,
   }));
+
+  const { data: sessionStages = [] } = useSessionStages(sessionId);
 
   const liveMatches = typedMatches.filter(m => m.status === "LIVE");
   const queuedMatches = typedMatches.filter(m => m.status === "QUEUED");
@@ -5647,11 +5650,11 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
             </CollapsibleSection>
 
             <CollapsibleSection storageKey="completed-matches" title="Completed" badge={completedCount} icon={<CheckCircle className="w-4 h-4 text-emerald-500" />}>
-              <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} availablePlayers={availablePlayers} onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })} />
+              <CompletedMatches matches={typedMatches} isOrganiser={isOrganiser} isSignedUp={isSignedUp} currentPlayerProfileId={currentPlayerProfileId} availablePlayers={availablePlayers} onSwapPlayer={(matchId, position, newPlayerId) => swapPlayer({ matchId, position, newPlayerId })} stages={sessionStages} />
             </CollapsibleSection>
 
             <CollapsibleSection storageKey="live-leaderboard" title="Live Leaderboard" icon={<Trophy className="w-4 h-4 text-amber-500" />}>
-              <SessionLiveLeaderboard sessionId={sessionId} />
+              <SessionLiveLeaderboard sessionId={sessionId} stages={sessionStages} />
             </CollapsibleSection>
         </div>
 
@@ -6076,6 +6079,18 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
   isOrganiser: boolean;
   updateSession: any;
 }) {
+  const { data: completedSessionStages = [] } = useSessionStages(sessionId);
+  const stageOrderMap = new Map(completedSessionStages.map(s => [s.id, s.displayOrder]));
+  const stageNameMap = new Map(completedSessionStages.map(s => [s.id, s.name]));
+  const showStageGroups = completedSessionStages.length > 1;
+  const sortedCompletedMatches = showStageGroups
+    ? [...completedMatches].sort((a, b) => {
+        const ao = stageOrderMap.get(a.stageId ?? -1) ?? 9999;
+        const bo = stageOrderMap.get(b.stageId ?? -1) ?? 9999;
+        if (ao !== bo) return ao - bo;
+        return new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime();
+      })
+    : completedMatches;
   const [editMatch, setEditMatch] = useState<CourtMatch | null>(null);
   const [editStep, setEditStep] = useState<1 | 2 | 3 | 4>(1);
   const [editWinner, setEditWinner] = useState<"A" | "B" | null>(null);
@@ -6217,8 +6232,18 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
                 <p className="text-sm text-muted-foreground text-center py-4">No matches were played in this session</p>
               ) : (
                 <div className="space-y-3">
-                  {completedMatches.map(m => (
-                    <div key={m.id} className="flex items-center gap-3 rounded-md px-3 py-3 bg-muted/30" data-testid={`completed-match-${m.id}`}>
+                  {sortedCompletedMatches.map((m, idx) => {
+                    const prevM = idx > 0 ? sortedCompletedMatches[idx - 1] : null;
+                    const showStageHeader = showStageGroups && (idx === 0 || prevM?.stageId !== m.stageId);
+                    const stageHeaderLabel = m.stageId != null ? (stageNameMap.get(m.stageId) || "Stage") : "Unassigned";
+                    return (
+                    <Fragment key={m.id}>
+                    {showStageHeader && (
+                      <div className="pt-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground" data-testid={`stage-header-completed-session-${m.stageId ?? "none"}`}>
+                        {stageHeaderLabel}
+                      </div>
+                    )}
+                    <div className="flex items-center gap-3 rounded-md px-3 py-3 bg-muted/30" data-testid={`completed-match-${m.id}`}>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 text-sm flex-wrap">
                           <span className={`font-medium ${(m.scoreA ?? 0) > (m.scoreB ?? 0) ? "text-green-600 dark:text-green-400" : ""}`}>
@@ -6248,7 +6273,9 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
                         </Button>
                       )}
                     </div>
-                  ))}
+                    </Fragment>
+                    );
+                  })}
                 </div>
               )}
             </CardContent>
@@ -6256,7 +6283,7 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
         </div>
 
         <div className="xl:sticky xl:top-4 xl:self-start">
-          <SessionLiveLeaderboard sessionId={sessionId} />
+          <SessionLiveLeaderboard sessionId={sessionId} stages={completedSessionStages} />
         </div>
       </div>
 
@@ -6435,8 +6462,37 @@ function CompletedSessionView({ sessionId, completedMatches, completedCount, isO
   );
 }
 
-function SessionLiveLeaderboard({ sessionId }: { sessionId: number }) {
-  const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId);
+function SessionLiveLeaderboard({ sessionId, stages = [] }: { sessionId: number; stages?: SessionStage[] }) {
+  const [selectedStageId, setSelectedStageId] = useState<number | null>(null);
+  const showStageTabs = stages.length > 1;
+  const activeStageId = showStageTabs ? selectedStageId : null;
+  const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId, activeStageId);
+
+  const stageTabs = showStageTabs ? (
+    <div className="flex flex-wrap gap-1.5 mb-4" data-testid="leaderboard-stage-tabs">
+      <button
+        onClick={() => setSelectedStageId(null)}
+        className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+          selectedStageId === null ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"
+        }`}
+        data-testid="leaderboard-stage-tab-overall"
+      >
+        Overall
+      </button>
+      {stages.map((s) => (
+        <button
+          key={s.id}
+          onClick={() => setSelectedStageId(s.id)}
+          className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${
+            selectedStageId === s.id ? "bg-amber-500 text-white" : "bg-muted text-muted-foreground hover:bg-muted/70"
+          }`}
+          data-testid={`leaderboard-stage-tab-${s.id}`}
+        >
+          {s.name}
+        </button>
+      ))}
+    </div>
+  ) : null;
 
   if (isLoading) {
     return (
@@ -6456,6 +6512,7 @@ function SessionLiveLeaderboard({ sessionId }: { sessionId: number }) {
             <Trophy className="w-5 h-5 text-amber-500" />
             Live Leaderboard
           </h3>
+          {stageTabs}
           <p className="text-sm text-muted-foreground text-center py-4">No matches completed yet</p>
         </CardContent>
       </Card>
@@ -6469,6 +6526,7 @@ function SessionLiveLeaderboard({ sessionId }: { sessionId: number }) {
           <Trophy className="w-5 h-5 text-amber-500" />
           Live Leaderboard
         </h3>
+        {stageTabs}
         <div className="space-y-2">
           {leaderboard.map((player, index) => (
             <div

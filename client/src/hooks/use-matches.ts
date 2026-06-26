@@ -603,13 +603,40 @@ export function useStopAllMatches() {
 
 // ===== Session Tournament Mode (pre-planning) =====
 
+export interface SessionStage {
+  id: number;
+  sessionId: number;
+  name: string;
+  displayOrder: number;
+  advanceCount: number;
+  status: "PLANNING" | "ACTIVE" | "COMPLETED";
+}
+
+export interface StageGroupStanding {
+  groupId: number;
+  groupName: string;
+  advanceCount: number;
+  standings: Array<{
+    entryId: number;
+    player1Id: number;
+    player2Id: number | null;
+    matchesPlayed: number;
+    matchesWon: number;
+    setsWon: number;
+    pointsWon: number;
+    rank: number;
+    advancing: boolean;
+  }>;
+}
+
 export interface TournamentPlanState {
   tournamentMode: boolean;
   playersPerSide: number;
   courtsAvailable: number;
-  groups: Array<{ id: number; sessionId: number; name: string; courtNumber: number | null; displayOrder: number }>;
-  entries: Array<{ id: number; sessionId: number; groupId: number | null; player1Id: number; player2Id: number | null; displayOrder: number }>;
-  plannedMatches: Array<{ id: number; sessionId: number; groupId: number | null; plannedOrder: number | null; teamAPlayer1Id: number | null; teamAPlayer2Id: number | null; teamBPlayer1Id: number | null; teamBPlayer2Id: number | null; courtNumber: number | null }>;
+  stages: SessionStage[];
+  groups: Array<{ id: number; sessionId: number; stageId: number | null; name: string; courtNumber: number | null; displayOrder: number }>;
+  entries: Array<{ id: number; sessionId: number; stageId: number | null; groupId: number | null; player1Id: number; player2Id: number | null; displayOrder: number }>;
+  plannedMatches: Array<{ id: number; sessionId: number; stageId: number | null; groupId: number | null; plannedOrder: number | null; teamAPlayer1Id: number | null; teamAPlayer2Id: number | null; teamBPlayer1Id: number | null; teamBPlayer2Id: number | null; courtNumber: number | null }>;
   attendees: Array<{ profileId: number; fullName: string; gender: string | null; grade: string | null; attendanceStatus: string | null }>;
 }
 
@@ -645,6 +672,7 @@ function useTournamentMutation<TArgs>(
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId] });
       queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "leaderboard"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "stages"] });
       if (opts?.success) toast({ title: opts.success });
     },
     onError: (error: Error) => {
@@ -665,7 +693,7 @@ export const useSetTournamentMode = () =>
   useTournamentMutation<{ enabled: boolean }>((sid, a) => jsonReq("PATCH", `/api/sessions/${sid}/tournament-mode`, { enabled: a.enabled }));
 
 export const useCreateGroup = () =>
-  useTournamentMutation<{ name?: string; courtNumber?: number | null }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/groups`, a), { error: "Failed to add group" });
+  useTournamentMutation<{ name?: string; courtNumber?: number | null; stageId?: number }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/groups`, a), { error: "Failed to add group" });
 
 export const useUpdateGroup = () =>
   useTournamentMutation<{ groupId: number; name?: string; courtNumber?: number | null; displayOrder?: number }>((sid, a) => jsonReq("PATCH", `/api/sessions/${sid}/groups/${a.groupId}`, a), { error: "Failed to update group" });
@@ -674,7 +702,7 @@ export const useDeleteGroup = () =>
   useTournamentMutation<{ groupId: number }>((sid, a) => jsonReq("DELETE", `/api/sessions/${sid}/groups/${a.groupId}`), { error: "Failed to delete group" });
 
 export const useCreateEntry = () =>
-  useTournamentMutation<{ groupId?: number | null; player1Id: number; player2Id?: number | null }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/group-entries`, a), { error: "Failed to add player" });
+  useTournamentMutation<{ groupId?: number | null; player1Id: number; player2Id?: number | null; stageId?: number }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/group-entries`, a), { error: "Failed to add player" });
 
 export const useMoveEntry = () =>
   useTournamentMutation<{ entryId: number; groupId?: number | null; displayOrder?: number }>((sid, a) => jsonReq("PATCH", `/api/sessions/${sid}/group-entries/${a.entryId}`, a), { error: "Failed to move player" });
@@ -695,4 +723,45 @@ export const useReorderPlannedMatches = () =>
   useTournamentMutation<{ orderedIds: number[] }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/planned-matches/reorder`, { orderedIds: a.orderedIds }), { error: "Failed to reorder" });
 
 export const useStartTournament = () =>
-  useTournamentMutation<Record<string, never>>((sid) => jsonReq("POST", `/api/sessions/${sid}/start-tournament`), { success: "Tournament started — matches are now live", error: "Failed to start tournament" });
+  useTournamentMutation<{ stageId?: number }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/start-tournament`, a?.stageId != null ? { stageId: a.stageId } : {}), { success: "Tournament started — matches are now live", error: "Failed to start tournament" });
+
+// ===== Multi-stage tournaments =====
+
+export const useCreateStage = () =>
+  useTournamentMutation<{ name?: string; advanceCount?: number }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/stages`, a), { success: "Stage added", error: "Failed to add stage" });
+
+export const useUpdateStage = () =>
+  useTournamentMutation<{ stageId: number; name?: string; advanceCount?: number; status?: string }>((sid, a) => jsonReq("PATCH", `/api/sessions/${sid}/stages/${a.stageId}`, a), { error: "Failed to update stage" });
+
+export const useDeleteStage = () =>
+  useTournamentMutation<{ stageId: number }>((sid, a) => jsonReq("DELETE", `/api/sessions/${sid}/stages/${a.stageId}`), { success: "Stage removed", error: "Failed to delete stage" });
+
+export const useAdvanceStage = () =>
+  useTournamentMutation<{ stageId: number; mode: "RANDOMISE" | "MANUAL"; name?: string; advanceCount?: number; groupCount?: number }>(
+    (sid, a) => jsonReq("POST", `/api/sessions/${sid}/stages/${a.stageId}/advance`, a),
+    { success: "Teams advanced to the next stage", error: "Failed to advance stage" },
+  );
+
+export function useStageStandings(sessionId: number, stageId: number | null, enabled = true) {
+  return useQuery<StageGroupStanding[]>({
+    queryKey: ["/api/sessions", sessionId, "stages", stageId, "standings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/stages/${stageId}/standings`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load standings");
+      return res.json();
+    },
+    enabled: !!sessionId && stageId != null && enabled,
+  });
+}
+
+export function useSessionStages(sessionId: number, enabled = true) {
+  return useQuery<SessionStage[]>({
+    queryKey: ["/api/sessions", sessionId, "stages"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/stages`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load stages");
+      return res.json();
+    },
+    enabled: !!sessionId && enabled,
+  });
+}

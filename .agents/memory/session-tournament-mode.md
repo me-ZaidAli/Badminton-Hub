@@ -14,3 +14,11 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
 - **Roster changes must invalidate a group's plan.** Adding/moving/deleting an entry deletes that group's PLANNED matches, otherwise stale plans reference players no longer in the group. Auto-generate also clears the group first then rebuilds the round-robin (C(n,2)).
   **How to apply:** every entry create/move/delete route calls `deletePlannedMatchesForGroup` for affected group(s).
 - **Object-scoping:** group/entry/match mutation routes authorize the parent session AND verify the child belongs to that session (avoid cross-session IDOR). Player double-placement is guarded app-level (single-organiser flow; no DB cross-column uniqueness).
+
+## Multi-stage extension (stages = Round Robin → QF → SF → Final)
+
+- **`session_stages` table** + nullable `stageId` on `matches`/`session_groups`/`session_group_entries`. Legacy NULL stageId = "Unassigned"; `ensureDefaultStage` backfills a first stage for tournament sessions only — so **normal/single-stage sessions return `stages=[]`** and all stage UI stays hidden.
+- **UI gate is `stages.length > 1`, NOT `tournamentMode`.** Leaderboard stage tabs (Overall + per-stage) and finalised-matches stage headers only appear when 2+ stages exist. This keeps non-tournament and single-stage modes byte-for-byte unchanged without needing the tournamentMode flag in every component.
+  **How to apply:** fetch `useSessionStages(sessionId)` once high up (e.g. MatchesView / CompletedSessionView) and pass the array down as a `stages` prop rather than each leaf re-fetching.
+- **Stage-filtered leaderboard:** `useSessionLeaderboard(sessionId, stageId?)` appends `?stageId=` only when set; queryKey gains a `stageId ?? "all"` segment. Existing prefix invalidations (`["/api/sessions", id, "leaderboard"]`) still match via TanStack v5 prefix matching — don't "fix" them.
+- **Finalised-by-stage grouping** is derived on the frontend (no dedicated endpoint): sort COMPLETED matches by stage `displayOrder` then `completedAt`, emit a header row when `stageId` changes (NULL bucket sorts last at 9999). Both `CompletedMatches` (live) and `CompletedSessionView` (ended) do this.

@@ -227,11 +227,12 @@ export function useDetailedPlayerStats(profileId: number | null, filters?: { dat
   });
 }
 
-export function useSessionLeaderboard(sessionId: number | null) {
+export function useSessionLeaderboard(sessionId: number | null, stageId?: number | null) {
   return useQuery<LeaderboardPlayer[]>({
-    queryKey: ["/api/sessions", sessionId, "leaderboard"],
+    queryKey: ["/api/sessions", sessionId, "leaderboard", stageId ?? "all"],
     queryFn: async () => {
-      const res = await fetch(`/api/sessions/${sessionId}/leaderboard`);
+      const qs = stageId != null ? `?stageId=${stageId}` : "";
+      const res = await fetch(`/api/sessions/${sessionId}/leaderboard${qs}`);
       if (!res.ok) throw new Error("Failed to fetch session leaderboard");
       return res.json();
     },

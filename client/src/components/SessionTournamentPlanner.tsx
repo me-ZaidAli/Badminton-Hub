@@ -1,12 +1,12 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Plus, Trophy, Users, Trash2, Wand2, ChevronUp, ChevronDown,
-  GripVertical, Swords, Loader2, Play, Undo2,
+  GripVertical, Swords, Loader2, Play, Undo2, ListOrdered, ArrowRightCircle,
+  Shuffle, Hand,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import {
   useTournamentPlan,
@@ -14,6 +14,8 @@ import {
   useCreateEntry, useMoveEntry, useDeleteEntry,
   useAutoGenerateGroupMatches, useDeletePlannedMatch, useReorderPlannedMatches,
   useStartTournament,
+  useCreateStage, useUpdateStage, useDeleteStage, useAdvanceStage, useStageStandings,
+  type SessionStage,
 } from "@/hooks/use-matches";
 
 interface Props {
@@ -35,9 +37,26 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   const deletePlanned = useDeletePlannedMatch();
   const reorderPlanned = useReorderPlannedMatches();
   const startTournament = useStartTournament();
+  const createStage = useCreateStage();
+  const updateStage = useUpdateStage();
+  const deleteStage = useDeleteStage();
 
   const [selected, setSelected] = useState<number[]>([]);
   const [draggingEntryId, setDraggingEntryId] = useState<number | null>(null);
+  const [selectedStageId, setSelectedStageId] = useState<number | null>(null);
+  const [showAdvance, setShowAdvance] = useState(false);
+
+  const stages = plan?.stages || [];
+
+  // Default to the latest non-completed stage (or just the last one).
+  useEffect(() => {
+    if (!stages.length) return;
+    if (selectedStageId != null && stages.some(s => s.id === selectedStageId)) return;
+    const open = [...stages].reverse().find(s => s.status !== "COMPLETED");
+    setSelectedStageId((open || stages[stages.length - 1]).id);
+  }, [stages, selectedStageId]);
+
+  const selectedStage = stages.find(s => s.id === selectedStageId) || null;
 
   const playersPerSide = plan?.playersPerSide ?? 2;
   const isDoubles = playersPerSide >= 2;
@@ -48,11 +67,27 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
     return m;
   }, [plan]);
 
+  // Entries/groups/matches scoped to the selected stage.
+  const stageGroups = useMemo(
+    () => (plan?.groups || []).filter(g => g.stageId === selectedStageId)
+      .sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0) || a.id - b.id),
+    [plan, selectedStageId],
+  );
+  const stageEntries = useMemo(
+    () => (plan?.entries || []).filter(e => e.stageId === selectedStageId),
+    [plan, selectedStageId],
+  );
+  const stagePlanned = useMemo(
+    () => (plan?.plannedMatches || []).filter(m => m.stageId === selectedStageId),
+    [plan, selectedStageId],
+  );
+
+  // A player is "used" only within the selected stage.
   const usedPlayerIds = useMemo(() => {
     const s = new Set<number>();
-    (plan?.entries || []).forEach(e => { s.add(e.player1Id); if (e.player2Id) s.add(e.player2Id); });
+    stageEntries.forEach(e => { s.add(e.player1Id); if (e.player2Id) s.add(e.player2Id); });
     return s;
-  }, [plan]);
+  }, [stageEntries]);
 
   const pool = useMemo(
     () =>
@@ -65,8 +100,8 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   );
 
   const unassignedEntries = useMemo(
-    () => (plan?.entries || []).filter(e => e.groupId == null),
-    [plan],
+    () => stageEntries.filter(e => e.groupId == null),
+    [stageEntries],
   );
 
   const entryLabel = (e: { player1Id: number; player2Id: number | null }) => {
@@ -90,7 +125,7 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   };
 
   const handleAddSingles = () => {
-    selected.forEach(pid => createEntry.mutate({ sessionId, player1Id: pid, groupId: null }));
+    selected.forEach(pid => createEntry.mutate({ sessionId, player1Id: pid, groupId: null, stageId: selectedStageId ?? undefined }));
     setSelected([]);
   };
 
@@ -99,7 +134,7 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
       toast({ title: "Pick exactly two players for a pair", variant: "destructive" });
       return;
     }
-    createEntry.mutate({ sessionId, player1Id: selected[0], player2Id: selected[1], groupId: null });
+    createEntry.mutate({ sessionId, player1Id: selected[0], player2Id: selected[1], groupId: null, stageId: selectedStageId ?? undefined });
     setSelected([]);
   };
 
@@ -110,7 +145,7 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   };
 
   const handleReorder = (groupId: number, matchId: number, dir: -1 | 1) => {
-    const groupMatches = (plan?.plannedMatches || [])
+    const groupMatches = stagePlanned
       .filter(m => m.groupId === groupId)
       .sort((a, b) => (a.plannedOrder || 0) - (b.plannedOrder || 0));
     const idx = groupMatches.findIndex(m => m.id === matchId);
@@ -121,7 +156,8 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
     reorderPlanned.mutate({ sessionId, orderedIds: ids });
   };
 
-  const totalPlanned = plan?.plannedMatches.length || 0;
+  const stagePlannedCount = stagePlanned.length;
+  const isLastStage = stages.length > 0 && stages[stages.length - 1].id === selectedStageId;
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-sm overflow-y-auto" data-testid="tournament-planner">
@@ -134,24 +170,114 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
             </div>
             <div>
               <h2 className="text-lg font-bold text-white">Tournament Planner</h2>
-              <p className="text-xs text-white/50">Plan pairs, groups &amp; matches before play</p>
+              <p className="text-xs text-white/50">Plan stages, groups &amp; matches before play</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
             <Button
-              onClick={() => startTournament.mutate({ sessionId } as any, { onSuccess: onClose })}
-              disabled={totalPlanned === 0 || startTournament.isPending}
+              onClick={() => startTournament.mutate({ sessionId, stageId: selectedStageId ?? undefined } as any, { onSuccess: onClose })}
+              disabled={stagePlannedCount === 0 || startTournament.isPending || !selectedStage}
               className="bg-emerald-600 hover:bg-emerald-500 text-white"
               data-testid="button-start-tournament"
             >
               {startTournament.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <Play className="w-4 h-4 mr-1.5" />}
-              Start Tournament
+              Start {selectedStage ? selectedStage.name : "Stage"}
             </Button>
             <Button variant="ghost" size="icon" onClick={onClose} className="text-white/70 hover:text-white" data-testid="button-close-planner">
               <X className="w-5 h-5" />
             </Button>
           </div>
         </div>
+
+        {/* Stage tabs */}
+        {!isLoading && (
+          <div className="flex items-center gap-2 flex-wrap px-4 sm:px-6 py-3 border-b border-white/10 bg-white/[0.02]">
+            {stages.map(s => {
+              const active = s.id === selectedStageId;
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => setSelectedStageId(s.id)}
+                  className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm font-medium border transition ${
+                    active
+                      ? "bg-amber-500/20 border-amber-400/60 text-white"
+                      : "bg-white/5 border-white/10 text-white/70 hover:bg-white/10"
+                  }`}
+                  data-testid={`tab-stage-${s.id}`}
+                >
+                  <Trophy className="w-3.5 h-3.5 opacity-70" />
+                  {s.name}
+                  <StageStatusPill status={s.status} />
+                </button>
+              );
+            })}
+            <Button
+              size="sm" variant="outline"
+              onClick={() => createStage.mutate({ sessionId })}
+              disabled={createStage.isPending}
+              data-testid="button-add-stage"
+            >
+              <Plus className="w-4 h-4 mr-1" /> Stage
+            </Button>
+          </div>
+        )}
+
+        {/* Stage toolbar */}
+        {!isLoading && selectedStage && (
+          <div className="flex items-center gap-3 flex-wrap px-4 sm:px-6 py-3 border-b border-white/10">
+            <Input
+              key={`name-${selectedStage.id}`}
+              defaultValue={selectedStage.name}
+              onBlur={e => {
+                const v = e.target.value.trim();
+                if (v && v !== selectedStage.name) updateStage.mutate({ sessionId, stageId: selectedStage.id, name: v });
+              }}
+              className="h-8 w-44 bg-white/5 border-white/10 text-white text-sm font-semibold"
+              data-testid="input-stage-name"
+            />
+            <div className="flex items-center gap-2">
+              <span className="text-xs text-white/50">Teams advancing per group</span>
+              <Input
+                key={`adv-${selectedStage.id}`}
+                type="number" min={1}
+                defaultValue={selectedStage.advanceCount}
+                onBlur={e => {
+                  const v = Math.max(1, Number(e.target.value) || 1);
+                  if (v !== selectedStage.advanceCount) updateStage.mutate({ sessionId, stageId: selectedStage.id, advanceCount: v });
+                }}
+                className="h-8 w-16 bg-white/5 border-white/10 text-white text-sm"
+                data-testid="input-stage-advance-count"
+              />
+            </div>
+            <div className="flex-1" />
+            {isLastStage && (
+              <Button
+                size="sm"
+                onClick={() => setShowAdvance(true)}
+                className="bg-cyan-600 hover:bg-cyan-500 text-white"
+                data-testid="button-open-advance"
+              >
+                <ArrowRightCircle className="w-4 h-4 mr-1.5" /> Advance to next stage
+              </Button>
+            )}
+            {stages.length > 1 && (
+              <Button
+                size="sm" variant="ghost"
+                onClick={() => {
+                  if (confirm(`Delete stage "${selectedStage.name}"? Its groups and planned matches will be removed.`)) {
+                    deleteStage.mutate({ sessionId, stageId: selectedStage.id }, {
+                      onSuccess: () => setSelectedStageId(null),
+                    });
+                  }
+                }}
+                className="text-white/50 hover:text-red-400"
+                data-testid="button-delete-stage"
+              >
+                <Trash2 className="w-4 h-4 mr-1" /> Delete stage
+              </Button>
+            )}
+          </div>
+        )}
 
         {isLoading ? (
           <div className="flex-1 flex items-center justify-center text-white/60">
@@ -240,24 +366,24 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
                 <h3 className="font-semibold text-white">Court Groups</h3>
                 <Button
                   size="sm" variant="outline"
-                  onClick={() => createGroup.mutate({ sessionId } as any)}
-                  disabled={createGroup.isPending}
+                  onClick={() => createGroup.mutate({ sessionId, stageId: selectedStageId ?? undefined })}
+                  disabled={createGroup.isPending || !selectedStage}
                   data-testid="button-add-group"
                 >
                   <Plus className="w-4 h-4 mr-1" /> Add group
                 </Button>
               </div>
 
-              {(plan?.groups.length || 0) === 0 ? (
+              {stageGroups.length === 0 ? (
                 <div className="rounded-2xl border border-dashed border-white/15 p-10 text-center text-white/40 text-sm">
-                  No groups yet. Add a group for each court, then drag teams in.
+                  No groups in this stage yet. Add a group for each court, then drag teams in.
                 </div>
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                   <AnimatePresence>
-                    {plan!.groups.map(g => {
-                      const groupEntries = plan!.entries.filter(e => e.groupId === g.id);
-                      const groupMatches = plan!.plannedMatches
+                    {stageGroups.map(g => {
+                      const groupEntries = stageEntries.filter(e => e.groupId === g.id);
+                      const groupMatches = stagePlanned
                         .filter(m => m.groupId === g.id)
                         .sort((a, b) => (a.plannedOrder || 0) - (b.plannedOrder || 0));
                       return (
@@ -368,9 +494,225 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
                   </AnimatePresence>
                 </div>
               )}
+
+              {/* Standings for the selected stage */}
+              {selectedStage && stageGroups.length > 0 && (
+                <StageStandingsPanel
+                  sessionId={sessionId}
+                  stage={selectedStage}
+                  teamLabel={teamLabel}
+                />
+              )}
             </div>
           </div>
         )}
+      </div>
+
+      {showAdvance && selectedStage && (
+        <AdvanceDialog
+          sessionId={sessionId}
+          stage={selectedStage}
+          defaultGroupCount={Math.max(1, stageGroups.length)}
+          onClose={() => setShowAdvance(false)}
+          onAdvanced={(newStageId) => { setShowAdvance(false); setSelectedStageId(newStageId); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function StageStatusPill({ status }: { status: SessionStage["status"] }) {
+  const map: Record<SessionStage["status"], string> = {
+    PLANNING: "bg-white/10 text-white/60",
+    ACTIVE: "bg-emerald-500/20 text-emerald-300",
+    COMPLETED: "bg-amber-500/20 text-amber-300",
+  };
+  const label = status === "PLANNING" ? "Planning" : status === "ACTIVE" ? "Live" : "Done";
+  return <span className={`px-1.5 py-0.5 rounded text-[10px] font-semibold ${map[status]}`}>{label}</span>;
+}
+
+function StageStandingsPanel({
+  sessionId, stage, teamLabel,
+}: {
+  sessionId: number;
+  stage: SessionStage;
+  teamLabel: (p1: number | null, p2: number | null) => string;
+}) {
+  const { data: standings, isLoading } = useStageStandings(sessionId, stage.id);
+  if (isLoading) {
+    return (
+      <div className="mt-6 flex items-center gap-2 text-white/50 text-sm">
+        <Loader2 className="w-4 h-4 animate-spin" /> Loading standings…
+      </div>
+    );
+  }
+  const hasResults = (standings || []).some(g => g.standings.some(s => s.matchesPlayed > 0));
+  return (
+    <div className="mt-6">
+      <div className="flex items-center gap-2 mb-3">
+        <ListOrdered className="w-4 h-4 text-cyan-400" />
+        <h3 className="font-semibold text-white">Standings — {stage.name}</h3>
+      </div>
+      {!hasResults ? (
+        <p className="text-xs text-white/40">No completed matches yet. Standings appear once results come in.</p>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+          {(standings || []).map(g => (
+            <div key={g.groupId} className="rounded-2xl border border-white/10 bg-white/5 p-3" data-testid={`standings-group-${g.groupId}`}>
+              <h4 className="text-sm font-semibold text-white mb-2">{g.groupName}</h4>
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="text-white/40 text-left">
+                    <th className="font-medium pb-1">#</th>
+                    <th className="font-medium pb-1">Team</th>
+                    <th className="font-medium pb-1 text-center">P</th>
+                    <th className="font-medium pb-1 text-center">W</th>
+                    <th className="font-medium pb-1 text-center">Pts</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {g.standings.map(s => (
+                    <tr
+                      key={s.entryId}
+                      className={s.advancing ? "text-emerald-300" : "text-white/80"}
+                      data-testid={`standings-row-${s.entryId}`}
+                    >
+                      <td className="py-0.5">{s.rank}</td>
+                      <td className="py-0.5 truncate max-w-[120px]">{teamLabel(s.player1Id, s.player2Id)}</td>
+                      <td className="py-0.5 text-center">{s.matchesPlayed}</td>
+                      <td className="py-0.5 text-center">{s.matchesWon}</td>
+                      <td className="py-0.5 text-center">{s.pointsWon}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <p className="text-[10px] text-emerald-400/70 mt-2">Top {g.advanceCount} (green) advance.</p>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AdvanceDialog({
+  sessionId, stage, defaultGroupCount, onClose, onAdvanced,
+}: {
+  sessionId: number;
+  stage: SessionStage;
+  defaultGroupCount: number;
+  onClose: () => void;
+  onAdvanced: (newStageId: number) => void;
+}) {
+  const advance = useAdvanceStage();
+  const [mode, setMode] = useState<"RANDOMISE" | "MANUAL">("RANDOMISE");
+  const [name, setName] = useState("");
+  const [groupCount, setGroupCount] = useState(defaultGroupCount);
+  const [advanceCount, setAdvanceCount] = useState(2);
+
+  const submit = () => {
+    advance.mutate(
+      {
+        sessionId,
+        stageId: stage.id,
+        mode,
+        name: name.trim() || undefined,
+        advanceCount,
+        groupCount: mode === "RANDOMISE" ? groupCount : undefined,
+      },
+      {
+        onSuccess: (data: any) => {
+          if (data?.stage?.id) onAdvanced(data.stage.id);
+        },
+      },
+    );
+  };
+
+  return (
+    <div className="fixed inset-0 z-[110] flex items-center justify-center bg-black/60 p-4" onClick={onClose} data-testid="advance-dialog">
+      <div className="w-full max-w-md rounded-2xl border border-white/10 bg-slate-900 p-5 space-y-4" onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-2">
+          <ArrowRightCircle className="w-5 h-5 text-cyan-400" />
+          <h3 className="text-lg font-bold text-white">Advance from {stage.name}</h3>
+        </div>
+        <p className="text-xs text-white/50">
+          The top {stage.advanceCount} team{stage.advanceCount === 1 ? "" : "s"} from each group in
+          this stage move into a brand-new stage. Adjust “Teams advancing per group” in the toolbar first.
+        </p>
+
+        <div>
+          <label className="text-xs text-white/60 mb-1 block">New stage name</label>
+          <Input
+            value={name} onChange={e => setName(e.target.value)}
+            placeholder="e.g. Semi Finals"
+            className="bg-white/5 border-white/10 text-white"
+            data-testid="input-new-stage-name"
+          />
+        </div>
+
+        <div>
+          <label className="text-xs text-white/60 mb-2 block">How to place advancing teams</label>
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              onClick={() => setMode("RANDOMISE")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition ${
+                mode === "RANDOMISE" ? "bg-cyan-500/20 border-cyan-400 text-white" : "bg-white/5 border-white/10 text-white/70"
+              }`}
+              data-testid="button-mode-randomise"
+            >
+              <Shuffle className="w-4 h-4" /> Randomise
+            </button>
+            <button
+              onClick={() => setMode("MANUAL")}
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-sm transition ${
+                mode === "MANUAL" ? "bg-cyan-500/20 border-cyan-400 text-white" : "bg-white/5 border-white/10 text-white/70"
+              }`}
+              data-testid="button-mode-manual"
+            >
+              <Hand className="w-4 h-4" /> Manual
+            </button>
+          </div>
+          <p className="text-[11px] text-white/40 mt-1.5">
+            {mode === "RANDOMISE"
+              ? "Shuffle advancing teams across new court groups."
+              : "Drop advancing teams into the new stage's tray to place by hand."}
+          </p>
+        </div>
+
+        {mode === "RANDOMISE" && (
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-white/60">Number of groups</label>
+            <Input
+              type="number" min={1}
+              value={groupCount} onChange={e => setGroupCount(Math.max(1, Number(e.target.value) || 1))}
+              className="h-8 w-20 bg-white/5 border-white/10 text-white"
+              data-testid="input-advance-group-count"
+            />
+          </div>
+        )}
+
+        <div className="flex items-center gap-2">
+          <label className="text-xs text-white/60">Teams advancing per group (next stage)</label>
+          <Input
+            type="number" min={1}
+            value={advanceCount} onChange={e => setAdvanceCount(Math.max(1, Number(e.target.value) || 1))}
+            className="h-8 w-20 bg-white/5 border-white/10 text-white"
+            data-testid="input-next-advance-count"
+          />
+        </div>
+
+        <div className="flex justify-end gap-2 pt-2">
+          <Button variant="ghost" onClick={onClose} className="text-white/70" data-testid="button-cancel-advance">Cancel</Button>
+          <Button
+            onClick={submit}
+            disabled={advance.isPending}
+            className="bg-cyan-600 hover:bg-cyan-500 text-white"
+            data-testid="button-confirm-advance"
+          >
+            {advance.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <ArrowRightCircle className="w-4 h-4 mr-1.5" />}
+            Advance teams
+          </Button>
+        </div>
       </div>
     </div>
   );

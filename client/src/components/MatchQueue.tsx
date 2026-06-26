@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { GripVertical, ArrowRight, Users, Pencil, Trash2, Clock, X, Shuffle, RotateCcw, CheckCircle, Loader2, Play, Pause, AlertTriangle, ArrowUp, ArrowDown, MoreHorizontal, Lightbulb, TrendingDown, Check, UserCog, Zap } from "lucide-react";
 import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, Fragment } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
 import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget, useCreateEmptyMatch, usePrioritizeLowGames } from "@/hooks/use-matches";
@@ -602,7 +602,7 @@ export function MatchQueue({
   );
 }
 
-export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false, currentPlayerProfileId, availablePlayers = [], onSwapPlayer }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean; currentPlayerProfileId?: number | null; availablePlayers?: Player[]; onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void }) {
+export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = false, currentPlayerProfileId, availablePlayers = [], onSwapPlayer, stages = [] }: { matches: CourtMatch[]; isOrganiser?: boolean; isSignedUp?: boolean; currentPlayerProfileId?: number | null; availablePlayers?: Player[]; onSwapPlayer?: (matchId: number, position: string, newPlayerId: number) => void; stages?: { id: number; name: string; displayOrder: number }[] }) {
   const [scoreMatch, setScoreMatch] = useState<CourtMatch | null>(null);
   const [scoreMode, setScoreMode] = useState<"edit" | "player">("edit");
   const [editTab, setEditTab] = useState<"score" | "players">("score");
@@ -619,9 +619,19 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
   const { mutate: enterPlayerScore, isPending: isPlayerScorePending } = usePlayerEnterScore();
   const { mutate: removeMatch, isPending: isDeletePending } = useDeleteMatch();
 
+  const showStageGroups = stages.length > 1;
+  const stageOrderMap = new Map(stages.map(s => [s.id, s.displayOrder]));
+  const stageNameMap = new Map(stages.map(s => [s.id, s.name]));
   const completedMatches = matches
     .filter(m => m.status === "COMPLETED")
-    .sort((a, b) => new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime());
+    .sort((a, b) => {
+      if (showStageGroups) {
+        const ao = stageOrderMap.get(a.stageId ?? -1) ?? 9999;
+        const bo = stageOrderMap.get(b.stageId ?? -1) ?? 9999;
+        if (ao !== bo) return ao - bo;
+      }
+      return new Date(b.completedAt || 0).getTime() - new Date(a.completedAt || 0).getTime();
+    });
 
   if (completedMatches.length === 0) return null;
 
@@ -749,7 +759,7 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
         <CardContent className="p-0">
           <ScrollArea className="h-[400px]">
             <div className="space-y-2 p-4">
-              {completedMatches.map((match) => {
+              {completedMatches.map((match, idx) => {
                 const hasScore = (match.scoreA || 0) > 0 || (match.scoreB || 0) > 0;
                 const scoreAlreadyEntered = !!match.scoreEnteredByUserId;
                 const isPlayerInThisMatch = currentPlayerProfileId ? (
@@ -759,10 +769,21 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                   match.teamBPlayer2?.id === currentPlayerProfileId
                 ) : false;
                 const canPlayerEnterScore = isPlayerInThisMatch && !scoreAlreadyEntered && !hasScore;
+                const prevMatch = idx > 0 ? completedMatches[idx - 1] : null;
+                const showStageHeader = showStageGroups && (idx === 0 || prevMatch?.stageId !== match.stageId);
+                const stageHeaderLabel = match.stageId != null ? (stageNameMap.get(match.stageId) || "Stage") : "Unassigned";
 
                 return (
+                  <Fragment key={match.id}>
+                  {showStageHeader && (
+                    <div
+                      className="pt-2 pb-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+                      data-testid={`stage-header-completed-${match.stageId ?? "none"}`}
+                    >
+                      {stageHeaderLabel}
+                    </div>
+                  )}
                   <div
-                    key={match.id}
                     className="p-3 bg-muted/20 rounded-lg space-y-2"
                     data-testid={`completed-match-${match.id}`}
                   >
@@ -838,6 +859,7 @@ export function CompletedMatches({ matches, isOrganiser = false, isSignedUp = fa
                       </div>
                     )}
                   </div>
+                  </Fragment>
                 );
               })}
             </div>

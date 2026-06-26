@@ -2922,7 +2922,8 @@ export async function registerRoutes(
       if (!session) {
         return res.status(404).json({ message: "Session not found" });
       }
-      const leaderboard = await storage.getDynamicSessionLeaderboard(sessionId);
+      const stageId = req.query.stageId != null ? Number(req.query.stageId) : undefined;
+      const leaderboard = await storage.getDynamicSessionLeaderboard(sessionId, Number.isFinite(stageId) ? stageId : undefined);
       const publicLeaderboard = leaderboard.map(({ gender, showPublicName, ...rest }: any) => {
         const displayName = showPublicName ? (rest.nickname || rest.fullName) : rest.fullName;
         return {
@@ -6001,7 +6002,11 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const sessionId = Number(req.params.id);
-      const [groups, entries, plannedMatches, signups] = await Promise.all([
+      // Guarantee at least one stage and backfill legacy tournament rows so the
+      // planner always has a stage to work with.
+      await storage.ensureDefaultStage(sessionId);
+      const [stages, groups, entries, plannedMatches, signups] = await Promise.all([
+        storage.getSessionStages(sessionId),
         storage.getSessionGroups(sessionId),
         storage.getSessionGroupEntries(sessionId),
         storage.getSessionPlannedMatches(sessionId),
@@ -6020,6 +6025,7 @@ export async function registerRoutes(
         tournamentMode: ctx.session.tournamentMode,
         playersPerSide: ctx.session.playersPerSide || 2,
         courtsAvailable: ctx.session.courtsAvailable || 1,
+        stages,
         groups,
         entries,
         plannedMatches,
@@ -6036,12 +6042,18 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const sessionId = Number(req.params.id);
-      const existing = await storage.getSessionGroups(sessionId);
+      const stage = req.body?.stageId != null
+        ? await storage.getSessionStage(Number(req.body.stageId))
+        : await storage.ensureDefaultStage(sessionId);
+      if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+      const all = await storage.getSessionGroups(sessionId);
+      const existing = all.filter(g => g.stageId === stage.id);
       const n = existing.length + 1;
       const name = (req.body?.name && String(req.body.name).trim()) || `Group ${n}`;
       const courtNumber = req.body?.courtNumber != null ? Number(req.body.courtNumber) : n;
       const group = await storage.createSessionGroup({
         sessionId,
+        stageId: stage.id,
         name,
         courtNumber: Number.isFinite(courtNumber) ? courtNumber : null,
         displayOrder: existing.length,
@@ -6106,22 +6118,38 @@ export async function registerRoutes(
         if (!poolIds.has(pid)) return res.status(400).json({ message: "Player is not signed up to this session" });
       }
 
-      const existingEntries = await storage.getSessionGroupEntries(sessionId);
-      const used = new Set<number>();
-      for (const e of existingEntries) { used.add(e.player1Id); if (e.player2Id) used.add(e.player2Id); }
-      for (const pid of [player1Id, ...(player2Id ? [player2Id] : [])]) {
-        if (used.has(pid)) return res.status(409).json({ message: "Player is already placed in a pair/group" });
-      }
-
-      // If placing directly into a group, that group must belong to this session.
+      // Resolve the stage this entry belongs to: the target group's stage, an
+      // explicit body stageId, or the first/default stage.
+      const groups = await storage.getSessionGroups(sessionId);
+      let stageId: number;
       if (groupId != null) {
-        const groups = await storage.getSessionGroups(sessionId);
-        if (!groups.some(g => g.id === groupId)) return res.status(404).json({ message: "Group not found" });
+        const group = groups.find(g => g.id === groupId);
+        if (!group) return res.status(404).json({ message: "Group not found" });
+        stageId = group.stageId ?? (await storage.ensureDefaultStage(sessionId)).id;
+      } else if (req.body?.stageId != null) {
+        const stage = await storage.getSessionStage(Number(req.body.stageId));
+        if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+        stageId = stage.id;
+      } else {
+        stageId = (await storage.ensureDefaultStage(sessionId)).id;
       }
 
-      const groupEntries = existingEntries.filter(e => e.groupId === groupId);
+      const existingEntries = await storage.getSessionGroupEntries(sessionId);
+      // A player may only be used once PER STAGE (the same player legitimately
+      // reappears in later stages after advancing).
+      const used = new Set<number>();
+      for (const e of existingEntries) {
+        if (e.stageId !== stageId) continue;
+        used.add(e.player1Id); if (e.player2Id) used.add(e.player2Id);
+      }
+      for (const pid of [player1Id, ...(player2Id ? [player2Id] : [])]) {
+        if (used.has(pid)) return res.status(409).json({ message: "Player is already placed in a pair/group for this stage" });
+      }
+
+      const groupEntries = existingEntries.filter(e => e.groupId === groupId && e.stageId === stageId);
       const entry = await storage.createSessionGroupEntry({
         sessionId,
+        stageId,
         groupId,
         player1Id,
         player2Id,
@@ -6215,6 +6243,7 @@ export async function registerRoutes(
             courtNumber: group.courtNumber ?? null,
             status: "PLANNED",
             groupId,
+            stageId: group.stageId ?? null,
             plannedOrder: order++,
             teamAPlayer1Id: a.player1Id,
             teamAPlayer2Id: a.player2Id ?? null,
@@ -6263,6 +6292,7 @@ export async function registerRoutes(
         courtNumber: group.courtNumber ?? null,
         status: "PLANNED",
         groupId,
+        stageId: group.stageId ?? null,
         plannedOrder: nextOrder,
         teamAPlayer1Id: a.player1Id,
         teamAPlayer2Id: a.player2Id ?? null,
@@ -6326,11 +6356,18 @@ export async function registerRoutes(
     if (!ctx) return;
     try {
       const sessionId = Number(req.params.id);
+      // Optionally release only one stage's planned matches (multi-stage flow).
+      const stageId = req.body?.stageId != null ? Number(req.body.stageId) : null;
+      if (stageId != null) {
+        const stage = await storage.getSessionStage(stageId);
+        if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+      }
       const groups = await storage.getSessionGroups(sessionId);
       const groupOrder = new Map<number, number>();
       groups.forEach((g, i) => groupOrder.set(g.id, g.displayOrder ?? i));
 
-      const planned = await storage.getSessionPlannedMatches(sessionId);
+      let planned = await storage.getSessionPlannedMatches(sessionId);
+      if (stageId != null) planned = planned.filter(m => m.stageId === stageId);
       if (planned.length === 0) return res.status(400).json({ message: "No planned matches to start" });
 
       // Order globally by group display order then planned order, so each court's
@@ -6342,13 +6379,208 @@ export async function registerRoutes(
         return (a.plannedOrder || 0) - (b.plannedOrder || 0);
       });
 
-      let pos = 1;
+      // Continue numbering after any matches already queued from earlier stages.
+      const existingQueued = (await storage.getSessionMatches(sessionId))
+        .filter(m => m.status === "QUEUED");
+      let pos = existingQueued.reduce((mx, m) => Math.max(mx, m.queuePosition || 0), 0) + 1;
       for (const m of sorted) {
         await storage.updateMatch(m.id, { status: "QUEUED", queuePosition: pos++ });
       }
+      if (stageId != null) await storage.updateSessionStage(stageId, { status: "ACTIVE" });
       res.json({ success: true, released: sorted.length });
     } catch (err: any) {
       res.status(500).json({ message: err.message || "Failed to start tournament" });
+    }
+  });
+
+  // === Tournament STAGES (multi-stage tournaments) ===
+
+  // Public read: list a session's stages (used by leaderboard/finalised views).
+  app.get("/api/sessions/:id/stages", async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const stages = await storage.getSessionStages(sessionId);
+      res.json(stages);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to load stages" });
+    }
+  });
+
+  // Create a new stage (e.g. Quarter Finals). Defaults to next in sequence.
+  app.post("/api/sessions/:id/stages", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      await storage.ensureDefaultStage(sessionId);
+      const existing = await storage.getSessionStages(sessionId);
+      const n = existing.length + 1;
+      const name = (req.body?.name && String(req.body.name).trim()) || `Stage ${n}`;
+      const advanceCount = req.body?.advanceCount != null ? Math.max(1, Number(req.body.advanceCount)) : 2;
+      const stage = await storage.createSessionStage({
+        sessionId,
+        name,
+        displayOrder: existing.length,
+        advanceCount,
+        status: "PLANNING",
+      });
+      res.status(201).json(stage);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to create stage" });
+    }
+  });
+
+  // Rename / set advanceCount / reorder / set status of a stage.
+  app.patch("/api/sessions/:id/stages/:stageId", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const stageId = Number(req.params.stageId);
+      const stage = await storage.getSessionStage(stageId);
+      if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+      const updates: any = {};
+      if (typeof req.body?.name === "string" && req.body.name.trim()) updates.name = req.body.name.trim();
+      if (req.body?.advanceCount != null) updates.advanceCount = Math.max(1, Number(req.body.advanceCount));
+      if (req.body?.displayOrder != null) updates.displayOrder = Number(req.body.displayOrder);
+      if (typeof req.body?.status === "string" && ["PLANNING", "ACTIVE", "COMPLETED"].includes(req.body.status)) {
+        updates.status = req.body.status;
+      }
+      const updated = await storage.updateSessionStage(stageId, updates);
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update stage" });
+    }
+  });
+
+  // Delete a stage (its groups, tray entries, and planned matches are removed).
+  // Blocked if the stage already has live/completed/queued matches.
+  app.delete("/api/sessions/:id/stages/:stageId", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const stageId = Number(req.params.stageId);
+      const stage = await storage.getSessionStage(stageId);
+      if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+      const stages = await storage.getSessionStages(sessionId);
+      if (stages.length <= 1) return res.status(409).json({ message: "A tournament needs at least one stage" });
+      const sessionMatches = await storage.getSessionMatches(sessionId);
+      const live = sessionMatches.filter(m => m.stageId === stageId);
+      if (live.length > 0) return res.status(409).json({ message: "Cannot delete a stage that already has matches in play or completed" });
+      await storage.deleteSessionStage(stageId);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to delete stage" });
+    }
+  });
+
+  // Per-group standings for a stage (team-level, used by planner + advance).
+  app.get("/api/sessions/:id/stages/:stageId/standings", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const stageId = Number(req.params.stageId);
+      const stage = await storage.getSessionStage(stageId);
+      if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+      const standings = await storage.getStageStandings(sessionId, stageId);
+      res.json(standings);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to load standings" });
+    }
+  });
+
+  // Advance the top teams of a stage into a brand-new next stage. Two modes:
+  //   RANDOMISE - shuffle advancing teams across `groupCount` new groups.
+  //   MANUAL    - drop advancing teams into the next stage's unassigned tray.
+  app.post("/api/sessions/:id/stages/:stageId/advance", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const stageId = Number(req.params.stageId);
+      const stage = await storage.getSessionStage(stageId);
+      if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+
+      const mode = req.body?.mode === "RANDOMISE" ? "RANDOMISE" : "MANUAL";
+      const standings = await storage.getStageStandings(sessionId, stageId);
+      const advancing: { player1Id: number; player2Id: number | null }[] = [];
+      for (const g of standings) {
+        for (const s of g.standings) {
+          if (s.advancing) advancing.push({ player1Id: s.player1Id, player2Id: s.player2Id });
+        }
+      }
+      if (advancing.length < 2) {
+        return res.status(400).json({ message: "Need at least two advancing teams. Finish more matches or raise the teams-to-advance count." });
+      }
+
+      // Create the next stage.
+      const stages = await storage.getSessionStages(sessionId);
+      const nextName = (req.body?.name && String(req.body.name).trim()) || `Stage ${stages.length + 1}`;
+      const nextAdvanceCount = req.body?.advanceCount != null ? Math.max(1, Number(req.body.advanceCount)) : 2;
+      const nextStage = await storage.createSessionStage({
+        sessionId,
+        name: nextName,
+        displayOrder: stages.length,
+        advanceCount: nextAdvanceCount,
+        status: "PLANNING",
+      });
+
+      // Mark the source stage complete.
+      await storage.updateSessionStage(stageId, { status: "COMPLETED" });
+
+      if (mode === "RANDOMISE") {
+        const requested = req.body?.groupCount != null ? Number(req.body.groupCount) : standings.length || 1;
+        const groupCount = Math.max(1, Math.min(advancing.length, requested || 1));
+        const newGroups = [];
+        for (let i = 0; i < groupCount; i++) {
+          newGroups.push(await storage.createSessionGroup({
+            sessionId,
+            stageId: nextStage.id,
+            name: `Group ${i + 1}`,
+            courtNumber: i + 1,
+            displayOrder: i,
+          }));
+        }
+        // Shuffle then deal round-robin across the new groups.
+        const shuffled = [...advancing];
+        for (let i = shuffled.length - 1; i > 0; i--) {
+          const j = Math.floor(Math.random() * (i + 1));
+          [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+        }
+        const perGroupCount = new Array(groupCount).fill(0);
+        for (let i = 0; i < shuffled.length; i++) {
+          const gi = i % groupCount;
+          await storage.createSessionGroupEntry({
+            sessionId,
+            stageId: nextStage.id,
+            groupId: newGroups[gi].id,
+            player1Id: shuffled[i].player1Id,
+            player2Id: shuffled[i].player2Id,
+            displayOrder: perGroupCount[gi]++,
+          });
+        }
+      } else {
+        // MANUAL: into the new stage's tray (groupId null).
+        let order = 0;
+        for (const t of advancing) {
+          await storage.createSessionGroupEntry({
+            sessionId,
+            stageId: nextStage.id,
+            groupId: null,
+            player1Id: t.player1Id,
+            player2Id: t.player2Id,
+            displayOrder: order++,
+          });
+        }
+      }
+
+      res.status(201).json({ stage: nextStage, advanced: advancing.length, mode });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to advance stage" });
     }
   });
 
