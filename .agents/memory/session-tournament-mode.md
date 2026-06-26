@@ -31,3 +31,9 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
 - `groupCount` only applies to RANDOMISE + DESTRUCTION (clamped `[1, advancing.length]`); HIERARCHICAL derives group count from distinct ranks; MANUAL ignores it. Frontend mirrors this: `showGroupCount = RANDOMISE||DESTRUCTION` gates the input and the payload field.
 - **A stage may only advance once ALL its matches are COMPLETED.** The advance endpoint hard-guards (409) if any non-deleted stage match is not COMPLETED (PLANNED/QUEUED/LIVE blocks). The tournament-plan endpoint exposes a per-stage `stageReady` flag (≥1 match AND zero unfinished) so the planner disables the "Advance" button; the 409 stays the source of truth.
   **Why:** advancing mid-stage would seed the next stage off incomplete standings. The planner has no live QUEUED/LIVE match data locally, so readiness must be computed server-side and sent down.
+
+## Live-leaderboard stage tabs: per-group pair view
+
+- On the live leaderboard, the **Overall tab stays a flat individual leaderboard**; **stage tabs render one sub-leaderboard per court group, showing PAIRS** (teams), with rank pill, W/L, points, "Top N advance", advancing rows highlighted.
+- Data comes from a NEW public route `GET /api/sessions/:id/stages/:stageId/group-standings` (hook `useStageGroupStandings`). It wraps `getStageStandings` (which has no names) and resolves blur-aware display names server-side, mirroring the public `/api/sessions/:id/leaderboard` auth + `showPublicName`/`nickname` blur semantics — do NOT reuse the manager-only `/standings` route for player-facing views.
+  **Why:** `getStageStandings` returns only profile ids; the planner supplies its own names via attendees, but the player leaderboard has no such source, so names must be resolved in the new route.

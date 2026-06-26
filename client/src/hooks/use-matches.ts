@@ -755,6 +755,37 @@ export function useStageStandings(sessionId: number, stageId: number | null, ena
   });
 }
 
+export interface StageGroupLeaderboard {
+  groupId: number;
+  groupName: string;
+  advanceCount: number;
+  standings: Array<{
+    entryId: number;
+    rank: number;
+    advancing: boolean;
+    matchesPlayed: number;
+    matchesWon: number;
+    matchesLost: number;
+    pointsWon: number;
+    player1Name: string;
+    player1Blurred: boolean;
+    player2Name: string | null;
+    player2Blurred: boolean;
+  }>;
+}
+
+export function useStageGroupStandings(sessionId: number, stageId: number | null, enabled = true) {
+  return useQuery<StageGroupLeaderboard[]>({
+    queryKey: ["/api/sessions", sessionId, "stages", stageId, "group-standings"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/stages/${stageId}/group-standings`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load group standings");
+      return res.json();
+    },
+    enabled: !!sessionId && stageId != null && enabled,
+  });
+}
+
 export function useSessionStages(sessionId: number, enabled = true) {
   return useQuery<SessionStage[]>({
     queryKey: ["/api/sessions", sessionId, "stages"],

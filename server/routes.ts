@@ -6512,6 +6512,69 @@ export async function registerRoutes(
     }
   });
 
+  // Public per-group standings (pairs, blur-aware names) for the live
+  // leaderboard's stage tabs. Mirrors the public session-leaderboard auth.
+  app.get("/api/sessions/:id/stages/:stageId/group-standings", async (req, res) => {
+    try {
+      const sessionId = Number(req.params.id);
+      const stageId = Number(req.params.stageId);
+      const session = await storage.getSession(sessionId);
+      if (!session) return res.status(404).json({ message: "Session not found" });
+      const stage = await storage.getSessionStage(stageId);
+      if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+
+      const groups = await storage.getStageStandings(sessionId, stageId);
+
+      // Resolve blur-aware display names for every team member.
+      const ids = new Set<number>();
+      for (const g of groups) for (const s of g.standings) {
+        ids.add(s.player1Id);
+        if (s.player2Id != null) ids.add(s.player2Id);
+      }
+      const nameMap = new Map<number, { name: string; blurred: boolean }>();
+      if (ids.size > 0) {
+        const rows = await db.select()
+          .from(playerProfiles)
+          .innerJoin(users, eq(playerProfiles.userId, users.id))
+          .where(inArray(playerProfiles.id, [...ids]));
+        for (const r of rows) {
+          const show = r.users.showPublicName;
+          nameMap.set(r.player_profiles.id, {
+            name: show ? (r.users.nickname || r.users.fullName) : r.users.fullName,
+            blurred: !show,
+          });
+        }
+      }
+      const nameOf = (id: number | null) => (id != null ? nameMap.get(id) : undefined);
+
+      const result = groups.map(g => ({
+        groupId: g.groupId,
+        groupName: g.groupName,
+        advanceCount: g.advanceCount,
+        standings: g.standings.map(s => {
+          const p1 = nameOf(s.player1Id);
+          const p2 = nameOf(s.player2Id);
+          return {
+            entryId: s.entryId,
+            rank: s.rank,
+            advancing: s.advancing,
+            matchesPlayed: s.matchesPlayed,
+            matchesWon: s.matchesWon,
+            matchesLost: Math.max(0, s.matchesPlayed - s.matchesWon),
+            pointsWon: s.pointsWon,
+            player1Name: p1?.name ?? "Unknown",
+            player1Blurred: p1?.blurred ?? false,
+            player2Name: p2?.name ?? null,
+            player2Blurred: p2?.blurred ?? false,
+          };
+        }),
+      }));
+      res.json(result);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to load group standings" });
+    }
+  });
+
   // Advance the top teams of a stage into a brand-new next stage. Four modes:
   //   RANDOMISE    - shuffle advancing teams across `groupCount` new groups.
   //   HIERARCHICAL - group by finishing position: all 1st-places together, all

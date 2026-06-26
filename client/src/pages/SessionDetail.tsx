@@ -15,7 +15,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue, useSetTournamentMode, useSessionStages, type SessionStage } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue, useSetTournamentMode, useSessionStages, useStageGroupStandings, type SessionStage } from "@/hooks/use-matches";
 import { SessionTournamentPlanner } from "@/components/SessionTournamentPlanner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -32,7 +32,7 @@ import { format } from "date-fns";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Switch } from "@/components/ui/switch";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell, Bug, ShieldCheck, ShieldX, CircleDollarSign, XCircle, Mail } from "lucide-react";
+import { Loader2, Users, UserPlus, X, Shuffle, Settings2, Plus, Minus, CheckCircle, Trash2, Link2, PauseCircle, PlayCircle, UserPlus2, Trophy, Search, Check, Video, Lock, OctagonX, ArrowRight, RotateCcw, Pencil, Camera, BedDouble, LogOut, CreditCard, Building2, Ban, ClipboardList, ChevronUp, ChevronDown, Clock, Send, AlertTriangle, Info, LayoutGrid, List, Baby, Brain, Power, Square, Play, Flame, Activity, Bell, Bug, ShieldCheck, ShieldX, CircleDollarSign, XCircle, Mail, Layers } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Textarea } from "@/components/ui/textarea";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -6466,7 +6466,10 @@ function SessionLiveLeaderboard({ sessionId, stages = [] }: { sessionId: number;
   const [selectedStageId, setSelectedStageId] = useState<number | null>(null);
   const showStageTabs = stages.length > 1;
   const activeStageId = showStageTabs ? selectedStageId : null;
-  const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId, activeStageId);
+  // Overall tab = flat player leaderboard (unchanged). Stage tabs = per-group
+  // pair standings so it's clear who tops each group.
+  const { data: leaderboard, isLoading } = useSessionLeaderboard(sessionId, null);
+  const { data: groupStandings, isLoading: groupsLoading } = useStageGroupStandings(sessionId, activeStageId);
 
   const stageTabs = showStageTabs ? (
     <div className="flex flex-wrap gap-1.5 mb-4" data-testid="leaderboard-stage-tabs">
@@ -6494,6 +6497,91 @@ function SessionLiveLeaderboard({ sessionId, stages = [] }: { sessionId: number;
     </div>
   ) : null;
 
+  const header = (
+    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-session-leaderboard-title">
+      <Trophy className="w-5 h-5 text-amber-500" />
+      Live Leaderboard
+    </h3>
+  );
+
+  // --- Stage tab view: a separate leaderboard per court group, showing pairs ---
+  if (activeStageId !== null) {
+    const hasGroups = (groupStandings || []).some(g => g.standings.length > 0);
+    return (
+      <Card data-testid="card-session-leaderboard">
+        <CardContent className="pt-6">
+          {header}
+          {stageTabs}
+          {groupsLoading ? (
+            <div className="py-6 text-center">
+              <Loader2 className="h-6 w-6 animate-spin mx-auto text-muted-foreground" />
+            </div>
+          ) : !hasGroups ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No groups in this stage yet</p>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {(groupStandings || []).map((g) => (
+                <div
+                  key={g.groupId}
+                  className="rounded-lg border border-border bg-muted/20 p-3"
+                  data-testid={`leaderboard-group-${g.groupId}`}
+                >
+                  <div className="font-semibold text-sm mb-2 flex items-center gap-2">
+                    <Layers className="w-4 h-4 text-amber-500" />
+                    {g.groupName}
+                  </div>
+                  {g.standings.length === 0 ? (
+                    <p className="text-xs text-muted-foreground py-2">No teams</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {g.standings.map((s, index) => {
+                        const team = s.player2Name
+                          ? `${s.player1Name} & ${s.player2Name}`
+                          : s.player1Name;
+                        const blurred = s.player1Blurred || s.player2Blurred;
+                        return (
+                          <div
+                            key={s.entryId}
+                            className={`flex items-center gap-2.5 rounded-md px-2.5 py-1.5 ${
+                              s.advancing ? "bg-emerald-500/10" : "bg-muted/30"
+                            }`}
+                            data-testid={`leaderboard-group-${g.groupId}-team-${s.entryId}`}
+                          >
+                            <div className={`w-6 h-6 rounded-full flex items-center justify-center font-bold text-[11px] shrink-0 ${
+                              index === 0 ? "bg-amber-500 text-white" :
+                              index === 1 ? "bg-gray-400 text-white" :
+                              index === 2 ? "bg-amber-700 text-white" :
+                              "bg-muted text-muted-foreground"
+                            }`}>
+                              {s.rank}
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <div className={`font-medium text-sm truncate ${blurred ? "blur-sm select-none" : ""}`}>
+                                {team}
+                              </div>
+                              <div className="text-xs text-muted-foreground">
+                                {s.matchesWon}W / {s.matchesLost}L ({s.matchesPlayed} played)
+                              </div>
+                            </div>
+                            <div className="text-sm font-semibold text-foreground shrink-0">{s.pointsWon} pts</div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  <p className="text-[11px] text-emerald-600 dark:text-emerald-400 mt-2">
+                    Top {g.advanceCount} advance
+                  </p>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  // --- Overall tab (unchanged): flat player leaderboard ---
   if (isLoading) {
     return (
       <Card>
@@ -6508,10 +6596,7 @@ function SessionLiveLeaderboard({ sessionId, stages = [] }: { sessionId: number;
     return (
       <Card data-testid="card-session-leaderboard">
         <CardContent className="pt-6">
-          <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-session-leaderboard-title">
-            <Trophy className="w-5 h-5 text-amber-500" />
-            Live Leaderboard
-          </h3>
+          {header}
           {stageTabs}
           <p className="text-sm text-muted-foreground text-center py-4">No matches completed yet</p>
         </CardContent>
@@ -6522,10 +6607,7 @@ function SessionLiveLeaderboard({ sessionId, stages = [] }: { sessionId: number;
   return (
     <Card data-testid="card-session-leaderboard">
       <CardContent className="pt-6">
-        <h3 className="text-lg font-semibold mb-4 flex items-center gap-2" data-testid="text-session-leaderboard-title">
-          <Trophy className="w-5 h-5 text-amber-500" />
-          Live Leaderboard
-        </h3>
+        {header}
         {stageTabs}
         <div className="space-y-2">
           {leaderboard.map((player, index) => (
