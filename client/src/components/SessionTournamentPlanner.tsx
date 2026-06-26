@@ -2,7 +2,7 @@ import { useMemo, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Plus, Trophy, Users, Trash2, Wand2, ChevronUp, ChevronDown,
-  GripVertical, Swords, Loader2, Play,
+  GripVertical, Swords, Loader2, Play, Undo2,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -55,7 +55,12 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   }, [plan]);
 
   const pool = useMemo(
-    () => (plan?.attendees || []).filter(a => !usedPlayerIds.has(a.profileId)),
+    () =>
+      (plan?.attendees || [])
+        .filter(a => !usedPlayerIds.has(a.profileId))
+        .sort((a, b) =>
+          (a.fullName || "").localeCompare(b.fullName || "", undefined, { sensitivity: "base" }),
+        ),
     [plan, usedPlayerIds],
   );
 
@@ -217,8 +222,9 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
                   {unassignedEntries.map(e => (
                     <EntryCard
                       key={e.id} label={entryLabel(e)}
+                      mode="dissolve"
                       onDragStart={() => setDraggingEntryId(e.id)}
-                      onDelete={() => deleteEntry.mutate({ sessionId, entryId: e.id })}
+                      onAction={() => deleteEntry.mutate({ sessionId, entryId: e.id })}
                     />
                   ))}
                   {unassignedEntries.length === 0 && (
@@ -306,8 +312,9 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
                             {groupEntries.map(e => (
                               <EntryCard
                                 key={e.id} label={entryLabel(e)}
+                                mode="return"
                                 onDragStart={() => setDraggingEntryId(e.id)}
-                                onDelete={() => deleteEntry.mutate({ sessionId, entryId: e.id })}
+                                onAction={() => moveEntry.mutate({ sessionId, entryId: e.id, groupId: null })}
                               />
                             ))}
                             {groupEntries.length === 0 && (
@@ -369,7 +376,15 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   );
 }
 
-function EntryCard({ label, onDragStart, onDelete }: { label: string; onDragStart: () => void; onDelete: () => void }) {
+function EntryCard({
+  label, onDragStart, onAction, mode,
+}: {
+  label: string;
+  onDragStart: () => void;
+  onAction: () => void;
+  mode: "dissolve" | "return";
+}) {
+  const isReturn = mode === "return";
   return (
     <div
       draggable
@@ -379,8 +394,14 @@ function EntryCard({ label, onDragStart, onDelete }: { label: string; onDragStar
     >
       <GripVertical className="w-4 h-4 text-white/30 shrink-0" />
       <span className="flex-1 text-sm text-white/90 truncate">{label}</span>
-      <button onClick={onDelete} className="text-white/30 hover:text-red-400 shrink-0" data-testid="button-delete-entry">
-        <Trash2 className="w-3.5 h-3.5" />
+      <button
+        onClick={onAction}
+        title={isReturn ? "Return team to “Teams to place”" : "Dissolve team (split players back to pool)"}
+        aria-label={isReturn ? "Return team to Teams to place" : "Dissolve team"}
+        className={`shrink-0 ${isReturn ? "text-white/30 hover:text-cyan-400" : "text-white/30 hover:text-red-400"}`}
+        data-testid={isReturn ? "button-return-entry" : "button-delete-entry"}
+      >
+        {isReturn ? <Undo2 className="w-3.5 h-3.5" /> : <Trash2 className="w-3.5 h-3.5" />}
       </button>
     </div>
   );
