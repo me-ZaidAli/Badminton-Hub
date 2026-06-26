@@ -4389,6 +4389,8 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     }
   }, []);
 
+  const { data: sessionStages = [] } = useSessionStages(sessionId);
+
   if (isLoading) return <div className="p-8 text-center">Loading matches...</div>;
 
   const typedMatches: CourtMatch[] = (matches || []).map(m => ({
@@ -4418,8 +4420,6 @@ function MatchesView({ sessionId, isOrganiser, isSignedUp, currentPlayerProfileI
     scoreUpdatedAt: (m as any).scoreUpdatedAt,
     scoreUpdatedByUser: (m as any).scoreUpdatedByUser,
   }));
-
-  const { data: sessionStages = [] } = useSessionStages(sessionId);
 
   const liveMatches = typedMatches.filter(m => m.status === "LIVE");
   const queuedMatches = typedMatches.filter(m => m.status === "QUEUED");
