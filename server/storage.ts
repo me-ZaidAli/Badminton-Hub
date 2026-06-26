@@ -1,6 +1,6 @@
 import { db, pool } from "./db";
 import { 
-  users, playerProfiles, sessions, sessionSignups, matches, announcements, announcementArchives, announcementReactions, announcementComments, memberships, clubs, venues,
+  users, playerProfiles, sessions, sessionSignups, matches, sessionGroups, sessionGroupEntries, announcements, announcementArchives, announcementReactions, announcementComments, memberships, clubs, venues,
   tournaments, tournamentCategories, tournamentTeams, tournamentMatches, tournamentStandings,
   coaches, coachSeekerMemberships, reviews, contactMessages, notifications, policyAcceptances,
   creditLedger, inventoryMovements, chats, incidentReports,
@@ -18,9 +18,11 @@ import {
   type PolicyAcceptance, type InsertPolicyAcceptance,
   type AnnouncementComment,
   type TrialPlayer, type InsertTrialPlayer,
-  type TrialEvaluation, type InsertTrialEvaluation
+  type TrialEvaluation, type InsertTrialEvaluation,
+  type SessionGroup, type InsertSessionGroup,
+  type SessionGroupEntry, type InsertSessionGroupEntry
 } from "@shared/schema";
-import { eq, and, or, desc, asc, sql, inArray, isNull, gte, lte } from "drizzle-orm";
+import { eq, and, or, desc, asc, sql, inArray, isNull, gte, lte, ne } from "drizzle-orm";
 import session from "express-session";
 import connectPgSimple from "connect-pg-simple";
 
@@ -85,6 +87,19 @@ export interface IStorage {
   createMatch(match: any): Promise<Match>;
   updateMatch(id: number, updates: Partial<Match>): Promise<Match>;
   deleteMatch(id: number): Promise<void>;
+
+  // Session Tournament Mode
+  getSessionGroups(sessionId: number): Promise<SessionGroup[]>;
+  createSessionGroup(group: InsertSessionGroup): Promise<SessionGroup>;
+  updateSessionGroup(id: number, updates: Partial<SessionGroup>): Promise<SessionGroup>;
+  deleteSessionGroup(id: number): Promise<void>;
+  getSessionGroupEntries(sessionId: number): Promise<SessionGroupEntry[]>;
+  getSessionGroupEntry(id: number): Promise<SessionGroupEntry | undefined>;
+  createSessionGroupEntry(entry: InsertSessionGroupEntry): Promise<SessionGroupEntry>;
+  updateSessionGroupEntry(id: number, updates: Partial<SessionGroupEntry>): Promise<SessionGroupEntry>;
+  deleteSessionGroupEntry(id: number): Promise<void>;
+  getSessionPlannedMatches(sessionId: number): Promise<Match[]>;
+  deletePlannedMatchesForGroup(groupId: number): Promise<void>;
   isUserSignedUpToSession(userId: number, sessionId: number): Promise<boolean>;
 
   // Announcements
@@ -796,7 +811,7 @@ export class DatabaseStorage implements IStorage {
     scoreEnteredByUser?: { id: number; fullName: string } | null,
     scoreUpdatedByUser?: { id: number; fullName: string } | null,
   })[]> {
-    const matchesList = await db.select().from(matches).where(and(eq(matches.sessionId, sessionId), isNull(matches.deletedAt))).orderBy(desc(matches.createdAt));
+    const matchesList = await db.select().from(matches).where(and(eq(matches.sessionId, sessionId), isNull(matches.deletedAt), ne(matches.status, "PLANNED"))).orderBy(desc(matches.createdAt));
     
     const getPlayer = async (id: number | null) => {
       if (!id) return null;
@@ -858,6 +873,65 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMatch(id: number): Promise<void> {
     await db.delete(matches).where(eq(matches.id, id));
+  }
+
+  // === Session Tournament Mode ===
+  async getSessionGroups(sessionId: number): Promise<SessionGroup[]> {
+    return db.select().from(sessionGroups)
+      .where(eq(sessionGroups.sessionId, sessionId))
+      .orderBy(asc(sessionGroups.displayOrder), asc(sessionGroups.id));
+  }
+
+  async createSessionGroup(group: InsertSessionGroup): Promise<SessionGroup> {
+    const [row] = await db.insert(sessionGroups).values(group).returning();
+    return row;
+  }
+
+  async updateSessionGroup(id: number, updates: Partial<SessionGroup>): Promise<SessionGroup> {
+    const [row] = await db.update(sessionGroups).set(updates).where(eq(sessionGroups.id, id)).returning();
+    return row;
+  }
+
+  async deleteSessionGroup(id: number): Promise<void> {
+    // Hard-delete planned matches for this group, unassign its entries, then remove it.
+    await db.delete(matches).where(and(eq(matches.groupId, id), eq(matches.status, "PLANNED")));
+    await db.update(sessionGroupEntries).set({ groupId: null }).where(eq(sessionGroupEntries.groupId, id));
+    await db.delete(sessionGroups).where(eq(sessionGroups.id, id));
+  }
+
+  async getSessionGroupEntries(sessionId: number): Promise<SessionGroupEntry[]> {
+    return db.select().from(sessionGroupEntries)
+      .where(eq(sessionGroupEntries.sessionId, sessionId))
+      .orderBy(asc(sessionGroupEntries.displayOrder), asc(sessionGroupEntries.id));
+  }
+
+  async getSessionGroupEntry(id: number): Promise<SessionGroupEntry | undefined> {
+    const [row] = await db.select().from(sessionGroupEntries).where(eq(sessionGroupEntries.id, id));
+    return row;
+  }
+
+  async createSessionGroupEntry(entry: InsertSessionGroupEntry): Promise<SessionGroupEntry> {
+    const [row] = await db.insert(sessionGroupEntries).values(entry).returning();
+    return row;
+  }
+
+  async updateSessionGroupEntry(id: number, updates: Partial<SessionGroupEntry>): Promise<SessionGroupEntry> {
+    const [row] = await db.update(sessionGroupEntries).set(updates).where(eq(sessionGroupEntries.id, id)).returning();
+    return row;
+  }
+
+  async deleteSessionGroupEntry(id: number): Promise<void> {
+    await db.delete(sessionGroupEntries).where(eq(sessionGroupEntries.id, id));
+  }
+
+  async getSessionPlannedMatches(sessionId: number): Promise<Match[]> {
+    return db.select().from(matches)
+      .where(and(eq(matches.sessionId, sessionId), eq(matches.status, "PLANNED"), isNull(matches.deletedAt)))
+      .orderBy(asc(matches.groupId), asc(matches.plannedOrder), asc(matches.id));
+  }
+
+  async deletePlannedMatchesForGroup(groupId: number): Promise<void> {
+    await db.delete(matches).where(and(eq(matches.groupId, groupId), eq(matches.status, "PLANNED")));
   }
 
   async isUserSignedUpToSession(userId: number, sessionId: number): Promise<boolean> {

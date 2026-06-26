@@ -15,7 +15,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue } from "@/hooks/use-matches";
+import { useSessionMatches, useStartMatch, useCompleteMatch, useEndSet, useSwapPlayer, useSmartGenerateMatches, useHandlePause, useHandleResume, useUpdateMatchTarget, useUpdateMatchSets, useStopAllMatches, useEditMatchScore, useCancelLiveMatch, useTrimQueue, useClearQueue, useSetTournamentMode } from "@/hooks/use-matches";
+import { SessionTournamentPlanner } from "@/components/SessionTournamentPlanner";
 import { useQueryClient, useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { BadmintonCourt, type CourtMatch } from "@/components/BadmintonCourt";
@@ -118,6 +119,8 @@ export default function SessionDetail() {
   const [editCourtNames, setEditCourtNames] = useState("");
   const [statsPlayerId, setStatsPlayerId] = useState<number | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [plannerOpen, setPlannerOpen] = useState(false);
+  const setTournamentMode = useSetTournamentMode();
   const [adminDashboardOpen, setAdminDashboardOpen] = useState(false);
   const [adminDashboardTab, setAdminDashboardTab] = useState("payments");
   const { mutate: updateSession, isPending: isUpdating } = useUpdateSession();
@@ -1096,6 +1099,38 @@ export default function SessionDetail() {
                   </AlertDialogFooter>
                 </AlertDialogContent>
               </AlertDialog>
+            )}
+            {isOrganiser && session.status !== "COMPLETED" && session.status !== "CANCELLED" && (
+              <Button
+                variant={(session as any).tournamentMode ? "default" : "outline"}
+                size="sm"
+                className="gap-1"
+                onClick={() => {
+                  if (!(session as any).tournamentMode) {
+                    setTournamentMode.mutate({ sessionId: id, enabled: true }, { onSuccess: () => setPlannerOpen(true) });
+                  } else {
+                    setPlannerOpen(true);
+                  }
+                }}
+                data-testid="button-tournament-mode"
+              >
+                <Trophy className="w-4 h-4" /> {(session as any).tournamentMode ? "Open Planner" : "Tournament Mode"}
+              </Button>
+            )}
+            {isOrganiser && (session as any).tournamentMode && (
+              <Button
+                variant="ghost"
+                size="sm"
+                className="gap-1 text-muted-foreground"
+                onClick={() => setTournamentMode.mutate({ sessionId: id, enabled: false })}
+                disabled={setTournamentMode.isPending}
+                data-testid="button-tournament-mode-off"
+              >
+                Turn off
+              </Button>
+            )}
+            {plannerOpen && isOrganiser && (
+              <SessionTournamentPlanner sessionId={id} onClose={() => setPlannerOpen(false)} />
             )}
             {isOrganiser && (
               <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>

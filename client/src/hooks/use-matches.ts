@@ -600,3 +600,99 @@ export function useStopAllMatches() {
     },
   });
 }
+
+// ===== Session Tournament Mode (pre-planning) =====
+
+export interface TournamentPlanState {
+  tournamentMode: boolean;
+  playersPerSide: number;
+  courtsAvailable: number;
+  groups: Array<{ id: number; sessionId: number; name: string; courtNumber: number | null; displayOrder: number }>;
+  entries: Array<{ id: number; sessionId: number; groupId: number | null; player1Id: number; player2Id: number | null; displayOrder: number }>;
+  plannedMatches: Array<{ id: number; sessionId: number; groupId: number | null; plannedOrder: number | null; teamAPlayer1Id: number | null; teamAPlayer2Id: number | null; teamBPlayer1Id: number | null; teamBPlayer2Id: number | null; courtNumber: number | null }>;
+  attendees: Array<{ profileId: number; fullName: string; gender: string | null; grade: string | null; attendanceStatus: string | null }>;
+}
+
+export function useTournamentPlan(sessionId: number, enabled = true) {
+  return useQuery<TournamentPlanState>({
+    queryKey: ["/api/sessions", sessionId, "tournament-plan"],
+    queryFn: async () => {
+      const res = await fetch(`/api/sessions/${sessionId}/tournament-plan`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed to load tournament plan");
+      return res.json();
+    },
+    enabled: !!sessionId && enabled,
+  });
+}
+
+function useTournamentMutation<TArgs>(
+  fn: (sessionId: number, args: TArgs) => Promise<Response>,
+  opts?: { success?: string; error?: string },
+) {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, ...args }: { sessionId: number } & TArgs) => {
+      const res = await fn(sessionId, args as TArgs);
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || opts?.error || "Request failed");
+      }
+      return res.json().catch(() => ({}));
+    },
+    onSuccess: (_data, vars) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "tournament-plan"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId] });
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path, vars.sessionId] });
+      queryClient.invalidateQueries({ queryKey: ["/api/sessions", vars.sessionId, "leaderboard"] });
+      if (opts?.success) toast({ title: opts.success });
+    },
+    onError: (error: Error) => {
+      toast({ title: opts?.error || "Something went wrong", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
+const jsonReq = (method: string, url: string, body?: any) =>
+  fetch(url, {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: body !== undefined ? JSON.stringify(body) : undefined,
+    credentials: "include",
+  });
+
+export const useSetTournamentMode = () =>
+  useTournamentMutation<{ enabled: boolean }>((sid, a) => jsonReq("PATCH", `/api/sessions/${sid}/tournament-mode`, { enabled: a.enabled }));
+
+export const useCreateGroup = () =>
+  useTournamentMutation<{ name?: string; courtNumber?: number | null }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/groups`, a), { error: "Failed to add group" });
+
+export const useUpdateGroup = () =>
+  useTournamentMutation<{ groupId: number; name?: string; courtNumber?: number | null; displayOrder?: number }>((sid, a) => jsonReq("PATCH", `/api/sessions/${sid}/groups/${a.groupId}`, a), { error: "Failed to update group" });
+
+export const useDeleteGroup = () =>
+  useTournamentMutation<{ groupId: number }>((sid, a) => jsonReq("DELETE", `/api/sessions/${sid}/groups/${a.groupId}`), { error: "Failed to delete group" });
+
+export const useCreateEntry = () =>
+  useTournamentMutation<{ groupId?: number | null; player1Id: number; player2Id?: number | null }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/group-entries`, a), { error: "Failed to add player" });
+
+export const useMoveEntry = () =>
+  useTournamentMutation<{ entryId: number; groupId?: number | null; displayOrder?: number }>((sid, a) => jsonReq("PATCH", `/api/sessions/${sid}/group-entries/${a.entryId}`, a), { error: "Failed to move player" });
+
+export const useDeleteEntry = () =>
+  useTournamentMutation<{ entryId: number }>((sid, a) => jsonReq("DELETE", `/api/sessions/${sid}/group-entries/${a.entryId}`), { error: "Failed to remove player" });
+
+export const useAutoGenerateGroupMatches = () =>
+  useTournamentMutation<{ groupId: number }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/groups/${a.groupId}/auto-generate-matches`), { success: "Round-robin created", error: "Failed to generate matches" });
+
+export const useAddPlannedMatch = () =>
+  useTournamentMutation<{ groupId: number; entryAId: number; entryBId: number }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/groups/${a.groupId}/planned-matches`, a), { error: "Failed to add match" });
+
+export const useDeletePlannedMatch = () =>
+  useTournamentMutation<{ matchId: number }>((sid, a) => jsonReq("DELETE", `/api/sessions/${sid}/planned-matches/${a.matchId}`), { error: "Failed to remove match" });
+
+export const useReorderPlannedMatches = () =>
+  useTournamentMutation<{ orderedIds: number[] }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/planned-matches/reorder`, { orderedIds: a.orderedIds }), { error: "Failed to reorder" });
+
+export const useStartTournament = () =>
+  useTournamentMutation<Record<string, never>>((sid) => jsonReq("POST", `/api/sessions/${sid}/start-tournament`), { success: "Tournament started — matches are now live", error: "Failed to start tournament" });

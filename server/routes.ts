@@ -5970,6 +5970,388 @@ export async function registerRoutes(
     res.json(updated);
   });
 
+  // === Session Tournament Mode (pre-planning) ===
+  // Shared guard: only session managers (organiser/admin/owner) may plan.
+  async function requireSessionManager(req: any, res: any): Promise<{ session: any } | null> {
+    if (!req.isAuthenticated()) { res.sendStatus(401); return null; }
+    const sessionId = Number(req.params.id);
+    const session = await storage.getSession(sessionId);
+    if (!session) { res.status(404).json({ message: "Session not found" }); return null; }
+    const canAccess = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
+    if (!canAccess) { res.status(403).json({ message: "You don't have permission to manage this session" }); return null; }
+    return { session };
+  }
+
+  // Toggle tournament mode on/off for a session.
+  app.patch("/api/sessions/:id/tournament-mode", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const enabled = !!req.body?.enabled;
+      const updated = await storage.updateSession(Number(req.params.id), { tournamentMode: enabled });
+      res.json({ tournamentMode: updated.tournamentMode });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update tournament mode" });
+    }
+  });
+
+  // Full planner state: groups, entries, planned matches, and the attendee pool.
+  app.get("/api/sessions/:id/tournament-plan", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const [groups, entries, plannedMatches, signups] = await Promise.all([
+        storage.getSessionGroups(sessionId),
+        storage.getSessionGroupEntries(sessionId),
+        storage.getSessionPlannedMatches(sessionId),
+        storage.getSessionSignups(sessionId),
+      ]);
+      const attendees = signups
+        .filter(s => s.signupStatus === "CONFIRMED")
+        .map(s => ({
+          profileId: s.player.id,
+          fullName: s.player.user.fullName,
+          gender: s.player.gender,
+          grade: s.player.grade || s.player.category || null,
+          attendanceStatus: s.attendanceStatus,
+        }));
+      res.json({
+        tournamentMode: ctx.session.tournamentMode,
+        playersPerSide: ctx.session.playersPerSide || 2,
+        courtsAvailable: ctx.session.courtsAvailable || 1,
+        groups,
+        entries,
+        plannedMatches,
+        attendees,
+      });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to load tournament plan" });
+    }
+  });
+
+  // Create a group (defaults to next court / sequential name).
+  app.post("/api/sessions/:id/groups", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const existing = await storage.getSessionGroups(sessionId);
+      const n = existing.length + 1;
+      const name = (req.body?.name && String(req.body.name).trim()) || `Group ${n}`;
+      const courtNumber = req.body?.courtNumber != null ? Number(req.body.courtNumber) : n;
+      const group = await storage.createSessionGroup({
+        sessionId,
+        name,
+        courtNumber: Number.isFinite(courtNumber) ? courtNumber : null,
+        displayOrder: existing.length,
+      });
+      res.status(201).json(group);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to create group" });
+    }
+  });
+
+  // Rename / set court / reorder a group.
+  app.patch("/api/sessions/:id/groups/:groupId", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const groupId = Number(req.params.groupId);
+      const groups = await storage.getSessionGroups(sessionId);
+      if (!groups.some(g => g.id === groupId)) return res.status(404).json({ message: "Group not found" });
+      const updates: any = {};
+      if (typeof req.body?.name === "string") updates.name = req.body.name.trim();
+      if ("courtNumber" in (req.body || {})) updates.courtNumber = req.body.courtNumber == null ? null : Number(req.body.courtNumber);
+      if (req.body?.displayOrder != null) updates.displayOrder = Number(req.body.displayOrder);
+      const group = await storage.updateSessionGroup(groupId, updates);
+      res.json(group);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to update group" });
+    }
+  });
+
+  // Delete a group (its planned matches removed, entries returned to the pool).
+  app.delete("/api/sessions/:id/groups/:groupId", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const groupId = Number(req.params.groupId);
+      const groups = await storage.getSessionGroups(sessionId);
+      if (!groups.some(g => g.id === groupId)) return res.status(404).json({ message: "Group not found" });
+      await storage.deleteSessionGroup(groupId);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to delete group" });
+    }
+  });
+
+  // Create an entry (single player or pair). Each player may be used once.
+  app.post("/api/sessions/:id/group-entries", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const player1Id = Number(req.body?.player1Id);
+      const player2Id = req.body?.player2Id != null ? Number(req.body.player2Id) : null;
+      const groupId = req.body?.groupId != null ? Number(req.body.groupId) : null;
+      if (!player1Id) return res.status(400).json({ message: "player1Id is required" });
+      if (player2Id && player2Id === player1Id) return res.status(400).json({ message: "A pair needs two different players" });
+
+      const signups = await storage.getSessionSignups(sessionId);
+      const poolIds = new Set(signups.filter(s => s.signupStatus === "CONFIRMED").map(s => s.player.id));
+      for (const pid of [player1Id, ...(player2Id ? [player2Id] : [])]) {
+        if (!poolIds.has(pid)) return res.status(400).json({ message: "Player is not signed up to this session" });
+      }
+
+      const existingEntries = await storage.getSessionGroupEntries(sessionId);
+      const used = new Set<number>();
+      for (const e of existingEntries) { used.add(e.player1Id); if (e.player2Id) used.add(e.player2Id); }
+      for (const pid of [player1Id, ...(player2Id ? [player2Id] : [])]) {
+        if (used.has(pid)) return res.status(409).json({ message: "Player is already placed in a pair/group" });
+      }
+
+      // If placing directly into a group, that group must belong to this session.
+      if (groupId != null) {
+        const groups = await storage.getSessionGroups(sessionId);
+        if (!groups.some(g => g.id === groupId)) return res.status(404).json({ message: "Group not found" });
+      }
+
+      const groupEntries = existingEntries.filter(e => e.groupId === groupId);
+      const entry = await storage.createSessionGroupEntry({
+        sessionId,
+        groupId,
+        player1Id,
+        player2Id,
+        displayOrder: groupEntries.length,
+      });
+      // Adding to a group invalidates that group's existing round-robin plan.
+      if (groupId != null) await storage.deletePlannedMatchesForGroup(groupId);
+      res.status(201).json(entry);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to create entry" });
+    }
+  });
+
+  // Move an entry between groups / reorder it.
+  app.patch("/api/sessions/:id/group-entries/:entryId", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const entry = await storage.getSessionGroupEntry(Number(req.params.entryId));
+      if (!entry || entry.sessionId !== sessionId) return res.status(404).json({ message: "Entry not found" });
+
+      const updates: any = {};
+      let newGroupId: number | null | undefined;
+      if ("groupId" in (req.body || {})) {
+        newGroupId = req.body.groupId == null ? null : Number(req.body.groupId);
+        if (newGroupId != null) {
+          const groups = await storage.getSessionGroups(sessionId);
+          if (!groups.some(g => g.id === newGroupId)) return res.status(404).json({ message: "Group not found" });
+        }
+        updates.groupId = newGroupId;
+      }
+      if (req.body?.displayOrder != null) updates.displayOrder = Number(req.body.displayOrder);
+      const updated = await storage.updateSessionGroupEntry(entry.id, updates);
+
+      // Moving an entry changes both groups' rosters — drop their stale plans.
+      if (newGroupId !== undefined && newGroupId !== entry.groupId) {
+        if (entry.groupId != null) await storage.deletePlannedMatchesForGroup(entry.groupId);
+        if (newGroupId != null) await storage.deletePlannedMatchesForGroup(newGroupId);
+      }
+      res.json(updated);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to move entry" });
+    }
+  });
+
+  // Remove an entry (returns its players to the pool).
+  app.delete("/api/sessions/:id/group-entries/:entryId", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const entry = await storage.getSessionGroupEntry(Number(req.params.entryId));
+      if (!entry || entry.sessionId !== sessionId) return res.status(404).json({ message: "Entry not found" });
+      await storage.deleteSessionGroupEntry(entry.id);
+      // Removing a player invalidates its group's round-robin plan.
+      if (entry.groupId != null) await storage.deletePlannedMatchesForGroup(entry.groupId);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to delete entry" });
+    }
+  });
+
+  // Auto-generate a round-robin (everyone plays everyone) for a group's entries.
+  app.post("/api/sessions/:id/groups/:groupId/auto-generate-matches", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const groupId = Number(req.params.groupId);
+      const groups = await storage.getSessionGroups(sessionId);
+      const group = groups.find(g => g.id === groupId);
+      if (!group) return res.status(404).json({ message: "Group not found" });
+
+      const entries = (await storage.getSessionGroupEntries(sessionId))
+        .filter(e => e.groupId === groupId)
+        .sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id);
+      if (entries.length < 2) return res.status(400).json({ message: "Add at least two players/pairs to this group first" });
+
+      // Replace any existing planned matches for this group.
+      await storage.deletePlannedMatchesForGroup(groupId);
+
+      let order = 1;
+      const created: any[] = [];
+      for (let i = 0; i < entries.length; i++) {
+        for (let j = i + 1; j < entries.length; j++) {
+          const a = entries[i];
+          const b = entries[j];
+          const m = await storage.createMatch({
+            sessionId,
+            courtNumber: group.courtNumber ?? null,
+            status: "PLANNED",
+            groupId,
+            plannedOrder: order++,
+            teamAPlayer1Id: a.player1Id,
+            teamAPlayer2Id: a.player2Id ?? null,
+            teamBPlayer1Id: b.player1Id,
+            teamBPlayer2Id: b.player2Id ?? null,
+            scoreA: 0,
+            scoreB: 0,
+            isCompleted: false,
+            pointsToPlayTo: ctx.session.defaultPointsToPlayTo || 21,
+            numberOfSets: ctx.session.numberOfSets || 1,
+            currentSet: 1,
+            setsWonA: 0,
+            setsWonB: 0,
+            setScores: [],
+          });
+          created.push(m);
+        }
+      }
+      res.status(201).json(created);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to generate matches" });
+    }
+  });
+
+  // Manually add a single planned match between two entries in a group.
+  app.post("/api/sessions/:id/groups/:groupId/planned-matches", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const groupId = Number(req.params.groupId);
+      const groups = await storage.getSessionGroups(sessionId);
+      const group = groups.find(g => g.id === groupId);
+      if (!group) return res.status(404).json({ message: "Group not found" });
+
+      const entries = await storage.getSessionGroupEntries(sessionId);
+      const a = entries.find(e => e.id === Number(req.body?.entryAId));
+      const b = entries.find(e => e.id === Number(req.body?.entryBId));
+      if (!a || !b || a.id === b.id) return res.status(400).json({ message: "Pick two different entries" });
+      if (a.groupId !== groupId || b.groupId !== groupId) return res.status(400).json({ message: "Both entries must belong to this group" });
+
+      const planned = (await storage.getSessionPlannedMatches(sessionId)).filter(m => m.groupId === groupId);
+      const nextOrder = planned.reduce((mx, m) => Math.max(mx, m.plannedOrder || 0), 0) + 1;
+      const m = await storage.createMatch({
+        sessionId,
+        courtNumber: group.courtNumber ?? null,
+        status: "PLANNED",
+        groupId,
+        plannedOrder: nextOrder,
+        teamAPlayer1Id: a.player1Id,
+        teamAPlayer2Id: a.player2Id ?? null,
+        teamBPlayer1Id: b.player1Id,
+        teamBPlayer2Id: b.player2Id ?? null,
+        scoreA: 0,
+        scoreB: 0,
+        isCompleted: false,
+        pointsToPlayTo: ctx.session.defaultPointsToPlayTo || 21,
+        numberOfSets: ctx.session.numberOfSets || 1,
+        currentSet: 1,
+        setsWonA: 0,
+        setsWonB: 0,
+        setScores: [],
+      });
+      res.status(201).json(m);
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to add match" });
+    }
+  });
+
+  // Delete a single planned match.
+  app.delete("/api/sessions/:id/planned-matches/:matchId", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const match = await storage.getMatch(Number(req.params.matchId));
+      if (!match || match.sessionId !== Number(req.params.id) || match.status !== "PLANNED") {
+        return res.status(404).json({ message: "Planned match not found" });
+      }
+      await storage.deleteMatch(match.id);
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to delete match" });
+    }
+  });
+
+  // Reorder planned matches (within their group) by an explicit id order.
+  app.post("/api/sessions/:id/planned-matches/reorder", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const orderedIds: number[] = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds.map(Number) : [];
+      const planned = await storage.getSessionPlannedMatches(Number(req.params.id));
+      const valid = new Set(planned.map(m => m.id));
+      let order = 1;
+      for (const id of orderedIds) {
+        if (valid.has(id)) await storage.updateMatch(id, { plannedOrder: order++ });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to reorder matches" });
+    }
+  });
+
+  // Release the plan: flip PLANNED matches into the live QUEUED flow in planned
+  // order (grouped by court). From here the normal live system takes over and
+  // results feed the existing session leaderboard.
+  app.post("/api/sessions/:id/start-tournament", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const groups = await storage.getSessionGroups(sessionId);
+      const groupOrder = new Map<number, number>();
+      groups.forEach((g, i) => groupOrder.set(g.id, g.displayOrder ?? i));
+
+      const planned = await storage.getSessionPlannedMatches(sessionId);
+      if (planned.length === 0) return res.status(400).json({ message: "No planned matches to start" });
+
+      // Order globally by group display order then planned order, so each court's
+      // matches stay together and in sequence.
+      const sorted = [...planned].sort((a, b) => {
+        const ga = groupOrder.get(a.groupId ?? -1) ?? 999;
+        const gb = groupOrder.get(b.groupId ?? -1) ?? 999;
+        if (ga !== gb) return ga - gb;
+        return (a.plannedOrder || 0) - (b.plannedOrder || 0);
+      });
+
+      let pos = 1;
+      for (const m of sorted) {
+        await storage.updateMatch(m.id, { status: "QUEUED", queuePosition: pos++ });
+      }
+      res.json({ success: true, released: sorted.length });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to start tournament" });
+    }
+  });
+
   // === Match Management Endpoints ===
   app.post("/api/matches/:id/start", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

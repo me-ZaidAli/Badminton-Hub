@@ -21,7 +21,7 @@ export const attendanceStatusEnum = pgEnum("attendance_status", [
   "SESSION_ABANDONED", "OTHER"
 ]);
 export const matchModeEnum = pgEnum("match_mode", ["COMPETITIVE", "SOCIAL", "TRAINING"]);
-export const matchStatusEnum = pgEnum("match_status", ["QUEUED", "LIVE", "COMPLETED"]);
+export const matchStatusEnum = pgEnum("match_status", ["QUEUED", "LIVE", "COMPLETED", "PLANNED"]);
 export const matchGenderTypeEnum = pgEnum("match_gender_type", ["MIXED", "FEMALE", "MALE"]);
 export const visibilityEnum = pgEnum("visibility", ["ALL", "PLAYERS", "ADMINS"]);
 export const accountStatusEnum = pgEnum("account_status", ["PENDING", "APPROVED", "REJECTED", "SUSPENDED"]);
@@ -392,6 +392,10 @@ export const sessions = pgTable("sessions", {
   numberOfSets: integer("number_of_sets").default(1).notNull(),
   autoGenerateActive: boolean("auto_generate_active").default(false).notNull(),
   aiBrainEnabled: boolean("ai_brain_enabled").default(false).notNull(),
+  // Tournament Mode: when true, the organiser pre-plans pairs/groups/matches
+  // (see session_groups + session_group_entries + matches.status='PLANNED')
+  // before releasing them into the normal live queue. Normal mode = false.
+  tournamentMode: boolean("tournament_mode").default(false).notNull(),
   queueTargetSize: integer("queue_target_size").default(3),
   matchmakingMode: text("matchmaking_mode"),
   recurringEventId: integer("recurring_event_id").references(() => recurringEvents.id),
@@ -471,6 +475,11 @@ export const matches = pgTable("matches", {
   courtNumber: integer("court_number"),
   queuePosition: integer("queue_position"),
   status: matchStatusEnum("status").default("QUEUED").notNull(),
+  // Tournament Mode planning links (null in Normal mode). groupId points at the
+  // session_groups row a planned match belongs to; plannedOrder is the intended
+  // play order within that group/court.
+  groupId: integer("group_id"),
+  plannedOrder: integer("planned_order"),
   teamAPlayer1Id: integer("team_a_player_1_id").references(() => playerProfiles.id),
   teamAPlayer2Id: integer("team_a_player_2_id").references(() => playerProfiles.id),
   teamBPlayer1Id: integer("team_b_player_1_id").references(() => playerProfiles.id),
@@ -492,6 +501,31 @@ export const matches = pgTable("matches", {
   setScores: jsonb("set_scores").$type<{ scoreA: number; scoreB: number }[]>(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   deletedAt: timestamp("deleted_at"),
+});
+
+// === SESSION TOURNAMENT MODE: GROUPS + ENTRIES ===
+// A "group" maps to one court during pre-planning. Players (singles) or pairs
+// (doubles) are placed into groups as "entries"; planned round-robin matches are
+// generated from a group's entries (matches.groupId + matches.plannedOrder).
+export const sessionGroups = pgTable("session_groups", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => sessions.id).notNull(),
+  name: text("name").notNull(),
+  courtNumber: integer("court_number"),
+  displayOrder: integer("display_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
+});
+
+// An entry is one playing unit: a single player (player2Id null) or a pair.
+// groupId null = unassigned pool (built but not yet placed on a court).
+export const sessionGroupEntries = pgTable("session_group_entries", {
+  id: serial("id").primaryKey(),
+  sessionId: integer("session_id").references(() => sessions.id).notNull(),
+  groupId: integer("group_id"),
+  player1Id: integer("player1_id").references(() => playerProfiles.id).notNull(),
+  player2Id: integer("player2_id").references(() => playerProfiles.id),
+  displayOrder: integer("display_order").default(0).notNull(),
+  createdAt: timestamp("created_at").defaultNow().notNull(),
 });
 
 // === TOURNAMENTS ===
@@ -1171,6 +1205,8 @@ export const insertAnnouncementSchema = createInsertSchema(announcements).omit({
   linkText: z.string().nullable().optional(),
 });
 export const insertMatchSchema = createInsertSchema(matches).omit({ id: true, createdAt: true });
+export const insertSessionGroupSchema = createInsertSchema(sessionGroups).omit({ id: true, createdAt: true });
+export const insertSessionGroupEntrySchema = createInsertSchema(sessionGroupEntries).omit({ id: true, createdAt: true });
 export const insertCoachSchema = createInsertSchema(coaches).omit({ id: true, createdAt: true, status: true });
 export const insertCoachSeekerMembershipSchema = createInsertSchema(coachSeekerMemberships).omit({ id: true, createdAt: true, joinedAt: true });
 export const insertReviewSchema = createInsertSchema(reviews).omit({ id: true, createdAt: true });
@@ -1265,6 +1301,10 @@ export type InsertExpense = z.infer<typeof insertExpenseSchema>;
 
 export type InsertAnnouncement = z.infer<typeof insertAnnouncementSchema>;
 export type InsertMatch = z.infer<typeof insertMatchSchema>;
+export type SessionGroup = typeof sessionGroups.$inferSelect;
+export type InsertSessionGroup = z.infer<typeof insertSessionGroupSchema>;
+export type SessionGroupEntry = typeof sessionGroupEntries.$inferSelect;
+export type InsertSessionGroupEntry = z.infer<typeof insertSessionGroupEntrySchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type InsertClub = z.infer<typeof insertClubSchema>;
 export type InsertPlayerProfile = z.infer<typeof insertPlayerProfileSchema>;
