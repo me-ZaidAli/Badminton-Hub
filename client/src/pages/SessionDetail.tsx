@@ -6538,7 +6538,6 @@ function SessionLiveLeaderboard({ sessionId, stages = [] }: { sessionId: number;
                         const team = s.player2Name
                           ? `${s.player1Name} & ${s.player2Name}`
                           : s.player1Name;
-                        const blurred = s.player1Blurred || s.player2Blurred;
                         return (
                           <div
                             key={s.entryId}
@@ -6556,7 +6555,7 @@ function SessionLiveLeaderboard({ sessionId, stages = [] }: { sessionId: number;
                               {s.rank}
                             </div>
                             <div className="flex-1 min-w-0">
-                              <div className={`font-medium text-sm truncate ${blurred ? "blur-sm select-none" : ""}`}>
+                              <div className="font-medium text-sm truncate">
                                 {team}
                               </div>
                               <div className="text-xs text-muted-foreground">
