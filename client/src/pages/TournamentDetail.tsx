@@ -5306,7 +5306,11 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
               <p className="text-xs text-muted-foreground italic text-center py-4">No stages yet.</p>
             ) : (
               <div className="space-y-1.5 max-h-[320px] overflow-y-auto">
-                {[...visibleStages].sort((a, b) => a.displayOrder - b.displayOrder).map((s, idx, arr) => (
+                {[...visibleStages].sort((a, b) => a.displayOrder - b.displayOrder).map((s, idx, arr) => {
+                  const stageGroups = (visibleGroups as any[]).filter(g => g.stageId === s.id);
+                  const teamCount = stageGroups.reduce((n, g) => n + (g.pairs?.length || 0), 0);
+                  const isEmpty = stageGroups.length === 0;
+                  return (
                   <div key={s.id} className="flex items-center gap-2 px-2 py-1.5 rounded-lg border border-border/40 bg-muted/30">
                     <span className="text-[10px] font-black text-muted-foreground w-8">#{idx + 1}</span>
                     <Input
@@ -5315,6 +5319,15 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                       className="h-7 text-xs flex-1"
                       data-testid={`input-stage-name-${s.id}`}
                     />
+                    <Badge
+                      className={cn(
+                        "text-[9px] font-black border-0 flex-shrink-0 whitespace-nowrap",
+                        isEmpty ? "bg-muted/60 text-muted-foreground" : "bg-violet-600/20 text-violet-400",
+                      )}
+                      data-testid={`badge-stage-count-${s.id}`}
+                    >
+                      {isEmpty ? "Empty" : `${stageGroups.length} ${stageGroups.length === 1 ? "group" : "groups"} · ${teamCount} ${teamCount === 1 ? "team" : "teams"}`}
+                    </Badge>
                     <Button size="icon" variant="ghost" className="h-7 w-7"
                       disabled={idx === 0 || updateStageMutation.isPending}
                       onClick={() => moveStage(s.id, "up")}
@@ -5336,7 +5349,8 @@ function GroupsTab({ tournamentId, tournament, categories, canManage }: { tourna
                       <Trash2 className="h-3.5 w-3.5" />
                     </Button>
                   </div>
-                ))}
+                  );
+                })}
               </div>
             )}
             <p className="text-[10px] text-muted-foreground">
