@@ -6386,6 +6386,26 @@ export async function registerRoutes(
     }
   });
 
+  // Reorder the live QUEUED matches (organiser drags a fixture up/down the queue).
+  // Only re-numbers queuePosition on QUEUED matches belonging to this session —
+  // LIVE/COMPLETED rows are untouched.
+  app.post("/api/sessions/:id/queued-matches/reorder", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const orderedIds: number[] = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds.map(Number) : [];
+      const sessionMatches = await storage.getSessionMatches(Number(req.params.id));
+      const queuedIds = new Set(sessionMatches.filter(m => m.status === "QUEUED").map(m => m.id));
+      let pos = 1;
+      for (const id of orderedIds) {
+        if (queuedIds.has(id)) await storage.updateMatch(id, { queuePosition: pos++ });
+      }
+      res.json({ success: true });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to reorder queue" });
+    }
+  });
+
   // Release the plan: flip PLANNED matches into the live QUEUED flow in planned
   // order (grouped by court). From here the normal live system takes over and
   // results feed the existing session leaderboard.
