@@ -147,6 +147,10 @@ export function MatchQueue({
   const [reshuffleErrors, setReshuffleErrors] = useState<Record<number, string>>({});
   const [expandedActions, setExpandedActions] = useState<Record<number, boolean>>({});
   const [sectionLight, setSectionLight] = useState(false);
+  const [reorderOpen, setReorderOpen] = useState(false);
+  const [draftOrder, setDraftOrder] = useState<number[]>([]);
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [overIndex, setOverIndex] = useState<number | null>(null);
 
   const computedBusyIds = (() => {
     if (busyPlayerIds && busyPlayerIds.size > 0) return busyPlayerIds;
@@ -191,6 +195,40 @@ export function MatchQueue({
     [ids[index], ids[target]] = [ids[target], ids[index]];
     reorderQueue({ sessionId, orderedIds: ids });
   };
+
+  const openReorder = () => {
+    setDraftOrder(queuedMatches.map(m => m.id));
+    setDragIndex(null);
+    setOverIndex(null);
+    setReorderOpen(true);
+  };
+
+  const reorderDraft = (from: number, to: number) => {
+    if (from === to || from < 0 || to < 0) return;
+    setDraftOrder(prev => {
+      if (from >= prev.length || to >= prev.length) return prev;
+      const next = [...prev];
+      const [moved] = next.splice(from, 1);
+      next.splice(to, 0, moved);
+      return next;
+    });
+  };
+
+  const saveReorder = () => {
+    if (!sessionId) return;
+    const current = queuedMatches.map(m => m.id);
+    const changed = draftOrder.length === current.length && draftOrder.some((id, i) => id !== current[i]);
+    if (!changed) {
+      setReorderOpen(false);
+      return;
+    }
+    reorderQueue(
+      { sessionId, orderedIds: draftOrder },
+      { onSuccess: () => setReorderOpen(false) },
+    );
+  };
+
+  const matchById = new Map(queuedMatches.map(m => [m.id, m]));
 
   const toggleActions = (matchId: number) => {
     setExpandedActions(prev => ({ ...prev, [matchId]: !prev[matchId] }));
@@ -293,6 +331,19 @@ export function MatchQueue({
                     title="Create empty match"
                   >
                     {isCreatingEmpty ? <Loader2 className="w-4 h-4 animate-spin" /> : <Users className="w-4 h-4" />}
+                  </Button>
+                )}
+                {isOrganiser && sessionId && queuedMatches.length > 1 && (
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={openReorder}
+                    className="border-primary/50 text-primary hover:bg-primary/10"
+                    data-testid="button-open-reorder-queue"
+                    title="Drag matches to reorder the queue"
+                  >
+                    <GripVertical className="w-4 h-4 mr-1" />
+                    Reorder
                   </Button>
                 )}
                 {isOrganiser && sessionId && queuedMatches.length > 0 && (
@@ -608,6 +659,89 @@ export function MatchQueue({
           </ScrollArea>
         )}
       </div>
+
+      <Dialog open={reorderOpen} onOpenChange={(open) => { if (!open) setReorderOpen(false); }}>
+        <DialogContent className="max-w-lg" data-testid="dialog-reorder-queue">
+          <DialogHeader>
+            <DialogTitle>Reorder Match Queue</DialogTitle>
+            <DialogDescription>
+              Drag matches up or down to set the order they'll be played. Tap Save to apply.
+            </DialogDescription>
+          </DialogHeader>
+          <ScrollArea className="max-h-[55vh] pr-2 -mr-2">
+            <div className="space-y-2 py-1">
+              {draftOrder.map((id, index) => {
+                const m = matchById.get(id);
+                if (!m) return null;
+                const isDragging = dragIndex === index;
+                const isOver = overIndex === index && dragIndex !== null && dragIndex !== index;
+                return (
+                  <div
+                    key={id}
+                    draggable
+                    onDragStart={() => setDragIndex(index)}
+                    onDragEnter={() => setOverIndex(index)}
+                    onDragOver={(e) => e.preventDefault()}
+                    onDrop={() => {
+                      if (dragIndex !== null) reorderDraft(dragIndex, index);
+                      setDragIndex(null);
+                      setOverIndex(null);
+                    }}
+                    onDragEnd={() => { setDragIndex(null); setOverIndex(null); }}
+                    className={cn(
+                      "flex items-center gap-3 rounded-xl border bg-card px-3 py-3 cursor-grab active:cursor-grabbing transition-all",
+                      isDragging ? "opacity-50 border-primary" : "border-border/60",
+                      isOver && "border-primary border-dashed bg-primary/5"
+                    )}
+                    data-testid={`reorder-row-${id}`}
+                  >
+                    <GripVertical className="w-5 h-5 text-muted-foreground flex-shrink-0" />
+                    <div className="flex items-center justify-center w-7 h-7 rounded-full bg-primary text-primary-foreground font-bold text-xs flex-shrink-0">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0 flex-1 text-sm">
+                      <div className="truncate font-medium" data-testid={`reorder-teamA-${id}`}>{getTeamALabel(m)}</div>
+                      <div className="text-[11px] text-muted-foreground my-0.5">vs</div>
+                      <div className="truncate font-medium" data-testid={`reorder-teamB-${id}`}>{getTeamBLabel(m)}</div>
+                    </div>
+                    <div className="flex flex-col gap-0.5 flex-shrink-0">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => reorderDraft(index, index - 1)}
+                        disabled={index === 0}
+                        data-testid={`reorder-up-${id}`}
+                        title="Move up"
+                      >
+                        <ArrowUp className="w-3.5 h-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-6 w-6"
+                        onClick={() => reorderDraft(index, index + 1)}
+                        disabled={index === draftOrder.length - 1}
+                        data-testid={`reorder-down-${id}`}
+                        title="Move down"
+                      >
+                        <ArrowDown className="w-3.5 h-3.5" />
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </ScrollArea>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setReorderOpen(false)} data-testid="button-cancel-reorder">Cancel</Button>
+            <Button onClick={saveReorder} disabled={isReordering} data-testid="button-save-reorder">
+              {isReordering ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : null}
+              Save Order
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog open={!!deleteConfirm} onOpenChange={(open) => !open && setDeleteConfirm(null)}>
         <DialogContent>
