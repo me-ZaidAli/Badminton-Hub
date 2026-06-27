@@ -6730,8 +6730,9 @@ export async function registerRoutes(
             courtNumber: gi + 1,
             displayOrder: gi,
           });
+          const teams = buckets[gi];
           let order = 0;
-          for (const t of buckets[gi]) {
+          for (const t of teams) {
             await storage.createSessionGroupEntry({
               sessionId,
               stageId: nextStage.id,
@@ -6740,6 +6741,37 @@ export async function registerRoutes(
               player2Id: t.player2Id,
               displayOrder: order++,
             });
+          }
+          // Generate the round-robin (C(n,2)) PLANNED matches for this group so
+          // the new stage arrives pre-planned and can be started exactly like the
+          // first — no manual per-group generation needed for auto-placement modes.
+          let mOrder = 1;
+          for (let i = 0; i < teams.length; i++) {
+            for (let j = i + 1; j < teams.length; j++) {
+              const a = teams[i];
+              const b = teams[j];
+              await storage.createMatch({
+                sessionId,
+                courtNumber: group.courtNumber ?? null,
+                status: "PLANNED",
+                groupId: group.id,
+                stageId: nextStage.id,
+                plannedOrder: mOrder++,
+                teamAPlayer1Id: a.player1Id,
+                teamAPlayer2Id: a.player2Id ?? null,
+                teamBPlayer1Id: b.player1Id,
+                teamBPlayer2Id: b.player2Id ?? null,
+                scoreA: 0,
+                scoreB: 0,
+                isCompleted: false,
+                pointsToPlayTo: ctx.session.defaultPointsToPlayTo || 21,
+                numberOfSets: ctx.session.numberOfSets || 1,
+                currentSet: 1,
+                setsWonA: 0,
+                setsWonB: 0,
+                setScores: [],
+              });
+            }
           }
         }
       }
