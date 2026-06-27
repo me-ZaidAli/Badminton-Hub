@@ -34,6 +34,12 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
 - **Normal/auto match generation is suppressed when `sessions.tournamentMode` is on.** `POST …/matches/smart-generate` returns early (status `"tournament"`, empty matches) and the queued-match delete handler skips its auto-replacement. Tournament matches are created ONLY via the planner endpoints.
   **Why:** the client auto-fill kept calling smart-generate to top up the queue and delete triggered regenerate, so non-tournament matches kept appearing alongside planner-owned ones ("matches disappear / system keeps generating more"). Tournament mode owns its own match lifecycle.
 
+## Pairing preservation + restart-stage
+
+- **Pairs stay fixed across the whole tournament.** Match generation always builds teams from the fixed `session_group_entries` pair rows (`player1Id`+`player2Id`), and advance carries each team's `{player1Id, player2Id}` into the next stage's entries for ALL modes — partners are never remixed. The only thing that ever broke this was normal/auto match generation sneaking in extra matches; suppressing smart-generate in tournament mode is what guarantees it.
+- **"Restart whole stage"** = wipe + replay a stage from scratch while keeping the same pairs: delete EVERY match for `(sessionId, stageId)` (any status incl COMPLETED — safe, no FK children reference `matches.id`; only `league_matches` has child FKs), keep groups+entries, rebuild round-robin PLANNED per group (same C(n,2) loop as auto-generate), reset stage status to `PLANNING`. Endpoint is manager-gated + verifies `stage.sessionId === sessionId`.
+  **Why:** organisers needed a one-click reset after a bad/test run without losing the carefully-built pairs.
+
 ## Live-leaderboard stage tabs: per-group pair view
 
 - On the live leaderboard, the **Overall tab stays a flat individual leaderboard**; **stage tabs render one sub-leaderboard per court group, showing PAIRS** (teams), with rank pill, W/L, points, "Top N advance", advancing rows highlighted.

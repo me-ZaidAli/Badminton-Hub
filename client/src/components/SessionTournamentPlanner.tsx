@@ -3,7 +3,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import {
   X, Plus, Trophy, Users, Trash2, Wand2, ChevronUp, ChevronDown,
   GripVertical, Swords, Loader2, Play, Undo2, ListOrdered, ArrowRightCircle,
-  Shuffle, Hand, Layers, Zap,
+  Shuffle, Hand, Layers, Zap, RotateCcw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,7 +14,7 @@ import {
   useCreateEntry, useMoveEntry, useDeleteEntry,
   useAutoGenerateGroupMatches, useDeletePlannedMatch, useReorderPlannedMatches,
   useStartTournament,
-  useCreateStage, useUpdateStage, useDeleteStage, useAdvanceStage, useStageStandings,
+  useCreateStage, useUpdateStage, useDeleteStage, useRestartStage, useAdvanceStage, useStageStandings,
   type SessionStage,
 } from "@/hooks/use-matches";
 
@@ -40,6 +40,7 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   const createStage = useCreateStage();
   const updateStage = useUpdateStage();
   const deleteStage = useDeleteStage();
+  const restartStage = useRestartStage();
 
   const [selected, setSelected] = useState<number[]>([]);
   const [draggingEntryId, setDraggingEntryId] = useState<number | null>(null);
@@ -256,6 +257,20 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
               data-testid="button-open-advance"
             >
               <ArrowRightCircle className="w-4 h-4 mr-1.5" /> Advance to next stage
+            </Button>
+            <Button
+              size="sm" variant="outline"
+              onClick={() => {
+                if (confirm(`Restart "${selectedStage.name}"? All matches in this stage (including completed ones) will be deleted and the round-robin re-created. The same pairs are kept.`)) {
+                  restartStage.mutate({ sessionId, stageId: selectedStage.id });
+                }
+              }}
+              disabled={restartStage.isPending}
+              className="border-amber-400/40 text-amber-300 hover:bg-amber-500/10"
+              data-testid="button-restart-stage"
+            >
+              {restartStage.isPending ? <Loader2 className="w-4 h-4 mr-1.5 animate-spin" /> : <RotateCcw className="w-4 h-4 mr-1.5" />}
+              Restart stage
             </Button>
             {stages.length > 1 && (
               <Button

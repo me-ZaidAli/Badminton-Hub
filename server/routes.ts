@@ -6705,6 +6705,69 @@ export async function registerRoutes(
     }
   });
 
+  // Restart a whole stage: delete ALL of its matches (completed, live, queued,
+  // planned), keep the groups + entries so the SAME pairs stay together, rebuild
+  // the round-robin planned matches for each group, and set the stage back to
+  // PLANNING so it can be played again from scratch.
+  app.post("/api/sessions/:id/stages/:stageId/restart", async (req, res) => {
+    const ctx = await requireSessionManager(req, res);
+    if (!ctx) return;
+    try {
+      const sessionId = Number(req.params.id);
+      const stageId = Number(req.params.stageId);
+      const stage = await storage.getSessionStage(stageId);
+      if (!stage || stage.sessionId !== sessionId) return res.status(404).json({ message: "Stage not found" });
+
+      // Wipe every match belonging to this stage, whatever its status.
+      await db.delete(matches).where(and(eq(matches.sessionId, sessionId), eq(matches.stageId, stageId)));
+
+      // Rebuild the round-robin for each group, reusing the existing entries so
+      // the pairs are unchanged.
+      const groups = (await storage.getSessionGroups(sessionId)).filter(g => g.stageId === stageId);
+      const allEntries = await storage.getSessionGroupEntries(sessionId);
+      let regenerated = 0;
+      for (const group of groups) {
+        const entries = allEntries
+          .filter(e => e.groupId === group.id)
+          .sort((a, b) => a.displayOrder - b.displayOrder || a.id - b.id);
+        let order = 1;
+        for (let i = 0; i < entries.length; i++) {
+          for (let j = i + 1; j < entries.length; j++) {
+            const a = entries[i];
+            const b = entries[j];
+            await storage.createMatch({
+              sessionId,
+              courtNumber: group.courtNumber ?? null,
+              status: "PLANNED",
+              groupId: group.id,
+              stageId,
+              plannedOrder: order++,
+              teamAPlayer1Id: a.player1Id,
+              teamAPlayer2Id: a.player2Id ?? null,
+              teamBPlayer1Id: b.player1Id,
+              teamBPlayer2Id: b.player2Id ?? null,
+              scoreA: 0,
+              scoreB: 0,
+              isCompleted: false,
+              pointsToPlayTo: ctx.session.defaultPointsToPlayTo || 21,
+              numberOfSets: ctx.session.numberOfSets || 1,
+              currentSet: 1,
+              setsWonA: 0,
+              setsWonB: 0,
+              setScores: [],
+            });
+            regenerated++;
+          }
+        }
+      }
+
+      await storage.updateSessionStage(stageId, { status: "PLANNING" });
+      res.json({ success: true, regenerated });
+    } catch (err: any) {
+      res.status(500).json({ message: err.message || "Failed to restart stage" });
+    }
+  });
+
   // === Match Management Endpoints ===
   app.post("/api/matches/:id/start", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

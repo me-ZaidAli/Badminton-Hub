@@ -737,6 +737,9 @@ export const useUpdateStage = () =>
 export const useDeleteStage = () =>
   useTournamentMutation<{ stageId: number }>((sid, a) => jsonReq("DELETE", `/api/sessions/${sid}/stages/${a.stageId}`), { success: "Stage removed", error: "Failed to delete stage" });
 
+export const useRestartStage = () =>
+  useTournamentMutation<{ stageId: number }>((sid, a) => jsonReq("POST", `/api/sessions/${sid}/stages/${a.stageId}/restart`), { success: "Stage restarted — matches reset", error: "Failed to restart stage" });
+
 export const useAdvanceStage = () =>
   useTournamentMutation<{ stageId: number; mode: "RANDOMISE" | "HIERARCHICAL" | "DESTRUCTION" | "MANUAL"; name?: string; advanceCount?: number; groupCount?: number }>(
     (sid, a) => jsonReq("POST", `/api/sessions/${sid}/stages/${a.stageId}/advance`, a),
