@@ -40,6 +40,12 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
 - **"Restart whole stage"** = wipe + replay a stage from scratch while keeping the same pairs: delete EVERY match for `(sessionId, stageId)` (any status incl COMPLETED — safe, no FK children reference `matches.id`; only `league_matches` has child FKs), keep groups+entries, rebuild round-robin PLANNED per group (same C(n,2) loop as auto-generate), reset stage status to `PLANNING`. Endpoint is manager-gated + verifies `stage.sessionId === sessionId`.
   **Why:** organisers needed a one-click reset after a bad/test run without losing the carefully-built pairs.
 
+## Planner match visibility (never silently drop PLANNED)
+
+- **Display planned matches by GROUP membership, not by the match's own `stageId`.** A PLANNED match shows wherever its group shows; groups are reliably stage-scoped (createGroup always stamps `stageId`), but a match row's `stageId` can drift (legacy/pre-multi-stage rows, backfill gaps), and filtering matches directly on `stageId === selectedStage` then hides DB-safe rows — the user perceives this as "matches disappeared on navigation" even though nothing deleted them.
+  **Why:** hard product rule — planned round-robin matches must NEVER vanish unless the user explicitly deletes them; navigation/queue paths never delete PLANNED server-side, so any disappearance is a view-filter bug.
+  **How to apply:** key the planner's planned-match list off the visible group ids; also keep a small "recovered/orphan" fallback list for matches whose group no longer exists (or group-less rows whose `stageId` maps to no stage) so they stay visible and deliberately deletable.
+
 ## Live-leaderboard stage tabs: per-group pair view
 
 - On the live leaderboard, the **Overall tab stays a flat individual leaderboard**; **stage tabs render one sub-leaderboard per court group, showing PAIRS** (teams), with rank pill, W/L, points, "Top N advance", advancing rows highlighted.
