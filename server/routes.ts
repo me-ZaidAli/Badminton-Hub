@@ -6816,16 +6816,22 @@ export async function registerRoutes(
         queuePosition: null
       });
 
-      // Remove these players from remaining queued matches
-      const livePlayerIds = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
-      const sessionMatches = await storage.getSessionMatches(match.sessionId);
-      const queuedMatchesWithBusyPlayers = sessionMatches.filter(m => {
-        if (m.status !== "QUEUED" || m.id === matchId) return false;
-        const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
-        return mPlayers.some(pid => livePlayerIds.includes(pid));
-      });
-      for (const qm of queuedMatchesWithBusyPlayers) {
-        await storage.deleteMatch(qm.id);
+      // Remove these players from remaining queued matches — but NOT in
+      // tournament mode. Tournament matches are a fixed, pre-planned schedule
+      // (round-robin); every fixture must stay in the queue and simply wait its
+      // turn while one of its players is on court. Only normal/social sessions
+      // prune conflicting queued matches (a social player can't be double-booked).
+      if (!session.tournamentMode) {
+        const livePlayerIds = [match.teamAPlayer1Id, match.teamAPlayer2Id, match.teamBPlayer1Id, match.teamBPlayer2Id].filter(Boolean) as number[];
+        const sessionMatches = await storage.getSessionMatches(match.sessionId);
+        const queuedMatchesWithBusyPlayers = sessionMatches.filter(m => {
+          if (m.status !== "QUEUED" || m.id === matchId) return false;
+          const mPlayers = [m.teamAPlayer1Id, m.teamAPlayer2Id, m.teamBPlayer1Id, m.teamBPlayer2Id].filter(Boolean) as number[];
+          return mPlayers.some(pid => livePlayerIds.includes(pid));
+        });
+        for (const qm of queuedMatchesWithBusyPlayers) {
+          await storage.deleteMatch(qm.id);
+        }
       }
 
       res.json(updated);

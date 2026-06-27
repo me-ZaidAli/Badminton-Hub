@@ -46,6 +46,12 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
   **Why:** hard product rule — planned round-robin matches must NEVER vanish unless the user explicitly deletes them; navigation/queue paths never delete PLANNED server-side, so any disappearance is a view-filter bug.
   **How to apply:** key the planner's planned-match list off the visible group ids; also keep a small "recovered/orphan" fallback list for matches whose group no longer exists (or group-less rows whose `stageId` maps to no stage) so they stay visible and deliberately deletable.
 
+## Starting a match must NOT prune the queue in tournament mode
+
+- `POST /api/matches/:id/start` (sending a match to court) normally deletes every other QUEUED match that shares a player with the now-LIVE match (social play = no double-booking). This MUST be skipped when `session.tournamentMode` is on — the queued fixtures are the fixed round-robin schedule and must stay, simply waiting their turn while a player is on court.
+  **Why:** organisers reported "queued matches disappear when a pair is sent to court" / "not all matches show in the queue"; the queue UI already renders every `status==='QUEUED'` row (busyPlayerIds only marks busy visually, never hides), so the only thing dropping them was this server-side prune.
+  **How to apply:** the prune loop is wrapped in `if (!session.tournamentMode)`. The complete/end-set auto-promote paths only PROMOTE the next non-conflicting queued match (no deletion) so they're already safe.
+
 ## Live-leaderboard stage tabs: per-group pair view
 
 - On the live leaderboard, the **Overall tab stays a flat individual leaderboard**; **stage tabs render one sub-leaderboard per court group, showing PAIRS** (teams), with rank pill, W/L, points, "Top N advance", advancing rows highlighted.
