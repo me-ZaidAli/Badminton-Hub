@@ -157,8 +157,6 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
   };
 
   const stagePlannedCount = stagePlanned.length;
-  const isLastStage = stages.length > 0 && stages[stages.length - 1].id === selectedStageId;
-  const stageReadyToAdvance = selectedStageId != null && !!plan?.stageReady?.[selectedStageId];
 
   return (
     <div className="fixed inset-0 z-[100] bg-slate-950/95 backdrop-blur-sm overflow-y-auto" data-testid="tournament-planner">
@@ -251,18 +249,14 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
               />
             </div>
             <div className="flex-1" />
-            {isLastStage && (
-              <Button
-                size="sm"
-                onClick={() => setShowAdvance(true)}
-                disabled={!stageReadyToAdvance}
-                title={stageReadyToAdvance ? undefined : "Finish all matches in this stage before advancing."}
-                className="bg-cyan-600 hover:bg-cyan-500 text-white disabled:opacity-40"
-                data-testid="button-open-advance"
-              >
-                <ArrowRightCircle className="w-4 h-4 mr-1.5" /> Advance to next stage
-              </Button>
-            )}
+            <Button
+              size="sm"
+              onClick={() => setShowAdvance(true)}
+              className="bg-cyan-600 hover:bg-cyan-500 text-white"
+              data-testid="button-open-advance"
+            >
+              <ArrowRightCircle className="w-4 h-4 mr-1.5" /> Advance to next stage
+            </Button>
             {stages.length > 1 && (
               <Button
                 size="sm" variant="ghost"

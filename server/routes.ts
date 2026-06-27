@@ -6594,18 +6594,6 @@ export async function registerRoutes(
       const ALLOWED_MODES = ["RANDOMISE", "HIERARCHICAL", "DESTRUCTION", "MANUAL"];
       const mode = ALLOWED_MODES.includes(req.body?.mode) ? req.body.mode : "MANUAL";
 
-      // Completion gate: a stage may only be advanced once every one of its
-      // matches has finished. Block if any PLANNED/QUEUED/LIVE match remains.
-      const unfinished = await db.select({ id: matches.id }).from(matches).where(and(
-        eq(matches.sessionId, sessionId),
-        eq(matches.stageId, stageId),
-        isNull(matches.deletedAt),
-        ne(matches.status, "COMPLETED"),
-      )).limit(1);
-      if (unfinished.length > 0) {
-        return res.status(409).json({ message: "Finish all matches in this stage before advancing." });
-      }
-
       const standings = await storage.getStageStandings(sessionId, stageId);
       type AdvTeam = { player1Id: number; player2Id: number | null; rank: number; matchesWon: number; setsWon: number; pointsWon: number };
       const advancing: AdvTeam[] = [];
@@ -7182,7 +7170,7 @@ export async function registerRoutes(
       await storage.deleteMatch(matchId);
 
       let replacement = null;
-      if (session.autoGenerateActive && !matchGenLocks.has(sessionIdForLock)) {
+      if (session.autoGenerateActive && !session.tournamentMode && !matchGenLocks.has(sessionIdForLock)) {
         matchGenLocks.add(sessionIdForLock);
         try {
         const mode = req.query.mode as string || req.body?.mode;
@@ -7875,6 +7863,13 @@ export async function registerRoutes(
 
       if (session.status === "COMPLETED") {
         return res.status(400).json({ message: "Cannot generate matches for a completed session" });
+      }
+
+      // Tournament mode owns its own matches via the planner. Never let the
+      // normal/auto match generator run here, or it would create extra matches
+      // alongside the tournament ones (the "system keeps generating more").
+      if (session.tournamentMode) {
+        return res.json({ status: "tournament", message: "Tournament mode is on — matches are managed in the Tournament Planner.", matches: [] });
       }
 
       const { mode, queueTargetSize, genderType, isAutoGenerate } = req.body;
