@@ -364,6 +364,32 @@ export function useDeleteQueuedMatch() {
   });
 }
 
+export function useReorderQueuedMatches() {
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
+  return useMutation({
+    mutationFn: async ({ sessionId, orderedIds }: { sessionId: number; orderedIds: number[] }) => {
+      const res = await fetch(`/api/sessions/${sessionId}/queued-matches/reorder`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ orderedIds }),
+        credentials: "include",
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.message || "Failed to reorder queue");
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [api.matches.list.path] });
+    },
+    onError: (error: Error) => {
+      toast({ title: "Reorder Failed", description: error.message, variant: "destructive" });
+    },
+  });
+}
+
 export function useEditMatchScore() {
   const queryClient = useQueryClient();
   const { toast } = useToast();

@@ -6396,9 +6396,15 @@ export async function registerRoutes(
       const orderedIds: number[] = Array.isArray(req.body?.orderedIds) ? req.body.orderedIds.map(Number) : [];
       const sessionMatches = await storage.getSessionMatches(Number(req.params.id));
       const queuedIds = new Set(sessionMatches.filter(m => m.status === "QUEUED").map(m => m.id));
+      // Require a full, unique permutation of the current queue so positions never
+      // end up gapped or duplicated by a malformed/stale payload.
+      const uniqueOrdered = new Set(orderedIds);
+      if (uniqueOrdered.size !== orderedIds.length || orderedIds.length !== queuedIds.size || !orderedIds.every(id => queuedIds.has(id))) {
+        return res.status(400).json({ message: "orderedIds must be the full current queue" });
+      }
       let pos = 1;
       for (const id of orderedIds) {
-        if (queuedIds.has(id)) await storage.updateMatch(id, { queuePosition: pos++ });
+        await storage.updateMatch(id, { queuePosition: pos++ });
       }
       res.json({ success: true });
     } catch (err: any) {
@@ -6957,7 +6963,9 @@ export async function registerRoutes(
           const courtLimit = courtSession?.courtsAvailable || 2;
           const currentLiveCount = sessionMatches.filter(m => m.status === "LIVE").length;
 
-          if (currentLiveCount < courtLimit) {
+          // In tournament mode the organiser controls which fixture goes on court,
+          // so never auto-promote the next queued match — leave it in the queue.
+          if (currentLiveCount < courtLimit && !courtSession?.tournamentMode) {
             const livePlayerIds = new Set<number>();
             sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
               if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);
@@ -7083,7 +7091,9 @@ export async function registerRoutes(
         const courtLimit2 = courtSession2?.courtsAvailable || 2;
         const currentLiveCount2 = sessionMatches.filter(m => m.status === "LIVE").length;
 
-        if (currentLiveCount2 < courtLimit2) {
+        // In tournament mode the organiser controls which fixture goes on court,
+        // so never auto-promote the next queued match — leave it in the queue.
+        if (currentLiveCount2 < courtLimit2 && !session.tournamentMode) {
           const livePlayerIds = new Set<number>();
           sessionMatches.filter(m => m.status === "LIVE").forEach(m => {
             if (m.teamAPlayer1Id) livePlayerIds.add(m.teamAPlayer1Id);

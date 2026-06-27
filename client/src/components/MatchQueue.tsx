@@ -10,7 +10,7 @@ import { IoFemale, IoMale, IoMaleFemale } from "react-icons/io5";
 import { useState, useRef, useEffect, Fragment } from "react";
 import { cn } from "@/lib/utils";
 import type { CourtMatch } from "./BadmintonCourt";
-import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget, useCreateEmptyMatch, usePrioritizeLowGames } from "@/hooks/use-matches";
+import { useEditMatchScore, usePlayerEnterScore, useDeleteMatch, useDeleteQueuedMatch, useReshuffleMatch, useUpdateMatchTarget, useCreateEmptyMatch, usePrioritizeLowGames, useReorderQueuedMatches } from "@/hooks/use-matches";
 import { format } from "date-fns";
 import { PlayerSlotEditable } from "@/components/PlayerSlotEditable";
 
@@ -142,6 +142,7 @@ export function MatchQueue({
   const { mutate: updateTarget } = useUpdateMatchTarget();
   const { mutate: createEmptyMatch, isPending: isCreatingEmpty } = useCreateEmptyMatch();
   const { mutate: prioritizeLowGames, isPending: isPrioritizing } = usePrioritizeLowGames();
+  const { mutate: reorderQueue, isPending: isReordering } = useReorderQueuedMatches();
   const [deleteConfirm, setDeleteConfirm] = useState<CourtMatch | null>(null);
   const [reshuffleErrors, setReshuffleErrors] = useState<Record<number, string>>({});
   const [expandedActions, setExpandedActions] = useState<Record<number, boolean>>({});
@@ -181,6 +182,15 @@ export function MatchQueue({
   const queuedMatches = matches
     .filter(m => m.status === "QUEUED")
     .sort((a, b) => (a.queuePosition || 0) - (b.queuePosition || 0));
+
+  const moveQueued = (index: number, dir: -1 | 1) => {
+    if (!sessionId) return;
+    const target = index + dir;
+    if (target < 0 || target >= queuedMatches.length) return;
+    const ids = queuedMatches.map(m => m.id);
+    [ids[index], ids[target]] = [ids[target], ids[index]];
+    reorderQueue({ sessionId, orderedIds: ids });
+  };
 
   const toggleActions = (matchId: number) => {
     setExpandedActions(prev => ({ ...prev, [matchId]: !prev[matchId] }));
@@ -352,12 +362,40 @@ export function MatchQueue({
                         <span className="text-xs font-semibold text-muted-foreground tracking-wide uppercase">
                           Match {index + 1}
                         </span>
-                        <EditableTarget
-                          matchId={match.id}
-                          value={matchTarget}
-                          isOrganiser={isOrganiser}
-                          onUpdate={updateTarget}
-                        />
+                        <div className="flex items-center gap-1">
+                          {isOrganiser && sessionId && queuedMatches.length > 1 && (
+                            <div className="flex items-center gap-0.5">
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => moveQueued(index, -1)}
+                                disabled={index === 0 || isReordering}
+                                data-testid={`button-queue-up-${match.id}`}
+                                title="Move up in queue"
+                              >
+                                <ArrowUp className="w-4 h-4" />
+                              </Button>
+                              <Button
+                                size="icon"
+                                variant="ghost"
+                                className="h-7 w-7"
+                                onClick={() => moveQueued(index, 1)}
+                                disabled={index === queuedMatches.length - 1 || isReordering}
+                                data-testid={`button-queue-down-${match.id}`}
+                                title="Move down in queue"
+                              >
+                                <ArrowDown className="w-4 h-4" />
+                              </Button>
+                            </div>
+                          )}
+                          <EditableTarget
+                            matchId={match.id}
+                            value={matchTarget}
+                            isOrganiser={isOrganiser}
+                            onUpdate={updateTarget}
+                          />
+                        </div>
                       </div>
                       {match.numberOfSets && match.numberOfSets > 1 && (
                         <div className="px-4 pb-1">

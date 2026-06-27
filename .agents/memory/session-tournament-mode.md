@@ -48,11 +48,17 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
 - **The planner must also surface RELEASED matches read-only, or users think "Start Tournament ate my matches".** Once PLANNED→QUEUED (start) or →LIVE/COMPLETED, a match leaves the PLANNED-only planner view and looks deleted even though nothing was lost. The tournament-plan endpoint returns a second `releasedMatches` list (non-PLANNED, `groupId IS NOT NULL`) and the planner renders them per-group read-only with a status badge + completed score.
   **Why:** the most common "matches are gone" report is actually this view gap, not data loss; showing released fixtures in place closes it without touching the live queue or normal-mode queries.
 
+## Tournament mode = organiser drives the court, no auto-jump
+
+- **In tournament mode, completing a match must NOT auto-promote the next queued fixture to LIVE.** Both completion paths (`end-set` and `complete`) normally pick the next non-conflicting QUEUED match and send it to the freed court; this is suppressed when `session.tournamentMode` is on so the organiser manually assigns each fixture to a court (the queue cards' existing "Assign to Court" buttons). Normal mode still auto-promotes.
+  **Why:** organisers run tournaments off a fixed, ordered schedule and want to choose what goes on next, not have the system fire the next match automatically.
+- **Queue reorder = full-permutation renumber, not a swap.** `POST /api/sessions/:id/queued-matches/reorder` takes `orderedIds[]` and rewrites `queuePosition` 1..n, but only after validating the payload is a deduped full permutation of the session's current QUEUED ids (else 400) so positions never gap/duplicate. The up/down buttons in the queue swap adjacent ids and send the whole list; a stale client list just gets a harmless 400 and retries after refresh.
+
 ## Starting a match must NOT prune the queue in tournament mode
 
 - `POST /api/matches/:id/start` (sending a match to court) normally deletes every other QUEUED match that shares a player with the now-LIVE match (social play = no double-booking). This MUST be skipped when `session.tournamentMode` is on — the queued fixtures are the fixed round-robin schedule and must stay, simply waiting their turn while a player is on court.
   **Why:** organisers reported "queued matches disappear when a pair is sent to court" / "not all matches show in the queue"; the queue UI already renders every `status==='QUEUED'` row (busyPlayerIds only marks busy visually, never hides), so the only thing dropping them was this server-side prune.
-  **How to apply:** the prune loop is wrapped in `if (!session.tournamentMode)`. The complete/end-set auto-promote paths only PROMOTE the next non-conflicting queued match (no deletion) so they're already safe.
+  **How to apply:** the prune loop is wrapped in `if (!session.tournamentMode)`. The complete/end-set auto-promote paths never delete; they are additionally suppressed in tournament mode (see "organiser drives the court" above).
 
 ## Live-leaderboard stage tabs: per-group pair view
 
