@@ -45,6 +45,8 @@ Optional per-session mode (`sessions.tournamentMode`) to pre-plan pairs, court g
 - **Display planned matches by GROUP membership, not by the match's own `stageId`.** A PLANNED match shows wherever its group shows; groups are reliably stage-scoped (createGroup always stamps `stageId`), but a match row's `stageId` can drift (legacy/pre-multi-stage rows, backfill gaps), and filtering matches directly on `stageId === selectedStage` then hides DB-safe rows — the user perceives this as "matches disappeared on navigation" even though nothing deleted them.
   **Why:** hard product rule — planned round-robin matches must NEVER vanish unless the user explicitly deletes them; navigation/queue paths never delete PLANNED server-side, so any disappearance is a view-filter bug.
   **How to apply:** key the planner's planned-match list off the visible group ids; also keep a small "recovered/orphan" fallback list for matches whose group no longer exists (or group-less rows whose `stageId` maps to no stage) so they stay visible and deliberately deletable.
+- **The planner must also surface RELEASED matches read-only, or users think "Start Tournament ate my matches".** Once PLANNED→QUEUED (start) or →LIVE/COMPLETED, a match leaves the PLANNED-only planner view and looks deleted even though nothing was lost. The tournament-plan endpoint returns a second `releasedMatches` list (non-PLANNED, `groupId IS NOT NULL`) and the planner renders them per-group read-only with a status badge + completed score.
+  **Why:** the most common "matches are gone" report is actually this view gap, not data loss; showing released fixtures in place closes it without touching the live queue or normal-mode queries.
 
 ## Starting a match must NOT prune the queue in tournament mode
 

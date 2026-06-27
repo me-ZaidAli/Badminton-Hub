@@ -6005,7 +6005,7 @@ export async function registerRoutes(
       // Guarantee at least one stage and backfill legacy tournament rows so the
       // planner always has a stage to work with.
       await storage.ensureDefaultStage(sessionId);
-      const [stages, groups, entries, plannedMatches, signups, allStageMatches] = await Promise.all([
+      const [stages, groups, entries, plannedMatches, signups, allStageMatches, releasedMatchRows] = await Promise.all([
         storage.getSessionStages(sessionId),
         storage.getSessionGroups(sessionId),
         storage.getSessionGroupEntries(sessionId),
@@ -6015,7 +6015,25 @@ export async function registerRoutes(
           eq(matches.sessionId, sessionId),
           isNull(matches.deletedAt),
         )),
+        // Matches already released from the planner into the live flow (QUEUED /
+        // LIVE / COMPLETED). The planner shows these read-only so a generated
+        // match never appears to "vanish" once the tournament starts.
+        db.select({
+          id: matches.id, sessionId: matches.sessionId, stageId: matches.stageId,
+          groupId: matches.groupId, plannedOrder: matches.plannedOrder,
+          status: matches.status, queuePosition: matches.queuePosition,
+          courtNumber: matches.courtNumber,
+          teamAPlayer1Id: matches.teamAPlayer1Id, teamAPlayer2Id: matches.teamAPlayer2Id,
+          teamBPlayer1Id: matches.teamBPlayer1Id, teamBPlayer2Id: matches.teamBPlayer2Id,
+          scoreA: matches.scoreA, scoreB: matches.scoreB,
+        }).from(matches).where(and(
+          eq(matches.sessionId, sessionId),
+          isNull(matches.deletedAt),
+          isNotNull(matches.groupId),
+          ne(matches.status, "PLANNED"),
+        )),
       ]);
+      const releasedMatches = releasedMatchRows;
       // A stage is "ready to advance" once it has at least one match and every
       // match has finished (no PLANNED/QUEUED/LIVE left). Mirrors the hard guard
       // on POST /stages/:stageId/advance.
@@ -6047,6 +6065,7 @@ export async function registerRoutes(
         groups,
         entries,
         plannedMatches,
+        releasedMatches,
         attendees,
         stageReady,
       });

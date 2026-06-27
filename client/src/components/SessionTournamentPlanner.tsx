@@ -94,6 +94,16 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
     [plan, stageGroupIds, selectedStageId],
   );
 
+  // Matches already released into the live flow (QUEUED / LIVE / COMPLETED).
+  // Shown read-only under their group so a generated match never appears to
+  // vanish from the planner once the tournament has started.
+  const stageReleased = useMemo(
+    () => (plan?.releasedMatches || []).filter(m =>
+      m.groupId != null && stageGroupIds.has(m.groupId),
+    ),
+    [plan, stageGroupIds],
+  );
+
   // Safety net: planned matches that would render under NO stage at all — their
   // group no longer exists, or (group-less) their stageId points to no real
   // stage. These must never silently vanish; surface them so the organiser can
@@ -423,6 +433,11 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
                       const groupMatches = stagePlanned
                         .filter(m => m.groupId === g.id)
                         .sort((a, b) => (a.plannedOrder || 0) - (b.plannedOrder || 0));
+                      const groupReleased = stageReleased
+                        .filter(m => m.groupId === g.id)
+                        .sort((a, b) =>
+                          (a.queuePosition ?? a.plannedOrder ?? 0) - (b.queuePosition ?? b.plannedOrder ?? 0),
+                        );
                       return (
                         <motion.div
                           key={g.id}
@@ -523,6 +538,42 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
                                   </button>
                                 </div>
                               ))}
+                            </div>
+                          )}
+
+                          {/* Released matches (already in the live flow) — read-only */}
+                          {groupReleased.length > 0 && (
+                            <div className="space-y-1.5 border-t border-white/10 pt-2 mt-2">
+                              <div className="flex items-center gap-1.5 text-xs text-cyan-300/70 mb-1">
+                                <Swords className="w-3.5 h-3.5" /> {groupReleased.length} in play
+                              </div>
+                              {groupReleased.map(m => {
+                                const badge =
+                                  m.status === "LIVE" ? { label: "Live", cls: "bg-emerald-500/20 text-emerald-300" }
+                                  : m.status === "COMPLETED" ? { label: "Done", cls: "bg-white/10 text-white/50" }
+                                  : { label: "Queued", cls: "bg-cyan-500/20 text-cyan-300" };
+                                return (
+                                  <div
+                                    key={m.id}
+                                    className="flex items-center gap-1.5 text-xs bg-white/[0.03] rounded-lg px-2 py-1.5"
+                                    data-testid={`released-match-${m.id}`}
+                                  >
+                                    <span className={`px-1.5 py-0.5 rounded text-[10px] font-medium shrink-0 ${badge.cls}`} data-testid={`status-released-match-${m.id}`}>
+                                      {badge.label}
+                                    </span>
+                                    <span className="flex-1 text-white/70 truncate">
+                                      {teamLabel(m.teamAPlayer1Id, m.teamAPlayer2Id)}
+                                      <span className="text-white/30"> vs </span>
+                                      {teamLabel(m.teamBPlayer1Id, m.teamBPlayer2Id)}
+                                    </span>
+                                    {m.status === "COMPLETED" && (
+                                      <span className="text-white/60 font-medium shrink-0" data-testid={`score-released-match-${m.id}`}>
+                                        {m.scoreA ?? 0}–{m.scoreB ?? 0}
+                                      </span>
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           )}
                         </motion.div>
