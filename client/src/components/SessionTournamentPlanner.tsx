@@ -78,10 +78,35 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
     () => (plan?.entries || []).filter(e => e.stageId === selectedStageId),
     [plan, selectedStageId],
   );
-  const stagePlanned = useMemo(
-    () => (plan?.plannedMatches || []).filter(m => m.stageId === selectedStageId),
-    [plan, selectedStageId],
+  // Show a planned match whenever its group is visible in the selected stage.
+  // Groups are reliably stage-scoped (createGroup always stamps stageId), so
+  // keying off group membership keeps matches visible even if a match row's own
+  // stageId drifts (e.g. legacy rows created before multi-stage). A planned
+  // match must NEVER disappear from the planner unless the user deletes it.
+  const stageGroupIds = useMemo(
+    () => new Set(stageGroups.map(g => g.id)),
+    [stageGroups],
   );
+  const stagePlanned = useMemo(
+    () => (plan?.plannedMatches || []).filter(m =>
+      m.groupId != null ? stageGroupIds.has(m.groupId) : m.stageId === selectedStageId,
+    ),
+    [plan, stageGroupIds, selectedStageId],
+  );
+
+  // Safety net: planned matches that would render under NO stage at all — their
+  // group no longer exists, or (group-less) their stageId points to no real
+  // stage. These must never silently vanish; surface them so the organiser can
+  // see and delete them deliberately rather than losing them.
+  const orphanPlanned = useMemo(() => {
+    const allGroupIds = new Set((plan?.groups || []).map(g => g.id));
+    const allStageIds = new Set((plan?.stages || []).map(s => s.id));
+    return (plan?.plannedMatches || []).filter(m =>
+      m.groupId != null
+        ? !allGroupIds.has(m.groupId)
+        : m.stageId == null || !allStageIds.has(m.stageId),
+    );
+  }, [plan]);
 
   // A player is "used" only within the selected stage.
   const usedPlayerIds = useMemo(() => {
@@ -514,6 +539,35 @@ export function SessionTournamentPlanner({ sessionId, onClose }: Props) {
                   stage={selectedStage}
                   teamLabel={teamLabel}
                 />
+              )}
+
+              {/* Recovery panel: planned matches that no longer belong to any
+                  visible group/stage are surfaced here so they are never lost
+                  silently — the organiser can delete them deliberately. */}
+              {orphanPlanned.length > 0 && (
+                <div className="rounded-xl border border-amber-400/30 bg-amber-400/5 p-3" data-testid="orphan-planned-panel">
+                  <div className="text-xs font-medium text-amber-300/90 mb-2">
+                    Recovered matches ({orphanPlanned.length}) — not tied to a current group
+                  </div>
+                  <div className="flex flex-col gap-1">
+                    {orphanPlanned.map((m) => (
+                      <div
+                        key={m.id}
+                        className="flex items-center gap-1.5 text-xs bg-white/5 rounded-lg px-2 py-1.5"
+                        data-testid={`orphan-planned-match-${m.id}`}
+                      >
+                        <span className="flex-1 text-white/85 truncate">
+                          {teamLabel(m.teamAPlayer1Id, m.teamAPlayer2Id)}
+                          <span className="text-white/40"> vs </span>
+                          {teamLabel(m.teamBPlayer1Id, m.teamBPlayer2Id)}
+                        </span>
+                        <button onClick={() => deletePlanned.mutate({ sessionId, matchId: m.id })} className="text-white/40 hover:text-red-400" data-testid={`button-delete-orphan-match-${m.id}`}>
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>
