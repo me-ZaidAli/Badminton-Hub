@@ -701,8 +701,17 @@ export class DatabaseStorage implements IStorage {
     await db.delete(chats).where(eq(chats.sessionId, id));
     await db.update(incidentReports).set({ sessionId: null }).where(eq(incidentReports.sessionId, id));
     await db.update(trialPlayers).set({ assignedSessionId: null }).where(eq(trialPlayers.assignedSessionId, id));
+    // Unlink other nullable session references so the FK doesn't block deletion.
+    await db.execute(sql`UPDATE expenses SET session_id = NULL WHERE session_id = ${id}`);
+    await db.execute(sql`UPDATE tickets SET linked_session_id = NULL WHERE linked_session_id = ${id}`);
+    await db.execute(sql`UPDATE wallet_transactions SET linked_session_id = NULL WHERE linked_session_id = ${id}`);
     await db.delete(sessionSignups).where(eq(sessionSignups.sessionId, id));
     await db.delete(matches).where(eq(matches.sessionId, id));
+    // Tournament-mode children (NOT NULL FK to sessions) — delete entries before
+    // groups (entries reference groupId), then stages.
+    await db.delete(sessionGroupEntries).where(eq(sessionGroupEntries.sessionId, id));
+    await db.delete(sessionGroups).where(eq(sessionGroups.sessionId, id));
+    await db.delete(sessionStages).where(eq(sessionStages.sessionId, id));
     await db.delete(sessions).where(eq(sessions.id, id));
   }
 
@@ -717,8 +726,17 @@ export class DatabaseStorage implements IStorage {
     await db.delete(chats).where(inArray(chats.sessionId, ids));
     await db.update(incidentReports).set({ sessionId: null }).where(inArray(incidentReports.sessionId, ids));
     await db.update(trialPlayers).set({ assignedSessionId: null }).where(inArray(trialPlayers.assignedSessionId, ids));
+    // Unlink other nullable session references so the FK doesn't block deletion.
+    await db.execute(sql`UPDATE expenses SET session_id = NULL WHERE session_id = ANY(${ids})`);
+    await db.execute(sql`UPDATE tickets SET linked_session_id = NULL WHERE linked_session_id = ANY(${ids})`);
+    await db.execute(sql`UPDATE wallet_transactions SET linked_session_id = NULL WHERE linked_session_id = ANY(${ids})`);
     await db.delete(sessionSignups).where(inArray(sessionSignups.sessionId, ids));
     await db.delete(matches).where(inArray(matches.sessionId, ids));
+    // Tournament-mode children (NOT NULL FK to sessions) — delete entries before
+    // groups (entries reference groupId), then stages.
+    await db.delete(sessionGroupEntries).where(inArray(sessionGroupEntries.sessionId, ids));
+    await db.delete(sessionGroups).where(inArray(sessionGroups.sessionId, ids));
+    await db.delete(sessionStages).where(inArray(sessionStages.sessionId, ids));
     await db.delete(sessions).where(inArray(sessions.id, ids));
   }
 

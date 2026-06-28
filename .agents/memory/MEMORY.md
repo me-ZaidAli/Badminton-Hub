@@ -9,3 +9,4 @@
 - [Tournament stages are category-scoped](tournament-category-stages.md) — stage.categoryId NULL=legacy shared; a group/match may only link a NULL or same-category stage; copy-structure clones stages per target category.
 - [Tournament group/stage picker scoping](tournament-group-picker-scoping.md) — dialog group/stage dropdowns must filter by category + dedupe display, but resolve picks against the full category list.
 - [Session Tournament Mode](session-tournament-mode.md) — optional per-session pre-planning reuses matches table as status PLANNED; PLANNED must stay out of all Normal-mode queries; roster changes clear a group's plan.
+- [Session delete cascade](session-delete-cascade.md) — deleting a session must clear EVERY table FK-referencing sessions (NOT NULL children DELETE, nullable refs SET NULL) or it 500s; new session tables must update both delete helpers.

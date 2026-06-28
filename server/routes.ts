@@ -12476,6 +12476,71 @@ export async function registerRoutes(
     }
   });
 
+  // Bulk update payment status for many signups at once (e.g. mark all old
+  // unpaid sessions as paid after a mass import).
+  app.patch("/api/admin/signups/bulk-payment", async (req, res) => {
+    if (!req.isAuthenticated()) return res.sendStatus(401);
+    const user = req.user!;
+    const isOwner = user.role === "OWNER";
+
+    try {
+      const { signupIds, status } = req.body;
+      if (!Array.isArray(signupIds) || signupIds.length === 0) {
+        return res.status(400).json({ message: "signupIds must be a non-empty array" });
+      }
+      if (!status || !["PAID", "UNPAID"].includes(status)) {
+        return res.status(400).json({ message: "Status must be PAID or UNPAID" });
+      }
+      const ids = Array.from(new Set(signupIds.map(Number).filter(n => Number.isInteger(n) && n > 0)));
+      if (ids.length === 0) return res.status(400).json({ message: "No valid signup ids" });
+
+      const chunk = <T,>(arr: T[], size: number): T[][] => {
+        const out: T[][] = [];
+        for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
+        return out;
+      };
+
+      // Resolve the distinct clubs these signups belong to so we can check access.
+      const rows: { id: number; clubId: number }[] = [];
+      for (const batch of chunk(ids, 5000)) {
+        const part = await db.select({ id: sessionSignups.id, clubId: sessions.clubId })
+          .from(sessionSignups)
+          .innerJoin(sessions, eq(sessionSignups.sessionId, sessions.id))
+          .where(inArray(sessionSignups.id, batch));
+        rows.push(...part);
+      }
+      if (rows.length === 0) return res.status(404).json({ message: "No matching signups found" });
+
+      if (!isOwner) {
+        const clubIds = Array.from(new Set(rows.map(r => r.clubId)));
+        for (const clubId of clubIds) {
+          const ownedClub = await db.select({ id: clubs.id }).from(clubs).where(and(eq(clubs.id, clubId), eq(clubs.ownerId, user.id)));
+          const adminProfile = await db.select({ id: playerProfiles.id }).from(playerProfiles)
+            .where(and(eq(playerProfiles.userId, user.id), eq(playerProfiles.clubId, clubId), eq(playerProfiles.membershipStatus, "APPROVED"), inArray(playerProfiles.clubRole, ["ADMIN"])));
+          if (ownedClub.length === 0 && adminProfile.length === 0) {
+            return res.status(403).json({ message: "No access to one or more of the selected sessions" });
+          }
+        }
+      }
+
+      // Only update the signups the user is actually allowed to touch.
+      const allowedIds = rows.map(r => r.id);
+      let updatedCount = 0;
+      for (const batch of chunk(allowedIds, 5000)) {
+        const updated = await db.update(sessionSignups)
+          .set({ paymentStatus: status })
+          .where(inArray(sessionSignups.id, batch))
+          .returning({ id: sessionSignups.id });
+        updatedCount += updated.length;
+      }
+
+      res.json({ updated: updatedCount, status });
+    } catch (err: any) {
+      console.error("Error bulk updating payment status:", err);
+      res.status(500).json({ message: "Failed to bulk update payment status" });
+    }
+  });
+
   // === ADMIN: Analytics summary ===
   app.get("/api/admin/analytics", requirePremium(clubIdFromSession), async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);

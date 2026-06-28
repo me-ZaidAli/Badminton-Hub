@@ -595,6 +595,9 @@ export default function Financials() {
 
   const [selectedSessions, setSelectedSessions] = useState<Set<number>>(new Set());
   const [bulkDeleteDialog, setBulkDeleteDialog] = useState(false);
+  const [bulkMarkPaidDialog, setBulkMarkPaidDialog] = useState(false);
+  const [massMarkPaidDialog, setMassMarkPaidDialog] = useState(false);
+  const [massMarkPaidCutoff, setMassMarkPaidCutoff] = useState("2026-04-01");
   const [snapshotSession, setSnapshotSession] = useState<{ session: SnapshotSessionInfo; entries: SnapshotEntry[] } | null>(null);
 
   const [bulkFeeSessionId, setBulkFeeSessionId] = useState<number | null>(null);
@@ -1494,6 +1497,23 @@ export default function Financials() {
     },
   });
 
+  const bulkUpdatePayment = useMutation({
+    mutationFn: async ({ signupIds, status }: { signupIds: number[]; status: "PAID" | "UNPAID" }) => {
+      const res = await apiRequest("PATCH", "/api/admin/signups/bulk-payment", { signupIds, status });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      qc.invalidateQueries({ predicate: (q) => typeof q.queryKey[0] === "string" && (q.queryKey[0] as string).startsWith("/api/admin/financial-summary") });
+      toast({ title: "Payments Updated", description: `${data.updated} entr${data.updated !== 1 ? "ies" : "y"} marked as ${data.status === "PAID" ? "paid" : "unpaid"}.` });
+      setSelectedEntries(new Set());
+      setBulkMarkPaidDialog(false);
+      setMassMarkPaidDialog(false);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update payments.", variant: "destructive" });
+    },
+  });
+
   const createCredit = useMutation({
     mutationFn: async (data: {
       userId: number;
@@ -1733,6 +1753,53 @@ export default function Financials() {
       return;
     }
     bulkPaymentReminder.mutate({ entries });
+  };
+
+  const handleBulkMarkPaid = () => {
+    const unpaidSelected = filteredData.filter(
+      (e) => selectedEntries.has(e.signupId) && e.paymentStatus !== "PAID"
+    );
+    if (unpaidSelected.length === 0) {
+      toast({ title: "Nothing to mark", description: "None of the selected entries are unpaid.", variant: "destructive" });
+      return;
+    }
+    setBulkMarkPaidDialog(true);
+  };
+
+  const confirmBulkMarkPaid = () => {
+    const signupIds = filteredData
+      .filter((e) => selectedEntries.has(e.signupId) && e.paymentStatus !== "PAID")
+      .map((e) => e.signupId);
+    if (signupIds.length === 0) {
+      setBulkMarkPaidDialog(false);
+      return;
+    }
+    bulkUpdatePayment.mutate({ signupIds, status: "PAID" });
+  };
+
+  const unpaidSelectedCount = filteredData.filter(
+    (e) => selectedEntries.has(e.signupId) && e.paymentStatus !== "PAID"
+  ).length;
+
+  // Mass "mark old as paid" — operates on ALL entries (ignores the payment-status
+  // dropdown, but still respects club/type/search scoping in financialData) whose
+  // session date is strictly before the chosen cutoff and aren't already paid.
+  const massMarkPaidEntries = useMemo(() => {
+    if (!massMarkPaidCutoff) return [] as FinancialEntry[];
+    const cutoff = new Date(`${massMarkPaidCutoff}T00:00:00`);
+    if (isNaN(cutoff.getTime())) return [] as FinancialEntry[];
+    return financialData.filter(
+      (e) => e.paymentStatus !== "PAID" && e.sessionDate && new Date(e.sessionDate) < cutoff
+    );
+  }, [financialData, massMarkPaidCutoff]);
+
+  const confirmMassMarkPaid = () => {
+    const signupIds = massMarkPaidEntries.map((e) => e.signupId);
+    if (signupIds.length === 0) {
+      setMassMarkPaidDialog(false);
+      return;
+    }
+    bulkUpdatePayment.mutate({ signupIds, status: "PAID" });
   };
 
   const handleStartEditFee = (entry: FinancialEntry) => {
@@ -5428,6 +5495,16 @@ export default function Financials() {
                       Delete ({selectedSessions.size})
                     </Button>
                   )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="text-green-600 border-green-300 hover:bg-green-50 dark:hover:bg-green-950"
+                    onClick={() => setMassMarkPaidDialog(true)}
+                    data-testid="button-mass-mark-paid"
+                  >
+                    <CheckCircle className="h-4 w-4 mr-1" />
+                    Mark Old as Paid
+                  </Button>
                 </>
               )}
             </div>
@@ -5441,6 +5518,17 @@ export default function Financials() {
                     {selectedEntries.size} entry{selectedEntries.size !== 1 ? "ies" : ""} selected
                   </span>
                   <div className="flex items-center gap-2 flex-wrap">
+                    <Button
+                      size="sm"
+                      variant="default"
+                      className="bg-green-600 hover:bg-green-700 text-white"
+                      onClick={() => handleBulkMarkPaid()}
+                      disabled={bulkUpdatePayment.isPending}
+                      data-testid="button-bulk-mark-paid"
+                    >
+                      {bulkUpdatePayment.isPending ? <Loader2 className="h-3 w-3 mr-1 animate-spin" /> : <CheckCircle className="h-3 w-3 mr-1" />}
+                      Mark Paid
+                    </Button>
                     <Button
                       size="sm"
                       variant="outline"
@@ -7041,6 +7129,73 @@ export default function Financials() {
             >
               {bulkDeleteSessions.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <Trash2 className="h-4 w-4 mr-1" />}
               Delete {selectedSessions.size} Session{selectedSessions.size !== 1 ? "s" : ""}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bulkMarkPaidDialog} onOpenChange={(open) => { if (!open) setBulkMarkPaidDialog(false); }}>
+        <DialogContent data-testid="dialog-bulk-mark-paid">
+          <DialogHeader>
+            <DialogTitle>Mark {unpaidSelectedCount} as Paid</DialogTitle>
+            <DialogDescription>
+              This will mark {unpaidSelectedCount} selected unpaid entr{unpaidSelectedCount !== 1 ? "ies" : "y"} as paid. Already-paid entries are left unchanged.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBulkMarkPaidDialog(false)} data-testid="button-cancel-bulk-mark-paid">
+              Cancel
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={confirmBulkMarkPaid}
+              disabled={bulkUpdatePayment.isPending}
+              data-testid="button-confirm-bulk-mark-paid"
+            >
+              {bulkUpdatePayment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+              Mark Paid
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={massMarkPaidDialog} onOpenChange={(open) => { if (!open) setMassMarkPaidDialog(false); }}>
+        <DialogContent data-testid="dialog-mass-mark-paid">
+          <DialogHeader>
+            <DialogTitle>Mark Old Sessions as Paid</DialogTitle>
+            <DialogDescription>
+              Mark every unpaid entry for sessions <strong>before</strong> the chosen date as paid. This is useful for clearing outstanding balances from imported historical data. It respects your current club, type and search filters.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="mass-mark-paid-cutoff">Sessions before this date</Label>
+              <Input
+                id="mass-mark-paid-cutoff"
+                type="date"
+                value={massMarkPaidCutoff}
+                onChange={(e) => setMassMarkPaidCutoff(e.target.value)}
+                data-testid="input-mass-mark-paid-cutoff"
+              />
+            </div>
+            <p className="text-sm text-muted-foreground" data-testid="text-mass-mark-paid-count">
+              {massMarkPaidEntries.length === 0
+                ? "No unpaid entries match this date range."
+                : `${massMarkPaidEntries.length} unpaid entr${massMarkPaidEntries.length !== 1 ? "ies" : "y"} will be marked as paid.`}
+            </p>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setMassMarkPaidDialog(false)} data-testid="button-cancel-mass-mark-paid">
+              Cancel
+            </Button>
+            <Button
+              className="bg-green-600 hover:bg-green-700 text-white"
+              onClick={confirmMassMarkPaid}
+              disabled={bulkUpdatePayment.isPending || massMarkPaidEntries.length === 0}
+              data-testid="button-confirm-mass-mark-paid"
+            >
+              {bulkUpdatePayment.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : <CheckCircle className="h-4 w-4 mr-1" />}
+              Mark {massMarkPaidEntries.length} as Paid
             </Button>
           </DialogFooter>
         </DialogContent>
