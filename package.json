@@ -13,7 +13,8 @@
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f",
     "docker:restart": "docker compose restart app",
-    "docker:status": "docker compose ps"
+    "docker:status": "docker compose ps",
+    "docker:ssl": "bash deploy/mac/ssl-setup.sh"
   },
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
