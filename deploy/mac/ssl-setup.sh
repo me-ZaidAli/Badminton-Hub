@@ -36,7 +36,15 @@ cd "${PROJECT_ROOT}"
 
 # ── Step 1: ensure nginx is up (HTTP) ─────────────────────────────────────────
 echo "==> Step 1: Starting nginx in HTTP mode for domain challenge..."
-docker compose up -d nginx
+# If docker-compose.yml currently uses the TLS config (e.g. domain changed),
+# switch it back to the plain HTTP config so nginx can start without certs.
+if grep -qF "${NGINX_TLS_LINE}" "${COMPOSE_FILE}"; then
+  sed -i '' "s|${NGINX_TLS_LINE}|${NGINX_CONF_LINE}|g" "${COMPOSE_FILE}"
+  echo "    Temporarily switched nginx to HTTP config so certbot challenge can be served."
+fi
+docker compose up -d --no-deps --force-recreate nginx
+# Give nginx a moment to start
+sleep 2
 
 # ── Step 2: obtain certificate ────────────────────────────────────────────────
 echo "==> Step 2: Obtaining Let's Encrypt certificate for ${DOMAIN}..."
@@ -105,7 +113,7 @@ echo "==> Step 4: Switching nginx to TLS config..."
 if grep -qF "${NGINX_CONF_LINE}" "${COMPOSE_FILE}"; then
   sed -i '' "s|${NGINX_CONF_LINE}|${NGINX_TLS_LINE}|g" "${COMPOSE_FILE}"
   echo "    docker-compose.yml updated."
-elif grep -qF "${NGINX_TLS_LINE}" "${COMPOS2E_FILE}"; then
+elif grep -qF "${NGINX_TLS_LINE}" "${COMPOSE_FILE}"; then
   echo "    docker-compose.yml already using TLS config."
 else
   echo "    WARNING: Could not auto-update docker-compose.yml."
