@@ -34,23 +34,14 @@ fi
 
 cd "${PROJECT_ROOT}"
 
-# ── Step 1: ensure nginx is up (HTTP) ─────────────────────────────────────────
-echo "==> Step 1: Starting nginx in HTTP mode for domain challenge..."
-# If docker-compose.yml currently uses the TLS config (e.g. domain changed),
-# switch it back to the plain HTTP config so nginx can start without certs.
-if grep -qF "${NGINX_TLS_LINE}" "${COMPOSE_FILE}"; then
-  sed -i '' "s|${NGINX_TLS_LINE}|${NGINX_CONF_LINE}|g" "${COMPOSE_FILE}"
-  echo "    Temporarily switched nginx to HTTP config so certbot challenge can be served."
-fi
-docker compose up -d --no-deps --force-recreate nginx
-# Give nginx a moment to start
-sleep 2
+# ── Step 1: stop nginx to free port 80 for certbot standalone ─────────────────
+echo "==> Step 1: Stopping nginx to free port 80 for certificate challenge..."
+docker compose stop nginx || true
 
-# ── Step 2: obtain certificate ────────────────────────────────────────────────
+# ── Step 2: obtain certificate (standalone — certbot binds port 80 directly) ──
 echo "==> Step 2: Obtaining Let's Encrypt certificate for ${DOMAIN}..."
-docker compose --profile ssl run --rm certbot certonly \
-  --webroot \
-  --webroot-path=/var/www/certbot \
+docker compose --profile ssl run --rm -p 80:80 certbot certonly \
+  --standalone \
   --email "${LETSENCRYPT_EMAIL}" \
   --agree-tos \
   --no-eff-email \
