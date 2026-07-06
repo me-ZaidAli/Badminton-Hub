@@ -42,6 +42,7 @@ async function buildAll() {
       "nodemailer",
       "tr46",
       "whatwg-url",
+      "tesseract.js",
     ],
     logLevel: "info",
   });
