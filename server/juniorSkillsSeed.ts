@@ -143,7 +143,6 @@ export async function seedJuniorSkills(): Promise<void> {
     return;
   }
 
-  console.log("[seed] Seeding junior skill categories and skills...");
 
   for (let i = 0; i < CATEGORIES_AND_SKILLS.length; i++) {
     const cat = CATEGORIES_AND_SKILLS[i];
@@ -163,5 +162,4 @@ export async function seedJuniorSkills(): Promise<void> {
   }
 
   const totalSkills = CATEGORIES_AND_SKILLS.reduce((sum, c) => sum + c.skills.length, 0);
-  console.log(`[seed] Seeded ${CATEGORIES_AND_SKILLS.length} categories and ${totalSkills} skills`);
 }

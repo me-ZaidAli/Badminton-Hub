@@ -231,10 +231,8 @@ export async function seedExercises() {
   if (existing.length > 0) {
     const existingChallenges = await db.select().from(juniorWeeklyChallenges).limit(1);
     if (existingChallenges.length > 0) {
-      console.log("[EXERCISE SEED] Exercises already seeded, skipping.");
       return;
     }
-    console.log("[EXERCISE SEED] Exercises exist but challenges missing, seeding challenges...");
     const allExercises = await db.select().from(juniorExercises);
     const exerciseMap = new Map<string, number>();
     allExercises.forEach(e => exerciseMap.set(e.name, e.id));
@@ -242,7 +240,6 @@ export async function seedExercises() {
     return;
   }
 
-  console.log("[EXERCISE SEED] Seeding exercise library...");
 
   const exerciseMap = new Map<string, number>();
 
@@ -264,7 +261,6 @@ export async function seedExercises() {
     exerciseMap.set(ex.name, inserted.id);
   }
 
-  console.log(`[EXERCISE SEED] Seeded ${exerciseMap.size} exercises.`);
 
   await seedChallenges(exerciseMap);
 }
@@ -300,7 +296,6 @@ async function seedChallenges(exerciseMap: Map<string, number>) {
     }
   }
 
-  console.log(`[EXERCISE SEED] Seeded ${WEEKLY_CHALLENGES.length} weekly challenges.`);
 
   const existingVideos = await db.select().from(juniorExerciseVideos).limit(1);
   if (existingVideos.length === 0) {
@@ -312,6 +307,5 @@ async function seedChallenges(exerciseMap: Map<string, number>) {
         description: video.description,
       });
     }
-    console.log(`[EXERCISE SEED] Seeded ${EXERCISE_VIDEOS.length} exercise videos.`);
   }
 }

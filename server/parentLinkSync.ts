@@ -38,16 +38,11 @@ export async function syncParentChildLinks(): Promise<void> {
           .set({ parentUserId: parentUser.id })
           .where(eq(users.id, junior.id));
         linked++;
-        console.log(
-          `[PARENT LINK] Linked junior "${junior.fullName}" (${junior.id}) to parent ${parentUser.id} via email ${normalizedEmail}`
-        );
       }
     }
 
     if (linked > 0) {
-      console.log(`[PARENT LINK] Synced ${linked} parent-child link(s).`);
     } else {
-      console.log("[PARENT LINK] All parent-child links up to date.");
     }
   } catch (err) {
     console.error("[PARENT LINK] Error syncing parent-child links:", err);

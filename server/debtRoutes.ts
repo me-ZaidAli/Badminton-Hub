@@ -469,7 +469,6 @@ export function registerDebtRoutes(app: Express) {
 
       if (action === "SEND_REMINDER") {
         // Hook only — messaging integration not wired here.
-        console.log(`[DEBT REMINDER] Queued ${valid.length} reminders by user ${u.id}`);
         return res.json({ ok: true, count: valid.length, queued: true });
       }
 

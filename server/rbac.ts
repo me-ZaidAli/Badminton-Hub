@@ -82,5 +82,4 @@ export function isSuperAdmin(user: RBACUser): boolean {
 export function log_rbac(action: string, userId: number, result: boolean, details?: Record<string, unknown>): void {
   const status = result ? "GRANTED" : "DENIED";
   const extra = details ? ` ${JSON.stringify(details)}` : "";
-  console.log(`[RBAC] ${status} | action=${action} userId=${userId}${extra}`);
 }

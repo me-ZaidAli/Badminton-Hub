@@ -89,7 +89,6 @@ const DEMO_CLUB_SLUG  = "demo-club";
 const OWNER_EMAIL     = "Bpgbirmingham@gmail.com"; // super admin created on first server start
 
 async function main() {
-  console.log("🚀 Seeding demo club and players...\n");
 
   // 1. Resolve the owner (super admin must exist)
   const [owner] = await db
@@ -114,7 +113,6 @@ async function main() {
     .limit(1);
 
   if (demoClub) {
-    console.log(`ℹ️  Club already exists: "${demoClub.name}" (id: ${demoClub.id})\n`);
   } else {
     [demoClub] = await db
       .insert(clubs)
@@ -130,7 +128,6 @@ async function main() {
         hasSocialGames: true,
       } as any)
       .returning();
-    console.log(`✅ Created club: "${demoClub.name}" (id: ${demoClub.id})\n`);
   }
 
   // 3. Create users + player profiles
@@ -156,7 +153,6 @@ async function main() {
         .limit(1);
 
       if (existingProfile) {
-        console.log(`  skip  ${p.name.padEnd(8)} — user + profile already exist`);
         skipped++;
         continue;
       }
@@ -172,7 +168,6 @@ async function main() {
         category: gradeToCategory(p.grade),
         grade: p.grade,
       });
-      console.log(`  ✅ ${p.name.padEnd(8)} — profile created (user existed)`);
       created++;
       continue;
     }
@@ -203,16 +198,9 @@ async function main() {
       grade: p.grade,
     });
 
-    console.log(`  ✅ ${p.name.padEnd(8)} grade: ${p.grade.padEnd(3)}  gender: ${p.gender}`);
     created++;
   }
 
-  console.log(`\n────────────────────────────────────`);
-  console.log(`  Created : ${created}`);
-  console.log(`  Skipped : ${skipped}`);
-  console.log(`  Club ID : ${demoClub.id}`);
-  console.log(`  Password: "${DEMO_PASSWORD}" (all demo users)`);
-  console.log(`────────────────────────────────────\n`);
 
   await pool.end();
   process.exit(0);

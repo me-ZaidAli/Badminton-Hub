@@ -20,7 +20,6 @@ export async function dedupeTournamentGroups(): Promise<void> {
   }).from(tournamentGroups);
 
   if (groups.length === 0) {
-    console.log("[GROUP DEDUPE] No groups, skipping.");
     return;
   }
 
@@ -62,7 +61,6 @@ export async function dedupeTournamentGroups(): Promise<void> {
   }
 
   if (deleteIds.length === 0) {
-    console.log("[GROUP DEDUPE] No duplicate groups found.");
     return;
   }
 
@@ -70,5 +68,4 @@ export async function dedupeTournamentGroups(): Promise<void> {
     await tx.delete(tournamentGroupPairs).where(inArray(tournamentGroupPairs.groupId, deleteIds));
     await tx.delete(tournamentGroups).where(inArray(tournamentGroups.id, deleteIds));
   });
-  console.log(`[GROUP DEDUPE] Removed ${deleteIds.length} duplicate group(s).`);
 }

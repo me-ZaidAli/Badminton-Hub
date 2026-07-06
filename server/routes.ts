@@ -390,7 +390,6 @@ async function ensureUserWallet(userId: number, clubId: number, creditAmount: nu
         createdById,
       }).returning();
       walletId = newWallet.id;
-      console.log(`[WALLET AUTO] Created wallet id=${walletId} for user=${userId}`);
     }
 
     if (creditAmount > 0) {
@@ -408,7 +407,6 @@ async function ensureUserWallet(userId: number, clubId: number, creditAmount: nu
           createdById,
         });
       });
-      console.log(`[WALLET AUTO] Added £${(creditAmount / 100).toFixed(2)} to wallet=${walletId} for user=${userId}`);
     } else if (creditAmount < 0) {
       const absAmount = Math.abs(creditAmount);
       await db.transaction(async (trx) => {
@@ -425,7 +423,6 @@ async function ensureUserWallet(userId: number, clubId: number, creditAmount: nu
           createdById,
         });
       });
-      console.log(`[WALLET AUTO] Deducted £${(absAmount / 100).toFixed(2)} from wallet=${walletId} for user=${userId}`);
     }
   } catch (err: any) {
     console.error(`[WALLET AUTO] Error ensuring wallet for user=${userId}:`, err.message);
@@ -461,7 +458,6 @@ export async function registerRoutes(
   // === SEED DATA ===
   const existingUsers = await storage.getAllUsers();
   if (existingUsers.length === 0) {
-    console.log("Seeding database...");
     const hashedPassword = await hashPassword("password123");
     const admin = await storage.createUser({
       fullName: "Club Admin",
@@ -505,7 +501,6 @@ export async function registerRoutes(
       matchGenderType: "MIXED"
     } as any);
 
-    console.log("Database seeded!");
   }
 
   // Ensure super admin account exists with correct credentials
@@ -513,7 +508,6 @@ export async function registerRoutes(
   const superAdminPassword = "SuperAdmin123!";
   let superAdmin = await storage.getUserByUsername(superAdminEmail);
   if (!superAdmin) {
-    console.log("Creating super admin account...");
     const hashedPassword = await hashPassword(superAdminPassword);
     superAdmin = await storage.createUser({
       fullName: "Super Admin",
@@ -522,7 +516,6 @@ export async function registerRoutes(
       role: "OWNER",
       accountStatus: "APPROVED"
     });
-    console.log("Super admin account created!");
   } else {
     const updates: any = {};
     if ((superAdmin as any).role !== "OWNER") {
@@ -534,11 +527,9 @@ export async function registerRoutes(
     const passwordValid = await comparePasswords(superAdminPassword, superAdmin.password);
     if (!passwordValid) {
       updates.password = await hashPassword(superAdminPassword);
-      console.log("Super admin password reset to default.");
     }
     if (Object.keys(updates).length > 0) {
       await storage.updateUser((superAdmin as any).id, updates);
-      console.log("Super admin account updated:", Object.keys(updates).join(", "));
     }
   }
 
@@ -799,7 +790,6 @@ export async function registerRoutes(
       } else {
         [row] = await db.update(clubFinanceCalculatorSettings).set(update).where(eq(clubFinanceCalculatorSettings.id, 1)).returning();
       }
-      console.log(`[AUDIT] Club Finance Calculator updated by user=${req.user!.id}`);
       res.json(row);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -1054,7 +1044,6 @@ export async function registerRoutes(
             longitude = geocodeData[0].lon;
           }
         } catch (err) {
-          console.log("Geocoding failed, continuing without coordinates:", err);
         }
       }
 
@@ -2591,7 +2580,6 @@ export async function registerRoutes(
                 linkUrl: "/referrals",
                 status: "in_progress",
               });
-              console.log(`[JOIN] Referral code ${code} applied for userId=${user.id} joining clubId=${clubId}`);
             }
           }
         } catch (refErr) {
@@ -2599,7 +2587,6 @@ export async function registerRoutes(
         }
       }
 
-      console.log(`[JOIN] REQUEST: userId=${user.id} requested to join clubId=${clubId}`);
       res.status(201).json(profile);
     } catch (err: any) {
       console.error("[JOIN] ERROR:", err);
@@ -3216,7 +3203,6 @@ export async function registerRoutes(
         createdBy: req.user!.id,
         ...(finalGuestClubIds ? { guestClubIds: finalGuestClubIds } : {}),
       });
-      console.log(`[AUDIT] SESSION_CREATE: sessionId=${session.id} clubId=${input.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
 
       if (inviteePlayerIds && Array.isArray(inviteePlayerIds) && inviteePlayerIds.length > 0) {
         try {
@@ -4625,7 +4611,6 @@ export async function registerRoutes(
 
       await ensureUserWallet(userId, session.clubId, amount, reason, admin.id);
 
-      console.log(`[CREDIT ADJUST] session=${sessionId} user=${userId} amount=${amount} by=${admin.id}`);
       res.json(entry);
     } catch (err: any) {
       console.error("[credit-adjust] error", err);
@@ -5115,7 +5100,6 @@ export async function registerRoutes(
                       });
                       ensureUserWallet(userId, clubId, config.credits, "Credit issued", req.user!.id).catch(() => {});
                     }
-                    console.log(`[AUDIT] Attendance reward issued: user=${userId}, club=${clubId}, milestone=${milestoneNum}, sessions=${attendedCount}`);
                   }
                 }
               }
@@ -5413,7 +5397,6 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updateSession(sessionId, updates);
-      console.log(`[AUDIT] SESSION_UPDATE: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} changes=${JSON.stringify(Object.keys(updates))} at ${new Date().toISOString()}`);
       res.json(updated);
     } catch (err: any) {
       console.error("Error updating session:", err);
@@ -5529,7 +5512,6 @@ export async function registerRoutes(
         updatedCount++;
       }
 
-      console.log(`[AUDIT] RECURRING_SERIES_UPDATE: recurringEventId=${recurringEventId} updatedSessions=${updatedCount} by userId=${req.user!.id} at ${new Date().toISOString()}`);
       res.json({ updated: updatedCount, message: `Updated ${updatedCount} session(s)` });
     } catch (err: any) {
       console.error("Error updating recurring series:", err);
@@ -5549,7 +5531,6 @@ export async function registerRoutes(
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins and organisers can restart sessions" });
       }
-      console.log(`[AUDIT] SESSION_RESTART: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
 
       const sessionMatches = await storage.getSessionMatches(sessionId);
       for (const match of sessionMatches) {
@@ -5604,7 +5585,6 @@ export async function registerRoutes(
       if (!canAccess) {
         return res.status(403).json({ message: "Only admins and organisers can recover matches" });
       }
-      console.log(`[AUDIT] SESSION_RECOVER_MATCHES: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
 
       const recovered = await db.update(matches)
         .set({ deletedAt: null })
@@ -5632,7 +5612,6 @@ export async function registerRoutes(
         return res.sendStatus(403);
       }
 
-      console.log(`[AUDIT] SESSION_DELETE: sessionId=${sessionId} clubId=${session.clubId} by userId=${req.user!.id} role=${req.user!.role} at ${new Date().toISOString()}`);
       await storage.deleteSession(sessionId);
       res.json({ message: "Session deleted" });
     } catch (err: any) {
@@ -7219,7 +7198,6 @@ export async function registerRoutes(
               return res.status(400).json({ message: "This player cannot be added because they are currently in a live game." });
             }
             await storage.updateMatch(existingMatch.id, { [pos]: null });
-            console.log(`[SWAP] Removed player ${newPlayerId} from match ${existingMatch.id} (status=${existingMatch.status}, court=${existingMatch.courtNumber}) position ${pos}`);
           }
         }
       }
@@ -9262,7 +9240,6 @@ export async function registerRoutes(
       const isAdmin = await canManageSessions(req.user!.id, req.user!.role, session.clubId);
       if (!isAdmin) return res.sendStatus(403);
 
-      console.log(`[RESUME] Player ${resumedPlayerId} resumed in session ${sessionId}. Added to idle pool. No queued matches modified.`);
 
       await validateMatchIntegrity(sessionId, "RESUME");
 
@@ -9756,154 +9733,6 @@ export async function registerRoutes(
         throw txErr;
       }
 
-      console.log(`[ADMIN] Merged duplicate accounts:`, merged);
-      res.json({ message: `Merged ${merged.length} duplicate accounts`, details: merged });
-    } catch (err: any) {
-      console.error("Error merging duplicates:", err);
-      res.status(500).json({ message: err.message || "Failed to merge duplicates" });
-    }
-  });
-
-  // === Merge Player Profiles (Admin/OWNER only) ===
-  app.post("/api/admin/merge-profiles/preview", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const { primaryProfileId, secondaryProfileId } = req.body;
-
-    if (!primaryProfileId || !secondaryProfileId) {
-      return res.status(400).json({ message: "Both profile IDs are required" });
-    }
-    if (primaryProfileId === secondaryProfileId) {
-      return res.status(400).json({ message: "Cannot merge a profile with itself" });
-    }
-
-    try {
-      const primary = await storage.getPlayerProfileById(primaryProfileId);
-      const secondary = await storage.getPlayerProfileById(secondaryProfileId);
-      if (!primary) return res.status(404).json({ message: "Primary profile not found" });
-      if (!secondary) return res.status(404).json({ message: "Secondary profile not found" });
-
-      if (primary.clubId !== secondary.clubId) {
-        return res.status(400).json({ message: "Profiles must belong to the same club" });
-      }
-
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, primary.clubId);
-      if (!isAdmin && req.user!.role !== "OWNER") {
-        return res.status(403).json({ message: "Only admins or super admins can merge profiles" });
-      }
-
-      const secId = secondaryProfileId;
-      const [sessionsCount] = await db.select({ count: sql<number>`count(*)::int` }).from(sessionSignups).where(eq(sessionSignups.playerId, secId));
-      const [matchesCount] = await db.select({ count: sql<number>`count(*)::int` }).from(matches).where(
-        or(
-          eq(matches.teamAPlayer1Id, secId), eq(matches.teamAPlayer2Id, secId),
-          eq(matches.teamBPlayer1Id, secId), eq(matches.teamBPlayer2Id, secId)
-        )
-      );
-      const [creditCount] = await db.select({ count: sql<number>`count(*)::int` }).from(creditLedger).where(eq(creditLedger.userId, secondary.userId));
-      const [tournamentCount] = await db.select({ count: sql<number>`count(*)::int` }).from(tournamentTeams).where(
-        or(eq(tournamentTeams.player1Id, secId), eq(tournamentTeams.player2Id, secId))
-      );
-
-      const primarySignupSessionIds = await db.select({ sessionId: sessionSignups.sessionId }).from(sessionSignups).where(eq(sessionSignups.playerId, primaryProfileId));
-      const primarySessionSet = new Set(primarySignupSessionIds.map(s => s.sessionId));
-      const secondarySignups = await db.select({ sessionId: sessionSignups.sessionId }).from(sessionSignups).where(eq(sessionSignups.playerId, secId));
-      const duplicateSignups = secondarySignups.filter(s => primarySessionSet.has(s.sessionId)).length;
-
-      const club = await storage.getClub(primary.clubId);
-
-      const primaryMemberships = await db.select().from(clubMemberships).where(and(eq(clubMemberships.userId, primary.userId), eq(clubMemberships.clubId, primary.clubId)));
-      const secondaryMemberships = await db.select().from(clubMemberships).where(and(eq(clubMemberships.userId, secondary.userId), eq(clubMemberships.clubId, secondary.clubId)));
-
-      res.json({
-        primary: {
-          profileId: primary.id,
-          userId: primary.userId,
-          fullName: primary.user.fullName,
-          email: primary.user.email,
-          gender: primary.gender,
-          category: primary.category,
-          grade: primary.grade,
-          clubRole: primary.clubRole,
-          membershipStatus: primary.membershipStatus,
-          playerStatus: primary.playerStatus,
-          matchesPlayed: primary.matchesPlayed,
-          matchesWon: primary.matchesWon,
-          rankingPoints: primary.rankingPoints,
-          profilePictureUrl: primary.user.profilePictureUrl,
-          accountStatus: primary.user.accountStatus,
-          memberships: primaryMemberships,
-        },
-        secondary: {
-          profileId: secondary.id,
-          userId: secondary.userId,
-          fullName: secondary.user.fullName,
-          email: secondary.user.email,
-          gender: secondary.gender,
-          category: secondary.category,
-          grade: secondary.grade,
-          clubRole: secondary.clubRole,
-          membershipStatus: secondary.membershipStatus,
-          playerStatus: secondary.playerStatus,
-          matchesPlayed: secondary.matchesPlayed,
-          matchesWon: secondary.matchesWon,
-          rankingPoints: secondary.rankingPoints,
-          profilePictureUrl: secondary.user.profilePictureUrl,
-          accountStatus: secondary.user.accountStatus,
-          memberships: secondaryMemberships,
-        },
-        counts: {
-          sessionsToReassign: sessionsCount.count,
-          matchesToReassign: matchesCount.count,
-          creditEntriesToReassign: creditCount.count,
-          tournamentsToReassign: tournamentCount.count,
-          duplicateSignupsToRemove: duplicateSignups,
-        },
-        clubName: club?.name || "Unknown",
-        sameUser: primary.userId === secondary.userId,
-      });
-    } catch (err: any) {
-      console.error("Error previewing merge:", err);
-      res.status(500).json({ message: err.message || "Failed to preview merge" });
-    }
-  });
-
-  app.post("/api/admin/merge-profiles/execute", async (req, res) => {
-    if (!req.isAuthenticated()) return res.sendStatus(401);
-    const { primaryProfileId, secondaryProfileId, keepUserId } = req.body;
-
-    if (!primaryProfileId || !secondaryProfileId) {
-      return res.status(400).json({ message: "Both profile IDs are required" });
-    }
-    if (primaryProfileId === secondaryProfileId) {
-      return res.status(400).json({ message: "Cannot merge a profile with itself" });
-    }
-
-    try {
-      const primary = await storage.getPlayerProfileById(primaryProfileId);
-      const secondary = await storage.getPlayerProfileById(secondaryProfileId);
-      if (!primary) return res.status(404).json({ message: "Primary profile not found" });
-      if (!secondary) return res.status(404).json({ message: "Secondary profile not found" });
-
-      if (primary.clubId !== secondary.clubId) {
-        return res.status(400).json({ message: "Profiles must belong to the same club" });
-      }
-
-      const isAdmin = await hasAdminAccess(req.user!.id, req.user!.role, primary.clubId);
-      if (!isAdmin && req.user!.role !== "OWNER") {
-        return res.status(403).json({ message: "Only admins or super admins can merge profiles" });
-      }
-
-      if ((primary as any).deletedAt || (secondary as any).deletedAt) {
-        return res.status(400).json({ message: "Cannot merge profiles that have been soft-deleted" });
-      }
-
-      const priId = primaryProfileId;
-      const secId = secondaryProfileId;
-      const club = await storage.getClub(primary.clubId);
-      const validKeepUserIds = [primary.userId, secondary.userId];
-      const keptUserId = keepUserId && validKeepUserIds.includes(keepUserId) ? keepUserId : primary.userId;
-
-      await db.execute(sql`BEGIN`);
       try {
         await db.execute(sql`SELECT id FROM player_profiles WHERE id IN (${priId}, ${secId}) FOR UPDATE`);
 
@@ -10024,7 +9853,6 @@ export async function registerRoutes(
 
         await db.execute(sql`COMMIT`);
 
-        console.log(`[ADMIN] Profile merge: ${primary.user.fullName} (${priId}) absorbed ${secondary.user.fullName} (${secId}) in club ${club?.name}. By user ${req.user!.id}`);
 
         res.json({
           message: `Successfully merged "${secondary.user.fullName}" into "${primary.user.fullName}"`,
@@ -10499,7 +10327,6 @@ export async function registerRoutes(
 
         await db.execute(sql`COMMIT`);
 
-        console.log(`[ADMIN] Global account merge: kept ${keepUser.fullName} (${keepUserId}), removed ${removeUser.fullName} (${removeUserId}). By user ${req.user!.id}`);
 
         res.json({
           message: `Successfully merged "${removeUser.fullName}" into "${keepUser.fullName}"`,
@@ -11010,7 +10837,6 @@ export async function registerRoutes(
       }
 
       await storage.updateClub(clubId, { ownerId: uid });
-      console.log(`[CLUB] Ownership transferred: clubId=${clubId} newOwner=${uid} by userId=${req.user!.id}`);
       res.json({ message: "Ownership transferred", clubId, newOwnerId: uid });
     } catch (err: any) {
       console.error("Error transferring club ownership:", err);
@@ -11053,7 +10879,6 @@ export async function registerRoutes(
         });
       }
 
-      console.log(`[CLUB] Admin assigned: clubId=${clubId} userId=${uid} role=${role} by userId=${req.user!.id}`);
       res.json({ message: `User assigned as ${role}`, clubId, userId: uid, role });
     } catch (err: any) {
       console.error("Error assigning club admin:", err);
@@ -11253,9 +11078,7 @@ export async function registerRoutes(
       }
 
       const updated = await storage.updatePlayerProfileWithFullName(profileId, updates, fullName);
-      console.log(`[MEMBERSHIP] ${membershipStatus || "UPDATE"}: profileId=${profileId} clubId=${clubId} by userId=${req.user!.id} updates=${JSON.stringify(updates)}`);
       if (updates.clubRole) {
-        console.log(`[AUDIT] ROLE_CHANGE: profileId=${profileId} clubId=${clubId} newRole=${updates.clubRole} by userId=${req.user!.id} at ${new Date().toISOString()}`);
       }
       res.json(updated);
     } catch (err: any) {
@@ -12953,7 +12776,6 @@ export async function registerRoutes(
       if (Object.keys(updates).length === 0) return res.status(400).json({ message: "No changes provided" });
 
       const [updated] = await db.update(creditLedger).set(updates).where(eq(creditLedger.id, creditId)).returning();
-      console.log(`[AUDIT] Credit entry edited: id=${creditId}, by user=${admin.id}, changes=${JSON.stringify(updates)}`);
       res.json(updated);
     } catch (err: any) {
       console.error("Error editing credit entry:", err);
@@ -12976,7 +12798,6 @@ export async function registerRoutes(
       if (!allowed) return res.sendStatus(403);
 
       await db.delete(creditLedger).where(eq(creditLedger.id, creditId));
-      console.log(`[AUDIT] Credit entry deleted: id=${creditId}, amount=${existing.amount}, userId=${existing.userId}, by user=${admin.id}`);
       res.json({ success: true });
     } catch (err: any) {
       console.error("Error deleting credit entry:", err);
@@ -13126,7 +12947,6 @@ export async function registerRoutes(
         ORDER BY "createdAt" DESC`;
 
       const entries = await db.execute(query);
-      console.log(`[CREDIT-HISTORY] Returned ${entries.rows.length} entries (clubId=${clubId}, userId=${userId})`);
       res.json(entries.rows);
     } catch (err: any) {
       console.error("Error fetching admin credit history:", err?.message || err);
@@ -16886,7 +16706,6 @@ export async function registerRoutes(
             }).where(eq(clubMemberships.id, membershipId)).returning();
             return u;
           });
-          console.log(`[AUDIT] Membership ${membershipId} paid from wallet: userId=${membership.userId}, clubId=${membership.clubId}, amount=${price}, by=${req.user!.id}`);
           return res.json(updated);
         } catch (e: any) {
           if (typeof e.message === "string" && e.message.startsWith("INSUFFICIENT:")) {
@@ -19015,7 +18834,6 @@ export async function registerRoutes(
         await db.delete(sessionSignups).where(and(eq(sessionSignups.playerId, profile.id), inArray(sessionSignups.sessionId, clubSessionIds.map(s => s.id))));
       }
       await db.delete(playerProfiles).where(eq(playerProfiles.id, profile.id));
-      console.log(`[CLUB] User ${userId} cancelled join request for club ${clubId}`);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -19056,7 +18874,6 @@ export async function registerRoutes(
         { fullName: req.user!.fullName || "A member", clubName: club?.name || "the club" },
         { url: "/admin/approvals" },
       ).catch(e => console.error("[push membershipLeft]", e));
-      console.log(`[CLUB] User ${userId} left club ${clubId}`);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -19141,7 +18958,6 @@ export async function registerRoutes(
       await db.delete(adminAuditLogs).where(eq(adminAuditLogs.clubId, clubId));
       await db.delete(playerProfiles).where(eq(playerProfiles.clubId, clubId));
       await db.delete(clubs).where(eq(clubs.id, clubId));
-      console.log(`[CLUB] Club ${clubId} (${club.name}) permanently deleted by user ${user.id}`);
       res.json({ success: true, message: `Club "${club.name}" and all its data have been permanently deleted.` });
     } catch (err: any) {
       console.error("Error permanently deleting club:", err);
@@ -19274,7 +19090,6 @@ export async function registerRoutes(
         }
         if (clubRole) {
           profileUpdates.clubRole = clubRole;
-          console.log(`[AUDIT] ROLE_CHANGE: profileId=${profileId} clubId=${clubId} newRole=${clubRole} by userId=${user.id} at ${new Date().toISOString()}`);
         }
       }
       if (playerStatus !== undefined) profileUpdates.playerStatus = playerStatus || null;
@@ -22341,7 +22156,6 @@ export async function registerRoutes(
         isActive: isActive !== false,
         createdById: user.id,
       }).returning();
-      console.log(`[AUDIT] Referral program created: id=${program.id}, club=${clubId}, by user=${user.id}`);
       res.json(program);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22371,7 +22185,6 @@ export async function registerRoutes(
         isActive: isActive !== undefined ? isActive : existing.isActive,
         updatedAt: new Date(),
       }).where(eq(referralPrograms.id, id)).returning();
-      console.log(`[AUDIT] Referral program updated: id=${id}, by user=${user.id}`);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22394,7 +22207,6 @@ export async function registerRoutes(
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
       await db.delete(referralPrograms).where(eq(referralPrograms.id, id));
-      console.log(`[AUDIT] Referral program deleted: id=${id}, by user=${user.id}`);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22452,7 +22264,6 @@ export async function registerRoutes(
         isActive: isActive !== false,
         createdById: user.id,
       }).returning();
-      console.log(`[AUDIT] Attendance reward created: id=${reward.id}, club=${clubId}, sessions=${sessionsRequired}, by user=${user.id}`);
       res.json(reward);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22481,7 +22292,6 @@ export async function registerRoutes(
         isActive: isActive !== undefined ? isActive : existing.isActive,
         updatedAt: new Date(),
       }).where(eq(sessionAttendanceRewards.id, id)).returning();
-      console.log(`[AUDIT] Attendance reward updated: id=${id}, by user=${user.id}`);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22504,7 +22314,6 @@ export async function registerRoutes(
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
       await db.delete(sessionAttendanceRewards).where(eq(sessionAttendanceRewards.id, id));
-      console.log(`[AUDIT] Attendance reward deleted: id=${id}, by user=${user.id}`);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22549,7 +22358,6 @@ export async function registerRoutes(
         milestoneType: mType,
         createdById: user.id,
       }).returning();
-      console.log(`[AUDIT] Points milestone reward created: id=${reward.id}, club=${clubId}, points=${pointsRequired}, type=${mType}, repeating=${mType === "STANDARD" ? isRepeating !== false : false}, by user=${user.id}`);
       res.json(reward);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22580,7 +22388,6 @@ export async function registerRoutes(
         milestoneType: milestoneType !== undefined ? milestoneType : existing.milestoneType,
         updatedAt: new Date(),
       }).where(eq(pointsMilestoneRewards.id, id)).returning();
-      console.log(`[AUDIT] Points milestone reward updated: id=${id}, type=${milestoneType || existing.milestoneType}, by user=${user.id}`);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22603,7 +22410,6 @@ export async function registerRoutes(
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
       await db.delete(pointsMilestoneRewards).where(eq(pointsMilestoneRewards.id, id));
-      console.log(`[AUDIT] Points milestone reward deleted: id=${id}, by user=${user.id}`);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22645,7 +22451,6 @@ export async function registerRoutes(
         isActive: isActive !== false,
         createdById: user.id,
       }).returning();
-      console.log(`[AUDIT] Badge achievement reward created: id=${reward.id}, club=${clubId}, badge=${badge}, by user=${user.id}`);
       res.json(reward);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22674,7 +22479,6 @@ export async function registerRoutes(
         isActive: isActive !== undefined ? isActive : existing.isActive,
         updatedAt: new Date(),
       }).where(eq(badgeAchievementRewards.id, id)).returning();
-      console.log(`[AUDIT] Badge achievement reward updated: id=${id}, by user=${user.id}`);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -22697,7 +22501,6 @@ export async function registerRoutes(
       if (!isSuperAdmin && !isClubAdmin) return res.status(403).json({ message: "Admin access required" });
 
       await db.delete(badgeAchievementRewards).where(eq(badgeAchievementRewards.id, id));
-      console.log(`[AUDIT] Badge achievement reward deleted: id=${id}, by user=${user.id}`);
       res.json({ success: true });
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -23035,7 +22838,6 @@ export async function registerRoutes(
               });
             }
             if (creditsDue > 0) {
-              console.log(`[ATTENDANCE REWARD] Auto-credited ${creditsDue} milestone(s) for user ${user.id}, club ${clubId}, reward ${reward.id}`);
             }
           }
 
@@ -23240,7 +23042,6 @@ export async function registerRoutes(
                   });
                   ensureUserWallet(profile.userId, clubId, config.credits, "Credit issued", user.id).catch(() => {});
                 }
-                console.log(`[AUDIT] Badge reward issued: user=${profile.userId}, club=${clubId}, badge=${reward.badge}`);
               }
               issued = true;
             } catch (insertErr: any) {
@@ -23397,7 +23198,6 @@ export async function registerRoutes(
         status: "REQUESTED",
         updatedAt: new Date(),
       }).where(eq(playerRewardLedger.id, id)).returning();
-      console.log(`[AUDIT] Reward requested: id=${id}, by user=${user.id}`);
 
       // Notify admins of the reward's club
       try {
@@ -23441,7 +23241,6 @@ export async function registerRoutes(
         eq(playerRewardLedger.status, "AVAILABLE")
       )).returning();
 
-      console.log(`[AUDIT] Bulk reward request: ids=${ids.join(",")}, count=${results.length}, by user=${user.id}`);
 
       // Notify admins about bulk reward claims
       if (results.length > 0) {
@@ -23540,7 +23339,6 @@ export async function registerRoutes(
         status,
         updatedAt: new Date(),
       }).where(eq(playerRewardLedger.id, id)).returning();
-      console.log(`[AUDIT] Reward status updated: id=${id}, status=${status}, by user=${user.id}`);
 
       // If status changed from REQUESTED, auto-complete related notifications
       if (reward.status === "REQUESTED" && status !== "REQUESTED") {
@@ -23615,7 +23413,6 @@ export async function registerRoutes(
         return updated;
       });
 
-      console.log(`[AUDIT] Reward approved: id=${id}, playerId=${reward.playerId}, credits=${reward.credits}, by user=${user.id}`);
 
       // Auto-complete REWARD_REQUEST notifications related to this player's rewards for this club
       try {
@@ -23710,7 +23507,6 @@ export async function registerRoutes(
             return upd;
           });
 
-          console.log(`[AUDIT] Reward bulk-approved: id=${id}, playerId=${reward.playerId}, credits=${reward.credits}, by user=${user.id}`);
           results.push(updated);
 
           // Notify the player and auto-complete admin notifications
@@ -23780,7 +23576,6 @@ export async function registerRoutes(
         ensureUserWallet(playerId, clubId, credits, "Credit issued", user.id).catch(() => {});
       }
 
-      console.log(`[AUDIT] Reward issued: id=${reward.id}, player=${playerId}, club=${clubId}, credits=${credits || 0}, by user=${user.id}`);
       res.json(reward);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -23821,7 +23616,6 @@ export async function registerRoutes(
           .set({ isActive: isActive ?? existing.isActive, credits: credits ?? existing.credits, gifts: gifts !== undefined ? gifts : existing.gifts, message: message ?? existing.message, updatedAt: new Date() })
           .where(eq(clubAnniversarySettings.id, existing.id))
           .returning();
-        console.log(`[AUDIT] Anniversary settings updated: club=${clubId}, by user=${user.id}`);
         res.json(updated);
       } else {
         const [created] = await db.insert(clubAnniversarySettings).values({
@@ -23831,7 +23625,6 @@ export async function registerRoutes(
           gifts: gifts || null,
           message: message || "Happy Club Anniversary! Thank you for being a valued member.",
         }).returning();
-        console.log(`[AUDIT] Anniversary settings created: club=${clubId}, by user=${user.id}`);
         res.json(created);
       }
     } catch (err: any) {
@@ -23900,7 +23693,6 @@ export async function registerRoutes(
           .set({ isActive: isActive ?? existing.isActive, credits: credits ?? existing.credits, gifts: gifts !== undefined ? gifts : existing.gifts, message: message ?? existing.message, updatedAt: new Date() })
           .where(eq(clubBirthdaySettings.id, existing.id))
           .returning();
-        console.log(`[AUDIT] Birthday settings updated: club=${clubId}, by user=${user.id}`);
         res.json(updated);
       } else {
         const [created] = await db.insert(clubBirthdaySettings).values({
@@ -23910,7 +23702,6 @@ export async function registerRoutes(
           gifts: gifts || null,
           message: message || "Happy Birthday! Enjoy your special day with us.",
         }).returning();
-        console.log(`[AUDIT] Birthday settings created: club=${clubId}, by user=${user.id}`);
         res.json(created);
       }
     } catch (err: any) {
@@ -24327,7 +24118,6 @@ export async function registerRoutes(
                 status: "AVAILABLE",
               });
             }
-            console.log(`[ATTENDANCE REWARD] Auto-credited ${creditsDue} milestone(s) for user ${targetUserId}, club ${profile.clubId}, reward ${reward.id}`);
           }
 
           milestones.push({
@@ -24587,7 +24377,6 @@ export async function registerRoutes(
                 content: `🎉 ${settings.message || `Happy ${yearNum} year anniversary at ${clubName}!`}\n\n${settings.credits > 0 ? `You've been awarded £${(settings.credits / 100).toFixed(2)} in club credits.` : ""}${settings.gifts ? `\nGift: ${settings.gifts}` : ""}`,
               });
 
-              console.log(`[AUDIT] Anniversary reward issued: user=${profile.userId}, club=${settings.clubId}, year=${yearNum}, credits=${settings.credits}`);
               processed++;
             }
           }
@@ -34098,7 +33887,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       let prompt = "";
       const analyticsData = { kpis, topSessions, bottomSessions, weekdayStats, timeOfDayStats, clubStats, alerts, seasonality, churn };
       const dataJson = JSON.stringify(analyticsData, null, 2);
-      console.log("[AI Insights] Data being sent to AI:", dataJson.substring(0, 500));
 
       if (question) {
         prompt = `IMPORTANT: You MUST ONLY reference numbers that appear in the JSON data below. Do NOT make up any numbers.\n\nAnalytics data (all monetary values in £ GBP):\n${dataJson}\n\nUser question: ${question}\n\nAnswer using ONLY the exact figures from the data above. Use £ for all currency values.`;
@@ -34660,7 +34448,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         lowBalanceThreshold: lowBalanceThreshold || 500,
         createdById: u.id,
       }).returning();
-      console.log(`[AUDIT] Wallet created: id=${wallet.id}, user=${userId}, name="${name}", isGlobal=${isGlobal}, by=${u.id}`);
       res.json(wallet);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -34685,7 +34472,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       if (isActive !== undefined) updates.isActive = isActive;
       const [updated] = await db.update(wallets).set(updates).where(eq(wallets.id, walletId)).returning();
       if (!updated) return res.status(404).json({ message: "Wallet not found" });
-      console.log(`[AUDIT] Wallet updated: id=${walletId}, changes=${JSON.stringify(req.body)}, by=${u.id}`);
       res.json(updated);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -34730,7 +34516,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         }
         return tx;
       });
-      console.log(`[AUDIT] Wallet funds added: walletId=${walletId}, amount=${amount}, by=${u.id}`);
       res.json(txResult);
     } catch (err: any) {
       if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
@@ -34782,7 +34567,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         }
         return tx;
       });
-      console.log(`[AUDIT] Wallet funds removed: walletId=${walletId}, amount=${amount}, by=${u.id}`);
       res.json(txResult);
     } catch (err: any) {
       if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
@@ -34830,7 +34614,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         }
         return { ...tx, previousBalance };
       });
-      console.log(`[AUDIT] Wallet reset: walletId=${walletId}, by=${u.id}`);
       res.json(txResult);
     } catch (err: any) {
       if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
@@ -34878,7 +34661,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         });
         return { ...lastTx, previousBalance };
       });
-      console.log(`[AUDIT] Credit/wallet reset: userId=${userId}, clubId=${clubId}, previousBalance=${previousBalance}, by=${u.id}`);
       res.json(result);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
@@ -35096,7 +34878,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
         }
         return { walletId, clubId, previousBalance: walletCurrent, newBalance: targetBalance, delta: walletDelta, ledgerDelta };
       });
-      console.log(`[AUDIT] Wallet balance set: walletId=${walletId}, clubId=${(result as any).clubId}, prev=${(result as any).previousBalance}, new=${(result as any).newBalance}, delta=${(result as any).delta}, by=${u.id}`);
       res.json(result);
     } catch (err: any) {
       if (err.message === "NOT_FOUND") return res.status(404).json({ message: "Wallet not found" });
@@ -35224,11 +35005,9 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
             });
           }
           walletsCreated++;
-          console.log(`[WALLET MIGRATE] Created wallet for user=${row.user_id} (${row.user_name}), balance=£${(totalCredits / 100).toFixed(2)}`);
         }
       }
 
-      console.log(`[WALLET MIGRATE] Complete: created=${walletsCreated}, updated=${walletsUpdated}, skipped=${skipped}`);
       res.json({ walletsCreated, walletsUpdated, skipped, total: (creditSums as any).rows?.length || 0 });
     } catch (err: any) {
       console.error("[WALLET MIGRATE] Error:", err);
@@ -35262,186 +35041,129 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       if (files.length === 0 && singleFile) files.push(singleFile);
       if (files.length === 0) return res.status(400).json({ message: "No images uploaded" });
 
-      const OpenAI = (await import("openai")).default;
-      const openai = new OpenAI({
-        apiKey: process.env.AI_INTEGRATIONS_OPENAI_API_KEY,
-        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
-      });
+      const { createWorker: createTesseractWorker } = await import("tesseract.js");
 
-      console.log(`[AI Match Extract] Processing ${files.length} image(s) individually`);
+      // Score: whole-number pair NN-NN. Grades are decimals so they won't match.
+      const scoreRe = /\b(2[0-9]|30|1[0-9]|[0-9])\s*[-\u2013]\s*(2[0-9]|30|1[0-9]|[0-9])\b/;
 
-      const systemPrompt = `You are a sports score sheet OCR assistant for badminton. Extract ALL match results from the image.
+      const isValidScore = (a: number, b: number) => {
+        const [hi, lo] = [Math.max(a, b), Math.min(a, b)];
+        if (hi === 0) return false;
+        if (hi <= 21) return hi === 21;
+        return hi <= 30 && (hi - lo === 2 || (hi === 30 && lo === 29));
+      };
 
-LAYOUT — THIS IS CRITICAL, READ VERY CAREFULLY:
-Each match row has exactly 3 sections separated visually:
+      // Parse a table cell into player objects.
+      // Player names are letters+spaces only — strip everything else (grades, OCR noise).
+      // Single-char "words" (OCR noise like 'C' from '°C') are also discarded.
+      const extractPlayers = (segment: string) =>
+        segment
+          .split(/\s*\+\s*/)
+          .map(n =>
+            n
+              .replace(/[^a-zA-Z\s]/g, " ")
+              .replace(/\s+/g, " ")
+              .trim()
+              .split(" ")
+              .filter(word => word.length > 1)
+              .join(" ")
+          )
+          .filter(n => n.length > 1)
+          .slice(0, 2)
+          .map(name => ({ name, confidence: 0.7 }));
 
-  LEFT SIDE: Team A players (the "Winners" column — 2 names with "+" between them)
-  CENTER: The match score (two numbers separated by a dash, like "21-10")
-  RIGHT SIDE: Team B players (the "Opponents" column — 2 names with "+" between them)
-
-There is usually also a "Type" column (MMMM, LMLM, LMMM etc) on the far left, and time/duration columns on the far right. Ignore those — just extract the teams and scores.
-
-Example row: "Thomas Lim 8.2 + Rachel Sims 16.1    21-10    Alex Lau 16.5 + Maria Timovanu 4.6"
-
-CRITICAL — NUMBERS NEXT TO PLAYER NAMES ARE NOT SCORES:
-- Each player name is followed by a small DECIMAL number (like 8.2, 16.1, 4.6, 22.5). These are PLAYER GRADES/RATINGS. They are NOT part of the score.
-- The ONLY score is the TWO WHOLE NUMBERS in the CENTER of the row (like "21-10", "26-24", "21-15").
-- NEVER confuse a player's grade number with the match score.
-- Player grades often appear as superscript or smaller text next to the name.
-
-HOW TO EXTRACT CORRECTLY:
-1. First, identify the CENTER SCORE — it's the pair of numbers (e.g. "21-10") that sits between the two teams, usually centered or in a middle column.
-2. scoreA = the LEFT number of the center score (belongs to Team A / left team / Winners column)
-3. scoreB = the RIGHT number of the center score (belongs to Team B / right team / Opponents column)
-4. Then extract player names from each side, IGNORING any decimal numbers after names.
-
-PLAYER NAME RULES:
-- Names may appear in different colors (pink/red text = female players). Extract all names regardless of color.
-- Strip any trailing numbers from names. E.g. "Thomas Lim 8.2" → name is "Thomas Lim"
-- The "+" sign separates the two players on each team.
-- Preserve exact spelling from the image.
-
-ORDERING:
-- Return matches in the EXACT order they appear in the image, top-to-bottom.
-- Match #1 in output = first row in the image. Do NOT reorder.
-- Extract every row that is ACTUALLY visible, in order. Do NOT stop early, but do NOT pad the list either.
-
-NEVER INVENT OR DUPLICATE ROWS — THIS IS CRITICAL:
-- Only extract rows you can actually SEE in the image. Do NOT guess, invent, or fabricate matches to reach a round number or a target count.
-- Do NOT output the same row twice. Each visible row must appear EXACTLY once in your output.
-- If you are unsure whether a faint, cut-off, or partial row exists, leave it OUT. It is far better to omit one uncertain row than to invent a match that never happened.
-- Your match count must equal the number of rows actually visible in the image — no more, no less. Never add filler rows to hit a number.
-
-SCORE VALIDATION (badminton rules):
-- Normal win: winner has 21, loser has 0-19 (e.g. 21-15, 21-0, 21-19)
-- Deuce win: winner is exactly 2 ahead, both above 20 (e.g. 22-20, 23-21, 24-22... up to 30-28)
-- Maximum: 30-29 (at 29-all, next point wins)
-- IMPOSSIBLE scores: 26-21, 23-27, 25-20. If you read such a score, you have misread it — look again very carefully at the CENTER numbers only.
-
-Return ONLY valid JSON in this exact format:
-{"matches": [{"teamA": [{"name": "Player Name", "confidence": 0.9}, {"name": "Player Name", "confidence": 0.85}], "teamB": [{"name": "Player Name", "confidence": 0.9}, {"name": "Player Name", "confidence": 0.85}], "scoreA": 21, "scoreB": 15, "confidence": 0.9}]}`;
-
-      const extractFromImage = async (imageContent: any, hint: string): Promise<any[]> => {
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o",
-          messages: [
-            { role: "system", content: systemPrompt },
-            { role: "user", content: [
-              { type: "text", text: hint },
-              imageContent
-            ]}
-          ],
-          max_tokens: 16384,
-          temperature: 0.1,
-        });
-        const rawResponse = completion.choices?.[0]?.message?.content || "{}";
-        console.log(`[AI Match Extract] Raw response length: ${rawResponse.length} chars`);
+      const extractFromImage = async (buffer: Buffer) => {
+        const worker = await createTesseractWorker("eng");
         try {
-          const jsonMatch = rawResponse.match(/\{[\s\S]*\}/);
-          const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : rawResponse);
-          return parsed.matches || [];
-        } catch (parseErr) {
-          console.error(`[AI Match Extract] JSON parse error:`, parseErr);
-          return [];
+          const { data } = await worker.recognize(buffer);
+
+          // Merge wrapped lines: a row splits when a player name wraps onto
+          // the next line. Continuation lines start with a decimal grade.
+          // Use data.text (always populated) since data.lines may be null.
+          const rawLines = (data.text || "").split("\n").map((l: string) => l.trim()).filter(Boolean);
+          const lines: string[] = [];
+          for (const txt of rawLines) {
+            const prevHasScore = lines.length > 0 && scoreRe.test(lines[lines.length - 1]);
+            if (lines.length > 0 && !prevHasScore && /^[-]?\d+\.\d+/.test(txt.trim())) {
+              lines[lines.length - 1] += " " + txt;
+            } else {
+              lines.push(txt);
+            }
+          }
+
+          console.log("extracted lines", lines);
+
+          const results: any[] = [];
+          for (const line of lines) {
+            // OCR often reads decimal grades as dashes (7.4 → 7-4, 12.4 → 12-4).
+            // These garbled grades appear before the real score and have invalid values.
+            // Use a global search and take the first match that IS a valid score.
+            const globalRe = new RegExp(scoreRe.source, "g");
+            let validMatch: RegExpExecArray | null = null;
+            let m: RegExpExecArray | null;
+            while ((m = globalRe.exec(line)) !== null) {
+              const a = parseInt(m[1]), b = parseInt(m[2]);
+              if (isValidScore(a, b) || isValidScore(b, a)) { validMatch = m; break; }
+            }
+            if (!validMatch) continue;
+            const scoreA = parseInt(validMatch[1]), scoreB = parseInt(validMatch[2]);
+
+            const idx = validMatch.index;
+            // Left side: strip match-type prefix (e.g. "MMMM ")
+            const left = line.slice(0, idx).replace(/^[LMlm]{3,5}\s+/, "").trim();
+            // Right side: strip "Edited ?" badge and trailing time columns
+            const right = line.slice(idx + validMatch[0].length)
+              .replace(/\s*Edited\s*\??\s*/gi, " ")
+              .replace(/\s+\d{1,2}:\d{2}.*$/, "")
+              .trim();
+
+            const teamA = extractPlayers(left);
+            const teamB = extractPlayers(right);
+            if (!teamA.length || !teamB.length) continue;
+
+            results.push({ teamA, teamB, scoreA, scoreB, confidence: 0.7 });
+          }
+          return results;
+        } finally {
+          await worker.terminate();
         }
       };
 
-      const cleanPlayerName = (name: string): string => {
-        return name.replace(/\s+\d+(\.\d+)?\s*$/, '').trim();
-      };
-      const cleanPlayer = (p: any) => ({
-        ...p,
-        name: cleanPlayerName(p.name || ''),
-      });
-      const isValidBadmintonScore = (a: number, b: number): boolean => {
-        const hi = Math.max(a, b);
-        const lo = Math.min(a, b);
-        if (hi === 0 && lo === 0) return false;
-        if (hi <= 21) return hi === 21 && lo >= 0 && lo <= 21;
-        if (hi <= 30) return (hi - lo === 2) || (hi === 30 && lo === 29);
-        return false;
-      };
-
-      const getMatchFingerprint = (m: any): string => {
-        const names = [
-          ...(m.teamA || []).map((p: any) => cleanPlayerName(p.name || '').toLowerCase()),
-          ...(m.teamB || []).map((p: any) => cleanPlayerName(p.name || '').toLowerCase()),
-        ].sort().join('|');
-        return `${names}::${m.scoreA}-${m.scoreB}`;
-      };
-
-      const allExtracted: any[] = [];
-      const seenFingerprints = new Set<string>();
-
-      const processImage = async (file: Express.Multer.File, imgIdx: number): Promise<any[]> => {
-        try {
-          const base64Image = file.buffer.toString("base64");
-          const mimeType = file.mimetype || "image/png";
-          const imageContent = { type: "image_url" as const, image_url: { url: `data:${mimeType};base64,${base64Image}`, detail: "high" as const } };
-
-          console.log(`[AI Match Extract] Processing image ${imgIdx + 1} of ${files.length}`);
-
-          const extracted = await extractFromImage(imageContent,
-            "Extract every match result row that is ACTUALLY visible in this score sheet image, in exact top-to-bottom order. Do NOT skip rows, but do NOT invent, guess, or duplicate rows to pad the list — your match count must equal the number of rows actually visible in the image."
-          );
-
-          console.log(`[AI Match Extract] Image ${imgIdx + 1}: ${extracted.length} matches`);
-
-          return extracted;
-        } catch (imgErr: any) {
-          console.error(`[AI Match Extract] Image ${imgIdx + 1} failed:`, imgErr?.message || imgErr);
-          return [];
-        }
-      };
-
-      // Process images in parallel so multiple images finish in roughly the
-      // time of a single image (sequential processing was exceeding the request
-      // timeout once two or more images were uploaded). A small concurrency cap
-      // keeps the OpenAI burst and memory use bounded for larger uploads.
+      // Process images in parallel, capped to avoid memory pressure.
       const CONCURRENCY = 4;
       const perImageResults: any[][] = new Array(files.length);
-      let nextIdx = 0;
-      const worker = async () => {
-        while (true) {
-          const imgIdx = nextIdx++;
-          if (imgIdx >= files.length) break;
-          perImageResults[imgIdx] = await processImage(files[imgIdx], imgIdx);
-        }
-      };
-      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, () => worker()));
 
-      // Dedupe in image order so the output stays deterministic and top-to-bottom.
-      perImageResults.forEach((extracted, imgIdx) => {
-        for (const m of extracted) {
-          const fp = getMatchFingerprint(m);
-          if (!seenFingerprints.has(fp)) {
-            seenFingerprints.add(fp);
-            allExtracted.push(m);
-          } else {
-            console.log(`[AI Match Extract] Skipping duplicate match: ${fp}`);
+      let nextIdx = 0;
+      const runWorker = async () => {
+        while (true) {
+          const i = nextIdx++;
+          if (i >= files.length) break;
+          try {
+            perImageResults[i] = await extractFromImage(files[i].buffer);
+          } catch (err: any) {
+            console.error(`[OCR Match Extract] Image ${i + 1} failed:`, err?.message || err);
+            perImageResults[i] = [];
           }
         }
-        console.log(`[AI Match Extract] After image ${imgIdx + 1}: ${allExtracted.length} unique matches total`);
-      });
+      };
+      await Promise.all(Array.from({ length: Math.min(CONCURRENCY, files.length) }, runWorker));
 
-      const extractedMatches = allExtracted.map((m: any) => {
-        const scoreA = Math.max(0, parseInt(m.scoreA) || 0);
-        const scoreB = Math.max(0, parseInt(m.scoreB) || 0);
-        if (!isValidBadmintonScore(scoreA, scoreB)) {
-          console.warn(`[AI Match Extract] Suspicious score: ${scoreA}-${scoreB} — may be misread`);
+      console.log("perImageResults",perImageResults)
+
+      // Dedupe across images by (sorted player names + score), preserving order.
+      const seen = new Set<string>();
+      const matches: any[] = [];
+      for (const imageMatches of perImageResults) {
+        for (const m of imageMatches) {
+          const fp = [...m.teamA, ...m.teamB].map((p: any) => p.name.toLowerCase()).sort().join("|") + `::${m.scoreA}-${m.scoreB}`;
+          if (!seen.has(fp)) {
+            seen.add(fp);
+            matches.push(m);
+          }
         }
-        return {
-          teamA: (m.teamA || []).slice(0, 2).map(cleanPlayer),
-          teamB: (m.teamB || []).slice(0, 2).map(cleanPlayer),
-          scoreA,
-          scoreB,
-          confidence: Math.min(1, Math.max(0, parseFloat(m.confidence) || 0.5)),
-        };
-      });
+      }
 
-      console.log(`[AI Match Extract] Final: extracted ${extractedMatches.length} unique matches from ${files.length} image(s)`);
-
-      res.json({ matches: extractedMatches });
+      res.json({ matches });
     } catch (err: any) {
       console.error("[AI Match Extract] Error:", err);
       res.status(500).json({ message: err.message || "Failed to extract matches from image" });

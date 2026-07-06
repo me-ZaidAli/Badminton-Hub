@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo, useRef, useEffect } from "react";
+import { useState, useCallback, useMemo, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { useUser } from "@/hooks/use-auth";
 import { useToast } from "@/hooks/use-toast";
@@ -8,13 +8,45 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+  DialogDescription,
+} from "@/components/ui/dialog";
 import { Separator } from "@/components/ui/separator";
 import {
-  Upload, ScanText, ChevronDown, ChevronRight, Check, AlertTriangle,
-  Pencil, Trash2, UserPlus, Link2, Loader2, Sparkles, ImageIcon,
-  X, Save, Users, Trophy, Calendar, CheckCircle2, Clock, Shield, Plus
+  Upload,
+  ScanText,
+  ChevronDown,
+  ChevronRight,
+  Check,
+  AlertTriangle,
+  Pencil,
+  Trash2,
+  UserPlus,
+  Link2,
+  Loader2,
+  Sparkles,
+  ImageIcon,
+  X,
+  Save,
+  Users,
+  Trophy,
+  Calendar,
+  CheckCircle2,
+  Clock,
+  Shield,
+  Plus,
 } from "lucide-react";
 import { motion, AnimatePresence } from "framer-motion";
 import { format } from "date-fns";
@@ -25,7 +57,6 @@ interface ExtractedPlayer {
   linkedProfileId: number | null;
   linkedUserId: number | null;
   linkedName: string | null;
-  confidence: number;
 }
 
 interface ExtractedMatch {
@@ -34,7 +65,6 @@ interface ExtractedMatch {
   teamB: ExtractedPlayer[];
   scoreA: number;
   scoreB: number;
-  confidence: number;
   expanded: boolean;
   confirmed: boolean;
   savedToDb: boolean;
@@ -49,21 +79,123 @@ interface PlayerSearchResult {
   profileId?: number;
 }
 
+/** Pure fuzzy-name scorer — shared by handleLinkAll and getSuggestionsForTeam. */
+function scorePlayerMatch(aiName: string, candidateName: string): number {
+  const a = aiName.toLowerCase().trim();
+  const b = (candidateName || "").toLowerCase().trim();
+  if (!b) return 0;
+  if (a === b) return 1.0;
+  const aParts = a.split(/\s+/).filter((s) => s.length > 0);
+  const bParts = b.split(/\s+/).filter((s) => s.length > 0);
+  let matchParts = 0;
+  for (const ap of aParts) {
+    for (const bp of bParts) {
+      if (ap === bp) {
+        matchParts++;
+        break;
+      }
+      if (
+        ap.length >= 3 &&
+        bp.length >= 3 &&
+        (bp.includes(ap) || ap.includes(bp))
+      ) {
+        matchParts++;
+        break;
+      }
+    }
+  }
+  return matchParts / Math.max(aParts.length, bParts.length);
+}
+
+/** Apply a player link across every matching slot in all matches. */
+function applyLinkToAllMatches(
+  prev: ExtractedMatch[],
+  aiName: string,
+  profile: { id: number; profileId?: number | null; fullName: string },
+  opts?: {
+    targetSlot?: {
+      matchId: string;
+      teamKey: "teamA" | "teamB";
+      playerIdx: number;
+    };
+    oldLinkedId?: number | null;
+    skipAlreadyLinked?: boolean;
+  },
+): ExtractedMatch[] {
+  return prev.map((m) => {
+    let changed = false;
+    const link = (p: ExtractedPlayer, isTarget: boolean) => {
+      if (opts?.skipAlreadyLinked && p.linkedUserId) return p;
+      const matches =
+        isTarget ||
+        p.name.toLowerCase().trim() === aiName ||
+        (!!opts?.oldLinkedId && p.linkedUserId === opts.oldLinkedId);
+      if (!matches || p.linkedUserId === profile.id) return p;
+      changed = true;
+      return {
+        ...p,
+        linkedUserId: profile.id,
+        linkedProfileId: profile.profileId ?? null,
+        linkedName: profile.fullName,
+      };
+    };
+    const ts = opts?.targetSlot;
+    const newTeamA = m.teamA.map((p, i) =>
+      link(
+        p,
+        !!ts &&
+          m.id === ts.matchId &&
+          ts.teamKey === "teamA" &&
+          i === ts.playerIdx,
+      ),
+    );
+    const newTeamB = m.teamB.map((p, i) =>
+      link(
+        p,
+        !!ts &&
+          m.id === ts.matchId &&
+          ts.teamKey === "teamB" &&
+          i === ts.playerIdx,
+      ),
+    );
+    return changed
+      ? { ...m, teamA: newTeamA, teamB: newTeamB, edited: true }
+      : m;
+  });
+}
+
 export default function AIMatchInput() {
   const { data: user } = useUser();
   const { toast } = useToast();
   const [, navigate] = useLocation();
 
-  const [pendingImages, setPendingImages] = useState<{ file: File; preview: string }[]>([]);
-  const [extractedMatches, setExtractedMatches] = useState<ExtractedMatch[]>([]);
+  const [pendingImages, setPendingImages] = useState<
+    { file: File; preview: string }[]
+  >([]);
+  const [extractedMatches, setExtractedMatches] = useState<ExtractedMatch[]>(
+    [],
+  );
   const [selectedSessionId, setSelectedSessionId] = useState<string>("");
   const [isExtracting, setIsExtracting] = useState(false);
   const [totalSavedCount, setTotalSavedCount] = useState(0);
-  const [linkDialog, setLinkDialog] = useState<{ matchId: string; teamKey: "teamA" | "teamB"; playerIdx: number } | null>(null);
-  const [createDialog, setCreateDialog] = useState<{ matchId: string; teamKey: "teamA" | "teamB"; playerIdx: number; name: string } | null>(null);
+  const [linkDialog, setLinkDialog] = useState<{
+    matchId: string;
+    teamKey: "teamA" | "teamB";
+    playerIdx: number;
+  } | null>(null);
+  const [createDialog, setCreateDialog] = useState<{
+    matchId: string;
+    teamKey: "teamA" | "teamB";
+    playerIdx: number;
+    name: string;
+  } | null>(null);
   const [playerSearch, setPlayerSearch] = useState("");
   const [newPlayerName, setNewPlayerName] = useState("");
-  const [lastSavedSession, setLastSavedSession] = useState<{ id: number; title: string; count: number } | null>(null);
+  const [lastSavedSession, setLastSavedSession] = useState<{
+    id: number;
+    title: string;
+    count: number;
+  } | null>(null);
   const [extractionProgress, setExtractionProgress] = useState("");
   const [showCreateSession, setShowCreateSession] = useState(false);
   const [newSessionTitle, setNewSessionTitle] = useState("");
@@ -79,11 +211,15 @@ export default function AIMatchInput() {
     queryKey: ["/api/clubs"],
   });
 
-  const { data: searchResults = [], isFetching: isSearching } = useQuery<PlayerSearchResult[]>({
+  const { data: searchResults = [], isFetching: isSearching } = useQuery<
+    PlayerSearchResult[]
+  >({
     queryKey: ["/api/admin/player-search", playerSearch],
     queryFn: async () => {
       if (playerSearch.length < 2) return [];
-      const res = await fetch(`/api/admin/player-search?q=${encodeURIComponent(playerSearch)}`);
+      const res = await fetch(
+        `/api/admin/player-search?q=${encodeURIComponent(playerSearch)}`,
+      );
       if (!res.ok) return [];
       return res.json();
     },
@@ -92,38 +228,53 @@ export default function AIMatchInput() {
 
   const allSessions = useMemo(() => {
     if (!sessions.length) return [];
-    return sessions
-      .sort((a: any, b: any) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    return sessions.sort(
+      (a: any, b: any) =>
+        new Date(b.date).getTime() - new Date(a.date).getTime(),
+    );
   }, [sessions]);
 
-  const handleImageSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(e.target.files || []);
-    if (files.length === 0) return;
-    const validFiles: { file: File; preview: string }[] = [];
-    let skipped = 0;
-    const readPromises = files.map((file) => {
-      if (!file.type.startsWith("image/")) { skipped++; return Promise.resolve(); }
-      if (file.size > 10 * 1024 * 1024) { skipped++; return Promise.resolve(); }
-      return new Promise<void>((resolve) => {
-        const reader = new FileReader();
-        reader.onload = (ev) => {
-          validFiles.push({ file, preview: ev.target?.result as string });
-          resolve();
-        };
-        reader.onerror = () => resolve();
-        reader.readAsDataURL(file);
+  const handleImageSelect = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      const files = Array.from(e.target.files || []);
+      if (files.length === 0) return;
+      const validFiles: { file: File; preview: string }[] = [];
+      let skipped = 0;
+      const readPromises = files.map((file) => {
+        if (!file.type.startsWith("image/")) {
+          skipped++;
+          return Promise.resolve();
+        }
+        if (file.size > 10 * 1024 * 1024) {
+          skipped++;
+          return Promise.resolve();
+        }
+        return new Promise<void>((resolve) => {
+          const reader = new FileReader();
+          reader.onload = (ev) => {
+            validFiles.push({ file, preview: ev.target?.result as string });
+            resolve();
+          };
+          reader.onerror = () => resolve();
+          reader.readAsDataURL(file);
+        });
       });
-    });
-    Promise.all(readPromises).then(() => {
-      if (validFiles.length > 0) {
-        setPendingImages((prev) => [...prev, ...validFiles]);
-      }
-      if (skipped > 0) {
-        toast({ title: "Some files skipped", description: `${skipped} file(s) were invalid or too large (max 10MB)`, variant: "destructive" });
-      }
-    });
-    if (e.target) e.target.value = "";
-  }, [toast]);
+      Promise.all(readPromises).then(() => {
+        if (validFiles.length > 0) {
+          setPendingImages((prev) => [...prev, ...validFiles]);
+        }
+        if (skipped > 0) {
+          toast({
+            title: "Some files skipped",
+            description: `${skipped} file(s) were invalid or too large (max 10MB)`,
+            variant: "destructive",
+          });
+        }
+      });
+      if (e.target) e.target.value = "";
+    },
+    [toast],
+  );
 
   const handleExtract = useCallback(async () => {
     if (pendingImages.length === 0) return;
@@ -132,7 +283,9 @@ export default function AIMatchInput() {
     const timestamp = Date.now();
     const totalImages = pendingImages.length;
     try {
-      setExtractionProgress(`Sending ${totalImages} image${totalImages > 1 ? "s" : ""} to AI for extraction...`);
+      setExtractionProgress(
+        `Sending ${totalImages} image${totalImages > 1 ? "s" : ""} to AI for extraction...`,
+      );
       const formData = new FormData();
       for (const img of pendingImages) {
         formData.append("images", img.file);
@@ -143,45 +296,62 @@ export default function AIMatchInput() {
       });
       if (!res.ok) {
         let errMsg = "Extraction failed";
-        try { const err = await res.json(); errMsg = err.message || errMsg; } catch {}
-        toast({ title: "Extraction failed", description: errMsg, variant: "destructive" });
+        try {
+          const err = await res.json();
+          errMsg = err.message || errMsg;
+        } catch {}
+        toast({
+          title: "Extraction failed",
+          description: errMsg,
+          variant: "destructive",
+        });
         return;
       }
       const data = await res.json();
-      const parsed: ExtractedMatch[] = (data.matches || []).map((m: any, i: number) => ({
-        id: `ai-match-${timestamp}-0-${i}`,
-        teamA: (m.teamA || []).map((p: any) => ({
-          name: p.name || "Unknown",
-          linkedProfileId: p.linkedProfileId || null,
-          linkedUserId: p.linkedUserId || null,
-          linkedName: p.linkedName || null,
-          confidence: p.confidence ?? 0.5,
-        })),
-        teamB: (m.teamB || []).map((p: any) => ({
-          name: p.name || "Unknown",
-          linkedProfileId: p.linkedProfileId || null,
-          linkedUserId: p.linkedUserId || null,
-          linkedName: p.linkedName || null,
-          confidence: p.confidence ?? 0.5,
-        })),
-        scoreA: m.scoreA ?? 0,
-        scoreB: m.scoreB ?? 0,
-        confidence: m.confidence ?? 0.5,
-        expanded: true,
-        confirmed: false,
-        savedToDb: false,
-        edited: false,
-      }));
+      const parsed: ExtractedMatch[] = (data.matches || []).map(
+        (m: any, i: number) => ({
+          id: `ai-match-${timestamp}-0-${i}`,
+          teamA: (m.teamA || []).map((p: any) => ({
+            name: p.name || "Unknown",
+            linkedProfileId: p.linkedProfileId || null,
+            linkedUserId: p.linkedUserId || null,
+            linkedName: p.linkedName || null,
+          })),
+          teamB: (m.teamB || []).map((p: any) => ({
+            name: p.name || "Unknown",
+            linkedProfileId: p.linkedProfileId || null,
+            linkedUserId: p.linkedUserId || null,
+            linkedName: p.linkedName || null,
+          })),
+          scoreA: m.scoreA ?? 0,
+          scoreB: m.scoreB ?? 0,
+          expanded: true,
+          confirmed: false,
+          savedToDb: false,
+          edited: false,
+        }),
+      );
       setPendingImages([]);
       setExtractionProgress("");
       if (parsed.length > 0) {
         setExtractedMatches((prev) => [...prev, ...parsed]);
-        toast({ title: "Extraction Complete", description: `Found ${parsed.length} match(es) from ${totalImages} image(s)` });
+        toast({
+          title: "Extraction Complete",
+          description: `Found ${parsed.length} match(es) from ${totalImages} image(s)`,
+        });
       } else {
-        toast({ title: "No Matches Found", description: "Could not extract any matches from the uploaded images", variant: "destructive" });
+        toast({
+          title: "No Matches Found",
+          description: "Could not extract any matches from the uploaded images",
+          variant: "destructive",
+        });
       }
     } catch (err: any) {
-      toast({ title: "Extraction Failed", description: err.message, variant: "destructive" });
+      toast({
+        title: "Extraction Failed",
+        description: err.message,
+        variant: "destructive",
+      });
     } finally {
       setIsExtracting(false);
       setExtractionProgress("");
@@ -190,13 +360,19 @@ export default function AIMatchInput() {
 
   const toggleMatchExpand = (matchId: string) => {
     setExtractedMatches((prev) =>
-      prev.map((m) => (m.id === matchId ? { ...m, expanded: !m.expanded } : m))
+      prev.map((m) => (m.id === matchId ? { ...m, expanded: !m.expanded } : m)),
     );
   };
 
-  const updateMatchScore = (matchId: string, field: "scoreA" | "scoreB", value: number) => {
+  const updateMatchScore = (
+    matchId: string,
+    field: "scoreA" | "scoreB",
+    value: number,
+  ) => {
     setExtractedMatches((prev) =>
-      prev.map((m) => (m.id === matchId ? { ...m, [field]: value, edited: true } : m))
+      prev.map((m) =>
+        m.id === matchId ? { ...m, [field]: value, edited: true } : m,
+      ),
     );
   };
 
@@ -204,36 +380,32 @@ export default function AIMatchInput() {
     setExtractedMatches((prev) => prev.filter((m) => m.id !== matchId));
   };
 
-  const linkPlayerToProfile = (matchId: string, teamKey: "teamA" | "teamB", playerIdx: number, profile: PlayerSearchResult) => {
-    const sourceMatch = extractedMatches.find(m => m.id === matchId);
-    const sourcePlayer = sourceMatch?.[teamKey]?.[playerIdx];
+  const linkPlayerToProfile = (
+    matchId: string,
+    teamKey: "teamA" | "teamB",
+    playerIdx: number,
+    profile: PlayerSearchResult,
+  ) => {
+    const sourcePlayer = extractedMatches.find((m) => m.id === matchId)?.[
+      teamKey
+    ]?.[playerIdx];
     const aiName = sourcePlayer?.name?.toLowerCase().trim() || "";
     const oldLinkedId = sourcePlayer?.linkedUserId || null;
-
     setExtractedMatches((prev) =>
-      prev.map((m) => {
-        let changed = false;
-        const updatePlayer = (p: ExtractedPlayer, isTargetSlot: boolean) => {
-          const nameMatch = p.name.toLowerCase().trim() === aiName;
-          const linkedIdMatch = oldLinkedId && p.linkedUserId === oldLinkedId;
-          if (isTargetSlot || nameMatch || linkedIdMatch) {
-            if (p.linkedUserId === profile.id) return p;
-            changed = true;
-            return { ...p, linkedUserId: profile.id, linkedProfileId: profile.profileId || null, linkedName: profile.fullName, confidence: 1.0 };
-          }
-          return p;
-        };
-        const newTeamA = m.teamA.map((p, i) => updatePlayer(p, m.id === matchId && teamKey === "teamA" && i === playerIdx));
-        const newTeamB = m.teamB.map((p, i) => updatePlayer(p, m.id === matchId && teamKey === "teamB" && i === playerIdx));
-        if (!changed) return m;
-        return { ...m, teamA: newTeamA, teamB: newTeamB, edited: true };
-      })
+      applyLinkToAllMatches(prev, aiName, profile, {
+        targetSlot: { matchId, teamKey, playerIdx },
+        oldLinkedId,
+      }),
     );
     setLinkDialog(null);
     setPlayerSearch("");
   };
 
-  const unlinkPlayer = (matchId: string, teamKey: "teamA" | "teamB", playerIdx: number) => {
+  const unlinkPlayer = (
+    matchId: string,
+    teamKey: "teamA" | "teamB",
+    playerIdx: number,
+  ) => {
     setExtractedMatches((prev) =>
       prev.map((m) => {
         if (m.id !== matchId) return m;
@@ -243,14 +415,18 @@ export default function AIMatchInput() {
           linkedUserId: null,
           linkedProfileId: null,
           linkedName: null,
-          confidence: team[playerIdx].confidence,
         };
         return { ...m, [teamKey]: team, edited: true };
-      })
+      }),
     );
   };
 
-  const openCreateDialog = (matchId: string, teamKey: "teamA" | "teamB", playerIdx: number, name: string) => {
+  const openCreateDialog = (
+    matchId: string,
+    teamKey: "teamA" | "teamB",
+    playerIdx: number,
+    name: string,
+  ) => {
     setCreateDialog({ matchId, teamKey, playerIdx, name });
     setNewPlayerName(name);
     setLinkDialog(null);
@@ -258,83 +434,87 @@ export default function AIMatchInput() {
 
   const createPlayerMutation = useMutation({
     mutationFn: async (data: { fullName: string }) => {
-      const res = await apiRequest("POST", "/api/admin/ai-match-quick-create-player", data);
+      const res = await apiRequest(
+        "POST",
+        "/api/admin/ai-match-quick-create-player",
+        data,
+      );
       return res.json();
     },
     onSuccess: (newUser, _vars) => {
       if (createDialog) {
-        const sourceMatch = extractedMatches.find(m => m.id === createDialog.matchId);
-        const sourcePlayer = sourceMatch?.[createDialog.teamKey]?.[createDialog.playerIdx];
+        const sourcePlayer = extractedMatches.find(
+          (m) => m.id === createDialog.matchId,
+        )?.[createDialog.teamKey]?.[createDialog.playerIdx];
         const aiName = sourcePlayer?.name?.toLowerCase().trim() || "";
-
         setExtractedMatches((prev) =>
-          prev.map((m) => {
-            let changed = false;
-            const newTeamA = m.teamA.map((p) => {
-              if (p.linkedUserId) return p;
-              if (p.name.toLowerCase().trim() === aiName) {
-                changed = true;
-                return { ...p, linkedUserId: newUser.id, linkedProfileId: newUser.profileId || null, linkedName: newUser.fullName, confidence: 1.0 };
-              }
-              return p;
-            });
-            const newTeamB = m.teamB.map((p) => {
-              if (p.linkedUserId) return p;
-              if (p.name.toLowerCase().trim() === aiName) {
-                changed = true;
-                return { ...p, linkedUserId: newUser.id, linkedProfileId: newUser.profileId || null, linkedName: newUser.fullName, confidence: 1.0 };
-              }
-              return p;
-            });
-            if (!changed) return m;
-            return { ...m, teamA: newTeamA, teamB: newTeamB, edited: true };
-          })
+          applyLinkToAllMatches(prev, aiName, newUser, {
+            skipAlreadyLinked: true,
+          }),
         );
-        const count = extractedMatches.reduce((c, m) => {
-          return c + [...m.teamA, ...m.teamB].filter(p => !p.linkedUserId && p.name.toLowerCase().trim() === aiName).length;
-        }, 0);
-        toast({ title: "Player Created", description: `${newUser.fullName} linked in ${count} place(s)` });
+        toast({
+          title: "Player Created",
+          description: `${newUser.fullName} linked across all matches`,
+        });
       }
       setCreateDialog(null);
       setNewPlayerName("");
     },
     onError: (err: any) => {
-      toast({ title: "Failed to create player", description: err.message, variant: "destructive" });
+      toast({
+        title: "Failed to create player",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
-  const validateBadmintonScore = useCallback((scoreA: number, scoreB: number): string | null => {
-    if (scoreA < 0 || scoreB < 0) return "Scores cannot be negative";
-    if (scoreA === 0 && scoreB === 0) return "Both scores are 0";
-    const high = Math.max(scoreA, scoreB);
-    const low = Math.min(scoreA, scoreB);
-    if (high < 21) return null;
-    if (high === 21 && low <= 19) return null;
-    if (high > 21 && high <= 30 && (high - low) === 2) return null;
-    if (high === 30 && low === 29) return null;
-    if (high > 30) return `Score ${high} exceeds maximum 30`;
-    if (high === 21 && low === 20) return "At 20-all, winner must lead by 2 (e.g. 22-20)";
-    if (high > 21 && (high - low) !== 2) return `Deuce rule: winner must be exactly 2 ahead (${high}-${high-2} or ${low+2}-${low})`;
-    return `Invalid score: ${scoreA}-${scoreB}`;
-  }, []);
+  const validateBadmintonScore = useCallback(
+    (scoreA: number, scoreB: number): string | null => {
+      if (scoreA < 0 || scoreB < 0) return "Scores cannot be negative";
+      if (scoreA === 0 && scoreB === 0) return "Both scores are 0";
+      const high = Math.max(scoreA, scoreB);
+      const low = Math.min(scoreA, scoreB);
+      if (high < 21) return null;
+      if (high === 21 && low <= 19) return null;
+      if (high > 21 && high <= 30 && high - low === 2) return null;
+      if (high === 30 && low === 29) return null;
+      if (high > 30) return `Score ${high} exceeds maximum 30`;
+      if (high === 21 && low === 20)
+        return "At 20-all, winner must lead by 2 (e.g. 22-20)";
+      if (high > 21 && high - low !== 2)
+        return `Deuce rule: winner must be exactly 2 ahead (${high}-${high - 2} or ${low + 2}-${low})`;
+      return `Invalid score: ${scoreA}-${scoreB}`;
+    },
+    [],
+  );
 
   const getMatchValidation = useCallback(
     (match: ExtractedMatch) => {
       const errors: string[] = [];
       if (!selectedSessionId) errors.push("No session selected");
       const allPlayers = [...match.teamA, ...match.teamB];
-      const unlinked = allPlayers.filter((p) => !p.linkedProfileId && !p.linkedUserId);
-      if (unlinked.length > 0) errors.push(`${unlinked.length} unlinked player(s)`);
+      const unlinked = allPlayers.filter(
+        (p) => !p.linkedProfileId && !p.linkedUserId,
+      );
+      if (unlinked.length > 0)
+        errors.push(`${unlinked.length} unlinked player(s)`);
       const scoreErr = validateBadmintonScore(match.scoreA, match.scoreB);
       if (scoreErr) errors.push(scoreErr);
       return errors;
     },
-    [selectedSessionId]
+    [selectedSessionId],
   );
 
-  const unsavedMatches = useMemo(() => extractedMatches.filter((m) => !m.savedToDb), [extractedMatches]);
+  const unsavedMatches = useMemo(
+    () => extractedMatches.filter((m) => !m.savedToDb),
+    [extractedMatches],
+  );
 
-  const confirmedUnsaved = useMemo(() => extractedMatches.filter(m => !m.savedToDb && m.confirmed), [extractedMatches]);
+  const confirmedUnsaved = useMemo(
+    () => extractedMatches.filter((m) => !m.savedToDb && m.confirmed),
+    [extractedMatches],
+  );
   const canSaveUnsaved = useMemo(() => {
     if (!selectedSessionId || confirmedUnsaved.length === 0) return false;
     return confirmedUnsaved.every((m) => getMatchValidation(m).length === 0);
@@ -342,7 +522,8 @@ export default function AIMatchInput() {
 
   const createSessionMutation = useMutation({
     mutationFn: async () => {
-      if (!newSessionTitle.trim() || !newSessionDate || !newSessionClubId) throw new Error("All fields required");
+      if (!newSessionTitle.trim() || !newSessionDate || !newSessionClubId)
+        throw new Error("All fields required");
       const res = await apiRequest("POST", "/api/sessions", {
         title: newSessionTitle.trim(),
         date: new Date(newSessionDate).toISOString(),
@@ -358,10 +539,17 @@ export default function AIMatchInput() {
       setNewSessionDate("");
       setNewSessionClubId("");
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
-      toast({ title: "Session Created", description: `"${data.title}" is ready for match import` });
+      toast({
+        title: "Session Created",
+        description: `"${data.title}" is ready for match import`,
+      });
     },
     onError: (err: any) => {
-      toast({ title: "Failed to Create Session", description: err.message, variant: "destructive" });
+      toast({
+        title: "Failed to Create Session",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -377,7 +565,9 @@ export default function AIMatchInput() {
         scoreB: m.scoreB,
         edited: m.edited,
       }));
-      const res = await apiRequest("POST", "/api/admin/ai-match-save", { matches: payload });
+      const res = await apiRequest("POST", "/api/admin/ai-match-save", {
+        matches: payload,
+      });
       return res.json();
     },
     onSuccess: (data, savedMatches) => {
@@ -385,14 +575,29 @@ export default function AIMatchInput() {
       const savedSid = data.sessionId;
       setTotalSavedCount((prev) => prev + newSaved);
       const savedIds = new Set(savedMatches.map((m) => m.id));
-      setExtractedMatches((prev) => prev.map((m) => savedIds.has(m.id) ? { ...m, confirmed: true, savedToDb: true } : m));
-      const sessionTitle = allSessions.find((s: any) => String(s.id) === selectedSessionId)?.title || `Session #${savedSid}`;
-      setLastSavedSession({ id: savedSid, title: sessionTitle, count: newSaved });
+      setExtractedMatches((prev) =>
+        prev.map((m) =>
+          savedIds.has(m.id) ? { ...m, confirmed: true, savedToDb: true } : m,
+        ),
+      );
+      const sessionTitle =
+        allSessions.find((s: any) => String(s.id) === selectedSessionId)
+          ?.title || `Session #${savedSid}`;
+      setLastSavedSession({
+        id: savedSid,
+        title: sessionTitle,
+        count: newSaved,
+      });
       toast({
         title: `${newSaved} Match(es) Saved`,
         description: `Added to "${sessionTitle}". Tap "View Session" to see them.`,
         action: (
-          <Button size="sm" variant="outline" onClick={() => navigate(`/sessions/${savedSid}`)} data-testid="button-view-saved-session">
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => navigate(`/sessions/${savedSid}`)}
+            data-testid="button-view-saved-session"
+          >
             View Session
           </Button>
         ),
@@ -400,12 +605,24 @@ export default function AIMatchInput() {
       });
       queryClient.invalidateQueries({ queryKey: ["/api/sessions"] });
       if (selectedSessionId) {
-        queryClient.invalidateQueries({ queryKey: ["/api/sessions", parseInt(selectedSessionId), "matches"] });
-        queryClient.invalidateQueries({ queryKey: ["/api/sessions", parseInt(selectedSessionId), "leaderboard"] });
+        queryClient.invalidateQueries({
+          queryKey: ["/api/sessions", parseInt(selectedSessionId), "matches"],
+        });
+        queryClient.invalidateQueries({
+          queryKey: [
+            "/api/sessions",
+            parseInt(selectedSessionId),
+            "leaderboard",
+          ],
+        });
       }
     },
     onError: (err: any) => {
-      toast({ title: "Save Failed", description: err.message, variant: "destructive" });
+      toast({
+        title: "Save Failed",
+        description: err.message,
+        variant: "destructive",
+      });
     },
   });
 
@@ -414,17 +631,21 @@ export default function AIMatchInput() {
     if (!match) return;
     const errors = getMatchValidation(match);
     if (errors.length > 0) {
-      toast({ title: "Cannot confirm", description: errors.join(", "), variant: "destructive" });
+      toast({
+        title: "Cannot confirm",
+        description: errors.join(", "),
+        variant: "destructive",
+      });
       return;
     }
     setExtractedMatches((prev) =>
-      prev.map((m) => (m.id === matchId ? { ...m, confirmed: true } : m))
+      prev.map((m) => (m.id === matchId ? { ...m, confirmed: true } : m)),
     );
   };
 
   const unconfirmMatch = (matchId: string) => {
     setExtractedMatches((prev) =>
-      prev.map((m) => (m.id === matchId ? { ...m, confirmed: false } : m))
+      prev.map((m) => (m.id === matchId ? { ...m, confirmed: false } : m)),
     );
   };
 
@@ -435,26 +656,49 @@ export default function AIMatchInput() {
       prev.map((m) => {
         if (m.confirmed) return m;
         const errors = getMatchValidation(m);
-        if (errors.length > 0) { failedCount++; return m; }
+        if (errors.length > 0) {
+          failedCount++;
+          return m;
+        }
         confirmedCount++;
         return { ...m, confirmed: true };
-      })
+      }),
     );
     if (confirmedCount > 0) {
-      toast({ title: `${confirmedCount} match(es) confirmed`, description: failedCount > 0 ? `${failedCount} skipped due to issues` : undefined });
+      toast({
+        title: `${confirmedCount} match(es) confirmed`,
+        description:
+          failedCount > 0 ? `${failedCount} skipped due to issues` : undefined,
+      });
     } else if (failedCount > 0) {
-      toast({ title: "No matches confirmed", description: `${failedCount} match(es) have issues that need fixing first`, variant: "destructive" });
+      toast({
+        title: "No matches confirmed",
+        description: `${failedCount} match(es) have issues that need fixing first`,
+        variant: "destructive",
+      });
     }
   };
 
   const handleSaveAll = () => {
-    const toSave = extractedMatches.filter((m) => !m.savedToDb && m.confirmed && getMatchValidation(m).length === 0);
+    const toSave = extractedMatches.filter(
+      (m) => !m.savedToDb && m.confirmed && getMatchValidation(m).length === 0,
+    );
     if (toSave.length === 0) {
-      const unconfirmed = extractedMatches.filter(m => !m.savedToDb && !m.confirmed);
+      const unconfirmed = extractedMatches.filter(
+        (m) => !m.savedToDb && !m.confirmed,
+      );
       if (unconfirmed.length > 0) {
-        toast({ title: "Nothing to save", description: `${unconfirmed.length} match(es) need confirming first`, variant: "destructive" });
+        toast({
+          title: "Nothing to save",
+          description: `${unconfirmed.length} match(es) need confirming first`,
+          variant: "destructive",
+        });
       } else {
-        toast({ title: "Nothing to save", description: "No matches ready to save", variant: "destructive" });
+        toast({
+          title: "Nothing to save",
+          description: "No matches ready to save",
+          variant: "destructive",
+        });
       }
       return;
     }
@@ -463,7 +707,9 @@ export default function AIMatchInput() {
 
   const hasUnlinkedPlayers = useMemo(() => {
     return extractedMatches.some((m) =>
-      [...m.teamA, ...m.teamB].some((p) => !p.linkedProfileId && !p.linkedUserId)
+      [...m.teamA, ...m.teamB].some(
+        (p) => !p.linkedProfileId && !p.linkedUserId,
+      ),
     );
   }, [extractedMatches]);
 
@@ -473,7 +719,9 @@ export default function AIMatchInput() {
     if (!selectedSessionId || extractedMatches.length === 0) return;
     setIsLinking(true);
     try {
-      const res = await fetch(`/api/admin/player-search?q=*&sessionId=${selectedSessionId}&limit=500`);
+      const res = await fetch(
+        `/api/admin/player-search?q=*&sessionId=${selectedSessionId}&limit=500`,
+      );
       let allPlayers: PlayerSearchResult[] = [];
       if (res.ok) {
         allPlayers = await res.json();
@@ -483,7 +731,11 @@ export default function AIMatchInput() {
         if (res2.ok) allPlayers = await res2.json();
       }
       if (allPlayers.length === 0) {
-        toast({ title: "No players found", description: "Could not find any players to match against", variant: "destructive" });
+        toast({
+          title: "No players found",
+          description: "Could not find any players to match against",
+          variant: "destructive",
+        });
         return;
       }
 
@@ -491,31 +743,28 @@ export default function AIMatchInput() {
         prev.map((match) => {
           const usedIds = new Set<number>();
           const allSlots = [
-            ...match.teamA.map((p, i) => ({ team: "teamA" as const, idx: i, player: p })),
-            ...match.teamB.map((p, i) => ({ team: "teamB" as const, idx: i, player: p })),
+            ...match.teamA.map((p, i) => ({
+              team: "teamA" as const,
+              idx: i,
+              player: p,
+            })),
+            ...match.teamB.map((p, i) => ({
+              team: "teamB" as const,
+              idx: i,
+              player: p,
+            })),
           ];
 
           const slotCandidates = allSlots.map((slot) => {
             if (slot.player.linkedUserId) return { ...slot, candidates: [] };
             const pName = slot.player.name.toLowerCase().trim();
-            const candidates: { user: PlayerSearchResult; score: number }[] = [];
-            for (const u of allPlayers) {
-              const uName = (u.fullName || "").toLowerCase().trim();
-              if (!uName) continue;
-              if (uName === pName) { candidates.push({ user: u, score: 1.0 }); continue; }
-              const pParts = pName.split(/\s+/).filter((s) => s.length > 0);
-              const uParts = uName.split(/\s+/).filter((s) => s.length > 0);
-              let matchParts = 0;
-              for (const pp of pParts) {
-                for (const up of uParts) {
-                  if (pp === up) { matchParts++; break; }
-                  if (pp.length >= 3 && up.length >= 3 && (up.includes(pp) || pp.includes(up))) { matchParts++; break; }
-                }
-              }
-              const score = matchParts / Math.max(pParts.length, uParts.length);
-              if (score >= 0.5) candidates.push({ user: u, score });
-            }
-            candidates.sort((a, b) => b.score - a.score);
+            const candidates = allPlayers
+              .map((u) => ({
+                user: u,
+                score: scorePlayerMatch(pName, u.fullName || ""),
+              }))
+              .filter((c) => c.score >= 0.5)
+              .sort((a, b) => b.score - a.score);
             return { ...slot, candidates };
           });
 
@@ -541,7 +790,6 @@ export default function AIMatchInput() {
                 linkedUserId: cand.user.id,
                 linkedProfileId: cand.user.profileId || null,
                 linkedName: cand.user.fullName,
-                confidence: cand.score,
               };
               if (sc.team === "teamA") newTeamA[sc.idx] = updated;
               else newTeamB[sc.idx] = updated;
@@ -550,23 +798,31 @@ export default function AIMatchInput() {
           }
 
           return { ...match, teamA: newTeamA, teamB: newTeamB, edited: true };
-        })
+        }),
       );
 
-      toast({ title: "Linking Complete", description: "Matched player names to existing profiles. Review any unlinked players." });
+      toast({
+        title: "Linking Complete",
+        description:
+          "Matched player names to existing profiles. Review any unlinked players.",
+      });
     } catch (err: any) {
-      toast({ title: "Linking Failed", description: err.message, variant: "destructive" });
+      toast({
+        title: "Linking Failed",
+        description: err.message,
+        variant: "destructive",
+      });
     } finally {
       setIsLinking(false);
     }
   }, [selectedSessionId, extractedMatches, toast]);
 
-  const [allPlayersCache, setAllPlayersCache] = useState<PlayerSearchResult[]>([]);
-
   const { data: sessionPlayers = [] } = useQuery<PlayerSearchResult[]>({
     queryKey: ["/api/admin/player-search", "*", selectedSessionId],
     queryFn: async () => {
-      const res = await fetch(`/api/admin/player-search?q=*&sessionId=${selectedSessionId}&limit=500`);
+      const res = await fetch(
+        `/api/admin/player-search?q=*&sessionId=${selectedSessionId}&limit=500`,
+      );
       if (!res.ok) {
         const res2 = await fetch(`/api/admin/player-search?q=*&limit=500`);
         if (!res2.ok) return [];
@@ -577,86 +833,116 @@ export default function AIMatchInput() {
     enabled: !!selectedSessionId,
   });
 
-  useEffect(() => {
-    if (sessionPlayers.length > 0) setAllPlayersCache(sessionPlayers);
-  }, [sessionPlayers]);
-
-  const getSuggestionsForTeam = useCallback((players: ExtractedPlayer[]): Map<number, { fullName: string; score: number; userId: number; profileId: number | null }> => {
-    const result = new Map<number, { fullName: string; score: number; userId: number; profileId: number | null }>();
-    if (allPlayersCache.length === 0) return result;
-    players.forEach((player, idx) => {
-      const pName = player.name.toLowerCase().trim();
-      let best: { user: PlayerSearchResult; score: number } | null = null;
-      for (const u of allPlayersCache) {
-        const uName = (u.fullName || "").toLowerCase().trim();
-        if (!uName) continue;
-        if (uName === pName) { best = { user: u, score: 1.0 }; break; }
-        const pParts = pName.split(/\s+/).filter(s => s.length > 0);
-        const uParts = uName.split(/\s+/).filter(s => s.length > 0);
-        let matchParts = 0;
-        for (const pp of pParts) {
-          for (const up of uParts) {
-            if (pp === up) { matchParts++; break; }
-            if (pp.length >= 3 && up.length >= 3 && (up.includes(pp) || pp.includes(up))) { matchParts++; break; }
+  const getSuggestionsForTeam = useCallback(
+    (
+      players: ExtractedPlayer[],
+    ): Map<
+      number,
+      {
+        fullName: string;
+        score: number;
+        userId: number;
+        profileId: number | null;
+      }
+    > => {
+      const result = new Map<
+        number,
+        {
+          fullName: string;
+          score: number;
+          userId: number;
+          profileId: number | null;
+        }
+      >();
+      if (sessionPlayers.length === 0) return result;
+      players.forEach((player, idx) => {
+        const pName = player.name.toLowerCase().trim();
+        let best: { user: PlayerSearchResult; score: number } | null = null;
+        for (const u of sessionPlayers) {
+          const score = scorePlayerMatch(pName, u.fullName || "");
+          if (score === 1.0) {
+            best = { user: u, score };
+            break;
           }
+          if (score >= 0.5 && (!best || score > best.score))
+            best = { user: u, score };
         }
-        const score = matchParts / Math.max(pParts.length, uParts.length);
-        if (score >= 0.5 && (!best || score > best.score)) {
-          best = { user: u, score };
+        if (best && best.user.id !== player.linkedUserId) {
+          result.set(idx, {
+            fullName: best.user.fullName,
+            score: best.score,
+            userId: best.user.id,
+            profileId: best.user.profileId || null,
+          });
         }
-      }
-      if (best && best.user.id !== player.linkedUserId) {
-        result.set(idx, { fullName: best.user.fullName, score: best.score, userId: best.user.id, profileId: best.user.profileId || null });
-      }
-    });
-    return result;
-  }, [allPlayersCache]);
+      });
+      return result;
+    },
+    [sessionPlayers],
+  );
 
-  const handleAcceptSuggestion = useCallback((matchId: string, teamKey: "teamA" | "teamB", playerIdx: number) => {
-    const match = extractedMatches.find(m => m.id === matchId);
-    if (!match) return;
-    const suggestions = getSuggestionsForTeam(match[teamKey]);
-    const sug = suggestions.get(playerIdx);
-    if (!sug) return;
-    linkPlayerToProfile(matchId, teamKey, playerIdx, { id: sug.userId, fullName: sug.fullName, email: "", profileId: sug.profileId ?? undefined });
-  }, [extractedMatches, getSuggestionsForTeam, linkPlayerToProfile]);
-
-  const confidenceColor = (c: number) => {
-    if (c >= 0.8) return "text-emerald-600 dark:text-emerald-400";
-    if (c >= 0.5) return "text-amber-600 dark:text-amber-400";
-    return "text-red-600 dark:text-red-400";
-  };
-
-  const confidenceBg = (c: number) => {
-    if (c >= 0.8) return "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30";
-    if (c >= 0.5) return "bg-amber-50 dark:bg-amber-500/10 border-amber-200 dark:border-amber-500/30";
-    return "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30";
-  };
+  const handleAcceptSuggestion = useCallback(
+    (matchId: string, teamKey: "teamA" | "teamB", playerIdx: number) => {
+      const match = extractedMatches.find((m) => m.id === matchId);
+      if (!match) return;
+      const suggestions = getSuggestionsForTeam(match[teamKey]);
+      const sug = suggestions.get(playerIdx);
+      if (!sug) return;
+      linkPlayerToProfile(matchId, teamKey, playerIdx, {
+        id: sug.userId,
+        fullName: sug.fullName,
+        email: "",
+        profileId: sug.profileId ?? undefined,
+      });
+    },
+    [extractedMatches, getSuggestionsForTeam, linkPlayerToProfile],
+  );
 
   if (!user) return null;
 
   return (
-    <div className="max-w-4xl mx-auto p-4 space-y-6" data-testid="ai-match-input-page">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center gap-3">
+    <div
+      className="max-w-4xl mx-auto p-4 space-y-6"
+      data-testid="ai-match-input-page"
+    >
+      <motion.div
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center gap-3"
+      >
         <div className="p-2.5 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 text-white shadow-lg">
           <ScanText className="w-6 h-6" />
         </div>
         <div>
-          <h1 className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent" data-testid="text-page-title">
+          <h1
+            className="text-2xl font-bold bg-gradient-to-r from-violet-600 to-purple-600 bg-clip-text text-transparent"
+            data-testid="text-page-title"
+          >
             AI Match Input
           </h1>
-          <p className="text-sm text-muted-foreground">Upload score sheets and let AI extract match data</p>
+          <p className="text-sm text-muted-foreground">
+            Upload score sheets and let AI extract match data
+          </p>
         </div>
       </motion.div>
 
-      <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.1 }}>
-        <Card className="border-dashed border-2 hover:border-violet-400 dark:hover:border-violet-500 transition-colors" data-testid="card-image-upload">
+      <motion.div
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.1 }}
+      >
+        <Card
+          className="border-dashed border-2 hover:border-violet-400 dark:hover:border-violet-500 transition-colors"
+          data-testid="card-image-upload"
+        >
           <CardContent className="p-6">
             <div className="flex flex-col gap-4">
               {pendingImages.length > 0 && (
                 <div className="space-y-3">
                   <div className="flex items-center justify-between">
-                    <Label className="text-sm font-medium">{pendingImages.length} image(s) ready to extract</Label>
+                    <Label className="text-sm font-medium">
+                      {pendingImages.length} image(s) ready to extract
+                    </Label>
                     <Button
                       variant="ghost"
                       size="sm"
@@ -680,7 +966,11 @@ export default function AIMatchInput() {
                           variant="ghost"
                           size="icon"
                           className="absolute -top-1.5 -right-1.5 bg-black/60 text-white hover:bg-black/80 rounded-full h-5 w-5 opacity-0 group-hover:opacity-100 transition-opacity"
-                          onClick={() => setPendingImages((prev) => prev.filter((_, idx) => idx !== i))}
+                          onClick={() =>
+                            setPendingImages((prev) =>
+                              prev.filter((_, idx) => idx !== i),
+                            )
+                          }
                           data-testid={`button-remove-image-${i}`}
                         >
                           <X className="w-3 h-3" />
@@ -708,7 +998,10 @@ export default function AIMatchInput() {
                   </div>
                   <div className="text-center">
                     <p className="font-medium">Click to upload score sheets</p>
-                    <p className="text-xs text-muted-foreground mt-1">Score sheets, whiteboards, screenshots - PNG, JPG up to 10MB each. Select multiple files.</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Score sheets, whiteboards, screenshots - PNG, JPG up to
+                      10MB each. Select multiple files.
+                    </p>
                   </div>
                 </div>
               )}
@@ -729,14 +1022,25 @@ export default function AIMatchInput() {
                   data-testid="button-extract"
                 >
                   {isExtracting ? (
-                    <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Extracting from {pendingImages.length} image(s)...</>
+                    <>
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />{" "}
+                      Extracting from {pendingImages.length} image(s)...
+                    </>
                   ) : (
-                    <><Sparkles className="w-4 h-4 mr-2" /> Extract Matches from {pendingImages.length} Image(s)</>
+                    <>
+                      <Sparkles className="w-4 h-4 mr-2" /> Extract Matches from{" "}
+                      {pendingImages.length} Image(s)
+                    </>
                   )}
                 </Button>
               )}
               {isExtracting && extractionProgress && (
-                <p className="text-sm text-muted-foreground text-center animate-pulse" data-testid="text-extraction-progress">{extractionProgress}</p>
+                <p
+                  className="text-sm text-muted-foreground text-center animate-pulse"
+                  data-testid="text-extraction-progress"
+                >
+                  {extractionProgress}
+                </p>
               )}
             </div>
           </CardContent>
@@ -744,14 +1048,29 @@ export default function AIMatchInput() {
       </motion.div>
 
       {lastSavedSession && (
-        <motion.div initial={{ opacity: 0, scale: 0.95 }} animate={{ opacity: 1, scale: 1 }}>
-          <div className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30" data-testid="banner-save-success">
+        <motion.div
+          initial={{ opacity: 0, scale: 0.95 }}
+          animate={{ opacity: 1, scale: 1 }}
+        >
+          <div
+            className="flex items-center gap-3 p-4 rounded-xl bg-emerald-50 dark:bg-emerald-500/10 border border-emerald-200 dark:border-emerald-500/30"
+            data-testid="banner-save-success"
+          >
             <CheckCircle2 className="w-6 h-6 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">{lastSavedSession.count} match(es) saved successfully</p>
-              <p className="text-xs text-emerald-600 dark:text-emerald-400 truncate">Added to: {lastSavedSession.title}</p>
+              <p className="text-sm font-semibold text-emerald-800 dark:text-emerald-300">
+                {lastSavedSession.count} match(es) saved successfully
+              </p>
+              <p className="text-xs text-emerald-600 dark:text-emerald-400 truncate">
+                Added to: {lastSavedSession.title}
+              </p>
             </div>
-            <Button size="sm" onClick={() => navigate(`/sessions/${lastSavedSession.id}`)} className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0" data-testid="button-go-to-session">
+            <Button
+              size="sm"
+              onClick={() => navigate(`/sessions/${lastSavedSession.id}`)}
+              className="bg-emerald-600 hover:bg-emerald-700 text-white flex-shrink-0"
+              data-testid="button-go-to-session"
+            >
               View Session
             </Button>
           </div>
@@ -759,20 +1078,34 @@ export default function AIMatchInput() {
       )}
 
       {(extractedMatches.length > 0 || pendingImages.length > 0) && (
-        <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.15 }}>
+        <motion.div
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.15 }}
+        >
           <Card data-testid="card-session-select">
             <CardContent className="p-4">
               <div className="flex items-center gap-3">
                 <Calendar className="w-5 h-5 text-violet-500 flex-shrink-0" />
                 <div className="flex-1">
                   <Label className="text-sm font-medium">Link to Session</Label>
-                  <Select value={selectedSessionId} onValueChange={setSelectedSessionId}>
-                    <SelectTrigger className="mt-1" data-testid="select-session">
+                  <Select
+                    value={selectedSessionId}
+                    onValueChange={setSelectedSessionId}
+                  >
+                    <SelectTrigger
+                      className="mt-1"
+                      data-testid="select-session"
+                    >
                       <SelectValue placeholder="Select a session..." />
                     </SelectTrigger>
                     <SelectContent className="max-h-[300px]">
                       {allSessions.map((s: any) => (
-                        <SelectItem key={s.id} value={String(s.id)} data-testid={`select-session-${s.id}`}>
+                        <SelectItem
+                          key={s.id}
+                          value={String(s.id)}
+                          data-testid={`select-session-${s.id}`}
+                        >
                           {format(new Date(s.date), "dd MMM yyyy")} — {s.title}
                         </SelectItem>
                       ))}
@@ -780,7 +1113,10 @@ export default function AIMatchInput() {
                   </Select>
                 </div>
                 {!selectedSessionId && (
-                  <Badge variant="outline" className="text-red-500 border-red-300 dark:border-red-500/40 flex-shrink-0 mt-5">
+                  <Badge
+                    variant="outline"
+                    className="text-red-500 border-red-300 dark:border-red-500/40 flex-shrink-0 mt-5"
+                  >
                     <AlertTriangle className="w-3 h-3 mr-1" /> Required
                   </Badge>
                 )}
@@ -806,9 +1142,15 @@ export default function AIMatchInput() {
 
       {hasUnlinkedPlayers && extractedMatches.length > 0 && (
         <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
-          <div className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm" data-testid="warning-unlinked">
+          <div
+            className="flex items-center gap-2 p-3 rounded-lg bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/30 text-amber-700 dark:text-amber-400 text-sm"
+            data-testid="warning-unlinked"
+          >
             <AlertTriangle className="w-4 h-4 flex-shrink-0" />
-            <span className="flex-1">Some players are not linked yet. Link them to existing profiles or create new ones.</span>
+            <span className="flex-1">
+              Some players are not linked yet. Link them to existing profiles or
+              create new ones.
+            </span>
             {selectedSessionId && (
               <Button
                 size="sm"
@@ -818,7 +1160,11 @@ export default function AIMatchInput() {
                 disabled={isLinking}
                 data-testid="button-link-all"
               >
-                {isLinking ? <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" /> : <Link2 className="w-3.5 h-3.5 mr-1.5" />}
+                {isLinking ? (
+                  <Loader2 className="w-3.5 h-3.5 mr-1.5 animate-spin" />
+                ) : (
+                  <Link2 className="w-3.5 h-3.5 mr-1.5" />
+                )}
                 Link All
               </Button>
             )}
@@ -830,7 +1176,10 @@ export default function AIMatchInput() {
         {extractedMatches.map((match, idx) => {
           const errors = getMatchValidation(match);
           const isValid = errors.length === 0;
-          const showImageHeader = match.imageLabel && (idx === 0 || extractedMatches[idx - 1]?.imageLabel !== match.imageLabel);
+          const showImageHeader =
+            match.imageLabel &&
+            (idx === 0 ||
+              extractedMatches[idx - 1]?.imageLabel !== match.imageLabel);
           return (
             <motion.div
               key={match.id}
@@ -840,9 +1189,14 @@ export default function AIMatchInput() {
               transition={{ delay: idx * 0.05 }}
             >
               {showImageHeader && (
-                <div className="flex items-center gap-2 mb-2 mt-4" data-testid={`header-${match.imageLabel?.replace(/\s/g, "-").toLowerCase()}`}>
+                <div
+                  className="flex items-center gap-2 mb-2 mt-4"
+                  data-testid={`header-${match.imageLabel?.replace(/\s/g, "-").toLowerCase()}`}
+                >
                   <ImageIcon className="w-4 h-4 text-violet-500" />
-                  <span className="text-sm font-semibold text-violet-600 dark:text-violet-400">{match.imageLabel}</span>
+                  <span className="text-sm font-semibold text-violet-600 dark:text-violet-400">
+                    {match.imageLabel}
+                  </span>
                   <Separator className="flex-1" />
                 </div>
               )}
@@ -851,10 +1205,10 @@ export default function AIMatchInput() {
                   match.savedToDb
                     ? "border-emerald-300 dark:border-emerald-500/40 bg-emerald-50/50 dark:bg-emerald-500/5"
                     : match.confirmed
-                    ? "border-blue-300 dark:border-blue-500/40 bg-blue-50/50 dark:bg-blue-500/5"
-                    : isValid
-                    ? "border-violet-200 dark:border-violet-500/30"
-                    : "border-amber-200 dark:border-amber-500/30"
+                      ? "border-blue-300 dark:border-blue-500/40 bg-blue-50/50 dark:bg-blue-500/5"
+                      : isValid
+                        ? "border-violet-200 dark:border-violet-500/30"
+                        : "border-amber-200 dark:border-amber-500/30"
                 }`}
                 data-testid={`card-match-${idx}`}
               >
@@ -871,13 +1225,23 @@ export default function AIMatchInput() {
                     )}
                     <div className="flex items-center gap-2">
                       <Trophy className="w-4 h-4 text-violet-500" />
-                      <span className="font-semibold text-sm">Match {idx + 1}</span>
+                      <span className="font-semibold text-sm">
+                        Match {idx + 1}
+                      </span>
                     </div>
                     <span className="text-sm text-muted-foreground">
-                      {match.teamA.map((p) => p.linkedName || p.name).join(" & ")} vs{" "}
-                      {match.teamB.map((p) => p.linkedName || p.name).join(" & ")}
+                      {match.teamA
+                        .map((p) => p.linkedName || p.name)
+                        .join(" & ")}{" "}
+                      vs{" "}
+                      {match.teamB
+                        .map((p) => p.linkedName || p.name)
+                        .join(" & ")}
                     </span>
-                    <Badge variant="outline" className={`text-xs ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 text-red-500" : ""}`}>
+                    <Badge
+                      variant="outline"
+                      className={`text-xs ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 text-red-500" : ""}`}
+                    >
                       {match.scoreA} - {match.scoreB}
                     </Badge>
                     {validateBadmintonScore(match.scoreA, match.scoreB) && (
@@ -894,16 +1258,26 @@ export default function AIMatchInput() {
                         <Check className="w-3 h-3 mr-1" /> Confirmed
                       </Badge>
                     ) : isValid ? (
-                      <Badge variant="outline" className="text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/40 text-xs">
+                      <Badge
+                        variant="outline"
+                        className="text-emerald-600 dark:text-emerald-400 border-emerald-300 dark:border-emerald-500/40 text-xs"
+                      >
                         <Check className="w-3 h-3 mr-1" /> Ready
                       </Badge>
                     ) : (
-                      <Badge variant="outline" className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-500/40 text-xs">
-                        <AlertTriangle className="w-3 h-3 mr-1" /> {errors.length} issue(s)
+                      <Badge
+                        variant="outline"
+                        className="text-amber-600 dark:text-amber-400 border-amber-300 dark:border-amber-500/40 text-xs"
+                      >
+                        <AlertTriangle className="w-3 h-3 mr-1" />{" "}
+                        {errors.length} issue(s)
                       </Badge>
                     )}
                     {match.edited && (
-                      <Badge variant="outline" className="text-violet-600 dark:text-violet-400 text-xs">
+                      <Badge
+                        variant="outline"
+                        className="text-violet-600 dark:text-violet-400 text-xs"
+                      >
                         <Pencil className="w-3 h-3 mr-1" /> Edited
                       </Badge>
                     )}
@@ -926,14 +1300,24 @@ export default function AIMatchInput() {
                             players={match.teamA}
                             matchId={match.id}
                             teamKey="teamA"
-                            confidenceColor={confidenceColor}
-                            confidenceBg={confidenceBg}
                             onLink={(playerIdx) => {
-                              setLinkDialog({ matchId: match.id, teamKey: "teamA", playerIdx });
+                              setLinkDialog({
+                                matchId: match.id,
+                                teamKey: "teamA",
+                                playerIdx,
+                              });
                               setPlayerSearch("");
                             }}
-                            onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamA", playerIdx)}
-                            onAcceptSuggestion={(playerIdx) => handleAcceptSuggestion(match.id, "teamA", playerIdx)}
+                            onUnlink={(playerIdx) =>
+                              unlinkPlayer(match.id, "teamA", playerIdx)
+                            }
+                            onAcceptSuggestion={(playerIdx) =>
+                              handleAcceptSuggestion(
+                                match.id,
+                                "teamA",
+                                playerIdx,
+                              )
+                            }
                             disabled={false}
                             suggestions={getSuggestionsForTeam(match.teamA)}
                           />
@@ -942,14 +1326,24 @@ export default function AIMatchInput() {
                             players={match.teamB}
                             matchId={match.id}
                             teamKey="teamB"
-                            confidenceColor={confidenceColor}
-                            confidenceBg={confidenceBg}
                             onLink={(playerIdx) => {
-                              setLinkDialog({ matchId: match.id, teamKey: "teamB", playerIdx });
+                              setLinkDialog({
+                                matchId: match.id,
+                                teamKey: "teamB",
+                                playerIdx,
+                              });
                               setPlayerSearch("");
                             }}
-                            onUnlink={(playerIdx) => unlinkPlayer(match.id, "teamB", playerIdx)}
-                            onAcceptSuggestion={(playerIdx) => handleAcceptSuggestion(match.id, "teamB", playerIdx)}
+                            onUnlink={(playerIdx) =>
+                              unlinkPlayer(match.id, "teamB", playerIdx)
+                            }
+                            onAcceptSuggestion={(playerIdx) =>
+                              handleAcceptSuggestion(
+                                match.id,
+                                "teamB",
+                                playerIdx,
+                              )
+                            }
                             disabled={false}
                             suggestions={getSuggestionsForTeam(match.teamB)}
                           />
@@ -958,41 +1352,65 @@ export default function AIMatchInput() {
                         <div className="space-y-1">
                           <div className="flex items-center gap-4">
                             <div className="flex items-center gap-2 flex-1">
-                              <Label className="text-xs text-muted-foreground whitespace-nowrap">Score A</Label>
+                              <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                                Score A
+                              </Label>
                               <Input
                                 type="number"
                                 min={0}
                                 value={match.scoreA}
-                                onChange={(e) => updateMatchScore(match.id, "scoreA", parseInt(e.target.value) || 0)}
+                                onChange={(e) =>
+                                  updateMatchScore(
+                                    match.id,
+                                    "scoreA",
+                                    parseInt(e.target.value) || 0,
+                                  )
+                                }
                                 className={`w-20 h-8 text-center text-sm ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 dark:border-red-500" : ""}`}
                                 data-testid={`input-score-a-${idx}`}
                               />
                             </div>
-                            <span className="text-lg font-bold text-muted-foreground">—</span>
+                            <span className="text-lg font-bold text-muted-foreground">
+                              —
+                            </span>
                             <div className="flex items-center gap-2 flex-1 justify-end">
-                              <Label className="text-xs text-muted-foreground whitespace-nowrap">Score B</Label>
+                              <Label className="text-xs text-muted-foreground whitespace-nowrap">
+                                Score B
+                              </Label>
                               <Input
                                 type="number"
                                 min={0}
                                 value={match.scoreB}
-                                onChange={(e) => updateMatchScore(match.id, "scoreB", parseInt(e.target.value) || 0)}
+                                onChange={(e) =>
+                                  updateMatchScore(
+                                    match.id,
+                                    "scoreB",
+                                    parseInt(e.target.value) || 0,
+                                  )
+                                }
                                 className={`w-20 h-8 text-center text-sm ${validateBadmintonScore(match.scoreA, match.scoreB) ? "border-red-400 dark:border-red-500" : ""}`}
                                 data-testid={`input-score-b-${idx}`}
                               />
                             </div>
                           </div>
-                          {validateBadmintonScore(match.scoreA, match.scoreB) && (
-                            <p className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1" data-testid={`score-warning-${idx}`}>
+                          {validateBadmintonScore(
+                            match.scoreA,
+                            match.scoreB,
+                          ) && (
+                            <p
+                              className="text-xs text-red-500 dark:text-red-400 flex items-center gap-1"
+                              data-testid={`score-warning-${idx}`}
+                            >
                               <AlertTriangle className="w-3 h-3 flex-shrink-0" />
-                              {validateBadmintonScore(match.scoreA, match.scoreB)}
+                              {validateBadmintonScore(
+                                match.scoreA,
+                                match.scoreB,
+                              )}
                             </p>
                           )}
                         </div>
 
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline" className={`text-xs ${confidenceColor(match.confidence)}`}>
-                            <Sparkles className="w-3 h-3 mr-1" /> {Math.round(match.confidence * 100)}% confidence
-                          </Badge>
                           <div className="flex-1" />
                           {!match.savedToDb && (
                             <Button
@@ -1038,13 +1456,21 @@ export default function AIMatchInput() {
       </AnimatePresence>
 
       {extractedMatches.length > 0 && (
-        <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.3 }}>
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          transition={{ delay: 0.3 }}
+        >
           <div className="flex items-center justify-between gap-4 flex-wrap">
             <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <span>{unsavedMatches.length} unsaved, {extractedMatches.filter(m => m.savedToDb).length} saved</span>
+              <span>
+                {unsavedMatches.length} unsaved,{" "}
+                {extractedMatches.filter((m) => m.savedToDb).length} saved
+              </span>
               {totalSavedCount > 0 && (
                 <Badge className="bg-emerald-500 text-white">
-                  <CheckCircle2 className="w-3 h-3 mr-1" /> {totalSavedCount} total saved
+                  <CheckCircle2 className="w-3 h-3 mr-1" /> {totalSavedCount}{" "}
+                  total saved
                 </Badge>
               )}
             </div>
@@ -1059,31 +1485,46 @@ export default function AIMatchInput() {
                   <Plus className="w-4 h-4 mr-1" /> Add More Images
                 </Button>
               )}
-              {unsavedMatches.length > 0 && unsavedMatches.some(m => !m.confirmed) && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={confirmAllMatches}
-                  className="border-emerald-300 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
-                  data-testid="button-confirm-all"
-                >
-                  <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm All
-                </Button>
-              )}
+              {unsavedMatches.length > 0 &&
+                unsavedMatches.some((m) => !m.confirmed) && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={confirmAllMatches}
+                    className="border-emerald-300 dark:border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-500/10"
+                    data-testid="button-confirm-all"
+                  >
+                    <CheckCircle2 className="w-4 h-4 mr-1" /> Confirm All
+                  </Button>
+                )}
               <Button
                 onClick={handleSaveAll}
-                disabled={!canSaveUnsaved || saveMatchesMutation.isPending || confirmedUnsaved.length === 0}
+                disabled={
+                  !canSaveUnsaved ||
+                  saveMatchesMutation.isPending ||
+                  confirmedUnsaved.length === 0
+                }
                 className="bg-gradient-to-r from-violet-500 to-purple-600 text-white hover:from-violet-600 hover:to-purple-700"
                 data-testid="button-save-all"
               >
                 {saveMatchesMutation.isPending ? (
-                  <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...</>
+                  <>
+                    <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Saving...
+                  </>
                 ) : unsavedMatches.length === 0 ? (
-                  <><CheckCircle2 className="w-4 h-4 mr-2" /> All Saved</>
+                  <>
+                    <CheckCircle2 className="w-4 h-4 mr-2" /> All Saved
+                  </>
                 ) : confirmedUnsaved.length > 0 ? (
-                  <><Save className="w-4 h-4 mr-2" /> Save {confirmedUnsaved.length} Confirmed</>
+                  <>
+                    <Save className="w-4 h-4 mr-2" /> Save{" "}
+                    {confirmedUnsaved.length} Confirmed
+                  </>
                 ) : (
-                  <><Save className="w-4 h-4 mr-2" /> {unsavedMatches.length} Need Confirming</>
+                  <>
+                    <Save className="w-4 h-4 mr-2" /> {unsavedMatches.length}{" "}
+                    Need Confirming
+                  </>
                 )}
               </Button>
             </div>
@@ -1091,7 +1532,13 @@ export default function AIMatchInput() {
         </motion.div>
       )}
 
-      <Dialog open={!!linkDialog} onOpenChange={() => { setLinkDialog(null); setPlayerSearch(""); }}>
+      <Dialog
+        open={!!linkDialog}
+        onOpenChange={() => {
+          setLinkDialog(null);
+          setPlayerSearch("");
+        }}
+      >
         <DialogContent className="max-w-md" data-testid="dialog-link-player">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
@@ -1101,75 +1548,116 @@ export default function AIMatchInput() {
               Search for an existing player or create a new one.
             </DialogDescription>
           </DialogHeader>
-          {linkDialog && (() => {
-            const match = extractedMatches.find((m) => m.id === linkDialog.matchId);
-            const player = match?.[linkDialog.teamKey]?.[linkDialog.playerIdx];
-            const aiName = player?.name?.toLowerCase().trim() || "";
-            const sameNameCount = aiName ? extractedMatches.reduce((count, m) => {
-              return count + [...m.teamA, ...m.teamB].filter(p => !p.linkedUserId && p.name.toLowerCase().trim() === aiName).length;
-            }, 0) : 0;
-            return (
-              <div className="space-y-4">
-                <div className="p-3 rounded-lg bg-muted/50">
-                  <p className="text-sm">
-                    <span className="text-muted-foreground">AI detected name:</span>{" "}
-                    <strong>{player?.name}</strong>
-                  </p>
-                  {sameNameCount > 1 && (
-                    <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
-                      This name appears in {sameNameCount} places — linking will apply to all of them
+          {linkDialog &&
+            (() => {
+              const match = extractedMatches.find(
+                (m) => m.id === linkDialog.matchId,
+              );
+              const player =
+                match?.[linkDialog.teamKey]?.[linkDialog.playerIdx];
+              const aiName = player?.name?.toLowerCase().trim() || "";
+              const sameNameCount = aiName
+                ? extractedMatches.reduce((count, m) => {
+                    return (
+                      count +
+                      [...m.teamA, ...m.teamB].filter(
+                        (p) =>
+                          !p.linkedUserId &&
+                          p.name.toLowerCase().trim() === aiName,
+                      ).length
+                    );
+                  }, 0)
+                : 0;
+              return (
+                <div className="space-y-4">
+                  <div className="p-3 rounded-lg bg-muted/50">
+                    <p className="text-sm">
+                      <span className="text-muted-foreground">
+                        AI detected name:
+                      </span>{" "}
+                      <strong>{player?.name}</strong>
                     </p>
+                    {sameNameCount > 1 && (
+                      <p className="text-xs text-violet-600 dark:text-violet-400 mt-1">
+                        This name appears in {sameNameCount} places — linking
+                        will apply to all of them
+                      </p>
+                    )}
+                  </div>
+                  <div>
+                    <Label className="text-sm">Search existing players</Label>
+                    <Input
+                      value={playerSearch}
+                      onChange={(e) => setPlayerSearch(e.target.value)}
+                      placeholder="Type a name or email..."
+                      className="mt-1"
+                      data-testid="input-player-search"
+                    />
+                  </div>
+                  {isSearching && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
+                      <Loader2 className="w-4 h-4 animate-spin" /> Searching...
+                    </div>
                   )}
-                </div>
-                <div>
-                  <Label className="text-sm">Search existing players</Label>
-                  <Input
-                    value={playerSearch}
-                    onChange={(e) => setPlayerSearch(e.target.value)}
-                    placeholder="Type a name or email..."
-                    className="mt-1"
-                    data-testid="input-player-search"
-                  />
-                </div>
-                {isSearching && (
-                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-2">
-                    <Loader2 className="w-4 h-4 animate-spin" /> Searching...
-                  </div>
-                )}
-                {searchResults.length > 0 && (
-                  <div className="max-h-48 overflow-y-auto space-y-1" data-testid="list-search-results">
-                    {searchResults.map((r) => (
-                      <div
-                        key={r.id}
-                        onClick={() => linkPlayerToProfile(linkDialog.matchId, linkDialog.teamKey, linkDialog.playerIdx, r)}
-                        className="flex items-center gap-2 p-2 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-500/10 cursor-pointer transition-colors"
-                        data-testid={`result-player-${r.id}`}
-                      >
-                        <Users className="w-4 h-4 text-muted-foreground" />
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium truncate">{r.fullName}</p>
-                          <p className="text-xs text-muted-foreground truncate">{r.email}</p>
+                  {searchResults.length > 0 && (
+                    <div
+                      className="max-h-48 overflow-y-auto space-y-1"
+                      data-testid="list-search-results"
+                    >
+                      {searchResults.map((r) => (
+                        <div
+                          key={r.id}
+                          onClick={() =>
+                            linkPlayerToProfile(
+                              linkDialog.matchId,
+                              linkDialog.teamKey,
+                              linkDialog.playerIdx,
+                              r,
+                            )
+                          }
+                          className="flex items-center gap-2 p-2 rounded-lg hover:bg-violet-50 dark:hover:bg-violet-500/10 cursor-pointer transition-colors"
+                          data-testid={`result-player-${r.id}`}
+                        >
+                          <Users className="w-4 h-4 text-muted-foreground" />
+                          <div className="flex-1 min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {r.fullName}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {r.email}
+                            </p>
+                          </div>
+                          <Link2 className="w-4 h-4 text-violet-500" />
                         </div>
-                        <Link2 className="w-4 h-4 text-violet-500" />
-                      </div>
-                    ))}
-                  </div>
-                )}
-                {playerSearch.length >= 2 && !isSearching && searchResults.length === 0 && (
-                  <p className="text-sm text-muted-foreground text-center py-2">No players found</p>
-                )}
-                <Separator />
-                <Button
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => openCreateDialog(linkDialog.matchId, linkDialog.teamKey, linkDialog.playerIdx, player?.name || "")}
-                  data-testid="button-open-create"
-                >
-                  <UserPlus className="w-4 h-4 mr-2" /> Create New Player
-                </Button>
-              </div>
-            );
-          })()}
+                      ))}
+                    </div>
+                  )}
+                  {playerSearch.length >= 2 &&
+                    !isSearching &&
+                    searchResults.length === 0 && (
+                      <p className="text-sm text-muted-foreground text-center py-2">
+                        No players found
+                      </p>
+                    )}
+                  <Separator />
+                  <Button
+                    variant="outline"
+                    className="w-full"
+                    onClick={() =>
+                      openCreateDialog(
+                        linkDialog.matchId,
+                        linkDialog.teamKey,
+                        linkDialog.playerIdx,
+                        player?.name || "",
+                      )
+                    }
+                    data-testid="button-open-create"
+                  >
+                    <UserPlus className="w-4 h-4 mr-2" /> Create New Player
+                  </Button>
+                </div>
+              );
+            })()}
         </DialogContent>
       </Dialog>
 
@@ -1177,7 +1665,8 @@ export default function AIMatchInput() {
         <DialogContent className="max-w-sm" data-testid="dialog-create-player">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UserPlus className="w-5 h-5 text-emerald-500" /> Quick Create Player
+              <UserPlus className="w-5 h-5 text-emerald-500" /> Quick Create
+              Player
             </DialogTitle>
             <DialogDescription>
               Create a new player and link them to this match.
@@ -1196,19 +1685,29 @@ export default function AIMatchInput() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setCreateDialog(null)} data-testid="button-cancel-create">
+            <Button
+              variant="outline"
+              onClick={() => setCreateDialog(null)}
+              data-testid="button-cancel-create"
+            >
               Cancel
             </Button>
             <Button
-              onClick={() => createPlayerMutation.mutate({ fullName: newPlayerName })}
+              onClick={() =>
+                createPlayerMutation.mutate({ fullName: newPlayerName })
+              }
               disabled={!newPlayerName.trim() || createPlayerMutation.isPending}
               className="bg-emerald-500 hover:bg-emerald-600 text-white"
               data-testid="button-create-player"
             >
               {createPlayerMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...
+                </>
               ) : (
-                <><UserPlus className="w-4 h-4 mr-2" /> Create & Link</>
+                <>
+                  <UserPlus className="w-4 h-4 mr-2" /> Create & Link
+                </>
               )}
             </Button>
           </DialogFooter>
@@ -1219,7 +1718,8 @@ export default function AIMatchInput() {
         <DialogContent className="max-w-sm" data-testid="dialog-create-session">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <Calendar className="w-5 h-5 text-violet-500" /> Create New Session
+              <Calendar className="w-5 h-5 text-violet-500" /> Create New
+              Session
             </DialogTitle>
             <DialogDescription>
               Create a quick session to link your imported matches to.
@@ -1228,13 +1728,23 @@ export default function AIMatchInput() {
           <div className="space-y-3">
             <div>
               <Label className="text-sm">Club</Label>
-              <Select value={newSessionClubId} onValueChange={setNewSessionClubId}>
-                <SelectTrigger className="mt-1" data-testid="select-new-session-club">
+              <Select
+                value={newSessionClubId}
+                onValueChange={setNewSessionClubId}
+              >
+                <SelectTrigger
+                  className="mt-1"
+                  data-testid="select-new-session-club"
+                >
                   <SelectValue placeholder="Select club..." />
                 </SelectTrigger>
                 <SelectContent>
                   {clubs.map((c: any) => (
-                    <SelectItem key={c.id} value={String(c.id)} data-testid={`select-club-${c.id}`}>
+                    <SelectItem
+                      key={c.id}
+                      value={String(c.id)}
+                      data-testid={`select-club-${c.id}`}
+                    >
                       {c.name}
                     </SelectItem>
                   ))}
@@ -1263,19 +1773,32 @@ export default function AIMatchInput() {
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setShowCreateSession(false)} data-testid="button-cancel-create-session">
+            <Button
+              variant="outline"
+              onClick={() => setShowCreateSession(false)}
+              data-testid="button-cancel-create-session"
+            >
               Cancel
             </Button>
             <Button
               onClick={() => createSessionMutation.mutate()}
-              disabled={!newSessionTitle.trim() || !newSessionDate || !newSessionClubId || createSessionMutation.isPending}
+              disabled={
+                !newSessionTitle.trim() ||
+                !newSessionDate ||
+                !newSessionClubId ||
+                createSessionMutation.isPending
+              }
               className="bg-violet-500 hover:bg-violet-600 text-white"
               data-testid="button-confirm-create-session"
             >
               {createSessionMutation.isPending ? (
-                <><Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...</>
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" /> Creating...
+                </>
               ) : (
-                <><Plus className="w-4 h-4 mr-2" /> Create Session</>
+                <>
+                  <Plus className="w-4 h-4 mr-2" /> Create Session
+                </>
               )}
             </Button>
           </DialogFooter>
@@ -1290,8 +1813,6 @@ function TeamCard({
   players,
   matchId,
   teamKey,
-  confidenceColor,
-  confidenceBg,
   onLink,
   onUnlink,
   onAcceptSuggestion,
@@ -1302,8 +1823,6 @@ function TeamCard({
   players: ExtractedPlayer[];
   matchId: string;
   teamKey: "teamA" | "teamB";
-  confidenceColor: (c: number) => string;
-  confidenceBg: (c: number) => string;
   onLink: (playerIdx: number) => void;
   onUnlink: (playerIdx: number) => void;
   onAcceptSuggestion?: (playerIdx: number) => void;
@@ -1312,7 +1831,9 @@ function TeamCard({
 }) {
   return (
     <div className="space-y-2" data-testid={`team-card-${teamKey}`}>
-      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">{label}</Label>
+      <Label className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+        {label}
+      </Label>
       {players.map((player, pidx) => {
         const isLinked = !!player.linkedUserId || !!player.linkedProfileId;
         const suggestion = suggestions?.get(pidx);
@@ -1320,7 +1841,9 @@ function TeamCard({
           <div
             key={pidx}
             className={`p-2 rounded-lg border transition-all ${
-              isLinked ? confidenceBg(player.confidence) : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30"
+              isLinked
+                ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/30"
+                : "bg-red-50 dark:bg-red-500/10 border-red-200 dark:border-red-500/30"
             }`}
             data-testid={`player-${teamKey}-${pidx}`}
           >
@@ -1336,19 +1859,21 @@ function TeamCard({
                     <span className="flex items-center gap-1 text-red-600 dark:text-red-400">
                       <AlertTriangle className="w-3.5 h-3.5 flex-shrink-0" />
                       {player.name}
-                      <Badge variant="outline" className="text-[10px] ml-1 border-red-300 dark:border-red-500/40 text-red-500">
+                      <Badge
+                        variant="outline"
+                        className="text-[10px] ml-1 border-red-300 dark:border-red-500/40 text-red-500"
+                      >
                         Unlinked
                       </Badge>
                     </span>
                   )}
                 </p>
                 {isLinked && player.name !== player.linkedName && (
-                  <p className="text-xs text-muted-foreground">AI detected: {player.name}</p>
+                  <p className="text-xs text-muted-foreground">
+                    AI detected: {player.name}
+                  </p>
                 )}
               </div>
-              <span className={`text-[10px] font-medium ${confidenceColor(player.confidence)}`}>
-                {Math.round(player.confidence * 100)}%
-              </span>
               {!disabled && (
                 <div className="flex items-center gap-1">
                   {isLinked && (
@@ -1369,7 +1894,8 @@ function TeamCard({
                     onClick={() => onLink(pidx)}
                     data-testid={`button-link-${teamKey}-${pidx}`}
                   >
-                    <Link2 className="w-3 h-3 mr-1" /> {isLinked ? "Change" : "Link"}
+                    <Link2 className="w-3 h-3 mr-1" />{" "}
+                    {isLinked ? "Change" : "Link"}
                   </Button>
                 </div>
               )}
@@ -1384,11 +1910,18 @@ function TeamCard({
                 onClick={() => onAcceptSuggestion(pidx)}
                 data-testid={`button-accept-suggestion-${teamKey}-${pidx}`}
               >
-                <Sparkles className={`w-3 h-3 flex-shrink-0 ${isLinked ? "text-amber-500" : "text-violet-500"}`} />
-                <span className={`text-xs flex-1 truncate ${isLinked ? "text-amber-700 dark:text-amber-300" : "text-violet-700 dark:text-violet-300"}`}>
-                  {isLinked ? "Swap to" : "Suggested"}: <strong>{suggestion.fullName}</strong>
+                <Sparkles
+                  className={`w-3 h-3 flex-shrink-0 ${isLinked ? "text-amber-500" : "text-violet-500"}`}
+                />
+                <span
+                  className={`text-xs flex-1 truncate ${isLinked ? "text-amber-700 dark:text-amber-300" : "text-violet-700 dark:text-violet-300"}`}
+                >
+                  {isLinked ? "Swap to" : "Suggested"}:{" "}
+                  <strong>{suggestion.fullName}</strong>
                 </span>
-                <Badge className={`text-white text-[10px] h-5 px-1.5 ${isLinked ? "bg-amber-500" : "bg-violet-500"}`}>
+                <Badge
+                  className={`text-white text-[10px] h-5 px-1.5 ${isLinked ? "bg-amber-500" : "bg-violet-500"}`}
+                >
                   {isLinked ? "Swap" : "Accept"}
                 </Badge>
               </div>

@@ -103,7 +103,6 @@ export function log(message: string, source = "express") {
     hour12: true,
   });
 
-  console.log(`${formattedTime} [${source}] ${message}`);
 }
 
 app.use((req, res, next) => {
@@ -168,9 +167,6 @@ app.use((req, res, next) => {
     },
     async () => {
       log(`serving on port ${port}`);
-      console.log(
-        `[APP BASE URL] ${process.env.APP_URL || process.env.REPLIT_DEPLOYMENT_URL || process.env.REPLIT_DOMAINS || process.env.REPLIT_DEV_DOMAIN || "none detected"}`,
-      );
 
       // Defer all idempotent boot work (index creation + seed checks +
       // parent-link sync) by 3s so the HTTP listener can start serving

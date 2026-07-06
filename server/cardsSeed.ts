@@ -5,11 +5,9 @@ export async function seedRecognitionCards() {
   try {
     const existing = await db.select({ id: cards.id }).from(cards).limit(1);
     if (existing.length > 0) {
-      console.log("[CARD SEED] Recognition cards already seeded, skipping.");
       return;
     }
 
-    console.log("[CARD SEED] Seeding recognition cards...");
 
     const cardSeedData = [
       { name: "Heart of the Club", description: "Awarded to members who consistently go above and beyond for the club community — helping newcomers, volunteering, and spreading positivity.", cardCategory: "admin_gifted" as const, designConfig: { gradient: "from-rose-500 via-pink-500 to-fuchsia-500", textColor: "text-white", accentColor: "#ec4899", pattern: "hearts" }, isActive: true },
@@ -27,7 +25,6 @@ export async function seedRecognitionCards() {
     ];
 
     const inserted = await db.insert(cards).values(cardSeedData).returning();
-    console.log(`[CARD SEED] Seeded ${inserted.length} recognition cards.`);
   } catch (err) {
     console.error("[CARD SEED] Failed to seed recognition cards:", err);
   }

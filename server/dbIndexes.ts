@@ -31,5 +31,4 @@ export async function ensureHotIndexes(): Promise<void> {
       console.warn(`[ensureHotIndexes] Skipped: ${err?.message || err}`);
     }
   }
-  console.log(`[ensureHotIndexes] Verified ${added}/${statements.length} indexes`);
 }

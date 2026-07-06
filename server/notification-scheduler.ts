@@ -734,7 +734,6 @@ export async function sendWithdrawSpaceNotification(sessionId: number) {
         "SESSION_REMINDER"
       );
     }
-    console.log(`[SESSION REMINDER] Sent withdraw space notification for session ${sessionId} to ${targetUsers.length} invitees`);
   } catch (err) {
     console.error(`[SESSION REMINDER] Failed to send withdraw space notification for session ${sessionId}:`, err);
   }
@@ -813,7 +812,6 @@ export async function sendAdminSessionReminder(sessionId: number, adminUserId: n
     );
     sent++;
   }
-  console.log(`[SESSION REMINDER] Admin sent reminder for session ${sessionId} to ${sent} members`);
   return { sent };
 }
 
@@ -881,13 +879,11 @@ async function processTournamentPaymentReminders() {
         messageContent: message,
       });
 
-      console.log(`[TOURNAMENT REMINDER] Sent payment reminder to ${player.fullName} for ${tournament.name}`);
     }
   }
 }
 
 export async function runNotificationScheduler() {
-  console.log("[NOTIFICATION SCHEDULER] Starting scheduled notification check...");
   try {
     await processSessionPaymentReminders();
   } catch (err) {
@@ -918,5 +914,4 @@ export async function runNotificationScheduler() {
   } catch (err) {
     console.error("[NOTIFICATION SCHEDULER] Tournament payment reminders failed:", err);
   }
-  console.log("[NOTIFICATION SCHEDULER] Scheduled notification check complete.");
 }

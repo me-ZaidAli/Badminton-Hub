@@ -59,7 +59,6 @@ export async function runProfileIncompleteReminder(): Promise<void> {
     console.error("[profileIncomplete] gender scan failed", e);
   }
 
-  if (total > 0) console.log(`[push] sent ${total} profile-incomplete reminder(s)`);
 }
 
 // ─── Phase 4: Scheduled notifications cron ───────────────────────────────────
@@ -163,5 +162,4 @@ export async function runScheduledNotifications(): Promise<void> {
         .where(eq(notificationSchedules.id, row.id));
     }
   }
-  if (due.length > 0) console.log(`[scheduled-notif] dispatched ${due.length}`);
 }

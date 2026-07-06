@@ -74,6 +74,5 @@ export async function runPostSessionUnpaidReminder(): Promise<void> {
     }
   }
   if (totalReminders > 0) {
-    console.log(`[push] sent ${totalReminders} post-session unpaid reminder(s)`);
   }
 }

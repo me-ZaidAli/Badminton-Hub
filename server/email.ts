@@ -55,7 +55,6 @@ export async function sendClaimAccountEmail(
       subject,
       html: htmlContent,
     });
-    console.log(`[EMAIL SENT] Claim account email sent to ${to} via Brevo SMTP`);
     return;
   }
 
@@ -67,7 +66,6 @@ export async function sendClaimAccountEmail(
       subject,
       html: htmlContent,
     });
-    console.log(`[EMAIL SENT] Claim account email sent to ${to} via Gmail`);
     return;
   }
 
@@ -115,8 +113,6 @@ export async function sendClaimAccountEmail(
     return;
   }
 
-  console.log(`[EMAIL NOT SENT - No email service configured] Claim account email for ${to}:`);
-  console.log(`  Claim URL: ${claimUrl}`);
   throw new Error("No email service configured. Set GMAIL_USER/GMAIL_APP_PASSWORD, SENDGRID_API_KEY, or RESEND_API_KEY.");
 }
 
@@ -132,10 +128,8 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
         subject,
         html,
       });
-      console.log(`[EMAIL SENT] Email sent to ${to} via Brevo SMTP`);
       return;
     } catch (err) {
-      console.log(`[EMAIL BREVO FAILED] ${to}: ${err}`);
     }
   }
 
@@ -148,14 +142,11 @@ export async function sendEmail(to: string, subject: string, html: string): Prom
         subject,
         html,
       });
-      console.log(`[EMAIL SENT] Email sent to ${to} via Gmail`);
       return;
     } catch (err) {
-      console.log(`[EMAIL GMAIL FAILED] ${to}: ${err}`);
     }
   }
 
-  console.log(`[EMAIL NOT SENT - No service configured] ${subject} to ${to}`);
 }
 
 export async function sendPasswordResetEmail(
@@ -183,7 +174,6 @@ export async function sendPasswordResetEmail(
   try {
     await sendEmail(to, subject, htmlContent);
   } catch (e) {
-    console.log(`[EMAIL SKIP] Password reset to ${to}`);
   }
 }
 
@@ -216,6 +206,5 @@ export async function sendChatNotificationEmail(to: string, subject: string, bod
   try {
     await sendEmail(to, subject, htmlContent);
   } catch (e) {
-    console.log(`[EMAIL SKIP] Chat notification to ${to}: ${subject}`);
   }
 }

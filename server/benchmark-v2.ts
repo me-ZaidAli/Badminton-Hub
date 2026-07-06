@@ -261,11 +261,6 @@ snapshot(SESSION_MIN);
 
 // ─── Print results ────────────────────────────────────────────────────────────
 const W = 78;
-console.log("\n" + "╔" + "═".repeat(W) + "╗");
-console.log(
-  "║" + "  matchEngineV2 — 120-MIN SESSION SIMULATION".padEnd(W) + "║",
-);
-console.log("╚" + "═".repeat(W) + "╝\n");
 
 const gradeBuckets = { A: 0, B: 0, C: 0, D: 0 } as Record<string, number>;
 const females = players.filter((p) => p.gender === "FEMALE").length;
@@ -274,43 +269,8 @@ for (const p of players) {
   gradeBuckets[letter] = (gradeBuckets[letter] || 0) + 1;
 }
 
-console.log(
-  `  Players: ${NUM_PLAYERS}  |  Courts: ${NUM_COURTS}  |  Match: ${MATCH_MIN}–${MATCH_MAX} min` +
-    `  |  Matches played: ${totalMatches}  |  Engine calls: ${totalCalls}`,
-);
-console.log(
-  `  Grades: A×${gradeBuckets["A"] || 0}  B×${gradeBuckets["B"] || 0}  C×${gradeBuckets["C"] || 0}  D×${gradeBuckets["D"] || 0}` +
-    `  |  Female: ${females} (${Math.round((females / NUM_PLAYERS) * 100)}%)\n`,
-);
 
 // Spread over time
-console.log("┌" + "─".repeat(W) + "┐");
-console.log(
-  "│  SPREAD OVER TIME (max − min games played)" + " ".repeat(W - 43) + "│",
-);
-console.log(
-  "├" +
-    "─".repeat(8) +
-    "┬" +
-    "─".repeat(6) +
-    "┬" +
-    "─".repeat(6) +
-    "┬" +
-    "─".repeat(W - 22) +
-    "┤",
-);
-console.log("│  Time  │  Max │  Min │  Spread" + " ".repeat(W - 30) + "│");
-console.log(
-  "├" +
-    "─".repeat(8) +
-    "┼" +
-    "─".repeat(6) +
-    "┼" +
-    "─".repeat(6) +
-    "┼" +
-    "─".repeat(W - 22) +
-    "┤",
-);
 for (const s of snapshots) {
   const assessment =
     s.spread === 0
@@ -325,49 +285,10 @@ for (const s of snapshots) {
               ? "Poor       (notable imbalance) ⚠"
               : "Critical   (severe failure) ⚠";
   const row = `│ ${String(s.t + "min").padEnd(6)} │ ${String(s.max).padEnd(4)} │ ${String(s.min).padEnd(4)} │ +${s.spread}  ${assessment}`;
-  console.log(row.padEnd(W + 1) + "│");
 }
-console.log("└" + "─".repeat(W) + "┘\n");
 
 // Player distribution
 const maxGames = Math.max(...gamesPlayed.values());
-console.log("┌" + "─".repeat(W) + "┐");
-console.log("│  PLAYER DISTRIBUTION AT SESSION END" + " ".repeat(W - 36) + "│");
-console.log(
-  "├" +
-    "─".repeat(14) +
-    "┬" +
-    "─".repeat(7) +
-    "┬" +
-    "─".repeat(8) +
-    "┬" +
-    "─".repeat(9) +
-    "┬" +
-    "─".repeat(6) +
-    "┬" +
-    "─".repeat(W - 47) +
-    "┤",
-);
-console.log(
-  "│  Name          │ Grade │ Gender │ Matches │ Uniq │ Bar" +
-    " ".repeat(W - 48) +
-    "│",
-);
-console.log(
-  "├" +
-    "─".repeat(14) +
-    "┼" +
-    "─".repeat(7) +
-    "┼" +
-    "─".repeat(8) +
-    "┼" +
-    "─".repeat(9) +
-    "┼" +
-    "─".repeat(6) +
-    "┼" +
-    "─".repeat(W - 47) +
-    "┤",
-);
 
 const sorted = [...players].sort((a, b) => {
   const ga = gamesPlayed.get(a.id) ?? 0;
@@ -384,17 +305,12 @@ for (const p of sorted) {
   const b = bar(n, maxGames, 30);
   const tag = n === maxGames ? " ◀ MOST ACTIVE" : "";
   const row = `│ ${nm} │ ${gr} │ ${ge} │ ${String(n).padEnd(7)} │ ${String(uniq).padEnd(4)} │ ${b}${tag}`;
-  console.log(row.padEnd(W + 1) + "│");
 }
-console.log("└" + "─".repeat(W) + "┘");
 
 const counts = [...gamesPlayed.values()];
 const max = Math.max(...counts);
 const min = Math.min(...counts);
 const avg = counts.reduce((a, b) => a + b, 0) / counts.length;
-console.log(
-  `\n  Final spread: ${max - min}  |  Max: ${max}  Min: ${min}  Avg: ${avg.toFixed(1)}\n`,
-);
 
 // ─── Match log ────────────────────────────────────────────────────────────────
 function fmtTeam(
@@ -405,43 +321,6 @@ function fmtTeam(
     .join(" & ");
 }
 
-console.log("\n" + "┌" + "─".repeat(W) + "┐");
-console.log("│  ALL MATCHES" + " ".repeat(W - 13) + "│");
-console.log(
-  "├" +
-    "─".repeat(4) +
-    "┬" +
-    "─".repeat(6) +
-    "┬" +
-    "─".repeat(28) +
-    "┬" +
-    "─".repeat(7) +
-    "┬" +
-    "─".repeat(28) +
-    "┬" +
-    "─".repeat(W - 77) +
-    "┤",
-);
-console.log(
-  "│ #  │  Min │  Team A                      │ Spread│  Team B                      │ Diff" +
-    " ".repeat(W - 77) +
-    "│",
-);
-console.log(
-  "├" +
-    "─".repeat(4) +
-    "┼" +
-    "─".repeat(6) +
-    "┼" +
-    "─".repeat(28) +
-    "┼" +
-    "─".repeat(7) +
-    "┼" +
-    "─".repeat(28) +
-    "┼" +
-    "─".repeat(W - 77) +
-    "┤",
-);
 for (const m of matchLog) {
   const num = String(m.num).padEnd(3);
   const t = String(m.tMin + "m").padEnd(5);
@@ -453,9 +332,7 @@ for (const m of matchLog) {
   const flag =
     m.gradeSpread > 3 ? " ⚠ wide" : m.teamDiff > 1.5 ? " ⚠ uneven" : "";
   const row = `│ ${num}│ ${t} │ ${tA} │ ${spread} │ ${tB} │ ${diff}${rpts}${flag}`;
-  console.log(row.padEnd(W + 1) + "│");
 }
-console.log("└" + "─".repeat(W) + "┘\n");
 
 // ─── Summary stats ────────────────────────────────────────────────────────────
 const avgSpread =
@@ -463,12 +340,3 @@ const avgSpread =
 const avgDiff = matchLog.reduce((s, m) => s + m.teamDiff, 0) / matchLog.length;
 const wideMatches = matchLog.filter((m) => m.gradeSpread > 3).length;
 const unevenMatches = matchLog.filter((m) => m.teamDiff > 1.5).length;
-console.log(`  Match quality summary:`);
-console.log(`    Avg grade spread : ${avgSpread.toFixed(2)}  (ideal ≤ 3)`);
-console.log(`    Avg team diff    : ${avgDiff.toFixed(2)}  (ideal ≤ 1.5)`);
-console.log(
-  `    Wide matches     : ${wideMatches}/${matchLog.length}  (spread > 3)`,
-);
-console.log(
-  `    Uneven matches   : ${unevenMatches}/${matchLog.length}  (team diff > 1.5)\n`,
-);

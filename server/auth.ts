@@ -66,7 +66,6 @@ export function setupAuth(app: Express) {
       try {
         const user = await storage.getUserByUsername(username);
         if (!user || !(await comparePasswords(password, user.password))) {
-          console.log(`[AUTH] LOGIN FAILED: email=${username} reason=invalid_credentials`);
           return done(null, false, { message: "Invalid email or password" });
         }
         if ((user as any).closedAt) {
@@ -79,7 +78,6 @@ export function setupAuth(app: Express) {
           const closedReason = String((user as any).closedReason || "");
           const accountStatus = String((user as any).accountStatus || "");
           if (accountStatus === "SUSPENDED" || closedReason === "MERGED") {
-            console.log(`[AUTH] LOGIN BLOCKED: email=${username} reason=account_suspended_or_merged`);
             return done(null, false, {
               message: closedReason === "MERGED"
                 ? "This account has been merged into another account. Please sign in using your other email or contact your club administrator."
@@ -87,10 +85,8 @@ export function setupAuth(app: Express) {
               code: closedReason === "MERGED" ? "ACCOUNT_MERGED" : "ACCOUNT_SUSPENDED",
             } as any);
           }
-          console.log(`[AUTH] LOGIN BLOCKED: email=${username} reason=account_closed (reopen offered)`);
           return done(null, false, { message: "This account has been closed.", code: "ACCOUNT_CLOSED" } as any);
         }
-        console.log(`[AUTH] LOGIN SUCCESS: userId=${user.id} email=${username} role=${user.role}`);
         return done(null, user);
       } catch (err) {
         console.error(`[AUTH] LOGIN ERROR: email=${username}`, err);
@@ -316,7 +312,6 @@ export function setupAuth(app: Express) {
             <p style="color: #999; font-size: 12px; margin-top: 30px;">This link expires in 24 hours. If you didn't request this, you can safely ignore this email.</p>
           </div>
         `);
-        console.log(`[AUTH] Password reset email sent to ${user.email}`);
       } catch (emailErr) {
         console.error("[AUTH] Failed to send password reset email:", emailErr);
       }
@@ -511,7 +506,6 @@ export function setupAuth(app: Express) {
 
       const user = await storage.getUserByUsername(email);
       if (!user || !(await comparePasswords(password, user.password))) {
-        console.log(`[AUTH] REOPEN FAILED: email=${email} reason=invalid_credentials`);
         return res.status(401).json({ message: "Invalid email or password" });
       }
       if (!(user as any).closedAt) {
@@ -523,7 +517,6 @@ export function setupAuth(app: Express) {
       // accounts that were closed via inactive-member archival (REJECTED) or
       // similar non-disciplinary closures may be reopened by their owner.
       if (accountStatus === "SUSPENDED" || closedReason === "MERGED") {
-        console.log(`[AUTH] REOPEN BLOCKED: userId=${user.id} email=${email} reason=suspended_or_merged`);
         return res.status(403).json({
           message: closedReason === "MERGED"
             ? "This account has been merged into another account and cannot be reopened. Please sign in using your other email or contact your club administrator."
@@ -548,7 +541,6 @@ export function setupAuth(app: Express) {
         return res.status(500).json({ message: "Failed to reopen account" });
       }
 
-      console.log(`[AUTH] ACCOUNT REOPENED: userId=${refreshed.id} email=${email} previousReason=${previousClosedReason || "(none)"} previousStatus=${previousAccountStatus}`);
 
       // Best-effort: notify OWNER users (in-app + email) that the user reopened
       // their account so admins can spot unintended reactivations quickly.

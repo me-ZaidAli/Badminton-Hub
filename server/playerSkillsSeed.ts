@@ -149,11 +149,9 @@ const CATEGORIES_AND_SKILLS = [
 export async function seedPlayerSkillCategories() {
   const existing = await db.select().from(playerSkillCategories);
   if (existing.length > 0) {
-    console.log("[PLAYER SKILL SEED] Player skill categories already seeded, skipping.");
     return;
   }
 
-  console.log("[PLAYER SKILL SEED] Seeding default badminton skill categories and skills...");
 
   for (let catIdx = 0; catIdx < CATEGORIES_AND_SKILLS.length; catIdx++) {
     const catDef = CATEGORIES_AND_SKILLS[catIdx];
@@ -174,5 +172,4 @@ export async function seedPlayerSkillCategories() {
     }
   }
 
-  console.log(`[PLAYER SKILL SEED] Seeded ${CATEGORIES_AND_SKILLS.length} categories with ${CATEGORIES_AND_SKILLS.reduce((sum, c) => sum + c.skills.length, 0)} skills.`);
 }

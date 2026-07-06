@@ -19,12 +19,10 @@ export async function ensureOwnerProfilesInAllClubs(userId: number) {
         grade: "C3",
         rankingPoints: 0,
       });
-      console.log(`[SYNC] Auto-added OWNER user ${userId} as ADMIN in club ${club.id} (${club.name})`);
     } else {
       const profile = existingProfiles.find(p => p.clubId === club.id);
       if (profile && profile.membershipStatus !== "APPROVED") {
         await db.update(playerProfiles).set({ membershipStatus: "APPROVED", clubRole: "ADMIN" }).where(eq(playerProfiles.id, profile.id));
-        console.log(`[SYNC] Auto-approved OWNER user ${userId} in club ${club.id} (${club.name})`);
       }
     }
   }
@@ -45,7 +43,6 @@ export async function ensureAllOwnersInClub(clubId: number) {
         grade: "C3",
         rankingPoints: 0,
       });
-      console.log(`[SYNC] Auto-added OWNER user ${owner.id} as ADMIN in new club ${clubId}`);
     }
   }
 }

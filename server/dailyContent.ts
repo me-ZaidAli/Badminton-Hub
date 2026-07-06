@@ -196,7 +196,6 @@ Use the real product URLs and image URLs you actually found. Only include offers
               cleaned.unshift({ brand: "Central Sports", offer: "Shop rackets, shoes & shuttles", url: "https://centralsports.co.uk/", category: "Sponsor", sponsored: true });
             }
             cleaned.sort((a, b) => Number(Boolean(b.sponsored)) - Number(Boolean(a.sponsored)));
-            console.log(`[DAILY DEALS] web-search returned ${cleaned.length} deals for ${dateStr} (sponsored: ${cleaned.filter(d => d.sponsored).length})`);
             return { date: dateStr, deals: cleaned.slice(0, 8) };
           }
         }
@@ -272,7 +271,6 @@ async function generateNews(): Promise<CachedNews> {
           };
         }).filter((n: NewsItem) => n.title && n.url.startsWith("http"));
         if (cleaned.length > 0) {
-          console.log(`[DAILY NEWS] web-search returned ${cleaned.length} items`);
           return { fetchedAt: now, items: cleaned };
         }
       }
@@ -317,7 +315,6 @@ The "url" MUST be the real tournament detail page on be.tournamentsoftware.com o
       const adults = clean(parsed?.adults, "ADULT");
       const juniors = clean(parsed?.juniors, "JUNIOR");
       if (adults.length + juniors.length > 0) {
-        console.log(`[BE TOURNAMENTS] web-search returned adults=${adults.length} juniors=${juniors.length} for ${dateStr}`);
         return { date: dateStr, adults: adults.length ? adults : FALLBACK_BE_TOURNAMENTS_ADULTS, juniors: juniors.length ? juniors : FALLBACK_BE_TOURNAMENTS_JUNIORS };
       }
     }
@@ -356,7 +353,6 @@ The "url" MUST be the real BE booking / event page. Drop any course whose date y
           url: String(c.url || "").slice(0, 400),
         })).filter((c: BeCoachCourse) => c.title && /^\d{4}-\d{2}-\d{2}$/.test(c.startDate) && c.url.startsWith("http"));
         if (cleaned.length > 0) {
-          console.log(`[BE COACH COURSES] web-search returned ${cleaned.length} for ${dateStr}`);
           return { date: dateStr, courses: cleaned };
         }
       }
