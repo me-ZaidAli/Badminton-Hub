@@ -25,6 +25,9 @@ COPY --from=builder /app/dist ./dist
 COPY drizzle.config.ts ./
 COPY shared/ ./shared/
 
+# Tesseract OCR training data — avoids CDN download at runtime
+COPY eng.traineddata ./
+
 ENV NODE_ENV=production
 EXPOSE 5000
 
