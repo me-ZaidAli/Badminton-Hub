@@ -1,62 +1,13 @@
 services:
-
-  # ── PostgreSQL ─────────────────────────────────────────────────────────────
-  postgres:
-    image: postgres:16-alpine
-    container_name: badminton-hub-db
-    env_file: .env
-    environment:
-      POSTGRES_USER: ${PGUSER}
-      POSTGRES_PASSWORD: ${PGPASSWORD}
-      POSTGRES_DB: ${PGDATABASE}
-    volumes:
-      - pgdata:/var/lib/postgresql/data
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${PGUSER} -d ${PGDATABASE}"]
-      interval: 5s
-      timeout: 5s
-      retries: 10
-    restart: unless-stopped
-
-  # ── Node.js app ────────────────────────────────────────────────────────────
   app:
     build: .
     container_name: badminton-hub-app
     env_file: .env
-    depends_on:
-      postgres:
-        condition: service_healthy
     expose:
       - "5000"
     restart: unless-stopped
 
-  # ── nginx reverse proxy ────────────────────────────────────────────────────
-  nginx:
-    image: nginx:alpine
-    container_name: badminton-hub-nginx
-    ports:
-      - "80:80"
-      - "443:443"
-    volumes:
-      - ./deploy/mac/nginx/docker-tls.conf:/etc/nginx/conf.d/default.conf:ro
-      - certbot_certs:/etc/letsencrypt:ro
-      - certbot_challenge:/var/www/certbot:ro
-    depends_on:
-      - app
-    restart: unless-stopped
-
-  # ── Certbot (TLS certificate management) ──────────────────────────────────
-  # Only used by ssl-setup.sh — not started with normal docker:up
-  certbot:
-    image: certbot/certbot
-    container_name: badminton-hub-certbot
-    volumes:
-      - certbot_certs:/etc/letsencrypt
-      - certbot_challenge:/var/www/certbot
-    profiles:
-      - ssl
-
-volumes:
-  pgdata:
-  certbot_certs:
-  certbot_challenge:
+networks:
+  default:
+    external: true
+    name: hub-network

@@ -1,4 +1,5 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from "cors";
 import { registerRoutes } from "./routes";
 import { seedJuniorSkills } from "./juniorSkillsSeed";
 import { seedExercises } from "./exerciseSeed";
@@ -33,6 +34,22 @@ process.on("unhandledRejection", (reason) => {
 const SERVER_STARTED_AT = Date.now();
 const app = express();
 const httpServer = createServer(app);
+
+// Allow the BSL hub (Next.js on :4000) and the main Vite frontend to make
+// credentialed API calls. Add more origins to ALLOWED_ORIGINS in production.
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:4000,http://localhost:5173")
+  .split(",")
+  .map((o) => o.trim());
+
+app.use(
+  cors({
+    origin: (origin, cb) => {
+      if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+      cb(new Error(`CORS: origin ${origin} not allowed`));
+    },
+    credentials: true,
+  }),
+);
 
 declare module "http" {
   interface IncomingMessage {
