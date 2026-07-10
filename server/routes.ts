@@ -35043,38 +35043,31 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
       const { createWorker: createTesseractWorker } = await import("tesseract.js");
 
-      // Score: whole-number pair NN-NN. Grades are decimals so they won't match.
-      const scoreRe = /\b(2[0-9]|30|1[0-9]|[0-9])\s*[-\u2013]\s*(2[0-9]|30|1[0-9]|[0-9])\b/;
+      // Score: whole-number pair NN-NN up to 30. Also handles em-dash (—) that
+      // Tesseract sometimes produces instead of a hyphen.
+      const scoreRe = /\b(2[0-9]|30|1[0-9]|[0-9])\s*[-\u2013\u2014]\s*(2[0-9]|30|1[0-9]|[0-9])\b/;
 
-      const isValidScore = (a: number, b: number) => {
-        const [hi, lo] = [Math.max(a, b), Math.min(a, b)];
-        if (hi === 0) return false;
-        if (hi <= 21) return hi === 21;
-        return hi <= 30 && (hi - lo === 2 || (hi === 30 && lo === 29));
+      // Extract a player name from a raw OCR segment (one player + their garbled grade).
+      // Strategy: collect leading alpha tokens, STOP at the first digit-starting token
+      // (that's the grade regardless of how it was mangled), SKIP pure-symbol noise.
+      // Hyphens in compound names (e.g. "Ul-Jamal") are preserved.
+      const extractNameFromSegment = (seg: string): { name: string; confidence: number } => {
+        const tokens = seg.trim().split(/\s+/);
+        const nameTokens: string[] = [];
+        for (const token of tokens) {
+          if (!token) continue;
+          if (/^\d/.test(token)) break;               // digit = grade starts here, stop
+          if (/^[^a-zA-Z(]/.test(token)) continue;    // pure-symbol OCR noise, skip
+          nameTokens.push(token.replace(/[^a-zA-Z\s()\-]/g, "").replace(/[()]/g, "").trim());
+        }
+        return { name: nameTokens.filter(Boolean).join(" ").trim(), confidence: 0.7 };
       };
-
-      // Parse a table cell into player objects.
-      // Player names are letters+spaces only — strip everything else (grades, OCR noise).
-      // Single-char "words" (OCR noise like 'C' from '°C') are also discarded.
-      const extractPlayers = (segment: string) =>
-        segment
-          .split(/\s*\+\s*/)
-          .map(n =>
-            n
-              .replace(/[^a-zA-Z\s]/g, " ")
-              .replace(/\s+/g, " ")
-              .trim()
-              .split(" ")
-              .filter(word => word.length > 1)
-              .join(" ")
-          )
-          .filter(n => n.length > 1)
-          .slice(0, 2)
-          .map(name => ({ name, confidence: 0.7 }));
 
       const extractFromImage = async (buffer: Buffer) => {
         const worker = await createTesseractWorker("eng");
         try {
+          // PSM 6 = single uniform block of text — much better for dense match tables
+          await worker.setParameters({ tessedit_pageseg_mode: "6" });
           const { data } = await worker.recognize(buffer);
 
           // Merge wrapped lines: a row splits when a player name wraps onto
@@ -35095,33 +35088,90 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
 
           const results: any[] = [];
           for (const line of lines) {
-            // OCR often reads decimal grades as dashes (7.4 → 7-4, 12.4 → 12-4).
-            // These garbled grades appear before the real score and have invalid values.
-            // Use a global search and take the first match that IS a valid score.
-            const globalRe = new RegExp(scoreRe.source, "g");
-            let validMatch: RegExpExecArray | null = null;
-            let m: RegExpExecArray | null;
-            while ((m = globalRe.exec(line)) !== null) {
-              const a = parseInt(m[1]), b = parseInt(m[2]);
-              if (isValidScore(a, b) || isValidScore(b, a)) { validMatch = m; break; }
-            }
-            if (!validMatch) continue;
-            const scoreA = parseInt(validMatch[1]), scoreB = parseInt(validMatch[2]);
-
-            const idx = validMatch.index;
-            // Left side: strip match-type prefix (e.g. "MMMM ")
-            const left = line.slice(0, idx).replace(/^[LMlm]{3,5}\s+/, "").trim();
-            // Right side: strip "Edited ?" badge and trailing time columns
-            const right = line.slice(idx + validMatch[0].length)
+            // Pre-clean: strip match-type prefix, "Edited ?" badge, trailing timestamps.
+            const preLine = line
+              .replace(/^[LMlm]{3,5}\s+/, "")
               .replace(/\s*Edited\s*\??\s*/gi, " ")
               .replace(/\s+\d{1,2}:\d{2}.*$/, "")
               .trim();
 
-            const teamA = extractPlayers(left);
-            const teamB = extractPlayers(right);
-            if (!teamA.length || !teamB.length) continue;
+            // Split on ' + ' to locate partner boundaries.
+            // Standard doubles row: [p1A grade] + [p2A grade SCORE p1B grade] + [p2B grade]
+            const parts = preLine.split(/\s*\+\s*/);
 
-            results.push({ teamA, teamB, scoreA, scoreB, confidence: 0.7 });
+            if (parts.length >= 3) {
+              const midSeg = parts[1];
+
+              // Find the score in the middle segment: the first NN-NN pattern after which
+              // the remaining text begins with a letter (= start of the opposing player name).
+              // This skips garbled grades that happen to look like scores (e.g. "28-1" from
+              // grade 28.1) because those are always followed by more digits, not a name.
+              const segRe = new RegExp(scoreRe.source, "g");
+              let scoreMatch: RegExpExecArray | null = null;
+              let sm: RegExpExecArray | null;
+              while ((sm = segRe.exec(midSeg)) !== null) {
+                const after = midSeg.slice(sm.index + sm[0].length).trimStart();
+                if (after.length === 0 || /^[a-zA-Z(]/.test(after)) { scoreMatch = sm; break; }
+              }
+              // Fallback 1: highest winner if no alpha-bounded score found.
+              if (!scoreMatch) {
+                const fbRe = new RegExp(scoreRe.source, "g");
+                let bestHi = -1;
+                while ((sm = fbRe.exec(midSeg)) !== null) {
+                  const hi = Math.max(parseInt(sm[1]), parseInt(sm[2]));
+                  if (hi > bestHi) { bestHi = hi; scoreMatch = sm; }
+                }
+              }
+
+              // Fallback 2: no NN-NN pattern at all (e.g. dash dropped by OCR → "217").
+              // Split the middle segment at the digit boundary between p2A's grade and
+              // p1B's name so we can still extract both players. Score = 0 (user fills in).
+              if (!scoreMatch) {
+                const midTokens = midSeg.trim().split(/\s+/);
+                let p1BStartIdx = 0;
+                let passedGrade = false;
+                for (let ti = 0; ti < midTokens.length; ti++) {
+                  if (!passedGrade) {
+                    if (/^\d/.test(midTokens[ti])) passedGrade = true;
+                  } else {
+                    if (/^[a-zA-Z(]/.test(midTokens[ti])) { p1BStartIdx = ti; break; }
+                  }
+                }
+                const p1A = extractNameFromSegment(parts[0]);
+                const p2A = extractNameFromSegment(midSeg);
+                const p1B = extractNameFromSegment(midTokens.slice(p1BStartIdx).join(" "));
+                const p2B = extractNameFromSegment(parts.slice(2).join(" "));
+                const teamA = [p1A, p2A].filter(p => p.name.length > 0);
+                const teamB = [p1B, p2B].filter(p => p.name.length > 0);
+                results.push({ teamA, teamB, scoreA: 0, scoreB: 0, confidence: 0.7 });
+                continue;
+              }
+
+              const scoreA = parseInt(scoreMatch[1]), scoreB = parseInt(scoreMatch[2]);
+              const p2AStr = midSeg.slice(0, scoreMatch.index);
+              const p1BStr = midSeg.slice(scoreMatch.index + scoreMatch[0].length);
+
+              const p1A = extractNameFromSegment(parts[0]);
+              const p2A = extractNameFromSegment(p2AStr);
+              const p1B = extractNameFromSegment(p1BStr);
+              // Join any extra parts (>3) as the second opposing player segment.
+              const p2B = extractNameFromSegment(parts.slice(2).join(" "));
+
+              const teamA = [p1A, p2A].filter(p => p.name.length > 0);
+              const teamB = [p1B, p2B].filter(p => p.name.length > 0);
+
+              results.push({ teamA, teamB, scoreA, scoreB, confidence: 0.7 });
+
+            } else {
+              // Fewer than 3 parts — fall back to score-position split.
+              const chosenMatch = scoreRe.exec(preLine);
+              if (!chosenMatch) continue;
+              const scoreA = parseInt(chosenMatch[1]), scoreB = parseInt(chosenMatch[2]);
+              const idx = chosenMatch.index;
+              const teamA = preLine.slice(0, idx).trim().split(/\s*\+\s*/).map(extractNameFromSegment).filter(p => p.name.length > 0);
+              const teamB = preLine.slice(idx + chosenMatch[0].length).trim().split(/\s*\+\s*/).map(extractNameFromSegment).filter(p => p.name.length > 0);
+              results.push({ teamA, teamB, scoreA, scoreB, confidence: 0.7 });
+            }
           }
           return results;
         } finally {
