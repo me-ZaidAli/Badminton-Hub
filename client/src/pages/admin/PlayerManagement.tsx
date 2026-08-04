@@ -82,6 +82,9 @@ export default function PlayerManagement() {
   const { data: clubs } = useClubs();
   const { data: myAdminClubs } = useMyAdminClubs(!!user);
 
+  console.log("Players data:", players);
+  console.log("users data:", user);
+
   const isSuperAdmin = user?.role === "OWNER";
   const isPlatformAdmin = user?.role === "ADMIN";
 
@@ -448,6 +451,7 @@ export default function PlayerManagement() {
                       />
                     </TableHead>
                     <TableHead>Member</TableHead>
+                    <TableHead>Phone</TableHead>
                     <TableHead>Club(s)</TableHead>
                     <TableHead>Category</TableHead>
                     <TableHead>Gender</TableHead>
@@ -488,6 +492,11 @@ export default function PlayerManagement() {
                               </p>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <p className="text-sm" data-testid={`text-member-phone-${player.id}`}>
+                            {player.phone ?? <span className="text-muted-foreground text-xs">—</span>}
+                          </p>
                         </TableCell>
                         <TableCell>
                           <div className="flex items-center gap-1 flex-wrap">

@@ -37,7 +37,7 @@ const httpServer = createServer(app);
 
 // Allow the BSL hub (Next.js on :4000) and the main Vite frontend to make
 // credentialed API calls. Add more origins to ALLOWED_ORIGINS in production.
-const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:4000,http://localhost:5173,http://localhost:4000,http://localhost:3000")
+const allowedOrigins = (process.env.ALLOWED_ORIGINS ?? "http://localhost:4000,http://localhost:5173,http://localhost:4000,http://localhost:3000,https://badmintonhub.org")
   .split(",")
   .map((o) => o.trim());
 

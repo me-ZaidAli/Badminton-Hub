@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { z } from "zod";
 import { useRegister } from "@/hooks/use-auth";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -18,36 +17,8 @@ import { Link, useSearch } from "wouter";
 import { Eye, EyeOff, Shield, KeyRound, Gift, Check, Loader2, Megaphone, FileText, UserCheck } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
-
-const DAYS_OF_WEEK = [
-  { value: "Monday", label: "Mon" },
-  { value: "Tuesday", label: "Tue" },
-  { value: "Wednesday", label: "Wed" },
-  { value: "Thursday", label: "Thu" },
-  { value: "Friday", label: "Fri" },
-  { value: "Saturday", label: "Sat" },
-  { value: "Sunday", label: "Sun" },
-] as const;
-
-const SKILL_LEVELS = [
-  { value: "BEGINNER", label: "Beginner" },
-  { value: "INTERMEDIATE", label: "Intermediate" },
-  { value: "ADVANCED", label: "Advanced" },
-  { value: "COMPETITIVE", label: "Competitive" },
-] as const;
-
-const ACQUISITION_OPTIONS = [
-  { value: "FACEBOOK", label: "Facebook" },
-  { value: "INSTAGRAM", label: "Instagram" },
-  { value: "TIKTOK", label: "TikTok" },
-  { value: "WEBSITE", label: "Website" },
-  { value: "WORD_OF_MOUTH", label: "Word of Mouth" },
-  { value: "LEISURE_CENTRE", label: "Leisure Centre" },
-  { value: "SAW_SESSION", label: "Saw a Session Running" },
-  { value: "THROUGH_COACH", label: "Through a Coach" },
-  { value: "REFERRAL", label: "Referral Link / Code" },
-  { value: "OTHER", label: "Other" },
-] as const;
+import { DAYS_OF_WEEK, SKILL_LEVELS, ACQUISITION_OPTIONS, COUNTRY_DIAL_CODES } from "./constants";
+import { formSchema, type RegisterFormValues } from "./registerSchema";
 
 function safeNext(raw: string | null | undefined): string | null {
   if (!raw) return null;
@@ -57,78 +28,6 @@ function safeNext(raw: string | null | undefined): string | null {
   } catch {}
   return null;
 }
-
-const formSchema = z.object({
-  fullName: z.string().min(2, "Name must be at least 2 characters"),
-  nickname: z.string().optional(),
-  showPublicName: z.boolean().default(false),
-  username: z.string().email("Invalid email address"),
-  password: z.string().min(6, "Password must be at least 6 characters"),
-  dateOfBirth: z.string().optional(),
-  isJunior: z.boolean().default(false),
-  parentGuardianName: z.string().optional(),
-  parentGuardianEmail: z.string().optional(),
-  acquisitionSource: z.string().min(1, "Please tell us how you heard about us"),
-  acquisitionSourceOther: z.string().optional(),
-  isTrialPlayer: z.boolean().default(false),
-  trialClubId: z.string().optional(),
-  selfAssessedLevel: z.string().optional(),
-  trialExperience: z.string().optional(),
-  preferredDays: z.array(z.string()).default([]),
-  joinClubIds: z.array(z.number()).default([]),
-  confirmAccurate: z.boolean().refine(val => val === true, { message: "You must confirm your information is accurate" }),
-  acceptTerms: z.boolean().refine(val => val === true, { message: "You must agree to the Terms & Conditions" }),
-  acceptPrivacy: z.boolean().refine(val => val === true, { message: "You must agree to the Privacy Policy" }),
-  parentalConsent: z.boolean().optional(),
-}).refine(
-  (data) => {
-    if (data.isTrialPlayer) {
-      return !!data.trialClubId && data.trialClubId.length > 0;
-    }
-    return true;
-  },
-  { message: "Please select a club for your trial", path: ["trialClubId"] }
-).refine(
-  (data) => {
-    if (data.isTrialPlayer) {
-      return !!data.selfAssessedLevel && data.selfAssessedLevel.length > 0;
-    }
-    return true;
-  },
-  { message: "Please select your skill level", path: ["selfAssessedLevel"] }
-).refine(
-  (data) => {
-    if (data.isJunior) {
-      return !!data.parentGuardianName && data.parentGuardianName.length >= 2;
-    }
-    return true;
-  },
-  { message: "Parent/guardian name is required for junior accounts", path: ["parentGuardianName"] }
-).refine(
-  (data) => {
-    if (data.isJunior) {
-      return !!data.parentGuardianEmail && data.parentGuardianEmail.includes("@");
-    }
-    return true;
-  },
-  { message: "A valid parent/guardian email is required for junior accounts", path: ["parentGuardianEmail"] }
-).refine(
-  (data) => {
-    if (data.isJunior) {
-      return data.parentalConsent === true;
-    }
-    return true;
-  },
-  { message: "Parental consent is required for junior accounts", path: ["parentalConsent"] }
-).refine(
-  (data) => {
-    if (data.acquisitionSource === "OTHER") {
-      return !!data.acquisitionSourceOther && data.acquisitionSourceOther.trim().length > 0;
-    }
-    return true;
-  },
-  { message: "Please tell us how you heard about us", path: ["acquisitionSourceOther"] }
-);
 
 export default function Register() {
   const searchString = useSearch();
@@ -178,7 +77,7 @@ export default function Register() {
     }
   }
 
-  const form = useForm<z.infer<typeof formSchema>>({
+  const form = useForm<RegisterFormValues>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       fullName: "",
@@ -186,6 +85,8 @@ export default function Register() {
       showPublicName: false,
       username: "",
       password: "",
+      phoneCountryCode: "+44__0",
+      phoneNumber: "",
       dateOfBirth: "",
       isJunior: false,
       parentGuardianName: "",
@@ -219,7 +120,7 @@ export default function Register() {
     }
   }, [referralValid, referralCode]);
 
-  function onSubmit(values: z.infer<typeof formSchema>) {
+  function onSubmit(values: RegisterFormValues) {
     const acceptedPolicies = ["TERMS_CONDITIONS", "PRIVACY_POLICY"];
     if (values.isJunior) {
       acceptedPolicies.push("JUNIOR_PARENTAL_CONSENT");
@@ -236,6 +137,9 @@ export default function Register() {
         showPublicName: values.showPublicName,
         email: values.username,
         password: values.password,
+        phone: values.phoneNumber?.trim()
+          ? `${values.phoneCountryCode.split("__")[0]}${values.phoneNumber.trim()}`
+          : undefined,
         dateOfBirth: values.dateOfBirth || undefined,
         isJunior: values.isJunior,
         parentGuardianName: values.isJunior ? values.parentGuardianName : undefined,
@@ -484,6 +388,50 @@ export default function Register() {
                   </FormItem>
                 )}
               />
+              <FormItem>
+                <FormLabel>Phone Number</FormLabel>
+                <div className="flex gap-2">
+                  <FormField
+                    control={form.control}
+                    name="phoneCountryCode"
+                    render={({ field }) => (
+                      <Select onValueChange={field.onChange} value={field.value}>
+                        <FormControl>
+                          <SelectTrigger className="w-[140px] shrink-0" data-testid="select-phone-country-code">
+                            <SelectValue />
+                          </SelectTrigger>
+                        </FormControl>
+                        <SelectContent className="max-h-72">
+                          {COUNTRY_DIAL_CODES.map((c, i) => (
+                            <SelectItem key={i} value={c.code + "__" + i} data-testid={`select-item-dialcode-${i}`}>
+                              {c.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  />
+                  <FormField
+                    control={form.control}
+                    name="phoneNumber"
+                    render={({ field }) => (
+                      <FormItem className="flex-1">
+                        <FormControl>
+                          <Input
+                            type="tel"
+                            placeholder="e.g. 7911 123456"
+                            {...field}
+                            data-testid="input-phone-number"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Used by your club for session reminders and urgent contact only.</p>
+              </FormItem>
+
               <FormField
                 control={form.control}
                 name="dateOfBirth"
