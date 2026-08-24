@@ -34789,10 +34789,6 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
     }
   });
 
-  // Manually set the user-facing balance for a specific (user, club) pair.
-  // Computes delta vs current credit_ledger sum, inserts a corrective ledger
-  // row AND mirrors the same delta into wallets.balance + wallet_transactions
-  // so both ledgers stay in lockstep.
   app.post("/api/god-mode/wallets/:walletId/set-balance", async (req, res) => {
     if (!req.isAuthenticated()) return res.sendStatus(401);
     const u = req.user as any;
@@ -34805,78 +34801,102 @@ Return JSON: {"style":"<style>","explanation":"<2-3 sentences explaining strengt
       if (typeof targetBalance !== "number" || !Number.isFinite(targetBalance)) {
         return res.status(400).json({ message: "targetBalance (pence) is required" });
       }
+      // Credit balances must never go negative — reject bad input outright
+      // rather than writing a negative target and having to clean it up later.
+      if (targetBalance < 0) {
+        return res.status(400).json({ message: "Target balance cannot be negative" });
+      }
       const result = await db.transaction(async (trx) => {
-        // Row-lock the wallet so concurrent admin amends serialize on it,
-        // preventing two operators both computing delta from the same snapshot.
+
         const lockRes = await trx.execute(sql`SELECT * FROM wallets WHERE id = ${walletId} FOR UPDATE`);
         const w = lockRes.rows?.[0] as any;
         if (!w) throw new Error("NOT_FOUND");
-        // Enforce wallet scope: scoped wallets can only be amended for clubs
-        // they're allowed to spend at. Global wallets accept any club.
-        if (!w.is_global) {
-          const allowed: number[] = Array.isArray(w.allowed_club_ids) ? w.allowed_club_ids.map(Number) : [];
-          if (!allowed.includes(Number(clubId))) {
-            throw new Error("OUT_OF_SCOPE");
-          }
-        }
-        // Reconcile BOTH sides to the target independently so any historical
-        // drift between credit_ledger and wallets.balance is actually closed
-        // in one click (not just hidden). The two corrective amounts may
-        // differ — that's the whole point: their starting points differed.
-        //   walletDelta = target - wallets.balance
-        //   ledgerDelta = target - SUM(credit_ledger entries in this wallet's scope)
-        // After commit: wallet.balance == target AND ledger sum (in scope) == target.
         const ownerUserId = Number(w.user_id);
-        const walletCurrent = Number(w.balance ?? 0);
-        const isGlobal = Boolean(w.is_global);
-        const scopedClubIds: number[] = Array.isArray(w.allowed_club_ids)
-          ? w.allowed_club_ids.map(Number)
-          : [];
-        let ledgerCurrent = 0;
-        if (isGlobal) {
-          const r = await trx.execute(sql`
-            SELECT COALESCE(SUM(amount), 0)::int AS s
-            FROM credit_ledger WHERE user_id = ${ownerUserId}
-          `);
-          ledgerCurrent = Number((r.rows?.[0] as any)?.s ?? 0);
-        } else if (scopedClubIds.length > 0) {
-          const r = await trx.execute(sql`
-            SELECT COALESCE(SUM(amount), 0)::int AS s
-            FROM credit_ledger
-            WHERE user_id = ${ownerUserId} AND club_id = ANY(${scopedClubIds})
-          `);
-          ledgerCurrent = Number((r.rows?.[0] as any)?.s ?? 0);
+
+        // A user can own several wallet rows (e.g. one per club). The
+        // per-club balances shown to admins come from credit_ledger for the
+        // WHOLE user, not just this wallet's scope — so the balance for the
+        // club being reset must move on whichever wallet actually owns that
+        // club, not whichever wallet's modal happened to be open. Locking
+        // all of the user's wallets here also keeps concurrent amends safe.
+        const siblingsRes = await trx.execute(sql`SELECT * FROM wallets WHERE user_id = ${ownerUserId} FOR UPDATE`);
+        const userWallets = (siblingsRes.rows as any[]) || [];
+        const owningWallet = userWallets.find((uw) =>
+          uw.is_global || (Array.isArray(uw.allowed_club_ids) && uw.allowed_club_ids.map(Number).includes(Number(clubId)))
+        );
+
+        if (!owningWallet) {
+          const [existing] = await trx.select({ id: creditLedger.id }).from(creditLedger)
+            .where(and(eq(creditLedger.userId, ownerUserId), eq(creditLedger.clubId, Number(clubId))))
+            .limit(1);
+          if (!existing) throw new Error("OUT_OF_SCOPE");
         }
-        const walletDelta = Math.round(targetBalance - walletCurrent);
-        const ledgerDelta = Math.round(targetBalance - ledgerCurrent);
-        if (walletDelta === 0 && ledgerDelta === 0) {
-          return { walletId, clubId, previousBalance: walletCurrent, newBalance: walletCurrent, delta: 0, ledgerDelta: 0, noop: true };
-        }
-        const note = reason || `Manual balance set to £${(targetBalance / 100).toFixed(2)} by admin (wallet was £${(walletCurrent / 100).toFixed(2)}, ledger sum was £${(ledgerCurrent / 100).toFixed(2)})`;
-        if (ledgerDelta !== 0) {
+
+        // Fall back to the wallet whose modal was open only for the orphaned-
+        // ledger-history case above (no wallet actually scoped to this club).
+        const targetWallet = owningWallet || w;
+        const targetWalletId = Number(targetWallet.id);
+        const walletCurrent = Number(targetWallet.balance ?? 0);
+        const [clubRow] = await trx.select({ s: sql<number>`COALESCE(SUM(${creditLedger.amount}), 0)::int` })
+          .from(creditLedger)
+          .where(and(eq(creditLedger.userId, ownerUserId), eq(creditLedger.clubId, Number(clubId))));
+
+        const clubLedgerCurrent = Number(clubRow?.s ?? 0);
+
+        const delta = Math.round(targetBalance - clubLedgerCurrent);
+        const note = reason || `Manual balance set to £${(targetBalance / 100).toFixed(2)} for this club by admin (was £${(clubLedgerCurrent / 100).toFixed(2)})`;
+        if (delta !== 0) {
           await trx.insert(creditLedger).values({
             userId: ownerUserId,
             clubId,
-            amount: ledgerDelta,
+            amount: delta,
             reason: note,
             createdById: u.id,
           });
-        }
-        if (walletDelta !== 0) {
-          await trx.update(wallets)
-            .set({ balance: sql`${wallets.balance} + ${walletDelta}`, updatedAt: new Date() })
-            .where(eq(wallets.id, walletId));
           await trx.insert(walletTransactions).values({
-            walletId,
+            walletId: targetWalletId,
             userId: ownerUserId,
             clubId,
-            amount: walletDelta,
-            type: walletDelta >= 0 ? ("CREDIT" as const) : ("DEBIT" as const),
+            amount: delta,
+            type: delta >= 0 ? ("CREDIT" as const) : ("DEBIT" as const),
             reason: note,
             createdById: u.id,
           });
         }
-        return { walletId, clubId, previousBalance: walletCurrent, newBalance: targetBalance, delta: walletDelta, ledgerDelta };
+
+        let newBalance: number;
+        if (owningWallet) {
+          // Recompute the balance directly from ledger truth across ALL of the
+          // user's clubs (credit_ledger + available reward credits) — the same
+          // unscoped total the "Per-club balances" UI displays and sums.
+          // Scoping this to just the wallet's own allowedClubIds was the bug:
+          // it discarded every OTHER club's balance from the total, so
+          // resetting one club appeared to zero the whole thing. Summing
+          // unscoped guarantees resetting one club only reduces the total by
+          // that club's own amount, and resetting every club (looping this
+          // endpoint per club) correctly lands the total on exactly £0.
+          const totalRes = await trx.execute(sql`
+            SELECT COALESCE(SUM(amount), 0)::int AS s FROM (
+              SELECT amount FROM credit_ledger WHERE user_id = ${ownerUserId}
+              UNION ALL
+              SELECT credits AS amount FROM player_reward_ledger WHERE player_id = ${ownerUserId} AND credits > 0 AND status = 'AVAILABLE'
+            ) combined
+          `);
+          newBalance = Math.max(0, Number((totalRes.rows?.[0] as any)?.s ?? 0));
+          await trx.update(wallets)
+            .set({ balance: newBalance, updatedAt: new Date() })
+            .where(eq(wallets.id, targetWalletId));
+        } else {
+          // Orphaned ledger history with no wallet actually scoped to this
+          // club — best effort: nudge the opened wallet by the same delta,
+          // floored so it can never end up negative.
+          newBalance = Math.max(0, walletCurrent + delta);
+          await trx.update(wallets)
+            .set({ balance: newBalance, updatedAt: new Date() })
+            .where(eq(wallets.id, targetWalletId));
+        }
+
+        return { walletId: targetWalletId, clubId, previousBalance: walletCurrent, newBalance, delta, ledgerDelta: delta, noop: delta === 0 && newBalance === walletCurrent };
       });
       res.json(result);
     } catch (err: any) {
