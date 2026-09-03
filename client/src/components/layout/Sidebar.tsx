@@ -155,6 +155,8 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
   const pinnedActivity = activityItems.filter(i => pinnedActivityHrefs.has(i.href));
   const pinnedClubHrefs = new Set(["/merchandise", "/rewards", "/deals", "/community"]);
   const pinnedClub = clubItems.filter(i => pinnedClubHrefs.has(i.href));
+  const pinnedCommsHrefs = new Set(["/guide"]);
+  const pinnedComms = commsItems.filter(i => pinnedCommsHrefs.has(i.href));
 
   const aggregateBadgeKeys = (items: NavItem[]): { primary?: keyof BadgeCounts; secondary?: keyof BadgeCounts } => {
     // Sum badge counts via a synthetic key list; we use the *first* primary
@@ -205,6 +207,9 @@ export function collapseToHubs(groups: NavGroup[]): NavGroup[] {
     clubHub.items = [...clubHub.items, ...pinnedClub];
   }
   const commsHub = makeHub("comms", "/hub/comms", "Communication", MessageSquare, commsItems);
+  if (commsHub && pinnedComms.length > 0) {
+    commsHub.items = [...commsHub.items, ...pinnedComms];
+  }
   if (activityHub) hubGroups.push(activityHub);
   if (clubHub) hubGroups.push(clubHub);
   if (commsHub) hubGroups.push(commsHub);
