@@ -94,7 +94,14 @@ export default function PlayerManagement() {
   }, [isSuperAdmin, isPlatformAdmin, myAdminClubs]);
 
   const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
   const [clubFilter, setClubFilter] = useState<string>("all");
+
+  // Only re-run the filter once the user pauses typing, not on every keystroke.
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(timer);
+  }, [search]);
 
   useEffect(() => {
     if (!isSuperAdmin && !isPlatformAdmin && myAdminClubs && myAdminClubs.length > 0 && clubFilter === "all") {
@@ -127,10 +134,11 @@ export default function PlayerManagement() {
         if (!hasAccessibleProfile) return false;
       }
       const profiles = p.playerProfiles || [];
-      const searchLower = search.toLowerCase();
-      const matchesSearch = !search ||
+      const searchLower = debouncedSearch.toLowerCase();
+      const matchesSearch = !debouncedSearch ||
         p.fullName.toLowerCase().includes(searchLower) ||
-        p.email.toLowerCase().includes(searchLower);
+        p.email.toLowerCase().includes(searchLower) ||
+        String(p.id) === debouncedSearch.trim();
       if (!matchesSearch) return false;
 
       const matchesClub = clubFilter === "all" ||
@@ -154,7 +162,7 @@ export default function PlayerManagement() {
 
       return matchesCategory && matchesGender && matchesRole && matchesStatus;
     });
-  }, [players, search, clubFilter, categoryFilter, genderFilter, roleFilter, statusFilter, accessibleClubIds]);
+  }, [players, debouncedSearch, clubFilter, categoryFilter, genderFilter, roleFilter, statusFilter, accessibleClubIds]);
 
   const bulkActionMutation = useMutation({
     mutationFn: async ({ profileIds, action }: { profileIds: number[], action: string }) => {
@@ -329,7 +337,7 @@ export default function PlayerManagement() {
             <div className="relative w-full sm:w-[280px]">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by name or email..."
+                placeholder="Search by name, email, or user ID..."
                 className="pl-10"
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
@@ -435,7 +443,7 @@ export default function PlayerManagement() {
             <div className="h-64 flex items-center justify-center text-muted-foreground">
               <div className="text-center">
                 <Users className="h-12 w-12 mx-auto mb-2 opacity-50" />
-                <p>No members found{search ? ` matching "${search}"` : ""}</p>
+                <p>No members found{debouncedSearch ? ` matching "${debouncedSearch}"` : ""}</p>
               </div>
             </div>
           ) : (
@@ -451,6 +459,7 @@ export default function PlayerManagement() {
                       />
                     </TableHead>
                     <TableHead>Member</TableHead>
+                    <TableHead>User ID</TableHead>
                     <TableHead>Phone</TableHead>
                     <TableHead>Club(s)</TableHead>
                     <TableHead>Category</TableHead>
@@ -492,6 +501,9 @@ export default function PlayerManagement() {
                               </p>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          <span className="text-xs font-mono text-muted-foreground" data-testid={`text-member-id-${player.id}`}>{player.id}</span>
                         </TableCell>
                         <TableCell>
                           <p className="text-sm" data-testid={`text-member-phone-${player.id}`}>
