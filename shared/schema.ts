@@ -2495,6 +2495,7 @@ export const cards = pgTable("cards", {
     textColor: string;
     accentColor: string;
     pattern?: string;
+    imageUrl?: string;
   }>(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
@@ -2541,6 +2542,21 @@ export const userCardsRelations = relations(userCards, ({ one }) => ({
 export const insertCardSchema = createInsertSchema(cards).omit({ id: true, createdAt: true });
 export type CardRecord = typeof cards.$inferSelect;
 export type InsertCard = z.infer<typeof insertCardSchema>;
+
+// Must match the keys of CARD_ICONS in client/src/components/MetalCard.tsx.
+export const cardIconPatterns = ["hearts", "shield", "scales", "stars", "network", "iron", "compass", "lightning", "shield-dark", "crown", "comet"] as const;
+export type CardIconPattern = typeof cardIconPatterns[number];
+
+export const createCardSchema = z.object({
+  name: z.string().trim().min(1, "Name is required").max(60, "Name must be 60 characters or fewer"),
+  description: z.string().trim().min(1, "Description is required").max(500, "Description must be 500 characters or fewer"),
+  cardCategory: z.enum(cardCategoryEnum.enumValues),
+  pattern: z.enum(cardIconPatterns),
+  // Only our own uploads (POST /api/admin/cards/upload-image) are allowed, since the URL goes into a CSS url().
+  imageUrl: z.string().regex(/^\/files\/cards\/[A-Za-z0-9._-]+$/, "Invalid card artwork").optional(),
+  isActive: z.boolean().default(true),
+});
+export type CreateCardInput = z.infer<typeof createCardSchema>;
 
 export const insertUserCardSchema = createInsertSchema(userCards).omit({ id: true, issuedAt: true });
 export type UserCardRecord = typeof userCards.$inferSelect;

@@ -28,6 +28,7 @@ type UserCard = {
     textColor: string;
     accentColor: string;
     pattern?: string;
+    imageUrl?: string;
   } | null;
   issuerName: string | null;
 };
@@ -93,6 +94,7 @@ function RecognitionCard3D({ card, onClick, compact = false }: { card: UserCard;
           cardName={card.cardName}
           serialNumber={card.serialNumber}
           pattern={card.designConfig?.pattern}
+          imageUrl={card.designConfig?.imageUrl}
           size={size}
         />
         <MetalCardBack
@@ -175,6 +177,7 @@ function FullScreenCardCarousel({ cards: cardList, initialIndex, open, onClose }
                       cardName={currentCard.cardName}
                       serialNumber={currentCard.serialNumber}
                       pattern={currentCard.designConfig?.pattern}
+                      imageUrl={currentCard.designConfig?.imageUrl}
                       size="large"
                     />
                     <MetalCardBack

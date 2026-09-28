@@ -17,6 +17,7 @@ type CardDesignConfig = {
   textColor: string;
   accentColor: string;
   pattern?: string;
+  imageUrl?: string;
 };
 
 type MetalMaterial = {
@@ -383,15 +384,17 @@ export function MetalCardFront({
   cardName,
   serialNumber,
   pattern,
+  imageUrl,
   size = "normal",
 }: {
   cardId: number;
   cardName: string;
   serialNumber?: string;
   pattern?: string;
+  imageUrl?: string;
   size?: "compact" | "normal" | "large";
 }) {
-  const cardImage = CARD_DESIGN_IMAGES[cardId];
+  const cardImage = imageUrl ?? CARD_DESIGN_IMAGES[cardId];
   const mat = METAL_MATERIALS[cardId] || DEFAULT_MATERIAL;
 
   if (cardImage) {

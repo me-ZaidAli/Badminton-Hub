@@ -7,7 +7,7 @@ import { users, sessionSignups, playerProfiles, clubs, sessions, matches, coache
 import { eq, and, sql, desc, asc, inArray, or, isNotNull, isNull, gt, gte, lte, like, ilike, sum, ne, aliasedTable } from "drizzle-orm";
 import { api } from "@shared/routes";
 import { z } from "zod";
-import { matchModeEnum, GRADE_ORDER } from "@shared/schema";
+import { matchModeEnum, GRADE_ORDER, createCardSchema } from "@shared/schema";
 import { scrypt, randomBytes } from "crypto";
 import { promisify } from "util";
 import { listCalendars, listUpcomingEvents } from "./google-calendar";
@@ -148,6 +148,16 @@ const uploadSessionCardImage = multer({
   fileFilter: (_req, file, cb) => {
     if (file.mimetype.startsWith("image/")) cb(null, true);
     else cb(new Error("Only image files allowed"));
+  },
+});
+
+// SVG is excluded because it can carry script when opened directly from /files/.
+const uploadRecognitionCardImage = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    if (["image/png", "image/jpeg", "image/webp"].includes(file.mimetype)) cb(null, true);
+    else cb(new Error("Card artwork must be a PNG, JPEG or WebP image"));
   },
 });
 
@@ -29443,6 +29453,94 @@ Keep it to about 300 words. Be encouraging but honest.`;
       res.json(allCards);
     } catch (err: any) {
       res.status(500).json({ message: err.message });
+    }
+  });
+
+  // Required by the designConfig column type but not used for rendering.
+  const defaultCardDesignColours = { gradient: "from-slate-600 via-zinc-500 to-stone-600", textColor: "text-white", accentColor: "#71717a" };
+
+  app.post("/api/admin/cards", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    const parsed = createCardSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid card details" });
+    }
+
+    const { name, description, cardCategory, pattern, imageUrl, isActive } = parsed.data;
+
+    try {
+      const [existingCard] = await db.select({ id: cards.id }).from(cards).where(sql`LOWER(${cards.name}) = LOWER(${name})`).limit(1);
+      if (existingCard) {
+        return res.status(409).json({ message: `A card named "${name}" already exists` });
+      }
+
+      const [createdCard] = await db.insert(cards).values({
+        name,
+        description,
+        cardCategory,
+        isActive,
+        designConfig: { ...defaultCardDesignColours, pattern, imageUrl },
+      }).returning();
+      res.status(201).json(createdCard);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to create card" });
+    }
+  });
+
+  app.put("/api/admin/cards/:id", requirePremium(clubIdFromSession), async (req, res) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+
+    const cardId = Number(req.params.id);
+    if (!Number.isInteger(cardId) || cardId <= 0) return res.status(400).json({ message: "Invalid card id" });
+
+    const parsed = createCardSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid card details" });
+    }
+
+    const { name, description, cardCategory, pattern, imageUrl, isActive } = parsed.data;
+
+    try {
+      const [existingCard] = await db.select().from(cards).where(eq(cards.id, cardId)).limit(1);
+      if (!existingCard) return res.status(404).json({ message: "Card not found" });
+
+      const [nameClash] = await db.select({ id: cards.id }).from(cards)
+        .where(and(sql`LOWER(${cards.name}) = LOWER(${name})`, ne(cards.id, cardId)))
+        .limit(1);
+      if (nameClash) {
+        return res.status(409).json({ message: `A card named "${name}" already exists` });
+      }
+
+      const [updatedCard] = await db.update(cards).set({
+        name,
+        description,
+        cardCategory,
+        isActive,
+        designConfig: { ...defaultCardDesignColours, ...existingCard.designConfig, pattern, imageUrl },
+      }).where(eq(cards.id, cardId)).returning();
+      res.json(updatedCard);
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to update card" });
+    }
+  });
+
+  app.post("/api/admin/cards/upload-image", requirePremium(clubIdFromSession), (req, res, next) => {
+    if (!req.isAuthenticated() || req.user!.role !== "OWNER") return res.sendStatus(403);
+    uploadRecognitionCardImage.single("image")(req, res, (uploadError: unknown) => {
+      if (!uploadError) return next();
+      const isTooLarge = uploadError instanceof multer.MulterError && uploadError.code === "LIMIT_FILE_SIZE";
+      const message = isTooLarge ? "Image must be 5MB or smaller" : uploadError instanceof Error ? uploadError.message : "Invalid image upload";
+      res.status(isTooLarge ? 413 : 400).json({ message });
+    });
+  }, async (req, res) => {
+    if (!req.file) return res.status(400).json({ message: "No image provided" });
+
+    try {
+      const imageUrl = await saveBufferToBucket(req.file.buffer, "cards", req.file.originalname);
+      res.json({ imageUrl });
+    } catch (error) {
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to upload image" });
     }
   });
 

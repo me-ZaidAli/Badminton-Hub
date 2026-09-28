@@ -15,17 +15,18 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "
 import {
   Loader2, Award, Search, Gift, XCircle, ChevronDown, ChevronRight, CreditCard,
   LayoutGrid, User, Clock, PoundSterling, ArrowUpDown, AlertTriangle, CheckCircle,
-  Timer, Zap, ShieldCheck, History
+  Timer, Zap, ShieldCheck, History, Plus, Pencil
 } from "lucide-react";
 import { format, formatDistanceToNow, isPast } from "date-fns";
 import { MetalCardFront, getMetalMaterial, CARD_ICONS } from "@/components/MetalCard";
+import { CreateCardDialog } from "@/components/CreateCardDialog";
 
 type CardRecord = {
   id: number;
   name: string;
   description: string;
   cardCategory: string;
-  designConfig: { gradient: string; textColor: string; accentColor: string; pattern?: string } | null;
+  designConfig: { gradient: string; textColor: string; accentColor: string; pattern?: string; imageUrl?: string } | null;
   isActive: boolean;
 };
 
@@ -78,6 +79,8 @@ export default function RecognitionCards() {
   const adminClubId = selectedIssueClubId || adminClubs[0]?.clubId || null;
   const [activeTab, setActiveTab] = useState<"gallery" | "active" | "expired" | "dashboard">("gallery");
   const [issueDialogOpen, setIssueDialogOpen] = useState(false);
+  const [createCardDialogOpen, setCreateCardDialogOpen] = useState(false);
+  const [cardBeingEdited, setCardBeingEdited] = useState<CardRecord | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string>("");
@@ -234,10 +237,16 @@ export default function RecognitionCards() {
           </h1>
           <p className="text-muted-foreground text-sm mt-1">Discretionary appreciation tokens for positive contribution, support, and sportsmanship</p>
         </div>
-        <Button onClick={() => { resetIssueForm(); setIssueDialogOpen(true); }} data-testid="button-issue-card">
-          <Gift className="h-4 w-4 mr-2" />
-          Issue Card
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => { setCardBeingEdited(null); setCreateCardDialogOpen(true); }} data-testid="button-create-card">
+            <Plus className="h-4 w-4 mr-2" />
+            New Card Type
+          </Button>
+          <Button onClick={() => { resetIssueForm(); setIssueDialogOpen(true); }} data-testid="button-issue-card">
+            <Gift className="h-4 w-4 mr-2" />
+            Issue Card
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
@@ -320,6 +329,7 @@ export default function RecognitionCards() {
                       cardId={card.id}
                       cardName={card.name}
                       pattern={card.designConfig?.pattern}
+                      imageUrl={card.designConfig?.imageUrl}
                       size="compact"
                     />
                   </div>
@@ -331,6 +341,16 @@ export default function RecognitionCards() {
                       <Badge variant="outline" className="text-[9px]">{card.cardCategory === "admin_gifted" ? "Admin Gifted" : card.cardCategory}</Badge>
                       <Badge variant={card.isActive ? "default" : "secondary"} className="text-[9px]">{card.isActive ? "Active" : "Inactive"}</Badge>
                     </div>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="w-full h-7 text-xs mt-1"
+                      onClick={() => { setCardBeingEdited(card); setCreateCardDialogOpen(true); }}
+                      data-testid={`button-edit-card-${card.id}`}
+                    >
+                      <Pencil className="h-3 w-3 mr-1.5" />
+                      Edit
+                    </Button>
                   </div>
                 )}
               </div>
@@ -387,6 +407,8 @@ export default function RecognitionCards() {
           toast={toast}
         />
       )}
+
+      <CreateCardDialog open={createCardDialogOpen} onOpenChange={setCreateCardDialogOpen} cardToEdit={cardBeingEdited} />
 
       <Dialog open={issueDialogOpen} onOpenChange={(open) => { if (!open) { setIssueDialogOpen(false); resetIssueForm(); } }}>
         <DialogContent className="bg-background" data-testid="dialog-issue-card">
@@ -485,6 +507,7 @@ export default function RecognitionCards() {
                       cardId={cardTypes.find(c => String(c.id) === selectedCardId)!.id}
                       cardName={cardTypes.find(c => String(c.id) === selectedCardId)!.name}
                       pattern={cardTypes.find(c => String(c.id) === selectedCardId)!.designConfig?.pattern}
+                      imageUrl={cardTypes.find(c => String(c.id) === selectedCardId)!.designConfig?.imageUrl}
                       size="normal"
                     />
                   </div>

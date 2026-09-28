@@ -46,7 +46,7 @@ type CardRecord = {
   name: string;
   description: string;
   cardCategory: string;
-  designConfig: { gradient: string; textColor: string; accentColor: string; pattern?: string } | null;
+  designConfig: { gradient: string; textColor: string; accentColor: string; pattern?: string; imageUrl?: string } | null;
   isActive: boolean;
 };
 
@@ -378,6 +378,7 @@ export default function BlackCardManagement() {
                           cardId={card.id}
                           cardName={card.name}
                           pattern={card.designConfig?.pattern}
+                          imageUrl={card.designConfig?.imageUrl}
                           size="compact"
                         />
                         {issuedCount > 0 && (
@@ -833,6 +834,7 @@ export default function BlackCardManagement() {
                       cardId={cardTypes.find(c => String(c.id) === selectedCardId)!.id}
                       cardName={cardTypes.find(c => String(c.id) === selectedCardId)!.name}
                       pattern={cardTypes.find(c => String(c.id) === selectedCardId)!.designConfig?.pattern}
+                      imageUrl={cardTypes.find(c => String(c.id) === selectedCardId)!.designConfig?.imageUrl}
                       size="normal"
                     />
                   </div>
