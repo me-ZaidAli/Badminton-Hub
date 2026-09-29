@@ -19,12 +19,22 @@ const CATEGORY_LABELS: Record<CreateCardInput["cardCategory"], string> = {
   milestone: "Milestone",
 };
 
+const RARITY_OPTIONS: Record<CreateCardInput["rarityLevel"], { label: string; defaultCreditPounds: string }> = {
+  standard: { label: "Standard", defaultCreditPounds: "1.00" },
+  rare: { label: "Rare", defaultCreditPounds: "2.00" },
+  epic: { label: "Epic", defaultCreditPounds: "3.50" },
+  legendary: { label: "Legendary", defaultCreditPounds: "5.00" },
+  mythic: { label: "Mythic", defaultCreditPounds: "7.50" },
+};
+
 export function CreateCardDialog({ open, onOpenChange, cardToEdit }: CreateCardDialogProps) {
   const { toast } = useToast();
   const isEditing = Boolean(cardToEdit);
   const [name, setName] = useState("");
   const [description, setDescription] = useState("");
   const [cardCategory, setCardCategory] = useState<CreateCardInput["cardCategory"]>("admin_gifted");
+  const [rarityLevel, setRarityLevel] = useState<CreateCardInput["rarityLevel"]>("standard");
+  const [creditPounds, setCreditPounds] = useState("");
   const [pattern, setPattern] = useState<CardIconPattern>("stars");
   const [isActive, setIsActive] = useState(true);
   const [imageUrl, setImageUrl] = useState<string | undefined>(undefined);
@@ -33,9 +43,12 @@ export function CreateCardDialog({ open, onOpenChange, cardToEdit }: CreateCardD
 
   useEffect(() => {
     if (!open) return;
+    const initialRarity = cardToEdit?.rarityLevel ?? "standard";
     setName(cardToEdit?.name ?? "");
     setDescription(cardToEdit?.description ?? "");
     setCardCategory(cardToEdit?.cardCategory === "milestone" ? "milestone" : "admin_gifted");
+    setRarityLevel(initialRarity);
+    setCreditPounds(cardToEdit ? (cardToEdit.weeklyCreditValue / 100).toFixed(2) : RARITY_OPTIONS[initialRarity].defaultCreditPounds);
     setPattern(cardIconPatterns.find((iconPattern) => iconPattern === cardToEdit?.designConfig?.pattern) ?? "stars");
     setIsActive(cardToEdit?.isActive ?? true);
     setImageUrl(cardToEdit?.designConfig?.imageUrl);
@@ -88,7 +101,8 @@ export function CreateCardDialog({ open, onOpenChange, cardToEdit }: CreateCardD
   };
 
   const handleSubmit = () => {
-    const parsed = createCardSchema.safeParse({ name, description, cardCategory, pattern, imageUrl, isActive });
+    const weeklyCreditValue = creditPounds.trim() === "" ? 0 : Math.round(Number(creditPounds) * 100);
+    const parsed = createCardSchema.safeParse({ name, description, cardCategory, pattern, imageUrl, rarityLevel, weeklyCreditValue, isActive });
     if (!parsed.success) {
       toast({ title: "Check the card details", description: parsed.error.issues[0]?.message, variant: "destructive" });
       return;
@@ -106,7 +120,7 @@ export function CreateCardDialog({ open, onOpenChange, cardToEdit }: CreateCardD
           </DialogTitle>
           <DialogDescription>
             {isEditing
-              ? "Changes apply to every copy of this card that has already been issued."
+              ? "Name, description and artwork changes show on cards already issued. Rarity and benefit apply to cards issued from now on."
               : "Add a new recognition card to the gallery so it can be issued to players."}
           </DialogDescription>
         </DialogHeader>
@@ -191,6 +205,47 @@ export function CreateCardDialog({ open, onOpenChange, cardToEdit }: CreateCardD
               </SelectContent>
             </Select>
           </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label>Rarity</Label>
+              <Select
+                value={rarityLevel}
+                onValueChange={(value) => {
+                  const selectedRarity = value as CreateCardInput["rarityLevel"];
+                  setRarityLevel(selectedRarity);
+                  setCreditPounds(RARITY_OPTIONS[selectedRarity].defaultCreditPounds);
+                }}
+              >
+                <SelectTrigger data-testid="select-create-card-rarity">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(RARITY_OPTIONS).map(([rarityValue, rarityOption]) => (
+                    <SelectItem key={rarityValue} value={rarityValue}>{rarityOption.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label htmlFor="create-card-credit">Benefit value (£)</Label>
+              <Input
+                id="create-card-credit"
+                type="number"
+                min="0"
+                max="100"
+                step="0.50"
+                placeholder="0.00"
+                value={creditPounds}
+                onChange={(event) => setCreditPounds(event.target.value)}
+                data-testid="input-create-card-credit"
+              />
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground -mt-2">
+            Every player awarded this card gets this rarity and benefit. Choosing a rarity fills in its usual benefit, which you can change. Use 0 for no benefit.
+          </p>
 
           <div className="space-y-1.5">
             <Label>Icon</Label>

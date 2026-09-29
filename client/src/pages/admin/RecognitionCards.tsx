@@ -20,6 +20,7 @@ import {
 import { format, formatDistanceToNow, isPast } from "date-fns";
 import { MetalCardFront, getMetalMaterial, CARD_ICONS } from "@/components/MetalCard";
 import { CreateCardDialog } from "@/components/CreateCardDialog";
+import type { CreateCardInput } from "@shared/schema";
 
 type CardRecord = {
   id: number;
@@ -27,6 +28,8 @@ type CardRecord = {
   description: string;
   cardCategory: string;
   designConfig: { gradient: string; textColor: string; accentColor: string; pattern?: string; imageUrl?: string } | null;
+  rarityLevel: CreateCardInput["rarityLevel"];
+  weeklyCreditValue: number;
   isActive: boolean;
 };
 
@@ -51,12 +54,12 @@ type IssuedCardRecord = {
   issuerName: string | null;
 };
 
-const RARITY_LABELS: Record<string, { label: string; color: string; defaultCredit: number }> = {
-  standard: { label: "Standard", color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300", defaultCredit: 1 },
-  rare: { label: "Rare", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300", defaultCredit: 2 },
-  epic: { label: "Epic", color: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300", defaultCredit: 3.5 },
-  legendary: { label: "Legendary", color: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300", defaultCredit: 5 },
-  mythic: { label: "Mythic", color: "bg-gradient-to-r from-rose-500 to-purple-500 text-white", defaultCredit: 7.5 },
+const RARITY_LABELS: Record<string, { label: string; color: string }> = {
+  standard: { label: "Standard", color: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300" },
+  rare: { label: "Rare", color: "bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300" },
+  epic: { label: "Epic", color: "bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300" },
+  legendary: { label: "Legendary", color: "bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300" },
+  mythic: { label: "Mythic", color: "bg-gradient-to-r from-rose-500 to-purple-500 text-white" },
 };
 
 const CARD_INFO_TEXT = "Recognition Cards are discretionary appreciation tokens issued by club coordinators. They do not represent payment, wages, or monetary value. They cannot be exchanged for cash, transferred, or accumulated for financial benefit. Any associated benefits are optional, irregular, and may be withdrawn at any time.";
@@ -84,13 +87,11 @@ export default function RecognitionCards() {
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string>("");
-  const [selectedRarity, setSelectedRarity] = useState("standard");
   const [customReason, setCustomReason] = useState("");
   const [expandedCardId, setExpandedCardId] = useState<number | null>(null);
   const [expandedPlayers, setExpandedPlayers] = useState<Set<number>>(new Set());
   const [issuedSearchQuery, setIssuedSearchQuery] = useState("");
   const [preIssueUserId, setPreIssueUserId] = useState<number | null>(null);
-  const [weeklyCreditInput, setWeeklyCreditInput] = useState("");
 
   const { data: cardTypes, isLoading: cardsLoading } = useQuery<CardRecord[]>({ queryKey: ["/api/admin/cards"] });
   const { data: allUsers } = useQuery<any[]>({ queryKey: ["/api/admin/users"] });
@@ -102,7 +103,7 @@ export default function RecognitionCards() {
   });
 
   const issueMutation = useMutation({
-    mutationFn: async (data: { userId: number; cardId: number; customReason: string; rarityLevel: string; weeklyCreditValue?: number; clubId?: number | null }) => {
+    mutationFn: async (data: { userId: number; cardId: number; customReason: string; clubId?: number | null }) => {
       await apiRequest("POST", "/api/admin/user-cards", data);
     },
     onSuccess: () => {
@@ -163,15 +164,13 @@ export default function RecognitionCards() {
   const resetIssueForm = () => {
     setSelectedUserId(null);
     setSelectedCardId("");
-    setSelectedRarity("standard");
     setCustomReason("");
     setSearchQuery("");
     setPreIssueUserId(null);
-    setWeeklyCreditInput(String(RARITY_LABELS.standard.defaultCredit));
   };
 
-  const poundsToDb = (pounds: string) => Math.round(parseFloat(pounds || "0") * 100);
   const dbToPounds = (pence: number) => (pence / 100).toFixed(2);
+  const selectedIssueCard = cardTypes?.find((cardType) => String(cardType.id) === selectedCardId);
 
   const openIssueForUser = (userId: number) => {
     const user = allUsers?.find((u: any) => u.id === userId);
@@ -306,7 +305,7 @@ export default function RecognitionCards() {
         <div className="space-y-4">
           <div className="bg-muted/50 rounded-xl p-4 border">
             <h3 className="font-semibold text-sm mb-2">Card Rarity Tiers</h3>
-            <p className="text-xs text-muted-foreground mb-3">Recognition cards come in different rarity tiers. Admins may optionally assign a discretionary benefit value when issuing a card.</p>
+            <p className="text-xs text-muted-foreground mb-3">Each card type has a fixed rarity tier and discretionary benefit value, set when the card is created or edited.</p>
             <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
               {Object.entries(RARITY_LABELS).map(([key, val]) => (
                 <div key={key} className="flex flex-col items-center gap-1 p-2 rounded-lg bg-background border">
@@ -337,6 +336,14 @@ export default function RecognitionCards() {
                 {expandedCardId === card.id && (
                   <div className="p-2 bg-muted/50 rounded-lg text-xs space-y-1" data-testid={`card-details-${card.id}`}>
                     <p className="text-muted-foreground leading-relaxed">{card.description}</p>
+                    <div className="flex items-center justify-between pt-1">
+                      <span className={`px-2 py-0.5 rounded-full text-[9px] font-semibold ${(RARITY_LABELS[card.rarityLevel] ?? RARITY_LABELS.standard).color}`}>
+                        {(RARITY_LABELS[card.rarityLevel] ?? RARITY_LABELS.standard).label}
+                      </span>
+                      <span className="text-[10px] font-semibold" data-testid={`text-card-benefit-${card.id}`}>
+                        {card.weeklyCreditValue > 0 ? `£${dbToPounds(card.weeklyCreditValue)} benefit` : "No benefit"}
+                      </span>
+                    </div>
                     <div className="flex items-center justify-between pt-1">
                       <Badge variant="outline" className="text-[9px]">{card.cardCategory === "admin_gifted" ? "Admin Gifted" : card.cardCategory}</Badge>
                       <Badge variant={card.isActive ? "default" : "secondary"} className="text-[9px]">{card.isActive ? "Active" : "Inactive"}</Badge>
@@ -515,48 +522,18 @@ export default function RecognitionCards() {
               )}
             </div>
 
-            <div>
-              <Label>Rarity Level</Label>
-              <Select
-                value={selectedRarity}
-                onValueChange={(val) => {
-                  setSelectedRarity(val);
-                  const rarityConfig = RARITY_LABELS[val];
-                  if (rarityConfig) {
-                    setWeeklyCreditInput(String(rarityConfig.defaultCredit));
-                  }
-                }}
-              >
-                <SelectTrigger data-testid="trigger-rarity">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(RARITY_LABELS).map(([key, val]) => (
-                    <SelectItem key={key} value={key}>
-                      {val.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
-              <Label>Discretionary Benefit Value (£)</Label>
-              <Input
-                type="number"
-                min="0"
-                step="0.50"
-                placeholder="e.g. 2.00"
-                value={weeklyCreditInput}
-                onChange={(e) => setWeeklyCreditInput(e.target.value)}
-                data-testid="input-weekly-credit"
-              />
-              <p className="text-[10px] text-muted-foreground mt-1">
-                {weeklyCreditInput && parseFloat(weeklyCreditInput) > 0
-                  ? `£${parseFloat(weeklyCreditInput).toFixed(2)} discretionary benefit while card is active`
-                  : "Leave empty for no associated benefit"}
-              </p>
-            </div>
+            {selectedIssueCard && (
+              <div className="flex items-center justify-between rounded-lg border bg-muted/40 px-3 py-2" data-testid="text-issue-card-terms">
+                <span className={`px-2 py-0.5 rounded-full text-[10px] font-semibold ${(RARITY_LABELS[selectedIssueCard.rarityLevel] ?? RARITY_LABELS.standard).color}`}>
+                  {(RARITY_LABELS[selectedIssueCard.rarityLevel] ?? RARITY_LABELS.standard).label}
+                </span>
+                <span className="text-xs text-muted-foreground">
+                  {selectedIssueCard.weeklyCreditValue > 0
+                    ? `£${dbToPounds(selectedIssueCard.weeklyCreditValue)} discretionary benefit while active`
+                    : "No associated benefit"}
+                </span>
+              </div>
+            )}
 
             <div>
               <Label>Personal Note (Optional)</Label>
@@ -583,8 +560,6 @@ export default function RecognitionCards() {
                   cardId: parseInt(selectedCardId),
                   clubId: adminClubId,
                   customReason,
-                  rarityLevel: selectedRarity,
-                  weeklyCreditValue: weeklyCreditInput ? poundsToDb(weeklyCreditInput) : 0,
                 });
               }}
               disabled={!selectedUserId || !selectedCardId || issueMutation.isPending}

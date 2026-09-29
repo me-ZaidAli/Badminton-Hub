@@ -91,7 +91,6 @@ export default function BlackCardManagement() {
   const [playerSearchQuery, setPlayerSearchQuery] = useState("");
   const [selectedUserId, setSelectedUserId] = useState<number | null>(null);
   const [selectedCardId, setSelectedCardId] = useState<string>("");
-  const [selectedRarity, setSelectedRarity] = useState("standard");
   const [customReason, setCustomReason] = useState("");
   const [preIssueUserId, setPreIssueUserId] = useState<number | null>(null);
 
@@ -134,7 +133,7 @@ export default function BlackCardManagement() {
   });
 
   const issueMutation = useMutation({
-    mutationFn: async (data: { userId: number; cardId: number; customReason: string; rarityLevel: string }) => {
+    mutationFn: async (data: { userId: number; cardId: number; customReason: string }) => {
       await apiRequest("POST", "/api/admin/user-cards", data);
     },
     onSuccess: () => {
@@ -166,7 +165,6 @@ export default function BlackCardManagement() {
   const resetIssueForm = () => {
     setSelectedUserId(null);
     setSelectedCardId("");
-    setSelectedRarity("standard");
     setCustomReason("");
     setPlayerSearchQuery("");
     setPreIssueUserId(null);
@@ -843,20 +841,6 @@ export default function BlackCardManagement() {
             </div>
 
             <div>
-              <Label>Rarity Level</Label>
-              <Select value={selectedRarity} onValueChange={setSelectedRarity}>
-                <SelectTrigger data-testid="trigger-rarity">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(RARITY_LABELS).map(([key, val]) => (
-                    <SelectItem key={key} value={key}>{val.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div>
               <Label>Personal Note (Optional)</Label>
               <Textarea
                 placeholder="Add a personal message for the player..."
@@ -876,7 +860,7 @@ export default function BlackCardManagement() {
                   toast({ title: "Missing Fields", description: "Please select a player and card type.", variant: "destructive" });
                   return;
                 }
-                issueMutation.mutate({ userId: selectedUserId, cardId: parseInt(selectedCardId), customReason, rarityLevel: selectedRarity });
+                issueMutation.mutate({ userId: selectedUserId, cardId: parseInt(selectedCardId), customReason });
               }}
               disabled={!selectedUserId || !selectedCardId || issueMutation.isPending}
               data-testid="button-confirm-issue"

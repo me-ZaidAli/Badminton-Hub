@@ -29467,7 +29467,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid card details" });
     }
 
-    const { name, description, cardCategory, pattern, imageUrl, isActive } = parsed.data;
+    const { name, description, cardCategory, pattern, imageUrl, rarityLevel, weeklyCreditValue, isActive } = parsed.data;
 
     try {
       const [existingCard] = await db.select({ id: cards.id }).from(cards).where(sql`LOWER(${cards.name}) = LOWER(${name})`).limit(1);
@@ -29479,6 +29479,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         name,
         description,
         cardCategory,
+        rarityLevel,
+        weeklyCreditValue,
         isActive,
         designConfig: { ...defaultCardDesignColours, pattern, imageUrl },
       }).returning();
@@ -29499,7 +29501,7 @@ Keep it to about 300 words. Be encouraging but honest.`;
       return res.status(400).json({ message: parsed.error.issues[0]?.message ?? "Invalid card details" });
     }
 
-    const { name, description, cardCategory, pattern, imageUrl, isActive } = parsed.data;
+    const { name, description, cardCategory, pattern, imageUrl, rarityLevel, weeklyCreditValue, isActive } = parsed.data;
 
     try {
       const [existingCard] = await db.select().from(cards).where(eq(cards.id, cardId)).limit(1);
@@ -29516,6 +29518,8 @@ Keep it to about 300 words. Be encouraging but honest.`;
         name,
         description,
         cardCategory,
+        rarityLevel,
+        weeklyCreditValue,
         isActive,
         designConfig: { ...defaultCardDesignColours, ...existingCard.designConfig, pattern, imageUrl },
       }).where(eq(cards.id, cardId)).returning();
@@ -29704,12 +29708,10 @@ Keep it to about 300 words. Be encouraging but honest.`;
         cardId: z.number().int().positive(),
         clubId: z.number().int().positive().optional(),
         customReason: z.string().max(500).optional(),
-        rarityLevel: z.enum(["standard", "rare", "epic", "legendary", "mythic"]).optional(),
-        weeklyCreditValue: z.number().int().min(0).optional(),
       });
       const parsed = issueSchema.safeParse(req.body);
       if (!parsed.success) return res.status(400).json({ message: "Invalid input", errors: parsed.error.flatten() });
-      const { userId, cardId, clubId: bodyClubId, customReason, rarityLevel, weeklyCreditValue } = parsed.data;
+      const { userId, cardId, clubId: bodyClubId, customReason } = parsed.data;
 
       const resolvedClubId = bodyClubId || (await clubIdFromSession(req));
 
@@ -29732,11 +29734,11 @@ Keep it to about 300 words. Be encouraging but honest.`;
         clubId: resolvedClubId,
         issuedBy: issuerId,
         customReason: customReason || null,
-        rarityLevel: rarityLevel || "standard",
+        rarityLevel: cardRecord[0].rarityLevel,
         serialNumber,
         expiresAt,
         cardIsActive: true,
-        weeklyCreditValue: weeklyCreditValue || 0,
+        weeklyCreditValue: cardRecord[0].weeklyCreditValue,
       }).returning();
 
       await db.insert(notifications).values({

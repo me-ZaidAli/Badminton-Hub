@@ -1,4 +1,4 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb, pgEnum, uniqueIndex, date } from "drizzle-orm/pg-core";
+import { pgTable, text, serial, integer, boolean, timestamp, jsonb, json, varchar, pgEnum, uniqueIndex, index, primaryKey, date } from "drizzle-orm/pg-core";
 import { relations, sql } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
@@ -96,6 +96,16 @@ export const users = pgTable("users", {
   selectedAvatar: text("selected_avatar"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// Login sessions, managed by connect-pg-simple. Declared here so drizzle-kit push doesn't drop it.
+export const userSessions = pgTable("user_sessions", {
+  sid: varchar("sid").notNull(),
+  sess: json("sess").notNull(),
+  expire: timestamp("expire", { precision: 6 }).notNull(),
+}, (table) => ({
+  sessionPkey: primaryKey({ name: "session_pkey", columns: [table.sid] }),
+  expireIdx: index("IDX_session_expire").on(table.expire),
+}));
 
 // === CLUBS ===
 export const clubs = pgTable("clubs", {
@@ -2497,6 +2507,9 @@ export const cards = pgTable("cards", {
     pattern?: string;
     imageUrl?: string;
   }>(),
+  rarityLevel: cardRarityEnum("rarity_level").default("standard").notNull(),
+  // Pence. Copied onto each user_cards row when the card is issued.
+  weeklyCreditValue: integer("weekly_credit_value").default(0).notNull(),
   isActive: boolean("is_active").default(true).notNull(),
   createdAt: timestamp("created_at").defaultNow().notNull(),
 });
@@ -2554,6 +2567,8 @@ export const createCardSchema = z.object({
   pattern: z.enum(cardIconPatterns),
   // Only our own uploads (POST /api/admin/cards/upload-image) are allowed, since the URL goes into a CSS url().
   imageUrl: z.string().regex(/^\/files\/cards\/[A-Za-z0-9._-]+$/, "Invalid card artwork").optional(),
+  rarityLevel: z.enum(cardRarityEnum.enumValues).default("standard"),
+  weeklyCreditValue: z.number().int("Benefit must be in whole pence").min(0, "Benefit cannot be negative").max(10000, "Benefit must be £100 or less").default(0),
   isActive: z.boolean().default(true),
 });
 export type CreateCardInput = z.infer<typeof createCardSchema>;
@@ -2798,7 +2813,7 @@ export const insertTrialEvaluationSchema = createInsertSchema(trialEvaluations).
 export type TrialEvaluation = typeof trialEvaluations.$inferSelect;
 export type InsertTrialEvaluation = z.infer<typeof insertTrialEvaluationSchema>;
 
-export const lessonRequestStatusEnum = pgEnum("lesson_request_status", ["PENDING", "ACCEPTED", "DECLINED", "CANCELLED", "COMPLETED"]);
+export const lessonRequestStatusEnum = pgEnum("lesson_request_status", ["PENDING", "ACCEPTED", "DECLINED", "CANCELLED", "COMPLETED", "NO_SHOW"]);
 export const lessonTypeEnum = pgEnum("lesson_type", ["ONE_TO_ONE", "GROUP"]);
 
 export const lessonRequests = pgTable("lesson_requests", {
@@ -2819,7 +2834,12 @@ export const lessonRequests = pgTable("lesson_requests", {
   endTime: timestamp("end_time", { withTimezone: true }),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at").defaultNow().notNull(),
-});
+}, (table) => ({
+  // Stops two live bookings for the same coach slot.
+  activeSlotIdx: uniqueIndex("idx_lesson_requests_active_slot")
+    .on(table.coachId, table.startTime)
+    .where(sql`status IN ('PENDING', 'ACCEPTED') AND start_time IS NOT NULL`),
+}));
 
 export const insertLessonRequestSchema = createInsertSchema(lessonRequests).omit({ id: true, createdAt: true, updatedAt: true });
 export type LessonRequest = typeof lessonRequests.$inferSelect;

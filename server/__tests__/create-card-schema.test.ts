@@ -18,6 +18,13 @@ assert.ok(validResult.success, "valid input should pass");
 assert.equal(validResult.data.name, "Smash Specialist", "name is trimmed");
 assert.equal(validResult.data.description, "For the hardest hitter in the club.", "description is trimmed");
 assert.equal(validResult.data.isActive, true, "isActive defaults to true");
+assert.equal(validResult.data.rarityLevel, "standard", "rarity defaults to standard");
+assert.equal(validResult.data.weeklyCreditValue, 0, "benefit defaults to 0");
+
+const withRarityResult = createCardSchema.safeParse({ ...validInput, rarityLevel: "legendary", weeklyCreditValue: 500 });
+assert.ok(withRarityResult.success, "rarity + benefit should pass");
+assert.equal(withRarityResult.data.rarityLevel, "legendary");
+assert.equal(withRarityResult.data.weeklyCreditValue, 500);
 
 const inactiveResult = createCardSchema.safeParse({ ...validInput, cardCategory: "milestone", isActive: false });
 assert.ok(inactiveResult.success, "milestone + inactive should pass");
@@ -40,6 +47,10 @@ const rejectedInputs: { label: string; input: Record<string, unknown>; expectedM
   { label: "artwork from another upload folder", input: { ...validInput, imageUrl: "/files/announcements/123.png" }, expectedMessage: "Invalid card artwork" },
   { label: "artwork URL with CSS breakout", input: { ...validInput, imageUrl: "/files/cards/a.png);background:url(x" }, expectedMessage: "Invalid card artwork" },
   { label: "artwork path traversal", input: { ...validInput, imageUrl: "/files/cards/../secret.png" }, expectedMessage: "Invalid card artwork" },
+  { label: "unknown rarity", input: { ...validInput, rarityLevel: "ultra" } },
+  { label: "negative benefit", input: { ...validInput, weeklyCreditValue: -100 }, expectedMessage: "Benefit cannot be negative" },
+  { label: "fractional pence benefit", input: { ...validInput, weeklyCreditValue: 150.5 }, expectedMessage: "Benefit must be in whole pence" },
+  { label: "benefit over £100", input: { ...validInput, weeklyCreditValue: 10001 }, expectedMessage: "Benefit must be £100 or less" },
 ];
 
 for (const { label, input, expectedMessage } of rejectedInputs) {
